@@ -892,6 +892,165 @@ select.jcf-input {
   color: var(--jcf-text-primary);
 }
 
+/* ── Timer / job actions bar ────────────────────────────────── */
+.jcf-timer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  background: var(--jcf-surface);
+  border: 1px solid var(--jcf-border);
+  border-radius: var(--jcf-radius-lg);
+  padding: 14px 18px;
+  margin-bottom: 16px;
+  box-shadow: var(--jcf-shadow-sm);
+}
+
+.jcf-timer-display {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.jcf-timer-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--jcf-text-muted);
+}
+
+.jcf-timer-value {
+  font-family: var(--jcf-mono);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--jcf-text-primary);
+  letter-spacing: 1px;
+}
+
+.jcf-timer-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.jcf-btn-start,
+.jcf-btn-complete {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 16px;
+  font-family: var(--jcf-font);
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: var(--jcf-radius-sm);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all var(--jcf-transition);
+}
+
+.jcf-btn-start {
+  background: var(--jcf-text-primary);
+  color: #fff;
+}
+
+.jcf-btn-start:hover {
+  opacity: 0.88;
+}
+
+.jcf-btn-complete {
+  background: var(--jcf-green);
+  color: #fff;
+}
+
+.jcf-btn-complete:hover {
+  opacity: 0.88;
+}
+
+.jcf-status-done {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--jcf-green);
+}
+
+/* ── Grid helpers ────────────────────────────────────────────── */
+.jcf-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.jcf-grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 900px) {
+  .jcf-grid-3,
+  .jcf-grid-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 680px) {
+  .jcf-grid-3,
+  .jcf-grid-4 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Employee assignment modal ──────────────────────────────── */
+.jcf-modal-title-plain {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--jcf-text-primary);
+  margin: 0;
+}
+
+.jcf-employee-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.jcf-employee-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--jcf-border);
+  border-radius: var(--jcf-radius);
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: all var(--jcf-transition);
+}
+
+.jcf-employee-item:hover {
+  border-color: var(--jcf-blue-mid);
+  background: var(--jcf-blue-light);
+}
+
+.jcf-employee-id {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--jcf-blue);
+}
+
+.jcf-employee-name {
+  font-size: 13px;
+  color: var(--jcf-text-secondary);
+}
 /* ── Spinner ─────────────────────────────────────────────────── */
 @keyframes jcf-spin {
   to {
