@@ -5,6 +5,7 @@ import {
   FaArrowLeft, FaSave, FaSpinner, FaInfoCircle, FaExclamationTriangle,
   FaTimesCircle, FaClock, FaListUl, FaFileAlt, FaPlus, FaTrash,
   FaCalendarAlt, FaPlay, FaPause, FaCheck, FaUserPlus, FaTimes,
+  FaBuilding,
 } from "react-icons/fa";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -49,6 +50,7 @@ interface WorkOrderOption {
   company?: string;
   qty?: number;
   qty_to_manufacture?: number;
+  item_name?: string;
   [key: string]: any;
 }
 
@@ -67,7 +69,7 @@ interface JobCardFormData {
   process_loss_qty: number;
   quality_inspection_template: string;
 
-  // Scheduled fields (merged into Details)
+  // Scheduled fields
   expected_start_date: Date | null;
   expected_end_date: Date | null;
   for_quantity: number;
@@ -83,6 +85,28 @@ interface JobCardFormData {
   company: string;
   status: string;
   assigned_employees: string[];
+  
+  // Warehouse fields
+  source_warehouse: string;
+  wip_warehouse: string;
+  target_warehouse: string;
+  
+  // Additional fields needed for API
+  production_item: string;
+  bom_no: string;
+  finished_good: string;
+  semi_fg_bom: string;
+  operation: string;
+  workstation_type: string;
+  workstation: string;
+  for_operation: string;
+  item_name: string;
+  project: string;
+  operation_row_id: number;
+  operation_row_number: number;
+  operation_id: string;
+  sequence_id: number;
+  serial_no: string;
 }
 
 interface ValidationError {
@@ -95,6 +119,125 @@ interface ValidationError {
 interface TabWarning {
   [key: number]: boolean;
 }
+
+// ─── Completion Modal Props ─────────────────────────────────────────────
+
+interface CompletionModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: (completedQty: number, lossQty: number) => void;
+  totalQty: number;
+  currentCompletedQty: number;
+  currentLossQty: number;
+}
+
+const CompletionModal: React.FC<CompletionModalProps> = ({
+  isOpen,
+  onClose,
+  onConfirm,
+  totalQty,
+  currentCompletedQty,
+  currentLossQty,
+}) => {
+  const [completedQty, setCompletedQty] = useState<number>(currentCompletedQty || 0);
+  const [lossQty, setLossQty] = useState<number>(currentLossQty || 0);
+  const [error, setError] = useState<string>("");
+
+  useEffect(() => {
+    setCompletedQty(currentCompletedQty || 0);
+    setLossQty(currentLossQty || 0);
+    setError("");
+  }, [currentCompletedQty, currentLossQty, isOpen]);
+
+  const handleConfirm = () => {
+    const total = completedQty + lossQty;
+    if (total > totalQty) {
+      setError(`Total (${total}) cannot exceed ${totalQty}`);
+      return;
+    }
+    if (completedQty < 0 || lossQty < 0) {
+      setError("Quantities cannot be negative");
+      return;
+    }
+    onConfirm(completedQty, lossQty);
+    onClose();
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="jcf-modal-overlay" onClick={onClose}>
+      <div className="jcf-validation-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "500px" }}>
+        <div className="jcf-modal-header jcf-modal-header-success">
+          <h2 className="jcf-modal-title-plain">
+            <FaCheck style={{ color: "var(--success-color)", marginRight: "8px" }} />
+            Complete Job Card
+          </h2>
+          <button className="jcf-modal-close" onClick={onClose}>×</button>
+        </div>
+        <div className="jcf-modal-body">
+          <div className="jcf-completion-summary">
+            <div className="jcf-summary-row">
+              <span className="jcf-summary-label">Total Quantity to Manufacture:</span>
+              <span className="jcf-summary-value">{totalQty}</span>
+            </div>
+            <div className="jcf-summary-row" style={{ borderTop: "1px solid var(--border-color)", paddingTop: "12px" }}>
+              <span className="jcf-summary-label">Completed Quantity:</span>
+              <input
+                type="number"
+                value={completedQty}
+                onChange={(e) => {
+                  setCompletedQty(Number(e.target.value));
+                  setError("");
+                }}
+                min="0"
+                max={totalQty}
+                className="jcf-input jcf-summary-input"
+                style={{ width: "120px" }}
+              />
+            </div>
+            <div className="jcf-summary-row">
+              <span className="jcf-summary-label">Loss / Scrap Quantity:</span>
+              <input
+                type="number"
+                value={lossQty}
+                onChange={(e) => {
+                  setLossQty(Number(e.target.value));
+                  setError("");
+                }}
+                min="0"
+                max={totalQty}
+                className="jcf-input jcf-summary-input"
+                style={{ width: "120px" }}
+              />
+            </div>
+            <div className="jcf-summary-row" style={{ borderTop: "1px solid var(--border-color)", paddingTop: "12px", fontWeight: "bold" }}>
+              <span className="jcf-summary-label">Total (Completed + Loss):</span>
+              <span className="jcf-summary-value" style={{ color: (completedQty + lossQty) > totalQty ? "var(--danger-color)" : "var(--success-color)" }}>
+                {completedQty + lossQty}
+              </span>
+            </div>
+            {error && (
+              <div className="jcf-error-text" style={{ marginTop: "8px", textAlign: "center" }}>
+                {error}
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="jcf-modal-footer">
+          <button className="jcf-btn-cancel" onClick={onClose}>Cancel</button>
+          <button 
+            className="jcf-btn-primary" 
+            onClick={handleConfirm}
+            disabled={completedQty + lossQty > totalQty || completedQty < 0 || lossQty < 0}
+          >
+            <FaCheck size={12} /> Complete Job
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const emptyTimeLog = (): TimeLog => ({
   id: Math.random().toString(36).slice(2),
@@ -125,6 +268,26 @@ const defaultFormData = (): JobCardFormData => ({
   company: "",
   status: "Open",
   assigned_employees: [],
+  
+  source_warehouse: "",
+  wip_warehouse: "",
+  target_warehouse: "",
+  
+  production_item: "",
+  bom_no: "",
+  finished_good: "",
+  semi_fg_bom: "",
+  operation: "",
+  workstation_type: "",
+  workstation: "",
+  for_operation: "",
+  item_name: "",
+  project: "",
+  operation_row_id: 1,
+  operation_row_number: 1,
+  operation_id: "",
+  sequence_id: 1,
+  serial_no: "",
 });
 
 const JobCardForm: React.FC = () => {
@@ -145,8 +308,7 @@ const JobCardForm: React.FC = () => {
 
   const [formData, setFormData] = useState<JobCardFormData>(defaultFormData());
 
-  // The real numeric primary key from the backend (distinct from the
-  // human-readable docname in the URL, e.g. "WO 88").
+  // The real numeric primary key from the backend
   const [recordId, setRecordId] = useState<number | string | null>(null);
 
   // ─── work order dropdown ────────────────────────────────────────────
@@ -162,6 +324,13 @@ const JobCardForm: React.FC = () => {
   // ─── job timer ───────────────────────────────────────────────────────
   const [timerRunning, setTimerRunning] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+  // ─── Work Order details ─────────────────────────────────────────────
+  const [woDetails, setWoDetails] = useState<any>(null);
+  const [loadingWoDetails, setLoadingWoDetails] = useState(false);
+
+  // ─── Completion Modal ──────────────────────────────────────────────
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
 
   const tabs = [
     { id: 0, name: "Details", icon: <FaFileAlt size={14} /> },
@@ -200,7 +369,43 @@ const JobCardForm: React.FC = () => {
     fetchWorkOrders();
   }, []);
 
-  // ─── load existing job card when editing ──────────────────────────────
+  // ─── fetch Work Order details ──────────────────────────────────────
+  const fetchWorkOrderDetails = async (woId: string) => {
+    if (!woId) return;
+    setLoadingWoDetails(true);
+    try {
+      const response = await api.get(`/work-order/${woId}`);
+      console.log("Work Order details response:", response.data);
+      
+      if (response.data.success === 1) {
+        const woData = response.data.data;
+        setWoDetails(woData);
+        
+        // Auto-fill form fields from Work Order
+        setFormData(prev => ({
+          ...prev,
+          company: woData.company || prev.company,
+          qty_to_manufacture: woData.qty || prev.qty_to_manufacture,
+          for_quantity: woData.qty || prev.for_quantity,
+          hour_rate: woData.planned_operating_cost || prev.hour_rate,
+          expected_start_date: woData.planned_start_date ? new Date(woData.planned_start_date) : prev.expected_start_date,
+          expected_end_date: woData.planned_end_date ? new Date(woData.planned_end_date) : prev.expected_end_date,
+          source_warehouse: woData.source_warehouse || "",
+          wip_warehouse: woData.wip_warehouse || "",
+          target_warehouse: woData.fg_warehouse || "",
+          item_name: woData.item_name || prev.item_name,
+          production_item: woData.production_item || prev.production_item,
+        }));
+      }
+    } catch (err) {
+      console.error("Error fetching Work Order details:", err);
+      setApiError("Failed to load Work Order details");
+    } finally {
+      setLoadingWoDetails(false);
+    }
+  };
+
+  // ─── load existing job card when editing ──────────────────────────
   useEffect(() => {
     if (isEditMode && id) {
       const state = location.state as { jobCard?: any };
@@ -210,17 +415,19 @@ const JobCardForm: React.FC = () => {
         fetchJobCardById(id);
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const fetchJobCardById = async (jobCardId: string) => {
     try {
-      const response = await api.get("/job-card");
+      const response = await api.get(`/job-card/${jobCardId}`);
+      console.log("Job Card details response:", response.data);
+      
       if (response.data.success === 1) {
-        const all = response.data.data || [];
-        const found = all.find(
-          (jc: any) => jc.name === jobCardId || String(jc.id) === jobCardId
-        );
-        if (found) loadJobCardIntoForm(found);
+        const jc = response.data.data;
+        loadJobCardIntoForm(jc);
+      } else {
+        setApiError("Failed to load job card details");
       }
     } catch (err: any) {
       console.error("Error fetching job card:", err);
@@ -249,7 +456,30 @@ const JobCardForm: React.FC = () => {
       actual_end_date: jc.actual_end_date ? new Date(jc.actual_end_date) : null,
       remarks: jc.remarks || "",
       status: jc.status || "Open",
+      source_warehouse: jc.source_warehouse || "",
+      wip_warehouse: jc.wip_warehouse || "",
+      target_warehouse: jc.target_warehouse || "",
+      production_item: jc.production_item || "",
+      bom_no: jc.bom_no || "",
+      finished_good: jc.finished_good || "",
+      semi_fg_bom: jc.semi_fg_bom || "",
+      operation: jc.operation || "",
+      workstation_type: jc.workstation_type || "",
+      workstation: jc.workstation || "",
+      for_operation: jc.for_operation || "",
+      item_name: jc.item_name || "",
+      project: jc.project || "",
+      operation_row_id: jc.operation_row_id || 1,
+      operation_row_number: parseInt(jc.operation_row_number) || 1,
+      operation_id: jc.operation_id || "",
+      sequence_id: jc.sequence_id || 1,
+      serial_no: jc.serial_no || "",
     }));
+
+    // If we have a work order ID, fetch its details
+    if (jc.work_order) {
+      fetchWorkOrderDetails(jc.work_order);
+    }
 
     // Resume timer state if job was already in progress when loaded
     if (jc.actual_start_date && !jc.actual_end_date) {
@@ -366,15 +596,22 @@ const JobCardForm: React.FC = () => {
       navigate("/work-order/new");
       return;
     }
+    
     const wo = workOrders.find((w) => w.name === value);
     setFormData((prev) => ({
       ...prev,
       work_order: value,
       company: wo?.company ?? prev.company,
       qty_to_manufacture: wo?.qty ?? prev.qty_to_manufacture,
+      item_name: wo?.item_name || prev.item_name,
     }));
+    
     if (errors.work_order) setErrors((prev) => ({ ...prev, work_order: "" }));
     checkTabWarnings(activeTab);
+    
+    if (value) {
+      fetchWorkOrderDetails(value);
+    }
   };
 
   // ─── time logs (Tab 1) ────────────────────────────────────────────────
@@ -456,13 +693,23 @@ const JobCardForm: React.FC = () => {
     setFormData((prev) => ({ ...prev, status: "On Hold" }));
   };
 
-  const handleCompleteJob = () => {
+  // ─── Handle Complete Job with Modal ──────────────────────────────────
+
+  const handleCompleteJobClick = () => {
+    setShowCompletionModal(true);
+  };
+
+  const handleCompletionConfirm = (completedQty: number, lossQty: number) => {
     setTimerRunning(false);
     setFormData((prev) => ({
       ...prev,
       actual_end_date: new Date(),
       status: "Completed",
+      total_completed_qty: completedQty,
+      process_loss_qty: lossQty,
+      pending_qty: Math.max(0, prev.qty_to_manufacture - completedQty - lossQty),
     }));
+    setShowCompletionModal(false);
   };
 
   // ─── build API payload ─────────────────────────────────────────────────
@@ -485,29 +732,29 @@ const JobCardForm: React.FC = () => {
       return sum;
     }, 0);
 
-    return {
+    const payload: any = {
       work_order: formData.work_order,
-      production_item: "",
+      production_item: formData.production_item || "",
       for_quantity: formData.for_quantity || formData.qty_to_manufacture,
-      bom_no: "",
+      bom_no: formData.bom_no || "",
       company: formData.company,
       naming_series: "PO-JOB-.#####",
       posting_date: formatDateOnly(formData.posting_date),
-      finished_good: "",
-      semi_fg_bom: "",
+      finished_good: formData.finished_good || "",
+      semi_fg_bom: formData.semi_fg_bom || "",
       pending_qty: formData.pending_qty,
       process_loss_qty: formData.process_loss_qty,
       total_completed_qty: formData.total_completed_qty,
       transferred_qty: 0,
       manufactured_qty: 0,
-      operation: "",
-      source_warehouse: "",
-      wip_warehouse: "",
+      operation: formData.operation || "",
+      source_warehouse: formData.source_warehouse || "",
+      wip_warehouse: formData.wip_warehouse || "",
       skip_material_transfer: 0,
       backflush_from_wip_warehouse: 0,
-      workstation_type: "",
-      workstation: "",
-      target_warehouse: "",
+      workstation_type: formData.workstation_type || "",
+      workstation: formData.workstation || "",
+      target_warehouse: formData.target_warehouse || "",
       quality_inspection_template: formData.quality_inspection_template,
       quality_inspection: "",
       expected_start_date: formatDateTime(formData.expected_start_date),
@@ -519,20 +766,20 @@ const JobCardForm: React.FC = () => {
       for_job_card: "",
       is_corrective_job_card: 0,
       hour_rate: formData.hour_rate,
-      for_operation: "",
-      item_name: "",
+      for_operation: formData.for_operation || "",
+      item_name: formData.item_name || "",
       requested_qty: formData.qty_to_manufacture,
       is_paused: formData.status === "On Hold" ? 1 : 0,
       is_subcontracted: 0,
       track_semi_finished_goods: 0,
-      project: "",
+      project: formData.project || "",
       remarks: formData.remarks,
       status: formData.status,
-      operation_row_id: 1,
-      operation_row_number: 1,
-      operation_id: "",
-      sequence_id: 1,
-      serial_no: "",
+      operation_row_id: formData.operation_row_id || 1,
+      operation_row_number: formData.operation_row_number || 1,
+      operation_id: formData.operation_id || "",
+      sequence_id: formData.sequence_id || 1,
+      serial_no: formData.serial_no || "",
       serial_and_batch_bundle: "",
       barcode: "",
       batch_no: "",
@@ -540,8 +787,13 @@ const JobCardForm: React.FC = () => {
       owner: "Administrator",
       docstatus: 0,
       idx: 0,
-      // assigned_employees: formData.assigned_employees.join(", "),
     };
+
+    if (isEditMode && recordId) {
+      payload.id = Number(recordId);
+    }
+
+    return payload;
   };
 
   // ─── submit — POST/PUT /job-card ───────────────────────────────────────
@@ -561,13 +813,16 @@ const JobCardForm: React.FC = () => {
 
     try {
       const payload = buildApiPayload();
+      console.log("Saving job card with payload:", payload);
 
       let response;
-      if (isEditMode && id) {
-        response = await api.put("/job-card", { id: recordId ?? id, ...payload });
+      if (isEditMode && recordId) {
+        response = await api.put("/job-card", payload);
       } else {
         response = await api.post("/job-card", payload);
       }
+
+      console.log("Job card save response:", response.data);
 
       if (response.data.success !== 1) {
         throw new Error(response.data?.message || "Failed to save job card");
@@ -593,6 +848,16 @@ const JobCardForm: React.FC = () => {
 
   return (
     <div className="jcf-page">
+
+      {/* Completion Modal */}
+      <CompletionModal
+        isOpen={showCompletionModal}
+        onClose={() => setShowCompletionModal(false)}
+        onConfirm={handleCompletionConfirm}
+        totalQty={formData.qty_to_manufacture || formData.for_quantity || 0}
+        currentCompletedQty={formData.total_completed_qty || 0}
+        currentLossQty={formData.process_loss_qty || 0}
+      />
 
       {/* Validation Summary Modal */}
       {showValidationSummary && validationErrors.length > 0 && (
@@ -728,7 +993,7 @@ const JobCardForm: React.FC = () => {
                   <button type="button" className="jcf-btn-secondary" onClick={handlePauseJob}>
                     <FaPause size={11} /> Pause Job
                   </button>
-                  <button type="button" className="jcf-btn-complete" onClick={handleCompleteJob}>
+                  <button type="button" className="jcf-btn-complete" onClick={handleCompleteJobClick}>
                     <FaCheck size={11} /> Complete Job
                   </button>
                 </>
@@ -739,7 +1004,7 @@ const JobCardForm: React.FC = () => {
                   <button type="button" className="jcf-btn-start" onClick={handleStartJob}>
                     <FaPlay size={11} /> Resume Job
                   </button>
-                  <button type="button" className="jcf-btn-complete" onClick={handleCompleteJob}>
+                  <button type="button" className="jcf-btn-complete" onClick={handleCompleteJobClick}>
                     <FaCheck size={11} /> Complete Job
                   </button>
                 </>
@@ -813,14 +1078,23 @@ const JobCardForm: React.FC = () => {
                         value={formData.work_order}
                         onChange={handleWorkOrderSelect}
                         className={`jcf-input ${errors.work_order ? "jcf-input-error" : ""}`}
+                        disabled={isEditMode}
                       >
                         <option value="">{loadingWorkOrders ? "Loading..." : "Select Work Order"}</option>
                         {workOrders.map((wo) => (
-                          <option key={wo.name} value={wo.name}>{wo.name}</option>
+                          <option key={wo.name} value={wo.name}>
+                            {wo.name} {wo.item_name ? `- ${wo.item_name}` : ""}
+                          </option>
                         ))}
                         <option value="__create_new__">+ Create New Work Order</option>
                       </select>
                       {errors.work_order && <span className="jcf-error-text">{errors.work_order}</span>}
+                      {loadingWoDetails && <span className="jcf-hint-text">Loading...</span>}
+                      {woDetails && !loadingWoDetails && formData.work_order && (
+                        <span className="jcf-hint-text" style={{ color: "var(--text-secondary)", fontSize: "0.75rem" }}>
+                          {woDetails.item_name || formData.item_name} · Qty: {woDetails.qty || formData.qty_to_manufacture}
+                        </span>
+                      )}
                     </div>
                     <div>
                       <label className="jcf-label">Qty To Manufacture</label>
@@ -831,6 +1105,7 @@ const JobCardForm: React.FC = () => {
                         onChange={handleInputChange}
                         placeholder="0"
                         className="jcf-input"
+                        disabled={isEditMode}
                       />
                     </div>
                     <div>
@@ -845,43 +1120,41 @@ const JobCardForm: React.FC = () => {
                   </div>
 
                   <div className="jcf-grid-3 jcf-mb-20">
-                    <div className="jcf-grid-3 jcf-mb-20">
-                      <div>
-                        <label className="jcf-label">Pending Qty</label>
-                        <input
-                          type="number"
-                          name="pending_qty"
-                          value={formData.pending_qty || ""}
-                          onChange={handleInputChange}
-                          placeholder="0"
-                          className="jcf-input"
-                          disabled={!(formData.status === "On Hold" || formData.status === "Completed")}
-                        />
-                      </div>
-                      <div>
-                        <label className="jcf-label">Total Completed Qty</label>
-                        <input
-                          type="number"
-                          name="total_completed_qty"
-                          value={formData.total_completed_qty || 0}
-                          onChange={handleInputChange}
-                          placeholder="0"
-                          className="jcf-input"
-                          disabled={!(formData.status === "On Hold" || formData.status === "Completed")}
-                        />
-                      </div>
-                      <div>
-                        <label className="jcf-label">Loss</label>
-                        <input
-                          type="number"
-                          name="process_loss_qty"
-                          value={formData.process_loss_qty || ""}
-                          onChange={handleInputChange}
-                          placeholder="0"
-                          className="jcf-input"
-                          disabled={!(formData.status === "On Hold" || formData.status === "Completed")}
-                        />
-                      </div>
+                    <div>
+                      <label className="jcf-label">Pending Qty</label>
+                      <input
+                        type="number"
+                        name="pending_qty"
+                        value={formData.pending_qty || ""}
+                        onChange={handleInputChange}
+                        placeholder="0"
+                        className="jcf-input"
+                        disabled={!(formData.status === "On Hold" || formData.status === "Completed")}
+                      />
+                    </div>
+                    <div>
+                      <label className="jcf-label">Total Completed Qty</label>
+                      <input
+                        type="number"
+                        name="total_completed_qty"
+                        value={formData.total_completed_qty || 0}
+                        onChange={handleInputChange}
+                        placeholder="0"
+                        className="jcf-input"
+                        disabled={!(formData.status === "On Hold" || formData.status === "Completed")}
+                      />
+                    </div>
+                    <div>
+                      <label className="jcf-label">Loss</label>
+                      <input
+                        type="number"
+                        name="process_loss_qty"
+                        value={formData.process_loss_qty || ""}
+                        onChange={handleInputChange}
+                        placeholder="0"
+                        className="jcf-input"
+                        disabled={!(formData.status === "On Hold" || formData.status === "Completed")}
+                      />
                     </div>
                   </div>
 
@@ -945,6 +1218,65 @@ const JobCardForm: React.FC = () => {
                         className="jcf-input"
                       />
                     </div>
+                  </div>
+
+                  <div className="jcf-section-title"><FaBuilding size={12} /> Warehouses</div>
+
+                  <div className="jcf-grid-3">
+                    <div>
+                      <label className="jcf-label">Source Warehouse</label>
+                      <input
+                        type="text"
+                        name="source_warehouse"
+                        value={formData.source_warehouse}
+                        onChange={handleInputChange}
+                        placeholder="Source warehouse"
+                        className="jcf-input"
+                        disabled={isEditMode}
+                      />
+                    </div>
+                    <div>
+                      <label className="jcf-label">WIP Warehouse</label>
+                      <input
+                        type="text"
+                        name="wip_warehouse"
+                        value={formData.wip_warehouse}
+                        onChange={handleInputChange}
+                        placeholder="WIP warehouse"
+                        className="jcf-input"
+                        disabled={isEditMode}
+                      />
+                    </div>
+                    <div>
+                      <label className="jcf-label">Target Warehouse</label>
+                      <input
+                        type="text"
+                        name="target_warehouse"
+                        value={formData.target_warehouse}
+                        onChange={handleInputChange}
+                        placeholder="Target warehouse"
+                        className="jcf-input"
+                        disabled={isEditMode}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Status selector */}
+                  <div className="jcf-field-block jcf-mt-20">
+                    <label className="jcf-label">Status</label>
+                    <select
+                      name="status"
+                      value={formData.status}
+                      onChange={handleInputChange}
+                      className="jcf-input"
+                      disabled={formData.status === "Completed"}
+                    >
+                      <option value="Open">Open</option>
+                      <option value="Work In Progress">Work In Progress</option>
+                      <option value="On Hold">On Hold</option>
+                      <option value="Completed">Completed</option>
+                      <option value="Cancelled">Cancelled</option>
+                    </select>
                   </div>
                 </div>
               </div>
