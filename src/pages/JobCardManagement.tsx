@@ -18,25 +18,14 @@ import {
 } from "lucide-react";
 import "./JobCardManagement.css";
 import { useAdminTheme } from "../admin-theme/AdminThemeContext";
-import api from '../../src/services/api';
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const SORT_FIELDS = ["Created On", "Work Order", "ID", "Operation"];
-
-// ─── Types ────────────────────────────────────────────────────────────────────
+import api from "../../src/services/api";
 
 type Status = "Open" | "Work In Progress" | "Completed" | "On Hold" | "Cancelled";
 
-interface JobCardRecord {
-  id: number;
-  name: string;
-  creation: string;
-  modified: string;
-  modified_by: string;
-  owner: string;
-  docstatus: number;
-  idx: number;
+/** Shape returned by GET /job-card (matches the POST /job-card payload). */
+interface JobCardApiRecord {
+  id: number; // real numeric primary key
+  name: string; // e.g. "JC-WO-00001-001" — the human-readable docname
   work_order: string;
   production_item: string;
   for_quantity: number;
@@ -58,56 +47,22 @@ interface JobCardRecord {
   backflush_from_wip_warehouse: number;
   workstation_type: string;
   workstation: string;
-  target_warehouse: string;
-  quality_inspection_template: string;
-  quality_inspection: string;
-  expected_start_date: string | null;
-  time_required: number;
-  expected_end_date: string | null;
-  actual_start_date: string | null;
-  total_time_in_mins: number;
-  actual_end_date: string | null;
-  for_job_card: string;
-  is_corrective_job_card: number;
-  hour_rate: number;
-  for_operation: string;
-  item_name: string;
-  requested_qty: number;
-  is_paused: number;
-  is_subcontracted: number;
-  track_semi_finished_goods: number;
-  project: string | null;
-  remarks: string | null;
+  for_quantity?: number;
+  requested_qty?: number;
+  total_completed_qty: number;
+  company: string;
   status: Status;
-  operation_row_id: number;
-  amended_from: string | null;
-  operation_row_number: string;
-  operation_id: string;
-  sequence_id: number;
-  serial_no: string;
-  serial_and_batch_bundle: string;
-  barcode: string;
-  batch_no: string;
-  _user_tags: string | null;
-  _comments: string | null;
-  _assign: string | null;
-  _liked_by: string | null;
-  job_cardcol: string | null;
-  is_deleted: number;
+  creation?: string;
+  posting_date?: string;
+  expected_start_date?: string | null;
+  expected_end_date?: string | null;
+  actual_start_date?: string | null;
+  actual_end_date?: string | null;
 }
 
-interface JobCardListResponse {
-  success: number;
-  data: JobCardRecord[];
-}
-
-interface JobCardDetailResponse {
-  success: number;
-  data: JobCardRecord;
-}
-
-interface JobCardRow {
-  id: string;
+interface JobCardDisplay {
+  id: string; // name (docname) — used for routing/display
+  recordId: number; // real numeric primary key — used for update/delete API calls
   jobCardId: string;
   workOrder: string;
   operation: string;
@@ -125,32 +80,23 @@ interface JobCardRow {
   actualEndDate: Date | null;
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-const CheckBadge: React.FC<{ checked: boolean }> = ({ checked }) => (
-  <div className={`jc-check-badge ${checked ? "jc-check-badge--on" : ""}`}>
-    {checked && <Check size={12} color="#fff" strokeWidth={3} />}
-  </div>
-);
-
-const StatusPill: React.FC<{ status: Status }> = ({ status }) => {
-  const statusMap: Record<Status, { class: string; label: string }> = {
-    Open: { class: "jc-status--open", label: "Open" },
-    "Work In Progress": { class: "jc-status--inprogress", label: "Work In Progress" },
-    Completed: { class: "jc-status--completed", label: "Completed" },
-    "On Hold": { class: "jc-status--onhold", label: "On Hold" },
-    Cancelled: { class: "jc-status--cancelled", label: "Cancelled" },
-  };
-  
-  const info = statusMap[status] || statusMap.Open;
-  return (
-    <span className={`jc-status-pill ${info.class}`}>
-      {info.label}
-    </span>
-  );
+const STATUS_CLASS: Record<Status, string> = {
+  Open: "s-open",
+  "Work In Progress": "s-inprocess",
+  Completed: "s-completed",
+  "On Hold": "s-onhold",
+  Cancelled: "s-cancelled",
 };
 
-// ─── Timer Helpers ────────────────────────────────────────────────────────────
+const STATUS_LABELS: Record<Status, string> = {
+  Open: "Open",
+  "Work In Progress": "Work In Progress",
+  Completed: "Completed",
+  "On Hold": "On Hold",
+  Cancelled: "Cancelled",
+};
+
+// ─── timer helpers ─────────────────────────────────────────────────────
 
 const formatDuration = (ms: number): string => {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
@@ -261,113 +207,62 @@ const JobCardManagement: React.FC = () => {
     return Math.min(Math.round((completedQty / qty) * 100), 100);
   };
 
-  // ─── Fetch Job Cards from API ──────────────────────────────────────────────
+  // ─── load from GET /job-card ───────────────────────────────────────────
 
   const fetchJobCards = async () => {
+    setLoading(true);
+    setError(null);
     try {
-      setLoading(true);
-      setError(null);
+      const response = await api.get("/job-card");
 
-      const params = new URLSearchParams();
-
-      // Add search param
-      if (searchTerm.trim()) {
-        params.append('search', searchTerm.trim());
+      if (response.data.success !== 1) {
+        throw new Error(response.data?.message || "Failed to fetch job cards");
       }
 
-      // Add status filter
-      if (statusFilter !== 'all') {
-        params.append('status', statusFilter);
-      }
+      const all: JobCardApiRecord[] = response.data.data || [];
 
-      // Add sorting
-      const sortMap: Record<string, string> = {
-        'Created On': 'creation',
-        'Work Order': 'work_order',
-        'ID': 'id',
-        'Operation': 'operation'
-      };
-      if (sortField in sortMap) {
-        params.append('sort_by', sortMap[sortField]);
-        params.append('sort_order', 'desc');
-      }
+      const transformedData: JobCardDisplay[] = all.map((item) => {
+        const qty = item.for_quantity ?? item.requested_qty ?? 0;
+        const createdOn = item.creation || item.posting_date || new Date().toISOString();
+        return {
+          id: item.name,
+          recordId: item.id,
+          jobCardId: item.name,
+          workOrder: item.work_order,
+          operation: item.operation,
+          workstation: item.workstation,
+          qty,
+          completedQty: item.total_completed_qty || 0,
+          company: item.company,
+          status: item.status,
+          createdOn,
+          progress: calculateProgress(qty, item.total_completed_qty || 0),
+          createdAgo: formatDate(createdOn),
+          expectedStartDate: item.expected_start_date ? new Date(item.expected_start_date) : null,
+          expectedEndDate: item.expected_end_date ? new Date(item.expected_end_date) : null,
+          actualStartDate: item.actual_start_date ? new Date(item.actual_start_date) : null,
+          actualEndDate: item.actual_end_date ? new Date(item.actual_end_date) : null,
+        };
+      });
 
-      // Add pagination
-      params.append('page', String(currentPage));
-      params.append('limit', String(itemsPerPage));
+      // Newest first
+      transformedData.sort(
+        (a, b) => new Date(b.createdOn).getTime() - new Date(a.createdOn).getTime()
+      );
 
-      const queryString = params.toString();
-      const url = `/job-card${queryString ? `?${queryString}` : ''}`;
-      
-      const response = await api.get<JobCardListResponse>(url);
-      
-      if (response.data.success === 1) {
-        const records = response.data.data || [];
-        setJobCardData(records);
-        setTotalRecords(records.length);
-      } else {
-        setError('Failed to load job cards');
-      }
+      setTotalItems(transformedData.length);
+      setJobCards(transformedData);
     } catch (err: any) {
-      console.error('Error fetching job cards:', err);
-      if (err.response) {
-        setError(err.response.data?.message || `Server error: ${err.response.status}`);
-      } else if (err.request) {
-        setError('Network error. Please check your connection.');
-      } else {
-        setError('An unexpected error occurred.');
-      }
+      console.error("Error fetching job cards:", err);
+      setError(err.response?.data?.message || "An error occurred while loading job cards");
     } finally {
       setLoading(false);
     }
   };
-
-  // ─── Fetch single Job Card for editing ─────────────────────────────────────
-
-  const fetchJobCardForEdit = async (jobCardId: number) => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await api.get<JobCardDetailResponse>(`/job-card/${jobCardId}`);
-      
-      if (response.data.success === 1) {
-        setEditJobCardData(response.data.data);
-        setShowNewJobCard(true);
-      } else {
-        setError('Failed to load job card data for editing');
-      }
-    } catch (err: any) {
-      console.error('Error fetching job card:', err);
-      if (err.response) {
-        setError(err.response.data?.message || `Server error: ${err.response.status}`);
-      } else if (err.request) {
-        setError('Network error. Please check your connection.');
-      } else {
-        setError('An unexpected error occurred.');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ─── Effects ──────────────────────────────────────────────────────────────
 
   useEffect(() => {
     fetchJobCards();
-  }, [currentPage, itemsPerPage, sortField, statusFilter]);
-
-  // Debounced search
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (currentPage !== 1) {
-        setCurrentPage(1);
-      } else {
-        fetchJobCards();
-      }
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
+  }, []);
 
   // Close all dropdowns when clicking outside
   useEffect(() => {
@@ -445,9 +340,28 @@ const JobCardManagement: React.FC = () => {
     return pages;
   };
 
-  const goToPage = (page: number) => {
-    if (page >= 1 && page <= totalPages) {
-      setCurrentPage(page);
+  const handleDelete = (item: JobCardDisplay) => {
+    setSelectedItem(item);
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!selectedItem) return;
+    try {
+      // Use the real numeric primary key, not the docname (`id`/`jobCardId`
+      // here is the display/routing string, e.g. "WO 88" — sending that to
+      // a numeric column causes "Truncated incorrect DOUBLE value" on the
+      // backend, the same issue that affected PUT updates).
+      const response = await api.delete(`/job-card/${selectedItem.recordId}`);
+      if (response.data.success !== 1) {
+        throw new Error(response.data?.message || "Failed to delete job card");
+      }
+      setShowDeleteConfirm(false);
+      setSelectedItem(null);
+      fetchJobCards();
+    } catch (err: any) {
+      console.error("Error deleting job card:", err);
+      alert(err.response?.data?.message || "Failed to delete job card");
     }
   };
 
