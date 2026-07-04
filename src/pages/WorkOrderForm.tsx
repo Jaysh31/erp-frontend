@@ -33,6 +33,8 @@ interface RequiredItemRow {
   transferred_qty: number;
   consumed_qty: number;
   returned_qty: number;
+  rate?: number;
+  amount?: number;
 }
 
 interface CommentRow {
@@ -67,10 +69,6 @@ interface WorkOrderData {
   operations: OperationRow[];
   required_items: RequiredItemRow[];
   // Configuration
-  allow_alternative_item: boolean;
-  skip_material_transfer: boolean;
-  use_multi_level_bom: boolean;
-  update_consumed_material_cost_in_project: boolean;
   planned_start_date: string;
   planned_end_date: string;
   actual_start_date: string;
@@ -254,12 +252,12 @@ const STATUS_CLASS: Record<Status, string> = {
   Stopped: "s-stopped",
 };
 
-type TabKey = "production_item" | "configuration" | "more_info" | "connections";
+type TabKey = "production_item" | "configuration" | "more_info" | "total_produced";
 const TABS: { key: TabKey; label: string }[] = [
   { key: "production_item", label: "Production Item" },
   { key: "configuration", label: "Configuration" },
   { key: "more_info", label: "More Info" },
-  { key: "connections", label: "Connections" },
+  { key: "total_produced", label: "Total Produced" },
 ];
 
 const emptyOp = (): OperationRow => ({
@@ -267,7 +265,7 @@ const emptyOp = (): OperationRow => ({
 });
 const emptyItem = (): RequiredItemRow => ({
   id: uid(), item_code: "", item_name: "", source_warehouse: "", required_qty: 0,
-  uom: "", transferred_qty: 0, consumed_qty: 0, returned_qty: 0,
+  uom: "", transferred_qty: 0, consumed_qty: 0, returned_qty: 0, rate: 0, amount: 0,
 });
 const emptyWO = (): WorkOrderData => ({
   name: "", status: "Draft",
@@ -279,9 +277,8 @@ const emptyWO = (): WorkOrderData => ({
   transfer_material_against: "Work Order",
   operations: [emptyOp()],
   required_items: [emptyItem()],
-  allow_alternative_item: false, skip_material_transfer: false,
-  use_multi_level_bom: true, update_consumed_material_cost_in_project: false,
-  planned_start_date: "", planned_end_date: "",
+  planned_start_date: new Date().toISOString().split("T")[0],
+  planned_end_date: "",
   actual_start_date: "", actual_end_date: "", expected_delivery_date: "",
   lead_time_mins: 0, planned_operating_cost: 0, actual_operating_cost: 0,
   additional_operating_cost: 0, corrective_operation_cost: 0,
@@ -487,7 +484,7 @@ export default function WorkOrderForm() {
             const d = r.data.data;
             setWo(prev => ({
               ...prev, ...d,
-              planned_start_date: d.planned_start_date?.split("T")[0] ?? "",
+              planned_start_date: d.planned_start_date?.split("T")[0] ?? new Date().toISOString().split("T")[0],
               planned_end_date: d.planned_end_date?.split("T")[0] ?? "",
               actual_start_date: d.actual_start_date?.split("T")[0] ?? "",
               actual_end_date: d.actual_end_date?.split("T")[0] ?? "",
@@ -574,10 +571,13 @@ export default function WorkOrderForm() {
       transferred_qty: 0,
       consumed_qty: 0,
       returned_qty: 0,
+      rate: it.rate || 0,
+      amount: Math.round((it.amount || 0) * scale * 100) / 100,
     }));
 
     const totalTime = ops.reduce((s, o) => s + o.time_in_mins, 0);
     const totalCost = ops.reduce((s, o) => s + o.operating_cost, 0);
+    const totalRawMaterialCost = items.reduce((s, i) => s + (i.amount || 0), 0);
 
     setWo(prev => ({
       ...prev,
@@ -609,12 +609,11 @@ export default function WorkOrderForm() {
   // ─── Validation ───────────────────────────────────────────────────────
   const validate = () => {
     const errs: { field: string; label: string; message: string }[] = [];
-    if (!wo.company.trim()) errs.push({ field: "company", label: "Company", message: "Company is required" });
     if (!wo.bom_no.trim()) errs.push({ field: "bom_no", label: "BOM", message: "Please select a BOM" });
     if (!wo.item_to_manufacture.trim()) errs.push({ field: "item_to_manufacture", label: "Item To Manufacture", message: "Required" });
     if (wo.qty_to_manufacture <= 0) errs.push({ field: "qty_to_manufacture", label: "Qty To Manufacture", message: "Must be > 0" });
     if (!wo.target_warehouse.trim()) errs.push({ field: "target_warehouse", label: "Target Warehouse (FG)", message: "Required" });
-    if (!wo.wip_warehouse.trim() && !wo.skip_material_transfer) errs.push({ field: "wip_warehouse", label: "WIP Warehouse", message: "Required" });
+    if (!wo.wip_warehouse.trim()) errs.push({ field: "wip_warehouse", label: "WIP Warehouse", message: "Required" });
     if (!wo.planned_start_date) errs.push({ field: "planned_start_date", label: "Planned Start Date", message: "Required" });
     return errs;
   };
@@ -622,7 +621,7 @@ export default function WorkOrderForm() {
   // ─── Build payload ────────────────────────────────────────────────────
   const buildPayload = (): WOPayload => ({
     name: wo.name || "sc",
-    company: wo.company,
+    company: wo.company || "SculptorTech",
     naming_series: "WO-.YYYY.-",
     production_item: wo.item_to_manufacture,
     bom_no: wo.bom_no,
@@ -640,11 +639,11 @@ export default function WorkOrderForm() {
     fg_warehouse: wo.target_warehouse,
     scrap_warehouse: "",
     transfer_material_against: wo.transfer_material_against,
-    allow_alternative_item: wo.allow_alternative_item ? 1 : 0,
-    use_multi_level_bom: wo.use_multi_level_bom ? 1 : 0,
-    skip_transfer: wo.skip_material_transfer ? 1 : 0,
+    allow_alternative_item: 0,
+    use_multi_level_bom: 1,
+    skip_transfer: 0,
     from_wip_warehouse: 0,
-    update_consumed_material_cost_in_project: wo.update_consumed_material_cost_in_project ? 1 : 0,
+    update_consumed_material_cost_in_project: 0,
     planned_start_date: wo.planned_start_date,
     planned_end_date: wo.planned_end_date,
     expected_delivery_date: wo.expected_delivery_date,
@@ -681,81 +680,76 @@ export default function WorkOrderForm() {
   });
 
   // ─── Submit ───────────────────────────────────────────────────────────
-  // ─── Submit ───────────────────────────────────────────────────────────
-const handleSave = async (e: FormEvent) => {
-  e.preventDefault();
-  setApiError(null);
-  const errs = validate();
-  if (errs.length) {
-    setValidationErrors(errs);
-    setShowValidation(true);
-    if (["company","bom_no","item_to_manufacture","qty_to_manufacture","target_warehouse","wip_warehouse"].some(f => errs.find(e => e.field === f)))
-      setActiveTab("production_item");
-    else if (errs.find(e => e.field === "planned_start_date"))
-      setActiveTab("configuration");
-    return;
-  }
-  setSubmitting(true);
-  try {
-    let response;
-    if (isNew) {
-      response = await api.post("/work-order", buildPayload());
-      console.log("RAW response object:", response);
-      console.log("typeof response.data:", typeof response.data, response.data);
-      
-      if (response.data?.success === 1) {
-        // ✅ Get the insertId from the response
-        const insertId = response.data?.data?.insertId;
-        console.log("Work Order created with ID:", insertId);
-        
-        // ✅ If we have an insertId, create job cards using it
-        if (insertId) {
-          try {
-            console.log(`Creating job cards for Work Order ID: ${insertId}`);
-            // ✅ Use the insertId directly in the URL
-            const jobCardResponse = await api.post(`/job-card/create-job-cards-from-wo/${insertId}`);
-            console.log("Job Card creation response:", jobCardResponse.data);
-            
-            if (jobCardResponse.data?.success === 1) {
-              console.log("✅ Job cards created successfully");
-              // ✅ Show success message
-              alert(`Work Order #${insertId} created with job cards successfully!`);
-            } else {
-              console.warn("⚠️ Job card creation returned non-success:", jobCardResponse.data);
-              alert(`Work Order #${insertId} created but job cards may not have been created. Please check manually.`);
-            }
-          } catch (jobCardErr) {
-            console.error("❌ Error creating job cards:", jobCardErr);
-            alert(`Work Order #${insertId} created but failed to create job cards. Please check manually.`);
-            // Continue to navigation even if job card creation fails
-          }
-        } else {
-          console.warn("⚠️ No insertId received from Work Order creation");
-          console.log("Response data structure:", JSON.stringify(response.data, null, 2));
-          alert("Work Order created but no ID received. Job cards not created.");
-        }
-        
-        // // ✅ Navigate AFTER job card creation is complete
-        // navigate("/work-order");
-      } else {
-        setApiError(response.data?.message || "Failed to create work order");
-      }
-    } else {
-      // Update existing work order
-      response = await api.post(`/work-order`, buildPayload());
-      if (response.data?.success === 1) {
-        navigate("/work-order");
-      } else {
-        setApiError(response.data?.message || "Failed to update work order");
-      }
+  const handleSave = async (e: FormEvent) => {
+    e.preventDefault();
+    setApiError(null);
+    const errs = validate();
+    if (errs.length) {
+      setValidationErrors(errs);
+      setShowValidation(true);
+      if (["bom_no","item_to_manufacture","qty_to_manufacture","target_warehouse","wip_warehouse"].some(f => errs.find(e => e.field === f)))
+        setActiveTab("production_item");
+      else if (errs.find(e => e.field === "planned_start_date"))
+        setActiveTab("configuration");
+      return;
     }
-  } catch (err: any) {
-    console.error("Error saving work order:", err);
-    setApiError(err.response?.data?.message || "Network error. Please try again.");
-  } finally {
-    setSubmitting(false);
+    setSubmitting(true);
+    try {
+      let response;
+      if (isNew) {
+        response = await api.post("/work-order", buildPayload());
+        if (response.data?.success === 1) {
+          const insertId = response.data?.data?.insertId;
+          if (insertId) {
+            try {
+              const jobCardResponse = await api.post(`/job-card/create-job-cards-from-wo/${insertId}`);
+              if (jobCardResponse.data?.success === 1) {
+                console.log("✅ Job cards created successfully");
+              } else {
+                console.warn("⚠️ Job card creation returned non-success");
+              }
+            } catch (jobCardErr) {
+              console.error("❌ Error creating job cards:", jobCardErr);
+            }
+          }
+          navigate("/work-order");
+        } else {
+          setApiError(response.data?.message || "Failed to create work order");
+        }
+      } else {
+        response = await api.post(`/work-order`, buildPayload());
+        if (response.data?.success === 1) {
+          const workOrderId = id || response.data?.data?.insertId || response.data?.data?.id;
+          if (workOrderId) {
+            try {
+              await api.post(`/job-card/create-job-cards-from-wo/${workOrderId}`);
+            } catch (jobCardErr) {
+              console.error("❌ Error creating job cards for update:", jobCardErr);
+            }
+          }
+          navigate("/work-order");
+        } else {
+          setApiError(response.data?.message || "Failed to update work order");
+        }
+      }
+    } catch (err: any) {
+      console.error("Error saving work order:", err);
+      setApiError(err.response?.data?.message || "Network error. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Calculate total raw material cost
+  const totalRawMaterialCost = wo.required_items.reduce((sum, item) => sum + (item.amount || 0), 0);
+
+  if (loading) {
+    return (
+      <div className={`wof-page ${theme}`}>
+        <div className="wof-inner wof-loading"><FaSpinner className="spinning" /> Loading…</div>
+      </div>
+    );
   }
-};
 
   return (
     <div className={`wof-page ${theme}`}>
@@ -807,6 +801,21 @@ const handleSave = async (e: FormEvent) => {
           </div>
         </div>
 
+        {/* Status Selector - Moved to top */}
+        <div className="wof-status-bar">
+          <label className="wof-label">Status</label>
+          <div className="wof-status-selector">
+            {STATUS_OPTIONS.map(s => (
+              <button key={s} type="button"
+                className={`wof-status-btn${wo.status === s ? " wof-status-btn-active" : ""}`}
+                onClick={() => set("status", s)} disabled={disabled}>
+                <span className={`wof-status-dot ${STATUS_CLASS[s]}`} />
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Tabs */}
         <div className="wof-tabs">
           {TABS.map(t => (
@@ -824,14 +833,8 @@ const handleSave = async (e: FormEvent) => {
           {activeTab === "production_item" && (
             <div className="wof-card">
 
-              {/* Row 1: Company + Qty */}
+              {/* Row 1: Qty */}
               <div className="wof-grid-2">
-                <div className="wof-field">
-                  <label className="wof-label">Company <span className="wof-required">*</span></label>
-                  <input type="text" value={wo.company}
-                    onChange={e => set("company", e.target.value)}
-                    className="form-field" placeholder="e.g. SculptorTech Pvt Ltd" disabled={disabled} />
-                </div>
                 <div className="wof-field">
                   <label className="wof-label">Qty To Manufacture <span className="wof-required">*</span></label>
                   <input type="number" value={wo.qty_to_manufacture || ""}
@@ -842,6 +845,15 @@ const handleSave = async (e: FormEvent) => {
                       BOM base: {bomDetail.bom.quantity} {bomDetail.bom.uom} — rows scale automatically
                     </span>
                   )}
+                </div>
+                <div className="wof-field">
+                  <label className="wof-label">Transfer Material Against</label>
+                  <select value={wo.transfer_material_against}
+                    onChange={e => set("transfer_material_against", e.target.value as "Work Order" | "Job Card")}
+                    className="form-field" disabled={disabled}>
+                    <option value="Work Order">Work Order</option>
+                    <option value="Job Card">Job Card</option>
+                  </select>
                 </div>
               </div>
 
@@ -889,7 +901,7 @@ const handleSave = async (e: FormEvent) => {
                     <span className="wof-connection-count">₹ {wo.planned_operating_cost.toFixed(2)}</span>
                   </div>
                   <button type="button" className="wof-row-add-btn" style={{ marginTop: 6 }}
-                    onClick={() => applyBomToWo(bomDetail, wo.qty_to_manufacture)}
+                    onClick={() => bomDetail && applyBomToWo(bomDetail, wo.qty_to_manufacture)}
                     disabled={disabled || !wo.qty_to_manufacture}>
                     <FaSyncAlt size={10} /> Recalculate
                   </button>
@@ -911,19 +923,9 @@ const handleSave = async (e: FormEvent) => {
 
               <div className="wof-grid-2">
                 <WarehouseSearchField label="WIP Warehouse" value={wo.wip_warehouse}
-                  onChange={v => set("wip_warehouse", v)}
-                  required={!wo.skip_material_transfer} disabled={disabled}
+                  onChange={v => set("wip_warehouse", v)} required disabled={disabled}
                   hint="Where production operations happen"
-                  error={!wo.wip_warehouse.trim() && !wo.skip_material_transfer ? "Required" : ""} />
-                <div className="wof-field">
-                  <label className="wof-label">Transfer Material Against</label>
-                  <select value={wo.transfer_material_against}
-                    onChange={e => set("transfer_material_against", e.target.value as "Work Order" | "Job Card")}
-                    className="form-field" disabled={disabled}>
-                    <option value="Work Order">Work Order</option>
-                    <option value="Job Card">Job Card</option>
-                  </select>
-                </div>
+                  error={!wo.wip_warehouse.trim() ? "Required" : ""} />
               </div>
 
               <div className="wof-divider" />
@@ -1009,9 +1011,8 @@ const handleSave = async (e: FormEvent) => {
                       <th>Source Warehouse</th>
                       <th>Required Qty</th>
                       <th>UOM</th>
-                      <th>Transferred Qty</th>
-                      <th>Consumed Qty</th>
-                      <th>Returned Qty</th>
+                      <th>Rate</th>
+                      <th>Amount</th>
                       <th className="wof-col-action" />
                     </tr>
                   </thead>
@@ -1045,19 +1046,14 @@ const handleSave = async (e: FormEvent) => {
                             className="form-field form-field-sm" placeholder="Nos" disabled={disabled} />
                         </td>
                         <td>
-                          <input type="number" value={ri.transferred_qty || ""}
-                            onChange={e => updateItem(ri.id, "transferred_qty", Number(e.target.value))}
-                            className="form-field form-field-sm" min="0" disabled={disabled} />
+                          <input type="number" value={ri.rate || ""}
+                            onChange={e => updateItem(ri.id, "rate", Number(e.target.value))}
+                            className="form-field form-field-sm" min="0" step="0.01" disabled={disabled} />
                         </td>
                         <td>
-                          <input type="number" value={ri.consumed_qty || ""}
-                            onChange={e => updateItem(ri.id, "consumed_qty", Number(e.target.value))}
-                            className="form-field form-field-sm" min="0" disabled={disabled} />
-                        </td>
-                        <td>
-                          <input type="number" value={ri.returned_qty || ""}
-                            onChange={e => updateItem(ri.id, "returned_qty", Number(e.target.value))}
-                            className="form-field form-field-sm" min="0" disabled={disabled} />
+                          <input type="number" value={ri.amount || ""}
+                            onChange={e => updateItem(ri.id, "amount", Number(e.target.value))}
+                            className="form-field form-field-sm" min="0" step="0.01" disabled={disabled} />
                         </td>
                         <td className="wof-col-action">
                           <button type="button" className="wof-row-delete-btn"
@@ -1072,56 +1068,58 @@ const handleSave = async (e: FormEvent) => {
                 </table>
               </div>
 
-              {/* Status selector */}
-              <div className="wof-field" style={{ marginTop: 18 }}>
-                <label className="wof-label">Status</label>
-                <div className="wof-status-selector">
-                  {STATUS_OPTIONS.map(s => (
-                    <button key={s} type="button"
-                      className={`wof-status-btn${wo.status === s ? " wof-status-btn-active" : ""}`}
-                      onClick={() => set("status", s)} disabled={disabled}>
-                      <span className={`wof-status-dot ${STATUS_CLASS[s]}`} />
-                      {s}
-                    </button>
-                  ))}
+              {/* Total Raw Material Cost */}
+              <div className="wof-total-cost">
+                <span className="wof-total-label">Total Raw Material Cost:</span>
+                <span className="wof-total-value">₹ {totalRawMaterialCost.toFixed(2)}</span>
+              </div>
+
+              <div className="wof-divider" />
+              <span className="wof-section-title">Operating Costs</span>
+
+              <div className="wof-grid-2" style={{ marginTop: 10 }}>
+                <div className="wof-field">
+                  <label className="wof-label">
+                    Planned Operating Cost
+                    {bomDetail && <span className="wof-hint" style={{ marginLeft: 6 }}>auto from BOM</span>}
+                  </label>
+                  <input type="number" value={wo.planned_operating_cost || ""}
+                    onChange={e => set("planned_operating_cost", Number(e.target.value))}
+                    className="form-field" min="0" step="0.01" disabled={disabled} />
+                </div>
+                <div className="wof-field">
+                  <label className="wof-label">Actual Operating Cost</label>
+                  <input type="number" value={wo.actual_operating_cost || ""}
+                    onChange={e => set("actual_operating_cost", Number(e.target.value))}
+                    className="form-field" min="0" step="0.01" disabled={disabled} />
+                </div>
+                <div className="wof-field">
+                  <label className="wof-label">Additional Operating Cost</label>
+                  <input type="number" value={wo.additional_operating_cost || ""}
+                    onChange={e => set("additional_operating_cost", Number(e.target.value))}
+                    className="form-field" min="0" step="0.01" disabled={disabled} />
+                </div>
+                <div className="wof-field">
+                  <label className="wof-label">Corrective Operation Cost</label>
+                  <input type="number" value={wo.corrective_operation_cost || ""}
+                    onChange={e => set("corrective_operation_cost", Number(e.target.value))}
+                    className="form-field" min="0" step="0.01" disabled={disabled} />
+                  <span className="wof-hint">From Corrective Job Card</span>
+                </div>
+                <div className="wof-field">
+                  <label className="wof-label">Total Operating Cost</label>
+                  <input type="number"
+                    value={wo.planned_operating_cost + wo.corrective_operation_cost + wo.additional_operating_cost}
+                    className="form-field" disabled />
                 </div>
               </div>
+
             </div>
           )}
 
           {/* ══════════ TAB 2: CONFIGURATION ══════════ */}
           {activeTab === "configuration" && (
             <div className="wof-card">
-              <div className="wof-grid-2">
-                <label className="wof-checkbox-field">
-                  <input type="checkbox" checked={wo.allow_alternative_item}
-                    onChange={e => set("allow_alternative_item", e.target.checked)} disabled={disabled} />
-                  Allow Alternative Item
-                </label>
-                <label className="wof-checkbox-field">
-                  <input type="checkbox" checked={wo.skip_material_transfer}
-                    onChange={e => set("skip_material_transfer", e.target.checked)} disabled={disabled} />
-                  <div>
-                    Skip Material Transfer to WIP
-                    <div className="wof-hint">Check if transfer entry is not required</div>
-                  </div>
-                </label>
-                <label className="wof-checkbox-field">
-                  <input type="checkbox" checked={wo.use_multi_level_bom}
-                    onChange={e => set("use_multi_level_bom", e.target.checked)} disabled={disabled} />
-                  <div>
-                    Use Multi-Level BOM
-                    <div className="wof-hint">Plan material for sub-assemblies</div>
-                  </div>
-                </label>
-                <label className="wof-checkbox-field">
-                  <input type="checkbox" checked={wo.update_consumed_material_cost_in_project}
-                    onChange={e => set("update_consumed_material_cost_in_project", e.target.checked)} disabled={disabled} />
-                  Update Consumed Material Cost in Project
-                </label>
-              </div>
-
-              <div className="wof-divider" />
               <span className="wof-section-title">Dates</span>
 
               <div className="wof-grid-2" style={{ marginTop: 10 }}>
@@ -1163,46 +1161,6 @@ const handleSave = async (e: FormEvent) => {
                   <input type="number" value={wo.lead_time_mins || ""}
                     onChange={e => set("lead_time_mins", Number(e.target.value))}
                     className="form-field" min="0" step="0.01" disabled={disabled} />
-                </div>
-              </div>
-
-              <div className="wof-divider" />
-              <span className="wof-section-title">Operating Costs</span>
-
-              <div className="wof-grid-2" style={{ marginTop: 10 }}>
-                <div className="wof-field">
-                  <label className="wof-label">
-                    Planned Operating Cost
-                    {bomDetail && <span className="wof-hint" style={{ marginLeft: 6 }}>auto from BOM</span>}
-                  </label>
-                  <input type="number" value={wo.planned_operating_cost || ""}
-                    onChange={e => set("planned_operating_cost", Number(e.target.value))}
-                    className="form-field" min="0" step="0.01" disabled={disabled} />
-                </div>
-                <div className="wof-field">
-                  <label className="wof-label">Actual Operating Cost</label>
-                  <input type="number" value={wo.actual_operating_cost || ""}
-                    onChange={e => set("actual_operating_cost", Number(e.target.value))}
-                    className="form-field" min="0" step="0.01" disabled={disabled} />
-                </div>
-                <div className="wof-field">
-                  <label className="wof-label">Additional Operating Cost</label>
-                  <input type="number" value={wo.additional_operating_cost || ""}
-                    onChange={e => set("additional_operating_cost", Number(e.target.value))}
-                    className="form-field" min="0" step="0.01" disabled={disabled} />
-                </div>
-                <div className="wof-field">
-                  <label className="wof-label">Corrective Operation Cost</label>
-                  <input type="number" value={wo.corrective_operation_cost || ""}
-                    onChange={e => set("corrective_operation_cost", Number(e.target.value))}
-                    className="form-field" min="0" step="0.01" disabled={disabled} />
-                  <span className="wof-hint">From Corrective Job Card</span>
-                </div>
-                <div className="wof-field">
-                  <label className="wof-label">Total Operating Cost</label>
-                  <input type="number"
-                    value={wo.actual_operating_cost + wo.corrective_operation_cost + wo.additional_operating_cost}
-                    className="form-field" disabled />
                 </div>
               </div>
             </div>
@@ -1281,8 +1239,8 @@ const handleSave = async (e: FormEvent) => {
             </div>
           )}
 
-          {/* ══════════ TAB 4: CONNECTIONS ══════════ */}
-          {activeTab === "connections" && (
+          {/* ══════════ TAB 4: TOTAL PRODUCED ══════════ */}
+          {activeTab === "total_produced" && (
             <div className="wof-card">
               <div className="wof-progress-block">
                 <div className="wof-progress-bar">
@@ -1299,26 +1257,6 @@ const handleSave = async (e: FormEvent) => {
                 <span className="wof-progress-label">
                   Completed Operations: <strong>{wo.completed_operations.join(", ") || "None"}</strong>
                 </span>
-              </div>
-
-              <div className="wof-divider" />
-              <div className="wof-connections-grid">
-                <div>
-                  <span className="wof-section-title wof-section-title-flush">Transactions</span>
-                  {[["Stock Entry", wo.stock_entry_count], ["Job Card", wo.job_card_count], ["Pick List", wo.pick_list_count]].map(([l, v]) => (
-                    <div key={String(l)} className="wof-connection-row">
-                      <span>{l}</span><span className="wof-connection-count">{v}</span>
-                    </div>
-                  ))}
-                </div>
-                <div>
-                  <span className="wof-section-title wof-section-title-flush">Reference</span>
-                  {[["Serial No", wo.serial_no_count || "+"], ["Batch", wo.batch_count || "+"], ["Material Request", wo.material_request_count || "+"]].map(([l, v]) => (
-                    <div key={String(l)} className="wof-connection-row">
-                      <span>{l}</span><span className="wof-connection-count">{v}</span>
-                    </div>
-                  ))}
-                </div>
               </div>
             </div>
           )}
