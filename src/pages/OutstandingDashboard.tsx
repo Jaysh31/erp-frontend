@@ -1,14 +1,10 @@
 import React, { useState } from 'react';
 import { 
-  FaMoneyBillWave, 
-  FaExclamationTriangle, 
-  FaChartLine, 
-  FaClock,
+  FaMoneyBillWave,
   FaUser,
   FaFileInvoice,
   FaReceipt,
-  FaChevronDown,
-  FaChevronRight,
+
   FaPrint,
   FaDownload
 } from 'react-icons/fa';

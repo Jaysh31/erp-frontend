@@ -70,16 +70,20 @@ export default function Sidebar({
   };
 
   // All menu categories
-  const allMenuCategories = [
-    {
-      title: 'Home',
-      module: 'home',
-      icon: <HomeIcon />,
-      items: [
-        { title: 'Home', icon: <HomeIcon />, path: '/home' },
-        { title: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' }
-      ]
-    },
+const allMenuCategories = [
+  {
+    title: 'Home',
+    module: 'home',
+    icon: <HomeIcon />,
+    items: [
+      { title: 'Home', icon: <HomeIcon />, path: '/home' },
+      { 
+        title: 'Dashboard', 
+        icon: <DashboardIcon />, 
+        path: currentModule !== 'home' ? `/dashboard/${currentModule}` : '/dashboard/manufacturing' 
+      }
+    ]
+  },
     {
       title: 'Sales',
       module: 'sales',
@@ -138,10 +142,7 @@ export default function Sidebar({
         { title: 'Operations', icon: <WarehouseIcon />, path: '/operations' },
 
         { title: 'Unit of Measure (UOM)', icon: <RulerIcon />, path: '/uom' },
-        // { title: 'UOM Conversion Factor', icon: <RepeatIcon />, path: '/uom-conversion' },
-        // { title: 'Serial No', icon: <HashIcon />, path: '/serial-no' },
-        // { title: 'Batch No', icon: <LayersIcon />, path: '/batch-no' },
-        // { title: 'Serial and Batch Bundle', icon: <PackageIcon />, path: '/serial-batch-bundle' }
+
       ]
     },
     {
@@ -178,39 +179,6 @@ export default function Sidebar({
       items: [
         { title: 'Dashboard', icon: <DashboardIcon />, path: '/accounting/dashboard' },
         { title: 'Accounts', icon: <ChartOfAccountsIcon />, path: '/accounting/accounts' },
-        // { title: 'Chart of Accounts', icon: <ChartOfAccountsIcon />, path: '/accounting/chart-of-accounts' },
-        // { title: 'Ledger Accounts', icon: <LedgerIcon />, path: '/accounting/ledgers' },
-        // { title: 'Cost Centers', icon: <CostCenterIcon />, path: '/accounting/cost-centers' },
-        // { title: 'Receivables', icon: <ReceivableIcon />, path: '/accounting/receivables' },
-        // { title: 'Customer Invoices', icon: <CustomerInvoiceIcon />, path: '/accounting/customer-invoices' },
-        // { title: 'Customer Payments', icon: <CustomerPaymentIcon />, path: '/accounting/customer-payments' },
-        // { title: 'Outstanding Receivables', icon: <OutstandingReceivableIcon />, path: '/accounting/outstanding-receivables' },
-        // { title: 'Payables', icon: <PayableIcon />, path: '/accounting/payables' },
-        // { title: 'Supplier Bills', icon: <SupplierBillIcon />, path: '/accounting/supplier-bills' },
-        // { title: 'Supplier Payments', icon: <SupplierPaymentIcon />, path: '/accounting/supplier-payments' },
-        // { title: 'Outstanding Payables', icon: <OutstandingPayableIcon />, path: '/accounting/outstanding-payables' },
-        // { title: 'Banking', icon: <BankingIcon />, path: '/accounting/banking' },
-        // { title: 'Bank Accounts', icon: <BankAccountIcon />, path: '/accounting/bank-accounts' },
-        // { title: 'Bank Transactions', icon: <BankTransactionIcon />, path: '/accounting/bank-transactions' },
-        // { title: 'Bank Reconciliation', icon: <BankReconciliationIcon />, path: '/accounting/bank-reconciliation' },
-        // { title: 'Expenses', icon: <ExpenseIcon />, path: '/accounting/expenses' },
-        // { title: 'Expense Categories', icon: <TagIcon />, path: '/accounting/expense-categories' },
-        // { title: 'Expense Reports', icon: <ReportsIcon />, path: '/accounting/expense-reports' },
-        // { title: 'Taxes', icon: <TaxIcon />, path: '/accounting/taxes' },
-        // { title: 'Tax Configuration', icon: <TaxIcon />, path: '/accounting/tax-configuration' },
-        // { title: 'Tax Returns', icon: <ReportsIcon />, path: '/accounting/tax-returns' },
-        // { title: 'GST Reports', icon: <GSTIcon />, path: '/accounting/gst-reports' },
-        // { title: 'Journal Entries', icon: <JournalIcon />, path: '/accounting/journal-entries' },
-        // { title: 'Create Journal', icon: <JournalIcon />, path: '/accounting/create-journal' },
-        // { title: 'View Journals', icon: <LedgerReportIcon />, path: '/accounting/view-journals' },
-        // { title: 'General Ledger', icon: <LedgerReportIcon />, path: '/accounting/general-ledger' },
-        // { title: 'Trial Balance', icon: <TrialBalanceIcon />, path: '/accounting/trial-balance' },
-        // { title: 'Profit & Loss', icon: <PnLIcon />, path: '/accounting/profit-loss' },
-        // { title: 'Balance Sheet', icon: <BalanceSheetIcon />, path: '/accounting/balance-sheet' },
-        // { title: 'Cash Flow', icon: <CashFlowIcon />, path: '/accounting/cash-flow' },
-        // { title: 'Fund Flow', icon: <FundsFlowIcon />, path: '/accounting/funds-flow' },
-        // { title: 'Ratio Analysis', icon: <RatioIcon />, path: '/accounting/ratio-analysis' },
-        // { title: 'Settings', icon: <SettingsIcon />, path: '/accounting/settings' }
       ]
     },
     {

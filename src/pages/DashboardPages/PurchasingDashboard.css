@@ -1,0 +1,45 @@
+/* PurchasingDashboard.css */
+.purchasing-dashboard .order-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background: var(--nav-hover, #f8fafc);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: 8px;
+}
+
+.purchasing-dashboard .order-item:hover {
+  background: var(--nav-active, #f1f5f9);
+  transform: translateX(4px);
+}
+
+.order-supplier {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary, #1e293b);
+}
+
+/* Dark Theme */
+.dark-theme.purchasing-dashboard .order-item {
+  background: var(--nav-hover, rgba(255, 255, 255, 0.05));
+}
+
+.dark-theme.purchasing-dashboard .order-item:hover {
+  background: var(--nav-active, rgba(59, 130, 246, 0.15));
+}
+
+.dark-theme.purchasing-dashboard .order-supplier {
+  color: var(--text-primary, #f8fafc);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .purchasing-dashboard .order-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+}

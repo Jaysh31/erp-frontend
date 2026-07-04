@@ -343,7 +343,7 @@ function ItemSearchField({
     
     // Calculate available space below and above
     const spaceBelow = viewportHeight - rect.bottom;
-    const spaceAbove = rect.top;
+    // const spaceAbove = rect.top;
     
     let top: number;
     // Prefer showing below, but if not enough space, show above
@@ -696,7 +696,7 @@ export default function StockEntryForm2() {
   const [se, setSe] = useState<StockEntryData>(emptyStockEntry());
   const [, setIsDirty] = useState(isNew);
   const [submitting, setSubmitting] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, ] = useState(false);
   const [showValidationSummary, setShowValidationSummary] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>(
     []

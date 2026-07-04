@@ -13,29 +13,20 @@ import {
   FaTimes,
   FaCheckCircle,
   FaClock,
-  FaExclamationTriangle,
   FaEllipsisV,
-  FaUser,
-  FaRupeeSign,
+
   FaFilePdf,
   FaFileExcel,
   FaEnvelope,
   FaBan,
-  FaReceipt,
+
   FaPaperPlane,
   FaTruck,
-  FaBox,
-  FaWarehouse,
-  FaRoad,
-  FaUserTie,
+
   FaFileInvoice,
-  FaBuilding,
-  FaMapMarkerAlt,
-  FaCalendarAlt,
-  FaIdCard,
-  FaHashtag,
+
   FaCopy,
-  FaSave,
+
   FaExternalLinkAlt
 } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
@@ -53,31 +44,6 @@ interface Customer {
   gstin?: string;
 }
 
-interface InvoiceItem {
-  id: string;
-  itemCode: string;
-  description: string;
-  quantity: number;
-  unit: string;
-  rate: number;
-  amount: number;
-}
-
-interface Invoice {
-  id: string;
-  invoiceNo: string;
-  customer: Customer;
-  invoiceDate: string;
-  salesOrderNo?: string;
-  salesPerson?: string;
-  paymentTerms: string;
-  grandTotal: number;
-  company: string;
-  branch: string;
-  items: InvoiceItem[];
-  deliveryStatus: 'Pending' | 'Partial Dispatch' | 'Fully Dispatched';
-  status: 'Approved' | 'Draft' | 'Cancelled';
-}
 
 interface DeliveryChallanItem {
   id: string;
@@ -117,7 +83,7 @@ interface DeliveryChallan {
 }
 
 // ===== STATUS BADGE COMPONENT =====
-const StatusBadge: React.FC<{ status: string; type?: 'delivery' | 'dc' }> = ({ status, type = 'dc' }) => {
+const StatusBadge: React.FC<{ status: string; type?: 'delivery' | 'dc' }> = ({ status,  }) => {
   const configs: Record<string, { color: string; bg: string; label: string }> = {
     'Draft': { color: '#94a3b8', bg: '#f1f5f9', label: 'Draft' },
     'Submitted': { color: '#3b82f6', bg: '#eff6ff', label: 'Submitted' },
@@ -156,13 +122,13 @@ const DeliveryChallans: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDeliveryStatus, setSelectedDeliveryStatus] = useState<string>('all');
   const [selectedDCStatus, setSelectedDCStatus] = useState<string>('all');
-  const [selectedCustomer, setSelectedCustomer] = useState<string>('all');
-  const [selectedInvoice, setSelectedInvoice] = useState<DeliveryChallan | null>(null);
+  const [selectedCustomer, ] = useState<string>('all');
+  // const [selectedInvoice, setSelectedInvoice] = useState<DeliveryChallan | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const [showMoreMenu, setShowMoreMenu] = useState<string | null>(null);
-  const [showDetailModal, setShowDetailModal] = useState(false);
+  // const [showDetailModal, setShowDetailModal] = useState(false);
 
   // Sample Data - In real app, this would come from API
   const deliveryChallans: DeliveryChallan[] = [
@@ -381,14 +347,14 @@ const DeliveryChallans: React.FC = () => {
     }
   ];
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(amount);
-  };
+  // const formatCurrency = (amount: number) => {
+  //   return new Intl.NumberFormat('en-IN', {
+  //     style: 'currency',
+  //     currency: 'INR',
+  //     minimumFractionDigits: 2,
+  //     maximumFractionDigits: 2
+  //   }).format(amount);
+  // };
 
   const formatDate = (date: string) => {
     return new Date(date).toLocaleDateString('en-IN', {
@@ -398,15 +364,15 @@ const DeliveryChallans: React.FC = () => {
     });
   };
 
-  const formatDateTime = (date: string) => {
-    return new Date(date).toLocaleString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
+  // const formatDateTime = (date: string) => {
+  //   return new Date(date).toLocaleString('en-IN', {
+  //     day: '2-digit',
+  //     month: 'short',
+  //     year: 'numeric',
+  //     hour: '2-digit',
+  //     minute: '2-digit'
+  //   });
+  // };
 
   // Filter logic
   const filteredChallans = deliveryChallans.filter(challan => {
@@ -437,15 +403,15 @@ const DeliveryChallans: React.FC = () => {
     { label: 'Fully Dispatched', value: filteredChallans.filter(d => d.deliveryStatus === 'Fully Dispatched').length, color: '#10b981', icon: <FaCheckCircle /> }
   ];
 
-  const getCustomers = () => {
-    const unique = new Map();
-    deliveryChallans.forEach(d => {
-      if (!unique.has(d.customer.id)) {
-        unique.set(d.customer.id, d.customer);
-      }
-    });
-    return Array.from(unique.values());
-  };
+  // const getCustomers = () => {
+  //   const unique = new Map();
+  //   deliveryChallans.forEach(d => {
+  //     if (!unique.has(d.customer.id)) {
+  //       unique.set(d.customer.id, d.customer);
+  //     }
+  //   });
+  //   return Array.from(unique.values());
+  // };
 
   // ===== NAVIGATION HANDLERS =====
   
@@ -523,7 +489,7 @@ const DeliveryChallans: React.FC = () => {
     return challan.dcStatus === 'Draft';
   };
 
-  const canViewInvoice = (challan: DeliveryChallan) => {
+  const canViewInvoice = () => {
     return true;
   };
 
@@ -731,7 +697,7 @@ const DeliveryChallans: React.FC = () => {
                               <FaEnvelope /> Email DC
                             </button>
                             
-                            {canViewInvoice(challan) && (
+                            {canViewInvoice() && (
                               <button onClick={() => handleViewInvoice(challan.invoiceNo)}>
                                 <FaExternalLinkAlt /> View Invoice
                               </button>

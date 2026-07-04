@@ -1,0 +1,231 @@
+/* ReportsDashboard.css */
+.reports-dashboard .categories-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.reports-dashboard .category-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--nav-hover, #f8fafc);
+  border-radius: 8px;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.reports-dashboard .category-card:hover {
+  background: var(--nav-active, #f1f5f9);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.category-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.category-info {
+  flex: 1;
+}
+
+.category-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary, #1e293b);
+}
+
+.category-count {
+  font-size: 12px;
+  color: var(--text-secondary, #64748b);
+}
+
+/* Reports List */
+.reports-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.report-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--nav-hover, #f8fafc);
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.report-item:hover {
+  background: var(--nav-active, #f1f5f9);
+  transform: translateX(4px);
+}
+
+.report-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--primary-color, #3b82f6);
+  color: white;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.report-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.report-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary, #1e293b);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.report-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+  flex-wrap: wrap;
+}
+
+.report-category {
+  font-size: 11px;
+  padding: 2px 8px;
+  background: var(--primary-color, #3b82f6);
+  color: white;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.report-time {
+  font-size: 11px;
+  color: var(--text-secondary, #64748b);
+}
+
+.report-size {
+  font-size: 11px;
+  color: var(--text-secondary, #94a3b8);
+}
+
+.report-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.report-status {
+  font-size: 11px;
+  padding: 2px 10px;
+  border-radius: 12px;
+  color: white;
+  font-weight: 500;
+}
+
+.report-action-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: var(--nav-hover, #f1f5f9);
+  color: var(--text-secondary, #64748b);
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.report-action-btn:hover {
+  background: var(--primary-color, #3b82f6);
+  color: white;
+  transform: scale(1.05);
+}
+
+/* Dark Theme */
+.dark-theme.reports-dashboard .category-card,
+.dark-theme.reports-dashboard .report-item {
+  background: var(--nav-hover, rgba(255, 255, 255, 0.05));
+}
+
+.dark-theme.reports-dashboard .category-card:hover,
+.dark-theme.reports-dashboard .report-item:hover {
+  background: var(--nav-active, rgba(59, 130, 246, 0.15));
+}
+
+.dark-theme.reports-dashboard .category-name,
+.dark-theme.reports-dashboard .report-name {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme.reports-dashboard .category-count,
+.dark-theme.reports-dashboard .report-time,
+.dark-theme.reports-dashboard .report-size {
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme.reports-dashboard .report-action-btn {
+  background: var(--nav-hover, rgba(255, 255, 255, 0.1));
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme.reports-dashboard .report-action-btn:hover {
+  background: var(--primary-color, #3b82f6);
+  color: white;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .reports-dashboard .categories-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .reports-dashboard .categories-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .reports-dashboard .report-item {
+    flex-wrap: wrap;
+  }
+  
+  .reports-dashboard .report-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  
+  .reports-dashboard .report-name {
+    white-space: normal;
+  }
+}
+
+@media (max-width: 480px) {
+  .reports-dashboard .report-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .reports-dashboard .report-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}

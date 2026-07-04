@@ -2,33 +2,23 @@ import React, { useState, useEffect } from 'react';
 import { 
   FaSave, 
   FaTimes, 
-  FaPlus, 
-  FaTrash,
   FaPrint,
   FaPaperPlane,
-  FaChevronLeft,
-  FaBuilding,
   FaWarehouse,
-  FaUser,
-  FaStore,
-  FaGlobe,
+
   FaTruck,
   FaRoad,
   FaUserTie,
   FaFileInvoice,
-  FaMapMarkerAlt,
   FaCalendarAlt,
   FaIdCard,
   FaHashtag,
   FaBox,
-  FaSearch,
   FaInfoCircle,
   FaFileContract,
   FaPhone,
-  FaEnvelope,
-  FaUserCircle
 } from 'react-icons/fa';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate,  } from 'react-router-dom';
 
 // ===== INTERFACES =====
 
@@ -90,7 +80,7 @@ interface DeliveryChallanItem {
 
 const NewDeliveryChallan: React.FC = () => {
   const navigate = useNavigate();
-  const location = useLocation();
+  // const location = useLocation();
   
   // State
   const [selectedInvoice, setSelectedInvoice] = useState<string>('');
@@ -109,7 +99,7 @@ const NewDeliveryChallan: React.FC = () => {
   const [invoiceData, setInvoiceData] = useState<Invoice | null>(null);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [dcNumber, setDcNumber] = useState<string>('DC-2024-007');
+  const [dcNumber, ] = useState<string>('DC-2024-007');
 
   // Sample invoices for dropdown - Only invoices with pending dispatch
   const availableInvoices: Invoice[] = [
@@ -230,14 +220,14 @@ const NewDeliveryChallan: React.FC = () => {
   }, [selectedInvoice]);
 
   // Format currency
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(amount);
-  };
+  // const formatCurrency = (amount: number) => {
+  //   return new Intl.NumberFormat('en-IN', {
+  //     style: 'currency',
+  //     currency: 'INR',
+  //     minimumFractionDigits: 2,
+  //     maximumFractionDigits: 2
+  //   }).format(amount);
+  // };
 
   // Update dispatch quantity
   const updateDispatchQty = (itemId: string, value: number) => {

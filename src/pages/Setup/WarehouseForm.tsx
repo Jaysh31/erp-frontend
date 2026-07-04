@@ -37,27 +37,27 @@ interface ValidationError {
   message: string;
 }
 
-interface WarehouseData {
-  id: number;
-  warehouse_name: string;
-  company: string | null;
-  parent_warehouse: string | null;
-  warehouse_type: string | null;
-  city: string | null;
-  state: string | null;
-  email_id: string | null;
-  phone_no: string | null;
-  mobile_no: string | null;
-  address_line_1: string | null;
-  address_line_2: string | null;
-  pin: string | null;
-  account: string | null;
-  customer: string | null;
-  is_rejected_warehouse: number;
-  is_group: number;
-  default_in_transit_warehouse: string;
-  disabled: number;
-}
+// interface WarehouseData {
+//   id: number;
+//   warehouse_name: string;
+//   company: string | null;
+//   parent_warehouse: string | null;
+//   warehouse_type: string | null;
+//   city: string | null;
+//   state: string | null;
+//   email_id: string | null;
+//   phone_no: string | null;
+//   mobile_no: string | null;
+//   address_line_1: string | null;
+//   address_line_2: string | null;
+//   pin: string | null;
+//   account: string | null;
+//   customer: string | null;
+//   is_rejected_warehouse: number;
+//   is_group: number;
+//   default_in_transit_warehouse: string;
+//   disabled: number;
+// }
 
 export default function WarehouseForm() {
   const { id } = useParams<{ id: string }>();

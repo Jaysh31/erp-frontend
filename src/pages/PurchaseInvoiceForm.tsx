@@ -1,19 +1,19 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { 
-  FaPlus,  FaSave, FaSpinner,  FaArrowLeft,
+  FaPlus, FaSave, FaSpinner, FaArrowLeft,
   FaExclamationCircle, FaExclamationTriangle, FaInfoCircle,
   FaTimesCircle, FaTag, FaBuilding, FaMoneyBillWave,
   FaCalendarAlt, FaFileAlt, FaBoxes, FaTruck, FaClipboardList,
-  FaSearch
+  FaReceipt, FaUser, FaClock, FaSearch
 } from 'react-icons/fa';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
 import api from '../services/api';
-import './PurchaseOrderForm.css';
+import './PurchaseInvoiceForm.css';
 
-interface PurchaseOrderItem {
+interface PurchaseInvoiceItem {
   id: string;
   itemCode: string;
   itemName: string;
@@ -25,27 +25,25 @@ interface PurchaseOrderItem {
   balanceQty: number;
 }
 
-interface PurchaseOrder {
+interface PurchaseInvoice {
   id: string;
-  poNumber: string;
-  title: string;
+  invoiceNumber: string;
   supplier: string;
   supplierCode: string;
-  status: 'Draft' | 'Submitted' | 'Partially Received' | 'Fully Received' | 'Cancelled' | 'Closed';
-  orderDate: string;
-  deliveryDate: string;
+  purchaseOrder: string;
+  status: 'Draft' | 'Submitted' | 'Partially Paid' | 'Fully Paid' | 'Overdue' | 'Cancelled';
+  date: string;
+  dueDate: string;
   currency: string;
   totalAmount: number;
-  receivedAmount: number;
+  paidAmount: number;
   balanceAmount: number;
-  paymentTerms: string;
-  shippingAddress: string;
-  billingAddress: string;
-  notes: string;
-  items: PurchaseOrderItem[];
+  itemsCount: number;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+  items: PurchaseInvoiceItem[];
+  notes: string;
 }
 
 interface ValidationError {
@@ -66,90 +64,85 @@ interface ItemSuggestion {
 }
 
 // Mock data for demo - in real app, this would come from an API
-const mockPurchaseOrders: PurchaseOrder[] = [
+const mockPurchaseInvoices: PurchaseInvoice[] = [
   {
     id: '1',
-    poNumber: 'PO-2026-001',
-    title: 'Raw Material Purchase',
+    invoiceNumber: 'PI-2026-001',
     supplier: 'ABC Manufacturing Co.',
     supplierCode: 'SUP-001',
-    status: 'Partially Received',
-    orderDate: '2026-06-20',
-    deliveryDate: '2026-07-05',
+    purchaseOrder: 'PO-2026-001',
+    status: 'Partially Paid',
+    date: '2026-06-20',
+    dueDate: '2026-07-20',
     currency: 'INR',
-    totalAmount: 250000,
-    receivedAmount: 100000,
-    balanceAmount: 150000,
-    paymentTerms: 'Net 30',
-    shippingAddress: '123, Business Park, Mumbai - 400001',
-    billingAddress: '123, Business Park, Mumbai - 400001',
-    notes: 'Urgent delivery required',
+    totalAmount: 175000,
+    paidAmount: 75000,
+    balanceAmount: 100000,
+    itemsCount: 2,
     createdBy: 'Tejas Tarte',
     createdAt: '2026-06-20T10:00:00Z',
     updatedAt: '2026-06-20T10:00:00Z',
     items: [
       { id: '1', itemCode: 'RM-001', itemName: 'Steel Sheets 2mm', quantity: 500, uom: 'NOS', rate: 350, amount: 175000, receivedQty: 200, balanceQty: 300 },
       { id: '2', itemCode: 'RM-002', itemName: 'Aluminum Bars', quantity: 300, uom: 'KG', rate: 250, amount: 75000, receivedQty: 100, balanceQty: 200 }
-    ]
+    ],
+    notes: 'Urgent payment required'
   },
   {
     id: '2',
-    poNumber: 'PO-2026-002',
-    title: 'Electronic Components',
+    invoiceNumber: 'PI-2026-002',
     supplier: 'XYZ Electronics Ltd.',
     supplierCode: 'SUP-002',
-    status: 'Fully Received',
-    orderDate: '2026-06-18',
-    deliveryDate: '2026-06-28',
+    purchaseOrder: 'PO-2026-002',
+    status: 'Fully Paid',
+    date: '2026-06-18',
+    dueDate: '2026-07-18',
     currency: 'USD',
     totalAmount: 45000,
-    receivedAmount: 45000,
+    paidAmount: 45000,
     balanceAmount: 0,
-    paymentTerms: 'Net 15',
-    shippingAddress: '456, Tech Park, Bangalore - 560100',
-    billingAddress: '456, Tech Park, Bangalore - 560100',
-    notes: 'Quality check required upon receipt',
+    itemsCount: 3,
     createdBy: 'Nirjala Bagal',
     createdAt: '2026-06-18T10:00:00Z',
     updatedAt: '2026-06-18T10:00:00Z',
     items: [
       { id: '1', itemCode: 'EC-001', itemName: 'Resistor Pack 100k', quantity: 1000, uom: 'NOS', rate: 15, amount: 15000, receivedQty: 1000, balanceQty: 0 },
       { id: '2', itemCode: 'EC-002', itemName: 'Capacitor 100uF', quantity: 500, uom: 'NOS', rate: 60, amount: 30000, receivedQty: 500, balanceQty: 0 }
-    ]
+    ],
+    notes: 'Quality check required'
   },
   {
     id: '3',
-    poNumber: 'PO-2026-003',
-    title: 'Packaging Materials',
+    invoiceNumber: 'PI-2026-003',
     supplier: 'PQR Packaging Solutions',
     supplierCode: 'SUP-003',
+    purchaseOrder: 'PO-2026-003',
     status: 'Draft',
-    orderDate: '2026-06-22',
-    deliveryDate: '2026-07-10',
+    date: '2026-06-22',
+    dueDate: '2026-07-22',
     currency: 'INR',
     totalAmount: 120000,
-    receivedAmount: 0,
+    paidAmount: 0,
     balanceAmount: 120000,
-    paymentTerms: 'Net 45',
-    shippingAddress: '789, Packaging Park, Pune - 411001',
-    billingAddress: '789, Packaging Park, Pune - 411001',
-    notes: 'Pending approval',
+    itemsCount: 2,
     createdBy: 'P S Kamthe',
     createdAt: '2026-06-22T10:00:00Z',
     updatedAt: '2026-06-22T10:00:00Z',
     items: [
       { id: '1', itemCode: 'PKG-001', itemName: 'Carton Boxes Large', quantity: 200, uom: 'NOS', rate: 300, amount: 60000, receivedQty: 0, balanceQty: 200 },
       { id: '2', itemCode: 'PKG-002', itemName: 'Packing Tape', quantity: 150, uom: 'ROL', rate: 400, amount: 60000, receivedQty: 0, balanceQty: 150 }
-    ]
+    ],
+    notes: 'Pending approval'
   }
 ];
 
-const statusOptions = ['Draft', 'Submitted', 'Partially Received', 'Fully Received', 'Cancelled', 'Closed'];
+const statusOptions = ['Draft', 'Submitted', 'Partially Paid', 'Fully Paid', 'Overdue', 'Cancelled'];
+const suppliers = ['ABC Manufacturing Co.', 'XYZ Electronics Ltd.', 'PQR Packaging Solutions'];
+const poOptions = ['PO-2026-001', 'PO-2026-002', 'PO-2026-003'];
 const currencies = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD'];
-const paymentTerms = ['Net 7', 'Net 15', 'Net 30', 'Net 45', 'Net 60', 'Due on Receipt', 'Cash on Delivery'];
 const uomOptions = ['NOS', 'KG', 'LTR', 'MTR', 'BOX', 'SET', 'DOZ', 'ROL', 'SQM', 'CBM'];
 
-export default function PurchaseOrderForm() {
+export default function PurchaseInvoiceForm() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
@@ -168,8 +161,12 @@ export default function PurchaseOrderForm() {
   const [apiError, setApiError] = useState<string | null>(null);
   
   // State for suppliers
-  const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [suppliersList, setSuppliersList] = useState<any[]>([]);
   const [loadingSuppliers, setLoadingSuppliers] = useState(false);
+
+  // State for purchase orders
+  const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
+  const [loadingPOs, setLoadingPOs] = useState(false);
 
   // State for item suggestions
   const [itemSuggestions, setItemSuggestions] = useState<{ [key: number]: ItemSuggestion[] }>({});
@@ -186,31 +183,25 @@ export default function PurchaseOrderForm() {
   const [dropdownPositions, setDropdownPositions] = useState<{ [key: number]: { top: number; left: number; width: number } }>({});
 
   const [formData, setFormData] = useState<{
-    poNumber: string;
-    title: string;
+    invoiceNumber: string;
     supplier: string;
     supplierCode: string;
-    status: PurchaseOrder['status'];
-    orderDate: string;
-    deliveryDate: string;
+    purchaseOrder: string;
+    status: PurchaseInvoice['status'];
+    date: string;
+    dueDate: string;
     currency: string;
-    paymentTerms: string;
-    shippingAddress: string;
-    billingAddress: string;
     notes: string;
-    items: PurchaseOrderItem[];
+    items: PurchaseInvoiceItem[];
   }>({
-    poNumber: '',
-    title: '',
+    invoiceNumber: '',
     supplier: '',
     supplierCode: '',
+    purchaseOrder: '',
     status: 'Draft',
-    orderDate: new Date().toISOString().split('T')[0],
-    deliveryDate: '',
+    date: new Date().toISOString().split('T')[0],
+    dueDate: '',
     currency: 'INR',
-    paymentTerms: 'Net 30',
-    shippingAddress: '',
-    billingAddress: '',
     notes: '',
     items: [{ id: '1', itemCode: '', itemName: '', quantity: 1, uom: 'NOS', rate: 0, amount: 0, receivedQty: 0, balanceQty: 0 }]
   });
@@ -222,11 +213,7 @@ export default function PurchaseOrderForm() {
       const response = await api.get('/supplier');
       if (response.data && response.data.success === 1) {
         const supplierRecords = response.data.data?.records || [];
-        setSuppliers(supplierRecords);
-        
-        if (supplierRecords.length === 0) {
-          console.log('No suppliers found');
-        }
+        setSuppliersList(supplierRecords);
       } else {
         console.error('Failed to fetch suppliers:', response.data?.message || 'Unknown error');
         toast.error('Failed to load suppliers');
@@ -236,6 +223,26 @@ export default function PurchaseOrderForm() {
       toast.error('Failed to load suppliers. Please try again.');
     } finally {
       setLoadingSuppliers(false);
+    }
+  };
+
+  // Fetch purchase orders from API
+  const fetchPurchaseOrders = async () => {
+    setLoadingPOs(true);
+    try {
+      const response = await api.get('/purchase-order');
+      if (response.data && response.data.success === 1) {
+        const poRecords = response.data.data?.records || [];
+        setPurchaseOrders(poRecords);
+      } else {
+        console.error('Failed to fetch purchase orders:', response.data?.message || 'Unknown error');
+        toast.error('Failed to load purchase orders');
+      }
+    } catch (err: any) {
+      console.error('Error fetching purchase orders:', err);
+      toast.error('Failed to load purchase orders. Please try again.');
+    } finally {
+      setLoadingPOs(false);
     }
   };
 
@@ -368,31 +375,30 @@ export default function PurchaseOrderForm() {
   // Load data if editing
   useEffect(() => {
     fetchSuppliers();
+    fetchPurchaseOrders();
 
     if (isEdit && id) {
-      const purchaseOrder = mockPurchaseOrders.find(po => po.id === id);
-      if (purchaseOrder) {
+      const purchaseInvoice = mockPurchaseInvoices.find(inv => inv.id === id);
+      if (purchaseInvoice) {
         setFormData({
-          poNumber: purchaseOrder.poNumber,
-          title: purchaseOrder.title,
-          supplier: purchaseOrder.supplier,
-          supplierCode: purchaseOrder.supplierCode,
-          status: purchaseOrder.status,
-          orderDate: purchaseOrder.orderDate,
-          deliveryDate: purchaseOrder.deliveryDate,
-          currency: purchaseOrder.currency,
-          paymentTerms: purchaseOrder.paymentTerms,
-          shippingAddress: purchaseOrder.shippingAddress,
-          billingAddress: purchaseOrder.billingAddress,
-          notes: purchaseOrder.notes || '',
-          items: purchaseOrder.items.map(item => ({ ...item }))
+          invoiceNumber: purchaseInvoice.invoiceNumber,
+          supplier: purchaseInvoice.supplier,
+          supplierCode: purchaseInvoice.supplierCode,
+          purchaseOrder: purchaseInvoice.purchaseOrder,
+          status: purchaseInvoice.status,
+          date: purchaseInvoice.date,
+          dueDate: purchaseInvoice.dueDate,
+          currency: purchaseInvoice.currency,
+          notes: purchaseInvoice.notes || '',
+          items: purchaseInvoice.items.map(item => ({ ...item }))
         });
       }
     } else {
-      const nextNumber = mockPurchaseOrders.length + 1;
+      // Generate new invoice number for create mode
+      const nextNumber = mockPurchaseInvoices.length + 1;
       setFormData(prev => ({
         ...prev,
-        poNumber: `PO-2026-${String(nextNumber).padStart(3, '0')}`
+        invoiceNumber: `PI-2026-${String(nextNumber).padStart(3, '0')}`
       }));
     }
 
@@ -404,7 +410,7 @@ export default function PurchaseOrderForm() {
     };
   }, [id, isEdit]);
 
-  const handleItemChange = (index: number, field: keyof PurchaseOrderItem, value: string | number) => {
+  const handleItemChange = (index: number, field: keyof PurchaseInvoiceItem, value: string | number) => {
     const updatedItems = [...formData.items];
     updatedItems[index] = { ...updatedItems[index], [field]: value };
     
@@ -475,14 +481,17 @@ export default function PurchaseOrderForm() {
   const getAllValidationErrors = (): ValidationError[] => {
     const errors: ValidationError[] = [];
 
-    if (!formData.title.trim()) {
-      errors.push({ field: 'title', label: 'Title', message: 'Title is required' });
-    }
     if (!formData.supplier.trim()) {
       errors.push({ field: 'supplier', label: 'Supplier', message: 'Supplier is required' });
     }
-    if (!formData.orderDate) {
-      errors.push({ field: 'orderDate', label: 'Order Date', message: 'Order date is required' });
+    if (!formData.purchaseOrder.trim()) {
+      errors.push({ field: 'purchaseOrder', label: 'Purchase Order', message: 'Purchase Order is required' });
+    }
+    if (!formData.date) {
+      errors.push({ field: 'date', label: 'Invoice Date', message: 'Invoice date is required' });
+    }
+    if (!formData.dueDate) {
+      errors.push({ field: 'dueDate', label: 'Due Date', message: 'Due date is required' });
     }
     if (formData.items.some(item => !item.itemCode.trim() || !item.itemName.trim() || item.quantity <= 0 || item.rate <= 0)) {
       errors.push({ field: 'items', label: 'Items', message: 'All items must have code, name, quantity > 0 and rate > 0' });
@@ -506,32 +515,26 @@ export default function PurchaseOrderForm() {
     const totalAmount = formData.items.reduce((sum, item) => sum + item.amount, 0);
     const totalQty = formData.items.reduce((sum, item) => sum + item.quantity, 0);
     
-    const selectedSupplier = suppliers.find(s => s.supplier_name === formData.supplier);
+    // Find selected supplier
+    const selectedSupplier = suppliersList.find(s => s.supplier_name === formData.supplier);
+    // Find selected purchase order
+    const selectedPO = purchaseOrders.find(po => po.name === formData.purchaseOrder);
     
+    // Prepare payload
     const payload: any = {
-      name: formData.poNumber,
-      naming_series: "PO-.YYYY.-",
+      name: formData.invoiceNumber,
+      naming_series: "PI-.YYYY.-",
       supplier: selectedSupplier?.id || formData.supplierCode || "SUP-00001",
       supplier_name: formData.supplier,
-      order_confirmation_no: "",
-      order_confirmation_date: "",
-      transaction_date: formData.orderDate,
-      transaction_time: "10:30:00",
-      schedule_date: formData.deliveryDate || "",
+      purchase_order: selectedPO?.id || formData.purchaseOrder,
+      transaction_date: formData.date,
+      due_date: formData.dueDate,
       company: "My Company Pvt Ltd",
-      is_subcontracted: 0,
-      has_unit_price_items: 0,
-      supplier_warehouse: "",
-      cost_center: "Main - MC",
-      project: "",
       currency: formData.currency,
       conversion_rate: 1,
       buying_price_list: "Standard Buying",
       price_list_currency: formData.currency,
       plc_conversion_rate: 1,
-      ignore_pricing_rule: 0,
-      scan_barcode: "",
-      set_from_warehouse: "",
       set_warehouse: "",
       total_qty: totalQty,
       total_net_weight: 0,
@@ -539,7 +542,6 @@ export default function PurchaseOrderForm() {
       base_net_total: totalAmount,
       total: totalAmount,
       net_total: totalAmount,
-      set_reserve_warehouse: "",
       tax_category: "",
       taxes_and_charges: "",
       shipping_rule: "",
@@ -565,7 +567,7 @@ export default function PurchaseOrderForm() {
       discount_amount: 0,
       other_charges_calculation: "Net Total",
       supplier_address: "",
-      address_display: formData.shippingAddress || "",
+      address_display: "",
       supplier_group: "Local",
       contact_person: "",
       contact_display: "",
@@ -574,16 +576,10 @@ export default function PurchaseOrderForm() {
       dispatch_address: "",
       dispatch_address_display: "",
       shipping_address: "",
-      shipping_address_display: formData.shippingAddress || "",
+      shipping_address_display: "",
       billing_address: "",
-      billing_address_display: formData.billingAddress || "",
-      customer: "",
-      customer_name: "",
-      customer_contact_person: "",
-      customer_contact_display: "",
-      customer_contact_mobile: "",
-      customer_contact_email: "",
-      payment_terms_template: formData.paymentTerms,
+      billing_address_display: "",
+      payment_terms_template: "Net 30",
       tc_name: "Purchase Terms",
       terms: formData.notes || "",
       status: formData.status,
@@ -592,20 +588,12 @@ export default function PurchaseOrderForm() {
       per_received: 0,
       letter_head: "Standard",
       group_same_items: 0,
-      select_print_heading: "Purchase Order",
+      select_print_heading: "Purchase Invoice",
       language: "en",
-      from_date: null,
-      to_date: null,
-      auto_repeat: "",
-      title: formData.title,
+      title: `Purchase Invoice ${formData.invoiceNumber}`,
       party_account_currency: formData.currency,
       represents_company: "",
-      ref_sq: "",
       amended_from: "",
-      mps: 0,
-      is_internal_supplier: 0,
-      inter_company_order_reference: "",
-      is_old_subcontracting_flow: 0,
       modified_by: "Administrator",
       owner: "Administrator",
       docstatus: 0,
@@ -622,6 +610,7 @@ export default function PurchaseOrderForm() {
       }))
     };
 
+    // If editing, add id at the beginning of payload
     if (isEdit && id) {
       payload.id = id;
     }
@@ -629,21 +618,21 @@ export default function PurchaseOrderForm() {
     try {
       let response;
       if (isEdit && id) {
-        response = await api.put('/purchase-order', payload);
+        response = await api.put('/purchase-invoice', payload);
       } else {
-        response = await api.post('/purchase-order', payload);
+        response = await api.post('/purchase-invoice', payload);
       }
       
       if (response.data && response.data.success === 1) {
-        toast.success(isEdit ? 'Purchase Order updated successfully!' : 'Purchase Order created successfully!');
-        navigate('/purchase-order');
+        toast.success(isEdit ? 'Purchase Invoice updated successfully!' : 'Purchase Invoice created successfully!');
+        navigate('/purchase-invoice');
       } else {
-        setApiError(response.data?.message || 'Failed to save purchase order');
+        setApiError(response.data?.message || 'Failed to save purchase invoice');
       }
     } catch (err: any) {
-      console.error('Error saving purchase order:', err);
+      console.error('Error saving purchase invoice:', err);
       if (err.response) {
-        setApiError(err.response.data?.message || 'Failed to save purchase order');
+        setApiError(err.response.data?.message || 'Failed to save purchase invoice');
       } else if (err.request) {
         setApiError('Network error. Please check your connection.');
       } else {
@@ -655,7 +644,7 @@ export default function PurchaseOrderForm() {
   };
 
   const handleCancel = () => {
-    navigate('/purchase-order');
+    navigate('/purchase-invoice');
   };
 
   const hasErrors = getAllValidationErrors().length > 0;
@@ -667,6 +656,13 @@ export default function PurchaseOrderForm() {
     return supplier.name || supplier.id || 'Unnamed Supplier';
   };
 
+  const getPODisplayName = (po: any) => {
+    if (po.name) {
+      return `${po.name} - ${po.title || ''}`;
+    }
+    return po.name || po.id || 'Unnamed PO';
+  };
+
   // Render suggestions using portal
   const renderSuggestions = (index: number) => {
     if (!showSuggestions[index] || !itemSuggestions[index]?.length) return null;
@@ -676,7 +672,7 @@ export default function PurchaseOrderForm() {
 
     const dropdownContent = (
       <div 
-        className="pof-suggestions-dropdown-portal"
+        className="pif-suggestions-dropdown-portal"
         ref={(el) => { suggestionRefs.current[index] = el; }}
         style={{
           position: 'fixed',
@@ -691,16 +687,16 @@ export default function PurchaseOrderForm() {
         {itemSuggestions[index].map((suggestion) => (
           <div
             key={suggestion.id}
-            className="pof-suggestion-item"
+            className="pif-suggestion-item"
             onClick={() => handleSelectItem(index, suggestion)}
           >
-            <div className="pof-suggestion-code">{suggestion.item_code}</div>
-            <div className="pof-suggestion-name">{suggestion.item_name}</div>
+            <div className="pif-suggestion-code">{suggestion.item_code}</div>
+            <div className="pif-suggestion-name">{suggestion.item_name}</div>
             {suggestion.brand && (
-              <div className="pof-suggestion-brand">{suggestion.brand}</div>
+              <div className="pif-suggestion-brand">{suggestion.brand}</div>
             )}
             {suggestion.standard_rate > 0 && (
-              <div className="pof-suggestion-rate">
+              <div className="pif-suggestion-rate">
                 {formData.currency} {suggestion.standard_rate.toFixed(2)}
               </div>
             )}
@@ -713,8 +709,8 @@ export default function PurchaseOrderForm() {
   };
 
   return (
-    <div className={`pof-page ${theme}`}>
-      <div className="pof-inner">
+    <div className={`pif-page ${theme}`}>
+      <div className="pif-inner">
 
         {/* ─── Validation Summary Modal ────────────────────────────── */}
         {showValidationSummary && validationErrors.length > 0 && (
@@ -757,7 +753,7 @@ export default function PurchaseOrderForm() {
 
         {/* ─── API Error Display ────────────────────────────────────── */}
         {apiError && (
-          <div className="pof-api-error">
+          <div className="pif-api-error">
             <FaExclamationCircle className="error-icon" />
             <span>{apiError}</span>
             <button className="error-close" onClick={() => setApiError(null)}>×</button>
@@ -765,12 +761,12 @@ export default function PurchaseOrderForm() {
         )}
 
         {/* ─── Header ────────────────────────────────────────────────── */}
-        <div className="pof-header">
+        <div className="pif-header">
           <button onClick={handleCancel} className="back-btn">
             <FaArrowLeft size={9} /> Back
           </button>
           <div className="header-title">
-            <h1>{isEdit ? 'Edit Purchase Order' : 'New Purchase Order'}</h1>
+            <h1>{isEdit ? 'Edit Purchase Invoice' : 'New Purchase Invoice'}</h1>
           </div>
           {hasErrors && (
             <div className="error-badge">
@@ -783,29 +779,29 @@ export default function PurchaseOrderForm() {
         <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
 
           {/* ─── Main Form Card ────────────────────────────────────────── */}
-          <div className="pof-card">
+          <div className="pif-card">
 
-            {/* PO Information */}
-            <span className="pof-section-title">
-              <FaFileAlt className="pof-section-icon" /> Purchase Order Information
+            {/* Invoice Information */}
+            <span className="pif-section-title">
+              <FaReceipt className="pif-section-icon" /> Purchase Invoice Information
             </span>
 
-            <div className="pof-grid-2">
-              <div className="pof-field">
-                <label className="pof-label">
-                  <FaTag className="pof-label-icon" />PO Number
+            <div className="pif-grid-2">
+              <div className="pif-field">
+                <label className="pif-label">
+                  <FaTag className="pif-label-icon" />Invoice Number
                 </label>
                 <input
                   type="text"
-                  value={formData.poNumber}
+                  value={formData.invoiceNumber}
                   disabled
                   className="form-field"
                   style={{ background: 'var(--layout-bg, #f3f4f6)', cursor: 'not-allowed' }}
                 />
               </div>
-              <div className="pof-field">
-                <label className="pof-label">
-                  <FaClipboardList className="pof-label-icon" />Status
+              <div className="pif-field">
+                <label className="pif-label">
+                  <FaClipboardList className="pif-label-icon" />Status
                 </label>
                 <select
                   value={formData.status}
@@ -817,67 +813,52 @@ export default function PurchaseOrderForm() {
               </div>
             </div>
 
-            <div className="pof-field">
-              <label className="pof-label">
-                <FaTag className="pof-label-icon" />Title <span className="pof-required">*</span>
-              </label>
-              <input
-                type="text"
-                value={formData.title}
-                onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                className={`form-field ${validationErrors.some(e => e.field === 'title') ? 'field-error' : ''}`}
-                placeholder="Enter PO title"
-              />
-              {validationErrors.some(e => e.field === 'title') && (
-                <span className="pof-error-msg">
-                  <FaExclamationCircle size={10} />Title is required
-                </span>
-              )}
-            </div>
-
-            <div className="pof-grid-2">
-              <div className="pof-field">
-                <label className="pof-label">
-                  <FaBuilding className="pof-label-icon" />Supplier <span className="pof-required">*</span>
+            <div className="pif-grid-2">
+              <div className="pif-field">
+                <label className="pif-label">
+                  <FaBuilding className="pif-label-icon" />Supplier <span className="pif-required">*</span>
                 </label>
                 <select
                   value={formData.supplier}
-                  onChange={(e) => setFormData(prev => ({ 
-                    ...prev, 
-                    supplier: e.target.value,
-                    supplierCode: e.target.value ? suppliers.find(s => s.supplier_name === e.target.value)?.id || '' : ''
-                  }))}
+                  onChange={(e) => {
+                    const selectedSupplier = suppliersList.find(s => s.supplier_name === e.target.value);
+                    setFormData(prev => ({ 
+                      ...prev, 
+                      supplier: e.target.value,
+                      supplierCode: selectedSupplier?.id || ''
+                    }));
+                  }}
                   className={`form-field ${validationErrors.some(e => e.field === 'supplier') ? 'field-error' : ''}`}
                   disabled={loadingSuppliers}
                 >
                   <option value="">
                     {loadingSuppliers ? 'Loading suppliers...' : 'Select Supplier'}
                   </option>
-                  {suppliers.map((supplier) => (
+                  {suppliersList.map((supplier) => (
                     <option key={supplier.id} value={supplier.supplier_name}>
                       {getSupplierDisplayName(supplier)}
                     </option>
                   ))}
                 </select>
                 {loadingSuppliers && (
-                  <span className="pof-loading-msg">
+                  <span className="pif-loading-msg">
                     <FaSpinner className="spinning" size={10} /> Loading suppliers...
                   </span>
                 )}
-                {!loadingSuppliers && suppliers.length === 0 && (
-                  <span className="pof-warning-msg">
+                {!loadingSuppliers && suppliersList.length === 0 && (
+                  <span className="pif-warning-msg">
                     <FaExclamationCircle size={10} /> No suppliers found. Please add suppliers first.
                   </span>
                 )}
                 {validationErrors.some(e => e.field === 'supplier') && (
-                  <span className="pof-error-msg">
+                  <span className="pif-error-msg">
                     <FaExclamationCircle size={10} />Supplier is required
                   </span>
                 )}
               </div>
-              <div className="pof-field">
-                <label className="pof-label">
-                  <FaTag className="pof-label-icon" />Supplier Code
+              <div className="pif-field">
+                <label className="pif-label">
+                  <FaTag className="pif-label-icon" />Supplier Code
                 </label>
                 <input
                   type="text"
@@ -889,39 +870,45 @@ export default function PurchaseOrderForm() {
               </div>
             </div>
 
-            <div className="pof-grid-2">
-              <div className="pof-field">
-                <label className="pof-label">
-                  <FaCalendarAlt className="pof-label-icon" />Order Date <span className="pof-required">*</span>
+            <div className="pif-grid-2">
+              <div className="pif-field">
+                <label className="pif-label">
+                  <FaFileAlt className="pif-label-icon" />Purchase Order <span className="pif-required">*</span>
                 </label>
-                <input
-                  type="date"
-                  value={formData.orderDate}
-                  onChange={(e) => setFormData(prev => ({ ...prev, orderDate: e.target.value }))}
-                  className={`form-field ${validationErrors.some(e => e.field === 'orderDate') ? 'field-error' : ''}`}
-                />
-                {validationErrors.some(e => e.field === 'orderDate') && (
-                  <span className="pof-error-msg">
-                    <FaExclamationCircle size={10} />Order date is required
+                <select
+                  value={formData.purchaseOrder}
+                  onChange={(e) => setFormData(prev => ({ ...prev, purchaseOrder: e.target.value }))}
+                  className={`form-field ${validationErrors.some(e => e.field === 'purchaseOrder') ? 'field-error' : ''}`}
+                  disabled={loadingPOs}
+                >
+                  <option value="">
+                    {loadingPOs ? 'Loading purchase orders...' : 'Select PO'}
+                  </option>
+                  {purchaseOrders.map((po) => (
+                    <option key={po.id || po.name} value={po.name}>
+                      {getPODisplayName(po)}
+                    </option>
+                  ))}
+                </select>
+                {loadingPOs && (
+                  <span className="pif-loading-msg">
+                    <FaSpinner className="spinning" size={10} /> Loading purchase orders...
+                  </span>
+                )}
+                {!loadingPOs && purchaseOrders.length === 0 && (
+                  <span className="pif-warning-msg">
+                    <FaExclamationCircle size={10} /> No purchase orders found. Please create a purchase order first.
+                  </span>
+                )}
+                {validationErrors.some(e => e.field === 'purchaseOrder') && (
+                  <span className="pif-error-msg">
+                    <FaExclamationCircle size={10} />Purchase Order is required
                   </span>
                 )}
               </div>
-              <div className="pof-field">
-                <label className="pof-label">
-                  <FaCalendarAlt className="pof-label-icon" />Delivery Date                </label>
-                <input
-                  type="date"
-                  value={formData.deliveryDate}
-                  onChange={(e) => setFormData(prev => ({ ...prev, deliveryDate: e.target.value }))}
-                  className="form-field"
-                />
-              </div>
-            </div>
-
-            <div className="pof-grid-2">
-              <div className="pof-field">
-                <label className="pof-label">
-                  <FaMoneyBillWave className="pof-label-icon" />Currency
+              <div className="pif-field">
+                <label className="pif-label">
+                  <FaMoneyBillWave className="pif-label-icon" />Currency
                 </label>
                 <select
                   value={formData.currency}
@@ -931,81 +918,75 @@ export default function PurchaseOrderForm() {
                   {currencies.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
-              <div className="pof-field">
-                <label className="pof-label">
-                  <FaMoneyBillWave className="pof-label-icon" />Payment Terms
+            </div>
+
+            <div className="pif-grid-2">
+              <div className="pif-field">
+                <label className="pif-label">
+                  <FaCalendarAlt className="pif-label-icon" />Invoice Date <span className="pif-required">*</span>
                 </label>
-                <select
-                  value={formData.paymentTerms}
-                  onChange={(e) => setFormData(prev => ({ ...prev, paymentTerms: e.target.value }))}
-                  className="form-field"
-                >
-                  {paymentTerms.map(p => <option key={p} value={p}>{p}</option>)}
-                </select>
+                <input
+                  type="date"
+                  value={formData.date}
+                  onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
+                  className={`form-field ${validationErrors.some(e => e.field === 'date') ? 'field-error' : ''}`}
+                />
+                {validationErrors.some(e => e.field === 'date') && (
+                  <span className="pif-error-msg">
+                    <FaExclamationCircle size={10} />Invoice date is required
+                  </span>
+                )}
+              </div>
+              <div className="pif-field">
+                <label className="pif-label">
+                  <FaClock className="pif-label-icon" />Due Date <span className="pif-required">*</span>
+                </label>
+                <input
+                  type="date"
+                  value={formData.dueDate}
+                  onChange={(e) => setFormData(prev => ({ ...prev, dueDate: e.target.value }))}
+                  className={`form-field ${validationErrors.some(e => e.field === 'dueDate') ? 'field-error' : ''}`}
+                />
+                {validationErrors.some(e => e.field === 'dueDate') && (
+                  <span className="pif-error-msg">
+                    <FaExclamationCircle size={10} />Due date is required
+                  </span>
+                )}
               </div>
             </div>
 
-            <div className="pof-divider" />
-
-            {/* Addresses */}
-            <span className="pof-section-title">
-              <FaTruck className="pof-section-icon" />Addresses
-            </span>
-
-            <div className="pof-field">
-              <label className="pof-label">Shipping Address</label>
-              <input
-                type="text"
-                value={formData.shippingAddress}
-                onChange={(e) => setFormData(prev => ({ ...prev, shippingAddress: e.target.value }))}
-                className="form-field"
-                placeholder="Enter shipping address"
-              />
-            </div>
-
-            <div className="pof-field">
-              <label className="pof-label">Billing Address</label>
-              <input
-                type="text"
-                value={formData.billingAddress}
-                onChange={(e) => setFormData(prev => ({ ...prev, billingAddress: e.target.value }))}
-                className="form-field"
-                placeholder="Enter billing address"
-              />
-            </div>
-
-            <div className="pof-divider" />
+            <div className="pif-divider" />
 
             {/* Items Section */}
-            <span className="pof-section-title">
-              <FaBoxes className="pof-section-icon" />Items <span className="pof-required">*</span>
+            <span className="pif-section-title">
+              <FaBoxes className="pif-section-icon" />Items <span className="pif-required">*</span>
             </span>
 
-            <div className="pof-field">
-              <div className="pof-table-block">
-                <table className="pof-inline-table">
+            <div className="pif-field">
+              <div className="pif-table-block">
+                <table className="pif-inline-table">
                   <thead>
                     <tr>
-                      <th className="pof-ith">No.</th>
-                      <th className="pof-ith">Item Code <span className="pof-required">*</span></th>
-                      <th className="pof-ith">Item Name <span className="pof-required">*</span></th>
-                      <th className="pof-ith">Qty <span className="pof-required">*</span></th>
-                      <th className="pof-ith">UOM</th>
-                      <th className="pof-ith">Rate <span className="pof-required">*</span></th>
-                      <th className="pof-ith">Amount</th>
-                      <th className="pof-ith">Received</th>
-                      <th className="pof-ith pof-ith-action"></th>
+                      <th className="pif-ith">No.</th>
+                      <th className="pif-ith">Item Code <span className="pif-required">*</span></th>
+                      <th className="pif-ith">Item Name <span className="pif-required">*</span></th>
+                      <th className="pif-ith">Qty <span className="pif-required">*</span></th>
+                      <th className="pif-ith">UOM</th>
+                      <th className="pif-ith">Rate <span className="pif-required">*</span></th>
+                      <th className="pif-ith">Amount</th>
+                      <th className="pif-ith">Received</th>
+                      <th className="pif-ith pif-ith-action"></th>
                     </tr>
                   </thead>
                   <tbody>
                     {formData.items.map((item, index) => (
-                      <tr key={item.id} className="pof-itr">
-                        <td className="pof-itd pof-itd-no">{index + 1}</td>
-                        <td className="pof-itd" style={{ position: 'relative' }}>
-                          <div className="pof-item-search-wrapper">
+                      <tr key={item.id} className="pif-itr">
+                        <td className="pif-itd pif-itd-no">{index + 1}</td>
+                        <td className="pif-itd" style={{ position: 'relative' }}>
+                          <div className="pif-item-search-wrapper">
                             <input
                               ref={(el) => { inputRefs.current[index] = el; }}
-                              className="pof-cell-input"
+                              className="pif-cell-input"
                               type="text"
                               value={item.itemCode}
                               onChange={(e) => handleItemChange(index, 'itemCode', e.target.value)}
@@ -1023,10 +1004,10 @@ export default function PurchaseOrderForm() {
                               }}
                             />
                             {loadingItems[index] && (
-                              <FaSpinner className="spinning pof-search-spinner" size={14} />
+                              <FaSpinner className="spinning pif-search-spinner" size={14} />
                             )}
                             {item.itemCode && !loadingItems[index] && (
-                              <FaSearch className="pof-search-icon" size={14} />
+                              <FaSearch className="pif-search-icon" size={14} />
                             )}
                             
                             {/* Render suggestions using portal */}
@@ -1036,7 +1017,7 @@ export default function PurchaseOrderForm() {
                             {showSuggestions[index] && itemSuggestions[index]?.length === 0 && !loadingItems[index] && (
                               createPortal(
                                 <div 
-                                  className="pof-suggestions-dropdown-portal"
+                                  className="pif-suggestions-dropdown-portal"
                                   style={{
                                     position: 'fixed',
                                     top: dropdownPositions[index]?.top || 0,
@@ -1045,43 +1026,43 @@ export default function PurchaseOrderForm() {
                                     zIndex: 9999
                                   }}
                                 >
-                                  <div className="pof-suggestion-empty">No items found</div>
+                                  <div className="pif-suggestion-empty">No items found</div>
                                 </div>,
                                 document.body
                               )
                             )}
                           </div>
                         </td>
-                        <td className="pof-itd">
+                        <td className="pif-itd">
                           <input
-                            className="pof-cell-input"
+                            className="pif-cell-input"
                             type="text"
                             value={item.itemName}
                             onChange={(e) => handleItemChange(index, 'itemName', e.target.value)}
                             placeholder="Name"
                           />
                         </td>
-                        <td className="pof-itd">
+                        <td className="pif-itd">
                           <input
-                            className="pof-cell-input pof-cell-number"
+                            className="pif-cell-input pif-cell-number"
                             type="number"
                             value={item.quantity}
                             onChange={(e) => handleItemChange(index, 'quantity', Number(e.target.value))}
                             min="1"
                           />
                         </td>
-                        <td className="pof-itd">
+                        <td className="pif-itd">
                           <select
-                            className="pof-cell-select"
+                            className="pif-cell-select"
                             value={item.uom}
                             onChange={(e) => handleItemChange(index, 'uom', e.target.value)}
                           >
                             {uomOptions.map(u => <option key={u} value={u}>{u}</option>)}
                           </select>
                         </td>
-                        <td className="pof-itd">
+                        <td className="pif-itd">
                           <input
-                            className="pof-cell-input pof-cell-number"
+                            className="pif-cell-input pif-cell-number"
                             type="number"
                             value={item.rate}
                             onChange={(e) => handleItemChange(index, 'rate', Number(e.target.value))}
@@ -1089,10 +1070,10 @@ export default function PurchaseOrderForm() {
                             step="0.01"
                           />
                         </td>
-                        <td className="pof-itd pof-itd-amount">{formData.currency} {item.amount.toFixed(2)}</td>
-                        <td className="pof-itd">
+                        <td className="pif-itd pif-itd-amount">{formData.currency} {item.amount.toFixed(2)}</td>
+                        <td className="pif-itd">
                           <input
-                            className="pof-cell-input pof-cell-number"
+                            className="pif-cell-input pif-cell-number"
                             type="number"
                             value={item.receivedQty}
                             onChange={(e) => handleItemChange(index, 'receivedQty', Number(e.target.value))}
@@ -1101,10 +1082,10 @@ export default function PurchaseOrderForm() {
                             style={!isEdit ? { background: 'var(--layout-bg, #f3f4f6)', cursor: 'not-allowed' } : {}}
                           />
                         </td>
-                        <td className="pof-itd">
+                        <td className="pif-itd">
                           {formData.items.length > 1 && (
                             <button
-                              className="pof-remove-row"
+                              className="pif-remove-row"
                               onClick={() => removeItemRow(index)}
                               type="button"
                             >
@@ -1117,33 +1098,35 @@ export default function PurchaseOrderForm() {
                   </tbody>
                   <tfoot>
                     <tr>
-                      <td colSpan={6} className="pof-total-label">Total</td>
-                      <td className="pof-total-amount">{formData.currency} {formData.items.reduce((sum, item) => sum + item.amount, 0).toFixed(2)}</td>
+                      <td colSpan={6} className="pif-total-label">Total</td>
+                      <td className="pif-total-amount">{formData.currency} {formData.items.reduce((sum, item) => sum + item.amount, 0).toFixed(2)}</td>
                       <td></td>
                       <td></td>
                     </tr>
                   </tfoot>
                 </table>
               </div>
-              <button className="pof-add-row" onClick={addItemRow} type="button">
+              <button className="pif-add-row" onClick={addItemRow} type="button">
                 <FaPlus size={10} /> Add row
               </button>
               {validationErrors.some(e => e.field === 'items') && (
-                <span className="pof-error-msg" style={{ marginTop: '8px' }}>
+                <span className="pif-error-msg" style={{ marginTop: '8px' }}>
                   <FaExclamationCircle size={10} />All items must have code, name, quantity {'>'} 0 and rate {'>'} 0
                 </span>
               )}
             </div>
 
-            <div className="pof-divider" />
+            <div className="pif-divider" />
 
             {/* Notes */}
-            <div className="pof-field">
-              <label className="pof-label">Notes</label>
+            <div className="pif-field">
+              <label className="pif-label">
+                <FaFileAlt className="pif-label-icon" />Notes
+              </label>
               <textarea
                 value={formData.notes}
                 onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-                className="form-field pof-textarea"
+                className="form-field pif-textarea"
                 placeholder="Additional notes..."
                 rows={3}
               />
@@ -1151,7 +1134,7 @@ export default function PurchaseOrderForm() {
           </div>
 
           {/* ─── Footer ────────────────────────────────────────────────── */}
-          <div className="pof-footer">
+          <div className="pif-footer">
             <button
               type="button"
               onClick={handleCancel}
