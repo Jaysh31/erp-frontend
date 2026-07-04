@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FaSearch,
@@ -11,85 +11,107 @@ import {
   FaEye,
   FaEdit,
   FaTrash,
-  FaWarehouse,
-  FaCheckCircle,
-  FaTimesCircle,
   FaPlus,
-  FaCheck,
+  
+  FaSpinner,
 } from 'react-icons/fa';
 import "./WarehouseList.css";
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
+import api from '../../services/api';
 
 interface Warehouse {
-  id: string;
-  name: string;
-  status: "Enabled" | "Disabled";
-  company: string;
-  account: string;
-  isGroup: boolean;
-  createdOn: string;
+  id: number;
+  warehouse_name: string;
+  company: string | null;
+  parent_warehouse: string | null;
+  warehouse_type: string | null;
+  city: string | null;
+  state: string | null;
+  email_id: string | null;
+  phone_no: string | null;
+  disabled: number;
 }
 
-interface WarehouseFormData {
-  name: string;
-  company: string;
-  account: string;
-  isGroup: boolean;
+interface ApiResponse {
+  success: number;
+  data: {
+    total: number;
+    page: number;
+    limit: number;
+    records: Warehouse[];
+  };
 }
-
-const MOCK_WAREHOUSES: Warehouse[] = [
-  { id: "1001s", name: "Goods In Transit-T", status: "Enabled", company: "Test", account: "Test", isGroup: false, createdOn: "1d" },
-  { id: "1002s", name: "Finished Goods-T", status: "Enabled", company: "Test", account: "Test", isGroup: false, createdOn: "1d" },
-  { id: "1003s", name: "Work In Progress-T", status: "Enabled", company: "Test", account: "Test", isGroup: false, createdOn: "1d" },
-  { id: "1004s", name: "Stores-T", status: "Enabled", company: "Test", account: "Test", isGroup: false, createdOn: "1d" },
-  { id: "1005s", name: "All Warehouses-T", status: "Enabled", company: "Test", account: "Test", isGroup: true, createdOn: "1d" },
-  { id: "1006s", name: "Main Warehouse", status: "Disabled", company: "Test", account: "Test", isGroup: false, createdOn: "2d" },
-  { id: "1007s", name: "Secondary Warehouse", status: "Enabled", company: "Test", account: "Test", isGroup: false, createdOn: "2d" },
-  { id: "1008s", name: "Distribution Center", status: "Enabled", company: "Test", account: "Test", isGroup: false, createdOn: "3d" },
-  { id: "1009s", name: "Regional Warehouse", status: "Enabled", company: "Test", account: "Test", isGroup: false, createdOn: "3d" },
-  { id: "1010s", name: "Central Warehouse", status: "Disabled", company: "Test", account: "Test", isGroup: false, createdOn: "4d" },
-];
-
-const COMPANIES = ["Test", "ABC Corp", "XYZ Ltd"];
-const ACCOUNTS = ["Test", "Main", "Secondary", "Distribution"];
 
 export default function WarehouseList() {
   const navigate = useNavigate();
   const { theme } = useAdminTheme();
-  const [warehouses] = useState<Warehouse[]>(MOCK_WAREHOUSES);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
   const [allChecked, setAllChecked] = useState(false);
-  const [showModal, setShowModal] = useState(false);
+  const [] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [totalItems, setTotalItems] = useState(0);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedWarehouse, setSelectedWarehouse] = useState<Warehouse | null>(null);
-  const [formData, setFormData] = useState<WarehouseFormData>({
-    name: "",
-    company: "",
-    account: "",
-    isGroup: false,
-  });
 
-  // Filter data based on search and status
+  // Fetch warehouses from API
+  const fetchWarehouses = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams();
+      params.append('page', currentPage.toString());
+      params.append('limit', itemsPerPage.toString());
+      
+      if (searchTerm) {
+        params.append('search', searchTerm);
+      }
+
+      const response = await api.get<ApiResponse>(`/warehouse?${params.toString()}`);
+      
+      if (response.data.success === 1) {
+        setWarehouses(response.data.data.records);
+        setTotalItems(response.data.data.total);
+      } else {
+        setError('Failed to fetch warehouses');
+      }
+    } catch (err) {
+      console.error('Error fetching warehouses:', err);
+      setError('An error occurred while fetching warehouses');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch when dependencies change
+  useEffect(() => {
+    fetchWarehouses();
+  }, [currentPage, itemsPerPage, searchTerm]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, itemsPerPage]);
+
+  // Filter data based on status
   const filteredData = warehouses.filter(item => {
-    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          item.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          item.company.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || 
-                         (statusFilter === 'enabled' && item.status === 'Enabled') ||
-                         (statusFilter === 'disabled' && item.status === 'Disabled');
-    return matchesSearch && matchesStatus;
+                         (statusFilter === 'enabled' && item.disabled === 0) ||
+                         (statusFilter === 'disabled' && item.disabled === 1);
+    return matchesStatus;
   });
 
-  const totalItems = filteredData.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
   
   // Ensure current page is valid when data changes
   const validCurrentPage = Math.min(currentPage, totalPages || 1);
-  if (validCurrentPage !== currentPage) {
+  if (validCurrentPage !== currentPage && totalPages > 0) {
     setCurrentPage(validCurrentPage);
   }
   
@@ -97,19 +119,6 @@ export default function WarehouseList() {
     (validCurrentPage - 1) * itemsPerPage,
     validCurrentPage * itemsPerPage
   );
-
-  // Stats
-  const totalEnabled = warehouses.filter(item => item.status === 'Enabled').length;
-  const totalDisabled = warehouses.filter(item => item.status === 'Disabled').length;
-  const totalCompanies = [...new Set(warehouses.map(item => item.company))].length;
-  // const totalGroups = warehouses.filter(item => item.isGroup).length;
-
-  const stats = [
-    { title: 'Total Warehouses', value: warehouses.length, icon: <FaWarehouse />, color: '#6366f1' },
-    { title: 'Enabled', value: totalEnabled, icon: <FaCheckCircle />, color: '#10b981' },
-    { title: 'Disabled', value: totalDisabled, icon: <FaTimesCircle />, color: '#ef4444' },
-    { title: 'Companies', value: totalCompanies, icon: <FaWarehouse />, color: '#f59e0b' },
-  ];
 
   const toggleAll = () => {
     if (allChecked) {
@@ -120,7 +129,7 @@ export default function WarehouseList() {
     setAllChecked(!allChecked);
   };
 
-  const toggleRow = (id: string) => {
+  const toggleRow = (id: number) => {
     const next = new Set(selected);
     next.has(id) ? next.delete(id) : next.add(id);
     setSelected(next);
@@ -153,28 +162,23 @@ export default function WarehouseList() {
     return pages;
   };
 
-  const handleOpenModal = () => {
-    setFormData({ name: "", company: "", account: "", isGroup: false });
-    setShowModal(true);
+  // Updated: Navigate to warehouse form for new warehouse
+  const handleAddWarehouse = () => {
+    navigate('/warehouse/new');
   };
 
-  const handleCloseModal = () => {
-    setShowModal(false);
-    setFormData({ name: "", company: "", account: "", isGroup: false });
+  // Updated: Navigate to warehouse form for editing
+  const handleEditWarehouse = (warehouse: Warehouse) => {
+    navigate(`/warehouse/${encodeURIComponent(warehouse.warehouse_name)}`, {
+      state: { warehouseData: warehouse }
+    });
   };
 
-  const handleSave = () => {
-    if (formData.name.trim()) {
-      navigate(`/warehouse/${encodeURIComponent(formData.name)}`);
-      handleCloseModal();
-    }
-  };
-
-  const handleEditFull = () => {
-    if (formData.name.trim()) {
-      navigate(`/warehouse/${encodeURIComponent(formData.name)}`);
-      handleCloseModal();
-    }
+  // Updated: Navigate to warehouse form for viewing
+  const handleViewWarehouse = (warehouse: Warehouse) => {
+    navigate(`/warehouse/${encodeURIComponent(warehouse.warehouse_name)}`, {
+      state: { warehouseData: warehouse }
+    });
   };
 
   const handleDelete = (item: Warehouse) => {
@@ -182,10 +186,20 @@ export default function WarehouseList() {
     setShowDeleteConfirm(true);
   };
 
-  const confirmDelete = () => {
-    console.log('Deleting:', selectedWarehouse);
-    setShowDeleteConfirm(false);
-    setSelectedWarehouse(null);
+  const confirmDelete = async () => {
+    if (selectedWarehouse) {
+      try {
+        const response = await api.delete(`/warehouse/${selectedWarehouse.id}`);
+        if (response.data.success === 1) {
+          setShowDeleteConfirm(false);
+          setSelectedWarehouse(null);
+          fetchWarehouses(); // Refresh the list
+        }
+      } catch (err) {
+        console.error('Error deleting warehouse:', err);
+        alert('Failed to delete warehouse');
+      }
+    }
   };
 
   const clearFilters = () => {
@@ -201,21 +215,14 @@ export default function WarehouseList() {
     return Math.min(validCurrentPage * itemsPerPage, totalItems);
   };
 
+  const handleRowClick = (warehouse: Warehouse) => {
+    navigate(`/warehouse/${encodeURIComponent(warehouse.warehouse_name)}`, {
+      state: { warehouseData: warehouse }
+    });
+  };
+
   return (
     <div className={`wl-page ${theme}`}>
-      {/* Stats Cards */}
-      <div className="wl-stats-container">
-        {stats.map((stat, index) => (
-          <div key={index} className="wl-stat-card" style={{ background: `linear-gradient(135deg, ${stat.color} 0%, ${stat.color}cc 100%)` }}>
-            <div className="wl-stat-icon">{stat.icon}</div>
-            <div className="wl-stat-content">
-              <p className="wl-stat-title">{stat.title}</p>
-              <p className="wl-stat-value">{stat.value}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-
       {/* Search and Filter Bar */}
       <div className="wl-filter-bar">
         <div className="wl-filter-left">
@@ -256,7 +263,7 @@ export default function WarehouseList() {
             Created On
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </button>
-          <button className="wl-btn-primary" onClick={handleOpenModal}>
+          <button className="wl-btn-primary" onClick={handleAddWarehouse}>
             <FaPlus size={12} />
             Add Warehouse
           </button>
@@ -287,242 +294,179 @@ export default function WarehouseList() {
         </div>
       )}
 
+      {/* Loading State */}
+      {loading && (
+        <div className="wl-loading">
+          <FaSpinner className="spinning" size={24} />
+          <p>Loading warehouses...</p>
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && (
+        <div className="wl-error">
+          <p>{error}</p>
+          <button onClick={fetchWarehouses} className="wl-retry-btn">Retry</button>
+        </div>
+      )}
+
       {/* Table */}
-      <div className="wl-table-wrap">
-        <table className="wl-table">
-          <thead>
-            <tr>
-              <th className="wl-th-check">
-                <input type="checkbox" checked={allChecked} onChange={toggleAll} className="wl-checkbox" />
-              </th>
-              <th className="wl-th">ID</th>
-              <th className="wl-th">Warehouse Name</th>
-              <th className="wl-th">Status</th>
-              <th className="wl-th">Company</th>
-              <th className="wl-th">Account</th>
-              <th className="wl-th">Is Group</th>
-              <th className="wl-th wl-th-meta">
-                <span className="wl-count-label">{totalItems} of {warehouses.length}</span>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary, #9ca3af)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                </svg>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {paginatedData.length === 0 ? (
-              <tr>
-                <td colSpan={8} className="wl-empty-state">
-                  <div className="wl-empty-content">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+      {!loading && !error && (
+        <>
+          <div className="wl-table-wrap">
+            <table className="wl-table">
+              <thead>
+                <tr>
+                  <th className="wl-th-check">
+                    <input type="checkbox" checked={allChecked} onChange={toggleAll} className="wl-checkbox" />
+                  </th>
+                  <th className="wl-th">ID</th>
+                  <th className="wl-th">Warehouse Name</th>
+                  <th className="wl-th">Status</th>
+                  <th className="wl-th">Company</th>
+                  <th className="wl-th">Parent Warehouse</th>
+                  <th className="wl-th">Type</th>
+                  <th className="wl-th wl-th-meta">
+                    <span className="wl-count-label">{totalItems} total</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary, #9ca3af)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
                     </svg>
-                    <p>No Warehouses found</p>
-                    <span>Try adjusting your search criteria</span>
-                  </div>
-                </td>
-              </tr>
-            ) : (
-              paginatedData.map((row) => (
-                <tr
-                  key={row.id}
-                  className={`wl-tr ${selected.has(row.id) ? "wl-tr-selected" : ""}`}
-                  onClick={() => navigate(`/warehouse/${encodeURIComponent(row.name)}`)}
-                >
-                  <td className="wl-td-check" onClick={(e) => { e.stopPropagation(); toggleRow(row.id); }}>
-                    <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleRow(row.id)} className="wl-checkbox" />
-                  </td>
-                  <td className="wl-td">{row.id}</td>
-                  <td className="wl-td wl-td-name">{row.name}</td>
-                  <td className="wl-td">
-                    <span className={`wl-status-badge wl-status-${row.status.toLowerCase()}`}>{row.status}</span>
-                  </td>
-                  <td className="wl-td">{row.company}</td>
-                  <td className="wl-td">{row.account}</td>
-                  <td className="wl-td">{row.isGroup ? "Yes" : "No"}</td>
-                  <td className="wl-td wl-td-meta">
-                    <span className="wl-ago">{row.createdOn}</span>
-                    <span className="wl-dot">·</span>
-                    <div className="wl-action-buttons">
-                      <button 
-                        className="wl-action-btn wl-action-view" 
-                        onClick={(e) => { e.stopPropagation(); navigate(`/warehouse/${encodeURIComponent(row.name)}`); }}
-                        title="View"
-                      >
-                        <FaEye size={12} />
-                      </button>
-                      <button 
-                        className="wl-action-btn wl-action-edit" 
-                        onClick={(e) => { e.stopPropagation(); navigate(`/warehouse/${encodeURIComponent(row.name)}`); }}
-                        title="Edit"
-                      >
-                        <FaEdit size={12} />
-                      </button>
-                      <button 
-                        className="wl-action-btn wl-action-delete" 
-                        onClick={(e) => { e.stopPropagation(); handleDelete(row); }}
-                        title="Delete"
-                      >
-                        <FaTrash size={12} />
-                      </button>
-                    </div>
-                  </td>
+                  </th>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+              </thead>
+              <tbody>
+                {paginatedData.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="wl-empty-state">
+                      <div className="wl-empty-content">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                        </svg>
+                        <p>No Warehouses found</p>
+                        <span>Try adjusting your search criteria</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedData.map((row) => (
+                    <tr
+                      key={row.id}
+                      className={`wl-tr ${selected.has(row.id) ? "wl-tr-selected" : ""}`}
+                      onClick={() => handleRowClick(row)}
+                    >
+                      <td className="wl-td-check" onClick={(e) => { e.stopPropagation(); toggleRow(row.id); }}>
+                        <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleRow(row.id)} className="wl-checkbox" />
+                      </td>
+                      <td className="wl-td">{row.id}</td>
+                      <td className="wl-td wl-td-name">{row.warehouse_name}</td>
+                      <td className="wl-td">
+                        <span className={`wl-status-badge wl-status-${row.disabled === 0 ? 'enabled' : 'disabled'}`}>
+                          {row.disabled === 0 ? 'Enabled' : 'Disabled'}
+                        </span>
+                      </td>
+                      <td className="wl-td">{row.company || '-'}</td>
+                      <td className="wl-td">{row.parent_warehouse || '-'}</td>
+                      <td className="wl-td">{row.warehouse_type || '-'}</td>
+                      <td className="wl-td wl-td-meta">
+                        <span className="wl-ago">-</span>
+                        <span className="wl-dot">·</span>
+                        <div className="wl-action-buttons">
+                          <button 
+                            className="wl-action-btn wl-action-view" 
+                            onClick={(e) => { e.stopPropagation(); handleViewWarehouse(row); }}
+                            title="View"
+                          >
+                            <FaEye size={12} />
+                          </button>
+                          <button 
+                            className="wl-action-btn wl-action-edit" 
+                            onClick={(e) => { e.stopPropagation(); handleEditWarehouse(row); }}
+                            title="Edit"
+                          >
+                            <FaEdit size={12} />
+                          </button>
+                          <button 
+                            className="wl-action-btn wl-action-delete" 
+                            onClick={(e) => { e.stopPropagation(); handleDelete(row); }}
+                            title="Delete"
+                          >
+                            <FaTrash size={12} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
 
-      {/* Pagination - Always visible */}
-      <div className="wl-pagination">
-        <div className="wl-pagination-left">
-          <span className="wl-pagination-label">Show:</span>
-          <select 
-            value={itemsPerPage} 
-            onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-            className="wl-page-size-select"
-          >
-            <option value={10}>10</option>
-            <option value={25}>25</option>
-            <option value={50}>50</option>
-            <option value={100}>100</option>
-          </select>
-          <span className="wl-pagination-label">entries</span>
-        </div>
-        <div className="wl-pagination-center">
-          <button 
-            onClick={goToFirstPage} 
-            disabled={currentPage === 1 || totalItems === 0} 
-            className="wl-page-btn"
-          >
-            <FaAngleDoubleLeft size={12} />
-          </button>
-          <button 
-            onClick={goToPrevPage} 
-            disabled={currentPage === 1 || totalItems === 0} 
-            className="wl-page-btn"
-          >
-            <FaChevronLeft size={12} />
-          </button>
-          {totalItems > 0 && getPageNumbers().map(page => (
-            <button
-              key={page}
-              onClick={() => goToPage(page)}
-              className={`wl-page-btn ${currentPage === page ? 'wl-page-btn-active' : ''}`}
-            >
-              {page}
-            </button>
-          ))}
-          <button 
-            onClick={goToNextPage} 
-            disabled={currentPage === totalPages || totalItems === 0} 
-            className="wl-page-btn"
-          >
-            <FaChevronRight size={12} />
-          </button>
-          <button 
-            onClick={goToLastPage} 
-            disabled={currentPage === totalPages || totalItems === 0} 
-            className="wl-page-btn"
-          >
-            <FaAngleDoubleRight size={12} />
-          </button>
-        </div>
-        <div className="wl-pagination-right">
-          <span className="wl-pagination-info">
-            {totalItems > 0 ? (
-              `Showing ${getStartIndex()} to ${getEndIndex()} of ${totalItems} entries`
-            ) : (
-              'No entries to show'
-            )}
-          </span>
-        </div>
-      </div>
-
-      {/* New Warehouse Modal */}
-      {showModal && (
-        <div className="wl-modal-overlay" onClick={(e) => e.target === e.currentTarget && handleCloseModal()}>
-          <div className="wl-modal">
-            <div className="wl-modal-header">
-              <div className="wl-modal-header-left">
-                <div className="wl-modal-icon">
-                  <FaWarehouse size={16} />
-                </div>
-                <span className="wl-modal-title">New Warehouse</span>
-              </div>
-              <button className="wl-modal-close" onClick={handleCloseModal}>
-                <FaTimes size={16} />
-              </button>
+          {/* Pagination */}
+          <div className="wl-pagination">
+            <div className="wl-pagination-left">
+              <span className="wl-pagination-label">Show:</span>
+              <select 
+                value={itemsPerPage} 
+                onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                className="wl-page-size-select"
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+              <span className="wl-pagination-label">entries</span>
             </div>
-
-            <div className="wl-modal-body">
-              <div className="wl-field">
-                <label className="wl-label">Warehouse Name <span className="wl-req">*</span></label>
-                <input
-                  className="wl-input"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  autoFocus
-                  placeholder="Enter warehouse name"
-                />
-              </div>
-
-              <div className="wl-field">
-                <label className="wl-label">Company</label>
-                <select
-                  className="wl-select"
-                  value={formData.company}
-                  onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-                >
-                  <option value="">Select company</option>
-                  {COMPANIES.map((company) => (
-                    <option key={company} value={company}>{company}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="wl-field">
-                <label className="wl-label">Account</label>
-                <select
-                  className="wl-select"
-                  value={formData.account}
-                  onChange={(e) => setFormData({ ...formData, account: e.target.value })}
-                >
-                  <option value="">Select account</option>
-                  {ACCOUNTS.map((account) => (
-                    <option key={account} value={account}>{account}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="wl-field">
-                <label className="wl-label" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={formData.isGroup}
-                    onChange={(e) => setFormData({ ...formData, isGroup: e.target.checked })}
-                    className="wl-checkbox"
-                  />
-                  Is Group Warehouse
-                </label>
-              </div>
-            </div>
-
-            <div className="wl-modal-footer">
-              <button className="wl-btn-edit-full" onClick={handleEditFull}>
-                <FaEdit size={12} /> Edit Full Form
+            <div className="wl-pagination-center">
+              <button 
+                onClick={goToFirstPage} 
+                disabled={currentPage === 1 || totalItems === 0} 
+                className="wl-page-btn"
+              >
+                <FaAngleDoubleLeft size={12} />
               </button>
               <button 
-                className="wl-btn-save" 
-                onClick={handleSave}
-                disabled={!formData.name.trim()}
+                onClick={goToPrevPage} 
+                disabled={currentPage === 1 || totalItems === 0} 
+                className="wl-page-btn"
               >
-                <FaCheck size={12} /> Save
+                <FaChevronLeft size={12} />
+              </button>
+              {totalItems > 0 && getPageNumbers().map(page => (
+                <button
+                  key={page}
+                  onClick={() => goToPage(page)}
+                  className={`wl-page-btn ${currentPage === page ? 'wl-page-btn-active' : ''}`}
+                >
+                  {page}
+                </button>
+              ))}
+              <button 
+                onClick={goToNextPage} 
+                disabled={currentPage === totalPages || totalItems === 0} 
+                className="wl-page-btn"
+              >
+                <FaChevronRight size={12} />
+              </button>
+              <button 
+                onClick={goToLastPage} 
+                disabled={currentPage === totalPages || totalItems === 0} 
+                className="wl-page-btn"
+              >
+                <FaAngleDoubleRight size={12} />
               </button>
             </div>
+            <div className="wl-pagination-right">
+              <span className="wl-pagination-info">
+                {totalItems > 0 ? (
+                  `Showing ${getStartIndex()} to ${getEndIndex()} of ${totalItems} entries`
+                ) : (
+                  'No entries to show'
+                )}
+              </span>
+            </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* Delete Confirmation Modal */}
@@ -537,7 +481,7 @@ export default function WarehouseList() {
             </div>
             <div className="wl-modal-body">
               <p>Are you sure you want to delete this warehouse?</p>
-              <p className="wl-modal-item-name"><strong>{selectedWarehouse.name}</strong></p>
+              <p className="wl-modal-item-name"><strong>{selectedWarehouse.warehouse_name}</strong></p>
               <p className="wl-modal-warning">This action cannot be undone.</p>
             </div>
             <div className="wl-modal-footer">

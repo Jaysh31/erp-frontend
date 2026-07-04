@@ -1,6 +1,15 @@
 import { createContext, useContext, useState, type ReactNode, useEffect } from 'react';
 
-type ModuleType = 'home' | 'manufacturing' | 'setup' | 'sales' | 'organization' | 'tools' | 'reports' | 'system';
+export type ModuleType =
+  | 'home'
+  | 'manufacturing'
+  | 'setup'
+  | 'sales'
+  | 'purchasing'
+  | 'organization'
+  | 'tools'
+  | 'reports'
+  | 'system';
 
 interface ModuleContextType {
   currentModule: ModuleType;
@@ -28,7 +37,13 @@ export function ModuleProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <ModuleContext.Provider value={{ currentModule, setCurrentModule, clearModule }}>
+    <ModuleContext.Provider
+      value={{
+        currentModule,
+        setCurrentModule,
+        clearModule,
+      }}
+    >
       {children}
     </ModuleContext.Provider>
   );
@@ -36,8 +51,10 @@ export function ModuleProvider({ children }: { children: ReactNode }) {
 
 export function useModule() {
   const context = useContext(ModuleContext);
+
   if (!context) {
     throw new Error('useModule must be used within a ModuleProvider');
   }
+
   return context;
 }

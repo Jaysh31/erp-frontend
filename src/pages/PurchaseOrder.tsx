@@ -1,13 +1,10 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import  { useState } from 'react';
 import { 
   FaSearch, FaPlus, FaEdit, FaTrash, FaFilter, 
   FaTimes, FaSave, FaSpinner, FaCopy, FaEye,
-  FaFileAlt, FaCalendarAlt, FaUser, FaCheckCircle,
+  FaFileAlt,  FaCheckCircle,
   FaTimesCircle, FaClock, FaExclamationTriangle,
-  FaTruck, FaDollarSign, FaBuilding, FaBox,
-  FaTag, FaListAlt, FaInfoCircle, FaPrint,
-  FaFilePdf, FaEnvelope
+  FaTruck, 
 } from 'react-icons/fa';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
@@ -48,7 +45,6 @@ interface PurchaseOrder {
 }
 
 export default function PurchaseOrder() {
-  const navigate = useNavigate();
   
   let theme = 'light';
   try {
@@ -148,12 +144,26 @@ export default function PurchaseOrder() {
     }
   ]);
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    poNumber: string;
+    title: string;
+    supplier: string;
+    supplierCode: string;
+    status: PurchaseOrder['status'];
+    orderDate: string;
+    deliveryDate: string;
+    currency: string;
+    paymentTerms: string;
+    shippingAddress: string;
+    billingAddress: string;
+    notes: string;
+    items: PurchaseOrderItem[];
+  }>({
     poNumber: '',
     title: '',
     supplier: '',
     supplierCode: '',
-    status: 'Draft' as const,
+    status: 'Draft',
     orderDate: '',
     deliveryDate: '',
     currency: 'INR',

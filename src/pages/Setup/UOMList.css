@@ -898,6 +898,237 @@
   text-align: center;
 }
 
+/* ── Category Select Styles ──────────────────────────────── */
+.uoml-category-select-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.uoml-category-input-wrapper {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.uoml-category-input-wrapper .uoml-input {
+  flex: 1;
+}
+
+.uoml-category-add-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1.5px solid var(--border-color, #e5e7eb);
+  border-radius: 8px;
+  background: var(--card-bg, #fff);
+  color: var(--primary-color, #6366f1);
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.uoml-category-add-btn:hover {
+  background: color-mix(in srgb, var(--primary-color) 10%, transparent);
+  border-color: var(--primary-color, #6366f1);
+  transform: scale(1.05);
+}
+
+.uoml-category-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px var(--shadow-color, rgba(0,0,0,0.15));
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 10;
+}
+
+.uoml-category-dropdown::-webkit-scrollbar {
+  width: 4px;
+}
+
+.uoml-category-dropdown::-webkit-scrollbar-thumb {
+  background: var(--border-color, #e5e7eb);
+  border-radius: 2px;
+}
+
+.uoml-category-dropdown-item {
+  padding: 10px 14px;
+  cursor: pointer;
+  font-size: 13.5px;
+  color: var(--text-primary, #374151);
+  transition: background 0.1s;
+}
+
+.uoml-category-dropdown-item:hover {
+  background: var(--nav-hover, #f3f4f6);
+}
+
+.uoml-category-dropdown-empty {
+  padding: 20px 14px;
+  text-align: center;
+  color: var(--text-secondary, #6b7280);
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.uoml-category-dropdown-divider {
+  height: 1px;
+  background: var(--border-color, #e5e7eb);
+  margin: 4px 0;
+}
+
+.uoml-category-dropdown-add-btn {
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  background: transparent;
+  color: var(--primary-color, #6366f1);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background 0.1s;
+  border-radius: 0 0 8px 8px;
+}
+
+.uoml-category-dropdown-add-btn:hover {
+  background: color-mix(in srgb, var(--primary-color) 8%, transparent);
+}
+
+.uoml-category-dropdown-add {
+  padding: 8px 12px;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 6px;
+  background: var(--card-bg, #fff);
+  color: var(--primary-color, #6366f1);
+  font-size: 13px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s;
+}
+
+.uoml-category-dropdown-add:hover {
+  background: color-mix(in srgb, var(--primary-color) 10%, transparent);
+  border-color: var(--primary-color, #6366f1);
+}
+
+.uoml-category-selected {
+  font-size: 12px;
+  color: var(--text-secondary, #6b7280);
+  margin-top: 4px;
+}
+
+/* ── Category Modal Styles ────────────────────────────────── */
+.uoml-modal-category {
+  max-width: 450px;
+}
+
+/* ── API Error Styles ────────────────────────────────────── */
+.uoml-api-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  margin: 0 24px;
+  background: color-mix(in srgb, var(--danger-color) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger-color) 30%, transparent);
+  border-radius: 8px;
+  color: var(--danger-color, #ef4444);
+  font-size: 13px;
+}
+
+.uoml-api-error .error-icon {
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
+.uoml-api-error .error-close {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--danger-color, #ef4444);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0 4px;
+  opacity: 0.7;
+}
+
+.uoml-api-error .error-close:hover {
+  opacity: 1;
+}
+
+/* ── Loading & Error States ──────────────────────────────── */
+.uoml-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40px;
+  color: var(--text-secondary, #6b7280);
+}
+
+.uoml-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 40px;
+  color: var(--danger-color, #ef4444);
+}
+
+.uoml-retry-btn {
+  padding: 8px 20px;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 8px;
+  background: var(--card-bg, #fff);
+  color: var(--text-primary, #374151);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.uoml-retry-btn:hover {
+  background: var(--nav-hover, #f3f4f6);
+  border-color: var(--primary-color, #6366f1);
+}
+
+/* ── Field Check ──────────────────────────────────────────── */
+.uoml-field-check {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+  padding: 8px 0;
+}
+
+.uoml-check-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary, #374151);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.uoml-check-hint {
+  font-size: 12px;
+  color: var(--text-secondary, #6b7280);
+  margin: 0;
+  padding-left: 24px;
+}
+
 /* ─── Dark Theme Overrides ──────────────────────────────── */
 .dark-theme .uoml-filter-btn,
 .dark-theme .uoml-sort-btn,
@@ -1073,6 +1304,77 @@
 
 .dark-theme .uoml-btn-primary:hover {
   background: var(--primary-hover, #2563eb);
+}
+
+.dark-theme .uoml-category-add-btn {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+  color: var(--primary-color, #3b82f6);
+}
+
+.dark-theme .uoml-category-add-btn:hover {
+  background: color-mix(in srgb, var(--primary-color) 20%, transparent);
+}
+
+.dark-theme .uoml-category-dropdown {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+}
+
+.dark-theme .uoml-category-dropdown-item {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .uoml-category-dropdown-item:hover {
+  background: var(--nav-hover, rgba(255,255,255,0.05));
+}
+
+.dark-theme .uoml-category-dropdown-empty {
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .uoml-category-dropdown-divider {
+  background: var(--border-color, #334155);
+}
+
+.dark-theme .uoml-category-dropdown-add-btn {
+  color: var(--primary-color, #3b82f6);
+}
+
+.dark-theme .uoml-category-dropdown-add-btn:hover {
+  background: color-mix(in srgb, var(--primary-color) 20%, transparent);
+}
+
+.dark-theme .uoml-category-dropdown-add {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+  color: var(--primary-color, #3b82f6);
+}
+
+.dark-theme .uoml-category-dropdown-add:hover {
+  background: color-mix(in srgb, var(--primary-color) 20%, transparent);
+}
+
+.dark-theme .uoml-category-selected {
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .uoml-api-error {
+  background: color-mix(in srgb, var(--danger-color) 15%, transparent);
+  border-color: color-mix(in srgb, var(--danger-color) 30%, transparent);
+  color: #f87171;
+}
+
+.dark-theme .uoml-api-error .error-close {
+  color: #f87171;
+}
+
+.dark-theme .uoml-check-label {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .uoml-check-hint {
+  color: var(--text-secondary, #94a3b8);
 }
 
 /* ─── Responsive ──────────────────────────────────────────── */

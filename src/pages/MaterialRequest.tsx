@@ -1,12 +1,10 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import  { useState } from 'react';
 import { 
   FaSearch, FaPlus, FaEdit, FaTrash, FaFilter, 
   FaTimes, FaSave, FaSpinner, FaCopy, FaEye,
-  FaBox, FaCalendarAlt, FaUser, FaCheckCircle,
+  FaBox, FaCheckCircle,
   FaTimesCircle, FaClock, FaExclamationTriangle,
-  FaFileAlt, FaTag, FaListAlt, FaBuilding,
-  FaTruck, FaDollarSign, FaInfoCircle
+
 } from 'react-icons/fa';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
@@ -41,8 +39,10 @@ interface MaterialRequest {
   updatedAt: string;
 }
 
+type MaterialRequestFormData = Omit<MaterialRequest, 'id' | 'totalQuantity' | 'totalAmount' | 'createdAt' | 'updatedAt'>;
+
 export default function MaterialRequest() {
-  const navigate = useNavigate();
+
   
   let theme = 'light';
   try {
@@ -133,12 +133,12 @@ export default function MaterialRequest() {
     }
   ]);
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<MaterialRequestFormData>({
     requestNumber: '',
     title: '',
-    status: 'Pending' as const,
-    purpose: 'Purchase' as const,
-    priority: 'Medium' as const,
+    status: 'Pending',
+    purpose: 'Purchase',
+    priority: 'Medium',
     transactionDate: '',
     requiredBy: '',
     requestedBy: '',

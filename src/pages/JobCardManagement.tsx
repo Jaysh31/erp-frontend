@@ -1,624 +1,663 @@
-import React, { useEffect, useRef, useState, useMemo } from "react";
+// JobCardManagement.tsx
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Home,
-  ChevronDown,
-  RefreshCw,
-  MoreHorizontal,
-  Plus,
-  Filter as FilterIcon,
-  X,
-  ArrowUpDown,
-  FileStack,
-  Check,
-  
-  Heart,
-} from "lucide-react";
+  FaSearch,
+  FaFilter,
+  FaTimes,
+  FaChevronLeft,
+  FaChevronRight,
+  FaAngleDoubleLeft,
+  FaAngleDoubleRight,
+  FaEye,
+  FaEdit,
+  FaTrash,
+  FaPlus,
+  FaBuilding,
+} from "react-icons/fa";
 import "./JobCardManagement.css";
+import { useAdminTheme } from "../admin-theme/AdminThemeContext";
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const SORT_FIELDS = ["Created On", "Last Updated On", "ID", "Work Order", "Operation"];
-
-const FILTER_FIELDS = [
-  "ID",
-  "Work Order",
-  "Operation",
-  "Workstation",
-  "Status",
-  "Company",
-  "Series",
-];
-
-const FILTER_OPERATORS = ["Equals", "Not Equals", "Like", "In", "Not In"];
-
-const ID_OPERATORS = ["Equals", "Like"];
-
-const STATUS_OPTIONS = [
-  "Open",
-  "Work In Progress",
-  "Completed",
-  "On Hold",
-  "Cancelled",
-];
-
-const OPERATION_OPTIONS = [
-  "Assembly",
-  "Welding",
-  "Painting",
-  "Cutting",
-  "Inspection",
-];
-
-// ─── Types ────────────────────────────────────────────────────────────────────
+type Status = "Open" | "Work In Progress" | "Completed" | "On Hold" | "Cancelled";
 
 interface JobCard {
-  id: number;
+  id: string;
   job_card_id: string;
-  status: "Open" | "Work In Progress" | "Completed" | "On Hold" | "Cancelled";
   work_order: string;
   operation: string;
   workstation: string;
   qty_to_manufacture: number;
   total_completed_qty: number;
+  company: string;
+  status: Status;
   created_on: string;
-  is_favorite?: boolean;
+  expected_start_date?: string | null;
+  expected_end_date?: string | null;
+  actual_start_date?: string | null;
+  actual_end_date?: string | null;
 }
 
-// ─── Sample data ──────────────────────────────────────────────────────────────
+interface JobCardDisplay {
+  id: string;
+  jobCardId: string;
+  workOrder: string;
+  operation: string;
+  workstation: string;
+  qty: number;
+  completedQty: number;
+  company: string;
+  status: Status;
+  createdOn: string;
+  progress: number;
+  createdAgo: string;
+  expectedStartDate: Date | null;
+  expectedEndDate: Date | null;
+  actualStartDate: Date | null;
+  actualEndDate: Date | null;
+}
 
-const JOB_CARD_DATA: JobCard[] = [
-  {
-    id: 1,
-    job_card_id: "PO-JOB-00001",
-    status: "Open",
-    work_order: "MFG-WO-00012",
-    operation: "Assembly",
-    workstation: "Station A",
-    qty_to_manufacture: 10,
-    total_completed_qty: 0,
-    created_on: "2025-06-17",
-  },
-  {
-    id: 2,
-    job_card_id: "PO-JOB-00002",
-    status: "Work In Progress",
-    work_order: "MFG-WO-00013",
-    operation: "Welding",
-    workstation: "Station B",
-    qty_to_manufacture: 5,
-    total_completed_qty: 2,
-    created_on: "2025-06-17",
-  },
-];
-
-const STATUS_COLORS: Record<string, { bg: string; color: string; border: string }> = {
-  Open:               { bg: "#eff6ff", color: "#1d4ed8", border: "#bfdbfe" },
-  "Work In Progress": { bg: "#fffbeb", color: "#b45309", border: "#fde68a" },
-  Completed:          { bg: "#f0fdf4", color: "#15803d", border: "#bbf7d0" },
-  "On Hold":          { bg: "#fef2f2", color: "#b91c1c", border: "#fecaca" },
-  Cancelled:          { bg: "#f8fafc", color: "#64748b", border: "#e2e8f0" },
+const STATUS_CLASS: Record<Status, string> = {
+  Open: "s-open",
+  "Work In Progress": "s-inprocess",
+  Completed: "s-completed",
+  "On Hold": "s-onhold",
+  Cancelled: "s-cancelled",
 };
 
-const relativeTime = (dateStr: string): string => {
-  const date = new Date(dateStr);
-  const now = new Date();
-  const diffDays = Math.floor((now.getTime() - date.getTime()) / 86_400_000);
-  if (diffDays <= 0) return "today";
-  if (diffDays === 1) return "1d ago";
-  if (diffDays < 30) return `${diffDays}d ago`;
-  const m = Math.floor(diffDays / 30);
-  return m < 12 ? `${m}mo ago` : `${Math.floor(m / 12)}y ago`;
+const STATUS_LABELS: Record<Status, string> = {
+  Open: "Open",
+  "Work In Progress": "Work In Progress",
+  Completed: "Completed",
+  "On Hold": "On Hold",
+  Cancelled: "Cancelled",
 };
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// ─── local storage (no API) ────────────────────────────────────────────
+// Must match the exact key/shape used by JobCardForm.tsx so both stay in sync.
 
-interface ColumnFilterProps {
+const JOB_CARDS_STORAGE_KEY = "job_cards";
+const JOB_CARDS_UPDATE_EVENT = "job-cards-updated";
+
+const readAllJobCardsLocally = (): JobCard[] => {
+  try {
+    const raw = localStorage.getItem(JOB_CARDS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (err) {
+    console.error("Failed to read job cards from local storage:", err);
+    return [];
+  }
+};
+
+const writeAllJobCardsLocally = (cards: JobCard[]) => {
+  localStorage.setItem(JOB_CARDS_STORAGE_KEY, JSON.stringify(cards));
+  window.dispatchEvent(new Event(JOB_CARDS_UPDATE_EVENT));
+};
+
+// ─── timer helpers ─────────────────────────────────────────────────────
+
+const formatDuration = (ms: number): string => {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (days > 0) return `${days}d ${hours}h ${minutes}m`;
+  if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
+};
+
+interface TimerInfo {
   label: string;
-  accent: string;
-  isOpen: boolean;
-  onToggle: () => void;
-  children?: React.ReactNode;
+  colorVar: string;
+  pulsing: boolean;
 }
 
-const ColumnFilter: React.FC<ColumnFilterProps> = ({ label, accent, isOpen, onToggle, children }) => (
-  <div className="col-filter-wrap">
-    <button
-      className={`col-filter ${isOpen ? "col-filter--open" : ""}`}
-      style={{ "--accent": accent } as React.CSSProperties}
-      onClick={onToggle}
-    >
-      <span className="col-filter__dot" />
-      <span className="col-filter__label">{label}</span>
-      <ChevronDown size={13} className="col-filter__chev" />
-    </button>
-    {isOpen && children}
-  </div>
-);
+const getTimerInfo = (row: JobCardDisplay, now: Date): TimerInfo => {
+  // Actively running — count down to the expected end date
+  if (row.actualStartDate && !row.actualEndDate) {
+    if (row.expectedEndDate) {
+      const diff = row.expectedEndDate.getTime() - now.getTime();
+      if (diff > 0) {
+        return { label: `Ends in ${formatDuration(diff)}`, colorVar: "var(--primary-color)", pulsing: true };
+      }
+      return { label: `Overdue by ${formatDuration(-diff)}`, colorVar: "var(--danger-color)", pulsing: true };
+    }
+    // No expected end date to count down to — fall back to elapsed time
+    const elapsed = now.getTime() - row.actualStartDate.getTime();
+    return { label: formatDuration(elapsed), colorVar: "var(--primary-color)", pulsing: true };
+  }
 
-interface SelectMenuProps {
-  items: string[];
-  selected: string | null;
-  onSelect: (v: string) => void;
-}
+  // Finished — show total time it took
+  if (row.actualStartDate && row.actualEndDate) {
+    const total = row.actualEndDate.getTime() - row.actualStartDate.getTime();
+    return { label: `Done in ${formatDuration(total)}`, colorVar: "var(--text-secondary)", pulsing: false };
+  }
 
-const SelectMenu: React.FC<SelectMenuProps> = ({ items, selected, onSelect }) => (
-  <div className="menu menu--list">
-    {items.map((item) => (
-      <div
-        key={item}
-        className={`menu__item ${selected === item ? "menu__item--active" : ""}`}
-        onClick={() => onSelect(item)}
-      >
-        {selected === item ? <Check size={14} className="menu__check" /> : <span style={{ width: 14 }} />}
-        <span>{item}</span>
-      </div>
-    ))}
-  </div>
-);
+  // Not started yet — count down to scheduled start
+  if (row.expectedStartDate) {
+    const diff = row.expectedStartDate.getTime() - now.getTime();
+    if (diff > 0) {
+      return { label: `Starts in ${formatDuration(diff)}`, colorVar: "var(--text-secondary)", pulsing: false };
+    }
+    return { label: `Overdue by ${formatDuration(-diff)}`, colorVar: "var(--danger-color)", pulsing: false };
+  }
 
-// ─── Main component ───────────────────────────────────────────────────────────
+  return { label: "-", colorVar: "var(--text-secondary)", pulsing: false };
+};
 
-const JobCardManagement: React.FC = () => {
+export default function JobCardManagement() {
   const navigate = useNavigate();
-  const [jobCards, setJobCards] = useState<JobCard[]>(JOB_CARD_DATA);
+  const { theme } = useAdminTheme();
 
-  // view / meta dropdowns
-  const [listViewOpen, setListViewOpen] = useState(false);
-  const [savedFiltersOpen, setSavedFiltersOpen] = useState(false);
-  const [moreOpen, setMoreOpen] = useState(false);
+  const [jobCards, setJobCards] = useState<JobCardDisplay[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [allChecked, setAllChecked] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [totalItems, setTotalItems] = useState(0);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<JobCardDisplay | null>(null);
+  const [now, setNow] = useState<Date>(() => new Date());
 
-  // column filters
-  const [idOpOpen, setIdOpOpen] = useState(false);
-  const [idOperator, setIdOperator] = useState("Like");
-  const [statusOpen, setStatusOpen] = useState(false);
-  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
-  const [operationOpen, setOperationOpen] = useState(false);
-  const [selectedOperation, setSelectedOperation] = useState<string | null>(null);
-
-  // filter panel
-  const [filterPanelOpen, setFilterPanelOpen] = useState(false);
-  const [filterField, setFilterField] = useState("ID");
-  const [filterOperator, setFilterOperator] = useState("Equals");
-  const [filterValue, setFilterValue] = useState("");
-  const [filterFieldOpen, setFilterFieldOpen] = useState(false);
-  const [filterOperatorOpen, setFilterOperatorOpen] = useState(false);
-  const [appliedFilters, setAppliedFilters] = useState(0);
-
-  // sort
-  const [sortOpen, setSortOpen] = useState(false);
-  const [sortField, setSortField] = useState("Created On");
-  const [sortAsc, setSortAsc] = useState(false);
-
-  // pagination
-  const [pageSize, setPageSize] = useState(20);
-
-  // selected rows
-  const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
-  const [openMenuId, setOpenMenuId] = useState<number | null>(null);
-
-  const rootRef = useRef<HTMLDivElement>(null);
-
+  // Tick every second so the Timer column stays live without re-fetching data
   useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) closeAll();
-    };
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
+    const interval = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(interval);
   }, []);
 
-  const closeAll = () => {
-    setListViewOpen(false);
-    setSavedFiltersOpen(false);
-    setMoreOpen(false);
-    setIdOpOpen(false);
-    setStatusOpen(false);
-    setOperationOpen(false);
-    setFilterPanelOpen(false);
-    setFilterFieldOpen(false);
-    setFilterOperatorOpen(false);
-    setSortOpen(false);
-    setOpenMenuId(null);
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const nowDate = new Date();
+    const diffMs = nowDate.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins} min`;
+    if (diffHours < 24) return `${diffHours} h`;
+    if (diffDays < 7) return `${diffDays} d`;
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)} w`;
+    if (diffDays < 365) return `${Math.floor(diffDays / 30)} mo`;
+    return `${Math.floor(diffDays / 365)} y`;
   };
 
-  const toggle = (setter: React.Dispatch<React.SetStateAction<boolean>>, current: boolean) => {
-    closeAll();
-    setter(!current);
+  const calculateProgress = (qty: number, completedQty: number): number => {
+    if (qty === 0) return 0;
+    return Math.min(Math.round((completedQty / qty) * 100), 100);
   };
 
-  const applyFilters = () => {
-    setAppliedFilters(filterValue.trim() ? 1 : 0);
-    setFilterPanelOpen(false);
+  // ─── load from localStorage (no API) ──────────────────────────────────
+
+  const fetchJobCards = () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const all = readAllJobCardsLocally();
+
+      const transformedData: JobCardDisplay[] = all.map((item) => ({
+        id: item.id,
+        jobCardId: item.job_card_id,
+        workOrder: item.work_order,
+        operation: item.operation,
+        workstation: item.workstation,
+        qty: item.qty_to_manufacture,
+        completedQty: item.total_completed_qty,
+        company: item.company,
+        status: item.status,
+        createdOn: item.created_on,
+        progress: calculateProgress(item.qty_to_manufacture, item.total_completed_qty),
+        createdAgo: formatDate(item.created_on),
+        expectedStartDate: item.expected_start_date ? new Date(item.expected_start_date) : null,
+        expectedEndDate: item.expected_end_date ? new Date(item.expected_end_date) : null,
+        actualStartDate: item.actual_start_date ? new Date(item.actual_start_date) : null,
+        actualEndDate: item.actual_end_date ? new Date(item.actual_end_date) : null,
+      }));
+
+      // Newest first
+      transformedData.sort(
+        (a, b) => new Date(b.createdOn).getTime() - new Date(a.createdOn).getTime()
+      );
+
+      setTotalItems(transformedData.length);
+      setJobCards(transformedData);
+    } catch (err) {
+      console.error("Error reading job cards from local storage:", err);
+      setError("An error occurred while loading job cards");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Initial load + live sync whenever the form (or another tab) saves a job card
+  useEffect(() => {
+    fetchJobCards();
+
+    window.addEventListener(JOB_CARDS_UPDATE_EVENT, fetchJobCards);
+    window.addEventListener("storage", fetchJobCards); // cross-tab sync
+
+    return () => {
+      window.removeEventListener(JOB_CARDS_UPDATE_EVENT, fetchJobCards);
+      window.removeEventListener("storage", fetchJobCards);
+    };
+  }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter]);
+
+  const filteredData = jobCards.filter((item) => {
+    const matchesSearch =
+      item.jobCardId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.workOrder.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.operation.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.company.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === "all" || item.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
+  const totalFilteredItems = filteredData.length;
+  const filteredTotalPages = Math.ceil(totalFilteredItems / itemsPerPage);
+
+  const validCurrentPage = Math.min(currentPage, filteredTotalPages || 1);
+  if (validCurrentPage !== currentPage) {
+    setCurrentPage(validCurrentPage);
+  }
+
+  const paginatedData = filteredData.slice(
+    (validCurrentPage - 1) * itemsPerPage,
+    validCurrentPage * itemsPerPage
+  );
+
+  const toggleAll = () => {
+    if (allChecked) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(paginatedData.map((r) => r.id)));
+    }
+    setAllChecked(!allChecked);
+  };
+
+  const toggleRow = (id: string) => {
+    const next = new Set(selected);
+    next.has(id) ? next.delete(id) : next.add(id);
+    setSelected(next);
+    setAllChecked(next.size === paginatedData.length);
+  };
+
+  const goToPage = (page: number) => {
+    if (page >= 1 && page <= filteredTotalPages) {
+      setCurrentPage(page);
+    }
+  };
+
+  const goToFirstPage = () => goToPage(1);
+  const goToLastPage = () => goToPage(filteredTotalPages);
+  const goToNextPage = () => goToPage(currentPage + 1);
+  const goToPrevPage = () => goToPage(currentPage - 1);
+
+  const handlePageSizeChange = (newSize: number) => {
+    setItemsPerPage(newSize);
+    setCurrentPage(1);
+  };
+
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisible = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+    let endPage = Math.min(filteredTotalPages, startPage + maxVisible - 1);
+    if (endPage - startPage + 1 < maxVisible) startPage = Math.max(1, endPage - maxVisible + 1);
+    for (let i = startPage; i <= endPage; i++) pages.push(i);
+    return pages;
+  };
+
+  const handleDelete = (item: JobCardDisplay) => {
+    setSelectedItem(item);
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = () => {
+    if (selectedItem) {
+      try {
+        const all = readAllJobCardsLocally();
+        const updated = all.filter((c) => c.id !== selectedItem.id);
+        writeAllJobCardsLocally(updated);
+        setShowDeleteConfirm(false);
+        setSelectedItem(null);
+        fetchJobCards();
+      } catch (err) {
+        console.error("Error deleting job card:", err);
+        alert("Failed to delete job card");
+      }
+    }
+  };
+
+  const handleRowClick = (item: JobCardDisplay) => {
+    navigate(`/job-cards/${encodeURIComponent(item.id)}`);
+  };
+
+  const handleEdit = (item: JobCardDisplay) => {
+    navigate(`/job-cards/${encodeURIComponent(item.id)}`);
+  };
+
+  const handleView = (item: JobCardDisplay) => {
+    navigate(`/job-cards/${encodeURIComponent(item.id)}`);
   };
 
   const clearFilters = () => {
-    setFilterField("ID");
-    setFilterOperator("Equals");
-    setFilterValue("");
-    setAppliedFilters(0);
-    setFilterPanelOpen(false);
+    setSearchTerm("");
+    setStatusFilter("all");
   };
 
-  const toggleRow = (id: number) => {
-    setSelectedRows((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
+  const getStartIndex = () => {
+    return (validCurrentPage - 1) * itemsPerPage + 1;
   };
 
-  const allSelected = JOB_CARD_DATA.length > 0 && selectedRows.size === jobCards.length;
-  const toggleAll = () => {
-    setSelectedRows(allSelected ? new Set() : new Set(jobCards.map((r) => r.id)));
+  const getEndIndex = () => {
+    return Math.min(validCurrentPage * itemsPerPage, totalFilteredItems);
   };
-
-  const toggleFavorite = (e: React.MouseEvent, id: number) => {
-    e.stopPropagation();
-    setJobCards((prev) => prev.map((jc) => jc.id === id ? { ...jc, is_favorite: !jc.is_favorite } : jc));
-  };
-
-  const handleDelete = (e: React.MouseEvent, id: number) => {
-    e.stopPropagation();
-    setOpenMenuId(null);
-    if (!window.confirm("Delete this job card?")) return;
-    setJobCards((prev) => prev.filter((jc) => jc.id !== id));
-  };
-
-  const visibleCards = useMemo(() => {
-    let data = [...jobCards];
-    if (selectedStatus) data = data.filter((jc) => jc.status === selectedStatus);
-    if (selectedOperation) data = data.filter((jc) => jc.operation === selectedOperation);
-    return data.slice(0, pageSize);
-  }, [jobCards, selectedStatus, selectedOperation, pageSize]);
 
   return (
-    <div className="jcm-page" ref={rootRef}>
-      {/* ── Header ─────────────────────────────────────────────────── */}
-      <div className="jcm-header">
-        <div className="jcm-breadcrumb">
-          <button className="jcm-breadcrumb__home" title="Home">
-            <Home size={14} />
-          </button>
-          <span className="jcm-breadcrumb__sep">/</span>
-          <span className="jcm-breadcrumb__crumb">Manufacturing</span>
-          <span className="jcm-breadcrumb__sep">/</span>
-          <span className="jcm-breadcrumb__crumb jcm-breadcrumb__crumb--active">Job Card</span>
+    <div className={`jc-page ${theme}`}>
+      {/* Search and Filter Bar */}
+      <div className="jc-filter-bar">
+        <div className="jc-filter-left">
+          <div className="jc-search-wrapper">
+            <FaSearch className="jc-search-icon" />
+            <input
+              type="text"
+              placeholder="Search job cards by ID, work order, operation, or company..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="jc-search-input"
+            />
+            {searchTerm && (
+              <button className="jc-search-clear" onClick={() => setSearchTerm("")}>
+                <FaTimes size={12} />
+              </button>
+            )}
+          </div>
         </div>
-
-        <div className="jcm-actions">
-          {/* List View */}
-          <div className="dropdown">
-            <button className="pill pill--blue" onClick={() => toggle(setListViewOpen, listViewOpen)}>
-              <span className="pill__icon"><FileStack size={14} /></span>
-              List View
-              <ChevronDown size={14} className="pill__chev" />
-            </button>
-            {listViewOpen && (
-              <div className="menu menu--sm">
-                {["List View", "Report View", "Kanban", "Calendar", "Gantt"].map((v) => (
-                  <div className="menu__item" key={v}>
-                    {v === "List View" && <Check size={14} className="menu__check" />}
-                    <span>{v}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Saved Filters */}
-          <div className="dropdown">
-            <button className="pill pill--violet" onClick={() => toggle(setSavedFiltersOpen, savedFiltersOpen)}>
-              Saved Filters
-              <ChevronDown size={14} className="pill__chev" />
-            </button>
-            {savedFiltersOpen && (
-              <div className="menu menu--sm">
-                <div className="menu__empty">No saved filters yet</div>
-              </div>
-            )}
-          </div>
-
-          <button className="icon-btn icon-btn--teal" title="Refresh"><RefreshCw size={15} /></button>
-
-          {/* More */}
-          <div className="dropdown">
-            <button className="icon-btn icon-btn--slate" onClick={() => toggle(setMoreOpen, moreOpen)} title="More options">
-              <MoreHorizontal size={15} />
-            </button>
-            {moreOpen && (
-              <div className="menu menu--sm menu--right">
-                {["Import", "Export", "Settings", "Reload"].map((v) => (
-                  <div className="menu__item" key={v}><span>{v}</span></div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <button className="btn-primary" onClick={() => navigate("/job-cards/new")}>
-            <Plus size={15} /> Add Job Card
+        <div className="jc-filter-right">
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="jc-filter-select"
+          >
+            <option value="all">All Status</option>
+            <option value="Open">Open</option>
+            <option value="Work In Progress">Work In Progress</option>
+            <option value="Completed">Completed</option>
+            <option value="On Hold">On Hold</option>
+            <option value="Cancelled">Cancelled</option>
+          </select>
+          <button className="jc-filter-btn">
+            <FaFilter size={12} />
+            Filter
+          </button>
+          <button className="jc-sort-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="15" y2="12" /><line x1="3" y1="18" x2="9" y2="18" />
+            </svg>
+            Created On
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          </button>
+          <button className="jc-btn-primary" onClick={() => navigate("/job-cards/new")}>
+            <FaPlus size={12} />
+            Add Job Card
           </button>
         </div>
       </div>
 
-      {/* ── Toolbar ────────────────────────────────────────────────── */}
-      <div className="jcm-toolbar">
-        <div className="jcm-columns">
-          {/* ID filter */}
-          <div className="col-filter-wrap">
-            <div className="col-filter id-filter" style={{ "--accent": "var(--c-id)" } as React.CSSProperties}>
-              <span className="col-filter__dot" />
-              <span className="col-filter__label">ID</span>
-              <button
-                className="id-filter__op-btn"
-                title="Filter operator"
-                onClick={(e) => { e.stopPropagation(); toggle(setIdOpOpen, idOpOpen); }}
-              >
-                <span className={idOperator === "Like" ? "id-filter__approx" : ""}>
-                  {idOperator === "Like" ? "≈" : "="}
-                </span>
-              </button>
-            </div>
-            {idOpOpen && (
-              <div className="menu menu--narrow id-op-menu">
-                {ID_OPERATORS.map((op) => (
-                  <div
-                    key={op}
-                    className={`menu__item ${idOperator === op ? "menu__item--active" : ""}`}
-                    onClick={() => { setIdOperator(op); setIdOpOpen(false); }}
-                  >
-                    {idOperator === op ? <Check size={14} className="menu__check" /> : <span style={{ width: 14 }} />}
-                    <span>{op}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Status filter */}
-          <ColumnFilter
-            label={selectedStatus ?? "Status"}
-            accent="var(--c-status)"
-            isOpen={statusOpen}
-            onToggle={() => toggle(setStatusOpen, statusOpen)}
-          >
-            <SelectMenu
-              items={STATUS_OPTIONS}
-              selected={selectedStatus}
-              onSelect={(v) => { setSelectedStatus(v); setStatusOpen(false); }}
-            />
-          </ColumnFilter>
-
-          {/* Operation filter */}
-          <ColumnFilter
-            label={selectedOperation ?? "Operation"}
-            accent="var(--c-operation)"
-            isOpen={operationOpen}
-            onToggle={() => toggle(setOperationOpen, operationOpen)}
-          >
-            <SelectMenu
-              items={OPERATION_OPTIONS}
-              selected={selectedOperation}
-              onSelect={(v) => { setSelectedOperation(v); setOperationOpen(false); }}
-            />
-          </ColumnFilter>
+      {/* Active filters indicator */}
+      {(searchTerm || statusFilter !== "all") && (
+        <div className="jc-active-filters">
+          <FaFilter size={12} style={{ color: "var(--primary-color)" }} />
+          <span style={{ color: "var(--text-primary)" }}>Active filters:</span>
+          {searchTerm && (
+            <span style={{ color: "var(--text-primary)" }}>
+              <strong>Search:</strong> "{searchTerm}"
+            </span>
+          )}
+          {statusFilter !== "all" && (
+            <span style={{ color: "var(--text-primary)" }}>
+              <strong>Status:</strong> {STATUS_LABELS[statusFilter as Status]}
+            </span>
+          )}
+          <button onClick={clearFilters} className="jc-clear-filters">
+            <FaTimes size={10} /> Clear All
+          </button>
         </div>
+      )}
 
-        {/* Filter + Sort */}
-        <div className="jcm-controls">
-          <div className="dropdown">
-            <button
-              className={`filter-btn ${appliedFilters > 0 ? "filter-btn--active" : ""} ${filterPanelOpen ? "filter-btn--open" : ""}`}
-              onClick={() => toggle(setFilterPanelOpen, filterPanelOpen)}
-            >
-              <FilterIcon size={13} />
-              Filter
-              {appliedFilters > 0 && <span className="filter-btn__badge">{appliedFilters}</span>}
-            </button>
-            {appliedFilters > 0 && (
-              <button className="filter-clear" title="Clear filters" onClick={(e) => { e.stopPropagation(); clearFilters(); }}>
-                <X size={13} />
-              </button>
-            )}
-
-            {filterPanelOpen && (
-              <div className="filter-panel">
-                <div className="filter-row">
-                  <div className="dropdown filter-row__field">
-                    <button className="filter-select" onClick={() => toggle(setFilterFieldOpen, filterFieldOpen)}>
-                      {filterField}
-                      <ChevronDown size={13} />
-                    </button>
-                    {filterFieldOpen && (
-                      <div className="menu menu--list menu--narrow">
-                        {FILTER_FIELDS.map((f) => (
-                          <div
-                            key={f}
-                            className={`menu__item ${filterField === f ? "menu__item--active" : ""}`}
-                            onClick={() => { setFilterField(f); setFilterFieldOpen(false); }}
-                          >
-                            {filterField === f ? <Check size={14} className="menu__check" /> : <span style={{ width: 14 }} />}
-                            <span>{f}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="dropdown filter-row__op">
-                    <button className="filter-select" onClick={() => toggle(setFilterOperatorOpen, filterOperatorOpen)}>
-                      {filterOperator}
-                      <ChevronDown size={13} />
-                    </button>
-                    {filterOperatorOpen && (
-                      <div className="menu menu--list menu--narrow">
-                        {FILTER_OPERATORS.map((op) => (
-                          <div
-                            key={op}
-                            className={`menu__item ${filterOperator === op ? "menu__item--active" : ""}`}
-                            onClick={() => { setFilterOperator(op); setFilterOperatorOpen(false); }}
-                          >
-                            {filterOperator === op ? <Check size={14} className="menu__check" /> : <span style={{ width: 14 }} />}
-                            <span>{op}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <input
-                    className="filter-input"
-                    placeholder="Value"
-                    value={filterValue}
-                    onChange={(e) => setFilterValue(e.target.value)}
-                  />
-                  <button className="filter-remove" title="Remove filter" onClick={() => setFilterValue("")}>
-                    <X size={13} />
-                  </button>
-                </div>
-
-                <div className="filter-panel__footer">
-                  <button className="link-btn">+ Add a Filter</button>
-                  <div className="filter-panel__footer-actions">
-                    <button className="btn-ghost" onClick={clearFilters}>Clear Filters</button>
-                    <button className="btn-dark" onClick={applyFilters}>Apply Filters</button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Sort */}
-          <div className="dropdown">
-            <button className="sort-btn" onClick={() => toggle(setSortOpen, sortOpen)}>
-              <ArrowUpDown
-                size={14}
-                className={`sort-btn__icon ${sortAsc ? "sort-btn__icon--asc" : ""}`}
-                onClick={(e) => { e.stopPropagation(); setSortAsc((s) => !s); }}
-              />
-              {sortField}
-              <ChevronDown size={13} />
-            </button>
-            {sortOpen && (
-              <div className="menu menu--list menu--narrow menu--right">
-                {SORT_FIELDS.map((f) => (
-                  <div
-                    key={f}
-                    className={`menu__item ${sortField === f ? "menu__item--active" : ""}`}
-                    onClick={() => { setSortField(f); setSortOpen(false); }}
-                  >
-                    {sortField === f ? <Check size={14} className="menu__check" /> : <span style={{ width: 14 }} />}
-                    <span>{f}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+      {/* Loading State */}
+      {loading && (
+        <div className="jc-loading">
+          <p>Loading job cards...</p>
         </div>
-      </div>
+      )}
 
-      {/* ── Table ──────────────────────────────────────────────────── */}
-      <div className="jcm-table-wrap">
-        <table className="jcm-table">
-          <thead>
-            <tr>
-              <th className="cb-col">
-                <input type="checkbox" checked={allSelected} onChange={toggleAll} />
-              </th>
-              <th>Job Card ID</th>
-              <th>Status</th>
-              <th>Work Order</th>
-              <th>Operation</th>
-              <th>Workstation</th>
-              <th>Qty (Done/Total)</th>
-              <th>Created On</th>
-              <th style={{ textAlign: "center" }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {visibleCards.length === 0 ? (
-              <tr>
-                <td colSpan={9} className="jcm-empty-cell">
-                  <div className="jcm-empty-icon">📋</div>
-                  <div className="jcm-empty-text">No job cards found</div>
-                  <button className="btn-primary" style={{ marginTop: 12 }} onClick={() => navigate("/job-cards/new")}>
-                    <Plus size={13} /> Create your first Job Card
-                  </button>
-                </td>
-              </tr>
-            ) : (
-              visibleCards.map((jc) => {
-                const sc = STATUS_COLORS[jc.status] ?? STATUS_COLORS.Open;
-                return (
-                  <tr key={jc.id} className="jcm-row" onClick={() => navigate(`/job-cards/${jc.id}`, { state: { jobCard: jc } })}>
-                    <td className="cb-col" onClick={(e) => e.stopPropagation()}>
-                      <input type="checkbox" checked={selectedRows.has(jc.id)} onChange={() => toggleRow(jc.id)} />
-                    </td>
-                    <td>
-                      <a className="jcm-id-link" href={`/job-cards/${jc.id}`} onClick={(e) => e.preventDefault()}>
-                        {jc.job_card_id}
-                      </a>
-                    </td>
-                    <td>
-                      <span
-                        className="jcm-status-pill"
-                        style={{ background: sc.bg, color: sc.color, borderColor: sc.border }}
-                      >
-                        {jc.status}
-                      </span>
-                    </td>
-                    <td style={{ fontWeight: 500 }}>{jc.work_order || "—"}</td>
-                    <td className="jcm-muted">{jc.operation || "—"}</td>
-                    <td className="jcm-muted">{jc.workstation || "—"}</td>
-                    <td className="jcm-qty">
-                      <span className="jcm-qty__done">{jc.total_completed_qty}</span>
-                      <span className="jcm-qty__sep">/</span>
-                      <span>{jc.qty_to_manufacture}</span>
-                    </td>
-                    <td className="jcm-muted jcm-time">{relativeTime(jc.created_on)}</td>
-                    <td className="meta-cell" onClick={(e) => e.stopPropagation()}>
-                      <div className="meta-inner">
-                        <span
-                          className={`jcm-fav ${jc.is_favorite ? "jcm-fav--on" : ""}`}
-                          onClick={(e) => toggleFavorite(e, jc.id)}
-                        >
-                          <Heart size={14} />
-                        </span>
-                        <span className="jcm-ellipsis" onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === jc.id ? null : jc.id); }}>
-                          ···
-                        </span>
-                        {openMenuId === jc.id && (
-                          <div className="jcm-row-menu">
-                            <div className="jcm-row-menu__item" onClick={() => { setOpenMenuId(null); navigate(`/job-cards/${jc.id}`, { state: { jobCard: jc } }); }}>Edit</div>
-                            <div className="jcm-row-menu__item jcm-row-menu__item--danger" onClick={(e) => handleDelete(e, jc.id)}>Delete</div>
-                          </div>
-                        )}
+      {/* Error State */}
+      {error && (
+        <div className="jc-error">
+          <p>{error}</p>
+          <button onClick={fetchJobCards} className="jc-retry-btn">
+            Retry
+          </button>
+        </div>
+      )}
+
+      {/* Table */}
+      {!loading && !error && (
+        <>
+          <div className="jc-table-wrap">
+            <table className="jc-table">
+              <thead>
+                <tr>
+                  <th className="jc-th-check">
+                    <input type="checkbox" checked={allChecked} onChange={toggleAll} className="jc-checkbox" />
+                  </th>
+                  <th className="jc-th">Job Card #</th>
+                  <th className="jc-th">Work Order</th>
+                  <th className="jc-th">Operation</th>
+                  <th className="jc-th">Workstation</th>
+                  <th className="jc-th">Qty</th>
+                  <th className="jc-th">Progress</th>
+                  <th className="jc-th">Company</th>
+                  <th className="jc-th">Status</th>
+                  <th className="jc-th">Timer</th>
+                  <th className="jc-th jc-th-meta">
+                    <span className="jc-count-label">{totalFilteredItems} of {totalItems}</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary, #9ca3af)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                    </svg>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedData.length === 0 ? (
+                  <tr>
+                    <td colSpan={11} className="jc-empty-state">
+                      <div className="jc-empty-content">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                          <polyline points="14 2 14 8 20 8" />
+                          <line x1="16" y1="13" x2="8" y2="13" />
+                          <line x1="16" y1="17" x2="8" y2="17" />
+                          <polyline points="10 9 9 9 8 9" />
+                        </svg>
+                        <p>No job cards found</p>
+                        <span>Try adjusting your search criteria</span>
                       </div>
                     </td>
                   </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+                ) : (
+                  paginatedData.map((row) => {
+                    const timer = getTimerInfo(row, now);
+                    return (
+                      <tr
+                        key={row.id}
+                        className={`jc-tr ${selected.has(row.id) ? "jc-tr-selected" : ""}`}
+                        onClick={() => handleRowClick(row)}
+                        style={{ cursor: "pointer" }}
+                      >
+                        <td className="jc-td-check" onClick={(e) => { e.stopPropagation(); toggleRow(row.id); }}>
+                          <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleRow(row.id)} className="jc-checkbox" />
+                        </td>
+                        <td className="jc-td jc-td-id">{row.jobCardId}</td>
+                        <td className="jc-td jc-td-link">{row.workOrder}</td>
+                        <td className="jc-td">{row.operation}</td>
+                        <td className="jc-td">{row.workstation}</td>
+                        <td className="jc-td jc-td-number">{row.qty.toLocaleString()}</td>
+                        <td className="jc-td">
+                          <div className="jc-progress-container">
+                            <div className="jc-progress-bar">
+                              <div className="jc-progress-fill" style={{ width: `${row.progress}%` }} />
+                            </div>
+                            <span className="jc-progress-text">{row.progress}%</span>
+                          </div>
+                        </td>
+                        <td className="jc-td jc-td-company">
+                          <FaBuilding size={10} className="jc-company-icon" />
+                          {row.company}
+                        </td>
+                        <td className="jc-td">
+                          <span className={`jc-status-badge ${STATUS_CLASS[row.status]}`}>
+                            {STATUS_LABELS[row.status]}
+                          </span>
+                        </td>
+                        <td className="jc-td">
+                          <span
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 5,
+                              fontSize: "0.82em",
+                              fontWeight: 500,
+                              color: timer.colorVar,
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {timer.pulsing && (
+                              <span
+                                style={{
+                                  width: 6,
+                                  height: 6,
+                                  borderRadius: "50%",
+                                  backgroundColor: "var(--primary-color)",
+                                  display: "inline-block",
+                                  animation: "jc-timer-pulse 1.2s ease-in-out infinite",
+                                }}
+                              />
+                            )}
+                            {timer.label}
+                          </span>
+                        </td>
+                        <td className="jc-td jc-td-meta" onClick={(e) => e.stopPropagation()}>
+                          <span className="jc-ago">{row.createdAgo}</span>
+                          <span className="jc-dot">·</span>
+                          <div className="jc-action-buttons">
+                            <button className="jc-action-btn jc-action-view" onClick={(e) => { e.stopPropagation(); handleView(row); }} title="View">
+                              <FaEye size={12} />
+                            </button>
+                            <button className="jc-action-btn jc-action-edit" onClick={(e) => { e.stopPropagation(); handleEdit(row); }} title="Edit">
+                              <FaEdit size={12} />
+                            </button>
+                            <button className="jc-action-btn jc-action-delete" onClick={(e) => { e.stopPropagation(); handleDelete(row); }} title="Delete">
+                              <FaTrash size={12} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
 
-      {/* ── Footer ─────────────────────────────────────────────────── */}
-      <div className="jcm-footer">
-        <span className="jcm-footer__count">{visibleCards.length} records</span>
-        <div className="pagination-box">
-          {[20, 100, 500, 2500].map((size) => (
-            <button
-              key={size}
-              className={`page-size ${pageSize === size ? "page-size--active" : ""}`}
-              onClick={() => setPageSize(size)}
-            >
-              {size}
-            </button>
-          ))}
+          {/* Pagination */}
+          <div className="jc-pagination">
+            <div className="jc-pagination-left">
+              <span className="jc-pagination-label">Show:</span>
+              <select value={itemsPerPage} onChange={(e) => handlePageSizeChange(Number(e.target.value))} className="jc-page-size-select">
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+              <span className="jc-pagination-label">entries</span>
+            </div>
+            <div className="jc-pagination-center">
+              <button onClick={goToFirstPage} disabled={currentPage === 1 || totalFilteredItems === 0} className="jc-page-btn">
+                <FaAngleDoubleLeft size={12} />
+              </button>
+              <button onClick={goToPrevPage} disabled={currentPage === 1 || totalFilteredItems === 0} className="jc-page-btn">
+                <FaChevronLeft size={12} />
+              </button>
+              {totalFilteredItems > 0 && getPageNumbers().map((page) => (
+                <button key={page} onClick={() => goToPage(page)} className={`jc-page-btn ${currentPage === page ? "jc-page-btn-active" : ""}`}>
+                  {page}
+                </button>
+              ))}
+              <button onClick={goToNextPage} disabled={currentPage === filteredTotalPages || totalFilteredItems === 0} className="jc-page-btn">
+                <FaChevronRight size={12} />
+              </button>
+              <button onClick={goToLastPage} disabled={currentPage === filteredTotalPages || totalFilteredItems === 0} className="jc-page-btn">
+                <FaAngleDoubleRight size={12} />
+              </button>
+            </div>
+            <div className="jc-pagination-right">
+              <span className="jc-pagination-info">
+                {totalFilteredItems > 0
+                  ? `Showing ${getStartIndex()} to ${getEndIndex()} of ${totalFilteredItems} entries`
+                  : "No entries to show"}
+              </span>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && selectedItem && (
+        <div className="jc-modal-overlay" onClick={() => setShowDeleteConfirm(false)}>
+          <div className="jc-modal jc-modal-delete" onClick={(e) => e.stopPropagation()}>
+            <div className="jc-modal-header">
+              <span className="jc-modal-title">Confirm Delete</span>
+              <button className="jc-modal-close" onClick={() => setShowDeleteConfirm(false)}>
+                <FaTimes size={16} />
+              </button>
+            </div>
+            <div className="jc-modal-body">
+              <p>Are you sure you want to delete this job card?</p>
+              <p className="jc-modal-item-name"><strong>{selectedItem.jobCardId}</strong> - {selectedItem.workOrder}</p>
+              <p className="jc-modal-warning">This action cannot be undone.</p>
+            </div>
+            <div className="jc-modal-footer">
+              <button className="jc-btn-cancel" onClick={() => setShowDeleteConfirm(false)}>
+                Cancel
+              </button>
+              <button className="jc-btn-delete" onClick={confirmDelete}>
+                <FaTrash size={12} /> Delete
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Pulse animation for the "running" timer dot */}
+      <style>{`
+        @keyframes jc-timer-pulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.35; transform: scale(0.7); }
+        }
+      `}</style>
     </div>
   );
-};
-
-export default JobCardManagement;
+}

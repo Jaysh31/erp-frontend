@@ -1,5 +1,4 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import  { useState } from 'react';
 import { 
   FaSearch, FaPlus, FaEdit, FaTrash, FaFilter, 
   FaTimes, FaSave, FaSpinner, FaCopy, FaEye,
@@ -32,8 +31,26 @@ interface Contact {
   updatedAt: string;
 }
 
+interface ContactFormData {
+  contactCode: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  mobile: string;
+  status: Contact['status'];
+  address: string;
+  city: string;
+  state: string;
+  country: string;
+  pincode: string;
+  designation: string;
+  department: string;
+  supplierId: string;
+  supplierName: string;
+}
+
 export default function Contact() {
-  const navigate = useNavigate();
   
   let theme = 'light';
   try {
@@ -124,14 +141,14 @@ export default function Contact() {
     }
   ]);
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<ContactFormData>({
     contactCode: '',
     firstName: '',
     lastName: '',
     email: '',
     phone: '',
     mobile: '',
-    status: 'Active' as const,
+    status: 'Active',
     address: '',
     city: '',
     state: '',

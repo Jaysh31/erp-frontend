@@ -11,9 +11,6 @@ import {
   FaEye,
   FaEdit,
   FaTrash,
-  FaTags,
-  FaCheckCircle,
-  FaTimesCircle,
   FaPlus,
 } from 'react-icons/fa';
 import "./ItemAttributeList.css";
@@ -61,16 +58,6 @@ export default function ItemAttributeList() {
     currentPage * itemsPerPage
   );
 
-  // Stats
-  const totalEnabled = attributes.filter(item => item.status === 'Enabled').length;
-  const totalDisabled = attributes.filter(item => item.status === 'Disabled').length;
-
-  const stats = [
-    { title: 'Total Attributes', value: attributes.length, icon: <FaTags />, color: '#6366f1' },
-    { title: 'Enabled', value: totalEnabled, icon: <FaCheckCircle />, color: '#10b981' },
-    { title: 'Disabled', value: totalDisabled, icon: <FaTimesCircle />, color: '#ef4444' },
-    { title: 'Active', value: totalEnabled, icon: <FaTags />, color: '#f59e0b' },
-  ];
 
   const toggleAll = () => {
     if (allChecked) {
@@ -131,7 +118,7 @@ export default function ItemAttributeList() {
   return (
     <div className={`ial-page ${theme}`}>
       {/* Stats Cards */}
-      <div className="ial-stats-container">
+      {/* <div className="ial-stats-container">
         {stats.map((stat, index) => (
           <div key={index} className="ial-stat-card" style={{ background: `linear-gradient(135deg, ${stat.color} 0%, ${stat.color}cc 100%)` }}>
             <div className="ial-stat-icon">{stat.icon}</div>
@@ -141,7 +128,7 @@ export default function ItemAttributeList() {
             </div>
           </div>
         ))}
-      </div>
+      </div> */}
 
       {/* Search and Filter Bar */}
       <div className="ial-filter-bar">

@@ -37,45 +37,11 @@ export default function Sidebar({
   });
 
   // Update module based on current path
-  useEffect(() => {
-    const path = location.pathname;
-    
-    if (path === '/home' || path === '/dashboard') {
-      return;
-    }
-    
-    if (path.startsWith('/bom') || path.startsWith('/work-order') || 
-        path.startsWith('/job-card') || path.startsWith('/stock-entry') || 
-        path.startsWith('/material-planning') || path.startsWith('/quality')) {
-      setCurrentModule('manufacturing');
-    } else if (path.startsWith('/item-list') || path.startsWith('/item-group') || 
-               path.startsWith('/item-attribute') || path.startsWith('/brand') || 
-               path.startsWith('/warehouse') || path.startsWith('/uom') || 
-               path.startsWith('/uom-conversion') || path.startsWith('/serial-no') || 
-               path.startsWith('/batch-no') || path.startsWith('/serial-batch-bundle') ||
-               path.startsWith('/stock')) {
-      setCurrentModule('setup');
-    } else if (path.startsWith('/sales-order') || path.startsWith('/sales-invoice') || 
-               path.startsWith('/delivery-note') || path.startsWith('/customers') ||
-               path.startsWith('/quotation')) {
-      setCurrentModule('sales');
-    } else if (path.startsWith('/company') || path.startsWith('/letter-head')) {
-      setCurrentModule('organization');
-    } else if (path.startsWith('/reports')) {
-      setCurrentModule('reports');
-    } else if (path.startsWith('/tools')) {
-      setCurrentModule('tools');
-    } else if (path.startsWith('/settings')) {
-      setCurrentModule('system');
-    } else if (path.startsWith('/purchase') || path.startsWith('/material-request') || 
-               path.startsWith('/request-for-quotation') || path.startsWith('/supplier-quotation') ||
-               path.startsWith('/purchase-order') || path.startsWith('/purchase-invoice') ||
-               path.startsWith('/supplier')) {
-      setCurrentModule('purchasing');
-    } else if (path.startsWith('/accounting')) {
-      setCurrentModule('accounting');
-    }
-  }, [location.pathname, setCurrentModule]);
+ useEffect(() => {
+  if (location.pathname === "/home") {
+    setCurrentModule("home");
+  }
+}, [location.pathname, setCurrentModule]);
 
   // Save expanded categories to localStorage
   useEffect(() => {
@@ -146,7 +112,7 @@ export default function Sidebar({
         { title: 'Work Order', icon: <WorkOrderIcon />, path: '/work-order' },
         { title: 'Job Card', icon: <JobCardIcon />, path: '/job-card' },
         { title: 'Stock Entry', icon: <StockIcon />, path: '/stock-entry' },
-        { title: 'Material Planning', icon: <TruckIcon />, path: '/material-planning' }
+        // { title: 'Material Planning', icon: <TruckIcon />, path: '/material-planning' }
       ]
     },
     {
@@ -163,14 +129,19 @@ export default function Sidebar({
       module: 'setup',
       icon: <SetupIcon />,
       items: [
+        { title: 'Item', icon: <ItemIcon />, path: '/item-list' },
+        { title: 'Item Group', icon: <FolderIcon />, path: '/item-group' },
         { title: 'Item Attribute', icon: <TagIcon />, path: '/item-attribute' },
         { title: 'Brand', icon: <BrandIcon />, path: '/brand' },
         { title: 'Warehouse', icon: <WarehouseIcon />, path: '/warehouse' },
+        { title: 'Workstation', icon: <WarehouseIcon />, path: '/Workstation' },
+        { title: 'Operations', icon: <WarehouseIcon />, path: '/operations' },
+
         { title: 'Unit of Measure (UOM)', icon: <RulerIcon />, path: '/uom' },
-        { title: 'UOM Conversion Factor', icon: <RepeatIcon />, path: '/uom-conversion' },
-        { title: 'Serial No', icon: <HashIcon />, path: '/serial-no' },
-        { title: 'Batch No', icon: <LayersIcon />, path: '/batch-no' },
-        { title: 'Serial and Batch Bundle', icon: <PackageIcon />, path: '/serial-batch-bundle' }
+        // { title: 'UOM Conversion Factor', icon: <RepeatIcon />, path: '/uom-conversion' },
+        // { title: 'Serial No', icon: <HashIcon />, path: '/serial-no' },
+        // { title: 'Batch No', icon: <LayersIcon />, path: '/batch-no' },
+        // { title: 'Serial and Batch Bundle', icon: <PackageIcon />, path: '/serial-batch-bundle' }
       ]
     },
     {
@@ -323,19 +294,20 @@ title: 'Banking',
   ];
 
   // Filter categories based on current module
-  const getFilteredCategories = () => {
-    if (currentModule === 'home') {
-      return allMenuCategories.filter(cat => 
-        cat.module === 'home' || cat.module === 'system'
-      );
-    } else {
-      return allMenuCategories.filter(cat => 
-        cat.module === 'home' || 
-        cat.module === currentModule || 
-        cat.module === 'system'
-      );
-    }
-  };
+const getFilteredCategories = () => {
+  if (currentModule === 'home') {
+    return allMenuCategories.filter(cat =>
+      cat.module === 'home' || cat.module === 'system'
+    );
+  } else {
+    return allMenuCategories.filter(cat =>
+      cat.module === 'home' ||
+      cat.module === currentModule ||
+      cat.module === 'system'
+    );
+  }
+};
+
 
   const menuCategories = getFilteredCategories();
 
@@ -668,17 +640,7 @@ const StockIcon = () => (
   </svg>
 );
 
-const TruckIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="1" y="3" width="15" height="13" rx="1"/>
-    <path d="M16 8h4l3 3v5h-7V8z"/>
-    <circle cx="5.5" cy="18.5" r="2.5"/>
-    <circle cx="18.5" cy="18.5" r="2.5"/>
-  </svg>
-);
-
-// Organization Icons
-const OrganizationIcon = () => (
+const ToolIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <rect x="9" y="2" width="6" height="4" rx="1"/>
     <rect x="2" y="14" width="6" height="4" rx="1"/>

@@ -110,7 +110,7 @@ export default function AddSupplier() {
   const supplierGroups = ['Raw Materials', 'Electronic Components', 'Packaging', 'Chemicals', 'Logistics', 'Office Supplies', 'Services', 'All Supplier Groups'];
   const countries = ['India', 'USA', 'UK', 'Germany', 'China', 'Japan', 'UAE', 'Singapore'];
   const currencies = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD'];
-  const languages = ['en', 'hi', 'es', 'fr', 'de', 'zh', 'ar'];
+  // const languages = ['en', 'hi', 'es', 'fr', 'de', 'zh', 'ar'];
   const taxCategories = ['Registered Regular', 'Registered Composition', 'Unregistered', 'SEZ', 'Export Oriented'];
   const paymentTerms = ['7 Days', '15 Days', '30 Days', '45 Days', '60 Days', 'Due on Receipt'];
   const priceLists = ['Standard Buying', 'Export Pricing', 'Wholesale', 'Distributor'];

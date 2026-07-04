@@ -103,10 +103,10 @@ export default function HomePage() {
     },
   ];
 
-  const handleModuleClick = (module: typeof modules[0]) => {
+const handleModuleClick = (module: typeof modules[0]) => {
     setCurrentModule(module.module);
     navigate(module.path);
-  };
+};
 
   return (
     <div className={`home-page ${theme}`}>

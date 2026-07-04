@@ -11,16 +11,50 @@ import {
   Eye,
   Edit,
   Trash2,
+  AlertCircle,
 } from "lucide-react";
 import "./BOMPage.css";
 import NewBOMPage from "./Newbompage";
 import { useAdminTheme } from "../admin-theme/AdminThemeContext";
+import api from '../../src/services/api';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const SORT_FIELDS = ["Created On", "Last Updated On", "ID", "Item to Manufacture"];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+interface BOMRecord {
+  id: number;
+  item: string;
+  item_name: string;
+  quantity: number;
+  uom: string;
+  company: string;
+  is_active: number;
+  is_default: number;
+  total_cost: number;
+  creation: string;
+}
+
+interface BOMListResponse {
+  success: number;
+  data: {
+    total: number;
+    page: number;
+    limit: number;
+    records: BOMRecord[];
+  };
+}
+
+interface BOMDetailResponse {
+  success: number;
+  data: {
+    bom: any;
+    items: any[];
+    operations: any[];
+  };
+}
 
 interface BOMRow {
   id: string;
@@ -34,43 +68,12 @@ interface BOMRow {
   comments: number;
 }
 
-// ─── Sample data ──────────────────────────────────────────────────────────────
-
-const BOM_DATA: BOMRow[] = [
-  {
-    id: "BOM-46-001",
-    status: "Draft",
-    itemToManufacture: "Table2",
-    isActive: true,
-    isDefault: true,
-    totalCost: "₹ 0.00",
-    hasVariants: false,
-    createdOn: "1d ago",
-    comments: 0,
-  },
-  {
-    id: "BOM-chair-001",
-    status: "Draft",
-    itemToManufacture: "Chair",
-    isActive: true,
-    isDefault: true,
-    totalCost: "₹ 0.00",
-    hasVariants: false,
-    createdOn: "1d ago",
-    comments: 0,
-  },
-];
-
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 const CheckBadge: React.FC<{ checked: boolean }> = ({ checked }) => (
   <div className={`bom-check-badge ${checked ? "bom-check-badge--on" : ""}`}>
     {checked && <Check size={12} color="#fff" strokeWidth={3} />}
   </div>
-);
-
-const ToggleDot: React.FC<{ on: boolean }> = ({ on }) => (
-  <div className={`bom-toggle-dot ${on ? "bom-toggle-dot--on" : ""}`} />
 );
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -80,47 +83,185 @@ const BOMPage: React.FC = () => {
   const [showNewBOM, setShowNewBOM] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [editBOMData, setEditBOMData] = useState<any>(null);
 
-  // view / meta dropdowns
-  const [, setListViewOpen] = useState(false);
-  const [, setSavedFiltersOpen] = useState(false);
-  const [, setMoreOpen] = useState(false);
+  // Data state
+  const [bomData, setBomData] = useState<BOMRecord[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
 
-  // sort
+  // Sort
   const [sortOpen, setSortOpen] = useState(false);
   const [sortField, setSortField] = useState("Created On");
 
-  // pagination
+  // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  // selected rows
-  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
+  // Selected rows
+  const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
 
   const rootRef = useRef<HTMLDivElement>(null);
 
-  // Filter data
-  const filteredData = BOM_DATA.filter(item => {
-    const matchesSearch = item.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          item.itemToManufacture.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || 
-                         (statusFilter === 'active' && item.isActive) ||
-                         (statusFilter === 'draft' && item.status === 'Draft');
-    return matchesSearch && matchesStatus;
-  });
+  // ─── Fetch BOMs from API ──────────────────────────────────────────────────
 
-  // Pagination
-  const totalFilteredItems = filteredData.length;
-  const totalPages = Math.ceil(totalFilteredItems / itemsPerPage);
+  const fetchBOMs = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const params = new URLSearchParams({
+        page: String(currentPage),
+        limit: String(itemsPerPage),
+      });
+
+      if (searchTerm.trim()) {
+        params.append('search', searchTerm.trim());
+      }
+
+      if (statusFilter !== 'all') {
+        params.append('status', statusFilter);
+      }
+
+      const sortMap: Record<string, string> = {
+        'Created On': 'creation',
+        'Last Updated On': 'modified',
+        'ID': 'id',
+        'Item to Manufacture': 'item_name'
+      };
+      if (sortField in sortMap) {
+        params.append('sort_by', sortMap[sortField]);
+        params.append('sort_order', 'desc');
+      }
+
+      const response = await api.get<BOMListResponse>(`/bom?${params.toString()}`);
+      
+      if (response.data.success === 1) {
+        setBomData(response.data.data.records);
+        setTotalRecords(response.data.data.total);
+      } else {
+        setError('Failed to load BOMs');
+      }
+    } catch (err: any) {
+      console.error('Error fetching BOMs:', err);
+      if (err.response) {
+        setError(err.response.data?.message || `Server error: ${err.response.status}`);
+      } else if (err.request) {
+        setError('Network error. Please check your connection.');
+      } else {
+        setError('An unexpected error occurred.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ─── Fetch single BOM for editing ────────────────────────────────────────
+
+  const fetchBOMForEdit = async (bomId: number) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await api.get<BOMDetailResponse>(`/bom/${bomId}`);
+      
+      if (response.data.success === 1) {
+        setEditBOMData(response.data.data);
+        setShowNewBOM(true);
+      } else {
+        setError('Failed to load BOM data for editing');
+      }
+    } catch (err: any) {
+      console.error('Error fetching BOM:', err);
+      if (err.response) {
+        setError(err.response.data?.message || `Server error: ${err.response.status}`);
+      } else if (err.request) {
+        setError('Network error. Please check your connection.');
+      } else {
+        setError('An unexpected error occurred.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ─── Effects ──────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    fetchBOMs();
+  }, [currentPage, itemsPerPage, sortField, statusFilter]);
+
+  // Debounced search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (currentPage !== 1) {
+        setCurrentPage(1);
+      } else {
+        fetchBOMs();
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Close all dropdowns when clicking outside
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        closeAll();
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const closeAll = () => {
+    setSortOpen(false);
+  };
+
+  const toggle = (
+    setter: React.Dispatch<React.SetStateAction<boolean>>,
+    current: boolean
+  ) => {
+    closeAll();
+    setter(!current);
+  };
+
+  const clearFilters = () => {
+    setSearchTerm("");
+    setStatusFilter("all");
+    setCurrentPage(1);
+  };
+
+  // ─── Transform API data to table rows ────────────────────────────────────
+
+  const transformToRows = (records: BOMRecord[]): BOMRow[] => {
+    return records.map(record => ({
+      id: String(record.id),
+      status: record.is_active === 1 ? "Active" : "Disabled",
+      itemToManufacture: record.item_name,
+      isActive: record.is_active === 1,
+      isDefault: record.is_default === 1,
+      totalCost: `₹ ${record.total_cost.toFixed(2)}`,
+      hasVariants: false,
+      createdOn: new Date(record.creation).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      }),
+      comments: 0,
+    }));
+  };
+
+  const tableData = transformToRows(bomData);
+
+  // ─── Pagination ────────────────────────────────────────────────────────────
+
+  const totalPages = Math.ceil(totalRecords / itemsPerPage);
   const validCurrentPage = Math.min(currentPage, totalPages || 1);
-  
-  const paginatedData = filteredData.slice(
-    (validCurrentPage - 1) * itemsPerPage,
-    validCurrentPage * itemsPerPage
-  );
 
   const getStartIndex = () => (validCurrentPage - 1) * itemsPerPage + 1;
-  const getEndIndex = () => Math.min(validCurrentPage * itemsPerPage, totalFilteredItems);
+  const getEndIndex = () => Math.min(validCurrentPage * itemsPerPage, totalRecords);
 
   const getPageNumbers = () => {
     const pages = [];
@@ -148,83 +289,109 @@ const BOMPage: React.FC = () => {
     setCurrentPage(1);
   };
 
-  // Stats
-  const totalBOMs = BOM_DATA.length;
-  // const activeBOMs = BOM_DATA.filter(b => b.isActive).length;
-  // const draftBOMs = BOM_DATA.filter(b => b.status === 'Draft').length;
-
-  // const stats = [
-  //   { title: 'Total BOMs', value: totalBOMs, icon: <FileStack size={20} />, color: '#6366f1' },
-  //   { title: 'Active', value: activeBOMs, icon: <Check size={20} />, color: '#10b981' },
-  //   { title: 'Draft', value: draftBOMs, icon: <FileStack size={20} />, color: '#f59e0b' },
-  //   { title: 'Total Cost', value: '₹ 0.00', icon: <FileStack size={20} />, color: '#3b82f6' },
-  // ];
-
-  // Close all dropdowns when clicking outside
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        closeAll();
-      }
-    };
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, []);
-
-  const closeAll = () => {
-    setListViewOpen(false);
-    setSavedFiltersOpen(false);
-    setMoreOpen(false);
-    setSortOpen(false);
-  };
-
-  const toggle = (
-    setter: React.Dispatch<React.SetStateAction<boolean>>,
-    current: boolean
-  ) => {
-    closeAll();
-    setter(!current);
-  };
-
-  const clearFilters = () => {
-    setSearchTerm("");
-    setStatusFilter("all");
-  };
+  // ─── Row selection ────────────────────────────────────────────────────────
 
   const toggleRow = (id: string) => {
     setSelectedRows((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      const numId = Number(id);
+      next.has(numId) ? next.delete(numId) : next.add(numId);
       return next;
     });
   };
 
-  const allSelected =
-    paginatedData.length > 0 && selectedRows.size === paginatedData.length;
+  const allSelected = tableData.length > 0 && selectedRows.size === tableData.length;
 
   const toggleAll = () => {
-    setSelectedRows(allSelected ? new Set() : new Set(paginatedData.map((r) => r.id)));
+    setSelectedRows(allSelected ? new Set() : new Set(tableData.map((r) => Number(r.id))));
   };
+
+  // ─── Actions ──────────────────────────────────────────────────────────────
 
   const handleView = (row: BOMRow) => {
     console.log("View BOM", row.id);
+    // Navigate to view page or open modal
   };
 
   const handleEdit = (row: BOMRow) => {
-    console.log("Edit BOM", row.id);
+    // Fetch full BOM data for editing
+    fetchBOMForEdit(Number(row.id));
   };
 
-  const handleDelete = (row: BOMRow) => {
-    console.log("Delete BOM", row.id);
+  const handleDelete = async (row: BOMRow) => {
+    if (window.confirm(`Are you sure you want to delete BOM "${row.id}"?`)) {
+      try {
+        // DELETE with id in payload (not in URL)
+        const response = await api.delete('/bom', { data: { id: Number(row.id) } });
+        if (response.data.success === 1) {
+          await fetchBOMs();
+          setSelectedRows(prev => {
+            const next = new Set(prev);
+            next.delete(Number(row.id));
+            return next;
+          });
+          alert('BOM deleted successfully');
+        } else {
+          setError('Failed to delete BOM');
+        }
+      } catch (err: any) {
+        console.error('Error deleting BOM:', err);
+        setError(err.response?.data?.message || 'Failed to delete BOM');
+      }
+    }
   };
+
+  // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
     <>
-      {showNewBOM && <NewBOMPage onBack={() => setShowNewBOM(false)} />}
+      {showNewBOM && (
+        <NewBOMPage 
+          onBack={() => {
+            setShowNewBOM(false);
+            setEditBOMData(null);
+            fetchBOMs();
+          }} 
+          editData={editBOMData}
+        />
+      )}
       {!showNewBOM && (
         <div className={`bom-page ${theme}`} ref={rootRef}>
           {/* ── Header ─────────────────────────────────────────────────────── */}
+          <div className="bom-header">
+            <div className="bom-breadcrumb">
+              <button className="bom-breadcrumb__home" onClick={() => console.log('Home')}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                </svg>
+              </button>
+              <span className="bom-breadcrumb__sep">/</span>
+              <span className="bom-breadcrumb__crumb">Manufacturing</span>
+              <span className="bom-breadcrumb__sep">/</span>
+              <span className="bom-breadcrumb__crumb--active">Bill of Materials</span>
+            </div>
+            <div className="bom-actions">
+              <button className="bom-icon-btn bom-icon-btn--teal" title="Refresh" onClick={fetchBOMs}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="23 4 23 10 17 10"/>
+                  <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                </svg>
+              </button>
+            </div>
+          </div>
 
+          {/* ── Error message ────────────────────────────────────────────── */}
+          {error && (
+            <div className="bom-error-banner">
+              <AlertCircle size={14} />
+              <span>{error}</span>
+              <button onClick={() => setError(null)} className="bom-error-close">
+                <X size={14} />
+              </button>
+            </div>
+          )}
+
+          
 
           {/* ── Search and Filter Bar ─────────────────────────────────────── */}
           <div className="bom-filter-bar">
@@ -233,7 +400,7 @@ const BOMPage: React.FC = () => {
                 <Search className="bom-search-icon" size={14} />
                 <input
                   type="text"
-                  placeholder="Search BOMs..."
+                  placeholder="Search BOMs by ID or Item..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="bom-search-input"
@@ -248,17 +415,16 @@ const BOMPage: React.FC = () => {
             <div className="bom-filter-right">
               <select 
                 value={statusFilter} 
-                onChange={(e) => setStatusFilter(e.target.value)}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
                 className="bom-filter-select"
               >
                 <option value="all">All Status</option>
                 <option value="active">Active</option>
-                <option value="draft">Draft</option>
+                <option value="disabled">Disabled</option>
               </select>
-              <button className="bom-filter-btn">
-                <FilterIcon size={12} />
-                Filter
-              </button>
               <button className="bom-sort-btn" onClick={() => toggle(setSortOpen, sortOpen)}>
                 <ArrowUpDown size={12} />
                 {sortField}
@@ -285,7 +451,10 @@ const BOMPage: React.FC = () => {
                   </div>
                 )}
               </button>
-              <button className="bom-btn-primary" onClick={() => setShowNewBOM(true)}>
+              <button className="bom-btn-primary" onClick={() => {
+                setEditBOMData(null);
+                setShowNewBOM(true);
+              }}>
                 <Plus size={12} />
                 Add BOM
               </button>
@@ -301,7 +470,7 @@ const BOMPage: React.FC = () => {
                 <span><strong>Search:</strong> "{searchTerm}"</span>
               )}
               {statusFilter !== 'all' && (
-                <span><strong>Status:</strong> {statusFilter === 'active' ? 'Active' : 'Draft'}</span>
+                <span><strong>Status:</strong> {statusFilter === 'active' ? 'Active' : 'Disabled'}</span>
               )}
               <button 
                 onClick={clearFilters}
@@ -314,192 +483,201 @@ const BOMPage: React.FC = () => {
 
           {/* ── Table ──────────────────────────────────────────────────────── */}
           <div className="bom-table-wrap">
-            <table className="bom-table">
-              <thead>
-                <tr>
-                  <th className="bom-th-check">
-                    <input
-                      type="checkbox"
-                      checked={allSelected}
-                      onChange={toggleAll}
-                      className="bom-checkbox"
-                    />
-                  </th>
-                  <th className="bom-th">ID</th>
-                  <th className="bom-th">Status</th>
-                  <th className="bom-th">Item to Manufacture</th>
-                  <th className="bom-th">Is Active</th>
-                  <th className="bom-th">Is Default</th>
-                  <th className="bom-th">Total Cost</th>
-                  <th className="bom-th">Has Variants</th>
-                  <th className="bom-th bom-th-meta">
-                    <span className="bom-count-label">{totalFilteredItems} of {totalBOMs}</span>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary, #9ca3af)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                    </svg>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedData.length === 0 ? (
+            {loading ? (
+              <div className="bom-loading-state">
+                <div className="bom-spinner"></div>
+                <p>Loading BOMs...</p>
+              </div>
+            ) : (
+              <table className="bom-table">
+                <thead>
                   <tr>
-                    <td colSpan={9} className="bom-empty-state">
-                      <div className="bom-empty-content">
-                        <FileStack size={48} />
-                        <p>No BOMs found</p>
-                        <span>Try adjusting your search criteria</span>
-                      </div>
-                    </td>
+                    <th className="bom-th-check">
+                      <input
+                        type="checkbox"
+                        checked={allSelected}
+                        onChange={toggleAll}
+                        className="bom-checkbox"
+                        disabled={tableData.length === 0}
+                      />
+                    </th>
+                    <th className="bom-th">BOM ID</th>
+                    <th className="bom-th">Status</th>
+                    <th className="bom-th">Item to Manufacture</th>
+                    <th className="bom-th">Quantity</th>
+                    <th className="bom-th">UOM</th>
+                    <th className="bom-th">Is Active</th>
+                    <th className="bom-th">Is Default</th>
+                    <th className="bom-th">Total Cost</th>
+                    <th className="bom-th bom-th-meta">
+                      <span className="bom-count-label">{totalRecords} total</span>
+                    </th>
                   </tr>
-                ) : (
-                  paginatedData.map((row) => (
-                    <tr
-                      key={row.id}
-                      className={`bom-tr ${selectedRows.has(row.id) ? "bom-tr-selected" : ""}`}
-                    >
-                      <td className="bom-td-check" onClick={(e) => { e.stopPropagation(); toggleRow(row.id); }}>
-                        <input
-                          type="checkbox"
-                          checked={selectedRows.has(row.id)}
-                          onChange={() => toggleRow(row.id)}
-                          className="bom-checkbox"
-                        />
-                      </td>
-                      <td className="bom-td bom-td-id">
-                        <a
-                          className="bom-id-link"
-                          href={`/bom/${row.id}`}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            console.log("open bom", row.id);
-                          }}
-                        >
-                          {row.id}
-                        </a>
-                      </td>
-                      <td className="bom-td">
-                        <span className="bom-status-pill">{row.status}</span>
-                      </td>
-                      <td className="bom-td" style={{ fontWeight: 500 }}>{row.itemToManufacture}</td>
-                      <td className="bom-td">
-                        <CheckBadge checked={row.isActive} />
-                      </td>
-                      <td className="bom-td">
-                        <CheckBadge checked={row.isDefault} />
-                      </td>
-                      <td className="bom-td bom-cost">{row.totalCost}</td>
-                      <td className="bom-td">
-                        <ToggleDot on={row.hasVariants} />
-                      </td>
-                      <td className="bom-td bom-td-meta">
-                        <span className="bom-ago">{row.createdOn}</span>
-                        <span className="bom-dot">·</span>
-                        <div className="bom-action-buttons">
-                          <button 
-                            className="bom-action-btn bom-action-view" 
-                            onClick={(e) => { e.stopPropagation(); handleView(row); }}
-                            title="View"
-                          >
-                            <Eye size={12} />
-                          </button>
-                          <button 
-                            className="bom-action-btn bom-action-edit" 
-                            onClick={(e) => { e.stopPropagation(); handleEdit(row); }}
-                            title="Edit"
-                          >
-                            <Edit size={12} />
-                          </button>
-                          <button 
-                            className="bom-action-btn bom-action-delete" 
-                            onClick={(e) => { e.stopPropagation(); handleDelete(row); }}
-                            title="Delete"
-                          >
-                            <Trash2 size={12} />
-                          </button>
+                </thead>
+                <tbody>
+                  {tableData.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="bom-empty-state">
+                        <div className="bom-empty-content">
+                          <FileStack size={48} />
+                          <p>No BOMs found</p>
+                          <span>
+                            {searchTerm || statusFilter !== 'all' 
+                              ? 'Try adjusting your search criteria' 
+                              : 'Create your first BOM by clicking "Add BOM"'}
+                          </span>
                         </div>
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    tableData.map((row) => (
+                      <tr
+                        key={row.id}
+                        className={`bom-tr ${selectedRows.has(Number(row.id)) ? "bom-tr-selected" : ""}`}
+                      >
+                        <td className="bom-td-check" onClick={(e) => { e.stopPropagation(); toggleRow(row.id); }}>
+                          <input
+                            type="checkbox"
+                            checked={selectedRows.has(Number(row.id))}
+                            onChange={() => toggleRow(row.id)}
+                            className="bom-checkbox"
+                          />
+                        </td>
+                        <td className="bom-td bom-td-id">
+                          <a
+                            className="bom-id-link"
+                            href={`/bom/${row.id}`}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              handleView(row);
+                            }}
+                          >
+                            {row.id}
+                          </a>
+                        </td>
+                        <td className="bom-td">
+                          <span className={`bom-status-pill ${row.status === 'Active' ? 'bom-status--active' : 'bom-status--disabled'}`}>
+                            {row.status}
+                          </span>
+                        </td>
+                        <td className="bom-td" style={{ fontWeight: 500 }}>{row.itemToManufacture}</td>
+                        <td className="bom-td">{bomData.find(b => String(b.id) === row.id)?.quantity || '-'}</td>
+                        <td className="bom-td">{bomData.find(b => String(b.id) === row.id)?.uom || '-'}</td>
+                        <td className="bom-td">
+                          <CheckBadge checked={row.isActive} />
+                        </td>
+                        <td className="bom-td">
+                          <CheckBadge checked={row.isDefault} />
+                        </td>
+                        <td className="bom-td bom-cost">{row.totalCost}</td>
+                        <td className="bom-td bom-td-meta">
+                          <span className="bom-ago">{row.createdOn}</span>
+                          <span className="bom-dot">·</span>
+                          <div className="bom-action-buttons">
+                            <button 
+                              className="bom-action-btn bom-action-view" 
+                              onClick={(e) => { e.stopPropagation(); handleView(row); }}
+                              title="View"
+                            >
+                              <Eye size={12} />
+                            </button>
+                            <button 
+                              className="bom-action-btn bom-action-edit" 
+                              onClick={(e) => { e.stopPropagation(); handleEdit(row); }}
+                              title="Edit"
+                            >
+                              <Edit size={12} />
+                            </button>
+                            <button 
+                              className="bom-action-btn bom-action-delete" 
+                              onClick={(e) => { e.stopPropagation(); handleDelete(row); }}
+                              title="Delete"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            )}
           </div>
 
           {/* ── Pagination ─────────────────────────────────────────────────── */}
-          <div className="bom-pagination">
-            <div className="bom-pagination-left">
-              <span className="bom-pagination-label">Show:</span>
-              <select 
-                value={itemsPerPage} 
-                onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-                className="bom-page-size-select"
-              >
-                <option value={10}>10</option>
-                <option value={25}>25</option>
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-              </select>
-              <span className="bom-pagination-label">entries</span>
-            </div>
-            <div className="bom-pagination-center">
-              <button 
-                onClick={goToFirstPage} 
-                disabled={validCurrentPage === 1 || totalFilteredItems === 0} 
-                className="bom-page-btn"
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="11 17 6 12 11 7"/>
-                  <polyline points="18 17 13 12 18 7"/>
-                </svg>
-              </button>
-              <button 
-                onClick={goToPrevPage} 
-                disabled={validCurrentPage === 1 || totalFilteredItems === 0} 
-                className="bom-page-btn"
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="15 18 9 12 15 6"/>
-                </svg>
-              </button>
-              {totalFilteredItems > 0 && getPageNumbers().map(page => (
-                <button
-                  key={page}
-                  onClick={() => goToPage(page)}
-                  className={`bom-page-btn ${validCurrentPage === page ? 'bom-page-btn-active' : ''}`}
+          {!loading && totalRecords > 0 && (
+            <div className="bom-pagination">
+              <div className="bom-pagination-left">
+                <span className="bom-pagination-label">Show:</span>
+                <select 
+                  value={itemsPerPage} 
+                  onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                  className="bom-page-size-select"
                 >
-                  {page}
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+                <span className="bom-pagination-label">entries</span>
+              </div>
+              <div className="bom-pagination-center">
+                <button 
+                  onClick={goToFirstPage} 
+                  disabled={validCurrentPage === 1 || totalRecords === 0} 
+                  className="bom-page-btn"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="11 17 6 12 11 7"/>
+                    <polyline points="18 17 13 12 18 7"/>
+                  </svg>
                 </button>
-              ))}
-              <button 
-                onClick={goToNextPage} 
-                disabled={validCurrentPage === totalPages || totalFilteredItems === 0} 
-                className="bom-page-btn"
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="9 18 15 12 9 6"/>
-                </svg>
-              </button>
-              <button 
-                onClick={goToLastPage} 
-                disabled={validCurrentPage === totalPages || totalFilteredItems === 0} 
-                className="bom-page-btn"
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="13 17 18 12 13 7"/>
-                  <polyline points="6 17 11 12 6 7"/>
-                </svg>
-              </button>
+                <button 
+                  onClick={goToPrevPage} 
+                  disabled={validCurrentPage === 1 || totalRecords === 0} 
+                  className="bom-page-btn"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="15 18 9 12 15 6"/>
+                  </svg>
+                </button>
+                {getPageNumbers().map(page => (
+                  <button
+                    key={page}
+                    onClick={() => goToPage(page)}
+                    className={`bom-page-btn ${validCurrentPage === page ? 'bom-page-btn-active' : ''}`}
+                  >
+                    {page}
+                  </button>
+                ))}
+                <button 
+                  onClick={goToNextPage} 
+                  disabled={validCurrentPage === totalPages || totalRecords === 0} 
+                  className="bom-page-btn"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="9 18 15 12 9 6"/>
+                  </svg>
+                </button>
+                <button 
+                  onClick={goToLastPage} 
+                  disabled={validCurrentPage === totalPages || totalRecords === 0} 
+                  className="bom-page-btn"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="13 17 18 12 13 7"/>
+                    <polyline points="6 17 11 12 6 7"/>
+                  </svg>
+                </button>
+              </div>
+              <div className="bom-pagination-right">
+                <span className="bom-pagination-info">
+                  Showing {getStartIndex()} to {getEndIndex()} of {totalRecords} entries
+                </span>
+              </div>
             </div>
-            <div className="bom-pagination-right">
-              <span className="bom-pagination-info">
-                {totalFilteredItems > 0 ? (
-                  `Showing ${getStartIndex()} to ${getEndIndex()} of ${totalFilteredItems} entries`
-                ) : (
-                  'No entries to show'
-                )}
-              </span>
-            </div>
-          </div>
+          )}
         </div>
       )}
     </>

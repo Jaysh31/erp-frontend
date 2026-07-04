@@ -8,77 +8,81 @@ import {
   FaChevronRight,
   FaAngleDoubleLeft,
   FaAngleDoubleRight,
+  FaBoxes,
+  FaCheckCircle,
   FaSpinner,
+  FaEdit,
+  FaTrash,
+  FaEye,
+  FaPlus,
+  FaClock,
+  FaIndustry,
 } from 'react-icons/fa';
-import ItemQuickAdd from "./Itemquickadd";
-import "./ItemList.css";
+// import "./OperationList.css";
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
 
-interface Item {
+interface Operation {
   id: number;
-  item_code: string;
-  item_name: string;
-  item_group: string;
-  stock_uom: string;
-  is_stock_item: number;
-  is_fixed_asset: number;
-  is_sales_item: number;
-  is_purchase_item: number;
-  disabled: number;
-  description: string;
-  brand: string | null;
-  valuation_method: string;
+  name: string;
   creation: string;
   modified: string;
+  modified_by: string;
+  owner: string;
+  docstatus: number;
+  idx: number;
+  workstation: string;
+  is_corrective_operation: number;
+  create_job_card_based_on_batch_size: number;
+  quality_inspection_template: string;
+  batch_size: number;
+  total_operation_time: number;
+  description: string;
+  _user_tags: string;
+  _comments: string | null;
+  _assign: string | null;
+  _liked_by: string | null;
 }
 
 interface ApiResponse {
   success: number;
-  data: Item[];
+  data: Operation[];
 }
 
-export default function ItemList() {
+export default function OperationList() {
   const navigate = useNavigate();
   const { theme } = useAdminTheme();
   
-  const [items, setItems] = useState<Item[]>([]);
+  const [operations, setOperations] = useState<Operation[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [allChecked, setAllChecked] = useState(false);
-  const [showModal, setShowModal] = useState(false);
-  const [hasVariants, setHasVariants] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [totalItems, setTotalItems] = useState(0);
+  const [sortField, ] = useState<string>('creation');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
-  // Fetch items from API
-  const fetchItems = async () => {
+  // Fetch operations from API
+  const fetchOperations = async () => {
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams();
-      params.append('page', currentPage.toString());
-      params.append('limit', itemsPerPage.toString());
-      
-      if (searchTerm) {
-        params.append('search', searchTerm);
-      }
-
-      const response = await api.get<ApiResponse>(`/item?${params.toString()}`);
+      const response = await api.get<ApiResponse>('/operation');
       
       if (response.data.success === 1) {
-        setItems(response.data.data);
+        setOperations(response.data.data);
         setTotalItems(response.data.data.length);
       } else {
-        setError('Failed to fetch items');
+        setError('Failed to fetch operations');
       }
     } catch (err) {
-      console.error('Error fetching items:', err);
-      setError('An error occurred while fetching items');
+      console.error('Error fetching operations:', err);
+      setError('An error occurred while fetching operations');
     } finally {
       setLoading(false);
     }
@@ -86,29 +90,71 @@ export default function ItemList() {
 
   // Fetch when dependencies change
   useEffect(() => {
-    fetchItems();
-  }, [currentPage, itemsPerPage, searchTerm]);
+    fetchOperations();
+  }, []);
 
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, itemsPerPage]);
 
-  // Filter data based on status
-  const filteredItems = items.filter(item => {
-    const matchesStatus = statusFilter === 'all' || 
-                         (statusFilter === 'enabled' && item.disabled === 0) ||
-                         (statusFilter === 'disabled' && item.disabled === 1);
-    return matchesStatus;
-  });
+  // Filter and sort data
+  const filteredAndSortedOperations = operations
+    .filter(op => {
+      const matchesSearch = op.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           op.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           op.workstation.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      const matchesStatus = statusFilter === 'all' || 
+                           (statusFilter === 'active' && op.docstatus === 0) ||
+                           (statusFilter === 'submitted' && op.docstatus === 1) ||
+                           (statusFilter === 'cancelled' && op.docstatus === 2);
+      
+      return matchesSearch && matchesStatus;
+    })
+    .sort((a, b) => {
+      let comparison = 0;
+      switch (sortField) {
+        case 'name':
+          comparison = a.name.localeCompare(b.name);
+          break;
+        case 'creation':
+          comparison = new Date(a.creation).getTime() - new Date(b.creation).getTime();
+          break;
+        case 'workstation':
+          comparison = a.workstation.localeCompare(b.workstation);
+          break;
+        case 'total_operation_time':
+          comparison = a.total_operation_time - b.total_operation_time;
+          break;
+        case 'batch_size':
+          comparison = a.batch_size - b.batch_size;
+          break;
+        default:
+          comparison = 0;
+      }
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
 
-  const paginatedData = filteredItems.slice(
+  const paginatedData = filteredAndSortedOperations.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
 
-  const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
+  const totalPages = Math.ceil(filteredAndSortedOperations.length / itemsPerPage);
 
+  // Stats
+  const totalActive = operations.filter(op => op.docstatus === 0).length;
+  const totalSubmitted = operations.filter(op => op.docstatus === 1).length;
+  // const totalCancelled = operations.filter(op => op.docstatus === 2).length;
+  const uniqueWorkstations = [...new Set(operations.map(op => op.workstation))].length;
+
+  const stats = [
+    { title: 'Total Operations', value: totalItems, icon: <FaBoxes />, color: '#6366f1' },
+    { title: 'Active', value: totalActive, icon: <FaCheckCircle />, color: '#10b981' },
+    { title: 'Submitted', value: totalSubmitted, icon: <FaClock />, color: '#3b82f6' },
+    { title: 'Workstations', value: uniqueWorkstations, icon: <FaIndustry />, color: '#f59e0b' },
+  ];
 
   const toggleAll = () => {
     if (allChecked) {
@@ -168,21 +214,71 @@ export default function ItemList() {
     return date.toLocaleDateString();
   };
 
-const handleRowClick = (item: Item) => {
-  // Use the ID in the URL, not the item_code
-  navigate(`/item/${item.id}`, { 
-    state: { itemData: item } 
-  });
-};
+  const handleRowClick = (operation: Operation) => {
+    navigate(`/operation/${operation.id}`, { 
+      state: { operationData: operation, mode: 'view' } 
+    });
+  };
 
-const handleAddItem = () => {
-  setShowModal(true);  // This opens the quick add modal instead of navigating
-};
+  const handleViewOperation = (operation: Operation) => {
+    navigate(`/operation/${operation.id}`, { 
+      state: { operationData: operation, mode: 'view' } 
+    });
+  };
+
+  const handleEditOperation = (operation: Operation) => {
+    navigate(`/operation/${operation.id}/edit`, { 
+      state: { operationData: operation } 
+    });
+  };
+
+  const handleDeleteOperation = async (operation: Operation) => {
+    if (window.confirm(`Are you sure you want to delete operation "${operation.name}"?`)) {
+      try {
+        setDeletingId(operation.id);
+        // Delete operation - pass id in payload
+        await api.delete('/operation', { data: { id: operation.id } });
+        await fetchOperations();
+        setSelected(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(operation.id);
+          return newSet;
+        });
+        alert('Operation deleted successfully');
+      } catch (err) {
+        console.error('Error deleting operation:', err);
+        alert('Failed to delete operation');
+      } finally {
+        setDeletingId(null);
+      }
+    }
+  };
+
+  const handleAddOperation = () => {
+    navigate('/operation/new');
+  };
+
+  const getStatusBadge = (docstatus: number) => {
+    switch (docstatus) {
+      case 0:
+        return <span className="itl-status-badge itl-status-active">Active</span>;
+      case 1:
+        return <span className="itl-status-badge itl-status-submitted">Submitted</span>;
+      case 2:
+        return <span className="itl-status-badge itl-status-cancelled">Cancelled</span>;
+      default:
+        return null;
+    }
+  };
+
+  const getOperationType = (operation: Operation) => {
+    return operation.is_corrective_operation === 1 ? 'Corrective' : 'Standard';
+  };
 
   return (
     <div className={`itl-page ${theme}`}>
       {/* Stats Cards */}
-      {/* <div className="itl-stats-container">
+      <div className="itl-stats-container">
         {stats.map((stat, index) => (
           <div key={index} className="itl-stat-card" style={{ background: `linear-gradient(135deg, ${stat.color} 0%, ${stat.color}cc 100%)` }}>
             <div className="itl-stat-icon">{stat.icon}</div>
@@ -192,7 +288,7 @@ const handleAddItem = () => {
             </div>
           </div>
         ))}
-      </div> */}
+      </div>
 
       {/* Search and Filter Bar */}
       <div className="itl-filter-bar">
@@ -201,7 +297,7 @@ const handleAddItem = () => {
             <FaSearch className="itl-search-icon" />
             <input
               type="text"
-              placeholder="Search items..."
+              placeholder="Search operations..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="itl-search-input"
@@ -220,25 +316,21 @@ const handleAddItem = () => {
             className="itl-filter-select"
           >
             <option value="all">All Status</option>
-            <option value="enabled">Enabled</option>
-            <option value="disabled">Disabled</option>
+            <option value="active">Active</option>
+            <option value="submitted">Submitted</option>
+            <option value="cancelled">Cancelled</option>
           </select>
-          <button className="itl-filter-btn">
-            <FaFilter size={12} />
-            Filter
-          </button>
-          <button className="itl-sort-btn">
+          <button className="itl-sort-btn" onClick={() => {
+            setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+          }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="9" y2="18"/>
             </svg>
-            Created On
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            Sort {sortDirection === 'asc' ? '↑' : '↓'}
           </button>
-          <button className="itl-btn-primary" onClick={handleAddItem}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
-            Add Item
+          <button className="itl-btn-primary" onClick={handleAddOperation}>
+            <FaPlus size={12} />
+            Add Operation
           </button>
         </div>
       </div>
@@ -267,17 +359,11 @@ const handleAddItem = () => {
         </div>
       )}
 
-      {/* Has Variants */}
-      <div className="itl-has-variants-bar">
-        <input type="checkbox" id="hasVariants" checked={hasVariants} onChange={(e) => setHasVariants(e.target.checked)} className="itl-checkbox" />
-        <label htmlFor="hasVariants" className="itl-has-variants-label">Has Variants</label>
-      </div>
-
       {/* Loading State */}
       {loading && (
         <div className="itl-loading">
           <FaSpinner className="spinning" size={24} />
-          <p>Loading items...</p>
+          <p>Loading operations...</p>
         </div>
       )}
 
@@ -285,7 +371,7 @@ const handleAddItem = () => {
       {error && (
         <div className="itl-error">
           <p>{error}</p>
-          <button onClick={fetchItems} className="itl-retry-btn">Retry</button>
+          <button onClick={fetchOperations} className="itl-retry-btn">Retry</button>
         </div>
       )}
 
@@ -299,14 +385,15 @@ const handleAddItem = () => {
                   <th className="itl-th-check">
                     <input type="checkbox" checked={allChecked} onChange={toggleAll} className="itl-checkbox" />
                   </th>
-                  <th className="itl-th">Item Code</th>
-                  <th className="itl-th">Item Name</th>
+                  <th className="itl-th">Operation Name</th>
+                  <th className="itl-th">Workstation</th>
                   <th className="itl-th">Status</th>
-                  <th className="itl-th">Item Group</th>
-                  <th className="itl-th">UOM</th>
                   <th className="itl-th">Type</th>
+                  <th className="itl-th">Batch Size</th>
+                  <th className="itl-th">Time (min)</th>
+                  <th className="itl-th">Quality Template</th>
                   <th className="itl-th itl-th-meta">
-                    <span className="itl-count-label">{filteredItems.length} of {totalItems}</span>
+                    <span className="itl-count-label">{filteredAndSortedOperations.length} of {totalItems}</span>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary, #9ca3af)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
                     </svg>
@@ -316,12 +403,12 @@ const handleAddItem = () => {
               <tbody>
                 {paginatedData.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="itl-empty-state">
+                    <td colSpan={9} className="itl-empty-state">
                       <div className="itl-empty-content">
                         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
                         </svg>
-                        <p>No items found</p>
+                        <p>No operations found</p>
                         <span>Try adjusting your search criteria</span>
                       </div>
                     </td>
@@ -336,31 +423,39 @@ const handleAddItem = () => {
                       <td className="itl-td-check" onClick={(e) => { e.stopPropagation(); toggleRow(row.id); }}>
                         <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleRow(row.id)} className="itl-checkbox" />
                       </td>
-                      <td className="itl-td itl-td-code">{row.item_code}</td>
-                      <td className="itl-td itl-td-name">{row.item_name}</td>
+                      <td className="itl-td itl-td-name">{row.name}</td>
+                      <td className="itl-td">{row.workstation}</td>
                       <td className="itl-td">
-                        <span className={`itl-status-badge itl-status-${row.disabled === 0 ? 'enabled' : 'disabled'}`}>
-                          {row.disabled === 0 ? 'Enabled' : 'Disabled'}
-                        </span>
+                        {getStatusBadge(row.docstatus)}
                       </td>
-                      <td className="itl-td">{row.item_group}</td>
-                      <td className="itl-td">{row.stock_uom}</td>
-                      <td className="itl-td">
-                        {row.is_stock_item === 1 ? 'Stock' : 'Non-Stock'}
-                      </td>
+                      <td className="itl-td">{getOperationType(row)}</td>
+                      <td className="itl-td">{row.batch_size}</td>
+                      <td className="itl-td">{row.total_operation_time}</td>
+                      <td className="itl-td">{row.quality_inspection_template}</td>
                       <td className="itl-td itl-td-meta">
                         <span className="itl-ago">{formatDate(row.creation)}</span>
-                        <button className="itl-meta-btn" onClick={(e) => e.stopPropagation()}>
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                          </svg>
-                          0
-                        </button>
                         <span className="itl-dot">·</span>
-                        <button className="itl-meta-btn" onClick={(e) => e.stopPropagation()}>
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                          </svg>
+                        <button 
+                          className="itl-meta-btn" 
+                          onClick={(e) => { e.stopPropagation(); handleViewOperation(row); }}
+                          title="View Operation"
+                        >
+                          <FaEye size={13} />
+                        </button>
+                        <button 
+                          className="itl-meta-btn" 
+                          onClick={(e) => { e.stopPropagation(); handleEditOperation(row); }}
+                          title="Edit Operation"
+                        >
+                          <FaEdit size={13} />
+                        </button>
+                        <button 
+                          className="itl-meta-btn itl-delete-btn" 
+                          onClick={(e) => { e.stopPropagation(); handleDeleteOperation(row); }}
+                          disabled={deletingId === row.id}
+                          title="Delete Operation"
+                        >
+                          {deletingId === row.id ? <FaSpinner className="spinning" size={13} /> : <FaTrash size={13} />}
                         </button>
                       </td>
                     </tr>
@@ -428,23 +523,12 @@ const handleAddItem = () => {
               </div>
               <div className="itl-pagination-right">
                 <span className="itl-pagination-info">
-                  Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredItems.length)} of {filteredItems.length} entries
+                  Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredAndSortedOperations.length)} of {filteredAndSortedOperations.length} entries
                 </span>
               </div>
             </div>
           )}
         </>
-      )}
-
-      {/* Quick Add Modal */}
-      {showModal && (
-        <ItemQuickAdd
-          onClose={() => setShowModal(false)}
-          onEditFull={(data) => {
-            setShowModal(false);
-            navigate("/item/new", { state: { prefill: data } });
-          }}
-        />
       )}
     </div>
   );

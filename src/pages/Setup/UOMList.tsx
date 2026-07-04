@@ -12,10 +12,10 @@ import {
   FaEdit,
   FaTrash,
   FaRuler,
-  FaCheckCircle,
   FaTimesCircle,
   FaPlus,
   FaCheck,
+  FaPlusCircle,
 } from 'react-icons/fa';
 import "./UOMList.css";
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
@@ -41,6 +41,14 @@ interface UOMFormData {
   must_be_whole_number: boolean;
 }
 
+interface Category {
+  id: number;
+  name: string;
+  category_name: string;
+  creation: string;
+  modified: string;
+}
+
 interface ApiResponse {
   success: number;
   data: {
@@ -51,25 +59,15 @@ interface ApiResponse {
   };
 }
 
-const CATEGORIES = [
-  "Area",
-  "Electric Current",
-  "Electrical Charge",
-  "Length",
-  "Pressure",
-  "Volume",
-  "Weight",
-  "Time",
-  "Temperature",
-  "Speed",
-  "Frequency",
-  "Frequency and Wavelength",
-  "Force",
-  "Energy",
-  "Power",
-  "Data",
-  "Quantity",
-];
+interface CategoryApiResponse {
+  success: number;
+  data: {
+    total: number;
+    page: number;
+    limit: number;
+    records: Category[];
+  };
+}
 
 export default function UOMList() {
   const navigate = useNavigate();
@@ -98,22 +96,39 @@ export default function UOMList() {
   });
   const [apiError, setApiError] = useState<string | null>(null);
 
+  // Category related states
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categorySearch, setCategorySearch] = useState('');
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [categoryApiError, setCategoryApiError] = useState<string | null>(null);
+
+  // Fetch categories
+  const fetchCategories = async () => {
+    try {
+      const response = await api.get<CategoryApiResponse>('/uom-category');
+      if (response.data.success === 1) {
+        setCategories(response.data.data.records);
+      }
+    } catch (err) {
+      console.error('Error fetching categories:', err);
+    }
+  };
+
   // Fetch UOMs from API
   const fetchUOMs = async () => {
     setLoading(true);
     setError(null);
     try {
-      // Build query parameters
       const params = new URLSearchParams();
       params.append('page', currentPage.toString());
       params.append('limit', itemsPerPage.toString());
       
-      // Add search filter if present
       if (searchTerm) {
         params.append('search', searchTerm);
       }
       
-      // Add status filter if not 'all'
       if (statusFilter !== 'all') {
         params.append('enabled', statusFilter === 'enabled' ? '1' : '0');
       }
@@ -134,6 +149,11 @@ export default function UOMList() {
     }
   };
 
+  // Fetch data on mount
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
   // Fetch when dependencies change
   useEffect(() => {
     fetchUOMs();
@@ -144,17 +164,11 @@ export default function UOMList() {
     setCurrentPage(1);
   }, [searchTerm, statusFilter, itemsPerPage]);
 
-  // Stats
-  const totalEnabled = uoms.filter(item => item.enabled === 1).length;
-  const totalDisabled = uoms.filter(item => item.enabled === 0).length;
-  const totalCategories = [...new Set(uoms.map(item => item.category))].length;
+  // Filter categories based on search
+  const filteredCategories = categories.filter(cat =>
+    cat.category_name.toLowerCase().includes(categorySearch.toLowerCase())
+  );
 
-  const stats = [
-    { title: 'Total UOMs', value: totalItems, icon: <FaRuler />, color: '#6366f1' },
-    { title: 'Enabled', value: totalEnabled, icon: <FaCheckCircle />, color: '#10b981' },
-    { title: 'Disabled', value: totalDisabled, icon: <FaTimesCircle />, color: '#ef4444' },
-    { title: 'Categories', value: totalCategories, icon: <FaRuler />, color: '#f59e0b' },
-  ];
 
   const toggleAll = () => {
     if (allChecked) {
@@ -209,6 +223,8 @@ export default function UOMList() {
       category: "",
       must_be_whole_number: false 
     });
+    setCategorySearch('');
+    setShowCategoryDropdown(false);
     setApiError(null);
     setShowModal(true);
   };
@@ -223,7 +239,57 @@ export default function UOMList() {
       category: "",
       must_be_whole_number: false 
     });
+    setCategorySearch('');
+    setShowCategoryDropdown(false);
     setApiError(null);
+  };
+
+  const handleAddCategory = async () => {
+    if (!newCategoryName.trim()) {
+      setCategoryApiError('Category name is required');
+      return;
+    }
+
+    try {
+      const payload = {
+        category_name: newCategoryName.trim(),
+        modified_by: "Administrator",
+        owner: "Administrator",
+        _user_tags: "",
+        _comments: "",
+        _assign: "",
+        _liked_by: ""
+      };
+
+      const response = await api.post('/uom-category', payload);
+      
+      if (response.data.success === 1) {
+        // Refresh categories
+        await fetchCategories();
+        // Select the new category
+        setFormData({ ...formData, category: newCategoryName.trim() });
+        setCategorySearch(newCategoryName.trim());
+        setShowAddCategoryModal(false);
+        setNewCategoryName('');
+        setCategoryApiError(null);
+        setShowCategoryDropdown(false);
+      } else {
+        setCategoryApiError(response.data?.message || 'Failed to create category');
+      }
+    } catch (err: any) {
+      console.error('Error creating category:', err);
+      if (err.response) {
+        if (err.response.status === 409) {
+          setCategoryApiError('A category with this name already exists');
+        } else {
+          setCategoryApiError(err.response.data?.message || 'Failed to create category');
+        }
+      } else if (err.request) {
+        setCategoryApiError('Network error. Please check your connection.');
+      } else {
+        setCategoryApiError('An unexpected error occurred. Please try again.');
+      }
+    }
   };
 
   const handleSave = async () => {
@@ -232,14 +298,18 @@ export default function UOMList() {
       return;
     }
 
+    if (!formData.category) {
+      setApiError('Category is required');
+      return;
+    }
+
     try {
-      // Create new UOM with proper payload
       const payload = {
         uom_name: formData.name.trim(),
         symbol: formData.symbol.trim() || null,
         common_code: formData.common_code.trim() || null,
         description: formData.description.trim() || null,
-        category: formData.category || null,
+        category: formData.category,
         must_be_whole_number: formData.must_be_whole_number ? 1 : 0,
         owner: "Administrator",
         modified_by: "Administrator"
@@ -248,8 +318,7 @@ export default function UOMList() {
       const response = await api.post('/uom', payload);
       
       if (response.data && response.data.success === 1) {
-        // Refresh the list
-        fetchUOMs();
+        await fetchUOMs();
         handleCloseModal();
       } else {
         setApiError(response.data?.message || 'Failed to create UOM');
@@ -285,7 +354,7 @@ export default function UOMList() {
         if (response.data.success === 1) {
           setShowDeleteConfirm(false);
           setSelectedUOM(null);
-          fetchUOMs(); // Refresh the list
+          await fetchUOMs();
         }
       } catch (err) {
         console.error('Error deleting UOM:', err);
@@ -307,7 +376,6 @@ export default function UOMList() {
     return Math.min(currentPage * itemsPerPage, totalItems);
   };
 
-  // Format date
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -324,7 +392,7 @@ export default function UOMList() {
   return (
     <div className={`uoml-page ${theme}`}>
       {/* Stats Cards */}
-      <div className="uoml-stats-container">
+      {/* <div className="uoml-stats-container">
         {stats.map((stat, index) => (
           <div key={index} className="uoml-stat-card" style={{ background: `linear-gradient(135deg, ${stat.color} 0%, ${stat.color}cc 100%)` }}>
             <div className="uoml-stat-icon">{stat.icon}</div>
@@ -334,7 +402,7 @@ export default function UOMList() {
             </div>
           </div>
         ))}
-      </div>
+      </div> */}
 
       {/* Search and Filter Bar */}
       <div className="uoml-filter-bar">
@@ -424,7 +492,7 @@ export default function UOMList() {
         </div>
       )}
 
-      {/* Table - No scroll inside */}
+      {/* Table */}
       {!loading && !error && (
         <>
           <div className="uoml-table-wrap">
@@ -513,7 +581,7 @@ export default function UOMList() {
             </table>
           </div>
 
-          {/* Pagination - Always visible */}
+          {/* Pagination */}
           <div className="uoml-pagination">
             <div className="uoml-pagination-left">
               <span className="uoml-pagination-label">Show:</span>
@@ -648,17 +716,94 @@ export default function UOMList() {
               </div>
 
               <div className="uoml-field">
-                <label className="uoml-label">Category</label>
-                <select
-                  className="uoml-select"
-                  value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                >
-                  <option value="">Select category</option>
-                  {CATEGORIES.map((cat) => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
+                <label className="uoml-label">Category <span className="uoml-req">*</span></label>
+                <div className="uoml-category-select-wrapper">
+                  <div className="uoml-category-input-wrapper">
+                    <input
+                      className="uoml-input"
+                      value={categorySearch}
+                      onChange={(e) => {
+                        setCategorySearch(e.target.value);
+                        setShowCategoryDropdown(true);
+                        // Check if the typed value matches a category
+                        const matched = categories.find(cat => 
+                          cat.category_name.toLowerCase() === e.target.value.toLowerCase()
+                        );
+                        if (matched) {
+                          setFormData({ ...formData, category: matched.category_name });
+                        } else {
+                          setFormData({ ...formData, category: e.target.value });
+                        }
+                      }}
+                      onFocus={() => setShowCategoryDropdown(true)}
+                      onBlur={() => {
+                        // Delay hiding to allow click events on dropdown items
+                        setTimeout(() => setShowCategoryDropdown(false), 200);
+                      }}
+                      placeholder="Search or select category"
+                    />
+                    <button
+                      className="uoml-category-add-btn"
+                      onClick={() => {
+                        setShowCategoryDropdown(false);
+                        setShowAddCategoryModal(true);
+                      }}
+                      title="Add new category"
+                    >
+                      <FaPlusCircle size={16} />
+                    </button>
+                  </div>
+                  
+                  {showCategoryDropdown && (
+                    <div className="uoml-category-dropdown">
+                      {filteredCategories.length === 0 ? (
+                        <div className="uoml-category-dropdown-empty">
+                          <span>No categories found</span>
+                          <button
+                            className="uoml-category-dropdown-add"
+                            onClick={() => {
+                              setShowCategoryDropdown(false);
+                              setShowAddCategoryModal(true);
+                            }}
+                          >
+                            <FaPlusCircle size={14} /> Add new category
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          {filteredCategories.map(cat => (
+                            <div
+                              key={cat.id}
+                              className="uoml-category-dropdown-item"
+                              onMouseDown={() => {
+                                setFormData({ ...formData, category: cat.category_name });
+                                setCategorySearch(cat.category_name);
+                                setShowCategoryDropdown(false);
+                              }}
+                            >
+                              {cat.category_name}
+                            </div>
+                          ))}
+                          <div className="uoml-category-dropdown-divider" />
+                          <button
+                            className="uoml-category-dropdown-add-btn"
+                            onMouseDown={() => {
+                              setShowCategoryDropdown(false);
+                              setShowAddCategoryModal(true);
+                            }}
+                          >
+                            <FaPlusCircle size={14} /> Add new category
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+                {formData.category && (
+                  <div className="uoml-category-selected">
+                    Selected: <strong>{formData.category}</strong>
+                  </div>
+                )}
               </div>
 
               <div className="uoml-field-check">
@@ -690,9 +835,75 @@ export default function UOMList() {
               <button 
                 className="uoml-btn-save" 
                 onClick={handleSave}
-                disabled={!formData.name.trim()}
+                disabled={!formData.name.trim() || !formData.category}
               >
                 <FaCheck size={12} /> Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Category Modal */}
+      {showAddCategoryModal && (
+        <div className="uoml-modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowAddCategoryModal(false)}>
+          <div className="uoml-modal uoml-modal-category">
+            <div className="uoml-modal-header">
+              <div className="uoml-modal-header-left">
+                <div className="uoml-modal-icon">
+                  <FaPlusCircle size={16} />
+                </div>
+                <span className="uoml-modal-title">Add New Category</span>
+              </div>
+              <button className="uoml-modal-close" onClick={() => {
+                setShowAddCategoryModal(false);
+                setNewCategoryName('');
+                setCategoryApiError(null);
+              }}>
+                <FaTimes size={16} />
+              </button>
+            </div>
+
+            {categoryApiError && (
+              <div className="uoml-api-error">
+                <FaTimesCircle className="error-icon" />
+                <span>{categoryApiError}</span>
+                <button className="error-close" onClick={() => setCategoryApiError(null)}>×</button>
+              </div>
+            )}
+
+            <div className="uoml-modal-body">
+              <div className="uoml-field">
+                <label className="uoml-label">Category Name <span className="uoml-req">*</span></label>
+                <input
+                  className="uoml-input"
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  autoFocus
+                  placeholder="Enter category name (e.g., Weight, Volume, Length)"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleAddCategory();
+                    }
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="uoml-modal-footer">
+              <button className="uoml-btn-cancel" onClick={() => {
+                setShowAddCategoryModal(false);
+                setNewCategoryName('');
+                setCategoryApiError(null);
+              }}>
+                Cancel
+              </button>
+              <button 
+                className="uoml-btn-save" 
+                onClick={handleAddCategory}
+                disabled={!newCategoryName.trim()}
+              >
+                <FaCheck size={12} /> Add Category
               </button>
             </div>
           </div>

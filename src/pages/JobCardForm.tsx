@@ -10,6 +10,65 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import "./JobCardForm.css";
 
+// ─── local storage (no API) ────────────────────────────────────────────
+
+const JOB_CARDS_STORAGE_KEY = "job_cards";
+const JOB_CARDS_UPDATE_EVENT = "job-cards-updated";
+
+const readAllJobCards = (): any[] => {
+  try {
+    const raw = localStorage.getItem(JOB_CARDS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (err) {
+    console.error("Failed to read job cards from local storage:", err);
+    return [];
+  }
+};
+
+const writeAllJobCards = (cards: any[]) => {
+  localStorage.setItem(JOB_CARDS_STORAGE_KEY, JSON.stringify(cards));
+  window.dispatchEvent(new Event(JOB_CARDS_UPDATE_EVENT));
+};
+
+const generateJobCardId = (existing: any[]): string => {
+  let n = existing.length + 1;
+  let candidate = `JC-${String(n).padStart(5, "0")}`;
+  const ids = new Set(existing.map((c) => c.job_card_id));
+  while (ids.has(candidate)) {
+    n += 1;
+    candidate = `JC-${String(n).padStart(5, "0")}`;
+  }
+  return candidate;
+};
+
+/** Create a new job card, or update an existing one when `id` is provided. */
+const saveJobCardLocally = (data: any, id?: string): any => {
+  const all = readAllJobCards();
+
+  if (id) {
+    const idx = all.findIndex((c) => c.id === id);
+    if (idx !== -1) {
+      const updated = { ...all[idx], ...data };
+      all[idx] = updated;
+      writeAllJobCards(all);
+      return updated;
+    }
+  }
+
+  const newCard = {
+    ...data,
+    id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`,
+    job_card_id: generateJobCardId(all),
+    created_on: new Date().toISOString(),
+  };
+  all.push(newCard);
+  writeAllJobCards(all);
+  return newCard;
+};
+
+const getJobCardByIdLocally = (id: string): any | undefined =>
+  readAllJobCards().find((c) => c.id === id);
+
 // ─── interfaces ───────────────────────────────────────────────────────────
 
 interface RawMaterialItem {
@@ -168,12 +227,18 @@ const JobCardForm: React.FC = () => {
     { id: 4, name: "More Info", icon: <FaListUl size={14} /> },
   ];
 
-  // ─── load existing job card when editing (from navigation state only) ────
+  // ─── load existing job card when editing ──────────────────────────────
+  // Prefer data passed via navigation state (fast path from the list's row
+  // click); fall back to local storage directly by id (e.g. deep link or
+  // page refresh) since there is no API to re-fetch from.
   useEffect(() => {
-    if (isEditMode) {
+    if (isEditMode && id) {
       const state = location.state as { jobCard?: any };
       if (state?.jobCard) {
         loadJobCardIntoForm(state.jobCard);
+      } else {
+        const stored = getJobCardByIdLocally(id);
+        if (stored) loadJobCardIntoForm(stored);
       }
     }
   }, [id]);
@@ -201,7 +266,11 @@ const JobCardForm: React.FC = () => {
       hour_rate: jc.hour_rate || 0,
       actual_start_date: jc.actual_start_date ? new Date(jc.actual_start_date) : null,
       actual_end_date: jc.actual_end_date ? new Date(jc.actual_end_date) : null,
-      time_logs: jc.time_logs || [],
+      time_logs: (jc.time_logs || []).map((l: any) => ({
+        ...l,
+        from_time: l.from_time ? new Date(l.from_time) : null,
+        to_time: l.to_time ? new Date(l.to_time) : null,
+      })),
       secondary_items: jc.secondary_items || [],
       remarks: jc.remarks || "",
       project: jc.project || "",
@@ -390,7 +459,46 @@ const JobCardForm: React.FC = () => {
     }));
   };
 
-  // ─── submit (no API — local only for now) ─────────────────────────────
+  // ─── submit — saved to localStorage, no API ───────────────────────────
+
+  const buildLocalPayload = () => ({
+    work_order: formData.work_order,
+    qty_to_manufacture: formData.qty_to_manufacture,
+    company: formData.company,
+    posting_date: formData.posting_date ? formData.posting_date.toISOString() : null,
+    naming_series: formData.naming_series,
+    pending_qty: formData.pending_qty,
+    total_completed_qty: formData.total_completed_qty,
+    operation: formData.operation,
+    workstation_type: formData.workstation_type,
+    source_warehouse: formData.source_warehouse,
+    workstation: formData.workstation,
+    wip_warehouse: formData.wip_warehouse,
+    items: formData.items,
+    quality_inspection_template: formData.quality_inspection_template,
+
+    expected_start_date: formData.expected_start_date ? formData.expected_start_date.toISOString() : null,
+    expected_end_date: formData.expected_end_date ? formData.expected_end_date.toISOString() : null,
+    for_quantity: formData.for_quantity,
+    hour_rate: formData.hour_rate,
+
+    actual_start_date: formData.actual_start_date ? formData.actual_start_date.toISOString() : null,
+    actual_end_date: formData.actual_end_date ? formData.actual_end_date.toISOString() : null,
+    time_logs: formData.time_logs.map((log) => ({
+      ...log,
+      from_time: log.from_time ? log.from_time.toISOString() : null,
+      to_time: log.to_time ? log.to_time.toISOString() : null,
+    })),
+
+    secondary_items: formData.secondary_items,
+
+    remarks: formData.remarks,
+    project: formData.project,
+    sequence_id: formData.sequence_id,
+    status: formData.status,
+    is_corrective_job_card: formData.is_corrective_job_card,
+    barcode: formData.barcode,
+  });
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -403,14 +511,16 @@ const JobCardForm: React.FC = () => {
     }
 
     setSaving(true);
-    // No API call yet — this is where the create/update request will go.
-    // For now we just log the payload and simulate a brief save delay.
-    console.log(isEditMode ? "Update job card:" : "Create job card:", formData);
-
-    setTimeout(() => {
-      setSaving(false);
+    try {
+      const payload = buildLocalPayload();
+      saveJobCardLocally(payload, isEditMode ? id : undefined);
       navigate("/job-card");
-    }, 400);
+    } catch (err) {
+      console.error("Error saving job card locally:", err);
+      alert("Failed to save job card");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const allValidationErrors = getAllValidationErrors();

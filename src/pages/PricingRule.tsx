@@ -1,13 +1,9 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { 
-  FaSearch, FaPlus, FaEdit, FaTrash, FaEye, FaFilter, 
-  FaChevronDown, FaChevronUp, FaCheckCircle, FaTimesCircle,
-  FaDollarSign, FaList, FaSave, FaSpinner, FaTimes,
-  FaArrowLeft, FaToggleOn, FaToggleOff, FaCopy,
-  FaBox, FaTag, FaListAlt, FaCalendarAlt, FaPercent,
-  FaBuilding, FaMoneyBillWave, FaTruck, FaUsers,
-  FaCube, FaLayerGroup, FaClock, FaExclamationTriangle
+  FaSearch, FaPlus, FaEdit, FaTrash,  FaFilter, 
+  FaSave, FaSpinner, FaTimes,
+   FaToggleOn, FaToggleOff, FaCopy,
+   FaTag
 } from 'react-icons/fa';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
@@ -52,7 +48,6 @@ interface PricingRule {
 }
 
 export default function PricingRule() {
-  const navigate = useNavigate();
   
   let theme = 'light';
   try {

@@ -1258,3 +1258,71 @@ select.nbom-input {
   .nbom-modal-body,
   .nbom-modal-footer { padding-left: 14px; padding-right: 14px; }
 }
+/* ─── Delete button ─────────────────────────────────────────────────────────── */
+.nbom-edit-btn--delete {
+  color: var(--c-text-muted);
+  border-color: var(--c-border);
+  margin-left: 4px;
+}
+
+.nbom-edit-btn--delete:hover {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #dc2626;
+}
+
+/* ─── Plus icon button ──────────────────────────────────────────────────────── */
+.nbom-btn-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.nbom-btn-link .lucide-plus {
+  width: 14px;
+  height: 14px;
+}
+
+/* ─── Operations table specific ────────────────────────────────────────────── */
+.nbom-table thead th:has(input[type="checkbox"]) {
+  width: 28px;
+  text-align: center;
+}
+
+.nbom-table .nbom-table-select {
+  min-width: 100px;
+}
+
+.nbom-table input[type="checkbox"] {
+  accent-color: var(--c-primary);
+  cursor: pointer;
+}
+
+.nbom-table tbody td:last-child {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 6px;
+}
+
+/* ─── Responsive adjustments for operations table ──────────────────────────── */
+@media (max-width: 1200px) {
+  .nbom-table {
+    font-size: 11px;
+    min-width: 800px;
+  }
+  
+  .nbom-table-input,
+  .nbom-table-select {
+    font-size: 11px;
+    padding: 2px 6px;
+  }
+}
+
+@media (max-width: 768px) {
+  .nbom-table {
+    font-size: 10px;
+    min-width: 700px;
+  }
+}

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useState, useEffect, useRef } from "react";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import {
   FaArrowLeft,
   FaSave,
@@ -18,29 +18,13 @@ import {
   FaShoppingCart,
   FaIndustry,
   FaClipboardCheck,
-  FaLink,
+  
+  
 } from 'react-icons/fa';
 import "./ItemForm.css";
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import toast from "react-hot-toast";
-
-// type Tab =
-//   | "Details"
-//   | "Accounting"
-//   | "UOM"
-//   | "Tax"
-//   | "Inventory"
-//   | "Purchasing"
-//   | "Sales"
-//   | "Manufacturing"
-//   | "Quality"
-//   | "Pricing"
-//   | "Connections";
-
-// const TABS: Tab[] = [
-//   "Details","Accounting","UOM","Tax","Inventory",
-//   "Purchasing","Sales","Manufacturing","Quality","Pricing","Connections",
-// ];
+import api from '../../services/api';
 
 interface TableRow { id: string; [key: string]: string }
 
@@ -55,6 +39,45 @@ interface ValidationError {
   label: string;
   message: string;
   tabIndex: number;
+}
+
+interface ItemData {
+  id: number;
+  item_code: string;
+  item_name: string;
+  item_group: string;
+  stock_uom: string;
+  is_stock_item: number;
+  is_fixed_asset: number;
+  is_sales_item: number;
+  is_purchase_item: number;
+  disabled: number;
+  description: string;
+  brand: string | null;
+  valuation_method: string;
+  creation: string;
+  modified: string;
+}
+
+interface ItemGroup {
+  id: number;
+  item_group_name: string;
+  parent_item_group: string;
+  is_group: number;
+  image: string | null;
+  creation: string;
+  modified: string;
+}
+
+interface UOM {
+  id: number;
+  uom_name: string;
+  symbol: string;
+  common_code: string;
+  category: string;
+  enabled: number;
+  must_be_whole_number: number;
+  creation: string;
 }
 
 /* ── Shared sub-components ─────────────────────────── */
@@ -95,16 +118,221 @@ function TextInput({
   );
 }
 
+// Enhanced SelectInput with search functionality
+// Enhanced SelectInput with search functionality and fixed positioning
 function SelectInput({
-  value, onChange, options,
+  value,
+  onChange,
+  options,
+  placeholder = "Search or select...",
+  loading = false,
 }: {
-  value: string; onChange?: (v: string) => void; options: string[];
+  value: string;
+  onChange?: (v: string) => void;
+  options: { label: string; value: string }[];
+  placeholder?: string;
+  loading?: boolean;
 }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  const filteredOptions = options.filter(opt =>
+    opt.label.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const selectedOption = options.find(opt => opt.value === value);
+
+  // Calculate dropdown position when opening
+  const calculateDropdownPosition = () => {
+    if (wrapperRef.current) {
+      const rect = wrapperRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const dropdownHeight = Math.min(240, filteredOptions.length * 38 + 12);
+      
+      setDropdownPosition({
+        top: spaceBelow > dropdownHeight ? rect.bottom + 4 : rect.top - dropdownHeight - 4,
+        left: rect.left,
+        width: rect.width,
+      });
+    }
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+        setSearchTerm("");
+        setHighlightedIndex(-1);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (isOpen && inputRef.current) {
+      inputRef.current.focus();
+      calculateDropdownPosition();
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen && listRef.current && highlightedIndex >= 0) {
+      const item = listRef.current.children[highlightedIndex] as HTMLElement;
+      if (item) {
+        item.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }, [highlightedIndex, isOpen]);
+
+  // Recalculate position on scroll or resize
+  useEffect(() => {
+    if (isOpen) {
+      const handleUpdate = () => calculateDropdownPosition();
+      window.addEventListener('scroll', handleUpdate, true);
+      window.addEventListener('resize', handleUpdate);
+      return () => {
+        window.removeEventListener('scroll', handleUpdate, true);
+        window.removeEventListener('resize', handleUpdate);
+      };
+    }
+  }, [isOpen]);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!isOpen) {
+      if (e.key === "Enter" || e.key === "ArrowDown") {
+        e.preventDefault();
+        setIsOpen(true);
+      }
+      return;
+    }
+
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        setHighlightedIndex(prev =>
+          prev < filteredOptions.length - 1 ? prev + 1 : prev
+        );
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        setHighlightedIndex(prev => prev > 0 ? prev - 1 : -1);
+        break;
+      case "Enter":
+        e.preventDefault();
+        if (highlightedIndex >= 0 && highlightedIndex < filteredOptions.length) {
+          const selected = filteredOptions[highlightedIndex];
+          onChange?.(selected.value);
+          setSearchTerm("");
+          setIsOpen(false);
+          setHighlightedIndex(-1);
+        }
+        break;
+      case "Escape":
+        e.preventDefault();
+        setIsOpen(false);
+        setSearchTerm("");
+        setHighlightedIndex(-1);
+        break;
+    }
+  };
+
   return (
-    <select className="itf-select" value={value} onChange={(e) => onChange?.(e.target.value)}>
-      <option value=""></option>
-      {options.map((o) => <option key={o} value={o}>{o}</option>)}
-    </select>
+    <div className="itf-select-container" ref={dropdownRef}>
+      <div
+        ref={wrapperRef}
+        className={`itf-select-wrapper ${isOpen ? 'itf-select-open' : ''}`}
+        onClick={() => setIsOpen(true)}
+      >
+        <input
+          ref={inputRef}
+          type="text"
+          className="itf-select-input"
+          value={isOpen ? searchTerm : (selectedOption?.label || "")}
+          onChange={(e) => {
+            if (isOpen) {
+              setSearchTerm(e.target.value);
+              setHighlightedIndex(-1);
+            }
+          }}
+          onKeyDown={handleKeyDown}
+          placeholder={selectedOption?.label || placeholder}
+          onFocus={() => setIsOpen(true)}
+          readOnly={!isOpen}
+        />
+        <span className="itf-select-arrow">
+          {loading ? (
+            <FaSpinner className="spinning" size={12} />
+          ) : (
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          )}
+        </span>
+        {isOpen && searchTerm && (
+          <button
+            className="itf-select-clear"
+            onClick={(e) => {
+              e.stopPropagation();
+              setSearchTerm("");
+              setHighlightedIndex(-1);
+              if (inputRef.current) inputRef.current.focus();
+            }}
+          >
+            ×
+          </button>
+        )}
+      </div>
+
+      {isOpen && (
+        <div
+          className="itf-select-dropdown"
+          ref={listRef}
+          style={{
+            position: 'fixed',
+            top: dropdownPosition.top,
+            left: dropdownPosition.left,
+            width: dropdownPosition.width,
+            maxHeight: '240px',
+            zIndex: 9999,
+          }}
+        >
+          {loading ? (
+            <div className="itf-select-loading">
+              <FaSpinner className="spinning" size={16} />
+              <span>Loading...</span>
+            </div>
+          ) : filteredOptions.length === 0 ? (
+            <div className="itf-select-empty">No options found</div>
+          ) : (
+            filteredOptions.map((opt, index) => (
+              <div
+                key={opt.value}
+                className={`itf-select-option ${index === highlightedIndex ? 'itf-select-option-highlighted' : ''}`}
+                onClick={() => {
+                  onChange?.(opt.value);
+                  setSearchTerm("");
+                  setIsOpen(false);
+                  setHighlightedIndex(-1);
+                }}
+                onMouseEnter={() => setHighlightedIndex(index)}
+              >
+                {opt.label}
+                {opt.value === value && (
+                  <span className="itf-select-option-check">✓</span>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -139,79 +367,46 @@ function InlineTable({
   return (
     <>
       <div className="itf-table-block">
-        <table className="itf-inline-table">
-          <thead>
-            <tr>
-              <th className="itf-ith itf-ith-check"><input type="checkbox" className="itf-checkbox" /></th>
-              <th className="itf-ith itf-ith-no">No.</th>
-              {columns.map((c) => (
-                <th key={c.key} className="itf-ith">
-                  {c.label} {c.required && <span className="itf-req">*</span>}
+        <div className="itf-table-scroll-wrapper">
+          <table className="itf-inline-table">
+            <thead>
+              <tr>
+                <th className="itf-ith itf-ith-check"><input type="checkbox" className="itf-checkbox" /></th>
+                <th className="itf-ith itf-ith-no">No.</th>
+                {columns.map((c) => (
+                  <th key={c.key} className="itf-ith">
+                    {c.label} {c.required && <span className="itf-req">*</span>}
+                  </th>
+                ))}
+                <th className="itf-ith itf-ith-act">
+                  <SettingsIcon />
                 </th>
-              ))}
-              <th className="itf-ith itf-ith-act">
-                <SettingsIcon />
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 ? (
-              <tr><td colSpan={columns.length + 3} className="itf-empty-row">No rows</td></tr>
-            ) : (
-              rows.map((row, i) => (
-                <tr key={row.id} className="itf-itr">
-                  <td className="itf-itd"><input type="checkbox" className="itf-checkbox" /></td>
-                  <td className="itf-itd itf-itd-no">{i + 1}</td>
-                  {columns.map((c) => (
-                    <td key={c.key} className="itf-itd">
-                      {renderCell(row, c.key, () => {})}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.length === 0 ? (
+                <tr><td colSpan={columns.length + 3} className="itf-empty-row">No rows</td></tr>
+              ) : (
+                rows.map((row, i) => (
+                  <tr key={row.id} className="itf-itr">
+                    <td className="itf-itd"><input type="checkbox" className="itf-checkbox" /></td>
+                    <td className="itf-itd itf-itd-no">{i + 1}</td>
+                    {columns.map((c) => (
+                      <td key={c.key} className="itf-itd itf-cell-with-dropdown">
+                        {renderCell(row, c.key, () => {})}
+                      </td>
+                    ))}
+                    <td className="itf-itd">
+                      <button className="itf-remove-row" onClick={() => onRemoveRow(row.id)}>×</button>
                     </td>
-                  ))}
-                  <td className="itf-itd">
-                    <button className="itf-remove-row" onClick={() => onRemoveRow(row.id)}>×</button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
       <button className="itf-add-row" onClick={onAddRow}><FaPlus size={10} /> Add row</button>
-    </>
-  );
-}
-
-function CommentsActivity() {
-  const [comment, setComment] = useState("");
-  return (
-    <>
-      <div className="itf-divider" />
-      <section className="itf-section">
-        <SectionTitle>Comments</SectionTitle>
-        <div className="itf-comment-row">
-          <div className="itf-comment-avatar">TT</div>
-          <input
-            className="itf-comment-input"
-            placeholder="Type a reply / comment"
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-          />
-        </div>
-      </section>
-      <div className="itf-divider" />
-      <section className="itf-section itf-section-activity">
-        <div className="itf-activity-header">
-          <SectionTitle>Activity</SectionTitle>
-          <button className="itf-new-email-btn">+ New Email</button>
-        </div>
-        <ul className="itf-activity-list">
-          <li>You created this · <span className="itf-activity-time">5 hours ago</span></li>
-          <li>You last edited this · <span className="itf-activity-time">5 hours ago</span></li>
-        </ul>
-        <button className="itf-activity-collapse">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="2" strokeLinecap="round"><polyline points="18 15 12 9 6 15"/></svg>
-        </button>
-      </section>
     </>
   );
 }
@@ -229,6 +424,67 @@ function SettingsIcon() {
 
 function DetailsTab({ form, setForm }: { form: any; setForm: (f: any) => void }) {
   const s = (k: string, v: any) => setForm({ ...form, [k]: v });
+  
+  // State for item groups
+  const [itemGroups, setItemGroups] = useState<ItemGroup[]>([]);
+  const [loadingGroups, setLoadingGroups] = useState(false);
+
+  // State for UOMs
+  const [uoms, setUoms] = useState<UOM[]>([]);
+  const [loadingUoms, setLoadingUoms] = useState(false);
+
+  // Fetch item groups on mount
+  useEffect(() => {
+    const fetchItemGroups = async () => {
+      setLoadingGroups(true);
+      try {
+        const response = await api.get("/item-group");
+        if (response.data.success === 1) {
+          setItemGroups(response.data.data);
+        }
+      } catch (err) {
+        console.error('Error fetching item groups:', err);
+        toast.error('Failed to load item groups');
+      } finally {
+        setLoadingGroups(false);
+      }
+    };
+    fetchItemGroups();
+  }, []);
+
+  // Fetch UOMs on mount
+  useEffect(() => {
+    const fetchUoms = async () => {
+      setLoadingUoms(true);
+      try {
+        const response = await api.get("/uom");
+        if (response.data.success === 1) {
+          setUoms(response.data.data.records || []);
+        }
+      } catch (err) {
+        console.error('Error fetching UOMs:', err);
+        toast.error('Failed to load UOMs');
+      } finally {
+        setLoadingUoms(false);
+      }
+    };
+    fetchUoms();
+  }, []);
+
+  // Convert item groups to select options format
+  const groupOptions = itemGroups.map(group => ({
+    label: group.item_group_name,
+    value: group.item_group_name
+  }));
+
+  // Convert UOMs to select options format
+  const uomOptions = uoms
+    .filter(uom => uom.enabled === 1)
+    .map(uom => ({
+      label: uom.uom_name + (uom.symbol ? ` (${uom.symbol})` : ''),
+      value: uom.uom_name
+    }));
+
   return (
     <>
       <section className="itf-section">
@@ -238,13 +494,22 @@ function DetailsTab({ form, setForm }: { form: any; setForm: (f: any) => void })
               <TextInput value={form.itemName} onChange={(v) => s("itemName", v)} />
             </Field>
             <Field label="Item Group" required>
-              <TextInput value={form.itemGroup} onChange={(v) => s("itemGroup", v)} />
-            </Field>
-            <Field label="HSN/SAC" required hint="You can search code by the description of the category.">
-              <TextInput value={form.hsnSac} onChange={(v) => s("hsnSac", v)} />
+              <SelectInput 
+                value={form.itemGroup} 
+                onChange={(v) => s("itemGroup", v)} 
+                options={groupOptions}
+                loading={loadingGroups}
+                placeholder="Search for an item group..."
+              />
             </Field>
             <Field label="Default Unit of Measure" required>
-              <TextInput value={form.defaultUOM} onChange={(v) => s("defaultUOM", v)} />
+              <SelectInput 
+                value={form.defaultUOM} 
+                onChange={(v) => s("defaultUOM", v)} 
+                options={uomOptions}
+                loading={loadingUoms}
+                placeholder="Search for a UOM..."
+              />
             </Field>
           </div>
           <div className="itf-col">
@@ -296,8 +561,6 @@ function DetailsTab({ form, setForm }: { form: any; setForm: (f: any) => void })
           </div>
         </div>
       </section>
-
-      <CommentsActivity />
     </>
   );
 }
@@ -346,16 +609,94 @@ function AccountingTab({ form, setForm }: { form: any; setForm: (f: any) => void
           </div>
         </div>
       </section>
-
-      <CommentsActivity />
     </>
   );
 }
 
-function UOMTab() {
+
+
+// In the UOMTab component, update the state and logic:
+
+function UOMTab({ form }: { form: any; setForm: (f: any) => void }) {
   const [rows, setRows] = useState<TableRow[]>([
-    { id: "1", uom: "Nos", conversionFactor: "1" },
+    { id: "1", uom: "", conversionFactor: "1" },
   ]);
+  const [hasSyncedDefault, setHasSyncedDefault] = useState(false);
+
+  const [editingRowId, setEditingRowId] = useState<string | null>(null);
+  const [editingField, setEditingField] = useState<'uom' | 'conversionFactor' | null>(null);
+  const [uoms, setUoms] = useState<UOM[]>([]);
+  const [loadingUoms, setLoadingUoms] = useState(false);
+
+  useEffect(() => {
+    const fetchUoms = async () => {
+      setLoadingUoms(true);
+      try {
+        const response = await api.get("/uom");
+        if (response.data.success === 1) {
+          setUoms(response.data.data.records || []);
+        }
+      } catch (err) {
+        console.error('Error fetching UOMs:', err);
+        toast.error('Failed to load UOMs');
+      } finally {
+        setLoadingUoms(false);
+      }
+    };
+    fetchUoms();
+  }, []);
+
+  // Sync row 1's UOM to whatever form.defaultUOM resolves to, but ONLY ONCE
+  // (the first time it becomes available) — so it reflects real API data
+  // (e.g. stock_uom from the item) without overwriting user edits afterward.
+  useEffect(() => {
+    if (!hasSyncedDefault && form.defaultUOM) {
+      setRows(prev => {
+        const [first, ...rest] = prev;
+        return [{ ...first, uom: form.defaultUOM }, ...rest];
+      });
+      setHasSyncedDefault(true);
+    }
+  }, [form.defaultUOM, hasSyncedDefault]);
+
+  const uomOptions = uoms
+    .filter(uom => uom.enabled === 1)
+    .map(uom => ({
+      label: uom.uom_name + (uom.symbol ? ` (${uom.symbol})` : ''),
+      value: uom.uom_name
+    }));
+
+  const getUOMLabel = (value: string) => {
+    const option = uomOptions.find(opt => opt.value === value);
+    return option ? option.label : value;
+  };
+
+  const handleUOMChange = (rowId: string, value: string) => {
+    setRows(rows.map(row => row.id === rowId ? { ...row, uom: value } : row));
+    setEditingRowId(null);
+    setEditingField(null);
+  };
+
+  const handleConversionChange = (rowId: string, value: string) => {
+    setRows(rows.map(row => row.id === rowId ? { ...row, conversionFactor: value } : row));
+  };
+
+  const startEditing = (rowId: string, field: 'uom' | 'conversionFactor') => {
+    setEditingRowId(rowId);
+    setEditingField(field);
+  };
+
+  const stopEditing = () => {
+    setEditingRowId(null);
+    setEditingField(null);
+  };
+
+  const handleAddRow = () => {
+    const newRow = makeRow(["uom", "conversionFactor"]);
+    setRows([...rows, newRow]);
+    setEditingRowId(newRow.id);
+    setEditingField('uom');
+  };
 
   return (
     <>
@@ -371,14 +712,111 @@ function UOMTab() {
             { key: "conversionFactor", label: "Conversion Factor" },
           ]}
           rows={rows}
-          onAddRow={() => setRows([...rows, makeRow(["uom","conversionFactor"])])}
-          onRemoveRow={(id) => setRows(rows.filter((r) => r.id !== id))}
-          renderCell={(row, col) => (
-            <input className="itf-cell-input" defaultValue={row[col]} />
-          )}
+          onAddRow={handleAddRow}
+          onRemoveRow={(id) => {
+            if (rows.length > 1) {
+              setRows(rows.filter((r) => r.id !== id));
+              if (editingRowId === id) stopEditing();
+            }
+          }}
+          renderCell={(row, col) => {
+            if (col === "uom") {
+              const isEditing = editingRowId === row.id && editingField === 'uom';
+
+              if (isEditing) {
+                return (
+                  <SelectInput
+                    value={row.uom || ""}
+                    onChange={(v) => handleUOMChange(row.id, v)}
+                    options={uomOptions}
+                    loading={loadingUoms}
+                    placeholder="Search for a UOM..."
+                  />
+                );
+              }
+
+              return (
+                <div
+                  className="itf-view-text itf-clickable-view"
+                  onClick={() => startEditing(row.id, 'uom')}
+                  style={{
+                    cursor: 'pointer',
+                    padding: '4px 8px',
+                    minHeight: '32px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <span>
+                    {row.uom ? getUOMLabel(row.uom) : <span style={{ color: 'var(--text-muted)' }}>Click to select</span>}
+                  </span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>✎</span>
+                </div>
+              );
+            }
+
+            if (col === "conversionFactor") {
+              const isEditing = editingRowId === row.id && editingField === 'conversionFactor';
+
+              if (isEditing) {
+                return (
+                  <input
+                    className="itf-cell-input"
+                    value={row.conversionFactor || ""}
+                    onChange={(e) => handleConversionChange(row.id, e.target.value)}
+                    placeholder="Enter conversion factor"
+                    type="number"
+                    step="0.001"
+                    min="0.001"
+                    autoFocus
+                    onBlur={stopEditing}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === 'Escape') stopEditing();
+                    }}
+                  />
+                );
+              }
+
+              return (
+                <div
+                  className="itf-view-text itf-clickable-view"
+                  onClick={() => startEditing(row.id, 'conversionFactor')}
+                  style={{
+                    cursor: 'pointer',
+                    padding: '4px 8px',
+                    minHeight: '32px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <span>
+                    {row.conversionFactor || <span style={{ color: 'var(--text-muted)' }}>Enter factor</span>}
+                  </span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>✎</span>
+                </div>
+              );
+            }
+            return null;
+          }}
         />
+
+        <div style={{
+          marginTop: '12px',
+          padding: '8px 12px',
+          background: 'var(--bg-secondary)',
+          borderRadius: '6px',
+          fontSize: '12px',
+          color: 'var(--text-secondary)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+        }}>
+          <FaInfoCircle size={14} style={{ color: 'var(--text-muted)' }} />
+          <span>Click on any value to edit. Press Enter to save, Esc to cancel.</span>
+        </div>
       </section>
-      <CommentsActivity />
     </>
   );
 }
@@ -430,14 +868,12 @@ function TaxTab({ form, setForm }: { form: any; setForm: (f: any) => void }) {
           </div>
         </div>
       </section>
-
-      <CommentsActivity />
     </>
   );
 }
 
 function InventoryTab({ form, setForm }: { form: any; setForm: (f: any) => void }) {
-  const [barcodes, setBarcodes] = useState<TableRow[]>([]);
+  const [] = useState<TableRow[]>([]);
   const s = (k: string, v: any) => setForm({ ...form, [k]: v });
 
   return (
@@ -454,7 +890,15 @@ function InventoryTab({ form, setForm }: { form: any; setForm: (f: any) => void 
         <div className="itf-two-col">
           <div className="itf-col">
             <Field label="Valuation Method">
-              <SelectInput value={form.valuationMethod ?? ""} onChange={(v) => s("valuationMethod", v)} options={["FIFO","Moving Average","LIFO"]} />
+              <SelectInput 
+                value={form.valuationMethod ?? ""} 
+                onChange={(v) => s("valuationMethod", v)} 
+                options={[
+                  { label: "FIFO", value: "FIFO" },
+                  { label: "Moving Average", value: "Moving Average" },
+                  { label: "LIFO", value: "LIFO" }
+                ]}
+              />
             </Field>
           </div>
           <div className="itf-col">
@@ -475,7 +919,16 @@ function InventoryTab({ form, setForm }: { form: any; setForm: (f: any) => void 
               <TextInput value={form.endOfLife ?? "31-12-2099"} onChange={(v) => s("endOfLife", v)} />
             </Field>
             <Field label="Default Material Request Type">
-              <SelectInput value={form.matReqType ?? "Purchase"} onChange={(v) => s("matReqType", v)} options={["Purchase","Manufacture","Transfer","Customer Provided"]} />
+              <SelectInput 
+                value={form.matReqType ?? "Purchase"} 
+                onChange={(v) => s("matReqType", v)} 
+                options={[
+                  { label: "Purchase", value: "Purchase" },
+                  { label: "Manufacture", value: "Manufacture" },
+                  { label: "Transfer", value: "Transfer" },
+                  { label: "Customer Provided", value: "Customer Provided" }
+                ]}
+              />
             </Field>
           </div>
           <div className="itf-col">
@@ -499,31 +952,82 @@ function InventoryTab({ form, setForm }: { form: any; setForm: (f: any) => void 
 
       <div className="itf-divider" />
 
-      <section className="itf-section">
-        <SectionTitle>Barcodes</SectionTitle>
-        <Field label="Barcodes">
-          <InlineTable
-            columns={[
-              { key: "barcode", label: "Barcode", required: true },
-              { key: "barcodeType", label: "Barcode Type" },
-              { key: "uom", label: "UOM" },
-            ]}
-            rows={barcodes}
-            onAddRow={() => setBarcodes([...barcodes, makeRow(["barcode","barcodeType","uom"])])}
-            onRemoveRow={(id) => setBarcodes(barcodes.filter((r) => r.id !== id))}
-            renderCell={(row, col) => <input className="itf-cell-input" defaultValue={row[col]} />}
-          />
-        </Field>
-      </section>
-
-      <CommentsActivity />
     </>
   );
 }
 
 function PurchasingTab({ form, setForm }: { form: any; setForm: (f: any) => void }) {
-  const [suppliers, setSuppliers] = useState<TableRow[]>([]);
   const s = (k: string, v: any) => setForm({ ...form, [k]: v });
+  
+  // State for suppliers data
+  const [suppliers, setSuppliers] = useState<TableRow[]>([]);
+  const [supplierOptions, setSupplierOptions] = useState<{ label: string; value: string }[]>([]);
+  const [loadingSuppliers, setLoadingSuppliers] = useState(false);
+  
+  // Editing state
+  const [editingRowId, setEditingRowId] = useState<string | null>(null);
+  const [editingField, setEditingField] = useState<'supplier' | 'supplierPartNumber' | null>(null);
+
+  // Fetch suppliers on mount
+  useEffect(() => {
+    const fetchSuppliers = async () => {
+      setLoadingSuppliers(true);
+      try {
+        const response = await api.get("/supplier");
+        if (response.data.success === 1) {
+          const records = response.data.data.records || [];
+          // Transform to options format
+          const options = records.map((supplier: any) => ({
+            label: supplier.supplier_name + (supplier.mobile_no ? ` (${supplier.mobile_no})` : ''),
+            value: supplier.supplier_name
+          }));
+          setSupplierOptions(options);
+        }
+      } catch (err) {
+        console.error('Error fetching suppliers:', err);
+        toast.error('Failed to load suppliers');
+      } finally {
+        setLoadingSuppliers(false);
+      }
+    };
+    fetchSuppliers();
+  }, []);
+
+  const getSupplierLabel = (value: string) => {
+    const option = supplierOptions.find(opt => opt.value === value);
+    return option ? option.label : value;
+  };
+
+  const handleSupplierChange = (rowId: string, value: string) => {
+    setSuppliers(prev => prev.map(row => 
+      row.id === rowId ? { ...row, supplier: value } : row
+    ));
+    setEditingRowId(null);
+    setEditingField(null);
+  };
+
+  const handlePartNumberChange = (rowId: string, value: string) => {
+    setSuppliers(prev => prev.map(row => 
+      row.id === rowId ? { ...row, supplierPartNumber: value } : row
+    ));
+  };
+
+  const startEditing = (rowId: string, field: 'supplier' | 'supplierPartNumber') => {
+    setEditingRowId(rowId);
+    setEditingField(field);
+  };
+
+  const stopEditing = () => {
+    setEditingRowId(null);
+    setEditingField(null);
+  };
+
+  const handleAddRow = () => {
+    const newRow = makeRow(["supplier", "supplierPartNumber"]);
+    setSuppliers(prev => [...prev, newRow]);
+    setEditingRowId(newRow.id);
+    setEditingField('supplier');
+  };
 
   return (
     <>
@@ -568,22 +1072,228 @@ function PurchasingTab({ form, setForm }: { form: any; setForm: (f: any) => void
                 { key: "supplierPartNumber", label: "Supplier Part Number" },
               ]}
               rows={suppliers}
-              onAddRow={() => setSuppliers([...suppliers, makeRow(["supplier","supplierPartNumber"])])}
-              onRemoveRow={(id) => setSuppliers(suppliers.filter((r) => r.id !== id))}
-              renderCell={(row, col) => <input className="itf-cell-input" defaultValue={row[col]} />}
+              onAddRow={handleAddRow}
+              onRemoveRow={(id) => {
+                if (suppliers.length > 0) {
+                  setSuppliers(prev => prev.filter((r) => r.id !== id));
+                  if (editingRowId === id) stopEditing();
+                }
+              }}
+              renderCell={(row, col) => {
+                if (col === "supplier") {
+                  const isEditing = editingRowId === row.id && editingField === 'supplier';
+
+                  if (isEditing) {
+                    return (
+                      <SelectInput
+                        value={row.supplier || ""}
+                        onChange={(v) => handleSupplierChange(row.id, v)}
+                        options={supplierOptions}
+                        loading={loadingSuppliers}
+                        placeholder="Search for a supplier..."
+                      />
+                    );
+                  }
+
+                  return (
+                    <div
+                      className="itf-view-text itf-clickable-view"
+                      onClick={() => startEditing(row.id, 'supplier')}
+                      style={{
+                        cursor: 'pointer',
+                        padding: '4px 8px',
+                        minHeight: '32px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <span>
+                        {row.supplier ? getSupplierLabel(row.supplier) : <span style={{ color: 'var(--text-muted)' }}>Click to select</span>}
+                      </span>
+                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>✎</span>
+                    </div>
+                  );
+                }
+
+                if (col === "supplierPartNumber") {
+                  const isEditing = editingRowId === row.id && editingField === 'supplierPartNumber';
+
+                  if (isEditing) {
+                    return (
+                      <input
+                        className="itf-cell-input"
+                        value={row.supplierPartNumber || ""}
+                        onChange={(e) => handlePartNumberChange(row.id, e.target.value)}
+                        placeholder="Enter part number"
+                        autoFocus
+                        onBlur={stopEditing}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === 'Escape') stopEditing();
+                        }}
+                      />
+                    );
+                  }
+
+                  return (
+                    <div
+                      className="itf-view-text itf-clickable-view"
+                      onClick={() => startEditing(row.id, 'supplierPartNumber')}
+                      style={{
+                        cursor: 'pointer',
+                        padding: '4px 8px',
+                        minHeight: '32px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <span>
+                        {row.supplierPartNumber || <span style={{ color: 'var(--text-muted)' }}>Enter part number</span>}
+                      </span>
+                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>✎</span>
+                    </div>
+                  );
+                }
+                return null;
+              }}
             />
+
+            <div style={{
+              marginTop: '12px',
+              padding: '8px 12px',
+              background: 'var(--bg-secondary)',
+              borderRadius: '6px',
+              fontSize: '12px',
+              color: 'var(--text-secondary)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+            }}>
+              <FaInfoCircle size={14} style={{ color: 'var(--text-muted)' }} />
+              <span>Click on any value to edit. Press Enter to save, Esc to cancel.</span>
+            </div>
           </Field>
         </div>
       </section>
-
-      <CommentsActivity />
     </>
   );
 }
 
 function SalesTab({ form, setForm }: { form: any; setForm: (f: any) => void }) {
-  const [customers, setCustomers] = useState<TableRow[]>([]);
   const s = (k: string, v: any) => setForm({ ...form, [k]: v });
+  
+  // State for customers data
+  const [customers, setCustomers] = useState<TableRow[]>([]);
+  const [customerOptions, setCustomerOptions] = useState<{ label: string; value: string }[]>([]);
+  const [customerGroupOptions, setCustomerGroupOptions] = useState<{ label: string; value: string }[]>([]);
+  const [loadingCustomers, setLoadingCustomers] = useState(false);
+  const [loadingGroups, setLoadingGroups] = useState(false);
+  
+  // Editing state
+  const [editingRowId, setEditingRowId] = useState<string | null>(null);
+  const [editingField, setEditingField] = useState<'customerName' | 'customerGroup' | 'refCode' | null>(null);
+
+  // Fetch customers on mount
+  useEffect(() => {
+    const fetchCustomers = async () => {
+      setLoadingCustomers(true);
+      try {
+        const response = await api.get("/customer");
+        if (response.data.success === 1) {
+          const records = response.data.data.records || [];
+          // Transform to options format
+          const options = records.map((customer: any) => ({
+            label: customer.customer_name + (customer.mobile_no ? ` (${customer.mobile_no})` : ''),
+            value: customer.customer_name
+          }));
+          setCustomerOptions(options);
+        }
+      } catch (err) {
+        console.error('Error fetching customers:', err);
+        toast.error('Failed to load customers');
+      } finally {
+        setLoadingCustomers(false);
+      }
+    };
+    fetchCustomers();
+  }, []);
+
+  // Fetch customer groups on mount
+  useEffect(() => {
+    const fetchCustomerGroups = async () => {
+      setLoadingGroups(true);
+      try {
+        const response = await api.get("/customer-group");
+        if (response.data.success === 1) {
+          const records = response.data.data.records || [];
+          // Filter out parent groups if needed (is_group === 1)
+          const filteredRecords = records.filter((group: any) => group.is_group === 0);
+          // Transform to options format
+          const options = filteredRecords.map((group: any) => ({
+            label: group.customer_group_name,
+            value: group.customer_group_name
+          }));
+          setCustomerGroupOptions(options);
+        }
+      } catch (err) {
+        console.error('Error fetching customer groups:', err);
+        toast.error('Failed to load customer groups');
+      } finally {
+        setLoadingGroups(false);
+      }
+    };
+    fetchCustomerGroups();
+  }, []);
+
+  const getCustomerLabel = (value: string) => {
+    const option = customerOptions.find(opt => opt.value === value);
+    return option ? option.label : value;
+  };
+
+  const getCustomerGroupLabel = (value: string) => {
+    const option = customerGroupOptions.find(opt => opt.value === value);
+    return option ? option.label : value;
+  };
+
+  const handleCustomerChange = (rowId: string, value: string) => {
+    setCustomers(prev => prev.map(row => 
+      row.id === rowId ? { ...row, customerName: value } : row
+    ));
+    setEditingRowId(null);
+    setEditingField(null);
+  };
+
+  const handleGroupChange = (rowId: string, value: string) => {
+    setCustomers(prev => prev.map(row => 
+      row.id === rowId ? { ...row, customerGroup: value } : row
+    ));
+    setEditingRowId(null);
+    setEditingField(null);
+  };
+
+  const handleRefCodeChange = (rowId: string, value: string) => {
+    setCustomers(prev => prev.map(row => 
+      row.id === rowId ? { ...row, refCode: value } : row
+    ));
+  };
+
+  const startEditing = (rowId: string, field: 'customerName' | 'customerGroup' | 'refCode') => {
+    setEditingRowId(rowId);
+    setEditingField(field);
+  };
+
+  const stopEditing = () => {
+    setEditingRowId(null);
+    setEditingField(null);
+  };
+
+  const handleAddRow = () => {
+    const newRow = makeRow(["customerName", "customerGroup", "refCode"]);
+    setCustomers(prev => [...prev, newRow]);
+    setEditingRowId(newRow.id);
+    setEditingField('customerName');
+  };
 
   return (
     <>
@@ -613,19 +1323,150 @@ function SalesTab({ form, setForm }: { form: any; setForm: (f: any) => void }) {
         <Field label="Customer Items">
           <InlineTable
             columns={[
-              { key: "customerName", label: "Customer Name" },
-              { key: "customerGroup", label: "Customer Group" },
+              { key: "customerName", label: "Customer Name", required: true },
+              { key: "customerGroup", label: "Customer Group", required: true },
               { key: "refCode", label: "Ref Code", required: true },
             ]}
             rows={customers}
-            onAddRow={() => setCustomers([...customers, makeRow(["customerName","customerGroup","refCode"])])}
-            onRemoveRow={(id) => setCustomers(customers.filter((r) => r.id !== id))}
-            renderCell={(row, col) => <input className="itf-cell-input" defaultValue={row[col]} />}
+            onAddRow={handleAddRow}
+            onRemoveRow={(id) => {
+              if (customers.length > 0) {
+                setCustomers(prev => prev.filter((r) => r.id !== id));
+                if (editingRowId === id) stopEditing();
+              }
+            }}
+            renderCell={(row, col) => {
+              if (col === "customerName") {
+                const isEditing = editingRowId === row.id && editingField === 'customerName';
+
+                if (isEditing) {
+                  return (
+                    <SelectInput
+                      value={row.customerName || ""}
+                      onChange={(v) => handleCustomerChange(row.id, v)}
+                      options={customerOptions}
+                      loading={loadingCustomers}
+                      placeholder="Search for a customer..."
+                    />
+                  );
+                }
+
+                return (
+                  <div
+                    className="itf-view-text itf-clickable-view"
+                    onClick={() => startEditing(row.id, 'customerName')}
+                    style={{
+                      cursor: 'pointer',
+                      padding: '4px 8px',
+                      minHeight: '32px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                    }}
+                  >
+                    <span>
+                      {row.customerName ? getCustomerLabel(row.customerName) : <span style={{ color: 'var(--text-muted)' }}>Click to select</span>}
+                    </span>
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>✎</span>
+                  </div>
+                );
+              }
+
+              if (col === "customerGroup") {
+                const isEditing = editingRowId === row.id && editingField === 'customerGroup';
+
+                if (isEditing) {
+                  return (
+                    <SelectInput
+                      value={row.customerGroup || ""}
+                      onChange={(v) => handleGroupChange(row.id, v)}
+                      options={customerGroupOptions}
+                      loading={loadingGroups}
+                      placeholder="Search for a customer group..."
+                    />
+                  );
+                }
+
+                return (
+                  <div
+                    className="itf-view-text itf-clickable-view"
+                    onClick={() => startEditing(row.id, 'customerGroup')}
+                    style={{
+                      cursor: 'pointer',
+                      padding: '4px 8px',
+                      minHeight: '32px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                    }}
+                  >
+                    <span>
+                      {row.customerGroup ? getCustomerGroupLabel(row.customerGroup) : <span style={{ color: 'var(--text-muted)' }}>Click to select</span>}
+                    </span>
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>✎</span>
+                  </div>
+                );
+              }
+
+              if (col === "refCode") {
+                const isEditing = editingRowId === row.id && editingField === 'refCode';
+
+                if (isEditing) {
+                  return (
+                    <input
+                      className="itf-cell-input"
+                      value={row.refCode || ""}
+                      onChange={(e) => handleRefCodeChange(row.id, e.target.value)}
+                      placeholder="Enter reference code"
+                      autoFocus
+                      onBlur={stopEditing}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === 'Escape') stopEditing();
+                      }}
+                    />
+                  );
+                }
+
+                return (
+                  <div
+                    className="itf-view-text itf-clickable-view"
+                    onClick={() => startEditing(row.id, 'refCode')}
+                    style={{
+                      cursor: 'pointer',
+                      padding: '4px 8px',
+                      minHeight: '32px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                    }}
+                  >
+                    <span>
+                      {row.refCode || <span style={{ color: 'var(--text-muted)' }}>Enter ref code</span>}
+                    </span>
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>✎</span>
+                  </div>
+                );
+              }
+              return null;
+            }}
           />
+
+          <div style={{
+            marginTop: '12px',
+            padding: '8px 12px',
+            background: 'var(--bg-secondary)',
+            borderRadius: '6px',
+            fontSize: '12px',
+            color: 'var(--text-secondary)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+          }}>
+            <FaInfoCircle size={14} style={{ color: 'var(--text-muted)' }} />
+            <span>Click on any value to edit. Press Enter to save, Esc to cancel.</span>
+          </div>
         </Field>
       </section>
-
-      <CommentsActivity />
     </>
   );
 }
@@ -655,35 +1496,301 @@ function ManufacturingTab({ form, setForm }: { form: any; setForm: (f: any) => v
           </div>
         </div>
       </section>
-      <CommentsActivity />
     </>
   );
 }
 
-function QualityTab() {
+function QualityTab({ form, setForm }: { form: any; setForm: (f: any) => void }) {
+  const s = (k: string, v: any) => setForm({ ...form, [k]: v });
+  
+  // State for quality inspection templates
+  const [templateOptions, setTemplateOptions] = useState<{ label: string; value: string }[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+
+  // Fetch quality inspection templates on mount
+  useEffect(() => {
+    const fetchTemplates = async () => {
+      setLoadingTemplates(true);
+      try {
+        const response = await api.get("/quality-inspection-template");
+        if (response.data.success === 1) {
+          const records = response.data.data.records || [];
+          // Transform to options format
+          const options = records.map((template: any) => ({
+            label: template.quality_inspection_template_name,
+            value: template.quality_inspection_template_name
+          }));
+          setTemplateOptions(options);
+        }
+      } catch (err) {
+        console.error('Error fetching quality inspection templates:', err);
+        toast.error('Failed to load quality inspection templates');
+      } finally {
+        setLoadingTemplates(false);
+      }
+    };
+    fetchTemplates();
+  }, []);
+
   return (
     <>
       <section className="itf-section">
-        <SectionTitle>Quality</SectionTitle>
-        <div className="itf-empty-state">No quality inspection templates configured.</div>
+        <SectionTitle>Quality Inspection</SectionTitle>
+        
+        {/* Two-column layout: checkboxes on left, dropdown on right */}
+        <div className="itf-two-col">
+          <div className="itf-col">
+            <CheckField
+              id="inspectionRequiredPurchase"
+              checked={form.inspectionRequiredPurchase ?? false}
+              onChange={(v) => s("inspectionRequiredPurchase", v)}
+              label="Inspection Required before Purchase"
+            />
+            
+            <CheckField
+              id="inspectionRequiredDelivery"
+              checked={form.inspectionRequiredDelivery ?? false}
+              onChange={(v) => s("inspectionRequiredDelivery", v)}
+              label="Inspection Required before Delivery"
+            />
+          </div>
+          
+          <div className="itf-col">
+            <Field label="Quality Inspection Template">
+              <SelectInput
+                value={form.qualityInspectionTemplate || ""}
+                onChange={(v) => s("qualityInspectionTemplate", v)}
+                options={templateOptions}
+                loading={loadingTemplates}
+                placeholder="Search for a quality inspection template..."
+              />
+            </Field>
+          </div>
+        </div>
       </section>
-      <CommentsActivity />
     </>
   );
 }
 
-function PricingTab() {
+function PricingTab({  }: { form: any; setForm: (f: any) => void }) {
+  
+  // State for price list rows
+  const [priceRows, setPriceRows] = useState<TableRow[]>([]);
+  const [priceListOptions, setPriceListOptions] = useState<{ label: string; value: string }[]>([]);
+  const [loadingPriceLists, setLoadingPriceLists] = useState(false);
+  
+  // Editing state
+  const [editingRowId, setEditingRowId] = useState<string | null>(null);
+  const [editingField, setEditingField] = useState<'priceList' | 'price' | null>(null);
+
+  // Fetch price lists on mount
+  useEffect(() => {
+    const fetchPriceLists = async () => {
+      setLoadingPriceLists(true);
+      try {
+        const response = await api.get("/price-list");
+        if (response.data.success === 1) {
+          const records = response.data.data.records || [];
+          // Transform to options format
+          const options = records.map((priceList: any) => ({
+            label: priceList.price_list_name + (priceList.currency ? ` (${priceList.currency})` : ''),
+            value: priceList.price_list_name
+          }));
+          setPriceListOptions(options);
+        }
+      } catch (err) {
+        console.error('Error fetching price lists:', err);
+        toast.error('Failed to load price lists');
+      } finally {
+        setLoadingPriceLists(false);
+      }
+    };
+    fetchPriceLists();
+  }, []);
+
+  const getPriceListLabel = (value: string) => {
+    const option = priceListOptions.find(opt => opt.value === value);
+    return option ? option.label : value;
+  };
+
+  // Helper to get currency for a price list
+  const getCurrencyForPriceList = () => {
+    // This would ideally come from the API data
+    // For now, we'll default to INR or you can fetch from the price list data
+    return "INR";
+  };
+
+  const handlePriceListChange = (rowId: string, value: string) => {
+    setPriceRows(prev => prev.map(row => 
+      row.id === rowId ? { ...row, priceList: value, currency: getCurrencyForPriceList() } : row
+    ));
+    setEditingRowId(null);
+    setEditingField(null);
+  };
+
+  const handlePriceChange = (rowId: string, value: string) => {
+    setPriceRows(prev => prev.map(row => 
+      row.id === rowId ? { ...row, price: value } : row
+    ));
+  };
+
+  const startEditing = (rowId: string, field: 'priceList' | 'price') => {
+    setEditingRowId(rowId);
+    setEditingField(field);
+  };
+
+  const stopEditing = () => {
+    setEditingRowId(null);
+    setEditingField(null);
+  };
+
+  const handleAddRow = () => {
+    const newRow = makeRow(["priceList", "price", "currency"]);
+    setPriceRows(prev => [...prev, newRow]);
+    setEditingRowId(newRow.id);
+    setEditingField('priceList');
+  };
+
   return (
     <>
       <section className="itf-section">
         <SectionTitle>Item Prices</SectionTitle>
-        <p className="itf-hint" style={{ marginBottom: 16 }}>All active prices for this item across buying and selling price lists.</p>
-        <div className="itf-empty-box">
-          <p className="itf-empty-box-text">No active item prices found.</p>
-          <button className="itf-add-price-btn">+ Add Price</button>
+        <p className="itf-hint" style={{ marginBottom: 16 }}>
+          All active prices for this item across buying and selling price lists.
+        </p>
+        
+        <InlineTable
+          columns={[
+            { key: "priceList", label: "Price List", required: true },
+            { key: "price", label: "Price", required: true },
+            { key: "currency", label: "Currency" },
+          ]}
+          rows={priceRows}
+          onAddRow={handleAddRow}
+          onRemoveRow={(id) => {
+            if (priceRows.length > 0) {
+              setPriceRows(prev => prev.filter((r) => r.id !== id));
+              if (editingRowId === id) stopEditing();
+            }
+          }}
+          renderCell={(row, col) => {
+            if (col === "priceList") {
+              const isEditing = editingRowId === row.id && editingField === 'priceList';
+
+              if (isEditing) {
+                return (
+                  <SelectInput
+                    value={row.priceList || ""}
+                    onChange={(v) => handlePriceListChange(row.id, v)}
+                    options={priceListOptions}
+                    loading={loadingPriceLists}
+                    placeholder="Search for a price list..."
+                  />
+                );
+              }
+
+              return (
+                <div
+                  className="itf-view-text itf-clickable-view"
+                  onClick={() => startEditing(row.id, 'priceList')}
+                  style={{
+                    cursor: 'pointer',
+                    padding: '4px 8px',
+                    minHeight: '32px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <span>
+                    {row.priceList ? getPriceListLabel(row.priceList) : <span style={{ color: 'var(--text-muted)' }}>Click to select</span>}
+                  </span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>✎</span>
+                </div>
+              );
+            }
+
+            if (col === "price") {
+              const isEditing = editingRowId === row.id && editingField === 'price';
+
+              if (isEditing) {
+                return (
+                  <input
+                    className="itf-cell-input"
+                    value={row.price || ""}
+                    onChange={(e) => handlePriceChange(row.id, e.target.value)}
+                    placeholder="Enter price"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    autoFocus
+                    onBlur={stopEditing}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === 'Escape') stopEditing();
+                    }}
+                  />
+                );
+              }
+
+              return (
+                <div
+                  className="itf-view-text itf-clickable-view"
+                  onClick={() => startEditing(row.id, 'price')}
+                  style={{
+                    cursor: 'pointer',
+                    padding: '4px 8px',
+                    minHeight: '32px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <span>
+                    {row.price ? `₹ ${row.price}` : <span style={{ color: 'var(--text-muted)' }}>Enter price</span>}
+                  </span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>✎</span>
+                </div>
+              );
+            }
+
+            if (col === "currency") {
+              // Read-only display
+              return (
+                <div
+                  className="itf-view-text"
+                  style={{
+                    padding: '4px 8px',
+                    minHeight: '32px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    color: 'var(--text-secondary)',
+                  }}
+                >
+                  <span>
+                    {row.currency || "INR"}
+                  </span>
+                </div>
+              );
+            }
+            return null;
+          }}
+        />
+
+        <div style={{
+          marginTop: '12px',
+          padding: '8px 12px',
+          background: 'var(--bg-secondary)',
+          borderRadius: '6px',
+          fontSize: '12px',
+          color: 'var(--text-secondary)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+        }}>
+          <FaInfoCircle size={14} style={{ color: 'var(--text-muted)' }} />
+          <span>Click on any value to edit. Press Enter to save, Esc to cancel.</span>
         </div>
       </section>
-      <CommentsActivity />
     </>
   );
 }
@@ -787,8 +1894,6 @@ function ConnectionsTab() {
           <div className="itf-conn-group" />
         </div>
       </section>
-
-      <CommentsActivity />
     </>
   );
 }
@@ -798,13 +1903,17 @@ function ConnectionsTab() {
 export default function ItemForm() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { theme } = useAdminTheme();
-  const isNew = id === "new";
-  const itemId = isNew ? "" : decodeURIComponent(id ?? "");
-  const isEditMode = !isNew;
+  
+  const isNew = id === "new" || !id;
+  const itemCode = isNew ? "" : decodeURIComponent(id ?? "");
 
+    const itemId = isNew ? null : parseInt(id || "0");
+  
+  const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<number>(0);
-  const [, setIsDirty] = useState(isNew);
+  const [, setIsDirty] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showValidationSummary, setShowValidationSummary] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
@@ -820,16 +1929,25 @@ export default function ItemForm() {
     { id: 7, name: 'Manufacturing', icon: <FaIndustry size={14} /> },
     { id: 8, name: 'Quality', icon: <FaClipboardCheck size={14} /> },
     { id: 9, name: 'Pricing', icon: <FaDollarSign size={14} /> },
-    { id: 10, name: 'Connections', icon: <FaLink size={14} /> },
+    // { id: 10, name: 'Connections', icon: <FaLink size={14} /> },
   ];
 
+  // Get data from location state (from ItemList)
+  const itemData = location.state?.itemData as ItemData | undefined;
+  const prefillData = location.state?.prefill as any | undefined;
+
   const [form, setFormRaw] = useState({
-    itemName: isNew ? "" : itemId,
-    itemCode: isNew ? "" : "Door3",
-    itemGroup: isNew ? "" : "Products",
-    hsnSac: isNew ? "" : "010130",
+    // Basic Info
+    id:0,
+    itemName: "",
+    itemCode: "",
+    itemGroup: "",
     defaultUOM: "Nos",
+    brand: "",
+    description: "",
     disabled: false,
+    
+    // Flags
     maintainStock: true,
     isFixedAsset: false,
     allowSales: true,
@@ -837,15 +1955,348 @@ export default function ItemForm() {
     allowAltItem: false,
     isCustomerProvided: false,
     hasVariants: false,
-    overDelivery: "0.000",
-    overBilling: "0.000",
     grantCommission: true,
     includeInMfg: true,
     isSubcontracted: false,
+    allowNegStock: false,
+    hasBatchNo: false,
+    hasSerialNo: false,
+    
+    // Numbers
+    overDelivery: "0.000",
+    overBilling: "0.000",
+    valuationMethod: "FIFO",
+    valuationRate: "0.00",
+    standardRate: "0.00",
+    openingStock: "0.00",
+    weightPerUnit: "0.000",
+    weightUOM: "",
+    minOrderQty: "0.000",
+    safetyStock: "0.000",
+    leadTime: "0",
+    lastPurchaseRate: "0.00",
+    maxDiscount: "0.000",
     productionCapacity: "0",
+    warrantyPeriod: "",
+    
+    // UOMs
+    purchaseUOM: "",
+    salesUOM: "",
+    
+    // Other
+    countryOfOrigin: "",
+    endOfLife: "31-12-2099",
+    matReqType: "Purchase",
+    inspectionRequiredPurchase: false,
+    inspectionRequiredDelivery: false,
+    qualityInspectionTemplate: "",
+    deferredExpense: false,
+    deferredRevenue: false,
+    purchaseTaxWithholding: "",
+    salesTaxWithholding: "",
+    dropShip: false,
+    ineligibleITC: false,
   });
 
   const setForm = (f: any) => { setFormRaw(f); setIsDirty(true); };
+
+  // Fetch item data if editing
+  useEffect(() => {
+    if (!isNew && itemId) {
+      // If we have data from location state, use it
+      if (itemData) {
+        setFormRaw({
+          id: itemData.id || 0,
+          // Basic Info
+          itemName: itemData.item_name || "",
+          itemCode: itemData.item_code || "",
+          itemGroup: itemData.item_group || "",
+          defaultUOM: itemData.stock_uom || "Nos",
+          brand: itemData.brand || "",
+          description: itemData.description || "",
+          disabled: itemData.disabled === 1,
+          
+          // Flags
+          maintainStock: itemData.is_stock_item === 1,
+          isFixedAsset: itemData.is_fixed_asset === 1,
+          allowSales: itemData.is_sales_item === 1,
+          allowPurchase: itemData.is_purchase_item === 1,
+          allowAltItem: false,
+          isCustomerProvided: false,
+          hasVariants: false,
+          grantCommission: true,
+          includeInMfg: true,
+          isSubcontracted: false,
+          allowNegStock: false,
+          hasBatchNo: false,
+          hasSerialNo: false,
+          
+          // Numbers
+          overDelivery: "0.000",
+          overBilling: "0.000",
+          valuationMethod: itemData.valuation_method || "FIFO",
+          valuationRate: "0.00",
+          standardRate: "0.00",
+          openingStock: "0.00",
+          weightPerUnit: "0.000",
+          weightUOM: "",
+          minOrderQty: "0.000",
+          safetyStock: "0.000",
+          leadTime: "0",
+          lastPurchaseRate: "0.00",
+          maxDiscount: "0.000",
+          productionCapacity: "0",
+          warrantyPeriod: "",
+          
+          // UOMs
+          purchaseUOM: "",
+          salesUOM: "",
+          
+          // Other
+          countryOfOrigin: "",
+          endOfLife: "31-12-2099",
+          matReqType: "Purchase",
+          inspectionRequiredPurchase: false,
+          inspectionRequiredDelivery: false,
+          qualityInspectionTemplate: "",
+          deferredExpense: false,
+          deferredRevenue: false,
+          purchaseTaxWithholding: "",
+          salesTaxWithholding: "",
+          dropShip: false,
+          ineligibleITC: false,
+        });
+        setIsDirty(false);
+      } else {
+        // Fetch from API if no location state
+        fetchItemData();
+      }
+    } else if (isNew && prefillData) {
+      // Prefill from quick add
+      setFormRaw({
+        // Basic Info
+        id: 0,
+        itemName: prefillData.itemName || "",
+        itemCode: prefillData.itemCode || "",
+        itemGroup: prefillData.itemGroup || "",
+        defaultUOM: prefillData.defaultUOM || "Nos",
+        brand: prefillData.brand || "",
+        description: prefillData.description || "",
+        disabled: false,
+        
+        // Flags
+        maintainStock: prefillData.maintainStock ?? true,
+        isFixedAsset: prefillData.isFixedAsset ?? false,
+        allowSales: true,
+        allowPurchase: true,
+        allowAltItem: false,
+        isCustomerProvided: false,
+        hasVariants: false,
+        grantCommission: true,
+        includeInMfg: true,
+        isSubcontracted: false,
+        allowNegStock: false,
+        hasBatchNo: false,
+        hasSerialNo: false,
+        
+        // Numbers
+        overDelivery: "0.000",
+        overBilling: "0.000",
+        valuationMethod: "FIFO",
+        valuationRate: "0.00",
+        standardRate: "0.00",
+        openingStock: "0.00",
+        weightPerUnit: "0.000",
+        weightUOM: "",
+        minOrderQty: "0.000",
+        safetyStock: "0.000",
+        leadTime: "0",
+        lastPurchaseRate: "0.00",
+        maxDiscount: "0.000",
+        productionCapacity: "0",
+        warrantyPeriod: "",
+        
+        // UOMs
+        purchaseUOM: "",
+        salesUOM: "",
+        
+        // Other
+        countryOfOrigin: "",
+        endOfLife: "31-12-2099",
+        matReqType: "Purchase",
+        inspectionRequiredPurchase: false,
+        inspectionRequiredDelivery: false,
+        qualityInspectionTemplate: "",
+        deferredExpense: false,
+        deferredRevenue: false,
+        purchaseTaxWithholding: "",
+        salesTaxWithholding: "",
+        dropShip: false,
+        ineligibleITC: false,
+      });
+    }
+  }, [isNew, itemCode, itemData, prefillData]);
+
+// Fetch item data using ID
+const fetchItemData = async () => {
+  setLoading(true);
+  try {
+    const response = await api.get(`/item/${id}`); // Use ID from params
+    if (response.data.success === 1) {
+      const data = response.data.data;
+      setFormRaw({
+        id: data.id,
+        itemName: data.item_name || "",
+        itemCode: data.item_code || "",
+        itemGroup: data.item_group || "",
+        defaultUOM: data.stock_uom || "Nos",
+        brand: data.brand || "",
+        description: data.description || "",
+        disabled: data.disabled === 1,
+        maintainStock: data.is_stock_item === 1,
+        isFixedAsset: data.is_fixed_asset === 1,
+        allowSales: data.is_sales_item === 1,
+        allowPurchase: data.is_purchase_item === 1,
+        allowAltItem: data.allow_alternative_item === 1,
+        isCustomerProvided: data.is_customer_provided_item === 1,
+        hasVariants: data.has_variants === 1,
+        grantCommission: data.grant_commission === 1,
+        includeInMfg: data.include_item_in_manufacturing === 1,
+        isSubcontracted: data.is_sub_contracted_item === 1,
+        allowNegStock: data.allow_negative_stock === 1,
+        hasBatchNo: data.has_batch_no === 1,
+        hasSerialNo: data.has_serial_no === 1,
+        overDelivery: String(data.over_delivery_receipt_allowance || 0),
+        overBilling: String(data.over_billing_allowance || 0),
+        valuationMethod: data.valuation_method || "FIFO",
+        valuationRate: String(data.valuation_rate || 0),
+        standardRate: String(data.standard_rate || 0),
+        openingStock: String(data.opening_stock || 0),
+        weightPerUnit: String(data.weight_per_unit || 0),
+        weightUOM: data.weight_uom || "",
+        minOrderQty: String(data.min_order_qty || 0),
+        safetyStock: String(data.safety_stock || 0),
+        leadTime: String(data.lead_time_days || 0),
+        lastPurchaseRate: String(data.last_purchase_rate || 0),
+        maxDiscount: String(data.max_discount || 0),
+        productionCapacity: String(data.production_capacity || 0),
+        warrantyPeriod: data.warranty_period || "",
+        purchaseUOM: data.purchase_uom || "",
+        salesUOM: data.sales_uom || "",
+        countryOfOrigin: data.country_of_origin || "",
+        endOfLife: data.end_of_life ? data.end_of_life.split('-').reverse().join('-') : "31-12-2099",
+        matReqType: data.default_material_request_type || "Purchase",
+        inspectionRequiredPurchase: data.inspection_required_before_purchase === 1,
+        inspectionRequiredDelivery: data.inspection_required_before_delivery === 1,
+        qualityInspectionTemplate: data.quality_inspection_template || "",
+        deferredExpense: data.enable_deferred_expense === 1,
+        deferredRevenue: data.enable_deferred_revenue === 1,
+        purchaseTaxWithholding: data.purchase_tax_withholding_category || "",
+        salesTaxWithholding: data.sales_tax_withholding_category || "",
+        dropShip: data.delivered_by_supplier === 1,
+        ineligibleITC: false,
+      });
+      setIsDirty(false);
+    }
+  } catch (err) {
+    console.error('Error fetching item:', err);
+    toast.error('Failed to load item data');
+  } finally {
+    setLoading(false);
+  }
+};
+
+// Handle save with ID
+const handleSave = async (e: React.FormEvent) => {
+  e.preventDefault();
+
+  const allErrors = getAllValidationErrors();
+  if (allErrors.length > 0) {
+    setValidationErrors(allErrors);
+    setShowValidationSummary(true);
+    return;
+  }
+
+  setSubmitting(true);
+  try {
+    const payload = {
+      id: parseInt(id || "0"), // ID first in the payload
+      item_code: form.itemCode || form.itemName.toUpperCase().replace(/\s+/g, '-'),
+      item_name: form.itemName.trim(),
+      item_group: form.itemGroup.trim(),
+      stock_uom: form.defaultUOM.trim(),
+      brand: form.brand || null,
+      description: form.description || form.itemName.trim(),
+      disabled: form.disabled ? 1 : 0,
+      is_stock_item: form.maintainStock ? 1 : 0,
+      is_fixed_asset: form.isFixedAsset ? 1 : 0,
+      is_sales_item: form.allowSales ? 1 : 0,
+      is_purchase_item: form.allowPurchase ? 1 : 0,
+      allow_alternative_item: form.allowAltItem ? 1 : 0,
+      is_customer_provided_item: form.isCustomerProvided ? 1 : 0,
+      has_variants: form.hasVariants ? 1 : 0,
+      grant_commission: form.grantCommission ? 1 : 0,
+      include_item_in_manufacturing: form.includeInMfg ? 1 : 0,
+      is_sub_contracted_item: form.isSubcontracted ? 1 : 0,
+      allow_negative_stock: form.allowNegStock ? 1 : 0,
+      has_batch_no: form.hasBatchNo ? 1 : 0,
+      has_serial_no: form.hasSerialNo ? 1 : 0,
+      delivered_by_supplier: form.dropShip ? 1 : 0,
+      over_delivery_receipt_allowance: parseFloat(form.overDelivery) || 0,
+      over_billing_allowance: parseFloat(form.overBilling) || 0,
+      valuation_method: form.valuationMethod || "FIFO",
+      valuation_rate: parseFloat(form.valuationRate) || 0,
+      standard_rate: parseFloat(form.standardRate) || 0,
+      opening_stock: parseFloat(form.openingStock) || 0,
+      weight_per_unit: parseFloat(form.weightPerUnit) || 0,
+      weight_uom: form.weightUOM || null,
+      min_order_qty: parseFloat(form.minOrderQty) || 0,
+      safety_stock: parseFloat(form.safetyStock) || 0,
+      lead_time_days: parseInt(form.leadTime) || 0,
+      last_purchase_rate: parseFloat(form.lastPurchaseRate) || 0,
+      max_discount: parseFloat(form.maxDiscount) || 0,
+      production_capacity: parseInt(form.productionCapacity) || 0,
+      warranty_period: form.warrantyPeriod || null,
+      purchase_uom: form.purchaseUOM || null,
+      sales_uom: form.salesUOM || null,
+      country_of_origin: form.countryOfOrigin || null,
+      end_of_life: form.endOfLife ? form.endOfLife.split('-').reverse().join('-') : "2099-12-31",
+      default_material_request_type: form.matReqType || "Purchase",
+      inspection_required_before_purchase: form.inspectionRequiredPurchase ? 1 : 0,
+      inspection_required_before_delivery: form.inspectionRequiredDelivery ? 1 : 0,
+      quality_inspection_template: form.qualityInspectionTemplate || null,
+      enable_deferred_expense: form.deferredExpense ? 1 : 0,
+      enable_deferred_revenue: form.deferredRevenue ? 1 : 0,
+      purchase_tax_withholding_category: form.purchaseTaxWithholding || null,
+      sales_tax_withholding_category: form.salesTaxWithholding || null,
+    };
+
+    let response;
+    if (isNew) {
+      response = await api.post('/item', payload);
+    } else {
+      // PUT to /item with ID in payload
+      response = await api.put('/item', payload);
+    }
+
+    if (response.data && response.data.success === 1) {
+      setIsDirty(false);
+      toast.success(isNew ? 'Item created successfully!' : 'Item updated successfully!');
+      navigate('/item-list');
+    } else {
+      toast.error(response.data?.message || 'Failed to save item');
+    }
+  } catch (err: any) {
+    console.error('Error saving item:', err);
+    if (err.response?.status === 409) {
+      toast.error('An item with this code already exists');
+    } else {
+      toast.error(err.response?.data?.message || 'Failed to save item');
+    }
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   const tabProps = { form, setForm };
 
@@ -858,8 +2309,6 @@ export default function ItemForm() {
       allErrors.push({ field: 'itemName', label: 'Item Name', message: 'Item name is required', tabIndex: 0 });
     if (!form.itemGroup.trim())
       allErrors.push({ field: 'itemGroup', label: 'Item Group', message: 'Item group is required', tabIndex: 0 });
-    if (!form.hsnSac.trim())
-      allErrors.push({ field: 'hsnSac', label: 'HSN/SAC', message: 'HSN/SAC code is required', tabIndex: 0 });
     if (!form.defaultUOM.trim())
       allErrors.push({ field: 'defaultUOM', label: 'Default UOM', message: 'Default unit of measure is required', tabIndex: 0 });
 
@@ -879,43 +2328,32 @@ export default function ItemForm() {
     switch (activeTab) {
       case 0: return <DetailsTab {...tabProps} />;
       case 1: return <AccountingTab {...tabProps} />;
-      case 2: return <UOMTab />;
+      case 2: return <UOMTab {...tabProps} />;
       case 3: return <TaxTab {...tabProps} />;
       case 4: return <InventoryTab {...tabProps} />;
       case 5: return <PurchasingTab {...tabProps} />;
       case 6: return <SalesTab {...tabProps} />;
       case 7: return <ManufacturingTab {...tabProps} />;
-      case 8: return <QualityTab />;
-      case 9: return <PricingTab />;
+      case 8: return <QualityTab {...tabProps} />;
+      case 9: return <PricingTab {...tabProps} />;
       case 10: return <ConnectionsTab />;
     }
   };
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const allErrors = getAllValidationErrors();
-    if (allErrors.length > 0) {
-      setValidationErrors(allErrors);
-      setShowValidationSummary(true);
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setIsDirty(false);
-      toast.success(isEditMode ? 'Item updated successfully!' : 'Item created successfully!');
-      navigate('/item-list');
-    } catch (err) {
-      toast.error('Failed to save item');
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   const allValidationErrors = getAllValidationErrors();
   const hasAnyErrors = allValidationErrors.length > 0;
+
+  if (loading) {
+    return (
+      <div className={`itf-page ${theme}`}>
+        <div className="itf-loading-state">
+          <FaSpinner className="spinning" size={32} />
+          <p>Loading item data...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`itf-page ${theme}`}>
@@ -974,8 +2412,9 @@ export default function ItemForm() {
           <span className="itf-bc-sep">/</span>
           <span className="itf-bc-link" onClick={() => navigate("/item-list")}>Item</span>
           <span className="itf-bc-sep">/</span>
-          <span className="itf-bc-current">{isNew ? "New Item" : form.itemName}</span>
-          {!isNew && <span className="itf-status-pill enabled">Enabled</span>}
+          <span className="itf-bc-current">{isNew ? "New Item" : form.itemName || itemCode}</span>
+          {!isNew && !form.disabled && <span className="itf-status-pill enabled">Enabled</span>}
+          {!isNew && form.disabled && <span className="itf-status-pill disabled">Disabled</span>}
 
           {hasAnyErrors && (
             <div className="itf-error-badge">
@@ -1011,7 +2450,7 @@ export default function ItemForm() {
         </div>
       </div>
 
-      {/* Tab bar - styled like NewReservation */}
+      {/* Tab bar */}
       <div className="itf-tab-bar">
         <div className="itf-tabs-container">
           {tabs.map((tab) => {
@@ -1059,9 +2498,9 @@ export default function ItemForm() {
         {/* Right sidebar - only for existing items */}
         {!isNew && (
           <aside className="itf-sidebar">
-            <div className="itf-doc-avatar">{form.itemName.charAt(0).toUpperCase()}</div>
-            <div className="itf-doc-name">{form.itemName}</div>
-            <div className="itf-doc-id">{form.itemCode}</div>
+            <div className="itf-doc-avatar">{form.itemName.charAt(0).toUpperCase() || 'I'}</div>
+            <div className="itf-doc-name">{form.itemName || itemCode}</div>
+            <div className="itf-doc-id">{form.itemCode || itemCode}</div>
 
             <div className="itf-sidebar-actions">
               <button className="itf-sidebar-action">
@@ -1088,9 +2527,9 @@ export default function ItemForm() {
 
             <div className="itf-sidebar-meta">
               <div className="itf-meta-row"><span className="itf-meta-label">Last Edited By</span><span className="itf-meta-val">You</span></div>
-              <div className="itf-meta-time">5 hours ago</div>
+              <div className="itf-meta-time">Just now</div>
               <div className="itf-meta-row" style={{ marginTop: 12 }}><span className="itf-meta-label">Created By</span><span className="itf-meta-val">You</span></div>
-              <div className="itf-meta-time">5 hours ago</div>
+              <div className="itf-meta-time">Just now</div>
             </div>
           </aside>
         )}

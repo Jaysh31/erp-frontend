@@ -84,13 +84,6 @@ export default function BrandList() {
     validCurrentPage * itemsPerPage
   );
 
-  // Stats
-  const stats = [
-    { title: 'Total Brands', value: brands.length, icon: <FaTag />, color: '#6366f1' },
-    { title: 'Active Brands', value: brands.length, icon: <FaTag />, color: '#10b981' },
-    { title: 'With Description', value: brands.filter(b => b.description).length, icon: <FaTag />, color: '#f59e0b' },
-    { title: 'Total Products', value: brands.length * 5, icon: <FaTag />, color: '#8b5cf6' },
-  ];
 
   const toggleAll = () => {
     if (allChecked) {
@@ -184,7 +177,7 @@ export default function BrandList() {
   return (
     <div className={`bl-page ${theme}`}>
       {/* Stats Cards */}
-      <div className="bl-stats-container">
+      {/* <div className="bl-stats-container">
         {stats.map((stat, index) => (
           <div key={index} className="bl-stat-card" style={{ background: `linear-gradient(135deg, ${stat.color} 0%, ${stat.color}cc 100%)` }}>
             <div className="bl-stat-icon">{stat.icon}</div>
@@ -194,7 +187,7 @@ export default function BrandList() {
             </div>
           </div>
         ))}
-      </div>
+      </div> */}
 
       {/* Search and Filter Bar */}
       <div className="bl-filter-bar">

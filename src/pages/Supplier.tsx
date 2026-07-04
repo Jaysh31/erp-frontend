@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import  { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   FaSearch, FaPlus, FaEye, FaEdit, FaTrash, FaFilter, 
   FaCheckCircle, FaTimesCircle, FaPhone, FaEnvelope,
-  FaBuilding, FaStar, FaStarHalfAlt,
+  FaBuilding, 
   FaTimes, FaSave, FaSpinner, FaCopy,
 } from 'react-icons/fa';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
@@ -110,7 +110,7 @@ export default function Supplier() {
     isTransporter: false,
     isInternalSupplier: false,
     onHold: false,
-    status: 'Active' as const
+    status: 'Active' as 'Active' | 'Inactive'
   });
 
   const supplierTypes = ['Company', 'Individual', 'Partnership', 'Proprietorship', 'LLP', 'Trust', 'Society'];
@@ -218,7 +218,7 @@ export default function Supplier() {
         setSuppliers([]);
         setTotalSuppliers(0);
         setTotalPages(1);
-        toast.info('No suppliers found');
+        toast('No suppliers found');
       }
     } catch (error: any) {
       console.error('❌ Error fetching suppliers:', error);
@@ -263,23 +263,7 @@ export default function Supplier() {
     return status === 'Active' ? <FaCheckCircle size={10} /> : <FaTimesCircle size={10} />;
   };
 
-  const renderStars = (rating: number) => {
-    const stars = [];
-    const fullStars = Math.floor(rating || 0);
-    const hasHalfStar = (rating || 0) % 1 >= 0.5;
-    
-    for (let i = 0; i < fullStars; i++) {
-      stars.push(<FaStar key={`full-${i}`} size={12} color="#f59e0b" />);
-    }
-    if (hasHalfStar) {
-      stars.push(<FaStarHalfAlt key="half" size={12} color="#f59e0b" />);
-    }
-    const remainingStars = 5 - Math.ceil(rating || 0);
-    for (let i = 0; i < remainingStars; i++) {
-      stars.push(<FaStar key={`empty-${i}`} size={12} color="#d1d5db" />);
-    }
-    return stars;
-  };
+
 
   const handleCreate = () => {
     navigate('/supplier/new');

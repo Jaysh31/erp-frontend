@@ -142,8 +142,6 @@ export default function CreateQuotation() {
   const taxTypes = ['Tax', 'Charge', 'Cess', 'Surcharge'];
   const accountHeads = ['GST - 18%', 'GST - 12%', 'GST - 5%', 'Service Tax', 'VAT', 'Customs Duty'];
   const paymentTerms = ['Net 7', 'Net 15', 'Net 30', 'Net 45', 'Net 60', 'Due on Receipt', 'Cash on Delivery'];
-  const priceLists = ['Standard Selling', 'Export Pricing', 'Wholesale', 'Retail', 'Distributor'];
-  const currencies = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD'];
   const taxCategories = ['Standard', 'Export', 'SEZ', 'GST', 'VAT'];
   const shippingRules = ['Free Shipping', 'Flat Rate', 'Weight Based', 'Price Based'];
   const incoterms = ['EXW', 'FCA', 'FAS', 'FOB', 'CFR', 'CIF', 'CPT', 'CIP', 'DAP', 'DPU', 'DDP'];

@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+// import { useNavigate } from 'react-router-dom';
 import { 
   FaSearch, FaPlus, FaEdit, FaTrash, FaFilter, 
   FaTimes, FaSave, FaSpinner, FaCopy, FaEye,
-  FaBuilding, FaUsers, FaTag, FaCheckCircle,
-  FaTimesCircle, FaChartPie
+   FaUsers,  FaCheckCircle,
+  FaTimesCircle, 
 } from 'react-icons/fa';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
@@ -21,8 +21,16 @@ interface SupplierGroup {
   updatedAt: string;
 }
 
+type SupplierGroupFormData = {
+  groupCode: string;
+  groupName: string;
+  description: string;
+  parentGroup: string;
+  status: 'Active' | 'Inactive';
+};
+
 export default function SupplierGroup() {
-  const navigate = useNavigate();
+  // const navigate = useNavigate();
   
   let theme = 'light';
   try {
@@ -123,12 +131,12 @@ export default function SupplierGroup() {
     }
   ]);
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<SupplierGroupFormData>({
     groupCode: '',
     groupName: '',
     description: '',
     parentGroup: '',
-    status: 'Active' as const
+    status: 'Active'
   });
 
   const parentGroups = ['Raw Material', 'Distributor', 'Electrical', 'Hardware', 'Local', 'Pharmaceutical', 'Services'];

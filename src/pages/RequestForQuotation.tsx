@@ -1,13 +1,9 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import  { useState } from 'react';
 import { 
   FaSearch, FaPlus, FaEdit, FaTrash, FaFilter, 
   FaTimes, FaSave, FaSpinner, FaCopy, FaEye,
-  FaFileAlt, FaCalendarAlt, FaUser, FaCheckCircle,
-  FaTimesCircle, FaClock, FaExclamationTriangle,
-  FaBuilding, FaBox, FaTag, FaListAlt, FaInfoCircle,
-  FaEnvelope, FaPrint, FaFilePdf, FaPaperPlane,
-  FaDollarSign, FaTruck
+  FaFileAlt,  FaCheckCircle,
+  FaTimesCircle, FaClock, FaPaperPlane
 } from 'react-icons/fa';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
@@ -50,7 +46,6 @@ interface RequestForQuotation {
 }
 
 export default function RequestForQuotation() {
-  const navigate = useNavigate();
   
   let theme = 'light';
   try {
@@ -147,7 +142,20 @@ export default function RequestForQuotation() {
     }
   ]);
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    rfqNumber: string;
+    title: string;
+    company: string;
+    supplier: string;
+    supplierCode: string;
+    date: string;
+    requiredBy: string;
+    status: RequestForQuotation['status'];
+    priority: RequestForQuotation['priority'];
+    currency: string;
+    notes: string;
+    items: RFQItem[];
+  }>({
     rfqNumber: '',
     title: '',
     company: '',
@@ -155,8 +163,8 @@ export default function RequestForQuotation() {
     supplierCode: '',
     date: '',
     requiredBy: '',
-    status: 'Draft' as const,
-    priority: 'Medium' as const,
+    status: 'Draft',
+    priority: 'Medium',
     currency: 'INR',
     notes: '',
     items: [{ id: '1', itemCode: '', itemName: '', quantity: 1, uom: 'NOS', description: '' }]

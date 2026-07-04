@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { 
   FaSearch, FaPlus, FaEdit, FaTrash,  FaFilter, 
   FaCheckCircle, FaTimesCircle, FaSave, FaSpinner, FaTimes,
@@ -27,7 +26,6 @@ interface CouponCode {
 }
 
 export default function CouponCode() {
-  const navigate = useNavigate();
   
   let theme = 'light';
   try {

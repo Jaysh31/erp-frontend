@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import {
   FaArrowLeft,
   FaSave,
@@ -17,9 +17,18 @@ import {
   FaPlus,
   FaCheckSquare,
   FaHome,
+  FaPhone,
+  FaMobileAlt,
+  FaMapMarkerAlt,
+  FaCity,
+  FaGlobe,
+  FaMapPin,
+  FaTruck,
 } from 'react-icons/fa';
 import "./WarehouseForm.css";
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
+import api from '../../services/api';
+import toast from "react-hot-toast";
 
 interface ValidationError {
   field: string;
@@ -27,31 +36,103 @@ interface ValidationError {
   message: string;
 }
 
+interface WarehouseData {
+  id: number;
+  warehouse_name: string;
+  company: string | null;
+  parent_warehouse: string | null;
+  warehouse_type: string | null;
+  city: string | null;
+  state: string | null;
+  email_id: string | null;
+  phone_no: string | null;
+  disabled: number;
+}
+
 export default function WarehouseForm() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { theme } = useAdminTheme();
-  const isNew = id === "new";
+  
+  const isNew = id === "new" || !id;
   const warehouseName = isNew ? "New Warehouse" : decodeURIComponent(id || "");
   const isEditMode = !isNew;
 
+  // Get warehouse data from location state if available
+  const warehouseData = location.state?.warehouseData as WarehouseData | undefined;
+
+  // const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
-    warehouseName: isNew ? "" : decodeURIComponent(id || ""),
-    company: "Test",
+    warehouseName: "",
+    company: "",
     isRejectedWarehouse: false,
-    parentWarehouse: "All Warehouses - T",
+    parentWarehouse: "",
     isGroupWarehouse: false,
     account: "",
     customer: "",
+    // Address and Contact fields
+    addressLine1: "",
+    addressLine2: "",
+    city: "",
+    stateProvince: "",
+    pin: "",
+    phoneNo: "",
+    mobileNo: "",
+    warehouseType: "",
+    transit: false,
   });
 
-  const [comment, setComment] = useState("");
-  const [isContactInfoExpanded, setIsContactInfoExpanded] = useState(false);
+  // const [comment, setComment] = useState("");
+  const [isContactInfoExpanded, setIsContactInfoExpanded] = useState(true);
   const [isTransitExpanded, setIsTransitExpanded] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [errors, ] = useState<{ [key: string]: string }>({});
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [showValidationSummary, setShowValidationSummary] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
+
+  // Load data if editing
+  useEffect(() => {
+    if (!isNew && warehouseData) {
+      setForm({
+        warehouseName: warehouseData.warehouse_name || "",
+        company: warehouseData.company || "",
+        isRejectedWarehouse: false,
+        parentWarehouse: warehouseData.parent_warehouse || "",
+        isGroupWarehouse: false,
+        account: "",
+        customer: "",
+        addressLine1: "",
+        addressLine2: "",
+        city: warehouseData.city || "",
+        stateProvince: warehouseData.state || "",
+        pin: "",
+        phoneNo: warehouseData.phone_no || "",
+        mobileNo: "",
+        warehouseType: warehouseData.warehouse_type || "",
+        transit: false,
+      });
+    } else if (isNew) {
+      setForm({
+        warehouseName: "",
+        company: "",
+        isRejectedWarehouse: false,
+        parentWarehouse: "",
+        isGroupWarehouse: false,
+        account: "",
+        customer: "",
+        addressLine1: "",
+        addressLine2: "",
+        city: "",
+        stateProvince: "",
+        pin: "",
+        phoneNo: "",
+        mobileNo: "",
+        warehouseType: "",
+        transit: false,
+      });
+    }
+  }, [isNew, warehouseData]);
 
   // ─── Validation ──────────────────────────────────────────────────────
   const getAllValidationErrors = (): ValidationError[] => {
@@ -67,7 +148,7 @@ export default function WarehouseForm() {
     return allErrors;
   };
 
-  const handleSave = async (e: FormEvent<HTMLFormElement>) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const validationErrorsList = getAllValidationErrors();
@@ -78,11 +159,108 @@ export default function WarehouseForm() {
     }
 
     setSubmitting(true);
+    setErrors({});
+
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      navigate('/warehouse');
-    } catch (err) {
-      // Handle error
+      // Prepare payload for API - only send fields that exist in the form
+      const payload: any = {
+        warehouse_name: form.warehouseName.trim(),
+        company: form.company.trim() || null,
+        parent_warehouse: form.parentWarehouse.trim() || null,
+        warehouse_type: form.warehouseType.trim() || null,
+        city: form.city.trim() || null,
+        state: form.stateProvince.trim() || null,
+        phone_no: form.phoneNo.trim() || null,
+        disabled: 0,
+        // Additional fields from the API spec
+        operation: null,
+        status: "Pending",
+        completed_qty: 0,
+        process_loss_qty: 0,
+        pending_qty: 0,
+        bom: null,
+        workstation_type: null,
+        workstation: null,
+        sequence_id: 1,
+        quality_inspection_required: 0,
+        bom_no: null,
+        finished_good: null,
+        is_subcontracted: 0,
+        skip_material_transfer: 0,
+        backflush_from_wip_warehouse: 0,
+        source_warehouse: null,
+        wip_warehouse: null,
+        fg_warehouse: null,
+        description: null,
+        planned_start_time: null,
+        hour_rate: 0,
+        time_in_mins: 0,
+        planned_end_time: null,
+        batch_size: 0,
+        planned_operating_cost: 0,
+        actual_start_time: null,
+        actual_operation_time: 0,
+        actual_end_time: null,
+        actual_operating_cost: 0,
+        parent: null,
+        parentfield: null,
+        parenttype: null,
+        modified_by: "Administrator",
+        owner: "Administrator",
+        docstatus: 0,
+        idx: 1
+      };
+
+      // Only add is_group if it's a group warehouse
+      if (form.isGroupWarehouse) {
+        // Note: The API might not have is_group field, but we keep it for UI state
+        // If the API has this field, uncomment below
+        // payload.is_group = 1;
+      }
+
+      // If it's a rejected warehouse
+      if (form.isRejectedWarehouse) {
+        // Note: The API might not have is_rejected field
+        // If the API has this field, uncomment below
+        // payload.is_rejected = 1;
+      }
+
+      let response;
+      if (isNew) {
+        response = await api.post('/warehouse', payload);
+      } else {
+        // For update, you might need to use PUT or PATCH
+        response = await api.put(`/warehouse/${id}`, payload);
+      }
+
+      if (response.data && response.data.success === 1) {
+        toast.success(isNew ? 'Warehouse created successfully!' : 'Warehouse updated successfully!');
+        navigate('/warehouse');
+      } else {
+        toast.error(response.data?.message || 'Failed to save warehouse');
+        setErrors({ submit: response.data?.message || 'Failed to save warehouse' });
+      }
+    } catch (err: any) {
+      console.error('Error saving warehouse:', err);
+      
+      if (err.response) {
+        if (err.response.status === 409) {
+          toast.error('A warehouse with this name already exists');
+          setErrors({ warehouseName: 'A warehouse with this name already exists' });
+        } else if (err.response.status === 400) {
+          toast.error(err.response.data?.message || 'Invalid data provided');
+          setErrors({ submit: err.response.data?.message || 'Invalid data provided' });
+        } else {
+          toast.error(err.response.data?.message || 'Failed to save warehouse');
+          setErrors({ submit: err.response.data?.message || 'Failed to save warehouse' });
+        }
+      } else if (err.request) {
+        toast.error('Network error. Please check your connection.');
+        setErrors({ submit: 'Network error. Please check your connection.' });
+      } else {
+        toast.error('An unexpected error occurred. Please try again.');
+        setErrors({ submit: 'An unexpected error occurred. Please try again.' });
+      }
     } finally {
       setSubmitting(false);
     }
@@ -234,8 +412,48 @@ export default function WarehouseForm() {
               </div>
             </div>
 
-            {/* Contact Info Collapsible */}
-            <div className="wf-collapsible">
+            <div className="wf-divider" />
+
+            {/* Address and Contact Section */}
+            <span className="wf-section-title">Address and Contact</span>
+
+            {/* New Address button and empty state */}
+            <div className="wf-empty-state">No address added yet.</div>
+            <button type="button" className="wf-link-btn" style={{ marginBottom: '16px' }}>
+              <FaPlus size={10} /> New Address
+            </button>
+
+            {/* Address Line 1 & 2 */}
+            <div className="wf-grid-2">
+              <div className="wf-field">
+                <label className="wf-label">
+                  <FaMapMarkerAlt className="wf-label-icon" />Address Line 1
+                </label>
+                <input
+                  type="text"
+                  value={form.addressLine1}
+                  onChange={(e) => setForm({ ...form, addressLine1: e.target.value })}
+                  className="form-field"
+                  placeholder="Enter address line 1"
+                />
+              </div>
+
+              <div className="wf-field">
+                <label className="wf-label">
+                  <FaMapMarkerAlt className="wf-label-icon" />Address Line 2
+                </label>
+                <input
+                  type="text"
+                  value={form.addressLine2}
+                  onChange={(e) => setForm({ ...form, addressLine2: e.target.value })}
+                  className="form-field"
+                  placeholder="Enter address line 2"
+                />
+              </div>
+            </div>
+
+            {/* Warehouse Contact Info Collapsible */}
+            <div className="wf-collapsible" style={{ marginTop: '8px' }}>
               <button 
                 type="button"
                 className="wf-collapsible-btn" 
@@ -248,19 +466,143 @@ export default function WarehouseForm() {
               </button>
               {isContactInfoExpanded && (
                 <div className="wf-collapsible-content">
-                  <div className="wf-empty-state">No address added yet.</div>
-                  <div className="wf-empty-state">No contacts added yet.</div>
-                  <div className="wf-collapsible-actions">
-                    <button type="button" className="wf-link-btn">
-                      <FaPlus size={10} /> New Address
-                    </button>
-                    <button type="button" className="wf-link-btn">
-                      <FaPlus size={10} /> New Contact
-                    </button>
+                  <div className="wf-grid-2">
+                    <div className="wf-field">
+                      <label className="wf-label">
+                        <FaPhone className="wf-label-icon" />Phone No
+                      </label>
+                      <input
+                        type="text"
+                        value={form.phoneNo}
+                        onChange={(e) => setForm({ ...form, phoneNo: e.target.value })}
+                        className="form-field"
+                        placeholder="Enter phone number"
+                      />
+                    </div>
+
+                    <div className="wf-field">
+                      <label className="wf-label">
+                        <FaMobileAlt className="wf-label-icon" />Mobile No
+                      </label>
+                      <input
+                        type="text"
+                        value={form.mobileNo}
+                        onChange={(e) => setForm({ ...form, mobileNo: e.target.value })}
+                        className="form-field"
+                        placeholder="Enter mobile number"
+                      />
+                    </div>
                   </div>
+
+                  <div className="wf-grid-2">
+                    <div className="wf-field">
+                      <label className="wf-label">
+                        <FaMapMarkerAlt className="wf-label-icon" />Address Line 1
+                      </label>
+                      <input
+                        type="text"
+                        value={form.addressLine1}
+                        onChange={(e) => setForm({ ...form, addressLine1: e.target.value })}
+                        className="form-field"
+                        placeholder="Enter address line 1"
+                      />
+                    </div>
+
+                    <div className="wf-field">
+                      <label className="wf-label">
+                        <FaMapMarkerAlt className="wf-label-icon" />Address Line 2
+                      </label>
+                      <input
+                        type="text"
+                        value={form.addressLine2}
+                        onChange={(e) => setForm({ ...form, addressLine2: e.target.value })}
+                        className="form-field"
+                        placeholder="Enter address line 2"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="wf-grid-2">
+                    <div className="wf-field">
+                      <label className="wf-label">
+                        <FaCity className="wf-label-icon" />City
+                      </label>
+                      <input
+                        type="text"
+                        value={form.city}
+                        onChange={(e) => setForm({ ...form, city: e.target.value })}
+                        className="form-field"
+                        placeholder="Enter city"
+                      />
+                    </div>
+
+                    <div className="wf-field">
+                      <label className="wf-label">
+                        <FaGlobe className="wf-label-icon" />State/Province
+                      </label>
+                      <input
+                        type="text"
+                        value={form.stateProvince}
+                        onChange={(e) => setForm({ ...form, stateProvince: e.target.value })}
+                        className="form-field"
+                        placeholder="Enter state/province"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="wf-grid-2">
+                    <div className="wf-field">
+                      <label className="wf-label">
+                        <FaMapPin className="wf-label-icon" />PIN
+                      </label>
+                      <input
+                        type="text"
+                        value={form.pin}
+                        onChange={(e) => setForm({ ...form, pin: e.target.value })}
+                        className="form-field"
+                        placeholder="Enter PIN code"
+                      />
+                    </div>
+
+                    <div className="wf-field">
+                      <label className="wf-label">
+                        <FaBoxes className="wf-label-icon" />Warehouse Type
+                      </label>
+                      <input
+                        type="text"
+                        value={form.warehouseType}
+                        onChange={(e) => setForm({ ...form, warehouseType: e.target.value })}
+                        className="form-field"
+                        placeholder="Enter warehouse type"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="wf-field-check">
+                    <input
+                      type="checkbox"
+                      id="transit"
+                      checked={form.transit}
+                      onChange={(e) => setForm({ ...form, transit: e.target.checked })}
+                      className="wf-checkbox"
+                    />
+                    <div>
+                      <label htmlFor="transit" className="wf-check-label">
+                        <FaTruck className="wf-check-icon" /> Transit
+                      </label>
+                      <p className="wf-check-hint">Enable if this warehouse is used for transit</p>
+                    </div>
+                  </div>
+
+                  <div className="wf-empty-state">No contacts added yet.</div>
+                  <button type="button" className="wf-link-btn">
+                    <FaPlus size={10} /> New Contact
+                  </button>
                 </div>
               )}
             </div>
+
+            <div className="wf-divider" />
 
             {/* Transit Collapsible */}
             <div className="wf-collapsible">
@@ -276,6 +618,21 @@ export default function WarehouseForm() {
               </button>
               {isTransitExpanded && (
                 <div className="wf-collapsible-content">
+                  <div className="wf-field-check">
+                    <input
+                      type="checkbox"
+                      id="transitSection"
+                      checked={form.transit}
+                      onChange={(e) => setForm({ ...form, transit: e.target.checked })}
+                      className="wf-checkbox"
+                    />
+                    <div>
+                      <label htmlFor="transitSection" className="wf-check-label">
+                        <FaTruck className="wf-check-icon" /> Transit
+                      </label>
+                      <p className="wf-check-hint">Enable if this warehouse is used for transit</p>
+                    </div>
+                  </div>
                   <div className="wf-empty-state">No transit configurations added yet.</div>
                   <button type="button" className="wf-link-btn">
                     <FaPlus size={10} /> Add Transit
@@ -322,35 +679,7 @@ export default function WarehouseForm() {
               <p className="wf-field-hint">Only to be used for Subcontracting Inward</p>
             </div>
 
-            {/* ─── Comments & Activity (only for existing records) ─── */}
-            {!isNew && (
-              <>
-                <div className="wf-divider" />
-                <span className="wf-section-title">Comments</span>
-
-                <div className="wf-comment-input-row">
-                  <div className="wf-comment-avatar">AD</div>
-                  <input
-                    className="wf-comment-input"
-                    placeholder="Type a reply / comment"
-                    value={comment}
-                    onChange={(e) => setComment(e.target.value)}
-                  />
-                </div>
-
-                <div className="wf-divider" />
-
-                <div className="wf-activity-header">
-                  <span className="wf-section-title wf-activity-title">Activity</span>
-                  <button className="wf-new-email-btn" type="button">+ New Email</button>
-                </div>
-
-                <ul className="wf-activity-list">
-                  <li>Administrator created this · <span className="wf-activity-time">yesterday</span></li>
-                  <li>Administrator last edited this · <span className="wf-activity-time">yesterday</span></li>
-                </ul>
-              </>
-            )}
+          
           </div>
 
           {/* ─── Footer ────────────────────────────────────────────────── */}

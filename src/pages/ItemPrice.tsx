@@ -1,10 +1,8 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { 
-  FaSearch, FaPlus, FaEdit, FaTrash, FaEye, FaFilter, 
-  FaCheckCircle, FaTimesCircle, FaSave, FaSpinner, FaTimes,
-  FaToggleOn, FaToggleOff, FaCopy, FaBox, FaTag, FaDollarSign,
-  FaListAlt, FaCalendarAlt, FaInfoCircle
+  FaSearch, FaPlus, FaEdit, FaTrash,  FaFilter, 
+  FaCheckCircle,  FaSave, FaSpinner, FaTimes,
+FaCopy,  FaDollarSign,
 } from 'react-icons/fa';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
@@ -28,7 +26,6 @@ interface ItemPrice {
 }
 
 export default function ItemPrice() {
-  const navigate = useNavigate();
   
   let theme = 'light';
   try {
