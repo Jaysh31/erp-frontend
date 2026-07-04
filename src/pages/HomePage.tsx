@@ -86,6 +86,14 @@ export default function HomePage() {
       color: "#f59e0b"
     },
     {
+      title: "Accounting",
+      icon: <FaCogs />,
+      path: "/dashboard",
+      module: 'accounting' as const,
+      description: "Manage financial records",
+      color: "#10b981"
+    },
+    {
       title: "Tools",
       icon: <FaTools />,
       path: "/dashboard",
