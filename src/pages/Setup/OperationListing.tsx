@@ -18,7 +18,7 @@ import {
   FaClock,
   FaIndustry,
 } from 'react-icons/fa';
-// import "./OperationList.css";
+import "./OperationListing.css";
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
 
@@ -56,18 +56,36 @@ export default function OperationList() {
   const [operations, setOperations] = useState<Operation[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<Set<number>>(new Set());
-  const [allChecked, setAllChecked] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [totalItems, setTotalItems] = useState(0);
-  const [sortField, ] = useState<string>('creation');
+  const [sortField] = useState<string>('creation');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
-  // Fetch operations from API
+  // ─── Format date ──────────────────────────────────────────────────────────
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m`;
+    if (diffHours < 24) return `${diffHours}h`;
+    if (diffDays < 7) return `${diffDays}d`;
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)}w`;
+    if (diffDays < 365) return `${Math.floor(diffDays / 30)}mo`;
+    return `${Math.floor(diffDays / 365)}y`;
+  };
+
+  // ─── Fetch operations from API ────────────────────────────────────────────
+
   const fetchOperations = async () => {
     setLoading(true);
     setError(null);
@@ -75,30 +93,36 @@ export default function OperationList() {
       const response = await api.get<ApiResponse>('/operation');
       
       if (response.data.success === 1) {
-        setOperations(response.data.data);
-        setTotalItems(response.data.data.length);
+        const records = response.data.data || [];
+        // Sort by ID in ascending order
+        records.sort((a, b) => a.id - b.id);
+        setOperations(records);
+        setTotalItems(records.length);
       } else {
         setError('Failed to fetch operations');
+        setOperations([]);
+        setTotalItems(0);
       }
     } catch (err) {
       console.error('Error fetching operations:', err);
       setError('An error occurred while fetching operations');
+      setOperations([]);
+      setTotalItems(0);
     } finally {
       setLoading(false);
     }
   };
 
-  // Fetch when dependencies change
   useEffect(() => {
     fetchOperations();
   }, []);
 
-  // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, itemsPerPage]);
+  }, [searchTerm, statusFilter]);
 
-  // Filter and sort data
+  // ─── Filter and sort data ─────────────────────────────────────────────────
+
   const filteredAndSortedOperations = operations
     .filter(op => {
       const matchesSearch = op.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -127,9 +151,6 @@ export default function OperationList() {
         case 'total_operation_time':
           comparison = a.total_operation_time - b.total_operation_time;
           break;
-        case 'batch_size':
-          comparison = a.batch_size - b.batch_size;
-          break;
         default:
           comparison = 0;
       }
@@ -141,39 +162,56 @@ export default function OperationList() {
     currentPage * itemsPerPage
   );
 
-  const totalPages = Math.ceil(filteredAndSortedOperations.length / itemsPerPage);
+  const totalPages = Math.ceil(filteredAndSortedOperations.length / itemsPerPage) || 1;
+  const validCurrentPage = Math.min(currentPage, totalPages);
+  
+  if (validCurrentPage !== currentPage && currentPage > 1) {
+    setCurrentPage(validCurrentPage);
+  }
 
-  // Stats
+  // ─── Stats ────────────────────────────────────────────────────────────────
+
   const totalActive = operations.filter(op => op.docstatus === 0).length;
   const totalSubmitted = operations.filter(op => op.docstatus === 1).length;
-  // const totalCancelled = operations.filter(op => op.docstatus === 2).length;
   const uniqueWorkstations = [...new Set(operations.map(op => op.workstation))].length;
 
   const stats = [
-    { title: 'Total Operations', value: totalItems, icon: <FaBoxes />, color: '#6366f1' },
-    { title: 'Active', value: totalActive, icon: <FaCheckCircle />, color: '#10b981' },
-    { title: 'Submitted', value: totalSubmitted, icon: <FaClock />, color: '#3b82f6' },
-    { title: 'Workstations', value: uniqueWorkstations, icon: <FaIndustry />, color: '#f59e0b' },
+    { 
+      title: 'Total Operations', 
+      value: totalItems, 
+      icon: <FaBoxes />, 
+      color: '#3B82F6',
+      lightColor: '#EFF6FF'
+    },
+    { 
+      title: 'Active', 
+      value: totalActive, 
+      icon: <FaCheckCircle />, 
+      color: '#10B981',
+      lightColor: '#ECFDF5'
+    },
+    { 
+      title: 'Submitted', 
+      value: totalSubmitted, 
+      icon: <FaClock />, 
+      color: '#F59E0B',
+      lightColor: '#FFFBEB'
+    },
+    { 
+      title: 'Workstations', 
+      value: uniqueWorkstations, 
+      icon: <FaIndustry />, 
+      color: '#8B5CF6',
+      lightColor: '#F5F3FF'
+    },
   ];
 
-  const toggleAll = () => {
-    if (allChecked) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(paginatedData.map((r) => r.id)));
-    }
-    setAllChecked(!allChecked);
-  };
-
-  const toggleRow = (id: number) => {
-    const next = new Set(selected);
-    next.has(id) ? next.delete(id) : next.add(id);
-    setSelected(next);
-    setAllChecked(next.size === paginatedData.length);
-  };
+  // ─── Pagination ───────────────────────────────────────────────────────────
 
   const goToPage = (page: number) => {
-    if (page >= 1 && page <= totalPages) setCurrentPage(page);
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+    }
   };
 
   const goToFirstPage = () => goToPage(1);
@@ -196,23 +234,10 @@ export default function OperationList() {
     return pages;
   };
 
-  const clearFilters = () => {
-    setSearchTerm('');
-    setStatusFilter('all');
-  };
+  const getStartIndex = () => (validCurrentPage - 1) * itemsPerPage + 1;
+  const getEndIndex = () => Math.min(validCurrentPage * itemsPerPage, filteredAndSortedOperations.length);
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffTime = Math.abs(now.getTime() - date.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    if (diffDays === 1) return '1d';
-    if (diffDays < 7) return `${diffDays}d`;
-    if (diffDays < 30) return `${Math.floor(diffDays / 7)}w`;
-    if (diffDays < 365) return `${Math.floor(diffDays / 30)}mo`;
-    return date.toLocaleDateString();
-  };
+  // ─── Actions ─────────────────────────────────────────────────────────────
 
   const handleRowClick = (operation: Operation) => {
     navigate(`/operation/${operation.id}`, { 
@@ -236,14 +261,8 @@ export default function OperationList() {
     if (window.confirm(`Are you sure you want to delete operation "${operation.name}"?`)) {
       try {
         setDeletingId(operation.id);
-        // Delete operation - pass id in payload
-        await api.delete('/operation', { data: { id: operation.id } });
+        await api.delete(`/operation/${operation.id}`);
         await fetchOperations();
-        setSelected(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(operation.id);
-          return newSet;
-        });
         alert('Operation deleted successfully');
       } catch (err) {
         console.error('Error deleting operation:', err);
@@ -258,14 +277,21 @@ export default function OperationList() {
     navigate('/operation/new');
   };
 
+  const clearFilters = () => {
+    setSearchTerm('');
+    setStatusFilter('all');
+  };
+
+  // ─── Status Helpers ──────────────────────────────────────────────────────
+
   const getStatusBadge = (docstatus: number) => {
     switch (docstatus) {
       case 0:
-        return <span className="itl-status-badge itl-status-active">Active</span>;
+        return <span className="op-status-badge op-status-active">Active</span>;
       case 1:
-        return <span className="itl-status-badge itl-status-submitted">Submitted</span>;
+        return <span className="op-status-badge op-status-submitted">Submitted</span>;
       case 2:
-        return <span className="itl-status-badge itl-status-cancelled">Cancelled</span>;
+        return <span className="op-status-badge op-status-cancelled">Cancelled</span>;
       default:
         return null;
     }
@@ -275,52 +301,63 @@ export default function OperationList() {
     return operation.is_corrective_operation === 1 ? 'Corrective' : 'Standard';
   };
 
+  // ─── Render ───────────────────────────────────────────────────────────────
+
   return (
-    <div className={`itl-page ${theme}`}>
+    <div className={`op-page ${theme}`}>
       {/* Stats Cards */}
-      <div className="itl-stats-container">
+      <div className="op-stats-container">
         {stats.map((stat, index) => (
-          <div key={index} className="itl-stat-card" style={{ background: `linear-gradient(135deg, ${stat.color} 0%, ${stat.color}cc 100%)` }}>
-            <div className="itl-stat-icon">{stat.icon}</div>
-            <div className="itl-stat-content">
-              <p className="itl-stat-title">{stat.title}</p>
-              <p className="itl-stat-value">{stat.value}</p>
+          <div 
+            key={index} 
+            className="op-stat-card" 
+            style={{ 
+              background: stat.lightColor,
+              borderLeft: `4px solid ${stat.color}`
+            }}
+          >
+            <div className="op-stat-icon" style={{ color: stat.color }}>
+              {stat.icon}
+            </div>
+            <div className="op-stat-content">
+              <p className="op-stat-title">{stat.title}</p>
+              <p className="op-stat-value">{stat.value}</p>
             </div>
           </div>
         ))}
       </div>
 
       {/* Search and Filter Bar */}
-      <div className="itl-filter-bar">
-        <div className="itl-filter-left">
-          <div className="itl-search-wrapper">
-            <FaSearch className="itl-search-icon" />
+      <div className="op-filter-bar">
+        <div className="op-filter-left">
+          <div className="op-search-wrapper">
+            <FaSearch className="op-search-icon" />
             <input
               type="text"
               placeholder="Search operations..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="itl-search-input"
+              className="op-search-input"
             />
             {searchTerm && (
-              <button className="itl-search-clear" onClick={() => setSearchTerm('')}>
+              <button className="op-search-clear" onClick={() => setSearchTerm('')}>
                 <FaTimes size={12} />
               </button>
             )}
           </div>
         </div>
-        <div className="itl-filter-right">
+        <div className="op-filter-right">
           <select 
             value={statusFilter} 
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="itl-filter-select"
+            className="op-filter-select"
           >
             <option value="all">All Status</option>
             <option value="active">Active</option>
             <option value="submitted">Submitted</option>
             <option value="cancelled">Cancelled</option>
           </select>
-          <button className="itl-sort-btn" onClick={() => {
+          <button className="op-sort-btn" onClick={() => {
             setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
           }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -328,7 +365,10 @@ export default function OperationList() {
             </svg>
             Sort {sortDirection === 'asc' ? '↑' : '↓'}
           </button>
-          <button className="itl-btn-primary" onClick={handleAddOperation}>
+          <button 
+            className="op-btn-primary" 
+            onClick={handleAddOperation}
+          >
             <FaPlus size={12} />
             Add Operation
           </button>
@@ -337,22 +377,18 @@ export default function OperationList() {
 
       {/* Active filters indicator */}
       {(searchTerm || statusFilter !== 'all') && (
-        <div className="itl-active-filters">
-          <FaFilter size={12} style={{ color: 'var(--primary-color)' }} />
-          <span style={{ color: 'var(--text-primary)' }}>Active filters:</span>
+        <div className="op-active-filters">
+          <FaFilter size={12} style={{ color: '#3B82F6' }} />
+          <span>Active filters:</span>
           {searchTerm && (
-            <span style={{ color: 'var(--text-primary)' }}>
-              <strong>Search:</strong> "{searchTerm}"
-            </span>
+            <span><strong>Search:</strong> "{searchTerm}"</span>
           )}
           {statusFilter !== 'all' && (
-            <span style={{ color: 'var(--text-primary)' }}>
-              <strong>Status:</strong> {statusFilter}
-            </span>
+            <span><strong>Status:</strong> {statusFilter}</span>
           )}
           <button 
             onClick={clearFilters}
-            className="itl-clear-filters"
+            className="op-clear-filters"
           >
             <FaTimes size={10} /> Clear All
           </button>
@@ -361,7 +397,7 @@ export default function OperationList() {
 
       {/* Loading State */}
       {loading && (
-        <div className="itl-loading">
+        <div className="op-loading">
           <FaSpinner className="spinning" size={24} />
           <p>Loading operations...</p>
         </div>
@@ -369,131 +405,118 @@ export default function OperationList() {
 
       {/* Error State */}
       {error && (
-        <div className="itl-error">
+        <div className="op-error">
           <p>{error}</p>
-          <button onClick={fetchOperations} className="itl-retry-btn">Retry</button>
+          <button onClick={fetchOperations} className="op-retry-btn">
+            Retry
+          </button>
         </div>
       )}
 
       {/* Table */}
       {!loading && !error && (
         <>
-          <div className="itl-table-wrap">
-            <table className="itl-table">
-              <thead>
-                <tr>
-                  <th className="itl-th-check">
-                    <input type="checkbox" checked={allChecked} onChange={toggleAll} className="itl-checkbox" />
-                  </th>
-                  <th className="itl-th">Operation Name</th>
-                  <th className="itl-th">Workstation</th>
-                  <th className="itl-th">Status</th>
-                  <th className="itl-th">Type</th>
-                  <th className="itl-th">Batch Size</th>
-                  <th className="itl-th">Time (min)</th>
-                  <th className="itl-th">Quality Template</th>
-                  <th className="itl-th itl-th-meta">
-                    <span className="itl-count-label">{filteredAndSortedOperations.length} of {totalItems}</span>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary, #9ca3af)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                    </svg>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedData.length === 0 ? (
+          <div className="op-table-container">
+            {paginatedData.length === 0 ? (
+              <div className="op-empty-state">
+                <div className="op-empty-content">
+                  <FaBoxes size={48} />
+                  <p>No operations found</p>
+                  <span>Try adjusting your search criteria</span>
+                </div>
+              </div>
+            ) : (
+              <table className="op-table">
+                <thead>
                   <tr>
-                    <td colSpan={9} className="itl-empty-state">
-                      <div className="itl-empty-content">
-                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-                        </svg>
-                        <p>No operations found</p>
-                        <span>Try adjusting your search criteria</span>
-                      </div>
-                    </td>
+                    <th>Name</th>
+                    <th>Workstation</th>
+                    <th>Status</th>
+                    <th>Type</th>
+                    <th>Time (min)</th>
+                    <th >
+                      Actions
+                    </th>
                   </tr>
-                ) : (
-                  paginatedData.map((row) => (
+                </thead>
+                <tbody>
+                  {paginatedData.map((row) => (
                     <tr
                       key={row.id}
-                      className={`itl-tr ${selected.has(row.id) ? "itl-tr-selected" : ""}`}
+                      className="op-tr"
                       onClick={() => handleRowClick(row)}
                     >
-                      <td className="itl-td-check" onClick={(e) => { e.stopPropagation(); toggleRow(row.id); }}>
-                        <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleRow(row.id)} className="itl-checkbox" />
-                      </td>
-                      <td className="itl-td itl-td-name">{row.name}</td>
-                      <td className="itl-td">{row.workstation}</td>
-                      <td className="itl-td">
+                      <td className="op-td-name">{row.name}</td>
+                      <td>{row.workstation}</td>
+                      <td>
                         {getStatusBadge(row.docstatus)}
                       </td>
-                      <td className="itl-td">{getOperationType(row)}</td>
-                      <td className="itl-td">{row.batch_size}</td>
-                      <td className="itl-td">{row.total_operation_time}</td>
-                      <td className="itl-td">{row.quality_inspection_template}</td>
-                      <td className="itl-td itl-td-meta">
-                        <span className="itl-ago">{formatDate(row.creation)}</span>
-                        <span className="itl-dot">·</span>
-                        <button 
-                          className="itl-meta-btn" 
-                          onClick={(e) => { e.stopPropagation(); handleViewOperation(row); }}
-                          title="View Operation"
-                        >
-                          <FaEye size={13} />
-                        </button>
-                        <button 
-                          className="itl-meta-btn" 
-                          onClick={(e) => { e.stopPropagation(); handleEditOperation(row); }}
-                          title="Edit Operation"
-                        >
-                          <FaEdit size={13} />
-                        </button>
-                        <button 
-                          className="itl-meta-btn itl-delete-btn" 
-                          onClick={(e) => { e.stopPropagation(); handleDeleteOperation(row); }}
-                          disabled={deletingId === row.id}
-                          title="Delete Operation"
-                        >
-                          {deletingId === row.id ? <FaSpinner className="spinning" size={13} /> : <FaTrash size={13} />}
-                        </button>
+                      <td>{getOperationType(row)}</td>
+                      <td>{row.total_operation_time}</td>
+                      <td className="op-td-meta">
+                        <span className="op-ago">{formatDate(row.creation)}</span>
+                        <span className="op-dot">·</span>
+                        <div className="op-action-buttons">
+                          <button 
+                            className="op-action-btn op-action-view" 
+                            onClick={(e) => { e.stopPropagation(); handleViewOperation(row); }}
+                            title="View"
+                          >
+                            <FaEye size={12} />
+                          </button>
+                          <button 
+                            className="op-action-btn op-action-edit" 
+                            onClick={(e) => { e.stopPropagation(); handleEditOperation(row); }}
+                            title="Edit"
+                          >
+                            <FaEdit size={12} />
+                          </button>
+                          <button 
+                            className="op-action-btn op-action-delete" 
+                            onClick={(e) => { e.stopPropagation(); handleDeleteOperation(row); }}
+                            disabled={deletingId === row.id}
+                            title="Delete"
+                          >
+                            {deletingId === row.id ? <FaSpinner className="spinning" size={12} /> : <FaTrash size={12} />}
+                          </button>
+                        </div>
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
 
           {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="itl-pagination">
-              <div className="itl-pagination-left">
-                <span className="itl-pagination-label">Show:</span>
+          {filteredAndSortedOperations.length > 0 && totalPages > 1 && (
+            <div className="op-pagination">
+              <div className="op-pagination-left">
+                <span className="op-pagination-label">Show:</span>
                 <select 
                   value={itemsPerPage} 
                   onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-                  className="itl-page-size-select"
+                  className="op-page-size-select"
                 >
                   <option value={10}>10</option>
                   <option value={25}>25</option>
                   <option value={50}>50</option>
                   <option value={100}>100</option>
                 </select>
-                <span className="itl-pagination-label">entries</span>
+                <span className="op-pagination-label">entries</span>
               </div>
-              <div className="itl-pagination-center">
+              <div className="op-pagination-center">
                 <button 
                   onClick={goToFirstPage} 
                   disabled={currentPage === 1} 
-                  className="itl-page-btn"
+                  className="op-page-btn"
                 >
                   <FaAngleDoubleLeft size={12} />
                 </button>
                 <button 
                   onClick={goToPrevPage} 
                   disabled={currentPage === 1} 
-                  className="itl-page-btn"
+                  className="op-page-btn"
                 >
                   <FaChevronLeft size={12} />
                 </button>
@@ -501,7 +524,7 @@ export default function OperationList() {
                   <button
                     key={page}
                     onClick={() => goToPage(page)}
-                    className={`itl-page-btn ${currentPage === page ? 'itl-page-btn-active' : ''}`}
+                    className={`op-page-btn ${currentPage === page ? 'op-page-btn-active' : ''}`}
                   >
                     {page}
                   </button>
@@ -509,21 +532,21 @@ export default function OperationList() {
                 <button 
                   onClick={goToNextPage} 
                   disabled={currentPage === totalPages} 
-                  className="itl-page-btn"
+                  className="op-page-btn"
                 >
                   <FaChevronRight size={12} />
                 </button>
                 <button 
                   onClick={goToLastPage} 
                   disabled={currentPage === totalPages} 
-                  className="itl-page-btn"
+                  className="op-page-btn"
                 >
                   <FaAngleDoubleRight size={12} />
                 </button>
               </div>
-              <div className="itl-pagination-right">
-                <span className="itl-pagination-info">
-                  Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredAndSortedOperations.length)} of {filteredAndSortedOperations.length} entries
+              <div className="op-pagination-right">
+                <span className="op-pagination-info">
+                  Showing {getStartIndex()} to {getEndIndex()} of {filteredAndSortedOperations.length} entries
                 </span>
               </div>
             </div>
