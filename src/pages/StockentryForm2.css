@@ -1,4 +1,4 @@
-/* StockEntryForm.css - Complete file */
+/* StockEntryForm2.css - Complete file with portal dropdown visibility fix */
 
 /* ─── Container ───────────────────────────────────────────────────────── */
 .sef-page {
@@ -133,48 +133,6 @@
   padding: 0 4px;
 }
 
-/* ─── Tabs ────────────────────────────────────────────────────────────── */
-.sef-tabs {
-  display: flex;
-  gap: 22px;
-  border-bottom: 1px solid var(--border-color);
-  margin-bottom: 18px;
-  overflow-x: auto;
-}
-
-.sef-tab-btn {
-  background: none;
-  border: none;
-  padding: 10px 2px 12px;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  cursor: pointer;
-  position: relative;
-  white-space: nowrap;
-  transition: color 0.15s;
-}
-
-.sef-tab-btn:hover {
-  color: var(--text-primary);
-}
-
-.sef-tab-btn-active {
-  color: var(--primary-color);
-  font-weight: 600;
-}
-
-.sef-tab-btn-active::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -1px;
-  height: 2px;
-  background: var(--primary-color);
-  border-radius: 2px 2px 0 0;
-}
-
 /* ─── Card ────────────────────────────────────────────────────────────── */
 .sef-card {
   background: var(--card-bg);
@@ -272,12 +230,6 @@
   background: color-mix(in srgb, var(--danger-color) 2%, var(--card-bg));
 }
 
-.textarea-field {
-  min-height: 100px;
-  resize: vertical;
-  padding-top: 12px;
-}
-
 .sef-hint {
   font-size: 11px;
   color: var(--text-secondary);
@@ -314,6 +266,7 @@
   align-items: flex-start;
   gap: 10px;
   margin-bottom: 12px;
+  padding-top: 6px;
 }
 
 .sef-checkbox-field input[type="checkbox"] {
@@ -340,23 +293,6 @@
 .sef-checkbox-field input[type="checkbox"]:disabled + label {
   cursor: not-allowed;
   opacity: 0.6;
-}
-
-/* ─── Barcode Input ──────────────────────────────────────────────────── */
-.barcode-input-wrap {
-  position: relative;
-}
-
-.barcode-icon {
-  position: absolute;
-  left: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--text-secondary);
-}
-
-.barcode-input-wrap .form-field {
-  padding-left: 36px;
 }
 
 /* ─── Items Count ────────────────────────────────────────────────────── */
@@ -409,12 +345,13 @@
   border: 1px solid var(--border-color);
   border-radius: 10px;
   margin-bottom: 8px;
+  position: relative;
 }
 
 .sef-editable-table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 760px;
+  min-width: 600px;
 }
 
 .sef-editable-table thead {
@@ -564,89 +501,12 @@
   background: color-mix(in srgb, var(--primary-color) 6%, var(--card-bg));
 }
 
-/* ─── Totals ──────────────────────────────────────────────────────────── */
-.sef-totals-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  margin-bottom: 16px;
-}
-
-.sef-totals-grid:last-child {
-  margin-bottom: 0;
-}
-
-.sef-total-card {
-  background: var(--layout-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  padding: 16px 20px;
-  transition: border-color 0.15s;
-}
-
-.sef-total-card:hover {
-  border-color: var(--border-color-strong);
-}
-
 .sef-total-label {
   font-size: 10px;
   font-weight: 700;
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  margin-bottom: 6px;
-}
-
-.sef-total-value {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--text-primary);
-  font-variant-numeric: tabular-nums;
-}
-
-.sef-total-value-primary {
-  color: var(--primary-color);
-}
-
-/* ─── Connections ────────────────────────────────────────────────────── */
-.sef-connections-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-}
-
-.sef-connection-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 42px;
-  padding: 0 16px;
-  border: 1.5px solid var(--border-color);
-  border-radius: 10px;
-  background: var(--card-bg);
-  font-size: 13px;
-  font-weight: 600;
-  font-family: inherit;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all 0.15s;
-  width: 100%;
-}
-
-.sef-connection-btn:hover {
-  border-color: var(--primary-color);
-  color: var(--primary-color);
-  background: color-mix(in srgb, var(--primary-color) 6%, var(--card-bg));
-}
-
-.sef-connection-btn-secondary {
-  border-color: var(--border-color);
-  color: var(--primary-color);
-}
-
-.sef-connection-btn-secondary:hover {
-  border-color: var(--primary-color);
-  background: color-mix(in srgb, var(--primary-color) 8%, var(--card-bg));
 }
 
 /* ─── Footer ──────────────────────────────────────────────────────────── */
@@ -712,146 +572,6 @@
 .submit-btn:disabled {
   opacity: 0.65;
   cursor: not-allowed;
-}
-
-/* ─── Warehouse Search Field ──────────────────────────────────────────── */
-.warehouse-search-field {
-  margin-bottom: 0;
-}
-
-.warehouse-search-wrapper {
-  position: relative;
-}
-
-.warehouse-search-input-wrap {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.warehouse-search-icon {
-  position: absolute;
-  left: 12px;
-  color: var(--text-secondary);
-  font-size: 14px;
-  pointer-events: none;
-}
-
-.warehouse-search-input {
-  padding-left: 36px !important;
-  padding-right: 36px !important;
-}
-
-.warehouse-clear-btn {
-  position: absolute;
-  right: 10px;
-  background: none;
-  border: none;
-  font-size: 18px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  padding: 0 4px;
-  border-radius: 4px;
-  transition: background 0.15s, color 0.15s;
-  line-height: 1;
-}
-
-.warehouse-clear-btn:hover {
-  color: var(--text-primary);
-  background: var(--layout-bg);
-}
-
-.warehouse-loading-spinner {
-  position: absolute;
-  right: 12px;
-  color: var(--primary-color);
-  font-size: 14px;
-}
-
-/* ─── Warehouse Dropdown ───────────────────────────────────────────────── */
-.warehouse-dropdown {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  right: 0;
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  box-shadow: 0 8px 24px var(--shadow-color);
-  max-height: 220px;
-  overflow-y: auto;
-  z-index: 100;
-  animation: fadeIn 0.15s ease-out;
-}
-
-.warehouse-dropdown::-webkit-scrollbar {
-  width: 6px;
-}
-
-.warehouse-dropdown::-webkit-scrollbar-track {
-  background: var(--layout-bg);
-  border-radius: 0 10px 10px 0;
-}
-
-.warehouse-dropdown::-webkit-scrollbar-thumb {
-  background: var(--border-color);
-  border-radius: 4px;
-}
-
-.warehouse-dropdown::-webkit-scrollbar-thumb:hover {
-  background: var(--text-secondary);
-}
-
-.warehouse-dropdown-list {
-  list-style: none;
-  margin: 0;
-  padding: 4px 0;
-}
-
-.warehouse-dropdown-item {
-  padding: 8px 14px;
-  cursor: pointer;
-  transition: background 0.12s;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.warehouse-dropdown-item:last-child {
-  border-bottom: none;
-}
-
-.warehouse-dropdown-item:hover {
-  background: color-mix(in srgb, var(--primary-color) 8%, var(--card-bg));
-}
-
-.warehouse-dropdown-item.selected {
-  background: color-mix(in srgb, var(--primary-color) 12%, var(--card-bg));
-}
-
-.warehouse-dropdown-item .warehouse-item-name {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-primary);
-}
-
-.warehouse-dropdown-item .warehouse-item-company {
-  font-size: 11px;
-  color: var(--text-secondary);
-}
-
-.warehouse-dropdown-loading,
-.warehouse-dropdown-empty,
-.warehouse-dropdown-error {
-  padding: 16px 14px;
-  text-align: center;
-  font-size: 13px;
-  color: var(--text-secondary);
-}
-
-.warehouse-dropdown-error {
-  color: var(--danger-color);
 }
 
 /* ─── Validation Summary Modal ──────────────────────────────────────── */
@@ -1027,15 +747,24 @@
   }
 }
 
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 .spinning {
   animation: spin 0.8s linear infinite;
 }
 
 /* ─── Responsive ──────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
-  .sef-grid-2,
-  .sef-totals-grid,
-  .sef-connections-grid {
+  .sef-grid-2 {
     grid-template-columns: 1fr;
     gap: 12px;
   }
@@ -1068,10 +797,6 @@
     justify-content: center;
   }
 
-  .sef-tabs {
-    gap: 16px;
-  }
-
   .sef-table-footer {
     flex-direction: column;
     align-items: stretch;
@@ -1080,10 +805,6 @@
   .sef-table-footer-left,
   .sef-table-footer-right {
     justify-content: center;
-  }
-
-  .warehouse-dropdown {
-    max-height: 180px;
   }
 }
 
@@ -1098,11 +819,6 @@
 
   .header-title h1 {
     font-size: 16px;
-  }
-
-  .sef-tab-btn {
-    font-size: 12px;
-    padding: 8px 2px 10px;
   }
 
   .modal-header h2 {
@@ -1125,5 +841,305 @@
     max-width: 100%;
     margin: 10px;
     border-radius: 12px;
+  }
+}
+
+/* ─── Item Search Field - Enhanced Styles ───────────────────────────── */
+.item-search-field {
+  position: relative;
+  width: 100%;
+  min-width: 180px;
+  display: inline-block;
+  vertical-align: middle;
+  line-height: 0;
+}
+
+.item-search-wrapper {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+}
+
+.item-search-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.item-search-icon {
+  position: absolute;
+  left: 10px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  pointer-events: none;
+  transition: color 0.2s;
+  z-index: 2;
+}
+
+.item-search-input {
+  padding-left: 32px !important;
+  padding-right: 32px !important;
+  width: 100%;
+  font-size: 13px;
+  transition: all 0.2s;
+  background: var(--card-bg);
+  display: block;
+  margin: 0;
+}
+
+.item-search-input:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 15%, transparent);
+}
+
+.item-search-input:focus ~ .item-search-icon,
+.item-search-input:focus + .item-search-icon {
+  color: var(--primary-color);
+}
+
+.item-search-input.item-selected {
+  border-color: var(--success-color, #10b981);
+  background: color-mix(in srgb, var(--success-color, #10b981) 5%, var(--card-bg));
+}
+
+.item-clear-btn {
+  position: absolute;
+  right: 8px;
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0;
+  border-radius: 50%;
+  transition: all 0.15s;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  z-index: 2;
+}
+
+.item-clear-btn:hover {
+  color: var(--danger-color);
+  background: color-mix(in srgb, var(--danger-color) 10%, transparent);
+  transform: scale(1.1);
+}
+
+.item-loading-spinner {
+  position: absolute;
+  right: 10px;
+  color: var(--primary-color);
+  font-size: 14px;
+  z-index: 2;
+}
+
+.item-dropdown-icon {
+  position: absolute;
+  right: 10px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  pointer-events: none;
+  transition: transform 0.2s;
+  z-index: 2;
+}
+
+/* ─── Item Dropdown - Portal Based ──────────────────────────────────── */
+.item-dropdown-portal {
+  position: fixed !important;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+  animation: dropdownFadeIn 0.15s ease-out;
+  overflow-y: auto;
+  max-height: 280px;
+  margin: 0;
+  padding: 0;
+  pointer-events: auto;
+  z-index: 99999;
+}
+
+.item-dropdown-portal::-webkit-scrollbar {
+  width: 5px;
+}
+
+.item-dropdown-portal::-webkit-scrollbar-track {
+  background: var(--layout-bg);
+  border-radius: 0 10px 10px 0;
+}
+
+.item-dropdown-portal::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+
+.item-dropdown-portal::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+.item-dropdown-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px 0;
+  pointer-events: auto;
+}
+
+.item-dropdown-item {
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: all 0.12s;
+  border-bottom: 1px solid var(--border-color);
+  pointer-events: auto;
+  user-select: none;
+}
+
+.item-dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.item-dropdown-item:hover {
+  background: color-mix(in srgb, var(--primary-color) 6%, var(--card-bg));
+}
+
+.item-dropdown-item.selected {
+  background: color-mix(in srgb, var(--primary-color) 10%, var(--card-bg));
+  border-left: 3px solid var(--primary-color);
+}
+
+.item-dropdown-item.highlighted {
+  background: color-mix(in srgb, var(--primary-color) 8%, var(--card-bg));
+  border-left: 3px solid var(--primary-color);
+}
+
+.item-main-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.item-code {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-family: 'Courier New', monospace;
+  background: var(--layout-bg);
+  padding: 1px 8px;
+  border-radius: 4px;
+}
+
+.item-name {
+  font-size: 13px;
+  color: var(--text-secondary);
+  flex: 1;
+}
+
+.item-uom-badge {
+  font-size: 10px;
+  color: var(--text-secondary);
+  background: var(--layout-bg);
+  padding: 1px 8px;
+  border-radius: 12px;
+  font-weight: 500;
+  border: 1px solid var(--border-color);
+}
+
+.item-sub-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 3px;
+  padding-left: 2px;
+}
+
+.item-tag {
+  font-size: 10px;
+  color: var(--text-secondary);
+  background: var(--layout-bg);
+  padding: 1px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+}
+
+.item-dropdown-loading,
+.item-dropdown-empty,
+.item-dropdown-error {
+  padding: 16px 14px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.item-dropdown-loading .spinning {
+  font-size: 16px;
+}
+
+.item-dropdown-empty {
+  color: var(--text-secondary);
+  gap: 8px;
+}
+
+.item-dropdown-empty svg {
+  font-size: 16px;
+  opacity: 0.6;
+}
+
+.item-dropdown-error {
+  color: var(--danger-color);
+  gap: 8px;
+}
+
+.item-dropdown-error svg {
+  font-size: 16px;
+}
+
+/* ─── Make sure table cells don't clip the dropdown ─────────────────── */
+.sef-editable-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-color);
+  vertical-align: middle;
+  overflow: visible;
+  position: relative;
+}
+
+/* ─── Responsive adjustments for item search ────────────────────────── */
+@media (max-width: 768px) {
+  .item-search-field {
+    min-width: 120px;
+  }
+
+  .item-main-info {
+    flex-wrap: wrap;
+  }
+
+  .item-code {
+    font-size: 12px;
+  }
+
+  .item-name {
+    font-size: 12px;
+    width: 100%;
+  }
+}
+
+@media (max-width: 520px) {
+  .item-search-field {
+    min-width: 80px;
+  }
+
+  .item-dropdown-item {
+    padding: 6px 10px;
+  }
+
+  .item-search-input {
+    font-size: 12px;
   }
 }

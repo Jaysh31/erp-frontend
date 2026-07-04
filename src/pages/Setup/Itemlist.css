@@ -746,3 +746,58 @@
     padding: 8px 0;
   }
 }
+
+.itl-action-buttons {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+}
+
+.itl-action-btn {
+  background: transparent;
+  border: none;
+  padding: 4px 6px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.itl-action-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.itl-edit-btn {
+  color: #3b82f6;
+}
+
+.itl-edit-btn:hover {
+  color: #2563eb;
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.itl-delete-btn {
+  color: #ef4444;
+}
+
+.itl-delete-btn:hover {
+  color: #dc2626;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.itl-action-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}

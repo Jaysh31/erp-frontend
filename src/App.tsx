@@ -23,7 +23,7 @@ import NewBOMPage from "./pages/Newbompage";
 import JobCardManagement from "./pages/JobCardManagement";
 import JobCardForm from "./pages/JobCardForm";
 import Stockentry from "./pages/Stockentry";
-import StockentryForm from "./pages/StockentryForm";
+// import StockentryForm from "./pages/StockentryForm";
 
 
 import HomePage from "./pages/HomePage";
@@ -63,6 +63,8 @@ import Workstation from "./pages/Workstation";
 import NewWorkstation from "./pages/NewWorkstation";
 import OperationListing from "./pages/Setup/OperationListing";
 import OperationQuickAdd from "./pages/Setup/OperationQuickAdd";
+import StockentryForm2 from "./pages/StockentryForm2";
+import PurchaseOrderForm from "./pages/PurchaseOrderForm";
 
 
 function App() {
@@ -110,14 +112,21 @@ function App() {
               <Route path="/item-group" element={<ItemGroupList />} />
               <Route path="/item-group/:id" element={<ItemGroupForm />} />
               <Route path="/stock-entry" element={<Stockentry />} />
-              <Route path="/stock-entry/new" element={<StockentryForm />} />
-              <Route path="/stock-entry/:id" element={<StockentryForm />} />
+              <Route path="/stock-entry/new" element={<StockentryForm2 />} />
+              <Route path="/stock-entry/:id" element={<StockentryForm2 />} />
               {/* Item Routes */}
               <Route path="/item-list" element={<Itemlist />} />
               <Route path="/item/:id" element={<ItemForm />} />
               <Route path="/item-attribute" element={<ItemAttributeList />} />
               <Route path="/item-attribute/new" element={<ItemAttributeForm />} />
               <Route path="/item-attribute/:id" element={<ItemAttributeForm />} />
+
+
+                       {/* Purchase Order Routes */}
+              <Route path="/purchase-order" element={<PurchaseOrder />} />
+              <Route path="/purchase-order/new" element={<PurchaseOrderForm />} />
+              <Route path="/purchase-order/edit/:id" element={<PurchaseOrderForm />} />
+              <Route path="/purchase-order/view/:id" element={<PurchaseOrderForm />} />
 
               {/* Organization Routes */}
               <Route path="/company" element={<CompanyList />} />
