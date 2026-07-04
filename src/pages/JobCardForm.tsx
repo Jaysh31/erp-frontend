@@ -3,80 +3,38 @@ import type { ChangeEvent, FormEvent } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import {
   FaArrowLeft, FaSave, FaSpinner, FaInfoCircle, FaExclamationTriangle,
-  FaTimesCircle, FaClock, FaCogs, FaListUl, FaFileAlt, FaPlus, FaTrash,
-  FaCalendarAlt, FaBoxes,
+  FaTimesCircle, FaClock, FaListUl, FaFileAlt, FaPlus, FaTrash,
+  FaCalendarAlt, FaPlay, FaPause, FaCheck, FaUserPlus, FaTimes,
 } from "react-icons/fa";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import "./JobCardForm.css";
+import api from "../../src/services/api";
 
-// ─── local storage (no API) ────────────────────────────────────────────
+// ─── date helpers ───────────────────────────────────────────────────────
 
-const JOB_CARDS_STORAGE_KEY = "job_cards";
-const JOB_CARDS_UPDATE_EVENT = "job-cards-updated";
+const pad2 = (n: number) => String(n).padStart(2, "0");
 
-const readAllJobCards = (): any[] => {
-  try {
-    const raw = localStorage.getItem(JOB_CARDS_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch (err) {
-    console.error("Failed to read job cards from local storage:", err);
-    return [];
-  }
+/** "YYYY-MM-DD" */
+const formatDateOnly = (d: Date | null): string | null => {
+  if (!d) return null;
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 };
 
-const writeAllJobCards = (cards: any[]) => {
-  localStorage.setItem(JOB_CARDS_STORAGE_KEY, JSON.stringify(cards));
-  window.dispatchEvent(new Event(JOB_CARDS_UPDATE_EVENT));
+/** "YYYY-MM-DD HH:mm:ss" */
+const formatDateTime = (d: Date | null): string | null => {
+  if (!d) return null;
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
 };
 
-const generateJobCardId = (existing: any[]): string => {
-  let n = existing.length + 1;
-  let candidate = `JC-${String(n).padStart(5, "0")}`;
-  const ids = new Set(existing.map((c) => c.job_card_id));
-  while (ids.has(candidate)) {
-    n += 1;
-    candidate = `JC-${String(n).padStart(5, "0")}`;
-  }
-  return candidate;
+const formatElapsed = (totalSeconds: number): string => {
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  return `${pad2(h)}:${pad2(m)}:${pad2(s)}`;
 };
-
-/** Create a new job card, or update an existing one when `id` is provided. */
-const saveJobCardLocally = (data: any, id?: string): any => {
-  const all = readAllJobCards();
-
-  if (id) {
-    const idx = all.findIndex((c) => c.id === id);
-    if (idx !== -1) {
-      const updated = { ...all[idx], ...data };
-      all[idx] = updated;
-      writeAllJobCards(all);
-      return updated;
-    }
-  }
-
-  const newCard = {
-    ...data,
-    id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`,
-    job_card_id: generateJobCardId(all),
-    created_on: new Date().toISOString(),
-  };
-  all.push(newCard);
-  writeAllJobCards(all);
-  return newCard;
-};
-
-const getJobCardByIdLocally = (id: string): any | undefined =>
-  readAllJobCards().find((c) => c.id === id);
 
 // ─── interfaces ───────────────────────────────────────────────────────────
-
-interface RawMaterialItem {
-  id: string;
-  item_code: string;
-  source_warehouse: string;
-  required_qty: number;
-}
 
 interface TimeLog {
   id: string;
@@ -86,51 +44,45 @@ interface TimeLog {
   completed_qty?: number;
 }
 
-interface SecondaryItem {
+interface WorkOrderOption {
+  name: string;
+  company?: string;
+  qty?: number;
+  qty_to_manufacture?: number;
+  [key: string]: any;
+}
+
+interface EmployeeOption {
   id: string;
-  item_code: string;
-  source_warehouse: string;
-  required_qty: number;
+  name: string;
 }
 
 interface JobCardFormData {
   // Tab 0 — Details
   work_order: string;
   qty_to_manufacture: number;
-  company: string;
   posting_date: Date | null;
-  naming_series: string;
   pending_qty: number;
   total_completed_qty: number;
-  operation: string;
-  workstation_type: string;
-  source_warehouse: string;
-  workstation: string;
-  wip_warehouse: string;
-  items: RawMaterialItem[];
+  process_loss_qty: number;
   quality_inspection_template: string;
 
-  // Tab 1 — Scheduled Time
+  // Scheduled fields (merged into Details)
   expected_start_date: Date | null;
   expected_end_date: Date | null;
   for_quantity: number;
   hour_rate: number;
 
-  // Tab 2 — Actual Time
+  // Tab 1 — Actual Time
   actual_start_date: Date | null;
   actual_end_date: Date | null;
   time_logs: TimeLog[];
-
-  // Tab 3 — Secondary Items
-  secondary_items: SecondaryItem[];
-
-  // Tab 4 — More Info
   remarks: string;
-  project: string;
-  sequence_id: string;
+
+  // Internal / not directly editable in UI
+  company: string;
   status: string;
-  is_corrective_job_card: boolean;
-  barcode: string;
+  assigned_employees: string[];
 }
 
 interface ValidationError {
@@ -144,15 +96,6 @@ interface TabWarning {
   [key: number]: boolean;
 }
 
-const STATUS_OPTIONS = ["Open", "Work In Progress", "Completed", "On Hold", "Cancelled"];
-
-const emptyMaterialItem = (): RawMaterialItem => ({
-  id: Math.random().toString(36).slice(2),
-  item_code: "",
-  source_warehouse: "",
-  required_qty: 0,
-});
-
 const emptyTimeLog = (): TimeLog => ({
   id: Math.random().toString(36).slice(2),
   employee: "",
@@ -160,27 +103,13 @@ const emptyTimeLog = (): TimeLog => ({
   to_time: null,
 });
 
-const emptySecondaryItem = (): SecondaryItem => ({
-  id: Math.random().toString(36).slice(2),
-  item_code: "",
-  source_warehouse: "",
-  required_qty: 0,
-});
-
 const defaultFormData = (): JobCardFormData => ({
   work_order: "",
   qty_to_manufacture: 0,
-  company: "",
   posting_date: new Date(),
-  naming_series: "PO-JOB-.#####",
   pending_qty: 0,
   total_completed_qty: 0,
-  operation: "",
-  workstation_type: "",
-  source_warehouse: "",
-  workstation: "",
-  wip_warehouse: "",
-  items: [],
+  process_loss_qty: 0,
   quality_inspection_template: "",
 
   expected_start_date: null,
@@ -191,15 +120,11 @@ const defaultFormData = (): JobCardFormData => ({
   actual_start_date: null,
   actual_end_date: null,
   time_logs: [],
-
-  secondary_items: [],
-
   remarks: "",
-  project: "",
-  sequence_id: "",
+
+  company: "",
   status: "Open",
-  is_corrective_job_card: false,
-  barcode: "",
+  assigned_employees: [],
 });
 
 const JobCardForm: React.FC = () => {
@@ -213,52 +138,108 @@ const JobCardForm: React.FC = () => {
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [warnings, setWarnings] = useState<TabWarning>({});
   const [saving, setSaving] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
 
   const [showValidationSummary, setShowValidationSummary] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
 
   const [formData, setFormData] = useState<JobCardFormData>(defaultFormData());
 
+  // The real numeric primary key from the backend (distinct from the
+  // human-readable docname in the URL, e.g. "WO 88").
+  const [recordId, setRecordId] = useState<number | string | null>(null);
+
+  // ─── work order dropdown ────────────────────────────────────────────
+  const [workOrders, setWorkOrders] = useState<WorkOrderOption[]>([]);
+  const [loadingWorkOrders, setLoadingWorkOrders] = useState(false);
+
+  // ─── employee assignment ────────────────────────────────────────────
+  const [employees, setEmployees] = useState<EmployeeOption[]>([]);
+  const [loadingEmployees, setLoadingEmployees] = useState(false);
+  const [showEmployeeModal, setShowEmployeeModal] = useState(false);
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<Set<string>>(new Set());
+
+  // ─── job timer ───────────────────────────────────────────────────────
+  const [timerRunning, setTimerRunning] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
   const tabs = [
     { id: 0, name: "Details", icon: <FaFileAlt size={14} /> },
-    { id: 1, name: "Scheduled Time", icon: <FaCalendarAlt size={14} /> },
-    { id: 2, name: "Actual Time", icon: <FaClock size={14} /> },
-    { id: 3, name: "Secondary Items", icon: <FaBoxes size={14} /> },
-    { id: 4, name: "More Info", icon: <FaListUl size={14} /> },
+    { id: 1, name: "Actual Time", icon: <FaClock size={14} /> },
   ];
 
+  // ─── load work orders for dropdown ─────────────────────────────────
+  useEffect(() => {
+    const fetchWorkOrders = async () => {
+      setLoadingWorkOrders(true);
+      try {
+        const response = await api.get("/work-order");
+        console.log("GET /work-order raw response:", response.data);
+
+        const raw = response.data;
+        let list: any =
+          raw?.data?.records ??
+          raw?.data ??
+          raw?.work_orders ??
+          raw?.results ??
+          raw;
+
+        if (!Array.isArray(list)) {
+          console.warn("Unexpected /work-order response shape, defaulting to empty list:", raw);
+          list = [];
+        }
+
+        setWorkOrders(list);
+      } catch (err) {
+        console.error("Error fetching work orders:", err);
+        setWorkOrders([]);
+      } finally {
+        setLoadingWorkOrders(false);
+      }
+    };
+    fetchWorkOrders();
+  }, []);
+
   // ─── load existing job card when editing ──────────────────────────────
-  // Prefer data passed via navigation state (fast path from the list's row
-  // click); fall back to local storage directly by id (e.g. deep link or
-  // page refresh) since there is no API to re-fetch from.
   useEffect(() => {
     if (isEditMode && id) {
       const state = location.state as { jobCard?: any };
       if (state?.jobCard) {
         loadJobCardIntoForm(state.jobCard);
       } else {
-        const stored = getJobCardByIdLocally(id);
-        if (stored) loadJobCardIntoForm(stored);
+        fetchJobCardById(id);
       }
     }
   }, [id]);
 
+  const fetchJobCardById = async (jobCardId: string) => {
+    try {
+      const response = await api.get("/job-card");
+      if (response.data.success === 1) {
+        const all = response.data.data || [];
+        const found = all.find(
+          (jc: any) => jc.name === jobCardId || String(jc.id) === jobCardId
+        );
+        if (found) loadJobCardIntoForm(found);
+      }
+    } catch (err: any) {
+      console.error("Error fetching job card:", err);
+      setApiError(err.response?.data?.message || "Failed to load job card");
+    }
+  };
+
   const loadJobCardIntoForm = (jc: any) => {
+    setRecordId(jc.id ?? null);
+
     setFormData((prev) => ({
       ...prev,
       work_order: jc.work_order || "",
-      qty_to_manufacture: jc.qty_to_manufacture || 0,
+      qty_to_manufacture: jc.requested_qty ?? jc.for_quantity ?? 0,
       company: jc.company || "",
       posting_date: jc.posting_date ? new Date(jc.posting_date) : new Date(),
-      naming_series: jc.naming_series || prev.naming_series,
       pending_qty: jc.pending_qty || 0,
       total_completed_qty: jc.total_completed_qty || 0,
-      operation: jc.operation || "",
-      workstation_type: jc.workstation_type || "",
-      source_warehouse: jc.source_warehouse || "",
-      workstation: jc.workstation || "",
-      wip_warehouse: jc.wip_warehouse || "",
-      items: jc.items || [],
+      process_loss_qty: jc.process_loss_qty || 0,
       quality_inspection_template: jc.quality_inspection_template || "",
       expected_start_date: jc.expected_start_date ? new Date(jc.expected_start_date) : null,
       expected_end_date: jc.expected_end_date ? new Date(jc.expected_end_date) : null,
@@ -266,66 +247,43 @@ const JobCardForm: React.FC = () => {
       hour_rate: jc.hour_rate || 0,
       actual_start_date: jc.actual_start_date ? new Date(jc.actual_start_date) : null,
       actual_end_date: jc.actual_end_date ? new Date(jc.actual_end_date) : null,
-      time_logs: (jc.time_logs || []).map((l: any) => ({
-        ...l,
-        from_time: l.from_time ? new Date(l.from_time) : null,
-        to_time: l.to_time ? new Date(l.to_time) : null,
-      })),
-      secondary_items: jc.secondary_items || [],
       remarks: jc.remarks || "",
-      project: jc.project || "",
-      sequence_id: jc.sequence_id || "",
       status: jc.status || "Open",
-      is_corrective_job_card: !!jc.is_corrective_job_card,
-      barcode: jc.barcode || "",
     }));
+
+    // Resume timer state if job was already in progress when loaded
+    if (jc.actual_start_date && !jc.actual_end_date) {
+      const startMs = new Date(jc.actual_start_date).getTime();
+      setElapsedSeconds(Math.max(0, Math.floor((Date.now() - startMs) / 1000)));
+      setTimerRunning(jc.status === "Work In Progress");
+    }
   };
 
   // ─── validation ────────────────────────────────────────────────────────
 
   const getValidationErrors = (step: number): { [key: string]: string } => {
     const newErrors: { [key: string]: string } = {};
-
     if (step === 0) {
       if (!formData.work_order.trim()) newErrors.work_order = "Work Order is required";
-      if (!formData.company.trim()) newErrors.company = "Company is required";
-      if (!formData.naming_series.trim()) newErrors.naming_series = "Naming Series is required";
-      if (!formData.operation.trim()) newErrors.operation = "Operation is required";
-      if (!formData.workstation.trim()) newErrors.workstation = "Workstation is required";
-      if (!formData.wip_warehouse.trim()) newErrors.wip_warehouse = "WIP Warehouse is required";
     }
-
     return newErrors;
   };
 
   const getAllValidationErrors = (): ValidationError[] => {
     const allErrors: ValidationError[] = [];
 
-    // Tab 0 — Details
     if (!formData.work_order.trim())
       allErrors.push({ field: "work_order", label: "Work Order", message: "Work Order is required", tabIndex: 0 });
-    if (!formData.company.trim())
-      allErrors.push({ field: "company", label: "Company", message: "Company is required", tabIndex: 0 });
-    if (!formData.naming_series.trim())
-      allErrors.push({ field: "naming_series", label: "Naming Series", message: "Naming Series is required", tabIndex: 0 });
-    if (!formData.operation.trim())
-      allErrors.push({ field: "operation", label: "Operation", message: "Operation is required", tabIndex: 0 });
-    if (!formData.workstation.trim())
-      allErrors.push({ field: "workstation", label: "Workstation", message: "Workstation is required", tabIndex: 0 });
-    if (!formData.wip_warehouse.trim())
-      allErrors.push({ field: "wip_warehouse", label: "WIP Warehouse", message: "WIP Warehouse is required", tabIndex: 0 });
 
-    // Tab 1 — Scheduled Time
     if (formData.expected_start_date && formData.expected_end_date) {
       if (formData.expected_end_date < formData.expected_start_date) {
-        allErrors.push({ field: "expected_end_date", label: "Expected End Date", message: "End date cannot be before start date", tabIndex: 1 });
+        allErrors.push({ field: "expected_end_date", label: "Expected End Date", message: "End date cannot be before start date", tabIndex: 0 });
       }
     }
 
-    // Tab 2 — Actual Time
     formData.time_logs.forEach((log, i) => {
       if (log.from_time && log.to_time && log.to_time < log.from_time) {
-        allErrors.push({ field: `time_log_${i}`, label: `Time Log ${i + 1}`, message: "To time cannot be before From time", tabIndex: 2 });
+        allErrors.push({ field: `time_log_${i}`, label: `Time Log ${i + 1}`, message: "To time cannot be before From time", tabIndex: 1 });
       }
     });
 
@@ -362,7 +320,7 @@ const JobCardForm: React.FC = () => {
 
   const handleNext = () => {
     const nextTab = activeTab + 1;
-    if (nextTab <= 4) {
+    if (nextTab <= 1) {
       checkTabWarnings(nextTab);
       setActiveTab(nextTab);
       setErrors({});
@@ -386,9 +344,6 @@ const JobCardForm: React.FC = () => {
     if (type === "number") {
       processedValue = value === "" ? 0 : parseFloat(value) || 0;
     }
-    if (type === "checkbox") {
-      processedValue = (e.target as HTMLInputElement).checked;
-    }
     setFormData((prev) => ({ ...prev, [name]: processedValue }));
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
     checkTabWarnings(activeTab);
@@ -403,24 +358,26 @@ const JobCardForm: React.FC = () => {
     checkTabWarnings(activeTab);
   };
 
-  // ─── raw material items (Tab 0) ───────────────────────────────────────
+  // ─── work order select ──────────────────────────────────────────────
 
-  const addItem = () => {
-    setFormData((prev) => ({ ...prev, items: [...prev.items, emptyMaterialItem()] }));
-  };
-
-  const removeItem = (itemId: string) => {
-    setFormData((prev) => ({ ...prev, items: prev.items.filter((it) => it.id !== itemId) }));
-  };
-
-  const updateItem = (itemId: string, field: keyof RawMaterialItem, value: string | number) => {
+  const handleWorkOrderSelect = (e: ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value;
+    if (value === "__create_new__") {
+      navigate("/work-order/new");
+      return;
+    }
+    const wo = workOrders.find((w) => w.name === value);
     setFormData((prev) => ({
       ...prev,
-      items: prev.items.map((it) => (it.id === itemId ? { ...it, [field]: value } : it)),
+      work_order: value,
+      company: wo?.company ?? prev.company,
+      qty_to_manufacture: wo?.qty ?? prev.qty_to_manufacture,
     }));
+    if (errors.work_order) setErrors((prev) => ({ ...prev, work_order: "" }));
+    checkTabWarnings(activeTab);
   };
 
-  // ─── time logs (Tab 2) ────────────────────────────────────────────────
+  // ─── time logs (Tab 1) ────────────────────────────────────────────────
 
   const addTimeLog = () => {
     setFormData((prev) => ({ ...prev, time_logs: [...prev.time_logs, emptyTimeLog()] }));
@@ -437,70 +394,159 @@ const JobCardForm: React.FC = () => {
     }));
   };
 
-  // ─── secondary items (Tab 3) ──────────────────────────────────────────
+  // ─── employee assignment ────────────────────────────────────────────
 
-  const addSecondaryItem = () => {
-    setFormData((prev) => ({ ...prev, secondary_items: [...prev.secondary_items, emptySecondaryItem()] }));
+  const openEmployeeModal = async () => {
+    setSelectedEmployeeIds(new Set(formData.assigned_employees));
+    setShowEmployeeModal(true);
+    if (employees.length === 0) {
+      setLoadingEmployees(true);
+      try {
+        const response = await api.get("/employee");
+        if (response.data.success === 1) {
+          setEmployees(response.data.data || []);
+        }
+      } catch (err) {
+        console.error("Error fetching employees:", err);
+      } finally {
+        setLoadingEmployees(false);
+      }
+    }
   };
 
-  const removeSecondaryItem = (itemId: string) => {
+  const toggleEmployeeSelect = (empId: string) => {
+    setSelectedEmployeeIds((prev) => {
+      const next = new Set(prev);
+      next.has(empId) ? next.delete(empId) : next.add(empId);
+      return next;
+    });
+  };
+
+  const confirmEmployeeAssignment = () => {
+    setFormData((prev) => ({ ...prev, assigned_employees: Array.from(selectedEmployeeIds) }));
+    setShowEmployeeModal(false);
+  };
+
+  // ─── job timer controls ─────────────────────────────────────────────
+
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval> | undefined;
+    if (timerRunning) {
+      interval = setInterval(() => setElapsedSeconds((s) => s + 1), 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [timerRunning]);
+
+  const jobStarted = !!formData.actual_start_date;
+  const jobCompleted = formData.status === "Completed";
+
+  const handleStartJob = () => {
     setFormData((prev) => ({
       ...prev,
-      secondary_items: prev.secondary_items.filter((it) => it.id !== itemId),
+      actual_start_date: prev.actual_start_date ?? new Date(),
+      status: "Work In Progress",
+    }));
+    setTimerRunning(true);
+  };
+
+  const handlePauseJob = () => {
+    setTimerRunning(false);
+    setFormData((prev) => ({ ...prev, status: "On Hold" }));
+  };
+
+  const handleCompleteJob = () => {
+    setTimerRunning(false);
+    setFormData((prev) => ({
+      ...prev,
+      actual_end_date: new Date(),
+      status: "Completed",
     }));
   };
 
-  const updateSecondaryItem = (itemId: string, field: keyof SecondaryItem, value: string | number) => {
-    setFormData((prev) => ({
-      ...prev,
-      secondary_items: prev.secondary_items.map((it) =>
-        it.id === itemId ? { ...it, [field]: value } : it
-      ),
-    }));
+  // ─── build API payload ─────────────────────────────────────────────────
+
+  const buildApiPayload = () => {
+    const timeRequired =
+      formData.expected_start_date && formData.expected_end_date
+        ? Math.max(
+          0,
+          Math.round(
+            (formData.expected_end_date.getTime() - formData.expected_start_date.getTime()) / 60000
+          )
+        )
+        : 0;
+
+    const totalTimeInMins = formData.time_logs.reduce((sum, log) => {
+      if (log.from_time && log.to_time) {
+        return sum + Math.max(0, Math.round((log.to_time.getTime() - log.from_time.getTime()) / 60000));
+      }
+      return sum;
+    }, 0);
+
+    return {
+      work_order: formData.work_order,
+      production_item: "",
+      for_quantity: formData.for_quantity || formData.qty_to_manufacture,
+      bom_no: "",
+      company: formData.company,
+      naming_series: "PO-JOB-.#####",
+      posting_date: formatDateOnly(formData.posting_date),
+      finished_good: "",
+      semi_fg_bom: "",
+      pending_qty: formData.pending_qty,
+      process_loss_qty: formData.process_loss_qty,
+      total_completed_qty: formData.total_completed_qty,
+      transferred_qty: 0,
+      manufactured_qty: 0,
+      operation: "",
+      source_warehouse: "",
+      wip_warehouse: "",
+      skip_material_transfer: 0,
+      backflush_from_wip_warehouse: 0,
+      workstation_type: "",
+      workstation: "",
+      target_warehouse: "",
+      quality_inspection_template: formData.quality_inspection_template,
+      quality_inspection: "",
+      expected_start_date: formatDateTime(formData.expected_start_date),
+      time_required: timeRequired,
+      expected_end_date: formatDateTime(formData.expected_end_date),
+      actual_start_date: formatDateTime(formData.actual_start_date),
+      total_time_in_mins: totalTimeInMins,
+      actual_end_date: formatDateTime(formData.actual_end_date),
+      for_job_card: "",
+      is_corrective_job_card: 0,
+      hour_rate: formData.hour_rate,
+      for_operation: "",
+      item_name: "",
+      requested_qty: formData.qty_to_manufacture,
+      is_paused: formData.status === "On Hold" ? 1 : 0,
+      is_subcontracted: 0,
+      track_semi_finished_goods: 0,
+      project: "",
+      remarks: formData.remarks,
+      status: formData.status,
+      operation_row_id: 1,
+      operation_row_number: 1,
+      operation_id: "",
+      sequence_id: 1,
+      serial_no: "",
+      serial_and_batch_bundle: "",
+      barcode: "",
+      batch_no: "",
+      modified_by: "Administrator",
+      owner: "Administrator",
+      docstatus: 0,
+      idx: 0,
+      // assigned_employees: formData.assigned_employees.join(", "),
+    };
   };
 
-  // ─── submit — saved to localStorage, no API ───────────────────────────
+  // ─── submit — POST/PUT /job-card ───────────────────────────────────────
 
-  const buildLocalPayload = () => ({
-    work_order: formData.work_order,
-    qty_to_manufacture: formData.qty_to_manufacture,
-    company: formData.company,
-    posting_date: formData.posting_date ? formData.posting_date.toISOString() : null,
-    naming_series: formData.naming_series,
-    pending_qty: formData.pending_qty,
-    total_completed_qty: formData.total_completed_qty,
-    operation: formData.operation,
-    workstation_type: formData.workstation_type,
-    source_warehouse: formData.source_warehouse,
-    workstation: formData.workstation,
-    wip_warehouse: formData.wip_warehouse,
-    items: formData.items,
-    quality_inspection_template: formData.quality_inspection_template,
-
-    expected_start_date: formData.expected_start_date ? formData.expected_start_date.toISOString() : null,
-    expected_end_date: formData.expected_end_date ? formData.expected_end_date.toISOString() : null,
-    for_quantity: formData.for_quantity,
-    hour_rate: formData.hour_rate,
-
-    actual_start_date: formData.actual_start_date ? formData.actual_start_date.toISOString() : null,
-    actual_end_date: formData.actual_end_date ? formData.actual_end_date.toISOString() : null,
-    time_logs: formData.time_logs.map((log) => ({
-      ...log,
-      from_time: log.from_time ? log.from_time.toISOString() : null,
-      to_time: log.to_time ? log.to_time.toISOString() : null,
-    })),
-
-    secondary_items: formData.secondary_items,
-
-    remarks: formData.remarks,
-    project: formData.project,
-    sequence_id: formData.sequence_id,
-    status: formData.status,
-    is_corrective_job_card: formData.is_corrective_job_card,
-    barcode: formData.barcode,
-  });
-
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
     const allErrors = getAllValidationErrors();
@@ -511,13 +557,32 @@ const JobCardForm: React.FC = () => {
     }
 
     setSaving(true);
+    setApiError(null);
+
     try {
-      const payload = buildLocalPayload();
-      saveJobCardLocally(payload, isEditMode ? id : undefined);
+      const payload = buildApiPayload();
+
+      let response;
+      if (isEditMode && id) {
+        response = await api.put("/job-card", { id: recordId ?? id, ...payload });
+      } else {
+        response = await api.post("/job-card", payload);
+      }
+
+      if (response.data.success !== 1) {
+        throw new Error(response.data?.message || "Failed to save job card");
+      }
+
       navigate("/job-card");
-    } catch (err) {
-      console.error("Error saving job card locally:", err);
-      alert("Failed to save job card");
+    } catch (err: any) {
+      console.error("Error saving job card:", err);
+      if (err.response) {
+        setApiError(err.response.data?.message || `Server error: ${err.response.status}`);
+      } else if (err.request) {
+        setApiError("Network error. Please check your connection.");
+      } else {
+        setApiError(err.message || "Failed to save job card");
+      }
     } finally {
       setSaving(false);
     }
@@ -569,6 +634,48 @@ const JobCardForm: React.FC = () => {
         </div>
       )}
 
+      {/* Assign Employee Modal */}
+      {showEmployeeModal && (
+        <div className="jcf-modal-overlay" onClick={() => setShowEmployeeModal(false)}>
+          <div className="jcf-validation-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="jcf-modal-header">
+              <h2 className="jcf-modal-title-plain">Assign Job to Employee</h2>
+              <button className="jcf-modal-close" onClick={() => setShowEmployeeModal(false)}>
+                <FaTimes size={16} />
+              </button>
+            </div>
+            <div className="jcf-modal-body">
+              {loadingEmployees ? (
+                <p className="jcf-modal-intro">Loading employees...</p>
+              ) : employees.length === 0 ? (
+                <p className="jcf-modal-intro">No employees found.</p>
+              ) : (
+                <div className="jcf-employee-list">
+                  {employees.map((emp) => (
+                    <label key={emp.id} className="jcf-employee-item">
+                      <input
+                        type="checkbox"
+                        checked={selectedEmployeeIds.has(emp.id)}
+                        onChange={() => toggleEmployeeSelect(emp.id)}
+                        className="jcf-checkbox"
+                      />
+                      <div>
+                        <div className="jcf-employee-id">{emp.id}</div>
+                        <div className="jcf-employee-name">{emp.name}</div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="jcf-modal-footer">
+              <button className="jcf-btn-cancel" onClick={() => setShowEmployeeModal(false)}>Cancel</button>
+              <button className="jcf-btn-primary" onClick={confirmEmployeeAssignment}>Assign</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="jcf-header-wrap">
         <div className="jcf-header-row">
@@ -578,6 +685,13 @@ const JobCardForm: React.FC = () => {
           <h1 className="jcf-title">
             {isEditMode ? "Edit Job Card" : "New Job Card"}
           </h1>
+
+          {apiError && (
+            <div className="jcf-error-pill">
+              <FaExclamationTriangle size={11} />
+              {apiError}
+            </div>
+          )}
 
           {hasAnyErrors && (
             <div className="jcf-error-pill">
@@ -590,6 +704,50 @@ const JobCardForm: React.FC = () => {
 
       <div className="jcf-container">
         <form onSubmit={handleSubmit}>
+
+          {/* Timer / Job actions bar */}
+          <div className="jcf-timer-bar">
+            <div className="jcf-timer-display">
+              <span className="jcf-timer-label"><FaClock size={11} /> ELAPSED TIME</span>
+              <span className="jcf-timer-value">{formatElapsed(elapsedSeconds)}</span>
+            </div>
+            <div className="jcf-timer-actions">
+              <button type="button" className="jcf-btn-secondary" onClick={openEmployeeModal}>
+                <FaUserPlus size={12} /> Assign Employee
+                {formData.assigned_employees.length > 0 ? ` (${formData.assigned_employees.length})` : ""}
+              </button>
+
+              {!jobStarted && !jobCompleted && (
+                <button type="button" className="jcf-btn-start" onClick={handleStartJob}>
+                  <FaPlay size={11} /> Start Job
+                </button>
+              )}
+
+              {jobStarted && !jobCompleted && timerRunning && (
+                <>
+                  <button type="button" className="jcf-btn-secondary" onClick={handlePauseJob}>
+                    <FaPause size={11} /> Pause Job
+                  </button>
+                  <button type="button" className="jcf-btn-complete" onClick={handleCompleteJob}>
+                    <FaCheck size={11} /> Complete Job
+                  </button>
+                </>
+              )}
+
+              {jobStarted && !jobCompleted && !timerRunning && (
+                <>
+                  <button type="button" className="jcf-btn-start" onClick={handleStartJob}>
+                    <FaPlay size={11} /> Resume Job
+                  </button>
+                  <button type="button" className="jcf-btn-complete" onClick={handleCompleteJob}>
+                    <FaCheck size={11} /> Complete Job
+                  </button>
+                </>
+              )}
+
+              {jobCompleted && <span className="jcf-status-done"><FaCheck size={11} /> Completed</span>}
+            </div>
+          </div>
 
           {/* Tabs */}
           <div className="jcf-tabs-wrap">
@@ -607,9 +765,8 @@ const JobCardForm: React.FC = () => {
                     className={`jcf-tab-btn ${isActive ? "jcf-tab-btn-active" : ""}`}
                   >
                     <div
-                      className={`jcf-tab-circle ${isActive ? "jcf-tab-circle-active" : ""} ${
-                        tabStatus === "warning" && !isActive ? "jcf-tab-circle-warning" : ""
-                      }`}
+                      className={`jcf-tab-circle ${isActive ? "jcf-tab-circle-active" : ""} ${tabStatus === "warning" && !isActive ? "jcf-tab-circle-warning" : ""
+                        }`}
                     >
                       {tabStatus === "warning" && !isActive ? <FaExclamationTriangle size={14} /> : tab.id + 1}
 
@@ -619,9 +776,8 @@ const JobCardForm: React.FC = () => {
                     </div>
 
                     <div className="jcf-tab-label-wrap">
-                      <div className={`jcf-tab-step ${isActive ? "jcf-tab-step-active" : ""} ${
-                        tabStatus === "warning" && !isActive ? "jcf-tab-step-warning" : ""
-                      }`}>
+                      <div className={`jcf-tab-step ${isActive ? "jcf-tab-step-active" : ""} ${tabStatus === "warning" && !isActive ? "jcf-tab-step-warning" : ""
+                        }`}>
                         Step {tab.id + 1}
                       </div>
                       <div className={`jcf-tab-name ${isActive ? "jcf-tab-name-active" : ""}`}>
@@ -649,17 +805,21 @@ const JobCardForm: React.FC = () => {
             {activeTab === 0 && (
               <div className="jcf-fade-in">
                 <div className="jcf-card">
-                  <div className="jcf-grid-2">
+                  <div className="jcf-grid-3">
                     <div>
                       <label className="jcf-label">Work Order *</label>
-                      <input
-                        type="text"
+                      <select
                         name="work_order"
                         value={formData.work_order}
-                        onChange={handleInputChange}
-                        placeholder="e.g. WO-00012"
+                        onChange={handleWorkOrderSelect}
                         className={`jcf-input ${errors.work_order ? "jcf-input-error" : ""}`}
-                      />
+                      >
+                        <option value="">{loadingWorkOrders ? "Loading..." : "Select Work Order"}</option>
+                        {workOrders.map((wo) => (
+                          <option key={wo.name} value={wo.name}>{wo.name}</option>
+                        ))}
+                        <option value="__create_new__">+ Create New Work Order</option>
+                      </select>
                       {errors.work_order && <span className="jcf-error-text">{errors.work_order}</span>}
                     </div>
                     <div>
@@ -673,21 +833,6 @@ const JobCardForm: React.FC = () => {
                         className="jcf-input"
                       />
                     </div>
-                  </div>
-
-                  <div className="jcf-grid-2">
-                    <div>
-                      <label className="jcf-label">Company *</label>
-                      <input
-                        type="text"
-                        name="company"
-                        value={formData.company}
-                        onChange={handleInputChange}
-                        placeholder="Company name"
-                        className={`jcf-input ${errors.company ? "jcf-input-error" : ""}`}
-                      />
-                      {errors.company && <span className="jcf-error-text">{errors.company}</span>}
-                    </div>
                     <div>
                       <label className="jcf-label">Posting Date</label>
                       <DatePicker
@@ -699,166 +844,48 @@ const JobCardForm: React.FC = () => {
                     </div>
                   </div>
 
+                  <div className="jcf-grid-3 jcf-mb-20">
+                    <div className="jcf-grid-3 jcf-mb-20">
+                      <div>
+                        <label className="jcf-label">Pending Qty</label>
+                        <input
+                          type="number"
+                          name="pending_qty"
+                          value={formData.pending_qty || ""}
+                          onChange={handleInputChange}
+                          placeholder="0"
+                          className="jcf-input"
+                          disabled={!(formData.status === "On Hold" || formData.status === "Completed")}
+                        />
+                      </div>
+                      <div>
+                        <label className="jcf-label">Total Completed Qty</label>
+                        <input
+                          type="number"
+                          name="total_completed_qty"
+                          value={formData.total_completed_qty || 0}
+                          onChange={handleInputChange}
+                          placeholder="0"
+                          className="jcf-input"
+                          disabled={!(formData.status === "On Hold" || formData.status === "Completed")}
+                        />
+                      </div>
+                      <div>
+                        <label className="jcf-label">Loss</label>
+                        <input
+                          type="number"
+                          name="process_loss_qty"
+                          value={formData.process_loss_qty || ""}
+                          onChange={handleInputChange}
+                          placeholder="0"
+                          className="jcf-input"
+                          disabled={!(formData.status === "On Hold" || formData.status === "Completed")}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="jcf-field-block">
-                    <label className="jcf-label">Naming Series *</label>
-                    <select
-                      name="naming_series"
-                      value={formData.naming_series}
-                      onChange={handleInputChange}
-                      className={`jcf-input ${errors.naming_series ? "jcf-input-error" : ""}`}
-                    >
-                      <option value="PO-JOB-.#####">PO-JOB-.#####</option>
-                    </select>
-                    {errors.naming_series && <span className="jcf-error-text">{errors.naming_series}</span>}
-                  </div>
-
-                  <div className="jcf-grid-2 jcf-mb-20">
-                    <div>
-                      <label className="jcf-label">Pending Qty</label>
-                      <input type="number" name="pending_qty" value={formData.pending_qty || ""} onChange={handleInputChange} placeholder="0" className="jcf-input" disabled />
-                    </div>
-                    <div>
-                      <label className="jcf-label">Total Completed Qty</label>
-                      <input type="number" name="total_completed_qty" value={formData.total_completed_qty || 0} onChange={handleInputChange} className="jcf-input" disabled />
-                    </div>
-                  </div>
-
-                  <div className="jcf-section-title jcf-section-title-first"><FaCogs size={12} /> Operation & Materials</div>
-
-                  <div className="jcf-grid-2">
-                    <div>
-                      <label className="jcf-label">Operation *</label>
-                      <input
-                        type="text"
-                        name="operation"
-                        value={formData.operation}
-                        onChange={handleInputChange}
-                        placeholder="e.g. Assembly"
-                        className={`jcf-input ${errors.operation ? "jcf-input-error" : ""}`}
-                      />
-                      {errors.operation && <span className="jcf-error-text">{errors.operation}</span>}
-                    </div>
-                    <div>
-                      <label className="jcf-label">Workstation Type</label>
-                      <input
-                        type="text"
-                        name="workstation_type"
-                        value={formData.workstation_type}
-                        onChange={handleInputChange}
-                        placeholder="Optional"
-                        className="jcf-input"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="jcf-grid-2">
-                    <div>
-                      <label className="jcf-label">Source Warehouse</label>
-                      <input
-                        type="text"
-                        name="source_warehouse"
-                        value={formData.source_warehouse}
-                        onChange={handleInputChange}
-                        placeholder="Optional"
-                        className="jcf-input"
-                      />
-                    </div>
-                    <div>
-                      <label className="jcf-label">Workstation *</label>
-                      <input
-                        type="text"
-                        name="workstation"
-                        value={formData.workstation}
-                        onChange={handleInputChange}
-                        placeholder="e.g. Line 1"
-                        className={`jcf-input ${errors.workstation ? "jcf-input-error" : ""}`}
-                      />
-                      {errors.workstation && <span className="jcf-error-text">{errors.workstation}</span>}
-                    </div>
-                  </div>
-
-                  <div className="jcf-field-block jcf-mb-20">
-                    <label className="jcf-label">WIP Warehouse *</label>
-                    <input
-                      type="text"
-                      name="wip_warehouse"
-                      value={formData.wip_warehouse}
-                      onChange={handleInputChange}
-                      placeholder="Work-in-progress warehouse"
-                      className={`jcf-input ${errors.wip_warehouse ? "jcf-input-error" : ""}`}
-                    />
-                    {errors.wip_warehouse && <span className="jcf-error-text">{errors.wip_warehouse}</span>}
-                  </div>
-
-                  <div className="jcf-section-title"><FaBoxes size={12} /> Raw Materials</div>
-
-                  <div className="jcf-table-wrap">
-                    <table className="jcf-table">
-                      <colgroup>
-                        <col style={{ width: "36%" }} />
-                        <col style={{ width: "32%" }} />
-                        <col style={{ width: "20%" }} />
-                        <col style={{ width: "12%" }} />
-                      </colgroup>
-                      <thead>
-                        <tr>
-                          <th>Item Code</th>
-                          <th>Source Warehouse</th>
-                          <th>Required Qty</th>
-                          <th></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {formData.items.length === 0 ? (
-                          <tr>
-                            <td colSpan={4} className="jcf-table-empty">No rows</td>
-                          </tr>
-                        ) : (
-                          formData.items.map((item) => (
-                            <tr key={item.id}>
-                              <td>
-                                <input
-                                  type="text"
-                                  value={item.item_code}
-                                  onChange={(e) => updateItem(item.id, "item_code", e.target.value)}
-                                  placeholder="Item code"
-                                  className="jcf-cell-input"
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  type="text"
-                                  value={item.source_warehouse}
-                                  onChange={(e) => updateItem(item.id, "source_warehouse", e.target.value)}
-                                  placeholder="Warehouse"
-                                  className="jcf-cell-input"
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  type="number"
-                                  value={item.required_qty || ""}
-                                  onChange={(e) => updateItem(item.id, "required_qty", parseFloat(e.target.value) || 0)}
-                                  placeholder="0"
-                                  className="jcf-cell-input"
-                                />
-                              </td>
-                              <td className="jcf-cell-center">
-                                <button type="button" onClick={() => removeItem(item.id)} className="jcf-row-remove">
-                                  <FaTrash size={11} />
-                                </button>
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                  <button type="button" onClick={addItem} className="jcf-add-row-btn">
-                    <FaPlus size={10} /> Add Row
-                  </button>
-
-                  <div className="jcf-field-block jcf-mt-20">
                     <label className="jcf-label">Quality Inspection Template</label>
                     <input
                       type="text"
@@ -869,17 +896,10 @@ const JobCardForm: React.FC = () => {
                       className="jcf-input"
                     />
                   </div>
-                </div>
-              </div>
-            )}
 
-            {/* Tab 1 — Scheduled Time */}
-            {activeTab === 1 && (
-              <div className="jcf-fade-in">
-                <div className="jcf-card">
-                  <div className="jcf-section-title jcf-section-title-first"><FaCalendarAlt size={12} /> Expected Schedule</div>
+                  <div className="jcf-section-title"><FaCalendarAlt size={12} /> Scheduled Time</div>
 
-                  <div className="jcf-grid-2">
+                  <div className="jcf-grid-4">
                     <div>
                       <label className="jcf-label">Expected Start Date</label>
                       <DatePicker
@@ -887,7 +907,7 @@ const JobCardForm: React.FC = () => {
                         onChange={(date: Date | null) => handleDateChange("expected_start_date", date)}
                         showTimeSelect
                         dateFormat="dd-MM-yyyy HH:mm"
-                        placeholderText="Select start date & time"
+                        placeholderText="Select start"
                         className="jcf-date-input"
                       />
                     </div>
@@ -898,14 +918,11 @@ const JobCardForm: React.FC = () => {
                         onChange={(date: Date | null) => handleDateChange("expected_end_date", date)}
                         showTimeSelect
                         dateFormat="dd-MM-yyyy HH:mm"
-                        placeholderText="Select end date & time"
+                        placeholderText="Select end"
                         className="jcf-date-input"
                       />
                       {errors.expected_end_date && <span className="jcf-error-text">{errors.expected_end_date}</span>}
                     </div>
-                  </div>
-
-                  <div className="jcf-grid-2">
                     <div>
                       <label className="jcf-label">For Quantity</label>
                       <input
@@ -929,18 +946,12 @@ const JobCardForm: React.FC = () => {
                       />
                     </div>
                   </div>
-
-                  {formData.expected_start_date && formData.expected_end_date && (
-                    <div className="jcf-info-banner">
-                      Scheduled from {formData.expected_start_date.toLocaleString()} to {formData.expected_end_date.toLocaleString()}
-                    </div>
-                  )}
                 </div>
               </div>
             )}
 
-            {/* Tab 2 — Actual Time */}
-            {activeTab === 2 && (
+            {/* Tab 1 — Actual Time */}
+            {activeTab === 1 && (
               <div className="jcf-fade-in">
                 <div className="jcf-card">
                   <div className="jcf-section-title jcf-section-title-first"><FaClock size={12} /> Actual Schedule</div>
@@ -1051,153 +1062,8 @@ const JobCardForm: React.FC = () => {
                   <button type="button" onClick={addTimeLog} className="jcf-add-row-btn">
                     <FaPlus size={10} /> Add Time Log
                   </button>
-                </div>
-              </div>
-            )}
 
-            {/* Tab 3 — Secondary Items */}
-            {activeTab === 3 && (
-              <div className="jcf-fade-in">
-                <div className="jcf-card">
-                  <div className="jcf-section-title jcf-section-title-first"><FaBoxes size={12} /> Secondary Items</div>
-                  <p className="jcf-helper-text">
-                    Items consumed as secondary/transfer materials for this operation, separate from the primary raw materials.
-                  </p>
-
-                  <div className="jcf-table-wrap">
-                    <table className="jcf-table">
-                      <colgroup>
-                        <col style={{ width: "36%" }} />
-                        <col style={{ width: "32%" }} />
-                        <col style={{ width: "20%" }} />
-                        <col style={{ width: "12%" }} />
-                      </colgroup>
-                      <thead>
-                        <tr>
-                          <th>Item Code</th>
-                          <th>Source Warehouse</th>
-                          <th>Required Qty</th>
-                          <th></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {formData.secondary_items.length === 0 ? (
-                          <tr>
-                            <td colSpan={4} className="jcf-table-empty">No rows</td>
-                          </tr>
-                        ) : (
-                          formData.secondary_items.map((item) => (
-                            <tr key={item.id}>
-                              <td>
-                                <input
-                                  type="text"
-                                  value={item.item_code}
-                                  onChange={(e) => updateSecondaryItem(item.id, "item_code", e.target.value)}
-                                  placeholder="Item code"
-                                  className="jcf-cell-input"
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  type="text"
-                                  value={item.source_warehouse}
-                                  onChange={(e) => updateSecondaryItem(item.id, "source_warehouse", e.target.value)}
-                                  placeholder="Warehouse"
-                                  className="jcf-cell-input"
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  type="number"
-                                  value={item.required_qty || ""}
-                                  onChange={(e) => updateSecondaryItem(item.id, "required_qty", parseFloat(e.target.value) || 0)}
-                                  placeholder="0"
-                                  className="jcf-cell-input"
-                                />
-                              </td>
-                              <td className="jcf-cell-center">
-                                <button type="button" onClick={() => removeSecondaryItem(item.id)} className="jcf-row-remove">
-                                  <FaTrash size={11} />
-                                </button>
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                  <button type="button" onClick={addSecondaryItem} className="jcf-add-row-btn">
-                    <FaPlus size={10} /> Add Row
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Tab 4 — More Info */}
-            {activeTab === 4 && (
-              <div className="jcf-fade-in">
-                <div className="jcf-card">
-                  <div className="jcf-grid-2">
-                    <div>
-                      <label className="jcf-label">Status</label>
-                      <select name="status" value={formData.status} onChange={handleInputChange} className="jcf-input">
-                        {STATUS_OPTIONS.map((s) => (
-                          <option key={s} value={s}>{s}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="jcf-label">Project</label>
-                      <input
-                        type="text"
-                        name="project"
-                        value={formData.project}
-                        onChange={handleInputChange}
-                        placeholder="Optional"
-                        className="jcf-input"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="jcf-grid-2">
-                    <div>
-                      <label className="jcf-label">Sequence ID</label>
-                      <input
-                        type="text"
-                        name="sequence_id"
-                        value={formData.sequence_id}
-                        onChange={handleInputChange}
-                        placeholder="Optional"
-                        className="jcf-input"
-                      />
-                    </div>
-                    <div>
-                      <label className="jcf-label">Barcode</label>
-                      <input
-                        type="text"
-                        name="barcode"
-                        value={formData.barcode}
-                        onChange={handleInputChange}
-                        placeholder="Optional"
-                        className="jcf-input"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="jcf-field-block">
-                    <label className="jcf-checkbox-label">
-                      <input
-                        type="checkbox"
-                        name="is_corrective_job_card"
-                        checked={formData.is_corrective_job_card}
-                        onChange={handleInputChange}
-                        className="jcf-checkbox"
-                      />
-                      Is Corrective Job Card
-                    </label>
-                  </div>
-
-                  <div>
+                  <div className="jcf-field-block jcf-mt-20">
                     <label className="jcf-label">Remarks</label>
                     <textarea
                       name="remarks"
@@ -1220,12 +1086,12 @@ const JobCardForm: React.FC = () => {
                 ← Previous
               </button>
             )}
-            {activeTab < 4 && (
+            {activeTab < 1 && (
               <button type="button" onClick={handleNext} className="jcf-btn-primary">
                 Next →
               </button>
             )}
-            {activeTab === 4 && (
+            {activeTab === 1 && (
               <button type="submit" disabled={saving} className="jcf-btn-primary jcf-btn-submit" style={{ opacity: saving ? 0.6 : 1 }}>
                 {saving && <FaSpinner className="jcf-spinning" />}
                 <FaSave /> {isEditMode ? "Update Job Card" : "Create Job Card"}

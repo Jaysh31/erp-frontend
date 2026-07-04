@@ -17,20 +17,24 @@ import {
 } from "react-icons/fa";
 import "./JobCardManagement.css";
 import { useAdminTheme } from "../admin-theme/AdminThemeContext";
+import api from "../../src/services/api";
 
 type Status = "Open" | "Work In Progress" | "Completed" | "On Hold" | "Cancelled";
 
-interface JobCard {
-  id: string;
-  job_card_id: string;
+/** Shape returned by GET /job-card (matches the POST /job-card payload). */
+interface JobCardApiRecord {
+  id: number; // real numeric primary key
+  name: string; // e.g. "JC-WO-00001-001" — the human-readable docname
   work_order: string;
   operation: string;
   workstation: string;
-  qty_to_manufacture: number;
+  for_quantity?: number;
+  requested_qty?: number;
   total_completed_qty: number;
   company: string;
   status: Status;
-  created_on: string;
+  creation?: string;
+  posting_date?: string;
   expected_start_date?: string | null;
   expected_end_date?: string | null;
   actual_start_date?: string | null;
@@ -38,7 +42,8 @@ interface JobCard {
 }
 
 interface JobCardDisplay {
-  id: string;
+  id: string; // name (docname) — used for routing/display
+  recordId: number; // real numeric primary key — used for update/delete API calls
   jobCardId: string;
   workOrder: string;
   operation: string;
@@ -70,27 +75,6 @@ const STATUS_LABELS: Record<Status, string> = {
   Completed: "Completed",
   "On Hold": "On Hold",
   Cancelled: "Cancelled",
-};
-
-// ─── local storage (no API) ────────────────────────────────────────────
-// Must match the exact key/shape used by JobCardForm.tsx so both stay in sync.
-
-const JOB_CARDS_STORAGE_KEY = "job_cards";
-const JOB_CARDS_UPDATE_EVENT = "job-cards-updated";
-
-const readAllJobCardsLocally = (): JobCard[] => {
-  try {
-    const raw = localStorage.getItem(JOB_CARDS_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch (err) {
-    console.error("Failed to read job cards from local storage:", err);
-    return [];
-  }
-};
-
-const writeAllJobCardsLocally = (cards: JobCard[]) => {
-  localStorage.setItem(JOB_CARDS_STORAGE_KEY, JSON.stringify(cards));
-  window.dispatchEvent(new Event(JOB_CARDS_UPDATE_EVENT));
 };
 
 // ─── timer helpers ─────────────────────────────────────────────────────
@@ -193,32 +177,43 @@ export default function JobCardManagement() {
     return Math.min(Math.round((completedQty / qty) * 100), 100);
   };
 
-  // ─── load from localStorage (no API) ──────────────────────────────────
+  // ─── load from GET /job-card ───────────────────────────────────────────
 
-  const fetchJobCards = () => {
+  const fetchJobCards = async () => {
     setLoading(true);
     setError(null);
     try {
-      const all = readAllJobCardsLocally();
+      const response = await api.get("/job-card");
 
-      const transformedData: JobCardDisplay[] = all.map((item) => ({
-        id: item.id,
-        jobCardId: item.job_card_id,
-        workOrder: item.work_order,
-        operation: item.operation,
-        workstation: item.workstation,
-        qty: item.qty_to_manufacture,
-        completedQty: item.total_completed_qty,
-        company: item.company,
-        status: item.status,
-        createdOn: item.created_on,
-        progress: calculateProgress(item.qty_to_manufacture, item.total_completed_qty),
-        createdAgo: formatDate(item.created_on),
-        expectedStartDate: item.expected_start_date ? new Date(item.expected_start_date) : null,
-        expectedEndDate: item.expected_end_date ? new Date(item.expected_end_date) : null,
-        actualStartDate: item.actual_start_date ? new Date(item.actual_start_date) : null,
-        actualEndDate: item.actual_end_date ? new Date(item.actual_end_date) : null,
-      }));
+      if (response.data.success !== 1) {
+        throw new Error(response.data?.message || "Failed to fetch job cards");
+      }
+
+      const all: JobCardApiRecord[] = response.data.data || [];
+
+      const transformedData: JobCardDisplay[] = all.map((item) => {
+        const qty = item.for_quantity ?? item.requested_qty ?? 0;
+        const createdOn = item.creation || item.posting_date || new Date().toISOString();
+        return {
+          id: item.name,
+          recordId: item.id,
+          jobCardId: item.name,
+          workOrder: item.work_order,
+          operation: item.operation,
+          workstation: item.workstation,
+          qty,
+          completedQty: item.total_completed_qty || 0,
+          company: item.company,
+          status: item.status,
+          createdOn,
+          progress: calculateProgress(qty, item.total_completed_qty || 0),
+          createdAgo: formatDate(createdOn),
+          expectedStartDate: item.expected_start_date ? new Date(item.expected_start_date) : null,
+          expectedEndDate: item.expected_end_date ? new Date(item.expected_end_date) : null,
+          actualStartDate: item.actual_start_date ? new Date(item.actual_start_date) : null,
+          actualEndDate: item.actual_end_date ? new Date(item.actual_end_date) : null,
+        };
+      });
 
       // Newest first
       transformedData.sort(
@@ -227,25 +222,16 @@ export default function JobCardManagement() {
 
       setTotalItems(transformedData.length);
       setJobCards(transformedData);
-    } catch (err) {
-      console.error("Error reading job cards from local storage:", err);
-      setError("An error occurred while loading job cards");
+    } catch (err: any) {
+      console.error("Error fetching job cards:", err);
+      setError(err.response?.data?.message || "An error occurred while loading job cards");
     } finally {
       setLoading(false);
     }
   };
 
-  // Initial load + live sync whenever the form (or another tab) saves a job card
   useEffect(() => {
     fetchJobCards();
-
-    window.addEventListener(JOB_CARDS_UPDATE_EVENT, fetchJobCards);
-    window.addEventListener("storage", fetchJobCards); // cross-tab sync
-
-    return () => {
-      window.removeEventListener(JOB_CARDS_UPDATE_EVENT, fetchJobCards);
-      window.removeEventListener("storage", fetchJobCards);
-    };
   }, []);
 
   useEffect(() => {
@@ -322,19 +308,23 @@ export default function JobCardManagement() {
     setShowDeleteConfirm(true);
   };
 
-  const confirmDelete = () => {
-    if (selectedItem) {
-      try {
-        const all = readAllJobCardsLocally();
-        const updated = all.filter((c) => c.id !== selectedItem.id);
-        writeAllJobCardsLocally(updated);
-        setShowDeleteConfirm(false);
-        setSelectedItem(null);
-        fetchJobCards();
-      } catch (err) {
-        console.error("Error deleting job card:", err);
-        alert("Failed to delete job card");
+  const confirmDelete = async () => {
+    if (!selectedItem) return;
+    try {
+      // Use the real numeric primary key, not the docname (`id`/`jobCardId`
+      // here is the display/routing string, e.g. "WO 88" — sending that to
+      // a numeric column causes "Truncated incorrect DOUBLE value" on the
+      // backend, the same issue that affected PUT updates).
+      const response = await api.delete(`/job-card/${selectedItem.recordId}`);
+      if (response.data.success !== 1) {
+        throw new Error(response.data?.message || "Failed to delete job card");
       }
+      setShowDeleteConfirm(false);
+      setSelectedItem(null);
+      fetchJobCards();
+    } catch (err: any) {
+      console.error("Error deleting job card:", err);
+      alert(err.response?.data?.message || "Failed to delete job card");
     }
   };
 
