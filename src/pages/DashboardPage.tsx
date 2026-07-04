@@ -3,15 +3,15 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FaBoxes, FaClipboardList, FaClock, FaChartLine, FaIndustry,
-  FaTachometerAlt, FaCheckCircle, FaExclamationTriangle, FaPlay,
-  FaStop, FaWarehouse, FaUserCog, FaFileInvoice, FaPlus,
-  FaArrowRight, FaCalendarAlt, FaBuilding, FaDollarSign,
-  FaPercent, FaTools, FaUsers, FaChartBar, FaRocket,
+  FaCheckCircle, FaExclamationTriangle, FaPlay,
+  FaWarehouse, FaPlus,
+  FaArrowRight, FaBuilding, FaDollarSign,
+  FaPercent, FaTools, FaRocket,
 } from "react-icons/fa";
-import { BsGear, BsGraphUp, BsTruck } from "react-icons/bs";
+import { BsGear } from "react-icons/bs";
 import "./DashboardPage.css";
-import { useAdminTheme } from '../admin-theme/AdminThemeContext';
-import api from "../../src/services/api";
+import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
+import api from "../../services/api";
 
 interface WorkOrderStats {
   total: number;
