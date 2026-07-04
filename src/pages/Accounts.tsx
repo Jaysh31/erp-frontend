@@ -14,19 +14,13 @@ import {
   FaFolder,
   FaFolderOpen,
   FaFileAlt,
-  FaCog,
   FaChartPie,
   FaBalanceScale,
   FaBook,
-  FaUsers,
-  FaBuilding,
   FaWallet,
-  FaShoppingCart,
-  FaDollarSign,
   FaCreditCard,
   FaMoneyBillWave,
   FaChartLine,
-  FaCalendarAlt
 } from 'react-icons/fa';
 import './Accounts.css';
 

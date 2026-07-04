@@ -14,7 +14,7 @@ import {
   FaTrash,
   FaSearch,
   FaWarehouse,
-  FaBoxes,
+  
   FaClipboardList,
   FaBarcode,
   FaPrint,
@@ -441,7 +441,7 @@ export default function StockEntryForm() {
   const [activeTab, setActiveTab] = useState<TabKey>("details");
   const [, setIsDirty] = useState(isNew);
   const [submitting, setSubmitting] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, ] = useState(false);
   const [showValidationSummary, setShowValidationSummary] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [apiError, setApiError] = useState<string | null>(null);

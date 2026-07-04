@@ -198,18 +198,18 @@ export default function ItemList() {
     setStatusFilter('all');
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffTime = Math.abs(now.getTime() - date.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  // const formatDate = (dateString: string) => {
+  //   const date = new Date(dateString);
+  //   const now = new Date();
+  //   const diffTime = Math.abs(now.getTime() - date.getTime());
+  //   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     
-    if (diffDays === 1) return '1d';
-    if (diffDays < 7) return `${diffDays}d`;
-    if (diffDays < 30) return `${Math.floor(diffDays / 7)}w`;
-    if (diffDays < 365) return `${Math.floor(diffDays / 30)}mo`;
-    return date.toLocaleDateString();
-  };
+  //   if (diffDays === 1) return '1d';
+  //   if (diffDays < 7) return `${diffDays}d`;
+  //   if (diffDays < 30) return `${Math.floor(diffDays / 7)}w`;
+  //   if (diffDays < 365) return `${Math.floor(diffDays / 30)}mo`;
+  //   return date.toLocaleDateString();
+  // };
 
   const handleRowClick = (item: Item) => {
     navigate(`/item/${item.id}`, { 

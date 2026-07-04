@@ -4,7 +4,7 @@ import { ModuleProvider } from './context/ModuleContext'; // Import ModuleProvid
 
 import LoginPage from "./pages/LoginPage";
 import MainLayout from "./layouts/MainLayout";
-import DashboardPage from "./pages/DashboardPage";
+import DashboardPage from "./pages/DashboardPages/DashboardPage";
 import ItemGroupForm from "./pages/Setup/Itemgroupform";
 import ItemGroupList from "./pages/Setup/Itemgrouplist";
 import Itemlist from "./pages/Setup/Itemlist";
@@ -75,6 +75,15 @@ import OperationListing from "./pages/Setup/OperationListing";
 import OperationQuickAdd from "./pages/Setup/OperationQuickAdd";
 import StockentryForm2 from "./pages/StockentryForm2";
 import PurchaseOrderForm from "./pages/PurchaseOrderForm";
+import SalesDashboard from "./pages/DashboardPages/SalesDashboard";
+import PurchasingDashboard from "./pages/DashboardPages/PurchasingDashboard";
+import AccountingDashboard from "./pages/DashboardPages/AccountingDashboard";
+import SetupDashboard from "./pages/DashboardPages/SetupDashboard";
+import OrganizationDashboard from "./pages/DashboardPages/OrganizationDashboard";
+import ToolsDashboard from "./pages/DashboardPages/ToolsDashboard";
+import ReportsDashboard from "./pages/DashboardPages/ReportsDashboard";
+import StockDashboard from "./pages/DashboardPages/StockDashboard";
+import QualityDashboard from "./pages/DashboardPages/QualityDashboard";
 
 
 function App() {
@@ -87,7 +96,22 @@ function App() {
             <Route path="/home" element={<HomePage />} />
 
             <Route element={<MainLayout />}>
-              <Route path="/dashboard" element={<DashboardPage />} />
+          
+          
+
+                  {/* Module Dashboards */}
+        <Route path="/dashboard/manufacturing" element={<DashboardPage />} />
+        <Route path="/dashboard/sales" element={<SalesDashboard />} />
+        <Route path="/dashboard/setup" element={<SetupDashboard />} />
+        <Route path="/dashboard/purchasing" element={<PurchasingDashboard />} />
+        <Route path="/dashboard/organization" element={<OrganizationDashboard />} />
+        <Route path="/dashboard/accounting" element={<AccountingDashboard />} />
+        <Route path="/dashboard/tools" element={<ToolsDashboard />} />
+        <Route path="/dashboard/reports" element={<ReportsDashboard />} />
+        <Route path="/dashboard/stock" element={<StockDashboard />} />
+        <Route path="/dashboard/quality" element={<QualityDashboard />} />
+
+        
                           <Route path="/sales-order" element={<SalesOrder />} />
             <Route path="/sales-invoice" element={<SalesInvoice />} />
             <Route path="/sales-order/new" element={<CreateSalesOrder />} />
@@ -187,6 +211,11 @@ function App() {
               <Route path="/operation/new" element={<OperationQuickAdd />} />
               <Route path="/operation/:id" element={<OperationQuickAdd />} />
               <Route path="/operation/:id/edit" element={<OperationQuickAdd />} />
+
+
+              <Route path="/purchase-invoice" element={<PurchaseInvoice />} />
+<Route path="/purchase-invoice/new" element={<NewPurchaseInvoice />} />
+<Route path="/purchase-invoice/edit/:id" element={<NewPurchaseInvoice />} />
 
 
               {/* UOM Routes */}

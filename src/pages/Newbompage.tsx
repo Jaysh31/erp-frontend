@@ -190,7 +190,7 @@ interface Item {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const TYPE_OPTIONS = ["By-Product", "Scrap"];
-const WORKSTATION_TYPES = ["Machine", "Work Center", "Assembly Line"];
+// const WORKSTATION_TYPES = ["Machine", "Work Center", "Assembly Line"];
 
 // ─── Shared atoms ─────────────────────────────────────────────────────────────
 
@@ -241,8 +241,8 @@ const BOMConfigTab: React.FC<BOMConfigTabProps> = ({
   onDefaultSourceChange,
   onDefaultTargetChange 
 }) => {
-  const [isActive] = useState(true);
-  const [isDefault] = useState(true);
+  // const [isActive] = useState(true);
+  // const [isDefault] = useState(true);
   const [qiRequired, setQiRequired] = useState(false);
   const [basedOn, setBasedOn] = useState("");
 
@@ -793,7 +793,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
 
   // ─── Delete Functions ──────────────────────────────────────────────────────
 
-  const handleDeleteOperation = async (row: OperationRow, index: number) => {
+  const handleDeleteOperation = async (row: OperationRow, ) => {
     // If it's a new row (not saved to DB), just remove it from local state
     if (row.isNew) {
       deleteOpRow(row.id);
@@ -822,7 +822,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
     }
   };
 
-  const handleDeleteComponent = async (row: ComponentRow, index: number) => {
+  const handleDeleteComponent = async (row: ComponentRow, ) => {
     // If it's a new row (not saved to DB), just remove it from local state
     if (row.isNew) {
       deleteCompRow(row.id);
@@ -1007,8 +1007,8 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
     let totalComponentCost = 0;
     compRows.forEach(row => {
       if (row.rate && row.qty) {
-        const rate = parseFloat(row.rate) || 0;
-        const qty = parseFloat(row.qty) || 0;
+        const rate = parseFloat(row.rate ?? '0') || 0;
+        const qty = parseFloat(row.qty ?? '0') || 0;
         totalComponentCost += rate * qty;
       }
     });
@@ -1022,8 +1022,8 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
 
     let totalSecondaryCost = 0;
     secRows.forEach(row => {
-      const rate = parseFloat(row.rate) || 0;
-      const qty = parseFloat(row.qty) || 0;
+      const rate = parseFloat(row.rate ?? '0') || 0;
+      const qty = parseFloat(row.qty ?? '0') || 0;
       totalSecondaryCost += rate * qty;
     });
 
@@ -1089,18 +1089,18 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
       
       // Calculate all costs
       const totalComponentCost = compRows.reduce((sum, row) => {
-        const rate = parseFloat(row.rate) || 0;
-        const qty = parseFloat(row.qty) || 0;
+        const rate = parseFloat(row.rate || "0") || 0;
+        const qty = parseFloat(row.qty || "0") || 0;
         return sum + (rate * qty);
       }, 0);
 
       const totalOperationCost = opRows.reduce((sum, row) => {
-        return sum + (parseFloat(row.operatingCost) || 0);
+        return sum + (parseFloat(row.operatingCost || "0") || 0);
       }, 0);
 
       const totalSecondaryCost = secRows.reduce((sum, row) => {
-        const rate = parseFloat(row.rate) || 0;
-        const qty = parseFloat(row.qty) || 0;
+        const rate = parseFloat(row.rate || "0") || 0;
+        const qty = parseFloat(row.qty || "0") || 0;
         return sum + (rate * qty);
       }, 0);
 
@@ -1567,7 +1567,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                                 <td style={{ textAlign: "center" }}>
                                   <button
                                     className="nbom-edit-btn nbom-edit-btn--delete"
-                                    onClick={() => handleDeleteOperation(row, idx)}
+                                    onClick={() => handleDeleteOperation(row, )}
                                     title="Delete row"
                                   >
                                     <Trash2 size={12} />
@@ -1716,7 +1716,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                             </button>
                             <button
                               className="nbom-edit-btn nbom-edit-btn--delete"
-                              onClick={() => handleDeleteComponent(row, idx)}
+                              onClick={() => handleDeleteComponent(row, )}
                               title="Delete row"
                             >
                               <Trash2 size={12} />

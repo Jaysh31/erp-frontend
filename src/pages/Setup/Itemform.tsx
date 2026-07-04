@@ -637,7 +637,7 @@ function AccountingTab({ form, setForm }: { form: any; setForm: (f: any) => void
   );
 }
 
-function UOMTab({ form, setForm }: { form: any; setForm: (f: any) => void }) {
+function UOMTab({ form,  }: { form: any; setForm: (f: any) => void }) {
   const [rows, setRows] = useState<TableRow[]>([
     { id: "1", uom: "", conversionFactor: "1" },
   ]);
