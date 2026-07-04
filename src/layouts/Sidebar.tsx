@@ -538,6 +538,15 @@ const FolderIcon = () => (
   </svg>
 );
 
+const OrganizationIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="9" y="2" width="6" height="4" rx="1"/>
+    <rect x="2" y="14" width="6" height="4" rx="1"/>
+    <rect x="16" y="14" width="6" height="4" rx="1"/>
+    <path d="M12 6v4M12 10H5v4M12 10h7v4"/>
+  </svg>
+);
+
 const TagIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M12 2H2v10l9.17 9.17a2 2 0 0 0 2.83 0l7-7a2 2 0 0 0 0-2.83L12 2z"/>
@@ -640,14 +649,6 @@ const StockIcon = () => (
   </svg>
 );
 
-const ToolIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="9" y="2" width="6" height="4" rx="1"/>
-    <rect x="2" y="14" width="6" height="4" rx="1"/>
-    <rect x="16" y="14" width="6" height="4" rx="1"/>
-    <path d="M12 6v4M12 10H5v4M12 10h7v4"/>
-  </svg>
-);
 
 const CompanyIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -684,39 +685,6 @@ const WarehouseIcon = () => (
   </svg>
 );
 
-const RepeatIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M17 1l4 4-4 4"/>
-    <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
-    <path d="M7 23l-4-4 4-4"/>
-    <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
-  </svg>
-);
-
-const HashIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="4" y1="9" x2="20" y2="9"/>
-    <line x1="4" y1="15" x2="20" y2="15"/>
-    <line x1="10" y1="3" x2="8" y2="21"/>
-    <line x1="16" y1="3" x2="14" y2="21"/>
-  </svg>
-);
-
-const LayersIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <polygon points="12 2 2 7 12 12 22 7 12 2"/>
-    <polyline points="2 17 12 22 22 17"/>
-    <polyline points="2 12 12 17 22 12"/>
-  </svg>
-);
-
-const PackageIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-    <path d="M2 17l10 5 10-5"/>
-    <path d="M2 12l10 5 10-5"/>
-  </svg>
-);
 // ===== RECEIVABLES ICONS =====
 
 const ReceivablesIcon = () => (
