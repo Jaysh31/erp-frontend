@@ -87,6 +87,7 @@ function App() {
               <Route path="/leads/:id" element={<LeadForm />} /> 
               <Route path="/quotation" element={<QuotationPage />} />
               <Route path="/quotation/new" element={<CreateQuotationPage />} />
+              
               <Route path="/price-list" element={<PriceList />} />
               <Route path="/item-price" element={<ItemPrice />} />
               <Route path="/pricing-rule" element={<PricingRule />} />

@@ -86,7 +86,7 @@ export default function Sidebar({
         { title: 'lead', icon: <GiHumanCannonball />, path: '/lead'},
         { title: 'Quotation', icon: <QuotationIcon />, path: '/quotation' },
         { title: 'Sales Order', icon: <SalesOrderIcon />, path: '/sales-order' },
-        { title: 'Sales Invoice', icon: <InvoiceIcon />, path: '/sales-invoice' }
+        { title: 'Sales Invoice', icon: <InvoiceIcon />, path: '/sales-invoice' },
         // Removed: Add Sales Order, Create Sales Invoice
       ]
     },

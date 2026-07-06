@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from "react";
 import type { ChangeEvent, FormEvent } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import {
   FaArrowLeft, FaSave, FaSpinner, FaInfoCircle, FaExclamationTriangle,
   FaTimesCircle, FaUser, FaBuilding, FaAddressBook,
 } from "react-icons/fa";
 import "./LeadForm.css";
-import { createLead, updateLead, getLeadById, type LeadRecord, type LeadStatus } from "./leadStorage";
+import api from "../../src/services/api";
 
-// ─── interfaces ───────────────────────────────────────────────────────────
+// ─── types ──────────────────────────────────────────────────────────────
+
+type LeadStatus = "Lead" | "Contacted" | "Qualified" | "Unqualified" | "Converted";
 
 interface LeadFormData {
   // Lead Details
@@ -81,9 +83,102 @@ const defaultFormData = (): LeadFormData => ({
   qualifiedOn: "",
 });
 
+// ─── mapping: form <-> /lead API payload ───────────────────────────────
+// Matches the Frappe-style payload given for POST /lead
+// (name, first_name, company_name, email_id, no_of_employees, etc.)
+
+function buildApiPayload(formData: LeadFormData) {
+  const fullName = [formData.firstName, formData.lastName].filter(Boolean).join(" ");
+
+  return {
+    naming_series: "LEAD-.YYYY.-",
+    salutation: "",
+    first_name: formData.firstName,
+    middle_name: "",
+    last_name: formData.lastName,
+    lead_name: fullName,
+    job_title: formData.jobTitle,
+    gender: "",
+    lead_owner: "Administrator",
+    status: formData.status,
+    customer: null,
+    type: formData.leadType,
+    request_type: formData.source,
+    email_id: formData.email,
+    website: formData.website,
+    mobile_no: formData.mobileNo,
+    whatsapp_no: formData.mobileNo,
+    phone: formData.phone,
+    phone_ext: "",
+    company_name: formData.organizationName,
+    // employees is stored as a bucket string like "11-50"; take the
+    // first number found since the backend field is numeric
+    no_of_employees: formData.employees ? parseInt(formData.employees.replace(/\D/g, ""), 10) || 0 : 0,
+    annual_revenue: formData.annualRevenue ? Number(formData.annualRevenue) || 0 : 0,
+    industry: formData.industry,
+    market_segment: "",
+    territory: formData.country,
+    fax: "",
+    city: formData.city,
+    state: formData.state,
+    country: formData.country,
+    utm_source: formData.source,
+    utm_medium: "",
+    utm_campaign: "",
+    utm_content: "",
+    qualification_status: formData.qualificationStatus,
+    qualified_by: formData.qualifiedBy,
+    qualified_on: formData.qualifiedOn || null,
+    company: "My Company",
+    language: "en",
+    image: "",
+    title: fullName ? `Lead for ${fullName}` : "New Lead",
+    disabled: 0,
+    unsubscribed: 0,
+    blog_subscriber: 0,
+    modified_by: "Administrator",
+    owner: "Administrator",
+    docstatus: 0,
+    idx: 0,
+  };
+}
+
+function mapApiLeadToForm(jc: any): LeadFormData {
+  return {
+    firstName: jc.first_name || "",
+    lastName: jc.last_name || "",
+    organizationName: jc.company_name || "",
+    jobTitle: jc.job_title || "",
+    status: (jc.status as LeadStatus) || "Lead",
+    leadType: jc.type || "",
+    source: jc.utm_source || jc.request_type || "",
+    email: jc.email_id || "",
+    mobileNo: jc.mobile_no || "",
+    phone: jc.phone || "",
+    website: jc.website || "",
+    industry: jc.industry || "",
+    employees: jc.no_of_employees != null ? String(jc.no_of_employees) : "",
+    annualRevenue: jc.annual_revenue != null ? String(jc.annual_revenue) : "",
+    city: jc.city || "",
+    state: jc.state || "",
+    country: jc.country || "",
+    qualificationStatus: jc.qualification_status || "Lead",
+    qualifiedBy: jc.qualified_by || "",
+    qualifiedOn: jc.qualified_on || "",
+  };
+}
+
+// tolerant unwrapper for whatever shape GET /lead returns
+// (same defensive pattern as JobCardForm's /work-order fetch)
+function extractList(raw: any): any[] {
+  const list = raw?.data?.records ?? raw?.data ?? raw?.leads ?? raw?.results ?? raw;
+  return Array.isArray(list) ? list : [];
+}
+
 const LeadForm: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const isEditMode = !!id && id !== "new";
 
@@ -91,6 +186,7 @@ const LeadForm: React.FC = () => {
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [warnings, setWarnings] = useState<TabWarning>({});
   const [saving, setSaving] = useState(false);
+  const [loadingRecord, setLoadingRecord] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
 
   const [showValidationSummary, setShowValidationSummary] = useState(false);
@@ -111,42 +207,43 @@ const LeadForm: React.FC = () => {
     },
   ];
 
-  // ─── load existing lead when editing ──────────────────────────────────
+  // ─── load existing lead when editing — GET /lead ──────────────────────
 
   useEffect(() => {
     if (isEditMode && id) {
-      const existing = getLeadById(id);
-      if (existing) loadLeadIntoForm(existing);
-      else setApiError("Lead not found");
+      const state = location.state as { lead?: any };
+      if (state?.lead) {
+        setFormData(mapApiLeadToForm(state.lead));
+      } else {
+        fetchLeadById(id);
+      }
     }
   }, [id]);
 
-  const loadLeadIntoForm = (lead: LeadRecord) => {
-    setFormData({
-      firstName: lead.firstName || "",
-      lastName: lead.lastName || "",
-      organizationName: lead.organizationName || "",
-      jobTitle: lead.jobTitle || "",
-      status: lead.status || "Lead",
-      leadType: lead.leadType || "",
-      source: lead.source || "",
-      email: lead.email || "",
-      mobileNo: lead.mobileNo || "",
-      city: lead.city || "",
-      country: lead.country || "",
-      phone: lead.phone || "",
-      website: lead.website || "",
-
-      industry: lead.industry || "",
-      employees: lead.employees || "",
-      annualRevenue: lead.annualRevenue || "",
-
-      state: lead.state || "",
-
-      qualificationStatus: lead.qualificationStatus || "Lead",
-      qualifiedBy: lead.qualifiedBy || "",
-      qualifiedOn: lead.qualifiedOn || "",
-    });
+  const fetchLeadById = async (leadId: string) => {
+    setLoadingRecord(true);
+    setApiError(null);
+    try {
+      const response = await api.get("/lead");
+      const all = extractList(response.data);
+      const found = all.find((l: any) => l.name === leadId || String(l.id) === leadId);
+      if (found) {
+        setFormData(mapApiLeadToForm(found));
+      } else {
+        setApiError("Lead not found");
+      }
+    } catch (err: any) {
+      console.error("Error fetching lead:", err);
+      if (err.response) {
+        setApiError(err.response.data?.message || `Server error: ${err.response.status}`);
+      } else if (err.request) {
+        setApiError("Network error. Please check your connection.");
+      } else {
+        setApiError(err.message || "Failed to load lead");
+      }
+    } finally {
+      setLoadingRecord(false);
+    }
   };
 
   // ─── validation ────────────────────────────────────────────────────────
@@ -230,7 +327,7 @@ const LeadForm: React.FC = () => {
     checkTabWarnings(activeTab);
   };
 
-  // ─── submit — localStorage create/update ───────────────────────────────
+  // ─── submit — POST/PUT /lead ────────────────────────────────────────
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -246,15 +343,29 @@ const LeadForm: React.FC = () => {
     setApiError(null);
 
     try {
+      const payload = buildApiPayload(formData);
+
+      let response;
       if (isEditMode && id) {
-        updateLead(id, { ...formData });
+        response = await api.put("/lead", { name: id, ...payload });
       } else {
-        createLead({ ...formData });
+        response = await api.post("/lead", payload);
       }
+
+      if (response.data?.success !== undefined && response.data.success !== 1) {
+        throw new Error(response.data?.message || "Failed to save lead");
+      }
+
       navigate("/lead");
     } catch (err: any) {
       console.error("Error saving lead:", err);
-      setApiError(err.message || "Failed to save lead");
+      if (err.response) {
+        setApiError(err.response.data?.message || `Server error: ${err.response.status}`);
+      } else if (err.request) {
+        setApiError("Network error. Please check your connection.");
+      } else {
+        setApiError(err.message || "Failed to save lead");
+      }
     } finally {
       setSaving(false);
     }
@@ -333,6 +444,11 @@ const LeadForm: React.FC = () => {
       </div>
 
       <div className="jcf-container">
+        {loadingRecord ? (
+          <div className="jcf-card" style={{ textAlign: "center", padding: "40px" }}>
+            <FaSpinner className="jcf-spinning" /> Loading lead...
+          </div>
+        ) : (
         <form onSubmit={handleSubmit}>
 
           {/* Tabs */}
@@ -775,6 +891,7 @@ const LeadForm: React.FC = () => {
             )}
           </div>
         </form>
+        )}
       </div>
     </div>
   );

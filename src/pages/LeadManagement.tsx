@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -17,7 +16,11 @@ import {
 } from "react-icons/fa";
 import "./LeadManagement.css";
 import { useAdminTheme } from "../admin-theme/AdminThemeContext";
-import { getAllLeads, deleteLead, type LeadRecord, type LeadStatus } from "./leadStorage";
+import api from "../../src/services/api";
+
+// ─── types ──────────────────────────────────────────────────────────────
+
+type LeadStatus = "Lead" | "Contacted" | "Qualified" | "Unqualified" | "Converted";
 
 interface LeadDisplay {
   id: string;
@@ -51,6 +54,36 @@ const STATUS_LABELS: Record<LeadStatus, string> = {
   Converted: "Converted",
 };
 
+// ─── raw API record -> display record ──────────────────────────────────
+// Matches the /lead POST payload shape (name, first_name, company_name, etc.)
+
+function mapApiLeadToDisplay(raw: any, formatDate: (d: string) => string): LeadDisplay {
+  const firstName = raw.first_name || "";
+  const lastName = raw.last_name || "";
+  return {
+    id: String(raw.name ?? raw.id ?? ""),
+    leadName: raw.lead_name || [firstName, lastName].filter(Boolean).join(" ") || "—",
+    organizationName: raw.company_name || "",
+    jobTitle: raw.job_title || "",
+    status: (raw.status as LeadStatus) || "Lead",
+    leadType: raw.type || "",
+    source: raw.utm_source || raw.request_type || "",
+    email: raw.email_id || "",
+    mobileNo: raw.mobile_no || "",
+    city: raw.city || "",
+    country: raw.country || "",
+    createdOn: raw.creation || raw.createdOn || new Date().toISOString(),
+    createdAgo: formatDate(raw.creation || raw.createdOn || new Date().toISOString()),
+  };
+}
+
+// defensively unwraps whatever shape the backend wraps the list in
+// (same tolerant pattern used for /work-order in JobCardForm)
+function extractList(raw: any): any[] {
+  const list = raw?.data?.records ?? raw?.data ?? raw?.leads ?? raw?.results ?? raw;
+  return Array.isArray(list) ? list : [];
+}
+
 export default function LeadManagement() {
   const navigate = useNavigate();
   const { theme } = useAdminTheme();
@@ -67,6 +100,7 @@ export default function LeadManagement() {
   const [totalItems, setTotalItems] = useState(0);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedItem, setSelectedItem] = useState<LeadDisplay | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -85,35 +119,29 @@ export default function LeadManagement() {
     return `${Math.floor(diffDays / 365)} y`;
   };
 
-  // ─── load from localStorage (swap for GET /lead later) ────────────────
+  // ─── fetch from GET /lead ───────────────────────────────────────────
 
-  const fetchLeads = () => {
+  const fetchLeads = async () => {
     setLoading(true);
     setError(null);
     try {
-      const all: LeadRecord[] = getAllLeads();
+      const response = await api.get("/lead");
+      console.log("GET /lead raw response:", response.data);
 
-      const transformedData: LeadDisplay[] = all.map((item) => ({
-        id: item.id,
-        leadName: [item.firstName, item.lastName].filter(Boolean).join(" ") || "—",
-        organizationName: item.organizationName,
-        jobTitle: item.jobTitle,
-        status: item.status,
-        leadType: item.leadType,
-        source: item.source,
-        email: item.email,
-        mobileNo: item.mobileNo,
-        city: item.city,
-        country: item.country,
-        createdOn: item.createdOn,
-        createdAgo: formatDate(item.createdOn),
-      }));
+      const list = extractList(response.data);
+      const transformedData: LeadDisplay[] = list.map((item) => mapApiLeadToDisplay(item, formatDate));
 
       setTotalItems(transformedData.length);
       setLeads(transformedData);
     } catch (err: any) {
       console.error("Error fetching leads:", err);
-      setError(err.message || "An error occurred while loading leads");
+      if (err.response) {
+        setError(err.response.data?.message || `Server error: ${err.response.status}`);
+      } else if (err.request) {
+        setError("Network error. Please check your connection.");
+      } else {
+        setError(err.message || "An error occurred while loading leads");
+      }
     } finally {
       setLoading(false);
     }
@@ -197,16 +225,32 @@ export default function LeadManagement() {
     setShowDeleteConfirm(true);
   };
 
-  const confirmDelete = () => {
+  // ─── delete via DELETE /lead ─────────────────────────────────────────
+
+  const confirmDelete = async () => {
     if (!selectedItem) return;
+    setDeleting(true);
     try {
-      deleteLead(selectedItem.id);
+      const response = await api.delete("/lead", { data: { name: selectedItem.id } });
+
+      if (response.data?.success !== undefined && response.data.success !== 1) {
+        throw new Error(response.data?.message || "Failed to delete lead");
+      }
+
       setShowDeleteConfirm(false);
       setSelectedItem(null);
       fetchLeads();
     } catch (err: any) {
       console.error("Error deleting lead:", err);
-      alert(err.message || "Failed to delete lead");
+      if (err.response) {
+        alert(err.response.data?.message || `Server error: ${err.response.status}`);
+      } else if (err.request) {
+        alert("Network error. Please check your connection.");
+      } else {
+        alert(err.message || "Failed to delete lead");
+      }
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -450,11 +494,11 @@ export default function LeadManagement() {
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && selectedItem && (
-        <div className="jc-modal-overlay" onClick={() => setShowDeleteConfirm(false)}>
+        <div className="jc-modal-overlay" onClick={() => !deleting && setShowDeleteConfirm(false)}>
           <div className="jc-modal jc-modal-delete" onClick={(e) => e.stopPropagation()}>
             <div className="jc-modal-header">
               <span className="jc-modal-title">Confirm Delete</span>
-              <button className="jc-modal-close" onClick={() => setShowDeleteConfirm(false)}>
+              <button className="jc-modal-close" onClick={() => setShowDeleteConfirm(false)} disabled={deleting}>
                 <FaTimes size={16} />
               </button>
             </div>
@@ -464,11 +508,11 @@ export default function LeadManagement() {
               <p className="jc-modal-warning">This action cannot be undone.</p>
             </div>
             <div className="jc-modal-footer">
-              <button className="jc-btn-cancel" onClick={() => setShowDeleteConfirm(false)}>
+              <button className="jc-btn-cancel" onClick={() => setShowDeleteConfirm(false)} disabled={deleting}>
                 Cancel
               </button>
-              <button className="jc-btn-delete" onClick={confirmDelete}>
-                <FaTrash size={12} /> Delete
+              <button className="jc-btn-delete" onClick={confirmDelete} disabled={deleting}>
+                <FaTrash size={12} /> {deleting ? "Deleting..." : "Delete"}
               </button>
             </div>
           </div>
