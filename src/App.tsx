@@ -63,6 +63,8 @@ import Workstation from "./pages/Workstation";
 import NewWorkstation from "./pages/NewWorkstation";
 import OperationListing from "./pages/Setup/OperationListing";
 import OperationQuickAdd from "./pages/Setup/OperationQuickAdd";
+import LeadManagement from "./pages/LeadManagement";
+import LeadForm from "./pages/LeadForm";
 
 
 function App() {
@@ -80,6 +82,9 @@ function App() {
               <Route path="/sales-invoice" element={<SalesInvoice />} />
               <Route path="/sales-order/new" element={<CreateSalesOrder />} />
               <Route path="/sales-invoice/new" element={<CreateSalesInvoice />} />
+              <Route path="/lead" element={<LeadManagement />} />
+              <Route path="/leads/new" element={<LeadForm />} /> 
+              <Route path="/leads/:id" element={<LeadForm />} /> 
               <Route path="/quotation" element={<QuotationPage />} />
               <Route path="/quotation/new" element={<CreateQuotationPage />} />
               <Route path="/price-list" element={<PriceList />} />
