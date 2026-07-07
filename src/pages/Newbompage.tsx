@@ -34,6 +34,8 @@ interface ComponentRow {
   stockUom?: string;
   conversionFactor?: string;
   itemGroup?: string;
+  valuationRate?: number;
+  isNew?: boolean;
 }
 
 interface SecondaryRow {
@@ -53,13 +55,16 @@ interface SecondaryRow {
 interface OperationRow {
   id: number;
   operation: string;
+  operationId?: number;
   sequenceId: string;
   workstation: string;
+  workstationId?: number;
   workstationType: string;
   timeInMins: string;
   hourRate: string;
   operatingCost: string;
   qualityInspectionRequired: boolean;
+  isNew?: boolean;
 }
 
 interface ValidationError {
@@ -111,12 +116,38 @@ interface Operation {
   id: number;
   name: string;
   workstation: string;
+  workstationId?: number;
   is_corrective_operation: number;
   create_job_card_based_on_batch_size: number;
   quality_inspection_template: string;
   batch_size: number;
   total_operation_time: number;
   description: string;
+  _user_tags: string;
+  _comments: string | null;
+  _assign: string | null;
+  _liked_by: string | null;
+  creation: string;
+  modified: string;
+  modified_by: string;
+  owner: string;
+  docstatus: number;
+  idx: number;
+}
+
+interface Workstation {
+  id: number;
+  workstation_name: string;
+  workstation_type: string;
+  plant_floor: string;
+  disabled: number;
+  production_capacity: number;
+  warehouse: string;
+  status: string;
+  hour_rate: number;
+  description: string;
+  holiday_list: string;
+  total_working_hours: number;
   _user_tags: string;
   _comments: string | null;
   _assign: string | null;
@@ -151,6 +182,7 @@ interface Item {
   description: string;
   brand: string | null;
   valuation_method: string;
+  valuation_rate: number;
   creation: string;
   modified: string;
 }
@@ -158,7 +190,7 @@ interface Item {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const TYPE_OPTIONS = ["By-Product", "Scrap"];
-const WORKSTATION_TYPES = ["Machine", "Work Center", "Assembly Line"];
+// const WORKSTATION_TYPES = ["Machine", "Work Center", "Assembly Line"];
 
 // ─── Shared atoms ─────────────────────────────────────────────────────────────
 
@@ -209,32 +241,13 @@ const BOMConfigTab: React.FC<BOMConfigTabProps> = ({
   onDefaultSourceChange,
   onDefaultTargetChange 
 }) => {
-  const [isActive, setIsActive] = useState(true);
-  const [isDefault, setIsDefault] = useState(true);
-  const [setRateSubAssembly, setSetRateSubAssembly] = useState(true);
-  const [isPhantomBOM, setIsPhantomBOM] = useState(false);
-  const [allowAltItem, setAllowAltItem] = useState(false);
+  // const [isActive] = useState(true);
+  // const [isDefault] = useState(true);
   const [qiRequired, setQiRequired] = useState(false);
   const [basedOn, setBasedOn] = useState("");
 
   return (
     <div className="nbom-tab-content">
-      <div className="nbom-config-checks-grid">
-        <div className="nbom-config-checks-col">
-          <Checkbox label="Is Active" checked={isActive} onChange={() => setIsActive(v => !v)} />
-          <Checkbox label="Is Default" checked={isDefault} onChange={() => setIsDefault(v => !v)} />
-          <Checkbox
-            label="Set rate of sub-assembly item based on BOM"
-            checked={setRateSubAssembly}
-            onChange={() => setSetRateSubAssembly(v => !v)}
-          />
-        </div>
-        <div className="nbom-config-checks-col">
-          <Checkbox label="Is Phantom BOM" checked={isPhantomBOM} onChange={() => setIsPhantomBOM(v => !v)} />
-          <Checkbox label="Allow Alternative Item" checked={allowAltItem} onChange={() => setAllowAltItem(v => !v)} />
-        </div>
-      </div>
-
       <div className="nbom-config-section">
         <div className="nbom-config-section__title">Quality Inspection</div>
         <Checkbox label="Quality Inspection Required" checked={qiRequired} onChange={() => setQiRequired(v => !v)} />
@@ -296,39 +309,23 @@ const BOMConfigTab: React.FC<BOMConfigTabProps> = ({
 // ─── More Info Tab ────────────────────────────────────────────────────────────
 
 const MoreInfoTab: React.FC = () => {
-  const [costConfigOpen, setCostConfigOpen] = useState(true);
-  const [rateBasedOn, setRateBasedOn] = useState("Valuation Rate");
   const [project, setProject] = useState("");
 
   return (
     <div className="nbom-tab-content">
       <div className="nbom-card" style={{ marginBottom: 0 }}>
-        <div
-          className="nbom-config-section__title nbom-config-section__title--collapsible"
-          onClick={() => setCostConfigOpen(o => !o)}
-          style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 6, padding: "10px 16px", borderBottom: costConfigOpen ? "1px solid var(--c-border)" : "none" }}
-        >
-          Cost Configuration
-          <ChevronDown size={14} style={{ transform: costConfigOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s", color: "var(--c-text-muted)" }} />
-        </div>
-        {costConfigOpen && (
-          <div className="nbom-card__body">
-            <div className="nbom-form-grid">
-              <div className="nbom-field">
-                <Label text="Rate Of Materials Based On" />
-                <select className="nbom-input" value={rateBasedOn} onChange={e => setRateBasedOn(e.target.value)}>
-                  <option value="Valuation Rate">Valuation Rate</option>
-                  <option value="Last Purchase Rate">Last Purchase Rate</option>
-                  <option value="Price List">Price List</option>
-                </select>
-              </div>
-              <div>
-                <div className="nbom-field"><Label text="Currency" required /><Input readOnly value="INR" /></div>
-                <div className="nbom-field" style={{ marginTop: 12 }}><Label text="Conversion Rate" required /><Input readOnly value="1.000000000" /></div>
-              </div>
+        <div className="nbom-card__body">
+          <div className="nbom-form-grid">
+            <div className="nbom-field">
+              <Label text="Currency" required />
+              <Input readOnly value="INR" />
+            </div>
+            <div className="nbom-field">
+              <Label text="Conversion Rate" required />
+              <Input readOnly value="1.000000000" />
             </div>
           </div>
-        )}
+        </div>
       </div>
       <div style={{ padding: "16px 0", maxWidth: 400 }}>
         <div className="nbom-field">
@@ -614,7 +611,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
   const [defaultTargetWarehouse, setDefaultTargetWarehouse] = useState("");
 
   const [compRows, setCompRows] = useState<ComponentRow[]>([
-    { id: 1, itemCode: "", itemName: "", qty: "0.000", uom: "", rate: "₹ 0.00", amount: "₹ 0.00", itemGroup: "" },
+    { id: 1, itemCode: "", itemName: "", qty: "", uom: "", rate: "0", amount: "₹ 0.00", itemGroup: "", valuationRate: 0, isNew: true },
   ]);
   const [editingComp, setEditingComp] = useState<{ row: ComponentRow; idx: number } | null>(null);
 
@@ -627,13 +624,16 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
     {
       id: 1,
       operation: "",
+      operationId: undefined,
       sequenceId: "1",
       workstation: "",
+      workstationId: undefined,
       workstationType: "",
       timeInMins: "",
       hourRate: "",
       operatingCost: "",
-      qualityInspectionRequired: false
+      qualityInspectionRequired: false,
+      isNew: true
     }
   ]);
 
@@ -647,6 +647,10 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
   // ─── Fetch Operations ──────────────────────────────────────────────────────
   const [operations, setOperations] = useState<Operation[]>([]);
   const [operationsLoading, setOperationsLoading] = useState(false);
+
+  // ─── Fetch Workstations ──────────────────────────────────────────────────────
+  const [workstations, setWorkstations] = useState<Workstation[]>([]);
+  const [workstationsLoading, setWorkstationsLoading] = useState(false);
 
   // ─── Fetch Warehouses ──────────────────────────────────────────────────────
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
@@ -675,9 +679,11 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
           itemName: item.item_name,
           qty: String(item.qty),
           uom: item.uom,
-          rate: String(item.rate),
-          amount: `₹ ${(item.rate * item.qty).toFixed(2)}`,
+          rate: String(item.rate || item.valuation_rate || 0),
+          amount: `₹ ${(item.rate || item.valuation_rate || 0) * (item.qty || 0)}`,
           itemGroup: item.item_group || '',
+          valuationRate: item.valuation_rate || 0,
+          isNew: false,
         }));
         setCompRows(comps);
       }
@@ -688,13 +694,16 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
         const ops = operations.map((op: any, idx: number) => ({
           id: op.id || Date.now() + idx,
           operation: op.operation,
+          operationId: op.operation_id || op.id,
           sequenceId: String(op.sequence_id || idx + 1),
           workstation: op.workstation,
+          workstationId: op.workstation_id,
           workstationType: op.workstation_type || '',
           timeInMins: String(op.time_in_mins || 0),
           hourRate: String(op.hour_rate || 0),
           operatingCost: String(op.operating_cost || 0),
           qualityInspectionRequired: op.quality_inspection_required === 1,
+          isNew: false,
         }));
         setOpRows(ops);
       }
@@ -706,6 +715,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
   useEffect(() => {
     fetchItems();
     fetchOperations();
+    fetchWorkstations();
     fetchWarehouses();
   }, []);
 
@@ -739,6 +749,27 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
     }
   };
 
+  const fetchWorkstations = async () => {
+    try {
+      setWorkstationsLoading(true);
+      const response = await api.get('/workstation');
+      if (response.data.success === 1) {
+        const data = response.data.data;
+        let workstationList: Workstation[] = [];
+        if (Array.isArray(data)) {
+          workstationList = data;
+        } else if (data && 'records' in data) {
+          workstationList = data.records || [];
+        }
+        setWorkstations(workstationList.filter(w => w.disabled === 0));
+      }
+    } catch (err: any) {
+      console.error('Error fetching workstations:', err);
+    } finally {
+      setWorkstationsLoading(false);
+    }
+  };
+
   const fetchWarehouses = async () => {
     try {
       setWarehousesLoading(true);
@@ -760,6 +791,66 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
     }
   };
 
+  // ─── Delete Functions ──────────────────────────────────────────────────────
+
+  const handleDeleteOperation = async (row: OperationRow, ) => {
+    // If it's a new row (not saved to DB), just remove it from local state
+    if (row.isNew) {
+      deleteOpRow(row.id);
+      return;
+    }
+
+    // If it's an existing row, delete from API
+    if (row.operationId) {
+      if (window.confirm(`Are you sure you want to delete operation "${row.operation}"?`)) {
+        try {
+          const response = await api.delete(`/bom-operation/${row.operationId}`);
+          if (response.data.success === 1) {
+            deleteOpRow(row.id);
+            alert('Operation deleted successfully');
+          } else {
+            setApiError('Failed to delete operation');
+          }
+        } catch (err: any) {
+          console.error('Error deleting operation:', err);
+          setApiError(err.response?.data?.message || 'Failed to delete operation');
+        }
+      }
+    } else {
+      // Fallback: just remove from local state
+      deleteOpRow(row.id);
+    }
+  };
+
+  const handleDeleteComponent = async (row: ComponentRow, ) => {
+    // If it's a new row (not saved to DB), just remove it from local state
+    if (row.isNew) {
+      deleteCompRow(row.id);
+      return;
+    }
+
+    // If it's an existing row, delete from API
+    if (row.id) {
+      if (window.confirm(`Are you sure you want to delete component "${row.itemCode}"?`)) {
+        try {
+          const response = await api.delete(`/bom-item/${row.id}`);
+          if (response.data.success === 1) {
+            deleteCompRow(row.id);
+            alert('Component deleted successfully');
+          } else {
+            setApiError('Failed to delete component');
+          }
+        } catch (err: any) {
+          console.error('Error deleting component:', err);
+          setApiError(err.response?.data?.message || 'Failed to delete component');
+        }
+      }
+    } else {
+      // Fallback: just remove from local state
+      deleteCompRow(row.id);
+    }
+  };
+
   // ─── Row Operations ──────────────────────────────────────────────────────
 
   const addCompRow = () =>
@@ -767,11 +858,13 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
       id: Date.now(),
       itemCode: "",
       itemName: "",
-      qty: "0.000",
+      qty: "",
       uom: "",
-      rate: "₹ 0.00",
+      rate: "0",
       amount: "₹ 0.00",
-      itemGroup: ""
+      itemGroup: "",
+      valuationRate: 0,
+      isNew: true
     }]);
 
   const deleteCompRow = (id: number) => {
@@ -806,13 +899,16 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
     setOpRows(r => [...r, {
       id: Date.now(),
       operation: "",
+      operationId: undefined,
       sequenceId: String(r.length + 1),
       workstation: "",
+      workstationId: undefined,
       workstationType: "",
       timeInMins: "",
       hourRate: "",
       operatingCost: "",
-      qualityInspectionRequired: false
+      qualityInspectionRequired: false,
+      isNew: true
     }]);
 
   const deleteOpRow = (id: number) => {
@@ -824,17 +920,83 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
     setOpRows(r => r.filter(row => row.id !== id));
   };
 
-  // ─── When operation is selected, auto-fill workstation ──────────────────
+  // ─── When operation is selected, auto-fill workstation and hour rate ────
 
   const handleOperationSelect = (idx: number, operationName: string) => {
     const selectedOp = operations.find(op => op.name === operationName);
+    if (selectedOp) {
+      const workstationDetails = workstations.find(w => w.id === selectedOp.workstationId);
+      
+      setOpRows(rs => rs.map((r, i) => 
+        i === idx ? {
+          ...r,
+          operation: operationName,
+          operationId: selectedOp.id,
+          workstation: workstationDetails?.workstation_name || selectedOp.workstation || '',
+          workstationId: selectedOp.workstationId,
+          timeInMins: selectedOp.total_operation_time?.toString() || r.timeInMins,
+          workstationType: workstationDetails?.workstation_type || '',
+          hourRate: workstationDetails?.hour_rate?.toString() || r.hourRate || '0',
+          operatingCost: workstationDetails?.hour_rate 
+            ? ((workstationDetails.hour_rate * (parseFloat(selectedOp.total_operation_time?.toString() || '0'))) / 60).toFixed(2)
+            : r.operatingCost || '0',
+          isNew: r.isNew,
+        } : r
+      ));
+    }
+  };
+
+  // ─── When workstation is manually selected ──────────────────────────────
+
+  const handleWorkstationSelect = (idx: number, workstationName: string) => {
+    const selectedWorkstation = workstations.find(w => w.workstation_name === workstationName);
+    if (selectedWorkstation) {
+      setOpRows(rs => rs.map((r, i) => 
+        i === idx ? {
+          ...r,
+          workstation: workstationName,
+          workstationId: selectedWorkstation.id,
+          workstationType: selectedWorkstation.workstation_type || '',
+          hourRate: selectedWorkstation.hour_rate?.toString() || r.hourRate || '0',
+          operatingCost: selectedWorkstation.hour_rate 
+            ? ((selectedWorkstation.hour_rate * (parseFloat(r.timeInMins) || 0)) / 60).toFixed(2)
+            : r.operatingCost || '0',
+          isNew: r.isNew,
+        } : r
+      ));
+    }
+  };
+
+  // ─── When time changes, recalculate operating cost ──────────────────────
+
+  const handleTimeChange = (idx: number, timeInMins: string) => {
+    const row = opRows[idx];
+    const hourRate = parseFloat(row.hourRate) || 0;
+    const time = parseFloat(timeInMins) || 0;
+    const operatingCost = (hourRate * time) / 60;
+    
     setOpRows(rs => rs.map((r, i) => 
       i === idx ? {
         ...r,
-        operation: operationName,
-        workstation: selectedOp?.workstation || r.workstation,
-        timeInMins: selectedOp?.total_operation_time?.toString() || r.timeInMins,
-        workstationType: selectedOp?.workstation || r.workstationType,
+        timeInMins: timeInMins,
+        operatingCost: operatingCost.toFixed(2)
+      } : r
+    ));
+  };
+
+  // ─── When hour rate changes, recalculate operating cost ────────────────
+
+  const handleHourRateChange = (idx: number, hourRate: string) => {
+    const row = opRows[idx];
+    const time = parseFloat(row.timeInMins) || 0;
+    const rate = parseFloat(hourRate) || 0;
+    const operatingCost = (rate * time) / 60;
+    
+    setOpRows(rs => rs.map((r, i) => 
+      i === idx ? {
+        ...r,
+        hourRate: hourRate,
+        operatingCost: operatingCost.toFixed(2)
       } : r
     ));
   };
@@ -845,8 +1007,8 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
     let totalComponentCost = 0;
     compRows.forEach(row => {
       if (row.rate && row.qty) {
-        const rate = parseFloat(row.rate.replace(/[₹,]/g, '')) || 0;
-        const qty = parseFloat(row.qty) || 0;
+        const rate = parseFloat(row.rate ?? '0') || 0;
+        const qty = parseFloat(row.qty ?? '0') || 0;
         totalComponentCost += rate * qty;
       }
     });
@@ -858,10 +1020,18 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
       }
     });
 
+    let totalSecondaryCost = 0;
+    secRows.forEach(row => {
+      const rate = parseFloat(row.rate ?? '0') || 0;
+      const qty = parseFloat(row.qty ?? '0') || 0;
+      totalSecondaryCost += rate * qty;
+    });
+
     return {
       totalComponentCost: totalComponentCost.toFixed(2),
       totalOperationCost: totalOperationCost.toFixed(2),
-      totalCost: (totalComponentCost + totalOperationCost).toFixed(2)
+      totalSecondaryCost: totalSecondaryCost.toFixed(2),
+      totalCost: (totalComponentCost + totalOperationCost + totalSecondaryCost).toFixed(2)
     };
   };
 
@@ -917,6 +1087,25 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
     try {
       const selectedItem = items.find(i => i.item_code === itemToManufacture);
       
+      // Calculate all costs
+      const totalComponentCost = compRows.reduce((sum, row) => {
+        const rate = parseFloat(row.rate || "0") || 0;
+        const qty = parseFloat(row.qty || "0") || 0;
+        return sum + (rate * qty);
+      }, 0);
+
+      const totalOperationCost = opRows.reduce((sum, row) => {
+        return sum + (parseFloat(row.operatingCost || "0") || 0);
+      }, 0);
+
+      const totalSecondaryCost = secRows.reduce((sum, row) => {
+        const rate = parseFloat(row.rate || "0") || 0;
+        const qty = parseFloat(row.qty || "0") || 0;
+        return sum + (rate * qty);
+      }, 0);
+
+      const totalCost = totalComponentCost + totalOperationCost + totalSecondaryCost;
+      
       let bomResponse;
       const bomPayload = {
         item: itemToManufacture,
@@ -931,42 +1120,41 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
         modified_by: "Administrator",
         default_source_warehouse: defaultSourceWarehouse,
         default_target_warehouse: defaultTargetWarehouse,
+        operating_cost: totalOperationCost,
+        raw_material_cost: totalComponentCost,
+        secondary_items_cost: totalSecondaryCost,
+        base_operating_cost: totalOperationCost,
+        base_raw_material_cost: totalComponentCost,
+        base_secondary_items_cost: totalSecondaryCost,
+        total_cost: totalCost,
+        base_total_cost: totalCost,
       };
 
-      // Check if we're editing
       if (editData && editData.bom && editData.bom.id) {
-        // Update existing BOM - PUT with id in payload
         bomResponse = await api.put('/bom', { 
           id: editData.bom.id,
           ...bomPayload 
         });
         setBomId(editData.bom.id);
       } else {
-        // Create new BOM - POST
         bomResponse = await api.post('/bom', bomPayload);
-        const bomId = bomResponse.data.data?.insertId || bomResponse.data.data?.id || Date.now();
-        setBomId(bomId);
       }
 
       if (bomResponse.data.success !== 1) {
         throw new Error(bomResponse.data?.message || 'Failed to save BOM');
       }
 
-      const parentRef = bomId || editData?.bom?.id || Date.now();
+      const insertId = bomResponse.data?.data?.insertId || bomId || editData?.bom?.id || Date.now();
+      setBomId(insertId);
+      const parentRef = insertId;
 
-      // 2) Create/Update BOM Items (Components)
-      const validComponents = compRows.filter(r => r.itemCode.trim());
-      
-      // If editing, delete existing items and recreate
-      if (editData && editData.bom && editData.bom.id) {
-        // You might want to delete existing items first
-        // Or use a bulk update API if available
-      }
+      // 2) Create BOM Items (Components) - Only for new items
+      const validComponents = compRows.filter(r => r.itemCode.trim() && r.isNew);
 
       for (const comp of validComponents) {
         const compItem = items.find(i => i.item_code === comp.itemCode);
         const qty = parseFloat(comp.qty) || 0;
-        const rate = parseFloat(comp.rate.replace(/[₹,]/g, '')) || 0;
+        const rate = parseFloat(comp.rate) || compItem?.valuation_rate || 0;
         const amount = qty * rate;
         
         const itemPayload: BOMItemData = {
@@ -987,16 +1175,12 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
           modified_by: "Administrator"
         };
         
-        if (editData && editData.bom && editData.bom.id) {
-          // Check if item exists, update or create
-          // For simplicity, we'll just create
-        }
         await api.post('/bom-item', itemPayload);
       }
 
-      // 3) Create/Update BOM Operations if enabled
+      // 3) Create BOM Operations if enabled - Only for new operations
       if (withOperations) {
-        const validOps = opRows.filter(r => r.operation.trim());
+        const validOps = opRows.filter(r => r.operation.trim() && r.isNew);
         for (const op of validOps) {
           const hourRate = parseFloat(op.hourRate) || 0;
           const timeInMins = parseFloat(op.timeInMins) || 0;
@@ -1053,9 +1237,9 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
         await api.post('/bom-secondary', secPayload);
       }
 
-      const totalCost = calculateTotalCost();
+      const totalCostFormatted = totalCost.toFixed(2);
 
-      alert(`✅ BOM ${editData ? 'updated' : 'created'} successfully!\nBOM ID: ${parentRef}\nTotal Cost: ₹${totalCost.totalCost}`);
+      alert(`✅ BOM ${editData ? 'updated' : 'created'} successfully!\nBOM ID: ${parentRef}\nTotal Cost: ₹${totalCostFormatted}`);
       
       if (onBack) onBack();
       
@@ -1322,28 +1506,33 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                                   />
                                 </td>
                                 <td>
-                                  <input
-                                    className="nbom-table-input"
-                                    value={row.workstation}
-                                    onChange={e => setOpRows(rs => rs.map((r, i) => i === idx ? { ...r, workstation: e.target.value } : r))}
-                                    placeholder="Workstation"
-                                  />
-                                </td>
-                                <td>
                                   <select
                                     className="nbom-table-select"
-                                    value={row.workstationType}
-                                    onChange={e => setOpRows(rs => rs.map((r, i) => i === idx ? { ...r, workstationType: e.target.value } : r))}
+                                    value={row.workstation}
+                                    onChange={e => handleWorkstationSelect(idx, e.target.value)}
+                                    disabled={workstationsLoading}
                                   >
-                                    <option value="">Select</option>
-                                    {WORKSTATION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                                    <option value="">{workstationsLoading ? 'Loading workstations...' : 'Select workstation...'}</option>
+                                    {workstations.map(w => (
+                                      <option key={w.id} value={w.workstation_name}>
+                                        {w.workstation_name} {w.workstation_type ? `(${w.workstation_type})` : ''} - ₹{w.hour_rate}/hr
+                                      </option>
+                                    ))}
                                   </select>
                                 </td>
                                 <td>
                                   <input
                                     className="nbom-table-input"
+                                    value={row.workstationType}
+                                    onChange={e => setOpRows(rs => rs.map((r, i) => i === idx ? { ...r, workstationType: e.target.value } : r))}
+                                    placeholder="WS Type"
+                                  />
+                                </td>
+                                <td>
+                                  <input
+                                    className="nbom-table-input"
                                     value={row.timeInMins}
-                                    onChange={e => setOpRows(rs => rs.map((r, i) => i === idx ? { ...r, timeInMins: e.target.value } : r))}
+                                    onChange={e => handleTimeChange(idx, e.target.value)}
                                     placeholder="0"
                                     type="number"
                                     style={{ width: 70, textAlign: "right" }}
@@ -1353,23 +1542,19 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                                   <input
                                     className="nbom-table-input"
                                     value={row.hourRate}
-                                    onChange={e => setOpRows(rs => rs.map((r, i) => i === idx ? { ...r, hourRate: e.target.value } : r))}
+                                    onChange={e => handleHourRateChange(idx, e.target.value)}
                                     placeholder="0"
                                     type="number"
                                     style={{ width: 80, textAlign: "right" }}
+                                    step="0.01"
                                   />
                                 </td>
                                 <td>
                                   <input
                                     className="nbom-table-input"
                                     value={row.operatingCost}
-                                    onChange={e => setOpRows(rs => rs.map((r, i) => i === idx ? { 
-                                      ...r, 
-                                      operatingCost: e.target.value,
-                                    } : r))}
-                                    placeholder="0"
-                                    type="number"
-                                    style={{ width: 80, textAlign: "right" }}
+                                    readOnly
+                                    style={{ width: 80, textAlign: "right", background: "var(--c-bg-muted)" }}
                                   />
                                 </td>
                                 <td style={{ textAlign: "center" }}>
@@ -1382,7 +1567,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                                 <td style={{ textAlign: "center" }}>
                                   <button
                                     className="nbom-edit-btn nbom-edit-btn--delete"
-                                    onClick={() => deleteOpRow(row.id)}
+                                    onClick={() => handleDeleteOperation(row, )}
                                     title="Delete row"
                                   >
                                     <Trash2 size={12} />
@@ -1444,14 +1629,18 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                                   itemCode: e.target.value,
                                   itemName: selectedItem?.item_name || '',
                                   itemGroup: selectedItem?.item_group || '',
-                                  uom: selectedItem?.stock_uom || r.uom
+                                  uom: selectedItem?.stock_uom || r.uom,
+                                  rate: String(selectedItem?.valuation_rate || 0),
+                                  valuationRate: selectedItem?.valuation_rate || 0,
+                                  amount: `₹ ${((selectedItem?.valuation_rate || 0) * (parseFloat(r.qty) || 0)).toFixed(2)}`
                                 } : r));
                               }}
                             >
                               <option value="">Select item...</option>
                               {items.map(item => (
                                 <option key={item.id} value={item.item_code}>
-                                  {item.item_code} - {item.item_name}
+                                  {item.item_code} - {item.item_name} 
+                                  {item.valuation_rate ? ` (₹${item.valuation_rate})` : ''}
                                 </option>
                               ))}
                             </select>
@@ -1476,7 +1665,15 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                             <input
                               className="nbom-table-input"
                               value={row.qty}
-                              onChange={e => setCompRows(rs => rs.map((r, i) => i === idx ? { ...r, qty: e.target.value } : r))}
+                              onChange={e => {
+                                const qty = parseFloat(e.target.value) || 0;
+                                const rate = parseFloat(row.rate) || 0;
+                                setCompRows(rs => rs.map((r, i) => i === idx ? { 
+                                  ...r, 
+                                  qty: e.target.value,
+                                  amount: `₹ ${(rate * qty).toFixed(2)}`
+                                } : r));
+                              }}
                               style={{ textAlign: "right", width: 80 }}
                               type="number"
                               step="0.001"
@@ -1494,12 +1691,18 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                             <input
                               className="nbom-table-input"
                               value={row.rate}
-                              onChange={e => setCompRows(rs => rs.map((r, i) => i === idx ? { 
-                                ...r, 
-                                rate: e.target.value,
-                                amount: `₹ ${(parseFloat(e.target.value || '0') * parseFloat(r.qty || '0')).toFixed(2)}`
-                              } : r))}
+                              onChange={e => {
+                                const rate = parseFloat(e.target.value) || 0;
+                                const qty = parseFloat(row.qty) || 0;
+                                setCompRows(rs => rs.map((r, i) => i === idx ? { 
+                                  ...r, 
+                                  rate: e.target.value,
+                                  amount: `₹ ${(rate * qty).toFixed(2)}`
+                                } : r));
+                              }}
                               style={{ width: 80, textAlign: "right" }}
+                              type="number"
+                              step="0.01"
                             />
                           </td>
                           <td className="nbom-table-val">{row.amount}</td>
@@ -1513,7 +1716,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                             </button>
                             <button
                               className="nbom-edit-btn nbom-edit-btn--delete"
-                              onClick={() => deleteCompRow(row.id)}
+                              onClick={() => handleDeleteComponent(row, )}
                               title="Delete row"
                             >
                               <Trash2 size={12} />
@@ -1662,12 +1865,16 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                 </div>
                 <div className="nbom-cost-summary">
                   <div className="nbom-cost-item">
-                    <span>Component Cost:</span>
+                    <span>Raw Material Cost:</span>
                     <strong>₹{calculateTotalCost().totalComponentCost}</strong>
                   </div>
                   <div className="nbom-cost-item">
                     <span>Operation Cost:</span>
                     <strong>₹{calculateTotalCost().totalOperationCost}</strong>
+                  </div>
+                  <div className="nbom-cost-item">
+                    <span>Secondary Items Cost:</span>
+                    <strong>₹{calculateTotalCost().totalSecondaryCost}</strong>
                   </div>
                   <div className="nbom-cost-item nbom-cost-total">
                     <span>Total BOM Cost:</span>

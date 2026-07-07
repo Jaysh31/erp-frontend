@@ -1,12 +1,12 @@
-import React, { useState,  } from 'react';
+import React, { useRef, useState,  } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   FaSearch, FaPlus, FaEye, FaEdit, FaTrash, FaFilePdf, 
   FaFilter, FaCheckCircle, FaClock, FaTimesCircle,
   FaPrint, FaFileAlt, FaExternalLinkAlt, 
   FaChartLine, FaTimes,  FaSave, FaSpinner,
-  FaEnvelope,
-  FaUpload, FaImage
+   FaEnvelope,
+  FaUpload, FaImage, FaBuilding
 } from 'react-icons/fa';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
@@ -42,6 +42,7 @@ interface Quotation {
 export default function Quotation() {
   const navigate = useNavigate();
   // const printRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null); // Add this ref
   
   let theme = 'light';
   try {
@@ -64,11 +65,23 @@ export default function Quotation() {
     return localStorage.getItem('quotationLetterheadName') || 'Letterhead';
   });
   
+  // Company details from letterhead template
+  const [companyDetails, setCompanyDetails] = useState({
+    name: localStorage.getItem('companyName') || 'Sculptor Tech Pvt Ltd',
+    address: localStorage.getItem('companyAddress') || 'c-1006, gc, Pune, Maharashtra 411028, India',
+    website: localStorage.getItem('companyWebsite') || 'sculptortechpvtltd@gmail.com',
+    email: localStorage.getItem('companyEmail') || 'jayeshwakle@sculptortechpvtltd.com',
+    contact: localStorage.getItem('companyContact') || '8668584275',
+    gst: localStorage.getItem('companyGST') || '',
+    pan: localStorage.getItem('companyPAN') || ''
+  });
+  
   // Modal states
   const [showViewModal, setShowViewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showPdfModal, setShowPdfModal] = useState(false);
+  const [showCompanyForm, setShowCompanyForm] = useState(false);
   const [selectedQuote, setSelectedQuote] = useState<Quotation | null>(null);
   const [loading, setLoading] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
@@ -135,6 +148,10 @@ export default function Quotation() {
   ]);
 
   // Letterhead functions
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
   const uploadLetterHead = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -158,6 +175,11 @@ export default function Quotation() {
       localStorage.setItem('quotationLetterhead', base64);
       localStorage.setItem('quotationLetterheadName', file.name);
       toast.success('Letterhead uploaded successfully!');
+      
+      // Reset the input value so the same file can be uploaded again
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     };
     reader.onerror = () => {
       toast.error('Failed to upload letterhead');
@@ -291,13 +313,16 @@ export default function Quotation() {
     { value: 'Expired', label: 'Expired' }
   ];
 
-  // Get company details from localStorage
+  // Get company details with fallback
   const getCompanyDetails = () => {
     return {
-      name: localStorage.getItem('companyName') || 'Manufacturing ERP',
-      address: localStorage.getItem('companyAddress') || '123, Business Park, Mumbai, Maharashtra - 400001',
-      phone: localStorage.getItem('companyPhone') || '+91-9876543210',
-      email: localStorage.getItem('companyEmail') || 'info@manufacturingerp.com'
+      name: companyDetails.name || 'Manufacturing ERP',
+      address: companyDetails.address || '123, Business Park, Mumbai, Maharashtra - 400001',
+      website: companyDetails.website || 'www.manufacturingerp.com',
+      email: companyDetails.email || 'info@manufacturingerp.com',
+      phone: companyDetails.contact || '+91-9876543210',
+      gst: companyDetails.gst || '',
+      pan: companyDetails.pan || ''
     };
   };
 
@@ -342,7 +367,7 @@ export default function Quotation() {
             .letterhead-bg {
               width: 100%;
               display: block;
-              opacity: 1;
+              opacity: 0.15;
             }
             .content-overlay {
               position: absolute;
@@ -353,9 +378,30 @@ export default function Quotation() {
               padding: 100px 50px 50px 50px;
               overflow: hidden;
             }
+            .company-header {
+              text-align: center;
+              margin-bottom: 20px;
+              border-bottom: 2px solid #1f2937;
+              padding-bottom: 15px;
+            }
+            .company-header h1 {
+              font-size: 24px;
+              color: #1f2937;
+              margin: 0;
+              letter-spacing: 2px;
+            }
+            .company-header .company-details {
+              font-size: 12px;
+              color: #6b7280;
+              margin-top: 5px;
+              line-height: 1.6;
+            }
+            .company-header .company-details span {
+              margin: 0 8px;
+            }
             .report-header {
               text-align: center;
-              margin-bottom: 30px;
+              margin: 20px 0 30px 0;
             }
             .report-title {
               font-size: 28px;
@@ -442,6 +488,9 @@ export default function Quotation() {
               font-size: 12px;
               color: #6b7280;
             }
+            .report-footer .footer-details {
+              line-height: 1.8;
+            }
             .report-footer .total-amount {
               font-weight: 700;
               font-size: 16px;
@@ -450,11 +499,20 @@ export default function Quotation() {
             .report-footer .total-amount span {
               color: #6366f1;
             }
+            .print-watermark {
+              position: absolute;
+              bottom: 20px;
+              right: 30px;
+              font-size: 10px;
+              color: #9ca3af;
+              opacity: 0.5;
+            }
             @media print {
               body { background: white; padding: 0; }
               .letterhead-wrapper { box-shadow: none; max-width: 100%; }
               .content-overlay { padding: 80px 40px 40px 40px; }
               .report-table tr:hover { background: transparent; }
+              .letterhead-bg { opacity: 0.1; }
             }
             @media (max-width: 768px) {
               .content-overlay { padding: 40px 20px 20px 20px; }
@@ -469,6 +527,19 @@ export default function Quotation() {
           <div class="letterhead-wrapper">
             ${letterHead ? `<img src="${letterHead}" alt="Letterhead" class="letterhead-bg" />` : ''}
             <div class="content-overlay">
+              <!-- Company Header with dynamic details -->
+              <div class="company-header">
+                <h1>${company.name}</h1>
+                <div class="company-details">
+                  ${company.address}
+                  ${company.phone ? `<span>|</span> Phone: ${company.phone}` : ''}
+                  ${company.email ? `<span>|</span> Email: ${company.email}` : ''}
+                  ${company.website ? `<span>|</span> Website: ${company.website}` : ''}
+                  ${company.gst ? `<span>|</span> GST: ${company.gst}` : ''}
+                  ${company.pan ? `<span>|</span> PAN: ${company.pan}` : ''}
+                </div>
+              </div>
+
               <div class="report-header">
                 <div class="report-title">QUOTATIONS REPORT</div>
               </div>
@@ -500,13 +571,19 @@ export default function Quotation() {
               </table>
 
               <div class="report-footer">
-                <div>
-                  <strong>Company:</strong> ${company.name}<br/>
-                  ${company.address} | ${company.phone} | ${company.email}
+                <div class="footer-details">
+                  <strong>${company.name}</strong><br/>
+                  ${company.address}
+                  ${company.phone ? `<br/>📞 ${company.phone}` : ''}
+                  ${company.email ? `<br/>✉️ ${company.email}` : ''}
+                  ${company.website ? `<br/>🌐 ${company.website}` : ''}
                 </div>
                 <div class="total-amount">
                   Grand Total: <span>${data[0]?.currency || 'INR'} ${total.toLocaleString()}</span>
                 </div>
+              </div>
+              <div class="print-watermark">
+                Generated on ${new Date().toLocaleDateString()}
               </div>
             </div>
           </div>
@@ -540,6 +617,16 @@ export default function Quotation() {
     }
   };
 
+  // Save company details
+  const saveCompanyDetails = () => {
+    Object.entries(companyDetails).forEach(([key, value]) => {
+      const storageKey = `company${key.charAt(0).toUpperCase() + key.slice(1)}`;
+      localStorage.setItem(storageKey, value);
+    });
+    toast.success('Company details saved successfully!');
+    setShowCompanyForm(false);
+  };
+
   return (
     <div className={`quotation-page ${theme}-theme`}>
       {/* Header */}
@@ -549,6 +636,15 @@ export default function Quotation() {
           <span className="badge">{quotations.length}</span>
         </div>
         <div className="header-actions">
+          {/* Company Details Button */}
+          <button 
+            className="btn-secondary" 
+            onClick={() => setShowCompanyForm(true)}
+            title="Update company details for letterhead"
+          >
+            <FaBuilding size={12} /> Company Details
+          </button>
+          
           {/* Letterhead Upload */}
           <div className="letterhead-actions">
             {letterHead ? (
@@ -566,15 +662,22 @@ export default function Quotation() {
                 </span>
               </>
             ) : (
-              <label className="btn-secondary" style={{ cursor: 'pointer' }}>
-                <FaUpload size={12} /> Upload Letterhead
+              <>
+                <button 
+                  className="btn-secondary" 
+                  onClick={handleUploadClick}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <FaUpload size={12} /> Upload Letterhead
+                </button>
                 <input 
+                  ref={fileInputRef}
                   type="file" 
                   accept="image/*" 
                   onChange={uploadLetterHead} 
                   style={{ display: 'none' }} 
                 />
-              </label>
+              </>
             )}
           </div>
           
@@ -1188,6 +1291,95 @@ export default function Quotation() {
                 setShowPdfModal(false);
               }}>
                 <FaEnvelope size={12} /> Email PDF
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ====== COMPANY DETAILS MODAL ====== */}
+      {showCompanyForm && (
+        <div className="modal-overlay" onClick={() => setShowCompanyForm(false)}>
+          <div className="modal-container" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Company Details</h2>
+              <button className="modal-close" onClick={() => setShowCompanyForm(false)}>
+                <FaTimes />
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="edit-form">
+                <div className="edit-grid">
+                  <div className="form-group full-width">
+                    <label>Company Name *</label>
+                    <input
+                      type="text"
+                      value={companyDetails.name}
+                      onChange={(e) => setCompanyDetails(prev => ({ ...prev, name: e.target.value }))}
+                      placeholder="Enter company name"
+                    />
+                  </div>
+                  <div className="form-group full-width">
+                    <label>Address *</label>
+                    <input
+                      type="text"
+                      value={companyDetails.address}
+                      onChange={(e) => setCompanyDetails(prev => ({ ...prev, address: e.target.value }))}
+                      placeholder="Enter company address"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Website</label>
+                    <input
+                      type="text"
+                      value={companyDetails.website}
+                      onChange={(e) => setCompanyDetails(prev => ({ ...prev, website: e.target.value }))}
+                      placeholder="Enter website URL"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Email</label>
+                    <input
+                      type="email"
+                      value={companyDetails.email}
+                      onChange={(e) => setCompanyDetails(prev => ({ ...prev, email: e.target.value }))}
+                      placeholder="Enter company email"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Contact Number</label>
+                    <input
+                      type="text"
+                      value={companyDetails.contact}
+                      onChange={(e) => setCompanyDetails(prev => ({ ...prev, contact: e.target.value }))}
+                      placeholder="Enter contact number"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>GST Number</label>
+                    <input
+                      type="text"
+                      value={companyDetails.gst}
+                      onChange={(e) => setCompanyDetails(prev => ({ ...prev, gst: e.target.value }))}
+                      placeholder="Enter GST number"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>PAN Number</label>
+                    <input
+                      type="text"
+                      value={companyDetails.pan}
+                      onChange={(e) => setCompanyDetails(prev => ({ ...prev, pan: e.target.value }))}
+                      placeholder="Enter PAN number"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-secondary" onClick={() => setShowCompanyForm(false)}>Cancel</button>
+              <button className="btn-primary" onClick={saveCompanyDetails}>
+                <FaSave size={12} /> Save Details
               </button>
             </div>
           </div>

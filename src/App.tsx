@@ -4,7 +4,7 @@ import { ModuleProvider } from './context/ModuleContext'; // Import ModuleProvid
 
 import LoginPage from "./pages/LoginPage";
 import MainLayout from "./layouts/MainLayout";
-import DashboardPage from "./pages/DashboardPage";
+import DashboardPage from "./pages/DashboardPages/DashboardPage";
 import ItemGroupForm from "./pages/Setup/Itemgroupform";
 import ItemGroupList from "./pages/Setup/Itemgrouplist";
 import Itemlist from "./pages/Setup/Itemlist";
@@ -23,7 +23,7 @@ import NewBOMPage from "./pages/Newbompage";
 import JobCardManagement from "./pages/JobCardManagement";
 import JobCardForm from "./pages/JobCardForm";
 import Stockentry from "./pages/Stockentry";
-import StockentryForm from "./pages/StockentryForm";
+// import StockentryForm from "./pages/StockentryForm";
 
 
 import HomePage from "./pages/HomePage";
@@ -57,6 +57,16 @@ import NewSupplierQuotation from "./pages/NewSupplierQuotation";
 import SupplierQuotation from "./pages/SupplierQuotation";
 import PurchaseInvoice from "./pages/PurchaseInvoice";
 import NewPurchaseInvoice from "./pages/NewPurchaseInvoice";
+import Accounts from "./pages/Accounts";
+import ChartOfAccounts from "./pages/ChartOfAccounts";
+import LedgerAccounts from "./pages/LedgerAccounts";
+import CustomerInvoices from "./pages/CustomerInvoices";
+import SalesReceiptList from "./pages/SalesReceiptList";
+import SalesReceiptForm from "./pages/SalesReceiptForm";
+// import { StatusBadge } from "./components/StatusBadge";
+// import { SummaryCards } from "./pages/components/SummaryCards";
+import OutstandingDashboard from "./pages/OutstandingDashboard";
+import CustomerPayments from "./pages/CustomerPayments";
 import WorkOrderForm from "./pages/WorkOrderForm";
 import WorkOrderList from "./pages/WorkOrder";
 import Workstation from "./pages/Workstation";
@@ -65,6 +75,17 @@ import OperationListing from "./pages/Setup/OperationListing";
 import OperationQuickAdd from "./pages/Setup/OperationQuickAdd";
 import LeadManagement from "./pages/LeadManagement";
 import LeadForm from "./pages/LeadForm";
+import StockentryForm2 from "./pages/StockentryForm2";
+import PurchaseOrderForm from "./pages/PurchaseOrderForm";
+import SalesDashboard from "./pages/DashboardPages/SalesDashboard";
+import PurchasingDashboard from "./pages/DashboardPages/PurchasingDashboard";
+import AccountingDashboard from "./pages/DashboardPages/AccountingDashboard";
+import SetupDashboard from "./pages/DashboardPages/SetupDashboard";
+import OrganizationDashboard from "./pages/DashboardPages/OrganizationDashboard";
+import ToolsDashboard from "./pages/DashboardPages/ToolsDashboard";
+import ReportsDashboard from "./pages/DashboardPages/ReportsDashboard";
+import StockDashboard from "./pages/DashboardPages/StockDashboard";
+import QualityDashboard from "./pages/DashboardPages/QualityDashboard";
 
 
 function App() {
@@ -104,6 +125,56 @@ function App() {
               <Route path="/purchase-invoice" element={<PurchaseInvoice />} />
               <Route path="/purchase-invoice/new" element={<NewPurchaseInvoice />} />
               {/* <Route path="/sales" element={<SalesPage />} />
+          
+          
+
+                  {/* Module Dashboards */}
+        <Route path="/dashboard/manufacturing" element={<DashboardPage />} />
+        <Route path="/dashboard/sales" element={<SalesDashboard />} />
+        <Route path="/dashboard/setup" element={<SetupDashboard />} />
+        <Route path="/dashboard/purchasing" element={<PurchasingDashboard />} />
+        <Route path="/dashboard/organization" element={<OrganizationDashboard />} />
+        <Route path="/dashboard/accounting" element={<AccountingDashboard />} />
+        <Route path="/dashboard/tools" element={<ToolsDashboard />} />
+        <Route path="/dashboard/reports" element={<ReportsDashboard />} />
+        <Route path="/dashboard/stock" element={<StockDashboard />} />
+        <Route path="/dashboard/quality" element={<QualityDashboard />} />
+
+        
+                          <Route path="/sales-order" element={<SalesOrder />} />
+            <Route path="/sales-invoice" element={<SalesInvoice />} />
+            <Route path="/sales-order/new" element={<CreateSalesOrder />} />
+            <Route path="/sales-invoice/new" element={<CreateSalesInvoice />} />
+            <Route path="/quotation" element={<QuotationPage />} />
+            <Route path="/quotation/new" element={<CreateQuotationPage />} />
+            <Route path="/price-list" element={<PriceList />} />
+            <Route path="/item-price" element={<ItemPrice />} />
+            <Route path="/pricing-rule" element={<PricingRule />} />
+            <Route path="/coupon-codes" element={<CouponCode />} />
+            <Route path="/supplier" element={<Supplier />} />
+           <Route path="/supplier/new" element={<AddSupplier />} />
+           <Route path="/supplier-group" element={<SupplierGroup />} />
+            <Route path="/contacts" element={<Contacts />} />
+            <Route path="/material-request" element={<MaterialRequest />} />
+            <Route path="/purchase-order" element={<PurchaseOrder />} />
+            <Route path="/request-for-quotation" element={<RequestForQuotation />} />
+            <Route path="/supplier-quotation" element={<SupplierQuotation />} />
+            <Route path="/supplier-quotation/new" element={<NewSupplierQuotation />} />
+            <Route path="/purchase-invoice" element={<PurchaseInvoice />} />
+            <Route path="/purchase-invoice/new" element={<NewPurchaseInvoice />} />
+            <Route path="/accounts" element={<Accounts />} />
+            <Route path="/chart-of-accounts" element={<ChartOfAccounts />} />
+            <Route path="/ledger-accounts" element={<LedgerAccounts />} />
+            <Route path="/customer-invoices" element={<CustomerInvoices />} />
+            <Route path="/sales-receipts" element={<SalesReceiptList />} />
+            <Route path="/sales-receipts/new" element={<SalesReceiptForm />} />
+            <Route path="/outstanding-receivables" element={<OutstandingDashboard />} />
+            <Route path="/customer-payments" element={<CustomerPayments />} />
+
+
+
+            
+            {/* <Route path="/sales" element={<SalesPage />} />
             <Route path="/purchase" element={<PurchasePage />} />
             <Route path="/inventory" element={<InventoryPage />} />
             <Route path="/production" element={<ProductionPage />} />
@@ -116,14 +187,21 @@ function App() {
               <Route path="/item-group" element={<ItemGroupList />} />
               <Route path="/item-group/:id" element={<ItemGroupForm />} />
               <Route path="/stock-entry" element={<Stockentry />} />
-              <Route path="/stock-entry/new" element={<StockentryForm />} />
-              <Route path="/stock-entry/:id" element={<StockentryForm />} />
+              <Route path="/stock-entry/new" element={<StockentryForm2 />} />
+              <Route path="/stock-entry/:id" element={<StockentryForm2 />} />
               {/* Item Routes */}
               <Route path="/item-list" element={<Itemlist />} />
               <Route path="/item/:id" element={<ItemForm />} />
               <Route path="/item-attribute" element={<ItemAttributeList />} />
               <Route path="/item-attribute/new" element={<ItemAttributeForm />} />
               <Route path="/item-attribute/:id" element={<ItemAttributeForm />} />
+
+
+                       {/* Purchase Order Routes */}
+              <Route path="/purchase-order" element={<PurchaseOrder />} />
+              <Route path="/purchase-order/new" element={<PurchaseOrderForm />} />
+              <Route path="/purchase-order/edit/:id" element={<PurchaseOrderForm />} />
+              <Route path="/purchase-order/view/:id" element={<PurchaseOrderForm />} />
 
               {/* Organization Routes */}
               <Route path="/company" element={<CompanyList />} />
@@ -162,6 +240,11 @@ function App() {
               <Route path="/operation/new" element={<OperationQuickAdd />} />
               <Route path="/operation/:id" element={<OperationQuickAdd />} />
               <Route path="/operation/:id/edit" element={<OperationQuickAdd />} />
+
+
+              <Route path="/purchase-invoice" element={<PurchaseInvoice />} />
+<Route path="/purchase-invoice/new" element={<NewPurchaseInvoice />} />
+<Route path="/purchase-invoice/edit/:id" element={<NewPurchaseInvoice />} />
 
 
               {/* UOM Routes */}

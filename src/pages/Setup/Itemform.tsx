@@ -18,8 +18,6 @@ import {
   FaShoppingCart,
   FaIndustry,
   FaClipboardCheck,
-  
-  
 } from 'react-icons/fa';
 import "./ItemForm.css";
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
@@ -57,6 +55,42 @@ interface ItemData {
   valuation_method: string;
   creation: string;
   modified: string;
+  allow_alternative_item: number;
+  has_variants: number;
+  is_customer_provided_item: number;
+  grant_commission: number;
+  include_item_in_manufacturing: number;
+  is_sub_contracted_item: number;
+  allow_negative_stock: number;
+  has_batch_no: number;
+  has_serial_no: number;
+  over_delivery_receipt_allowance: number;
+  over_billing_allowance: number;
+  valuation_rate: number;
+  standard_rate: number;
+  opening_stock: number;
+  weight_per_unit: number;
+  weight_uom: string | null;
+  min_order_qty: number;
+  safety_stock: number;
+  lead_time_days: number;
+  last_purchase_rate: number;
+  max_discount: number;
+  production_capacity: number;
+  warranty_period: string | null;
+  purchase_uom: string | null;
+  sales_uom: string | null;
+  country_of_origin: string | null;
+  end_of_life: string;
+  default_material_request_type: string;
+  inspection_required_before_purchase: number;
+  inspection_required_before_delivery: number;
+  quality_inspection_template: string | null;
+  enable_deferred_expense: number;
+  enable_deferred_revenue: number;
+  purchase_tax_withholding_category: string | null;
+  sales_tax_withholding_category: string | null;
+  delivered_by_supplier: number;
 }
 
 interface ItemGroup {
@@ -118,7 +152,6 @@ function TextInput({
   );
 }
 
-// Enhanced SelectInput with search functionality
 // Enhanced SelectInput with search functionality and fixed positioning
 function SelectInput({
   value,
@@ -148,7 +181,6 @@ function SelectInput({
 
   const selectedOption = options.find(opt => opt.value === value);
 
-  // Calculate dropdown position when opening
   const calculateDropdownPosition = () => {
     if (wrapperRef.current) {
       const rect = wrapperRef.current.getBoundingClientRect();
@@ -191,7 +223,6 @@ function SelectInput({
     }
   }, [highlightedIndex, isOpen]);
 
-  // Recalculate position on scroll or resize
   useEffect(() => {
     if (isOpen) {
       const handleUpdate = () => calculateDropdownPosition();
@@ -425,15 +456,11 @@ function SettingsIcon() {
 function DetailsTab({ form, setForm }: { form: any; setForm: (f: any) => void }) {
   const s = (k: string, v: any) => setForm({ ...form, [k]: v });
   
-  // State for item groups
   const [itemGroups, setItemGroups] = useState<ItemGroup[]>([]);
   const [loadingGroups, setLoadingGroups] = useState(false);
-
-  // State for UOMs
   const [uoms, setUoms] = useState<UOM[]>([]);
   const [loadingUoms, setLoadingUoms] = useState(false);
 
-  // Fetch item groups on mount
   useEffect(() => {
     const fetchItemGroups = async () => {
       setLoadingGroups(true);
@@ -452,7 +479,6 @@ function DetailsTab({ form, setForm }: { form: any; setForm: (f: any) => void })
     fetchItemGroups();
   }, []);
 
-  // Fetch UOMs on mount
   useEffect(() => {
     const fetchUoms = async () => {
       setLoadingUoms(true);
@@ -471,13 +497,11 @@ function DetailsTab({ form, setForm }: { form: any; setForm: (f: any) => void })
     fetchUoms();
   }, []);
 
-  // Convert item groups to select options format
   const groupOptions = itemGroups.map(group => ({
     label: group.item_group_name,
     value: group.item_group_name
   }));
 
-  // Convert UOMs to select options format
   const uomOptions = uoms
     .filter(uom => uom.enabled === 1)
     .map(uom => ({
@@ -613,16 +637,11 @@ function AccountingTab({ form, setForm }: { form: any; setForm: (f: any) => void
   );
 }
 
-
-
-// In the UOMTab component, update the state and logic:
-
-function UOMTab({ form }: { form: any; setForm: (f: any) => void }) {
+function UOMTab({ form,  }: { form: any; setForm: (f: any) => void }) {
   const [rows, setRows] = useState<TableRow[]>([
     { id: "1", uom: "", conversionFactor: "1" },
   ]);
   const [hasSyncedDefault, setHasSyncedDefault] = useState(false);
-
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
   const [editingField, setEditingField] = useState<'uom' | 'conversionFactor' | null>(null);
   const [uoms, setUoms] = useState<UOM[]>([]);
@@ -646,9 +665,6 @@ function UOMTab({ form }: { form: any; setForm: (f: any) => void }) {
     fetchUoms();
   }, []);
 
-  // Sync row 1's UOM to whatever form.defaultUOM resolves to, but ONLY ONCE
-  // (the first time it becomes available) — so it reflects real API data
-  // (e.g. stock_uom from the item) without overwriting user edits afterward.
   useEffect(() => {
     if (!hasSyncedDefault && form.defaultUOM) {
       setRows(prev => {
@@ -873,7 +889,6 @@ function TaxTab({ form, setForm }: { form: any; setForm: (f: any) => void }) {
 }
 
 function InventoryTab({ form, setForm }: { form: any; setForm: (f: any) => void }) {
-  const [] = useState<TableRow[]>([]);
   const s = (k: string, v: any) => setForm({ ...form, [k]: v });
 
   return (
@@ -903,7 +918,7 @@ function InventoryTab({ form, setForm }: { form: any; setForm: (f: any) => void 
           </div>
           <div className="itf-col">
             <Field label="Valuation Rate">
-              <TextInput value={form.valuationRate ?? "0.00"} onChange={(v) => s("valuationRate", v)} />
+              <TextInput value={form.valuationRate} onChange={(v) => s("valuationRate", v)} />
             </Field>
           </div>
         </div>
@@ -916,11 +931,11 @@ function InventoryTab({ form, setForm }: { form: any; setForm: (f: any) => void 
         <div className="itf-two-col">
           <div className="itf-col">
             <Field label="End of Life">
-              <TextInput value={form.endOfLife ?? "31-12-2099"} onChange={(v) => s("endOfLife", v)} />
+              <TextInput value={form.endOfLife} onChange={(v) => s("endOfLife", v)} />
             </Field>
             <Field label="Default Material Request Type">
               <SelectInput 
-                value={form.matReqType ?? "Purchase"} 
+                value={form.matReqType} 
                 onChange={(v) => s("matReqType", v)} 
                 options={[
                   { label: "Purchase", value: "Purchase" },
@@ -933,13 +948,13 @@ function InventoryTab({ form, setForm }: { form: any; setForm: (f: any) => void 
           </div>
           <div className="itf-col">
             <Field label="Warranty Period (in days)">
-              <TextInput value={form.warrantyPeriod ?? ""} onChange={(v) => s("warrantyPeriod", v)} />
+              <TextInput value={form.warrantyPeriod} onChange={(v) => s("warrantyPeriod", v)} />
             </Field>
             <Field label="Weight Per Unit">
-              <TextInput value={form.weightPerUnit ?? "0.000"} onChange={(v) => s("weightPerUnit", v)} />
+              <TextInput value={form.weightPerUnit} onChange={(v) => s("weightPerUnit", v)} />
             </Field>
             <Field label="Weight UOM">
-              <TextInput value={form.weightUOM ?? ""} onChange={(v) => s("weightUOM", v)} />
+              <TextInput value={form.weightUOM} onChange={(v) => s("weightUOM", v)} />
             </Field>
             <CheckField
               id="allowNegStock" checked={form.allowNegStock ?? false}
@@ -959,16 +974,12 @@ function InventoryTab({ form, setForm }: { form: any; setForm: (f: any) => void 
 function PurchasingTab({ form, setForm }: { form: any; setForm: (f: any) => void }) {
   const s = (k: string, v: any) => setForm({ ...form, [k]: v });
   
-  // State for suppliers data
   const [suppliers, setSuppliers] = useState<TableRow[]>([]);
   const [supplierOptions, setSupplierOptions] = useState<{ label: string; value: string }[]>([]);
   const [loadingSuppliers, setLoadingSuppliers] = useState(false);
-  
-  // Editing state
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
   const [editingField, setEditingField] = useState<'supplier' | 'supplierPartNumber' | null>(null);
 
-  // Fetch suppliers on mount
   useEffect(() => {
     const fetchSuppliers = async () => {
       setLoadingSuppliers(true);
@@ -976,7 +987,6 @@ function PurchasingTab({ form, setForm }: { form: any; setForm: (f: any) => void
         const response = await api.get("/supplier");
         if (response.data.success === 1) {
           const records = response.data.data.records || [];
-          // Transform to options format
           const options = records.map((supplier: any) => ({
             label: supplier.supplier_name + (supplier.mobile_no ? ` (${supplier.mobile_no})` : ''),
             value: supplier.supplier_name
@@ -1035,21 +1045,21 @@ function PurchasingTab({ form, setForm }: { form: any; setForm: (f: any) => void
         <div className="itf-two-col">
           <div className="itf-col">
             <Field label="Default Purchase Unit of Measure">
-              <TextInput value={form.purchaseUOM ?? ""} onChange={(v) => s("purchaseUOM", v)} />
+              <TextInput value={form.purchaseUOM} onChange={(v) => s("purchaseUOM", v)} />
             </Field>
             <Field label="Minimum Order Qty" hint="Minimum quantity should be as per Stock UOM">
-              <TextInput value={form.minOrderQty ?? "0.000"} onChange={(v) => s("minOrderQty", v)} />
+              <TextInput value={form.minOrderQty} onChange={(v) => s("minOrderQty", v)} />
             </Field>
             <Field label="Safety Stock" hint="Minimum stock level to maintain as a buffer.">
-              <TextInput value={form.safetyStock ?? "0.000"} onChange={(v) => s("safetyStock", v)} />
+              <TextInput value={form.safetyStock} onChange={(v) => s("safetyStock", v)} />
             </Field>
           </div>
           <div className="itf-col">
             <Field label="Lead Time in days" hint="Average time taken by the supplier to deliver">
-              <TextInput value={form.leadTime ?? "0"} onChange={(v) => s("leadTime", v)} />
+              <TextInput value={form.leadTime} onChange={(v) => s("leadTime", v)} />
             </Field>
             <Field label="Last Purchase Rate" hint="The rate at which this item was last purchased.">
-              <TextInput value={form.lastPurchaseRate ?? "0"} onChange={(v) => s("lastPurchaseRate", v)} />
+              <TextInput value={form.lastPurchaseRate} onChange={(v) => s("lastPurchaseRate", v)} />
             </Field>
           </div>
         </div>
@@ -1183,18 +1193,14 @@ function PurchasingTab({ form, setForm }: { form: any; setForm: (f: any) => void
 function SalesTab({ form, setForm }: { form: any; setForm: (f: any) => void }) {
   const s = (k: string, v: any) => setForm({ ...form, [k]: v });
   
-  // State for customers data
   const [customers, setCustomers] = useState<TableRow[]>([]);
   const [customerOptions, setCustomerOptions] = useState<{ label: string; value: string }[]>([]);
   const [customerGroupOptions, setCustomerGroupOptions] = useState<{ label: string; value: string }[]>([]);
   const [loadingCustomers, setLoadingCustomers] = useState(false);
   const [loadingGroups, setLoadingGroups] = useState(false);
-  
-  // Editing state
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
   const [editingField, setEditingField] = useState<'customerName' | 'customerGroup' | 'refCode' | null>(null);
 
-  // Fetch customers on mount
   useEffect(() => {
     const fetchCustomers = async () => {
       setLoadingCustomers(true);
@@ -1202,7 +1208,6 @@ function SalesTab({ form, setForm }: { form: any; setForm: (f: any) => void }) {
         const response = await api.get("/customer");
         if (response.data.success === 1) {
           const records = response.data.data.records || [];
-          // Transform to options format
           const options = records.map((customer: any) => ({
             label: customer.customer_name + (customer.mobile_no ? ` (${customer.mobile_no})` : ''),
             value: customer.customer_name
@@ -1219,7 +1224,6 @@ function SalesTab({ form, setForm }: { form: any; setForm: (f: any) => void }) {
     fetchCustomers();
   }, []);
 
-  // Fetch customer groups on mount
   useEffect(() => {
     const fetchCustomerGroups = async () => {
       setLoadingGroups(true);
@@ -1227,9 +1231,7 @@ function SalesTab({ form, setForm }: { form: any; setForm: (f: any) => void }) {
         const response = await api.get("/customer-group");
         if (response.data.success === 1) {
           const records = response.data.data.records || [];
-          // Filter out parent groups if needed (is_group === 1)
           const filteredRecords = records.filter((group: any) => group.is_group === 0);
-          // Transform to options format
           const options = filteredRecords.map((group: any) => ({
             label: group.customer_group_name,
             value: group.customer_group_name
@@ -1301,7 +1303,7 @@ function SalesTab({ form, setForm }: { form: any; setForm: (f: any) => void }) {
         <div className="itf-two-col">
           <div className="itf-col">
             <Field label="Default Sales Unit of Measure">
-              <TextInput value={form.salesUOM ?? ""} onChange={(v) => s("salesUOM", v)} />
+              <TextInput value={form.salesUOM} onChange={(v) => s("salesUOM", v)} />
             </Field>
             <CheckField
               id="grantCommission" checked={form.grantCommission ?? true}
@@ -1310,7 +1312,7 @@ function SalesTab({ form, setForm }: { form: any; setForm: (f: any) => void }) {
           </div>
           <div className="itf-col">
             <Field label="Max Discount (%)" hint="Maximum discount % allowed when selling this item.">
-              <TextInput value={form.maxDiscount ?? "0.000"} onChange={(v) => s("maxDiscount", v)} />
+              <TextInput value={form.maxDiscount} onChange={(v) => s("maxDiscount", v)} />
             </Field>
           </div>
         </div>
@@ -1491,7 +1493,7 @@ function ManufacturingTab({ form, setForm }: { form: any; setForm: (f: any) => v
           </div>
           <div className="itf-col">
             <Field label="Production Capacity">
-              <TextInput value={form.productionCapacity ?? "0"} onChange={(v) => s("productionCapacity", v)} />
+              <TextInput value={form.productionCapacity} onChange={(v) => s("productionCapacity", v)} />
             </Field>
           </div>
         </div>
@@ -1503,11 +1505,9 @@ function ManufacturingTab({ form, setForm }: { form: any; setForm: (f: any) => v
 function QualityTab({ form, setForm }: { form: any; setForm: (f: any) => void }) {
   const s = (k: string, v: any) => setForm({ ...form, [k]: v });
   
-  // State for quality inspection templates
   const [templateOptions, setTemplateOptions] = useState<{ label: string; value: string }[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
 
-  // Fetch quality inspection templates on mount
   useEffect(() => {
     const fetchTemplates = async () => {
       setLoadingTemplates(true);
@@ -1515,7 +1515,6 @@ function QualityTab({ form, setForm }: { form: any; setForm: (f: any) => void })
         const response = await api.get("/quality-inspection-template");
         if (response.data.success === 1) {
           const records = response.data.data.records || [];
-          // Transform to options format
           const options = records.map((template: any) => ({
             label: template.quality_inspection_template_name,
             value: template.quality_inspection_template_name
@@ -1537,7 +1536,6 @@ function QualityTab({ form, setForm }: { form: any; setForm: (f: any) => void })
       <section className="itf-section">
         <SectionTitle>Quality Inspection</SectionTitle>
         
-        {/* Two-column layout: checkboxes on left, dropdown on right */}
         <div className="itf-two-col">
           <div className="itf-col">
             <CheckField
@@ -1573,17 +1571,12 @@ function QualityTab({ form, setForm }: { form: any; setForm: (f: any) => void })
 }
 
 function PricingTab({  }: { form: any; setForm: (f: any) => void }) {
-  
-  // State for price list rows
   const [priceRows, setPriceRows] = useState<TableRow[]>([]);
   const [priceListOptions, setPriceListOptions] = useState<{ label: string; value: string }[]>([]);
   const [loadingPriceLists, setLoadingPriceLists] = useState(false);
-  
-  // Editing state
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
   const [editingField, setEditingField] = useState<'priceList' | 'price' | null>(null);
 
-  // Fetch price lists on mount
   useEffect(() => {
     const fetchPriceLists = async () => {
       setLoadingPriceLists(true);
@@ -1591,7 +1584,6 @@ function PricingTab({  }: { form: any; setForm: (f: any) => void }) {
         const response = await api.get("/price-list");
         if (response.data.success === 1) {
           const records = response.data.data.records || [];
-          // Transform to options format
           const options = records.map((priceList: any) => ({
             label: priceList.price_list_name + (priceList.currency ? ` (${priceList.currency})` : ''),
             value: priceList.price_list_name
@@ -1613,10 +1605,7 @@ function PricingTab({  }: { form: any; setForm: (f: any) => void }) {
     return option ? option.label : value;
   };
 
-  // Helper to get currency for a price list
   const getCurrencyForPriceList = () => {
-    // This would ideally come from the API data
-    // For now, we'll default to INR or you can fetch from the price list data
     return "INR";
   };
 
@@ -1754,7 +1743,6 @@ function PricingTab({  }: { form: any; setForm: (f: any) => void }) {
             }
 
             if (col === "currency") {
-              // Read-only display
               return (
                 <div
                   className="itf-view-text"
@@ -1907,9 +1895,7 @@ export default function ItemForm() {
   const { theme } = useAdminTheme();
   
   const isNew = id === "new" || !id;
-  const itemCode = isNew ? "" : decodeURIComponent(id ?? "");
-
-    const itemId = isNew ? null : parseInt(id || "0");
+  const itemId = isNew ? null : parseInt(id || "0");
   
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<number>(0);
@@ -1929,16 +1915,13 @@ export default function ItemForm() {
     { id: 7, name: 'Manufacturing', icon: <FaIndustry size={14} /> },
     { id: 8, name: 'Quality', icon: <FaClipboardCheck size={14} /> },
     { id: 9, name: 'Pricing', icon: <FaDollarSign size={14} /> },
-    // { id: 10, name: 'Connections', icon: <FaLink size={14} /> },
   ];
 
-  // Get data from location state (from ItemList)
   const itemData = location.state?.itemData as ItemData | undefined;
   const prefillData = location.state?.prefill as any | undefined;
 
   const [form, setFormRaw] = useState({
-    // Basic Info
-    id:0,
+    id: 0,
     itemName: "",
     itemCode: "",
     itemGroup: "",
@@ -1947,7 +1930,6 @@ export default function ItemForm() {
     description: "",
     disabled: false,
     
-    // Flags
     maintainStock: true,
     isFixedAsset: false,
     allowSales: true,
@@ -1962,7 +1944,6 @@ export default function ItemForm() {
     hasBatchNo: false,
     hasSerialNo: false,
     
-    // Numbers
     overDelivery: "0.000",
     overBilling: "0.000",
     valuationMethod: "FIFO",
@@ -1979,11 +1960,9 @@ export default function ItemForm() {
     productionCapacity: "0",
     warrantyPeriod: "",
     
-    // UOMs
     purchaseUOM: "",
     salesUOM: "",
     
-    // Other
     countryOfOrigin: "",
     endOfLife: "31-12-2099",
     matReqType: "Purchase",
@@ -2000,14 +1979,102 @@ export default function ItemForm() {
 
   const setForm = (f: any) => { setFormRaw(f); setIsDirty(true); };
 
-  // Fetch item data if editing
+  // Fetch item data - UPDATED to use the correct endpoint
+  const fetchItemData = async () => {
+    if (!itemId) return;
+    
+    setLoading(true);
+    try {
+      // Use the ID directly in the URL
+      const response = await api.get(`/item/${itemId}`);
+      
+      if (response.data.success === 1) {
+        const data = response.data.data;
+        
+        // Format end of life date properly
+        let endOfLife = "31-12-2099";
+        if (data.end_of_life) {
+          const dateParts = data.end_of_life.split('T')[0].split('-');
+          if (dateParts.length === 3) {
+            endOfLife = `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`;
+          }
+        }
+
+        setFormRaw({
+          id: data.id || 0,
+          itemName: data.item_name || "",
+          itemCode: data.item_code || "",
+          itemGroup: data.item_group || "",
+          defaultUOM: data.stock_uom || "Nos",
+          brand: data.brand || "",
+          description: data.description || "",
+          disabled: data.disabled === 1,
+          
+          maintainStock: data.is_stock_item === 1,
+          isFixedAsset: data.is_fixed_asset === 1,
+          allowSales: data.is_sales_item === 1,
+          allowPurchase: data.is_purchase_item === 1,
+          allowAltItem: data.allow_alternative_item === 1,
+          isCustomerProvided: data.is_customer_provided_item === 1,
+          hasVariants: data.has_variants === 1,
+          grantCommission: data.grant_commission === 1,
+          includeInMfg: data.include_item_in_manufacturing === 1,
+          isSubcontracted: data.is_sub_contracted_item === 1,
+          allowNegStock: data.allow_negative_stock === 1,
+          hasBatchNo: data.has_batch_no === 1,
+          hasSerialNo: data.has_serial_no === 1,
+          
+          overDelivery: String(data.over_delivery_receipt_allowance || 0),
+          overBilling: String(data.over_billing_allowance || 0),
+          valuationMethod: data.valuation_method || "FIFO",
+          valuationRate: String(data.valuation_rate || 0),
+          standardRate: String(data.standard_rate || 0),
+          openingStock: String(data.opening_stock || 0),
+          weightPerUnit: String(data.weight_per_unit || 0),
+          weightUOM: data.weight_uom || "",
+          minOrderQty: String(data.min_order_qty || 0),
+          safetyStock: String(data.safety_stock || 0),
+          leadTime: String(data.lead_time_days || 0),
+          lastPurchaseRate: String(data.last_purchase_rate || 0),
+          maxDiscount: String(data.max_discount || 0),
+          productionCapacity: String(data.production_capacity || 0),
+          warrantyPeriod: data.warranty_period || "",
+          
+          purchaseUOM: data.purchase_uom || "",
+          salesUOM: data.sales_uom || "",
+          
+          countryOfOrigin: data.country_of_origin || "",
+          endOfLife: endOfLife,
+          matReqType: data.default_material_request_type || "Purchase",
+          inspectionRequiredPurchase: data.inspection_required_before_purchase === 1,
+          inspectionRequiredDelivery: data.inspection_required_before_delivery === 1,
+          qualityInspectionTemplate: data.quality_inspection_template || "",
+          deferredExpense: data.enable_deferred_expense === 1,
+          deferredRevenue: data.enable_deferred_revenue === 1,
+          purchaseTaxWithholding: data.purchase_tax_withholding_category || "",
+          salesTaxWithholding: data.sales_tax_withholding_category || "",
+          dropShip: data.delivered_by_supplier === 1,
+          ineligibleITC: false,
+        });
+        setIsDirty(false);
+      } else {
+        toast.error('Failed to load item data');
+      }
+    } catch (err) {
+      console.error('Error fetching item:', err);
+      toast.error('Failed to load item data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch item data on mount
   useEffect(() => {
     if (!isNew && itemId) {
-      // If we have data from location state, use it
       if (itemData) {
+        // Use data from location state
         setFormRaw({
           id: itemData.id || 0,
-          // Basic Info
           itemName: itemData.item_name || "",
           itemCode: itemData.item_code || "",
           itemGroup: itemData.item_group || "",
@@ -2015,66 +2082,57 @@ export default function ItemForm() {
           brand: itemData.brand || "",
           description: itemData.description || "",
           disabled: itemData.disabled === 1,
-          
-          // Flags
           maintainStock: itemData.is_stock_item === 1,
           isFixedAsset: itemData.is_fixed_asset === 1,
           allowSales: itemData.is_sales_item === 1,
           allowPurchase: itemData.is_purchase_item === 1,
-          allowAltItem: false,
-          isCustomerProvided: false,
-          hasVariants: false,
-          grantCommission: true,
-          includeInMfg: true,
-          isSubcontracted: false,
-          allowNegStock: false,
-          hasBatchNo: false,
-          hasSerialNo: false,
-          
-          // Numbers
-          overDelivery: "0.000",
-          overBilling: "0.000",
+          allowAltItem: itemData.allow_alternative_item === 1,
+          isCustomerProvided: itemData.is_customer_provided_item === 1,
+          hasVariants: itemData.has_variants === 1,
+          grantCommission: itemData.grant_commission === 1,
+          includeInMfg: itemData.include_item_in_manufacturing === 1,
+          isSubcontracted: itemData.is_sub_contracted_item === 1,
+          allowNegStock: itemData.allow_negative_stock === 1,
+          hasBatchNo: itemData.has_batch_no === 1,
+          hasSerialNo: itemData.has_serial_no === 1,
+          overDelivery: String(itemData.over_delivery_receipt_allowance || 0),
+          overBilling: String(itemData.over_billing_allowance || 0),
           valuationMethod: itemData.valuation_method || "FIFO",
-          valuationRate: "0.00",
-          standardRate: "0.00",
-          openingStock: "0.00",
-          weightPerUnit: "0.000",
-          weightUOM: "",
-          minOrderQty: "0.000",
-          safetyStock: "0.000",
-          leadTime: "0",
-          lastPurchaseRate: "0.00",
-          maxDiscount: "0.000",
-          productionCapacity: "0",
-          warrantyPeriod: "",
-          
-          // UOMs
-          purchaseUOM: "",
-          salesUOM: "",
-          
-          // Other
-          countryOfOrigin: "",
-          endOfLife: "31-12-2099",
-          matReqType: "Purchase",
-          inspectionRequiredPurchase: false,
-          inspectionRequiredDelivery: false,
-          qualityInspectionTemplate: "",
-          deferredExpense: false,
-          deferredRevenue: false,
-          purchaseTaxWithholding: "",
-          salesTaxWithholding: "",
-          dropShip: false,
+          valuationRate: String(itemData.valuation_rate || 0),
+          standardRate: String(itemData.standard_rate || 0),
+          openingStock: String(itemData.opening_stock || 0),
+          weightPerUnit: String(itemData.weight_per_unit || 0),
+          weightUOM: itemData.weight_uom || "",
+          minOrderQty: String(itemData.min_order_qty || 0),
+          safetyStock: String(itemData.safety_stock || 0),
+          leadTime: String(itemData.lead_time_days || 0),
+          lastPurchaseRate: String(itemData.last_purchase_rate || 0),
+          maxDiscount: String(itemData.max_discount || 0),
+          productionCapacity: String(itemData.production_capacity || 0),
+          warrantyPeriod: itemData.warranty_period || "",
+          purchaseUOM: itemData.purchase_uom || "",
+          salesUOM: itemData.sales_uom || "",
+          countryOfOrigin: itemData.country_of_origin || "",
+          endOfLife: itemData.end_of_life ? itemData.end_of_life.split('-').reverse().join('-') : "31-12-2099",
+          matReqType: itemData.default_material_request_type || "Purchase",
+          inspectionRequiredPurchase: itemData.inspection_required_before_purchase === 1,
+          inspectionRequiredDelivery: itemData.inspection_required_before_delivery === 1,
+          qualityInspectionTemplate: itemData.quality_inspection_template || "",
+          deferredExpense: itemData.enable_deferred_expense === 1,
+          deferredRevenue: itemData.enable_deferred_revenue === 1,
+          purchaseTaxWithholding: itemData.purchase_tax_withholding_category || "",
+          salesTaxWithholding: itemData.sales_tax_withholding_category || "",
+          dropShip: itemData.delivered_by_supplier === 1,
           ineligibleITC: false,
         });
         setIsDirty(false);
       } else {
-        // Fetch from API if no location state
+        // Fetch from API using the ID
         fetchItemData();
       }
     } else if (isNew && prefillData) {
       // Prefill from quick add
       setFormRaw({
-        // Basic Info
         id: 0,
         itemName: prefillData.itemName || "",
         itemCode: prefillData.itemCode || "",
@@ -2083,8 +2141,6 @@ export default function ItemForm() {
         brand: prefillData.brand || "",
         description: prefillData.description || "",
         disabled: false,
-        
-        // Flags
         maintainStock: prefillData.maintainStock ?? true,
         isFixedAsset: prefillData.isFixedAsset ?? false,
         allowSales: true,
@@ -2098,8 +2154,6 @@ export default function ItemForm() {
         allowNegStock: false,
         hasBatchNo: false,
         hasSerialNo: false,
-        
-        // Numbers
         overDelivery: "0.000",
         overBilling: "0.000",
         valuationMethod: "FIFO",
@@ -2115,12 +2169,8 @@ export default function ItemForm() {
         maxDiscount: "0.000",
         productionCapacity: "0",
         warrantyPeriod: "",
-        
-        // UOMs
         purchaseUOM: "",
         salesUOM: "",
-        
-        // Other
         countryOfOrigin: "",
         endOfLife: "31-12-2099",
         matReqType: "Purchase",
@@ -2135,176 +2185,106 @@ export default function ItemForm() {
         ineligibleITC: false,
       });
     }
-  }, [isNew, itemCode, itemData, prefillData]);
+  }, [isNew, itemId, itemData, prefillData]);
 
-// Fetch item data using ID
-const fetchItemData = async () => {
-  setLoading(true);
-  try {
-    const response = await api.get(`/item/${id}`); // Use ID from params
-    if (response.data.success === 1) {
-      const data = response.data.data;
-      setFormRaw({
-        id: data.id,
-        itemName: data.item_name || "",
-        itemCode: data.item_code || "",
-        itemGroup: data.item_group || "",
-        defaultUOM: data.stock_uom || "Nos",
-        brand: data.brand || "",
-        description: data.description || "",
-        disabled: data.disabled === 1,
-        maintainStock: data.is_stock_item === 1,
-        isFixedAsset: data.is_fixed_asset === 1,
-        allowSales: data.is_sales_item === 1,
-        allowPurchase: data.is_purchase_item === 1,
-        allowAltItem: data.allow_alternative_item === 1,
-        isCustomerProvided: data.is_customer_provided_item === 1,
-        hasVariants: data.has_variants === 1,
-        grantCommission: data.grant_commission === 1,
-        includeInMfg: data.include_item_in_manufacturing === 1,
-        isSubcontracted: data.is_sub_contracted_item === 1,
-        allowNegStock: data.allow_negative_stock === 1,
-        hasBatchNo: data.has_batch_no === 1,
-        hasSerialNo: data.has_serial_no === 1,
-        overDelivery: String(data.over_delivery_receipt_allowance || 0),
-        overBilling: String(data.over_billing_allowance || 0),
-        valuationMethod: data.valuation_method || "FIFO",
-        valuationRate: String(data.valuation_rate || 0),
-        standardRate: String(data.standard_rate || 0),
-        openingStock: String(data.opening_stock || 0),
-        weightPerUnit: String(data.weight_per_unit || 0),
-        weightUOM: data.weight_uom || "",
-        minOrderQty: String(data.min_order_qty || 0),
-        safetyStock: String(data.safety_stock || 0),
-        leadTime: String(data.lead_time_days || 0),
-        lastPurchaseRate: String(data.last_purchase_rate || 0),
-        maxDiscount: String(data.max_discount || 0),
-        productionCapacity: String(data.production_capacity || 0),
-        warrantyPeriod: data.warranty_period || "",
-        purchaseUOM: data.purchase_uom || "",
-        salesUOM: data.sales_uom || "",
-        countryOfOrigin: data.country_of_origin || "",
-        endOfLife: data.end_of_life ? data.end_of_life.split('-').reverse().join('-') : "31-12-2099",
-        matReqType: data.default_material_request_type || "Purchase",
-        inspectionRequiredPurchase: data.inspection_required_before_purchase === 1,
-        inspectionRequiredDelivery: data.inspection_required_before_delivery === 1,
-        qualityInspectionTemplate: data.quality_inspection_template || "",
-        deferredExpense: data.enable_deferred_expense === 1,
-        deferredRevenue: data.enable_deferred_revenue === 1,
-        purchaseTaxWithholding: data.purchase_tax_withholding_category || "",
-        salesTaxWithholding: data.sales_tax_withholding_category || "",
-        dropShip: data.delivered_by_supplier === 1,
-        ineligibleITC: false,
-      });
-      setIsDirty(false);
-    }
-  } catch (err) {
-    console.error('Error fetching item:', err);
-    toast.error('Failed to load item data');
-  } finally {
-    setLoading(false);
-  }
-};
+  // Handle save
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
 
-// Handle save with ID
-const handleSave = async (e: React.FormEvent) => {
-  e.preventDefault();
-
-  const allErrors = getAllValidationErrors();
-  if (allErrors.length > 0) {
-    setValidationErrors(allErrors);
-    setShowValidationSummary(true);
-    return;
-  }
-
-  setSubmitting(true);
-  try {
-    const payload = {
-      id: parseInt(id || "0"), // ID first in the payload
-      item_code: form.itemCode || form.itemName.toUpperCase().replace(/\s+/g, '-'),
-      item_name: form.itemName.trim(),
-      item_group: form.itemGroup.trim(),
-      stock_uom: form.defaultUOM.trim(),
-      brand: form.brand || null,
-      description: form.description || form.itemName.trim(),
-      disabled: form.disabled ? 1 : 0,
-      is_stock_item: form.maintainStock ? 1 : 0,
-      is_fixed_asset: form.isFixedAsset ? 1 : 0,
-      is_sales_item: form.allowSales ? 1 : 0,
-      is_purchase_item: form.allowPurchase ? 1 : 0,
-      allow_alternative_item: form.allowAltItem ? 1 : 0,
-      is_customer_provided_item: form.isCustomerProvided ? 1 : 0,
-      has_variants: form.hasVariants ? 1 : 0,
-      grant_commission: form.grantCommission ? 1 : 0,
-      include_item_in_manufacturing: form.includeInMfg ? 1 : 0,
-      is_sub_contracted_item: form.isSubcontracted ? 1 : 0,
-      allow_negative_stock: form.allowNegStock ? 1 : 0,
-      has_batch_no: form.hasBatchNo ? 1 : 0,
-      has_serial_no: form.hasSerialNo ? 1 : 0,
-      delivered_by_supplier: form.dropShip ? 1 : 0,
-      over_delivery_receipt_allowance: parseFloat(form.overDelivery) || 0,
-      over_billing_allowance: parseFloat(form.overBilling) || 0,
-      valuation_method: form.valuationMethod || "FIFO",
-      valuation_rate: parseFloat(form.valuationRate) || 0,
-      standard_rate: parseFloat(form.standardRate) || 0,
-      opening_stock: parseFloat(form.openingStock) || 0,
-      weight_per_unit: parseFloat(form.weightPerUnit) || 0,
-      weight_uom: form.weightUOM || null,
-      min_order_qty: parseFloat(form.minOrderQty) || 0,
-      safety_stock: parseFloat(form.safetyStock) || 0,
-      lead_time_days: parseInt(form.leadTime) || 0,
-      last_purchase_rate: parseFloat(form.lastPurchaseRate) || 0,
-      max_discount: parseFloat(form.maxDiscount) || 0,
-      production_capacity: parseInt(form.productionCapacity) || 0,
-      warranty_period: form.warrantyPeriod || null,
-      purchase_uom: form.purchaseUOM || null,
-      sales_uom: form.salesUOM || null,
-      country_of_origin: form.countryOfOrigin || null,
-      end_of_life: form.endOfLife ? form.endOfLife.split('-').reverse().join('-') : "2099-12-31",
-      default_material_request_type: form.matReqType || "Purchase",
-      inspection_required_before_purchase: form.inspectionRequiredPurchase ? 1 : 0,
-      inspection_required_before_delivery: form.inspectionRequiredDelivery ? 1 : 0,
-      quality_inspection_template: form.qualityInspectionTemplate || null,
-      enable_deferred_expense: form.deferredExpense ? 1 : 0,
-      enable_deferred_revenue: form.deferredRevenue ? 1 : 0,
-      purchase_tax_withholding_category: form.purchaseTaxWithholding || null,
-      sales_tax_withholding_category: form.salesTaxWithholding || null,
-    };
-
-    let response;
-    if (isNew) {
-      response = await api.post('/item', payload);
-    } else {
-      // PUT to /item with ID in payload
-      response = await api.put('/item', payload);
+    const allErrors = getAllValidationErrors();
+    if (allErrors.length > 0) {
+      setValidationErrors(allErrors);
+      setShowValidationSummary(true);
+      return;
     }
 
-    if (response.data && response.data.success === 1) {
-      setIsDirty(false);
-      toast.success(isNew ? 'Item created successfully!' : 'Item updated successfully!');
-      navigate('/item-list');
-    } else {
-      toast.error(response.data?.message || 'Failed to save item');
+    setSubmitting(true);
+    try {
+      const payload = {
+        id: parseInt(id || "0"),
+        item_code: form.itemCode || form.itemName.toUpperCase().replace(/\s+/g, '-'),
+        item_name: form.itemName.trim(),
+        item_group: form.itemGroup.trim(),
+        stock_uom: form.defaultUOM.trim(),
+        description: form.description || form.itemName.trim(),
+        brand: form.brand || null,
+        is_stock_item: form.maintainStock ? 1 : 0,
+        is_purchase_item: form.allowPurchase ? 1 : 0,
+        is_sales_item: form.allowSales ? 1 : 0,
+        disabled: form.disabled ? 1 : 0,
+        standard_rate: parseFloat(form.standardRate) || 0,
+        opening_stock: parseFloat(form.openingStock) || 0,
+        valuation_method: form.valuationMethod || "FIFO",
+        valuation_rate: parseFloat(form.valuationRate) || 0,
+        weight_per_unit: parseFloat(form.weightPerUnit) || 0,
+        weight_uom: form.weightUOM || null,
+        allow_negative_stock: form.allowNegStock ? 1 : 0,
+        has_batch_no: form.hasBatchNo ? 1 : 0,
+        has_serial_no: form.hasSerialNo ? 1 : 0,
+        purchase_uom: form.purchaseUOM || null,
+        sales_uom: form.salesUOM || null,
+        min_order_qty: parseFloat(form.minOrderQty) || 0,
+        safety_stock: parseFloat(form.safetyStock) || 0,
+        lead_time_days: parseInt(form.leadTime) || 0,
+        last_purchase_rate: parseFloat(form.lastPurchaseRate) || 0,
+        country_of_origin: form.countryOfOrigin || null,
+        grant_commission: form.grantCommission ? 1 : 0,
+        max_discount: parseFloat(form.maxDiscount) || 0,
+        include_item_in_manufacturing: form.includeInMfg ? 1 : 0,
+        inspection_required_before_purchase: form.inspectionRequiredPurchase ? 1 : 0,
+        inspection_required_before_delivery: form.inspectionRequiredDelivery ? 1 : 0,
+        is_fixed_asset: form.isFixedAsset ? 1 : 0,
+        allow_alternative_item: form.allowAltItem ? 1 : 0,
+        has_variants: form.hasVariants ? 1 : 0,
+        is_customer_provided_item: form.isCustomerProvided ? 1 : 0,
+        is_sub_contracted_item: form.isSubcontracted ? 1 : 0,
+        over_delivery_receipt_allowance: parseFloat(form.overDelivery) || 0,
+        over_billing_allowance: parseFloat(form.overBilling) || 0,
+        enable_deferred_expense: form.deferredExpense ? 1 : 0,
+        enable_deferred_revenue: form.deferredRevenue ? 1 : 0,
+        purchase_tax_withholding_category: form.purchaseTaxWithholding || null,
+        sales_tax_withholding_category: form.salesTaxWithholding || null,
+        delivered_by_supplier: form.dropShip ? 1 : 0,
+        default_material_request_type: form.matReqType || "Purchase",
+        warranty_period: form.warrantyPeriod || null,
+        production_capacity: parseInt(form.productionCapacity) || 0,
+        quality_inspection_template: form.qualityInspectionTemplate || null,
+        end_of_life: form.endOfLife ? form.endOfLife.split('-').reverse().join('-') + 'T00:00:00.000Z' : null,
+        modified_by: "Administrator",
+        owner: "Administrator",
+      };
+
+      let response;
+      if (isNew) {
+        response = await api.post('/item', payload);
+      } else {
+        response = await api.put('/item', payload);
+      }
+
+      if (response.data && response.data.success === 1) {
+        setIsDirty(false);
+        toast.success(isNew ? 'Item created successfully!' : 'Item updated successfully!');
+        navigate('/item-list');
+      } else {
+        toast.error(response.data?.message || 'Failed to save item');
+      }
+    } catch (err: any) {
+      console.error('Error saving item:', err);
+      if (err.response?.status === 409) {
+        toast.error('An item with this code already exists');
+      } else {
+        toast.error(err.response?.data?.message || 'Failed to save item');
+      }
+    } finally {
+      setSubmitting(false);
     }
-  } catch (err: any) {
-    console.error('Error saving item:', err);
-    if (err.response?.status === 409) {
-      toast.error('An item with this code already exists');
-    } else {
-      toast.error(err.response?.data?.message || 'Failed to save item');
-    }
-  } finally {
-    setSubmitting(false);
-  }
-};
+  };
 
   const tabProps = { form, setForm };
 
-  // ─── Validation ──────────────────────────────────────
   const getAllValidationErrors = (): ValidationError[] => {
     const allErrors: ValidationError[] = [];
 
-    // Tab 0 — Details
     if (!form.itemName.trim())
       allErrors.push({ field: 'itemName', label: 'Item Name', message: 'Item name is required', tabIndex: 0 });
     if (!form.itemGroup.trim())
@@ -2339,7 +2319,6 @@ const handleSave = async (e: React.FormEvent) => {
       case 10: return <ConnectionsTab />;
     }
   };
-
 
   const allValidationErrors = getAllValidationErrors();
   const hasAnyErrors = allValidationErrors.length > 0;
@@ -2412,7 +2391,7 @@ const handleSave = async (e: React.FormEvent) => {
           <span className="itf-bc-sep">/</span>
           <span className="itf-bc-link" onClick={() => navigate("/item-list")}>Item</span>
           <span className="itf-bc-sep">/</span>
-          <span className="itf-bc-current">{isNew ? "New Item" : form.itemName || itemCode}</span>
+          <span className="itf-bc-current">{isNew ? "New Item" : form.itemName || form.itemCode}</span>
           {!isNew && !form.disabled && <span className="itf-status-pill enabled">Enabled</span>}
           {!isNew && form.disabled && <span className="itf-status-pill disabled">Disabled</span>}
 
@@ -2499,8 +2478,8 @@ const handleSave = async (e: React.FormEvent) => {
         {!isNew && (
           <aside className="itf-sidebar">
             <div className="itf-doc-avatar">{form.itemName.charAt(0).toUpperCase() || 'I'}</div>
-            <div className="itf-doc-name">{form.itemName || itemCode}</div>
-            <div className="itf-doc-id">{form.itemCode || itemCode}</div>
+            <div className="itf-doc-name">{form.itemName || form.itemCode}</div>
+            <div className="itf-doc-id">{form.itemCode}</div>
 
             <div className="itf-sidebar-actions">
               <button className="itf-sidebar-action">

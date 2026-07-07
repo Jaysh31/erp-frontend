@@ -12,7 +12,6 @@ import {
   FaEdit,
   FaTrash,
   FaPlus,
-  
   FaSpinner,
 } from 'react-icons/fa';
 import "./WarehouseList.css";
@@ -162,23 +161,21 @@ export default function WarehouseList() {
     return pages;
   };
 
-  // Updated: Navigate to warehouse form for new warehouse
+  // Navigate to warehouse form for new warehouse
   const handleAddWarehouse = () => {
     navigate('/warehouse/new');
   };
 
-  // Updated: Navigate to warehouse form for editing
+  // Navigate to warehouse form for editing - using ID
   const handleEditWarehouse = (warehouse: Warehouse) => {
-    navigate(`/warehouse/${encodeURIComponent(warehouse.warehouse_name)}`, {
-      state: { warehouseData: warehouse }
-    });
+
+    console.log('Navigating to edit warehouse with ID:', warehouse.id); // Debugging log
+    navigate(`/warehouse/${warehouse.id}`);
   };
 
-  // Updated: Navigate to warehouse form for viewing
+  // Navigate to warehouse form for viewing - using ID
   const handleViewWarehouse = (warehouse: Warehouse) => {
-    navigate(`/warehouse/${encodeURIComponent(warehouse.warehouse_name)}`, {
-      state: { warehouseData: warehouse }
-    });
+    navigate(`/warehouse/${warehouse.id}`);
   };
 
   const handleDelete = (item: Warehouse) => {
@@ -216,9 +213,7 @@ export default function WarehouseList() {
   };
 
   const handleRowClick = (warehouse: Warehouse) => {
-    navigate(`/warehouse/${encodeURIComponent(warehouse.warehouse_name)}`, {
-      state: { warehouseData: warehouse }
-    });
+    navigate(`/warehouse/${warehouse.id}`);
   };
 
   return (

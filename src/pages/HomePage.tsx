@@ -11,6 +11,7 @@ import {
   FaSignOutAlt,
   FaShoppingCart,
   FaBuilding,
+  FaMoneyBillWave,
 } from "react-icons/fa";
 import logo from '../assets/logo.png';
 import "./HomePage.css";
@@ -24,7 +25,7 @@ export default function HomePage() {
     {
       title: "Manufacturing",
       icon: <FaIndustry />,
-      path: "/dashboard",
+      path: "/dashboard/manufacturing", // Changed to module-specific path
       module: 'manufacturing' as const,
       description: "Manage production & BOM",
       color: "#6366f1"
@@ -32,7 +33,7 @@ export default function HomePage() {
     {
       title: "Setup",
       icon: <FaCogs />,
-      path: "/dashboard",
+      path: "/dashboard/setup", // Changed
       module: 'setup' as const,
       description: "Configure master data",
       color: "#8b5cf6"
@@ -40,7 +41,7 @@ export default function HomePage() {
     {
       title: "Stock",
       icon: <FaBoxes />,
-      path: "/dashboard",
+      path: "/dashboard/stock", // Changed - you might want a Stock module
       module: 'setup' as const,
       description: "Manage inventory",
       color: "#06b6d4"
@@ -48,7 +49,7 @@ export default function HomePage() {
     {
       title: "Quality",
       icon: <FaClipboardCheck />,
-      path: "/dashboard",
+      path: "/dashboard/quality", // Changed
       module: 'manufacturing' as const,
       description: "Quality control",
       color: "#10b981"
@@ -56,7 +57,7 @@ export default function HomePage() {
     {
       title: "Sales",
       icon: <FaShoppingCart />,
-      path: "/dashboard",
+      path: "/dashboard/sales", // Changed
       module: 'sales' as const,
       description: "Manage sales orders",
       color: "#f59e0b"
@@ -64,7 +65,7 @@ export default function HomePage() {
     {
       title: "Purchasing",
       icon: <FaShoppingCart />,
-      path: "/dashboard",
+      path: "/dashboard/purchasing", // Changed
       module: 'purchasing' as const,
       description: "Manage purchase orders",
       color: "#f59e0b"
@@ -72,7 +73,7 @@ export default function HomePage() {
     {
       title: "Organization",
       icon: <FaBuilding />,
-      path: "/dashboard",
+      path: "/dashboard/organization", // Changed
       module: 'organization' as const,
       description: "Company & letter head",
       color: "#8b5cf6"
@@ -80,25 +81,33 @@ export default function HomePage() {
     {
       title: "Reports",
       icon: <FaChartBar />,
-      path: "/dashboard",
+      path: "/dashboard/reports", // Changed
       module: 'reports' as const,
       description: "Analytics & insights",
       color: "#f59e0b"
     },
     {
+      title: "Accounting",
+      icon: <FaMoneyBillWave />, // Changed icon to be more specific
+      path: "/dashboard/accounting", // Changed
+      module: 'accounting' as const,
+      description: "Manage financial records",
+      color: "#10b981"
+    },
+    {
       title: "Tools",
       icon: <FaTools />,
-      path: "/dashboard",
+      path: "/dashboard/tools", // Changed
       module: 'tools' as const,
       description: "Utilities & helpers",
       color: "#ef4444"
     },
   ];
 
-const handleModuleClick = (module: typeof modules[0]) => {
-    setCurrentModule(module.module);
+  const handleModuleClick = (module: typeof modules[0]) => {
+    setCurrentModule(module.module as any);
     navigate(module.path);
-};
+  };
 
   return (
     <div className={`home-page ${theme}`}>

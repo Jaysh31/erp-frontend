@@ -30,7 +30,9 @@ export default function Sidebar({
       'Setup': false,
       'Tools': false,
       'Reports': false,
-      'System': false
+      'System': false,
+      'Buying': false,
+      'Accounting': true
     };
   });
 
@@ -68,16 +70,20 @@ export default function Sidebar({
   };
 
   // All menu categories
-  const allMenuCategories = [
-    {
-      title: 'Home',
-      module: 'home',
-      icon: <HomeIcon />,
-      items: [
-        { title: 'Home', icon: <HomeIcon />, path: '/home' },
-        { title: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' }
-      ]
-    },
+const allMenuCategories = [
+  {
+    title: 'Home',
+    module: 'home',
+    icon: <HomeIcon />,
+    items: [
+      { title: 'Home', icon: <HomeIcon />, path: '/home' },
+      { 
+        title: 'Dashboard', 
+        icon: <DashboardIcon />, 
+        path: currentModule !== 'home' ? `/dashboard/${currentModule}` : '/dashboard/manufacturing' 
+      }
+    ]
+  },
     {
       title: 'Sales',
       module: 'sales',
@@ -86,8 +92,7 @@ export default function Sidebar({
         { title: 'lead', icon: <GiHumanCannonball />, path: '/lead'},
         { title: 'Quotation', icon: <QuotationIcon />, path: '/quotation' },
         { title: 'Sales Order', icon: <SalesOrderIcon />, path: '/sales-order' },
-        { title: 'Sales Invoice', icon: <InvoiceIcon />, path: '/sales-invoice' },
-        // Removed: Add Sales Order, Create Sales Invoice
+        { title: 'Sales Invoice', icon: <InvoiceIcon />, path: '/sales-invoice' }
       ]
     },
     {
@@ -138,10 +143,7 @@ export default function Sidebar({
         { title: 'Operations', icon: <WarehouseIcon />, path: '/operations' },
 
         { title: 'Unit of Measure (UOM)', icon: <RulerIcon />, path: '/uom' },
-        // { title: 'UOM Conversion Factor', icon: <RepeatIcon />, path: '/uom-conversion' },
-        // { title: 'Serial No', icon: <HashIcon />, path: '/serial-no' },
-        // { title: 'Batch No', icon: <LayersIcon />, path: '/batch-no' },
-        // { title: 'Serial and Batch Bundle', icon: <PackageIcon />, path: '/serial-batch-bundle' }
+
       ]
     },
     {
@@ -153,42 +155,103 @@ export default function Sidebar({
       ]
     },
     {
-      title: 'Reports',
-      module: 'reports',
-      icon: <ReportsIcon />,
+      title: 'Buying',
+      module: 'purchasing',
+      icon: <BuyingIcon />,
       items: [
-        { title: 'Reports', icon: <ReportsIcon />, path: '/reports' }
+        { title: 'Material Request', icon: <MaterialRequestIcon />, path: '/material-request' },
+        { title: 'Request for Quotation', icon: <RFQIcon />, path: '/request-for-quotation' },
+        { title: 'Supplier Quotation', icon: <SupplierQuotationIcon />, path: '/supplier-quotation' },
+        { title: 'Purchase Order', icon: <PurchaseOrderIcon />, path: '/purchase-order' },
+        { title: 'Purchase Invoice', icon: <PurchaseInvoiceIcon />, path: '/purchase-invoice' },
+        { title: 'Supplier', icon: <SupplierIcon />, path: '/supplier' },
+        { title: 'Supplier Group', icon: <SupplierGroupIcon />, path: '/supplier-group' },
+        { title: 'Price List', icon: <PriceListIcon />, path: '/price-list' },
+        { title: 'Address', icon: <AddressIcon />, path: '/address' },
+        { title: 'Contacts', icon: <ContactsIcon />, path: '/contacts' },
+        { title: 'Supplier Scorecard', icon: <SupplierScorecardIcon />, path: '/supplier-scorecard' },
+        { title: 'Supplier Scorecard Criteria', icon: <SupplierScorecardCriteriaIcon />, path: '/supplier-scorecard-criteria' }
       ]
     },
     {
-  title: 'Buying',
-  module: 'purchasing',
-  icon: <BuyingIcon />,
-  items: [
-    { title: 'Material Request', icon: <MaterialRequestIcon />, path: '/material-request' },
-    { title: 'Request for Quotation', icon: <RFQIcon />, path: '/request-for-quotation' },
-    { title: 'Supplier Quotation', icon: <SupplierQuotationIcon />, path: '/supplier-quotation' },
-    { title: 'Purchase Order', icon: <PurchaseOrderIcon />, path: '/purchase-order' },
-    { title: 'Purchase Invoice', icon: <PurchaseInvoiceIcon />, path: '/purchase-invoice' }
-  ]
+      title: 'Accounting',
+      module: 'accounting',
+      icon: <AccountingIcon />,
+      items: [
+        { title: 'Dashboard', icon: <DashboardIcon />, path: '/accounting/dashboard' },
+        { title: 'Accounts', icon: <ChartOfAccountsIcon />, path: '/accounting/accounts' },
+      ]
+    },
+    {
+       title: 'Accounts',
+       module: 'accounting',
+        icon: <AccountingIcon />,
+        items: [
+           { title: 'Chart of Accounts', icon: <ChartOfAccountsIcon />, path: '/chart-of-accounts' },
+           { title: 'Ledger Accounts', icon: <LedgerIcon />, path: '/ledger-accounts' },
+        { title: 'Cost Centers', icon: <CostCenterIcon />, path: '/accounting/cost-centers' },
+        ]
+    },
+   {
+    title: 'Receivables',
+    module: 'accounting',
+    icon: <ReceivablesIcon />,
+    items: [
+        {
+            title: 'Delivery Challans',
+            icon: <ReceiptIcon />,
+            path: '/sales-receipts'
+        },
+        {
+            title: 'Customer Payments',
+            icon: <PaymentIcon />,
+            path: '/Customer-payments'
+        },
+        {
+            title: 'Customer Invoices',
+            icon: <InvoiceIcon />,
+            path: '/customer-invoices'
+        },
+        {
+            title: 'Credit Notes',
+            icon: <CreditNoteIcon />,
+            path: '/receivables/credit-notes'
+        },
+        {
+            title: 'Outstanding Receivables',
+            icon: <CustomerIcon />,
+            path: '/outstanding-receivables'
+        }
+    ]
 },
-     {
-  title: 'Setup',
-  module: 'purchasing',
-  icon: <SetupIcon />,
-  items: [
-    { title: 'Supplier', icon: <SupplierIcon />, path: '/supplier' },
-    { title: 'Supplier Group', icon: <SupplierGroupIcon />, path: '/supplier-group' },
-    { title: 'Item', icon: <ItemIcon />, path: '/item-list' },
-    { title: 'Price List', icon: <PriceListIcon />, path: '/price-list' },
-    { title: 'Address', icon: <AddressIcon />, path: '/address' },
-    { title: 'Contacts', icon: <ContactsIcon />, path: '/contacts' },
-    { title: 'Supplier Scorecard', icon: <SupplierScorecardIcon />, path: '/supplier-scorecard' },
-    { title: 'Supplier Scorecard Criteria', icon: <SupplierScorecardCriteriaIcon />, path: '/supplier-scorecard-criteria' }
-  ]
-},
-// ✅ This adds it as a single item under the Buying category
-
+    {
+       title: 'Payables',
+        module: 'accounting',
+        icon: <PayablesIcon />,
+        items: [
+          { title: 'Supplier Bills', icon: <SupplierIcon />, path: '/payables/supplier-bills' },
+          { title: 'Supplier Payments', icon: <PaymentIcon />, path: '/payables/supplier-payments' },
+          { title: 'Outstanding Payables', icon: <OutstandingIcon />, path: '/payables/outstanding-payables' }
+        ]
+    },
+    {
+title: 'Banking',
+      module: 'accounting',
+      icon: <BankingIcon />,
+      items: [
+        { title: 'Bank Accounts', icon: <BankAccountIcon />, path: '/banking/bank-accounts' },
+        { title: 'Bank Transactions', icon: <BankTransactionIcon />, path: '/banking/bank-transactions' },
+        { title: 'Bank Reconciliation', icon: <BankReconciliationIcon />, path: '/banking/bank-reconciliation' }
+      ]
+    },
+    {
+      title: 'Expenses',
+      module: 'accounting',
+      icon: <ExpenseIcon />,
+      items: [
+        { title: 'Expense ', icon: <TagIcon />, path: '/expenses/expense' },
+      ]
+    },
     {
       title: 'System',
       module: 'system',
@@ -197,8 +260,6 @@ export default function Sidebar({
         { title: 'Settings', icon: <SettingsIcon />, path: '/settings' }
       ]
     }
-   
-
   ];
 
   // Filter categories based on current module
@@ -230,7 +291,8 @@ const getFilteredCategories = () => {
       'organization': 'Organization',
       'tools': 'Tools',
       'reports': 'Reports',
-      'system': 'System'
+      'system': 'System',
+      'accounting': 'Accounting'
     };
     return names[currentModule] || 'Home';
   };
@@ -264,7 +326,7 @@ const getFilteredCategories = () => {
           )}
         </div>
 
-        {/* Search + Notification */}
+        {/* Search + Notification
         <div className="sidebar-top">
           <div className="search-row">
             <svg className="search-icon" width="15" height="15" viewBox="0 0 16 16" fill="none">
@@ -282,7 +344,7 @@ const getFilteredCategories = () => {
             <span className="notification-label">Notification</span>
             <span className="notification-count">3</span>
           </div>
-        </div>
+        </div> */}
 
         {/* Navigation */}
         <div className="sidebar-nav">
@@ -335,7 +397,9 @@ const getFilteredCategories = () => {
               <div className="getting-started-card">
                 <div className="gs-icon-wrap">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--sidebar-text-secondary, #9CA3AF)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+                    <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                    <path d="M2 17l10 5 10-5"/>
+                    <path d="M2 12l10 5 10-5"/>
                   </svg>
                 </div>
                 <div className="gs-text">Complete setup to start manufacturing</div>
@@ -372,47 +436,31 @@ const getFilteredCategories = () => {
   );
 }
 
-// --- Icon Components ---
+// ===== ICON COMPONENTS =====
+
+// Home Icons
 const HomeIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
-  </svg>
-);
-
-const MaterialRequestIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z"/>
-    <polyline points="14 2 14 8 20 8"/>
-    <line x1="16" y1="13" x2="8" y2="13"/>
-    <line x1="16" y1="17" x2="8" y2="17"/>
-    <polyline points="10 9 9 9 8 9"/>
+    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+    <polyline points="9 22 9 12 15 12 15 22"/>
   </svg>
 );
 
 const DashboardIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+    <rect x="3" y="3" width="7" height="7" rx="1"/>
+    <rect x="14" y="3" width="7" height="7" rx="1"/>
+    <rect x="3" y="14" width="7" height="7" rx="1"/>
+    <rect x="14" y="14" width="7" height="7" rx="1"/>
   </svg>
 );
 
-const OrganizationIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="9" y="2" width="6" height="4" rx="1"/>
-    <rect x="2" y="14" width="6" height="4" rx="1"/>
-    <rect x="16" y="14" width="6" height="4" rx="1"/>
-    <path d="M12 6v4M12 10H5v4M12 10h7v4"/>
-  </svg>
-);
-
-const ManufacturingIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M14 4h6v6M4 20L20 4M18 20h-6M4 8V4h4"/>
-  </svg>
-);
-
+// Sales Icons
 const SalesIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+    <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+    <path d="M2 17l10 5 10-5"/>
+    <path d="M2 12l10 5 10-5"/>
   </svg>
 );
 
@@ -445,27 +493,7 @@ const InvoiceIcon = () => (
   </svg>
 );
 
-const CompanyIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="4" y="4" width="16" height="16" rx="2"/>
-    <path d="M9 8h6"/>
-    <path d="M9 12h6"/>
-    <path d="M9 16h4"/>
-  </svg>
-);
-
-
-const LetterHeadIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-    <line x1="3" y1="10" x2="21" y2="10"/>
-    <line x1="3" y1="14" x2="21" y2="14"/>
-    <line x1="3" y1="18" x2="21" y2="18"/>
-    <line x1="8" y1="4" x2="8" y2="10"/>
-    <line x1="16" y1="4" x2="16" y2="10"/>
-  </svg>
-);
-
+// Items & Pricing Icons
 const ItemIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
@@ -479,17 +507,12 @@ const FolderIcon = () => (
   </svg>
 );
 
-const SetupIcon = () => (
+const OrganizationIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="3"/>
-    <path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/>
-  </svg>
-);
-
-const SettingsIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="3"/>
-    <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+    <rect x="9" y="2" width="6" height="4" rx="1"/>
+    <rect x="2" y="14" width="6" height="4" rx="1"/>
+    <rect x="16" y="14" width="6" height="4" rx="1"/>
+    <path d="M12 6v4M12 10H5v4M12 10h7v4"/>
   </svg>
 );
 
@@ -506,19 +529,63 @@ const BrandIcon = () => (
   </svg>
 );
 
-const WarehouseIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-    <path d="M9 22V12h6v10"/>
-  </svg>
-);
-
 const RulerIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M2 12h20M12 2v20M8 4v2M16 4v2M4 8h2M18 8h2M4 16h2M18 16h2M8 20v2M16 20v2"/>
   </svg>
 );
 
+const CouponIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M20 12L12 4L4 12L12 20L20 12Z"/>
+    <path d="M12 8L12 16"/>
+    <path d="M8 12L16 12"/>
+  </svg>
+);
+
+const ReceiptIcon = () => (
+  <svg
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M6 2h12v20l-2-1.5L14 22l-2-1.5L10 22l-2-1.5L6 22V2z" />
+    <path d="M9 7h6" />
+    <path d="M9 11h6" />
+    <path d="M9 15h4" />
+  </svg>
+);
+
+const CreditNoteIcon = () => (
+  <svg
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M6 2h12v20l-2-1.5L14 22l-2-1.5L10 22l-2-1.5L6 22V2z" />
+    <path d="M9 7h6" />
+    <path d="M9 11h4" />
+    <path d="M15 16h-6" />
+    <path d="M11 14l-2 2 2 2" />
+  </svg>
+);
+
+// Manufacturing Icons
+const ManufacturingIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 4h6v6M4 20L20 4M18 20h-6M4 8V4h4"/>
+  </svg>
+);
 
 const BomIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -551,42 +618,194 @@ const StockIcon = () => (
   </svg>
 );
 
+
+const CompanyIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="4" y="4" width="16" height="16" rx="2"/>
+    <path d="M9 8h6"/>
+    <path d="M9 12h6"/>
+    <path d="M9 16h4"/>
+  </svg>
+);
+
+const LetterHeadIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+    <line x1="3" y1="10" x2="21" y2="10"/>
+    <line x1="3" y1="14" x2="21" y2="14"/>
+    <line x1="3" y1="18" x2="21" y2="18"/>
+    <line x1="8" y1="4" x2="8" y2="10"/>
+    <line x1="16" y1="4" x2="16" y2="10"/>
+  </svg>
+);
+
+// Setup Icons
+const SetupIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="3"/>
+    <path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/>
+  </svg>
+);
+
+const WarehouseIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+    <path d="M9 22V12h6v10"/>
+  </svg>
+);
+
+// ===== RECEIVABLES ICONS =====
+
+const ReceivablesIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 2L2 7l10 5 10-5-10-5z" />
+    <path d="M2 17l10 5 10-5" />
+    <path d="M2 12l10 5 10-5" />
+    <path d="M12 7v10" />
+    <circle cx="8" cy="14" r="1.5" />
+    <circle cx="16" cy="14" r="1.5" />
+  </svg>
+);
+
+const CustomerIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+    <circle cx="12" cy="7" r="4" />
+    <path d="M16 11l2 2 4-4" />
+    <path d="M18 13v4" />
+  </svg>
+);
+
+// const InvoiceIcon = () => (
+//   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+//     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+//     <polyline points="14 2 14 8 20 8" />
+//     <line x1="8" y1="13" x2="16" y2="13" />
+//     <line x1="8" y1="17" x2="16" y2="17" />
+//     <line x1="8" y1="9" x2="10" y2="9" />
+//     <path d="M16 9v8" />
+//   </svg>
+// );
+
+const PaymentIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 6h18" />
+    <rect x="2" y="6" width="20" height="14" rx="2" />
+    <path d="M16 12h4" />
+    <circle cx="8" cy="12" r="1" />
+    <circle cx="12" cy="12" r="1" />
+    <path d="M4 16h7" />
+  </svg>
+);
+
+// ===== PAYABLES ICONS =====
+
+const PayablesIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 2L2 7l10 5 10-5-10-5z" />
+    <path d="M2 17l10 5 10-5" />
+    <path d="M2 12l10 5 10-5" />
+    <path d="M12 7v10" />
+    <path d="M7 9.5v5" />
+    <path d="M17 9.5v5" />
+    <circle cx="8" cy="14" r="1.5" />
+    <circle cx="16" cy="14" r="1.5" />
+  </svg>
+);
+
+// const SupplierIcon = () => (
+//   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+//     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+//     <circle cx="12" cy="7" r="4" />
+//     <path d="M16 11l2 2 4-4" />
+//     <path d="M19 13v4" />
+//     <path d="M16 13h6" />
+//   </svg>
+// );
+
+
+
+const OutstandingIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" />
+    <polyline points="12 6 12 12 16 14" />
+    <path d="M12 22v-4" />
+    <path d="M6 12h2" />
+    <path d="M16 12h2" />
+  </svg>
+);
+
+
+// Tools & Reports Icons
 const ToolIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
   </svg>
 );
 
-const ReportsIcon = () => (
+
+// Buying/Purchasing Icons
+const BuyingIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="18" y1="20" x2="18" y2="10"/>
-    <line x1="12" y1="20" x2="12" y2="4"/>
-    <line x1="6" y1="20" x2="6" y2="14"/>
+    <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
+    <line x1="3" y1="6" x2="21" y2="6"/>
+    <path d="M16 10a4 4 0 0 1-8 0"/>
+    <path d="M12 14v4"/>
+    <path d="M8 18h8"/>
   </svg>
 );
 
-// New Coupon Icon
-const CouponIcon = () => (
+const MaterialRequestIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M20 12L12 4L4 12L12 20L20 12Z"/>
-    <path d="M12 8L12 16"/>
-    <path d="M8 12L16 12"/>
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z"/>
+    <polyline points="14 2 14 8 20 8"/>
+    <line x1="16" y1="13" x2="8" y2="13"/>
+    <line x1="16" y1="17" x2="8" y2="17"/>
+    <polyline points="10 9 9 9 8 9"/>
   </svg>
 );
 
-const ChevronDownIcon = () => (
-  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-    <path d="M2 4l4 4 4-4" stroke="#9CA3AF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+const RFQIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+    <polyline points="14 2 14 8 20 8"/>
+    <line x1="8" y1="16" x2="16" y2="16"/>
+    <line x1="8" y1="12" x2="16" y2="12"/>
+    <line x1="8" y1="20" x2="12" y2="20"/>
   </svg>
 );
 
-const ChevronUpIcon = () => (
-  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-    <path d="M2 8l4-4 4 4" stroke="#9CA3AF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+const SupplierQuotationIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+    <path d="M2 17l10 5 10-5"/>
+    <path d="M2 12l10 5 10-5"/>
+    <path d="M12 7v10"/>
+    <path d="M7 9.5v5"/>
+    <path d="M17 9.5v5"/>
   </svg>
 );
-// --- Purchasing Module Icons ---
 
+const PurchaseOrderIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+    <polyline points="14 2 14 8 20 8"/>
+    <line x1="16" y1="13" x2="8" y2="13"/>
+    <line x1="16" y1="17" x2="8" y2="17"/>
+    <polyline points="10 9 9 9 8 9"/>
+  </svg>
+);
+
+const PurchaseInvoiceIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+    <polyline points="14 2 14 8 20 8"/>
+    <line x1="8" y1="16" x2="16" y2="16"/>
+    <line x1="8" y1="12" x2="16" y2="12"/>
+    <line x1="8" y1="20" x2="10" y2="20"/>
+    <path d="M8 8h4"/>
+  </svg>
+);
 
 const SupplierIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -598,7 +817,6 @@ const SupplierIcon = () => (
   </svg>
 );
 
-
 const SupplierGroupIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
@@ -608,8 +826,6 @@ const SupplierGroupIcon = () => (
     <path d="M16 11l2 2 4-4"/>
   </svg>
 );
-
-
 
 const PriceListIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -646,65 +862,6 @@ const SupplierScorecardIcon = () => (
     <path d="M14 18h4"/>
   </svg>
 );
-// ── Purchasing Module Icons ──────────────────────────────────────
-
-// Main Buying Icon
-const BuyingIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
-    <line x1="3" y1="6" x2="21" y2="6"/>
-    <path d="M16 10a4 4 0 0 1-8 0"/>
-    <path d="M12 14v4"/>
-    <path d="M8 18h8"/>
-  </svg>
-);
-
-
-// Request for Quotation Icon
-const RFQIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-    <polyline points="14 2 14 8 20 8"/>
-    <line x1="8" y1="16" x2="16" y2="16"/>
-    <line x1="8" y1="12" x2="16" y2="12"/>
-    <line x1="8" y1="20" x2="12" y2="20"/>
-  </svg>
-);
-
-// Supplier Quotation Icon
-const SupplierQuotationIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-    <path d="M2 17l10 5 10-5"/>
-    <path d="M2 12l10 5 10-5"/>
-    <path d="M12 7v10"/>
-    <path d="M7 9.5v5"/>
-    <path d="M17 9.5v5"/>
-  </svg>
-);
-
-// Purchase Order Icon
-const PurchaseOrderIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-    <polyline points="14 2 14 8 20 8"/>
-    <line x1="16" y1="13" x2="8" y2="13"/>
-    <line x1="16" y1="17" x2="8" y2="17"/>
-    <polyline points="10 9 9 9 8 9"/>
-  </svg>
-);
-
-// Purchase Invoice Icon
-const PurchaseInvoiceIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-    <polyline points="14 2 14 8 20 8"/>
-    <line x1="8" y1="16" x2="16" y2="16"/>
-    <line x1="8" y1="12" x2="16" y2="12"/>
-    <line x1="8" y1="20" x2="10" y2="20"/>
-    <path d="M8 8h4"/>
-  </svg>
-);
 
 const SupplierScorecardCriteriaIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -716,5 +873,163 @@ const SupplierScorecardCriteriaIcon = () => (
     <line x1="16" y1="4" x2="16" y2="10"/>
     <circle cx="12" cy="12" r="2"/>
     <circle cx="12" cy="16" r="2"/>
+  </svg>
+);
+
+// ===== ACCOUNTING MODULE ICONS =====
+
+const AccountingIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="2" y="6" width="20" height="14" rx="2" ry="2" />
+    <line x1="2" y1="10" x2="22" y2="10" />
+    <line x1="8" y1="14" x2="16" y2="14" />
+    <line x1="12" y1="6" x2="12" y2="20" />
+  </svg>
+);
+
+const ChartOfAccountsIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="2" y="2" width="20" height="20" rx="2" />
+    <line x1="8" y1="6" x2="16" y2="6" />
+    <line x1="8" y1="10" x2="16" y2="10" />
+    <line x1="8" y1="14" x2="14" y2="14" />
+    <line x1="8" y1="18" x2="12" y2="18" />
+  </svg>
+);
+
+const LedgerIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="2" y="3" width="20" height="18" rx="2" />
+    <line x1="8" y1="8" x2="16" y2="8" />
+    <line x1="8" y1="12" x2="16" y2="12" />
+    <line x1="8" y1="16" x2="12" y2="16" />
+    <line x1="2" y1="7" x2="22" y2="7" />
+  </svg>
+);
+
+const CostCenterIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="2" y="5" width="20" height="14" rx="2" />
+    <line x1="2" y1="10" x2="22" y2="10" />
+    <circle cx="12" cy="14" r="2" />
+    <path d="M8 14h8" />
+  </svg>
+);
+
+
+
+
+
+
+// const SupplierBillIcon = () => (
+//   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+//     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+//     <polyline points="14 2 14 8 20 8" />
+//     <line x1="8" y1="16" x2="16" y2="16" />
+//     <line x1="8" y1="12" x2="16" y2="12" />
+//     <line x1="8" y1="20" x2="10" y2="20" />
+//     <path d="M8 8h4" />
+//   </svg>
+// );
+
+// const SupplierPaymentIcon = () => (
+//   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+//     <path d="M3 6h18" />
+//     <rect x="2" y="6" width="20" height="14" rx="2" />
+//     <path d="M4 12h7" />
+//     <circle cx="8" cy="12" r="1" />
+//     <circle cx="12" cy="12" r="1" />
+//     <path d="M16 16h4" />
+//   </svg>
+// );
+
+
+const BankingIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="2" y="6" width="20" height="14" rx="2" />
+    <path d="M2 10h20" />
+    <path d="M6 14h2" />
+    <path d="M10 14h4" />
+    <path d="M16 14h2" />
+    <path d="M2 6l4-4h12l4 4" />
+  </svg>
+);
+
+const BankAccountIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="2" y="6" width="20" height="14" rx="2" />
+    <path d="M2 10h20" />
+    <path d="M6 14h2" />
+    <path d="M10 14h4" />
+    <path d="M16 14h2" />
+    <path d="M2 6l4-4h12l4 4" />
+  </svg>
+);
+
+const BankTransactionIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17 1l4 4-4 4" />
+    <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+    <path d="M7 23l-4-4 4-4" />
+    <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+    <line x1="8" y1="8" x2="16" y2="16" />
+  </svg>
+);
+
+const BankReconciliationIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="4" width="18" height="18" rx="2" />
+    <line x1="8" y1="2" x2="8" y2="6" />
+    <line x1="16" y1="2" x2="16" y2="6" />
+    <line x1="3" y1="10" x2="21" y2="10" />
+    <circle cx="12" cy="14" r="2" />
+    <path d="M8 14h8" />
+    <line x1="8" y1="18" x2="12" y2="18" />
+  </svg>
+);
+
+const ExpenseIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 12h-3" />
+    <path d="M6 12H3" />
+    <path d="M12 3v3" />
+    <path d="M12 18v3" />
+    <path d="M17.5 6.5l2.5 2.5" />
+    <path d="M4 15l2.5 2.5" />
+    <path d="M6.5 6.5L4 9" />
+    <path d="M17.5 17.5l2.5-2.5" />
+    <path d="M12 8v4l2 2" />
+  </svg>
+);
+
+
+
+
+
+
+
+
+
+
+
+const SettingsIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="3"/>
+    <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+  </svg>
+);
+
+
+
+// Helper Icons
+const ChevronDownIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+    <path d="M2 4l4 4 4-4" stroke="#9CA3AF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
+const ChevronUpIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+    <path d="M2 8l4-4 4 4" stroke="#9CA3AF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
   </svg>
 );

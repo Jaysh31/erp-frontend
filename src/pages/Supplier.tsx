@@ -10,6 +10,7 @@ import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 
+// UI Interface - matches what we actually display
 interface Supplier {
   id: string;
   name: string;
@@ -140,12 +141,40 @@ export default function Supplier() {
       
       console.log('🔍 Full API Response:', response.data);
       
-      if (response && response.data && response.data.data && Array.isArray(response.data.data.records)) {
-        const records = response.data.data.records;
+      if (response && response.data) {
+        // Try different response structures
+        let records = [];
+        let total = 0;
+        let currentPageNum = page;
+        let totalPagesCount = 1;
+        let limit = pageSize;
+        
+        // Check for different response structures
+        if (response.data.data && Array.isArray(response.data.data.records)) {
+          records = response.data.data.records;
+          total = response.data.data.total || records.length;
+          currentPageNum = response.data.data.page || page;
+          limit = response.data.data.limit || pageSize;
+          totalPagesCount = Math.ceil(total / limit);
+        } else if (response.data.data && Array.isArray(response.data.data)) {
+          records = response.data.data;
+          total = records.length;
+          totalPagesCount = 1;
+        } else if (Array.isArray(response.data)) {
+          records = response.data;
+          total = records.length;
+          totalPagesCount = 1;
+        } else {
+          records = [];
+          total = 0;
+          totalPagesCount = 1;
+        }
+        
+        console.log('📋 Records found:', records.length);
         
         if (records.length > 0) {
-          console.log('📋 Available fields:', Object.keys(records[0]));
           console.log('📄 Sample record:', records[0]);
+          console.log('🔑 Available fields:', Object.keys(records[0]));
         }
 
         const mappedSuppliers: Supplier[] = records.map((item: any) => ({
@@ -157,8 +186,8 @@ export default function Supplier() {
           country: item.country || '',
           defaultCurrency: item.default_currency || 'INR',
           language: item.language || 'en',
-          email: item.email_id || '',
-          phone: item.mobile_no || '',
+          email: item.email_id || item.email || '',
+          phone: item.mobile_no || item.phone || '',
           address: item.address || '',
           city: item.city || '',
           state: item.state || '',
@@ -170,20 +199,21 @@ export default function Supplier() {
           defaultPriceList: item.default_price_list || '',
           website: item.website || '',
           supplierDetails: item.supplier_details || '',
-          isTransporter: item.is_transporter === 1,
-          isInternalSupplier: item.is_internal_supplier === 1,
-          onHold: item.on_hold === 1,
+          isTransporter: item.is_transporter === 1 || item.is_transporter === true,
+          isInternalSupplier: item.is_internal_supplier === 1 || item.is_internal_supplier === true,
+          onHold: item.on_hold === 1 || item.on_hold === true,
           status: item.disabled === 1 ? 'Inactive' : 'Active',
           createdAt: item.created_at || '',
           updatedAt: item.updated_at || ''
         }));
 
-        console.log('✅ Mapped suppliers:', mappedSuppliers);
+        console.log('✅ Mapped suppliers count:', mappedSuppliers.length);
+        console.log('✅ First mapped supplier:', mappedSuppliers[0]);
         
         setSuppliers(mappedSuppliers);
-        setTotalSuppliers(response.data.data.total || mappedSuppliers.length);
-        setTotalPages(Math.ceil((response.data.data.total || mappedSuppliers.length) / (response.data.data.limit || pageSize)));
-        setCurrentPage(response.data.data.page || page);
+        setTotalSuppliers(total);
+        setTotalPages(totalPagesCount);
+        setCurrentPage(currentPageNum);
       } else {
         setSuppliers([]);
         setTotalSuppliers(0);
@@ -216,9 +246,9 @@ export default function Supplier() {
     if (!s) return false;
     const searchTerm = filterText.toLowerCase();
     const matchesSearch = (s.supplierName?.toLowerCase() || '').includes(searchTerm) ||
+                         (s.name?.toLowerCase() || '').includes(searchTerm) ||
                          (s.email?.toLowerCase() || '').includes(searchTerm) ||
-                         (s.phone?.toLowerCase() || '').includes(searchTerm) ||
-                         (s.name?.toLowerCase() || '').includes(searchTerm);
+                         (s.phone?.toLowerCase() || '').includes(searchTerm);
     const matchesStatus = selectedStatus === 'All' || s.status === selectedStatus;
     const matchesGroup = selectedGroup === 'All' || s.supplierGroup === selectedGroup;
     const matchesCountry = selectedCountry === 'All' || s.country === selectedCountry;
@@ -1035,7 +1065,7 @@ export default function Supplier() {
         .modal-container {
           background: var(--card-bg, #ffffff);
           border-radius: 12px;
-          max-width: 600px;
+          max-width: 700px;
           width: 100%;
           max-height: 90vh;
           display: flex;
@@ -1044,7 +1074,7 @@ export default function Supplier() {
           box-shadow: 0 20px 60px rgba(0,0,0,0.2);
         }
 
-        .view-modal { max-width: 650px; }
+        .view-modal { max-width: 750px; }
         .delete-modal { max-width: 420px; }
 
         .modal-header {
@@ -1489,7 +1519,7 @@ export default function Supplier() {
         </div>
       </div>
 
-      {/* View Modal */}
+      {/* ====== VIEW MODAL ====== */}
       {showViewModal && selectedSupplier && (
         <div className="modal-overlay" onClick={() => setShowViewModal(false)}>
           <div className="modal-container view-modal" onClick={(e) => e.stopPropagation()}>
@@ -1549,7 +1579,7 @@ export default function Supplier() {
         </div>
       )}
 
-      {/* Edit Modal */}
+      {/* ====== EDIT MODAL ====== */}
       {showEditModal && selectedSupplier && (
         <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
           <div className="modal-container" onClick={(e) => e.stopPropagation()}>
@@ -1789,7 +1819,7 @@ export default function Supplier() {
         </div>
       )}
 
-      {/* Delete Modal */}
+      {/* ====== DELETE MODAL ====== */}
       {showDeleteModal && selectedSupplier && (
         <div className="modal-overlay" onClick={() => setShowDeleteModal(false)}>
           <div className="modal-container delete-modal" onClick={(e) => e.stopPropagation()}>

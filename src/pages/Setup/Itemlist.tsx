@@ -9,6 +9,8 @@ import {
   FaAngleDoubleLeft,
   FaAngleDoubleRight,
   FaSpinner,
+  FaEdit,
+  FaTrash,
 } from 'react-icons/fa';
 import ItemQuickAdd from "./Itemquickadd";
 import "./ItemList.css";
@@ -54,6 +56,7 @@ export default function ItemList() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [totalItems, setTotalItems] = useState(0);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   // Fetch items from API
   const fetchItems = async () => {
@@ -84,6 +87,47 @@ export default function ItemList() {
     }
   };
 
+  // Delete item
+  const handleDeleteItem = async (id: number, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent row click from triggering
+    
+    if (!window.confirm('Are you sure you want to delete this item?')) {
+      return;
+    }
+
+    setDeletingId(id);
+    try {
+      const response = await api.delete(`/item/${id}`);
+      if (response.data.success === 1) {
+        // Remove the item from the list
+        setItems(prevItems => prevItems.filter(item => item.id !== id));
+        // Remove from selection if selected
+        setSelected(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(id);
+          return newSet;
+        });
+        // Show success message or toast notification
+        console.log('Item deleted successfully');
+      } else {
+        setError('Failed to delete item');
+      }
+    } catch (err) {
+      console.error('Error deleting item:', err);
+      setError('An error occurred while deleting the item');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  // Handle edit
+  const handleEditItem = (item: Item, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent row click from triggering
+    navigate(`/item/${item.id}`, { 
+      state: { itemData: item, editMode: true } 
+    });
+  };
+
   // Fetch when dependencies change
   useEffect(() => {
     fetchItems();
@@ -108,7 +152,6 @@ export default function ItemList() {
   );
 
   const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
-
 
   const toggleAll = () => {
     if (allChecked) {
@@ -155,45 +198,31 @@ export default function ItemList() {
     setStatusFilter('all');
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffTime = Math.abs(now.getTime() - date.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  // const formatDate = (dateString: string) => {
+  //   const date = new Date(dateString);
+  //   const now = new Date();
+  //   const diffTime = Math.abs(now.getTime() - date.getTime());
+  //   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     
-    if (diffDays === 1) return '1d';
-    if (diffDays < 7) return `${diffDays}d`;
-    if (diffDays < 30) return `${Math.floor(diffDays / 7)}w`;
-    if (diffDays < 365) return `${Math.floor(diffDays / 30)}mo`;
-    return date.toLocaleDateString();
+  //   if (diffDays === 1) return '1d';
+  //   if (diffDays < 7) return `${diffDays}d`;
+  //   if (diffDays < 30) return `${Math.floor(diffDays / 7)}w`;
+  //   if (diffDays < 365) return `${Math.floor(diffDays / 30)}mo`;
+  //   return date.toLocaleDateString();
+  // };
+
+  const handleRowClick = (item: Item) => {
+    navigate(`/item/${item.id}`, { 
+      state: { itemData: item } 
+    });
   };
 
-const handleRowClick = (item: Item) => {
-  // Use the ID in the URL, not the item_code
-  navigate(`/item/${item.id}`, { 
-    state: { itemData: item } 
-  });
-};
-
-const handleAddItem = () => {
-  setShowModal(true);  // This opens the quick add modal instead of navigating
-};
+  const handleAddItem = () => {
+    setShowModal(true);
+  };
 
   return (
     <div className={`itl-page ${theme}`}>
-      {/* Stats Cards */}
-      {/* <div className="itl-stats-container">
-        {stats.map((stat, index) => (
-          <div key={index} className="itl-stat-card" style={{ background: `linear-gradient(135deg, ${stat.color} 0%, ${stat.color}cc 100%)` }}>
-            <div className="itl-stat-icon">{stat.icon}</div>
-            <div className="itl-stat-content">
-              <p className="itl-stat-title">{stat.title}</p>
-              <p className="itl-stat-value">{stat.value}</p>
-            </div>
-          </div>
-        ))}
-      </div> */}
-
       {/* Search and Filter Bar */}
       <div className="itl-filter-bar">
         <div className="itl-filter-left">
@@ -307,9 +336,7 @@ const handleAddItem = () => {
                   <th className="itl-th">Type</th>
                   <th className="itl-th itl-th-meta">
                     <span className="itl-count-label">{filteredItems.length} of {totalItems}</span>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary, #9ca3af)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                    </svg>
+                    <span>Actions</span>
                   </th>
                 </tr>
               </thead>
@@ -349,19 +376,27 @@ const handleAddItem = () => {
                         {row.is_stock_item === 1 ? 'Stock' : 'Non-Stock'}
                       </td>
                       <td className="itl-td itl-td-meta">
-                        <span className="itl-ago">{formatDate(row.creation)}</span>
-                        <button className="itl-meta-btn" onClick={(e) => e.stopPropagation()}>
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                          </svg>
-                          0
-                        </button>
-                        <span className="itl-dot">·</span>
-                        <button className="itl-meta-btn" onClick={(e) => e.stopPropagation()}>
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                          </svg>
-                        </button>
+                        <div className="itl-action-buttons" onClick={(e) => e.stopPropagation()}>
+                          <button 
+                            className="itl-action-btn itl-edit-btn"
+                            onClick={(e) => handleEditItem(row, e)}
+                            title="Edit item"
+                          >
+                            <FaEdit size={14} />
+                          </button>
+                          <button 
+                            className="itl-action-btn itl-delete-btn"
+                            onClick={(e) => handleDeleteItem(row.id, e)}
+                            disabled={deletingId === row.id}
+                            title="Delete item"
+                          >
+                            {deletingId === row.id ? (
+                              <FaSpinner className="spinning" size={14} />
+                            ) : (
+                              <FaTrash size={14} />
+                            )}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))

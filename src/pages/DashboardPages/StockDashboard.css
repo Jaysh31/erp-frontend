@@ -1,0 +1,308 @@
+/* StockDashboard.css */
+.stock-dashboard .warehouse-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.stock-dashboard .warehouse-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px;
+  background: var(--nav-hover, #f8fafc);
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.stock-dashboard .warehouse-item:hover {
+  background: var(--nav-active, #f1f5f9);
+  transform: translateX(4px);
+}
+
+.warehouse-info {
+  flex: 0 0 160px;
+}
+
+.warehouse-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary, #1e293b);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.warehouse-location {
+  font-size: 12px;
+  color: var(--text-secondary, #64748b);
+}
+
+.warehouse-stats {
+  flex: 1;
+}
+
+.warehouse-capacity {
+  font-size: 12px;
+  color: var(--text-secondary, #64748b);
+  margin-bottom: 4px;
+}
+
+.warehouse-bar {
+  width: 100%;
+  height: 6px;
+  background: var(--nav-hover, #e2e8f0);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.warehouse-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.8s ease;
+}
+
+.warehouse-percentage {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary, #1e293b);
+  min-width: 40px;
+  text-align: right;
+}
+
+.warehouse-status {
+  flex-shrink: 0;
+}
+
+/* Stock Items */
+.items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: var(--nav-hover, #f8fafc);
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.item-row:hover {
+  background: var(--nav-active, #f1f5f9);
+}
+
+.item-info {
+  flex: 0 0 180px;
+}
+
+.item-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary, #1e293b);
+}
+
+.item-sku {
+  font-size: 11px;
+  color: var(--text-secondary, #64748b);
+}
+
+.item-details {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.item-quantity {
+  text-align: center;
+}
+
+.qty-value {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary, #1e293b);
+  display: block;
+}
+
+.qty-label {
+  font-size: 10px;
+  color: var(--text-secondary, #94a3b8);
+}
+
+.item-warehouse {
+  font-size: 12px;
+  color: var(--text-secondary, #64748b);
+}
+
+.item-status .status-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Transaction Types */
+.type-badge {
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-weight: 500;
+  color: white;
+}
+
+.type-badge.inbound {
+  background: #22c55e;
+}
+
+.type-badge.outbound {
+  background: #3b82f6;
+}
+
+.type-badge.transfer {
+  background: #f59e0b;
+}
+
+.transaction-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  background: var(--nav-hover, #f8fafc);
+  border-radius: 8px;
+  transition: all 0.2s;
+  margin-bottom: 8px;
+}
+
+.transaction-item:hover {
+  background: var(--nav-active, #f1f5f9);
+}
+
+.transaction-info {
+  flex: 1;
+}
+
+.transaction-item-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary, #1e293b);
+}
+
+.transaction-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+  flex-wrap: wrap;
+}
+
+.transaction-qty {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary, #64748b);
+}
+
+.transaction-user {
+  font-size: 11px;
+  color: var(--text-secondary, #94a3b8);
+}
+
+.transaction-date {
+  font-size: 11px;
+  color: var(--text-secondary, #94a3b8);
+}
+
+/* Status Badge */
+.status-badge {
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  color: white;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Dark Theme */
+.dark-theme.stock-dashboard .warehouse-item,
+.dark-theme.stock-dashboard .item-row,
+.dark-theme.stock-dashboard .transaction-item {
+  background: var(--nav-hover, rgba(255, 255, 255, 0.05));
+}
+
+.dark-theme.stock-dashboard .warehouse-item:hover,
+.dark-theme.stock-dashboard .item-row:hover,
+.dark-theme.stock-dashboard .transaction-item:hover {
+  background: var(--nav-active, rgba(59, 130, 246, 0.15));
+}
+
+.dark-theme.stock-dashboard .warehouse-name,
+.dark-theme.stock-dashboard .item-name,
+.dark-theme.stock-dashboard .transaction-item-name,
+.dark-theme.stock-dashboard .qty-value,
+.dark-theme.stock-dashboard .warehouse-percentage {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme.stock-dashboard .warehouse-location,
+.dark-theme.stock-dashboard .item-sku,
+.dark-theme.stock-dashboard .item-warehouse,
+.dark-theme.stock-dashboard .transaction-qty,
+.dark-theme.stock-dashboard .transaction-user,
+.dark-theme.stock-dashboard .transaction-date,
+.dark-theme.stock-dashboard .qty-label {
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme.stock-dashboard .warehouse-bar {
+  background: var(--nav-hover, rgba(255, 255, 255, 0.1));
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .warehouse-info {
+    flex: 0 0 120px;
+  }
+}
+
+@media (max-width: 768px) {
+  .stock-dashboard .warehouse-item {
+    flex-wrap: wrap;
+  }
+  
+  .stock-dashboard .item-row {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  
+  .stock-dashboard .item-details {
+    flex-wrap: wrap;
+    gap: 12px;
+    width: 100%;
+  }
+  
+  .stock-dashboard .item-info {
+    flex: 1;
+  }
+  
+  .stock-dashboard .warehouse-status {
+    margin-left: auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .stock-dashboard .warehouse-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .stock-dashboard .warehouse-status {
+    margin-left: 0;
+  }
+  
+  .stock-dashboard .transaction-item {
+    flex-wrap: wrap;
+  }
+}

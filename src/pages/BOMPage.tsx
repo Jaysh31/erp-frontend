@@ -60,32 +60,25 @@ interface BOMRow {
   id: string;
   status: "Draft" | "Active" | "Disabled";
   itemToManufacture: string;
-  isActive: boolean;
-  isDefault: boolean;
   totalCost: string;
-  hasVariants: boolean;
   createdOn: string;
   comments: number;
+  quantity: number;
+  uom: string;
 }
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-const CheckBadge: React.FC<{ checked: boolean }> = ({ checked }) => (
-  <div className={`bom-check-badge ${checked ? "bom-check-badge--on" : ""}`}>
-    {checked && <Check size={12} color="#fff" strokeWidth={3} />}
-  </div>
-);
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
 const BOMPage: React.FC = () => {
   const { theme } = useAdminTheme();
   const [showNewBOM, setShowNewBOM] = useState(false);
+  const [showViewBOM, setShowViewBOM] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editBOMData, setEditBOMData] = useState<any>(null);
+  const [viewBOMData, setViewBOMData] = useState<any>(null);
 
   // Data state
   const [bomData, setBomData] = useState<BOMRecord[]>([]);
@@ -98,9 +91,6 @@ const BOMPage: React.FC = () => {
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-
-  // Selected rows
-  const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
 
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -145,6 +135,34 @@ const BOMPage: React.FC = () => {
       }
     } catch (err: any) {
       console.error('Error fetching BOMs:', err);
+      if (err.response) {
+        setError(err.response.data?.message || `Server error: ${err.response.status}`);
+      } else if (err.request) {
+        setError('Network error. Please check your connection.');
+      } else {
+        setError('An unexpected error occurred.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ─── Fetch single BOM for viewing ────────────────────────────────────────
+
+  const fetchBOMForView = async (bomId: number) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await api.get<BOMDetailResponse>(`/bom/${bomId}`);
+      
+      if (response.data.success === 1) {
+        setViewBOMData(response.data.data);
+        setShowViewBOM(true);
+      } else {
+        setError('Failed to load BOM data');
+      }
+    } catch (err: any) {
+      console.error('Error fetching BOM:', err);
       if (err.response) {
         setError(err.response.data?.message || `Server error: ${err.response.status}`);
       } else if (err.request) {
@@ -239,17 +257,16 @@ const BOMPage: React.FC = () => {
     return records.map(record => ({
       id: String(record.id),
       status: record.is_active === 1 ? "Active" : "Disabled",
-      itemToManufacture: record.item_name,
-      isActive: record.is_active === 1,
-      isDefault: record.is_default === 1,
-      totalCost: `₹ ${record.total_cost.toFixed(2)}`,
-      hasVariants: false,
+      itemToManufacture: record.item_name || record.item,
+      totalCost: `₹ ${(record.total_cost || 0).toFixed(2)}`,
       createdOn: new Date(record.creation).toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
         year: 'numeric'
       }),
       comments: 0,
+      quantity: record.quantity || 0,
+      uom: record.uom || 'Nos',
     }));
   };
 
@@ -289,47 +306,23 @@ const BOMPage: React.FC = () => {
     setCurrentPage(1);
   };
 
-  // ─── Row selection ────────────────────────────────────────────────────────
-
-  const toggleRow = (id: string) => {
-    setSelectedRows((prev) => {
-      const next = new Set(prev);
-      const numId = Number(id);
-      next.has(numId) ? next.delete(numId) : next.add(numId);
-      return next;
-    });
-  };
-
-  const allSelected = tableData.length > 0 && selectedRows.size === tableData.length;
-
-  const toggleAll = () => {
-    setSelectedRows(allSelected ? new Set() : new Set(tableData.map((r) => Number(r.id))));
-  };
-
   // ─── Actions ──────────────────────────────────────────────────────────────
 
   const handleView = (row: BOMRow) => {
-    console.log("View BOM", row.id);
-    // Navigate to view page or open modal
+    fetchBOMForView(Number(row.id));
   };
 
   const handleEdit = (row: BOMRow) => {
-    // Fetch full BOM data for editing
     fetchBOMForEdit(Number(row.id));
   };
 
   const handleDelete = async (row: BOMRow) => {
     if (window.confirm(`Are you sure you want to delete BOM "${row.id}"?`)) {
       try {
-        // DELETE with id in payload (not in URL)
-        const response = await api.delete('/bom', { data: { id: Number(row.id) } });
+        // DELETE with id in URL (not in payload)
+        const response = await api.delete(`/bom/${row.id}`);
         if (response.data.success === 1) {
           await fetchBOMs();
-          setSelectedRows(prev => {
-            const next = new Set(prev);
-            next.delete(Number(row.id));
-            return next;
-          });
           alert('BOM deleted successfully');
         } else {
           setError('Failed to delete BOM');
@@ -355,7 +348,20 @@ const BOMPage: React.FC = () => {
           editData={editBOMData}
         />
       )}
-      {!showNewBOM && (
+      
+      {showViewBOM && viewBOMData && (
+        <NewBOMPage 
+          onBack={() => {
+            setShowViewBOM(false);
+            setViewBOMData(null);
+            fetchBOMs();
+          }} 
+          editData={viewBOMData}
+          // viewOnly={true}
+        />
+      )}
+
+      {!showNewBOM && !showViewBOM && (
         <div className={`bom-page ${theme}`} ref={rootRef}>
           {/* ── Header ─────────────────────────────────────────────────────── */}
           <div className="bom-header">
@@ -390,8 +396,6 @@ const BOMPage: React.FC = () => {
               </button>
             </div>
           )}
-
-          
 
           {/* ── Search and Filter Bar ─────────────────────────────────────── */}
           <div className="bom-filter-bar">
@@ -492,22 +496,11 @@ const BOMPage: React.FC = () => {
               <table className="bom-table">
                 <thead>
                   <tr>
-                    <th className="bom-th-check">
-                      <input
-                        type="checkbox"
-                        checked={allSelected}
-                        onChange={toggleAll}
-                        className="bom-checkbox"
-                        disabled={tableData.length === 0}
-                      />
-                    </th>
                     <th className="bom-th">BOM ID</th>
                     <th className="bom-th">Status</th>
                     <th className="bom-th">Item to Manufacture</th>
                     <th className="bom-th">Quantity</th>
                     <th className="bom-th">UOM</th>
-                    <th className="bom-th">Is Active</th>
-                    <th className="bom-th">Is Default</th>
                     <th className="bom-th">Total Cost</th>
                     <th className="bom-th bom-th-meta">
                       <span className="bom-count-label">{totalRecords} total</span>
@@ -517,7 +510,7 @@ const BOMPage: React.FC = () => {
                 <tbody>
                   {tableData.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="bom-empty-state">
+                      <td colSpan={7} className="bom-empty-state">
                         <div className="bom-empty-content">
                           <FileStack size={48} />
                           <p>No BOMs found</p>
@@ -533,16 +526,8 @@ const BOMPage: React.FC = () => {
                     tableData.map((row) => (
                       <tr
                         key={row.id}
-                        className={`bom-tr ${selectedRows.has(Number(row.id)) ? "bom-tr-selected" : ""}`}
+                        className="bom-tr"
                       >
-                        <td className="bom-td-check" onClick={(e) => { e.stopPropagation(); toggleRow(row.id); }}>
-                          <input
-                            type="checkbox"
-                            checked={selectedRows.has(Number(row.id))}
-                            onChange={() => toggleRow(row.id)}
-                            className="bom-checkbox"
-                          />
-                        </td>
                         <td className="bom-td bom-td-id">
                           <a
                             className="bom-id-link"
@@ -561,14 +546,8 @@ const BOMPage: React.FC = () => {
                           </span>
                         </td>
                         <td className="bom-td" style={{ fontWeight: 500 }}>{row.itemToManufacture}</td>
-                        <td className="bom-td">{bomData.find(b => String(b.id) === row.id)?.quantity || '-'}</td>
-                        <td className="bom-td">{bomData.find(b => String(b.id) === row.id)?.uom || '-'}</td>
-                        <td className="bom-td">
-                          <CheckBadge checked={row.isActive} />
-                        </td>
-                        <td className="bom-td">
-                          <CheckBadge checked={row.isDefault} />
-                        </td>
+                        <td className="bom-td">{row.quantity}</td>
+                        <td className="bom-td">{row.uom}</td>
                         <td className="bom-td bom-cost">{row.totalCost}</td>
                         <td className="bom-td bom-td-meta">
                           <span className="bom-ago">{row.createdOn}</span>

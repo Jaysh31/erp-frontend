@@ -1,44 +1,40 @@
-// WorkOrderForm.tsx - ERPNext-style tabbed Work Order form (Production Item / Configuration / More Info / Connections)
+// WorkOrderForm.tsx
 import { useState, type FormEvent, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
-  FaArrowLeft,
-  FaSave,
-  FaSpinner,
-  FaExclamationCircle,
-  FaExclamationTriangle,
-  FaInfoCircle,
-  FaTimesCircle,
-  FaPlus,
-  FaTrash,
-  FaPaperPlane,
-  FaSearch,
+  FaArrowLeft, FaSave, FaSpinner, FaExclamationTriangle,
+  FaInfoCircle, FaTimesCircle, FaPlus, FaTrash,
+  FaPaperPlane, FaSearch, FaSyncAlt,
 } from "react-icons/fa";
 import "./WorkOrderForm.css";
 import { useAdminTheme } from "../admin-theme/AdminThemeContext";
 import api from "../services/api";
 
-// ─── Types ───────────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
+
 type Status = "Draft" | "Not Started" | "In Process" | "Completed" | "Stopped";
 
 interface OperationRow {
   id: string;
   operation: string;
   workstation: string;
-  semi_finished_warehouse: string;
-  source_warehouse: string;
-  finished_goods_warehouse: string;
-  time: number;
+  time_in_mins: number;
+  hour_rate: number;
+  operating_cost: number;
 }
 
 interface RequiredItemRow {
   id: string;
   item_code: string;
+  item_name: string;
   source_warehouse: string;
   required_qty: number;
+  uom: string;
   transferred_qty: number;
   consumed_qty: number;
   returned_qty: number;
+  rate?: number;
+  amount?: number;
 }
 
 interface CommentRow {
@@ -48,38 +44,31 @@ interface CommentRow {
   time: string;
 }
 
-interface ActivityRow {
-  id: string;
-  text: string;
-  time: string;
-}
-
 interface WorkOrderData {
   id?: number;
   name: string;
   status: Status;
-
-  // Production Item tab
+  // Core
   company: string;
   qty_to_manufacture: number;
   item_to_manufacture: string;
+  item_name: string;
+  stock_uom: string;
   bom_no: string;
+  // Qty tracking (read-only in most cases)
   material_transferred_for_manufacturing: number;
   manufactured_qty: number;
   additional_transferred_qty: number;
   disassembled_qty: number;
+  // Warehouses
   source_warehouse: string;
   target_warehouse: string;
   wip_warehouse: string;
   transfer_material_against: "Work Order" | "Job Card";
+  // Tables
   operations: OperationRow[];
   required_items: RequiredItemRow[];
-
-  // Configuration tab
-  allow_alternative_item: boolean;
-  skip_material_transfer: boolean;
-  use_multi_level_bom: boolean;
-  update_consumed_material_cost_in_project: boolean;
+  // Configuration
   planned_start_date: string;
   planned_end_date: string;
   actual_start_date: string;
@@ -90,14 +79,10 @@ interface WorkOrderData {
   actual_operating_cost: number;
   additional_operating_cost: number;
   corrective_operation_cost: number;
-
-  // More Info tab
-  item_name: string;
-  stock_uom: string;
+  // Comments / Activity
   comments: CommentRow[];
-  activity: ActivityRow[];
-
-  // Connections tab
+  activity: { id: string; text: string; time: string }[];
+  // Connections
   items_produced_pct: number;
   completed_operations: string[];
   stock_entry_count: number;
@@ -108,7 +93,89 @@ interface WorkOrderData {
   material_request_count: number;
 }
 
-interface ApiWorkOrderPayload {
+// ─── BOM API shape ────────────────────────────────────────────────────────────
+
+interface BomListItem {
+  id: number;
+  item: string;
+  item_name: string;
+  quantity: number;
+  uom: string;
+  company: string;
+  is_default: number;
+  operating_cost?: number;
+  total_cost?: number;
+}
+
+interface BomListResponse {
+  success: number;
+  data: { total: number; page: number; limit: number; records: BomListItem[] };
+}
+
+// Exact shape from your /bom/:id response
+interface BomApiOperation {
+  id: number;
+  operation: string;
+  workstation: string;
+  workstation_type?: string;
+  time_in_mins: number;
+  hour_rate: number;
+  operating_cost: number;
+  source_warehouse?: string | null;
+  wip_warehouse?: string | null;
+  fg_warehouse?: string | null;
+}
+
+interface BomApiItem {
+  id: number;
+  item_code: string;
+  item_name: string;
+  qty: number;
+  uom: string;
+  stock_uom: string;
+  source_warehouse?: string | null;
+  rate: number;
+  amount: number;
+}
+
+interface BomDetail {
+  id: number;
+  item: string;
+  item_name: string;
+  quantity: number;
+  uom: string;
+  company: string;
+  operating_cost?: number;
+  total_cost?: number;
+  default_source_warehouse?: string;
+  default_target_warehouse?: string;
+}
+
+interface BomDetailResponse {
+  success: number;
+  data: {
+    bom: BomDetail;
+    items: BomApiItem[];
+    operations: BomApiOperation[];
+  };
+}
+
+// ─── Warehouse API shape ──────────────────────────────────────────────────────
+
+interface Warehouse {
+  id: number;
+  warehouse_name: string;
+  company?: string | null;
+}
+
+interface WarehouseResponse {
+  success: number;
+  data: { records: Warehouse[] };
+}
+
+// ─── Payload to POST ──────────────────────────────────────────────────────────
+
+interface WOPayload {
   name: string;
   company: string;
   naming_series: string;
@@ -172,44 +239,11 @@ interface ApiWorkOrderPayload {
   _seen: string;
 }
 
-interface ValidationError {
-  field: string;
-  label: string;
-  message: string;
-}
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-// ─── Warehouse Types ────────────────────────────────────────────────────
-interface Warehouse {
-  id: number;
-  warehouse_name: string;
-  company: string | null;
-  parent_warehouse: string | null;
-  warehouse_type: string | null;
-  city: string | null;
-  state: string | null;
-  email_id: string | null;
-  phone_no: string | null;
-  disabled: number;
-}
-
-interface WarehouseResponse {
-  success: number;
-  data: {
-    total: number;
-    page: number;
-    limit: number;
-    records: Warehouse[];
-  };
-}
+const uid = () => Math.random().toString(36).slice(2, 9);
 
 const STATUS_OPTIONS: Status[] = ["Draft", "Not Started", "In Process", "Completed", "Stopped"];
-const STATUS_LABELS: Record<Status, string> = {
-  Draft: "Draft",
-  "Not Started": "Not Started",
-  "In Process": "In Process",
-  Completed: "Completed",
-  Stopped: "Stopped",
-};
 const STATUS_CLASS: Record<Status, string> = {
   Draft: "s-draft",
   "Not Started": "s-notstarted",
@@ -218,262 +252,112 @@ const STATUS_CLASS: Record<Status, string> = {
   Stopped: "s-stopped",
 };
 
-type TabKey = "production_item" | "configuration" | "more_info" | "connections";
+type TabKey = "production_item" | "configuration" | "more_info" | "total_produced";
 const TABS: { key: TabKey; label: string }[] = [
   { key: "production_item", label: "Production Item" },
   { key: "configuration", label: "Configuration" },
   { key: "more_info", label: "More Info" },
-  { key: "connections", label: "Connections" },
+  { key: "total_produced", label: "Total Produced" },
 ];
 
-const uid = () => Math.random().toString(36).slice(2, 9);
-
-const emptyOperation = (): OperationRow => ({
-  id: uid(),
-  operation: "",
-  workstation: "",
-  semi_finished_warehouse: "",
-  source_warehouse: "",
-  finished_goods_warehouse: "",
-  time: 0,
+const emptyOp = (): OperationRow => ({
+  id: uid(), operation: "", workstation: "", time_in_mins: 0, hour_rate: 0, operating_cost: 0,
 });
-
-const emptyRequiredItem = (): RequiredItemRow => ({
-  id: uid(),
-  item_code: "",
-  source_warehouse: "",
-  required_qty: 0,
-  transferred_qty: 0,
-  consumed_qty: 0,
-  returned_qty: 0,
+const emptyItem = (): RequiredItemRow => ({
+  id: uid(), item_code: "", item_name: "", source_warehouse: "", required_qty: 0,
+  uom: "", transferred_qty: 0, consumed_qty: 0, returned_qty: 0, rate: 0, amount: 0,
 });
-
-const emptyWorkOrder = (): WorkOrderData => ({
-  name: "",
-  status: "Draft",
-
-  company: "",
-  qty_to_manufacture: 0,
-  item_to_manufacture: "",
+const emptyWO = (): WorkOrderData => ({
+  name: "", status: "Draft",
+  company: "", qty_to_manufacture: 0, item_to_manufacture: "", item_name: "", stock_uom: "Nos",
   bom_no: "",
-  material_transferred_for_manufacturing: 0,
-  manufactured_qty: 0,
-  additional_transferred_qty: 0,
-  disassembled_qty: 0,
-  source_warehouse: "",
-  target_warehouse: "",
-  wip_warehouse: "",
+  material_transferred_for_manufacturing: 0, manufactured_qty: 0,
+  additional_transferred_qty: 0, disassembled_qty: 0,
+  source_warehouse: "", target_warehouse: "", wip_warehouse: "",
   transfer_material_against: "Work Order",
-  operations: [emptyOperation()],
-  required_items: [emptyRequiredItem()],
-
-  allow_alternative_item: false,
-  skip_material_transfer: false,
-  use_multi_level_bom: true,
-  update_consumed_material_cost_in_project: false,
-  planned_start_date: "",
+  operations: [emptyOp()],
+  required_items: [emptyItem()],
+  planned_start_date: new Date().toISOString().split("T")[0],
   planned_end_date: "",
-  actual_start_date: "",
-  actual_end_date: "",
-  expected_delivery_date: "",
-  lead_time_mins: 0,
-  planned_operating_cost: 0,
-  actual_operating_cost: 0,
-  additional_operating_cost: 0,
-  corrective_operation_cost: 0,
-
-  item_name: "",
-  stock_uom: "Nos",
-  comments: [],
-  activity: [],
-
-  items_produced_pct: 0,
-  completed_operations: [],
-  stock_entry_count: 0,
-  job_card_count: 0,
-  pick_list_count: 0,
-  serial_no_count: 0,
-  batch_count: 0,
-  material_request_count: 0,
+  actual_start_date: "", actual_end_date: "", expected_delivery_date: "",
+  lead_time_mins: 0, planned_operating_cost: 0, actual_operating_cost: 0,
+  additional_operating_cost: 0, corrective_operation_cost: 0,
+  comments: [], activity: [],
+  items_produced_pct: 0, completed_operations: [],
+  stock_entry_count: 0, job_card_count: 0, pick_list_count: 0,
+  serial_no_count: 0, batch_count: 0, material_request_count: 0,
 });
 
-interface ApiResponse {
-  success: number;
-  data: WorkOrderData;
-  message?: string;
-}
-
-// ─── Warehouse Search Component ────────────────────────────────────────
-interface WarehouseSearchFieldProps {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  required?: boolean;
-  disabled?: boolean;
-  placeholder?: string;
-  hint?: string;
-  className?: string;
-  error?: string;
-}
+// ─── WarehouseSearchField ─────────────────────────────────────────────────────
 
 function WarehouseSearchField({
-  label,
-  value,
-  onChange,
-  required = false,
-  disabled = false,
-  placeholder = "Search warehouse...",
-  hint,
-  className = "",
-  error,
-}: WarehouseSearchFieldProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
-  const [filteredWarehouses, setFilteredWarehouses] = useState<Warehouse[]>([]);
+  label, value, onChange, required = false, disabled = false,
+  placeholder = "Search warehouse…", hint, error,
+}: {
+  label: string; value: string; onChange: (v: string) => void;
+  required?: boolean; disabled?: boolean; placeholder?: string; hint?: string; error?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [term, setTerm] = useState("");
+  const [all, setAll] = useState<Warehouse[]>([]);
   const [loading, setLoading] = useState(false);
-  const [fetchError, setFetchError] = useState<string | null>(null);
-  const wrapperRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const ref = useRef<HTMLDivElement>(null);
 
-  // Fetch warehouses on mount
   useEffect(() => {
-    const fetchWarehouses = async () => {
-      setLoading(true);
-      setFetchError(null);
-      try {
-        const response = await api.get<WarehouseResponse>("/warehouse");
-        if (response.data.success === 1) {
-          const records = response.data.data.records || [];
-          setWarehouses(records);
-          setFilteredWarehouses(records);
-        } else {
-          setFetchError("Failed to load warehouses");
-        }
-      } catch (err) {
-        console.error("Error fetching warehouses:", err);
-        setFetchError("Could not load warehouse list");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchWarehouses();
+    setLoading(true);
+    api.get<WarehouseResponse>("/warehouse")
+      .then(r => { if (r.data.success === 1) setAll(r.data.data.records || []); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
-  // Filter warehouses based on search term
   useEffect(() => {
-    if (!searchTerm.trim()) {
-      setFilteredWarehouses(warehouses);
-      return;
-    }
-    const term = searchTerm.toLowerCase().trim();
-    const filtered = warehouses.filter((w) =>
-      w.warehouse_name.toLowerCase().includes(term) ||
-      (w.company && w.company.toLowerCase().includes(term))
-    );
-    setFilteredWarehouses(filtered);
-  }, [searchTerm, warehouses]);
-
-  // Close dropdown on outside click
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
   }, []);
 
-  const handleSelectWarehouse = (warehouse: Warehouse) => {
-    onChange(warehouse.warehouse_name);
-    setSearchTerm(warehouse.warehouse_name);
-    setIsOpen(false);
-  };
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setSearchTerm(val);
-    onChange(val);
-    setIsOpen(true);
-  };
-
-  const handleFocus = () => {
-    if (!disabled) {
-      setSearchTerm(value);
-      setIsOpen(true);
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Escape") {
-      setIsOpen(false);
-    }
-  };
+  const filtered = term.trim()
+    ? all.filter(w => w.warehouse_name.toLowerCase().includes(term.toLowerCase()))
+    : all;
 
   return (
-    <div className={`warehouse-search-field ${className}`} ref={wrapperRef}>
-      <label className="wof-label">
-        {label}
-        {required && <span className="wof-required"> *</span>}
-      </label>
+    <div className="warehouse-search-field" ref={ref}>
+      <label className="wof-label">{label}{required && <span className="wof-required"> *</span>}</label>
       <div className="warehouse-search-wrapper">
         <div className="warehouse-search-input-wrap">
           <FaSearch className="warehouse-search-icon" />
           <input
-            ref={inputRef}
             type="text"
-            value={searchTerm || value}
-            onChange={handleInputChange}
-            onFocus={handleFocus}
-            onKeyDown={handleKeyDown}
+            value={open ? term : value}
+            onChange={e => { setTerm(e.target.value); onChange(e.target.value); setOpen(true); }}
+            onFocus={() => { if (!disabled) { setTerm(""); setOpen(true); } }}
+            onKeyDown={e => e.key === "Escape" && setOpen(false)}
             placeholder={placeholder}
             disabled={disabled || loading}
-            className={`form-field warehouse-search-input ${error ? "field-error" : ""}`}
+            className={`form-field warehouse-search-input${error ? " field-error" : ""}`}
           />
           {loading && <FaSpinner className="warehouse-loading-spinner spinning" />}
           {value && !disabled && (
-            <button
-              type="button"
-              className="warehouse-clear-btn"
-              onClick={() => {
-                onChange("");
-                setSearchTerm("");
-                setIsOpen(false);
-              }}
-              aria-label="Clear selection"
-            >
-              ×
-            </button>
+            <button type="button" className="warehouse-clear-btn"
+              onClick={() => { onChange(""); setTerm(""); setOpen(false); }}>×</button>
           )}
         </div>
-
-        {isOpen && !disabled && (
+        {open && !disabled && (
           <div className="warehouse-dropdown">
-            {loading ? (
-              <div className="warehouse-dropdown-loading">Loading warehouses...</div>
-            ) : fetchError ? (
-              <div className="warehouse-dropdown-error">{fetchError}</div>
-            ) : filteredWarehouses.length === 0 ? (
-              <div className="warehouse-dropdown-empty">
-                {searchTerm ? "No warehouses found" : "No warehouses available"}
-              </div>
-            ) : (
-              <ul className="warehouse-dropdown-list">
-                {filteredWarehouses.map((warehouse) => (
-                  <li
-                    key={warehouse.id}
-                    className={`warehouse-dropdown-item ${value === warehouse.warehouse_name ? "selected" : ""}`}
-                    onClick={() => handleSelectWarehouse(warehouse)}
-                  >
-                    <div className="warehouse-item-name">{warehouse.warehouse_name}</div>
-                    {warehouse.company && (
-                      <div className="warehouse-item-company">{warehouse.company}</div>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
+            {filtered.length === 0
+              ? <div className="warehouse-dropdown-empty">{term ? "No match" : "No warehouses"}</div>
+              : <ul className="warehouse-dropdown-list">
+                  {filtered.map(w => (
+                    <li key={w.id}
+                      className={`warehouse-dropdown-item${value === w.warehouse_name ? " selected" : ""}`}
+                      onClick={() => { onChange(w.warehouse_name); setTerm(w.warehouse_name); setOpen(false); }}>
+                      <div className="warehouse-item-name">{w.warehouse_name}</div>
+                      {w.company && <div className="warehouse-item-company">{w.company}</div>}
+                    </li>
+                  ))}
+                </ul>
+            }
           </div>
         )}
       </div>
@@ -483,288 +367,386 @@ function WarehouseSearchField({
   );
 }
 
+// ─── BomSearchField ───────────────────────────────────────────────────────────
+
+function BomSearchField({
+  value, onSelect, onClear, disabled = false, error,
+}: {
+  value: string; onSelect: (b: BomListItem) => void;
+  onClear: () => void; disabled?: boolean; error?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [term, setTerm] = useState("");
+  const [all, setAll] = useState<BomListItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    api.get<BomListResponse>("/bom?limit=100")
+      .then(r => { if (r.data.success === 1) setAll(r.data.data.records || []); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+
+  const filtered = term.trim()
+    ? all.filter(b =>
+        b.item.toLowerCase().includes(term.toLowerCase()) ||
+        b.item_name.toLowerCase().includes(term.toLowerCase()))
+    : all;
+
+  return (
+    <div className="warehouse-search-field" ref={ref}>
+      <label className="wof-label">BOM <span className="wof-required">*</span></label>
+      <div className="warehouse-search-wrapper">
+        <div className="warehouse-search-input-wrap">
+          <FaSearch className="warehouse-search-icon" />
+          <input
+            type="text"
+            value={open ? term : value}
+            onChange={e => { setTerm(e.target.value); setOpen(true); }}
+            onFocus={() => { if (!disabled) { setTerm(""); setOpen(true); } }}
+            onKeyDown={e => e.key === "Escape" && setOpen(false)}
+            placeholder="Search BOM by item code or name…"
+            disabled={disabled || loading}
+            className={`form-field warehouse-search-input${error ? " field-error" : ""}`}
+          />
+          {loading && <FaSpinner className="warehouse-loading-spinner spinning" />}
+          {value && !disabled && (
+            <button type="button" className="warehouse-clear-btn"
+              onClick={() => { onClear(); setTerm(""); setOpen(false); }}>×</button>
+          )}
+        </div>
+        {open && !disabled && (
+          <div className="warehouse-dropdown">
+            {filtered.length === 0
+              ? <div className="warehouse-dropdown-empty">{term ? "No BOMs found" : "No BOMs"}</div>
+              : <ul className="warehouse-dropdown-list">
+                  {filtered.map(b => (
+                    <li key={b.id} className="warehouse-dropdown-item"
+                      onClick={() => { onSelect(b); setTerm(""); setOpen(false); }}>
+                      <div className="warehouse-item-name">
+                        {b.item_name} <span style={{ opacity: 0.6 }}>({b.item})</span>
+                      </div>
+                      <div className="warehouse-item-company">
+                        Qty {b.quantity} {b.uom} · {b.company}{b.is_default ? " · Default" : ""}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+            }
+          </div>
+        )}
+      </div>
+      <span className="wof-hint">Select a BOM to auto-fill operations and required items.</span>
+      {error && <div className="wof-error-msg">{error}</div>}
+    </div>
+  );
+}
+
+// ─── Main Form ────────────────────────────────────────────────────────────────
+
 export default function WorkOrderForm() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { theme } = useAdminTheme();
   const isNew = id === "new";
 
-  const [wo, setWo] = useState<WorkOrderData>(emptyWorkOrder());
+  const [wo, setWo] = useState<WorkOrderData>(emptyWO());
   const [activeTab, setActiveTab] = useState<TabKey>("production_item");
-  const [, setIsDirty] = useState(isNew);
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(false);
   const [newComment, setNewComment] = useState("");
-  const [showValidationSummary, setShowValidationSummary] = useState(false);
-  const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [validationErrors, setValidationErrors] = useState<{ field: string; label: string; message: string }[]>([]);
+  const [showValidation, setShowValidation] = useState(false);
+
+  // BOM state
+  const [selectedBomLabel, setSelectedBomLabel] = useState("");
+  const [bomDetail, setBomDetail] = useState<{ bom: BomDetail; items: BomApiItem[]; operations: BomApiOperation[] } | null>(null);
+  const [bomLoading, setBomLoading] = useState(false);
 
   const disabled = submitting || loading;
 
-  // ─── Fetch existing work order ──────────────────────────────────────
+  // ─── Load existing WO ────────────────────────────────────────────────
   useEffect(() => {
     if (!isNew && id) {
-      const fetchWorkOrder = async () => {
-        setLoading(true);
-        try {
-          const response = await api.get<ApiResponse>(`/work-order/${id}`);
-          if (response.data.success === 1) {
-            const data = response.data.data;
-            setWo({
-              ...emptyWorkOrder(),
-              ...data,
-              planned_start_date: data.planned_start_date?.split("T")[0] ?? "",
-              planned_end_date: data.planned_end_date?.split("T")[0] ?? "",
-              actual_start_date: data.actual_start_date?.split("T")[0] ?? "",
-              actual_end_date: data.actual_end_date?.split("T")[0] ?? "",
-              expected_delivery_date: data.expected_delivery_date?.split("T")[0] ?? "",
-              operations: data.operations?.length ? data.operations : [emptyOperation()],
-              required_items: data.required_items?.length ? data.required_items : [emptyRequiredItem()],
-            });
+      setLoading(true);
+      api.get(`/work-order/${id}`)
+        .then(r => {
+          if (r.data.success === 1) {
+            const d = r.data.data;
+            setWo(prev => ({
+              ...prev, ...d,
+              planned_start_date: d.planned_start_date?.split("T")[0] ?? new Date().toISOString().split("T")[0],
+              planned_end_date: d.planned_end_date?.split("T")[0] ?? "",
+              actual_start_date: d.actual_start_date?.split("T")[0] ?? "",
+              actual_end_date: d.actual_end_date?.split("T")[0] ?? "",
+              expected_delivery_date: d.expected_delivery_date?.split("T")[0] ?? "",
+              operations: d.operations?.length ? d.operations : [emptyOp()],
+              required_items: d.required_items?.length ? d.required_items : [emptyItem()],
+            }));
           }
-        } catch (err) {
-          console.error("Error fetching work order:", err);
-          setApiError("Failed to load work order data");
-        } finally {
-          setLoading(false);
-        }
-      };
-      fetchWorkOrder();
+        })
+        .catch(() => setApiError("Failed to load work order"))
+        .finally(() => setLoading(false));
     }
   }, [id, isNew]);
 
-  // ─── Field helpers ───────────────────────────────────────────────────
-  const setField = <K extends keyof WorkOrderData>(field: K, value: WorkOrderData[K]) => {
-    setWo((prev) => ({ ...prev, [field]: value }));
-    setIsDirty(true);
-  };
-
-  // Operations row helpers
-  const updateOperation = (rowId: string, field: keyof OperationRow, value: string | number) => {
-    setWo((prev) => ({
+  // ─── BOM selection ───────────────────────────────────────────────────
+  const handleSelectBom = (bom: BomListItem) => {
+    setSelectedBomLabel(`${bom.item_name} (${bom.item})`);
+    setWo(prev => ({
       ...prev,
-      operations: prev.operations.map((op) => (op.id === rowId ? { ...op, [field]: value } : op)),
+      bom_no: String(bom.id),
+      item_to_manufacture: bom.item,
+      item_name: bom.item_name,
+      stock_uom: bom.uom || prev.stock_uom,
+      company: prev.company || bom.company,
     }));
-    setIsDirty(true);
+    setBomDetail(null);
+    setBomLoading(true);
+    api.get<BomDetailResponse>(`/bom/${bom.id}`)
+      .then(r => {
+        if (r.data.success === 1) {
+          const detail = r.data.data;
+          setBomDetail(detail);
+          // Auto-fill source/target warehouse from BOM defaults
+          setWo(prev => ({
+            ...prev,
+            source_warehouse: prev.source_warehouse || detail.bom.default_source_warehouse || "",
+            target_warehouse: prev.target_warehouse || detail.bom.default_target_warehouse || "",
+          }));
+          // Apply initial scaling with current qty
+          applyBomToWo(detail, wo.qty_to_manufacture || bom.quantity);
+        }
+      })
+      .catch(() => setApiError("Failed to load BOM details"))
+      .finally(() => setBomLoading(false));
   };
-  const addOperation = () => setWo((prev) => ({ ...prev, operations: [...prev.operations, emptyOperation()] }));
-  const removeOperation = (rowId: string) =>
-    setWo((prev) => ({ ...prev, operations: prev.operations.filter((op) => op.id !== rowId) }));
 
-  // Required item row helpers
-  const updateRequiredItem = (rowId: string, field: keyof RequiredItemRow, value: string | number) => {
-    setWo((prev) => ({
+  const handleClearBom = () => {
+    setSelectedBomLabel("");
+    setBomDetail(null);
+    setWo(prev => ({
       ...prev,
-      required_items: prev.required_items.map((ri) => (ri.id === rowId ? { ...ri, [field]: value } : ri)),
+      bom_no: "", item_to_manufacture: "", item_name: "",
+      operations: [emptyOp()], required_items: [emptyItem()],
+      lead_time_mins: 0, planned_operating_cost: 0,
     }));
-    setIsDirty(true);
   };
-  const addRequiredItem = () =>
-    setWo((prev) => ({ ...prev, required_items: [...prev.required_items, emptyRequiredItem()] }));
-  const removeRequiredItem = (rowId: string) =>
-    setWo((prev) => ({ ...prev, required_items: prev.required_items.filter((ri) => ri.id !== rowId) }));
 
-  const handleAddComment = () => {
-    if (!newComment.trim()) return;
-    setWo((prev) => ({
+  // ─── Apply BOM data to WO rows (with qty scaling) ────────────────────
+  const applyBomToWo = (
+    detail: { bom: BomDetail; items: BomApiItem[]; operations: BomApiOperation[] },
+    qty: number
+  ) => {
+    const base = detail.bom.quantity > 0 ? detail.bom.quantity : 1;
+    const scale = qty > 0 ? qty / base : 0;
+
+    // Map operations directly from BOM API shape
+    const ops: OperationRow[] = detail.operations.map(op => ({
+      id: uid(),
+      operation: op.operation,
+      workstation: op.workstation,
+      time_in_mins: Math.round(op.time_in_mins * scale * 100) / 100,
+      hour_rate: op.hour_rate,
+      operating_cost: Math.round(op.operating_cost * scale * 100) / 100,
+    }));
+
+    // Map items directly from BOM API shape
+    const items: RequiredItemRow[] = detail.items.map(it => ({
+      id: uid(),
+      item_code: it.item_code,
+      item_name: it.item_name,
+      source_warehouse: it.source_warehouse || detail.bom.default_source_warehouse || "",
+      required_qty: Math.round(it.qty * scale * 1000) / 1000,
+      uom: it.uom,
+      transferred_qty: 0,
+      consumed_qty: 0,
+      returned_qty: 0,
+      rate: it.rate || 0,
+      amount: Math.round((it.amount || 0) * scale * 100) / 100,
+    }));
+
+    const totalTime = ops.reduce((s, o) => s + o.time_in_mins, 0);
+    const totalCost = ops.reduce((s, o) => s + o.operating_cost, 0);
+    const totalRawMaterialCost = items.reduce((s, i) => s + (i.amount || 0), 0);
+
+    setWo(prev => ({
       ...prev,
-      comments: [
-        ...prev.comments,
-        { id: uid(), author: "You", text: newComment.trim(), time: "Just now" },
-      ],
+      operations: ops.length ? ops : [emptyOp()],
+      required_items: items.length ? items : [emptyItem()],
+      lead_time_mins: Math.round(totalTime * 100) / 100,
+      planned_operating_cost: Math.round(totalCost * 100) / 100,
     }));
-    setNewComment("");
   };
 
-  // ─── Validation ──────────────────────────────────────────────────────
-  const getAllValidationErrors = (): ValidationError[] => {
-    const allErrors: ValidationError[] = [];
+  // Re-scale when qty changes and BOM is loaded
+  useEffect(() => {
+    if (bomDetail && wo.qty_to_manufacture > 0) {
+      applyBomToWo(bomDetail, wo.qty_to_manufacture);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wo.qty_to_manufacture]);
 
-    if (!wo.company.trim()) {
-      allErrors.push({ field: "company", label: "Company", message: "Company is required" });
-    }
-    if (!wo.item_to_manufacture.trim()) {
-      allErrors.push({
-        field: "item_to_manufacture",
-        label: "Item To Manufacture",
-        message: "Item to manufacture is required",
-      });
-    }
-    if (!wo.bom_no.trim()) {
-      allErrors.push({ field: "bom_no", label: "BOM No", message: "BOM number is required" });
-    }
-    if (wo.qty_to_manufacture <= 0) {
-      allErrors.push({
-        field: "qty_to_manufacture",
-        label: "Qty To Manufacture",
-        message: "Quantity must be greater than 0",
-      });
-    }
-    if (!wo.target_warehouse.trim()) {
-      allErrors.push({
-        field: "target_warehouse",
-        label: "Target Warehouse",
-        message: "Target warehouse is required",
-      });
-    }
-    if (!wo.wip_warehouse.trim() && !wo.skip_material_transfer) {
-      allErrors.push({
-        field: "wip_warehouse",
-        label: "Work-in-Progress Warehouse",
-        message: "WIP warehouse is required",
-      });
-    }
-    if (!wo.planned_start_date) {
-      allErrors.push({
-        field: "planned_start_date",
-        label: "Planned Start Date",
-        message: "Planned start date is required",
-      });
-    }
-    if (wo.planned_start_date && wo.planned_end_date && wo.planned_start_date > wo.planned_end_date) {
-      allErrors.push({
-        field: "planned_end_date",
-        label: "Planned End Date",
-        message: "End date must be after start date",
-      });
-    }
+  // ─── Field helpers ────────────────────────────────────────────────────
+  const set = <K extends keyof WorkOrderData>(k: K, v: WorkOrderData[K]) =>
+    setWo(prev => ({ ...prev, [k]: v }));
 
-    return allErrors;
+  const updateOp = (rowId: string, field: keyof OperationRow, value: string | number) =>
+    setWo(prev => ({ ...prev, operations: prev.operations.map(o => o.id === rowId ? { ...o, [field]: value } : o) }));
+
+  const updateItem = (rowId: string, field: keyof RequiredItemRow, value: string | number) =>
+    setWo(prev => ({ ...prev, required_items: prev.required_items.map(r => r.id === rowId ? { ...r, [field]: value } : r) }));
+
+  // ─── Validation ───────────────────────────────────────────────────────
+  const validate = () => {
+    const errs: { field: string; label: string; message: string }[] = [];
+    if (!wo.bom_no.trim()) errs.push({ field: "bom_no", label: "BOM", message: "Please select a BOM" });
+    if (!wo.item_to_manufacture.trim()) errs.push({ field: "item_to_manufacture", label: "Item To Manufacture", message: "Required" });
+    if (wo.qty_to_manufacture <= 0) errs.push({ field: "qty_to_manufacture", label: "Qty To Manufacture", message: "Must be > 0" });
+    if (!wo.target_warehouse.trim()) errs.push({ field: "target_warehouse", label: "Target Warehouse (FG)", message: "Required" });
+    if (!wo.wip_warehouse.trim()) errs.push({ field: "wip_warehouse", label: "WIP Warehouse", message: "Required" });
+    if (!wo.planned_start_date) errs.push({ field: "planned_start_date", label: "Planned Start Date", message: "Required" });
+    return errs;
   };
 
-  const hasErrors = getAllValidationErrors().length > 0;
+  // ─── Build payload ────────────────────────────────────────────────────
+  const buildPayload = (): WOPayload => ({
+    name: wo.name || "sc",
+    company: wo.company || "SculptorTech",
+    naming_series: "WO-.YYYY.-",
+    production_item: wo.item_to_manufacture,
+    bom_no: wo.bom_no,
+    qty: wo.qty_to_manufacture,
+    sales_order: "",
+    reserve_stock: 0,
+    max_producible_qty: wo.qty_to_manufacture,
+    material_transferred_for_manufacturing: wo.material_transferred_for_manufacturing,
+    additional_transferred_qty: wo.additional_transferred_qty,
+    produced_qty: wo.manufactured_qty,
+    process_loss_qty: 0,
+    disassembled_qty: wo.disassembled_qty,
+    source_warehouse: wo.source_warehouse,
+    wip_warehouse: wo.wip_warehouse,
+    fg_warehouse: wo.target_warehouse,
+    scrap_warehouse: "",
+    transfer_material_against: wo.transfer_material_against,
+    allow_alternative_item: 0,
+    use_multi_level_bom: 1,
+    skip_transfer: 0,
+    from_wip_warehouse: 0,
+    update_consumed_material_cost_in_project: 0,
+    planned_start_date: wo.planned_start_date,
+    planned_end_date: wo.planned_end_date,
+    expected_delivery_date: wo.expected_delivery_date,
+    actual_start_date: wo.actual_start_date || null,
+    actual_end_date: wo.actual_end_date || null,
+    lead_time: wo.lead_time_mins,
+    planned_operating_cost: wo.planned_operating_cost,
+    actual_operating_cost: wo.actual_operating_cost,
+    additional_operating_cost: wo.additional_operating_cost,
+    corrective_operation_cost: wo.corrective_operation_cost,
+    total_operating_cost: wo.planned_operating_cost + wo.corrective_operation_cost + wo.additional_operating_cost,
+    image: "",
+    item_name: wo.item_name,
+    stock_uom: wo.stock_uom,
+    description: "",
+    has_serial_no: 0,
+    has_batch_no: 0,
+    batch_size: wo.qty_to_manufacture,
+    project: "",
+    subcontracting_inward_order: "",
+    production_plan: "",
+    mps: "",
+    material_request: "",
+    material_request_item: "",
+    subcontracting_inward_order_item: "",
+    sales_order_item: "",
+    production_plan_sub_assembly_item: "",
+    production_plan_item: "",
+    product_bundle_item: "",
+    status: wo.status,
+    track_semi_finished_goods: 0,
+    amended_from: "",
+    _user_tags: "", _comments: "", _assign: "", _liked_by: "", _seen: "",
+  });
 
-  // ─── Convert form data to API payload ──────────────────────────────
-  const convertToApiPayload = (data: WorkOrderData): ApiWorkOrderPayload => {
-    return {
-      name: data.name || "",
-      company: data.company || "",
-      naming_series: "WO-.YYYY.-",
-      production_item: data.item_to_manufacture || "",
-      bom_no: data.bom_no || "",
-      qty: data.qty_to_manufacture || 0,
-      sales_order: "",
-      reserve_stock: 0,
-      max_producible_qty: data.qty_to_manufacture || 0,
-      material_transferred_for_manufacturing: data.material_transferred_for_manufacturing || 0,
-      additional_transferred_qty: data.additional_transferred_qty || 0,
-      produced_qty: data.manufactured_qty || 0,
-      process_loss_qty: 0,
-      disassembled_qty: data.disassembled_qty || 0,
-      source_warehouse: data.source_warehouse || "",
-      wip_warehouse: data.wip_warehouse || "",
-      fg_warehouse: data.target_warehouse || "",
-      scrap_warehouse: "",
-      transfer_material_against: data.transfer_material_against || "Work Order",
-      allow_alternative_item: data.allow_alternative_item ? 1 : 0,
-      use_multi_level_bom: data.use_multi_level_bom ? 1 : 0,
-      skip_transfer: data.skip_material_transfer ? 1 : 0,
-      from_wip_warehouse: 0,
-      update_consumed_material_cost_in_project: data.update_consumed_material_cost_in_project ? 1 : 0,
-      planned_start_date: data.planned_start_date || "",
-      planned_end_date: data.planned_end_date || "",
-      expected_delivery_date: data.expected_delivery_date || "",
-      actual_start_date: data.actual_start_date || null,
-      actual_end_date: data.actual_end_date || null,
-      lead_time: data.lead_time_mins || 0,
-      planned_operating_cost: data.planned_operating_cost || 0,
-      actual_operating_cost: data.actual_operating_cost || 0,
-      additional_operating_cost: data.additional_operating_cost || 0,
-      corrective_operation_cost: data.corrective_operation_cost || 0,
-      total_operating_cost: (data.planned_operating_cost || 0) + (data.corrective_operation_cost || 0) + (data.additional_operating_cost || 0),
-      image: "",
-      item_name: data.item_name || "",
-      stock_uom: data.stock_uom || "Nos",
-      description: "",
-      has_serial_no: 0,
-      has_batch_no: 0,
-      batch_size: 0,
-      project: "",
-      subcontracting_inward_order: "",
-      production_plan: "",
-      mps: "",
-      material_request: "",
-      material_request_item: "",
-      subcontracting_inward_order_item: "",
-      sales_order_item: "",
-      production_plan_sub_assembly_item: "",
-      production_plan_item: "",
-      product_bundle_item: "",
-      status: data.status || "Draft",
-      track_semi_finished_goods: 0,
-      amended_from: "",
-      _user_tags: "",
-      _comments: "",
-      _assign: "",
-      _liked_by: "",
-      _seen: "",
-    };
-  };
-
-  // ─── Save ────────────────────────────────────────────────────────────
-  const handleSave = async (e: FormEvent<HTMLFormElement>) => {
+  // ─── Submit ───────────────────────────────────────────────────────────
+  const handleSave = async (e: FormEvent) => {
     e.preventDefault();
     setApiError(null);
-
-    const validationErrorsList = getAllValidationErrors();
-    if (validationErrorsList.length > 0) {
-      setValidationErrors(validationErrorsList);
-      setShowValidationSummary(true);
-      // jump to the tab containing the first error
-      const firstField = validationErrorsList[0].field;
-      if (["company", "qty_to_manufacture", "item_to_manufacture", "bom_no", "target_warehouse", "wip_warehouse"].includes(firstField)) {
+    const errs = validate();
+    if (errs.length) {
+      setValidationErrors(errs);
+      setShowValidation(true);
+      if (["bom_no","item_to_manufacture","qty_to_manufacture","target_warehouse","wip_warehouse"].some(f => errs.find(e => e.field === f)))
         setActiveTab("production_item");
-      } else if (["planned_start_date", "planned_end_date"].includes(firstField)) {
+      else if (errs.find(e => e.field === "planned_start_date"))
         setActiveTab("configuration");
-      }
       return;
     }
-
     setSubmitting(true);
     try {
-      const payload = convertToApiPayload(wo);
       let response;
       if (isNew) {
-        response = await api.post("/work-order", payload);
+        response = await api.post("/work-order", buildPayload());
+        if (response.data?.success === 1) {
+          const insertId = response.data?.data?.insertId;
+          if (insertId) {
+            try {
+              const jobCardResponse = await api.post(`/job-card/create-job-cards-from-wo/${insertId}`);
+              if (jobCardResponse.data?.success === 1) {
+                console.log("✅ Job cards created successfully");
+              } else {
+                console.warn("⚠️ Job card creation returned non-success");
+              }
+            } catch (jobCardErr) {
+              console.error("❌ Error creating job cards:", jobCardErr);
+            }
+          }
+          navigate("/work-order");
+        } else {
+          setApiError(response.data?.message || "Failed to create work order");
+        }
       } else {
-        response = await api.put(`/work-order/${id}`, payload);
-      }
-
-      if (response.data && response.data.success === 1) {
-        console.log(isNew ? "Work order created successfully:" : "Work order updated successfully:", response.data);
-        setIsDirty(false);
-        navigate("/work-order");
-      } else {
-        setApiError(response.data?.message || `Failed to ${isNew ? "create" : "update"} work order`);
+        response = await api.post(`/work-order`, buildPayload());
+        if (response.data?.success === 1) {
+          const workOrderId = id || response.data?.data?.insertId || response.data?.data?.id;
+          if (workOrderId) {
+            try {
+              await api.post(`/job-card/create-job-cards-from-wo/${workOrderId}`);
+            } catch (jobCardErr) {
+              console.error("❌ Error creating job cards for update:", jobCardErr);
+            }
+          }
+          navigate("/work-order");
+        } else {
+          setApiError(response.data?.message || "Failed to update work order");
+        }
       }
     } catch (err: any) {
       console.error("Error saving work order:", err);
-      if (err.response) {
-        if (err.response.status === 409) {
-          setApiError("A work order with this name already exists");
-        } else if (err.response.status === 400) {
-          setApiError(err.response.data?.message || "Invalid data provided");
-        } else {
-          setApiError(err.response.data?.message || `Failed to ${isNew ? "create" : "update"} work order`);
-        }
-      } else if (err.request) {
-        setApiError("Network error. Please check your connection.");
-      } else {
-        setApiError("An unexpected error occurred. Please try again.");
-      }
+      setApiError(err.response?.data?.message || "Network error. Please try again.");
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleStatusChange = (newStatus: Status) => setField("status", newStatus);
+  // Calculate total raw material cost
+  const totalRawMaterialCost = wo.required_items.reduce((sum, item) => sum + (item.amount || 0), 0);
 
   if (loading) {
     return (
       <div className={`wof-page ${theme}`}>
-        <div className="wof-inner">
-          <div className="wof-loading">Loading work order data...</div>
-        </div>
+        <div className="wof-inner wof-loading"><FaSpinner className="spinning" /> Loading…</div>
       </div>
     );
   }
@@ -772,253 +754,103 @@ export default function WorkOrderForm() {
   return (
     <div className={`wof-page ${theme}`}>
       <div className="wof-inner">
-        {/* ─── Validation Summary Modal ────────────────────────────── */}
-        {showValidationSummary && validationErrors.length > 0 && (
-          <div className="modal-overlay" onClick={() => setShowValidationSummary(false)}>
-            <div className="validation-summary-modal" onClick={(e) => e.stopPropagation()}>
+
+        {/* Validation modal */}
+        {showValidation && validationErrors.length > 0 && (
+          <div className="modal-overlay" onClick={() => setShowValidation(false)}>
+            <div className="validation-summary-modal" onClick={e => e.stopPropagation()}>
               <div className="modal-header">
-                <h2>
-                  <FaExclamationTriangle /> Missing Required Fields
-                </h2>
-                <button className="modal-close" onClick={() => setShowValidationSummary(false)}>
-                  ×
-                </button>
+                <h2><FaExclamationTriangle /> Missing Required Fields</h2>
+                <button className="modal-close" onClick={() => setShowValidation(false)}>×</button>
               </div>
               <div className="modal-body">
-                <p className="modal-description">Please fill in the following required fields before submitting:</p>
                 <div className="validation-errors-list">
-                  {validationErrors.map((error, idx) => (
-                    <div key={idx} className="validation-error-item">
-                      <div className="error-header">
-                        <FaTimesCircle className="error-icon" />
-                        <strong>{error.label}</strong>
-                      </div>
-                      <div className="error-message">{error.message}</div>
+                  {validationErrors.map((e, i) => (
+                    <div key={i} className="validation-error-item">
+                      <div className="error-header"><FaTimesCircle className="error-icon" /><strong>{e.label}</strong></div>
+                      <div className="error-message">{e.message}</div>
                     </div>
                   ))}
                 </div>
-                <div className="validation-tip">
-                  <FaInfoCircle className="tip-icon" />
-                  Please fix the errors above before submitting
-                </div>
+                <div className="validation-tip"><FaInfoCircle className="tip-icon" /> Fix the errors above before submitting</div>
               </div>
               <div className="modal-footer">
-                <button className="btn-cancel" onClick={() => setShowValidationSummary(false)}>
-                  Close
-                </button>
+                <button className="btn-cancel" onClick={() => setShowValidation(false)}>Close</button>
               </div>
             </div>
           </div>
         )}
 
-        {/* ─── API Error Display ────────────────────────────────────── */}
+        {/* API error */}
         {apiError && (
           <div className="wof-api-error">
-            <FaExclamationCircle className="error-icon" />
+            <FaExclamationTriangle className="error-icon" />
             <span>{apiError}</span>
-            <button className="error-close" onClick={() => setApiError(null)}>
-              ×
-            </button>
+            <button className="error-close" onClick={() => setApiError(null)}>×</button>
           </div>
         )}
 
-        {/* ─── Header ────────────────────────────────────────────────── */}
+        {/* Header */}
         <div className="wof-header">
-          <button onClick={() => navigate("/work-order")} className="back-btn">
-            <FaArrowLeft size={28} /> 
+          <button type="button" onClick={() => navigate("/work-order")} className="back-btn">
+            <FaArrowLeft size={20} />
           </button>
           <div className="header-title">
-            <h1>{isNew ? "Add New Work Order" : `Edit: ${wo.item_name || wo.name}`}</h1>
-            {!isNew && <span className={`wof-status-badge ${STATUS_CLASS[wo.status]}`}>{STATUS_LABELS[wo.status]}</span>}
+            <h1>{isNew ? "New Work Order" : `Edit: ${wo.item_name || wo.name}`}</h1>
+            {!isNew && <span className={`wof-status-badge ${STATUS_CLASS[wo.status]}`}>{wo.status}</span>}
           </div>
-          {!isNew && hasErrors && (
-            <div className="error-badge">
-              <FaExclamationTriangle size={12} />
-              {getAllValidationErrors().length} missing field{getAllValidationErrors().length !== 1 ? "s" : ""}
-            </div>
-          )}
         </div>
 
-        {/* ─── Tabs ──────────────────────────────────────────────────── */}
+        {/* Status Selector - Moved to top */}
+        <div className="wof-status-bar">
+          <label className="wof-label">Status</label>
+          <div className="wof-status-selector">
+            {STATUS_OPTIONS.map(s => (
+              <button key={s} type="button"
+                className={`wof-status-btn${wo.status === s ? " wof-status-btn-active" : ""}`}
+                onClick={() => set("status", s)} disabled={disabled}>
+                <span className={`wof-status-dot ${STATUS_CLASS[s]}`} />
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Tabs */}
         <div className="wof-tabs">
-          {TABS.map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              className={`wof-tab-btn ${activeTab === tab.key ? "wof-tab-btn-active" : ""}`}
-              onClick={() => setActiveTab(tab.key)}
-            >
-              {tab.label}
+          {TABS.map(t => (
+            <button key={t.key} type="button"
+              className={`wof-tab-btn${activeTab === t.key ? " wof-tab-btn-active" : ""}`}
+              onClick={() => setActiveTab(t.key)}>
+              {t.label}
             </button>
           ))}
         </div>
 
         <form onSubmit={handleSave}>
-          {/* ════════════════════ TAB 1: PRODUCTION ITEM ════════════════════ */}
+
+          {/* ══════════ TAB 1: PRODUCTION ITEM ══════════ */}
           {activeTab === "production_item" && (
             <div className="wof-card">
+
+              {/* Row 1: Qty */}
               <div className="wof-grid-2">
                 <div className="wof-field">
-                  <label className="wof-label">
-                    Company <span className="wof-required">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={wo.company}
-                    onChange={(e) => setField("company", e.target.value)}
-                    className="form-field"
-                    placeholder="e.g. Reshma Moulding Works"
-                    disabled={disabled}
-                  />
+                  <label className="wof-label">Qty To Manufacture <span className="wof-required">*</span></label>
+                  <input type="number" value={wo.qty_to_manufacture || ""}
+                    onChange={e => set("qty_to_manufacture", Number(e.target.value))}
+                    className="form-field" placeholder="e.g. 100" min="0" disabled={disabled} />
+                  {bomDetail && (
+                    <span className="wof-hint">
+                      BOM base: {bomDetail.bom.quantity} {bomDetail.bom.uom} — rows scale automatically
+                    </span>
+                  )}
                 </div>
-                <div className="wof-field">
-                  <label className="wof-label">
-                    Qty To Manufacture <span className="wof-required">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    value={wo.qty_to_manufacture || ""}
-                    onChange={(e) => setField("qty_to_manufacture", Number(e.target.value))}
-                    className="form-field"
-                    placeholder="e.g. 50"
-                    min="0"
-                    disabled={disabled}
-                  />
-                </div>
-              </div>
-
-              <div className="wof-field">
-                <label className="wof-label">
-                  Item To Manufacture <span className="wof-required">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={wo.item_to_manufacture}
-                  onChange={(e) => setField("item_to_manufacture", e.target.value)}
-                  className="form-field"
-                  placeholder="e.g. Frp_box: FRP Box"
-                  disabled={disabled}
-                />
-              </div>
-
-              <div className="wof-field">
-                <label className="wof-label">
-                  BOM No <span className="wof-required">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={wo.bom_no}
-                  onChange={(e) => setField("bom_no", e.target.value)}
-                  className="form-field"
-                  placeholder="e.g. BOM-Frp_box-001"
-                  disabled={disabled}
-                />
-              </div>
-
-              <div className="wof-grid-2">
-                <div className="wof-field">
-                  <label className="wof-label">Material Transferred for Manufacturing</label>
-                  <input
-                    type="number"
-                    value={wo.material_transferred_for_manufacturing || ""}
-                    onChange={(e) => setField("material_transferred_for_manufacturing", Number(e.target.value))}
-                    className="form-field"
-                    min="0"
-                    disabled={disabled}
-                  />
-                </div>
-                <div className="wof-field">
-                  <label className="wof-label">Manufactured Qty</label>
-                  <input
-                    type="number"
-                    value={wo.manufactured_qty || ""}
-                    onChange={(e) => setField("manufactured_qty", Number(e.target.value))}
-                    className="form-field"
-                    min="0"
-                    disabled={disabled}
-                  />
-                </div>
-              </div>
-
-              <div className="wof-grid-2">
-                <div className="wof-field">
-                  <label className="wof-label">Additional Transferred Qty</label>
-                  <input
-                    type="number"
-                    value={wo.additional_transferred_qty || ""}
-                    onChange={(e) => setField("additional_transferred_qty", Number(e.target.value))}
-                    className="form-field"
-                    min="0"
-                    disabled={disabled}
-                  />
-                </div>
-                <div className="wof-field">
-                  <label className="wof-label">Disassembled Qty</label>
-                  <input
-                    type="number"
-                    value={wo.disassembled_qty || ""}
-                    onChange={(e) => setField("disassembled_qty", Number(e.target.value))}
-                    className="form-field"
-                    min="0"
-                    disabled={disabled}
-                  />
-                </div>
-              </div>
-
-              <div className="wof-divider" />
-              <span className="wof-section-title">Warehouse</span>
-
-              {/* ─── Warehouse Fields in 2-column grid ────────────────── */}
-              <div className="wof-grid-2">
-                {/* Source Warehouse */}
-                <WarehouseSearchField
-                  label="Source Warehouse"
-                  value={wo.source_warehouse}
-                  onChange={(val) => setField("source_warehouse", val)}
-                  disabled={disabled}
-                  placeholder="Search source warehouse..."
-                  hint="This is a location where raw materials are available."
-                />
-
-                {/* Target Warehouse */}
-                <WarehouseSearchField
-                  label="Target Warehouse"
-                  value={wo.target_warehouse}
-                  onChange={(val) => setField("target_warehouse", val)}
-                  required={true}
-                  disabled={disabled}
-                  placeholder="Search target warehouse..."
-                  hint="This is a location where final product is stored."
-                  error={!wo.target_warehouse.trim() ? "Target warehouse is required" : ""}
-                />
-              </div>
-
-              <div className="wof-grid-2">
-                {/* WIP Warehouse */}
-                <WarehouseSearchField
-                  label="Work-in-Progress Warehouse"
-                  value={wo.wip_warehouse}
-                  onChange={(val) => setField("wip_warehouse", val)}
-                  required={!wo.skip_material_transfer}
-                  disabled={disabled}
-                  placeholder="Search WIP warehouse..."
-                  hint="This is a location where operations are executed."
-                  error={
-                    !wo.wip_warehouse.trim() && !wo.skip_material_transfer
-                      ? "WIP warehouse is required"
-                      : ""
-                  }
-                />
-
-                {/* Transfer Material Against */}
                 <div className="wof-field">
                   <label className="wof-label">Transfer Material Against</label>
-                  <select
-                    value={wo.transfer_material_against}
-                    onChange={(e) => setField("transfer_material_against", e.target.value as "Work Order" | "Job Card")}
-                    className="form-field"
-                    disabled={disabled}
-                  >
+                  <select value={wo.transfer_material_against}
+                    onChange={e => set("transfer_material_against", e.target.value as "Work Order" | "Job Card")}
+                    className="form-field" disabled={disabled}>
                     <option value="Work Order">Work Order</option>
                     <option value="Job Card">Job Card</option>
                   </select>
@@ -1026,11 +858,82 @@ export default function WorkOrderForm() {
               </div>
 
               <div className="wof-divider" />
+              <span className="wof-section-title">Bill of Materials</span>
 
-              {/* ── Operations table (editable) ───────────────────── */}
+              {/* Row 2: BOM search + Item (auto-filled) */}
+              <div className="wof-grid-2" style={{ marginTop: 10 }}>
+                <BomSearchField
+                  value={selectedBomLabel || wo.bom_no}
+                  onSelect={handleSelectBom}
+                  onClear={handleClearBom}
+                  disabled={disabled}
+                  error={!wo.bom_no.trim() ? "Please select a BOM" : undefined}
+                />
+                <div className="wof-field">
+                  <label className="wof-label">Item To Manufacture <span className="wof-required">*</span></label>
+                  <input type="text" value={wo.item_to_manufacture}
+                    className="form-field" placeholder="Auto-filled from BOM" disabled />
+                  {wo.item_name && wo.item_name !== wo.item_to_manufacture && (
+                    <span className="wof-hint">{wo.item_name} · {wo.stock_uom}</span>
+                  )}
+                </div>
+              </div>
+
+              {bomLoading && (
+                <div className="wof-hint" style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
+                  <FaSpinner className="spinning" /> Loading BOM details…
+                </div>
+              )}
+
+              {/* BOM summary strip */}
+              {bomDetail && !bomLoading && (
+                <div className="wof-bom-summary">
+                  <div className="wof-connection-row">
+                    <span>Base Qty</span>
+                    <span className="wof-connection-count">{bomDetail.bom.quantity} {bomDetail.bom.uom}</span>
+                  </div>
+                  <div className="wof-connection-row">
+                    <span>Scaled Lead Time</span>
+                    <span className="wof-connection-count">{wo.lead_time_mins} mins</span>
+                  </div>
+                  <div className="wof-connection-row">
+                    <span>Scaled Operating Cost</span>
+                    <span className="wof-connection-count">₹ {wo.planned_operating_cost.toFixed(2)}</span>
+                  </div>
+                  <button type="button" className="wof-row-add-btn" style={{ marginTop: 6 }}
+                    onClick={() => bomDetail && applyBomToWo(bomDetail, wo.qty_to_manufacture)}
+                    disabled={disabled || !wo.qty_to_manufacture}>
+                    <FaSyncAlt size={10} /> Recalculate
+                  </button>
+                </div>
+              )}
+
+              <div className="wof-divider" />
+              <span className="wof-section-title">Warehouses</span>
+
+              <div className="wof-grid-2" style={{ marginTop: 10 }}>
+                <WarehouseSearchField label="Source Warehouse" value={wo.source_warehouse}
+                  onChange={v => set("source_warehouse", v)} disabled={disabled}
+                  hint="Where raw materials are picked from" />
+                <WarehouseSearchField label="Target Warehouse (FG)" value={wo.target_warehouse}
+                  onChange={v => set("target_warehouse", v)} required disabled={disabled}
+                  hint="Where finished goods are stored"
+                  error={!wo.target_warehouse.trim() ? "Required" : ""} />
+              </div>
+
+              <div className="wof-grid-2">
+                <WarehouseSearchField label="WIP Warehouse" value={wo.wip_warehouse}
+                  onChange={v => set("wip_warehouse", v)} required disabled={disabled}
+                  hint="Where production operations happen"
+                  error={!wo.wip_warehouse.trim() ? "Required" : ""} />
+              </div>
+
+              <div className="wof-divider" />
+
+              {/* ── Operations Table ── */}
               <div className="wof-table-header">
                 <span className="wof-section-title wof-section-title-flush">Operations</span>
-                <button type="button" className="wof-row-add-btn" onClick={addOperation}>
+                <button type="button" className="wof-row-add-btn" onClick={() => setWo(p => ({ ...p, operations: [...p.operations, emptyOp()] }))}>
                   <FaPlus size={10} /> Add Row
                 </button>
               </div>
@@ -1038,13 +941,12 @@ export default function WorkOrderForm() {
                 <table className="wof-editable-table">
                   <thead>
                     <tr>
-                      <th className="wof-col-no">No.</th>
-                      <th>Operation *</th>
+                      <th className="wof-col-no">#</th>
+                      <th>Operation</th>
                       <th>Workstation</th>
-                      <th>Semi Finished Whse</th>
-                      <th>Source Warehouse</th>
-                      <th>Finished Goods Whse</th>
-                      <th>Time *</th>
+                      <th>Time (mins)</th>
+                      <th>Hour Rate</th>
+                      <th>Operating Cost</th>
                       <th className="wof-col-action" />
                     </tr>
                   </thead>
@@ -1053,71 +955,34 @@ export default function WorkOrderForm() {
                       <tr key={op.id}>
                         <td className="wof-col-no">{idx + 1}</td>
                         <td>
-                          <input
-                            type="text"
-                            value={op.operation}
-                            onChange={(e) => updateOperation(op.id, "operation", e.target.value)}
-                            className="form-field form-field-sm"
-                            placeholder="e.g. Moulding"
-                            disabled={disabled}
-                          />
+                          <input type="text" value={op.operation}
+                            onChange={e => updateOp(op.id, "operation", e.target.value)}
+                            className="form-field form-field-sm" placeholder="e.g. CNC Turning" disabled={disabled} />
                         </td>
                         <td>
-                          <input
-                            type="text"
-                            value={op.workstation}
-                            onChange={(e) => updateOperation(op.id, "workstation", e.target.value)}
-                            className="form-field form-field-sm"
-                            placeholder="e.g. moulding-1"
-                            disabled={disabled}
-                          />
+                          <input type="text" value={op.workstation}
+                            onChange={e => updateOp(op.id, "workstation", e.target.value)}
+                            className="form-field form-field-sm" placeholder="e.g. CNC Machine 1" disabled={disabled} />
                         </td>
                         <td>
-                          <input
-                            type="text"
-                            value={op.semi_finished_warehouse}
-                            onChange={(e) => updateOperation(op.id, "semi_finished_warehouse", e.target.value)}
-                            className="form-field form-field-sm"
-                            disabled={disabled}
-                          />
+                          <input type="number" value={op.time_in_mins || ""}
+                            onChange={e => updateOp(op.id, "time_in_mins", Number(e.target.value))}
+                            className="form-field form-field-sm" min="0" step="0.01" disabled={disabled} />
                         </td>
                         <td>
-                          <input
-                            type="text"
-                            value={op.source_warehouse}
-                            onChange={(e) => updateOperation(op.id, "source_warehouse", e.target.value)}
-                            className="form-field form-field-sm"
-                            placeholder="e.g. Stores - T"
-                            disabled={disabled}
-                          />
+                          <input type="number" value={op.hour_rate || ""}
+                            onChange={e => updateOp(op.id, "hour_rate", Number(e.target.value))}
+                            className="form-field form-field-sm" min="0" step="0.01" disabled={disabled} />
                         </td>
                         <td>
-                          <input
-                            type="text"
-                            value={op.finished_goods_warehouse}
-                            onChange={(e) => updateOperation(op.id, "finished_goods_warehouse", e.target.value)}
-                            className="form-field form-field-sm"
-                            placeholder="e.g. Finished Goods - T"
-                            disabled={disabled}
-                          />
-                        </td>
-                        <td>
-                          <input
-                            type="number"
-                            value={op.time || ""}
-                            onChange={(e) => updateOperation(op.id, "time", Number(e.target.value))}
-                            className="form-field form-field-sm"
-                            min="0"
-                            disabled={disabled}
-                          />
+                          <input type="number" value={op.operating_cost || ""}
+                            onChange={e => updateOp(op.id, "operating_cost", Number(e.target.value))}
+                            className="form-field form-field-sm" min="0" step="0.01" disabled={disabled} />
                         </td>
                         <td className="wof-col-action">
-                          <button
-                            type="button"
-                            className="wof-row-delete-btn"
-                            onClick={() => removeOperation(op.id)}
-                            disabled={wo.operations.length <= 1}
-                          >
+                          <button type="button" className="wof-row-delete-btn"
+                            onClick={() => setWo(p => ({ ...p, operations: p.operations.filter(o => o.id !== op.id) }))}
+                            disabled={wo.operations.length <= 1}>
                             <FaTrash size={11} />
                           </button>
                         </td>
@@ -1129,10 +994,10 @@ export default function WorkOrderForm() {
 
               <div className="wof-divider" />
 
-              {/* ── Required Items table (editable) ───────────────── */}
+              {/* ── Required Items Table ── */}
               <div className="wof-table-header">
                 <span className="wof-section-title wof-section-title-flush">Required Items</span>
-                <button type="button" className="wof-row-add-btn" onClick={addRequiredItem}>
+                <button type="button" className="wof-row-add-btn" onClick={() => setWo(p => ({ ...p, required_items: [...p.required_items, emptyItem()] }))}>
                   <FaPlus size={10} /> Add Row
                 </button>
               </div>
@@ -1140,13 +1005,14 @@ export default function WorkOrderForm() {
                 <table className="wof-editable-table">
                   <thead>
                     <tr>
-                      <th className="wof-col-no">No.</th>
-                      <th>Item Code *</th>
+                      <th className="wof-col-no">#</th>
+                      <th>Item Code</th>
+                      <th>Item Name</th>
                       <th>Source Warehouse</th>
                       <th>Required Qty</th>
-                      <th>Transferred Qty</th>
-                      <th>Consumed Qty</th>
-                      <th>Returned Qty</th>
+                      <th>UOM</th>
+                      <th>Rate</th>
+                      <th>Amount</th>
                       <th className="wof-col-action" />
                     </tr>
                   </thead>
@@ -1155,72 +1021,44 @@ export default function WorkOrderForm() {
                       <tr key={ri.id}>
                         <td className="wof-col-no">{idx + 1}</td>
                         <td>
-                          <input
-                            type="text"
-                            value={ri.item_code}
-                            onChange={(e) => updateRequiredItem(ri.id, "item_code", e.target.value)}
-                            className="form-field form-field-sm"
-                            placeholder="e.g. hinge_02: Hinge"
-                            disabled={disabled}
-                          />
+                          <input type="text" value={ri.item_code}
+                            onChange={e => updateItem(ri.id, "item_code", e.target.value)}
+                            className="form-field form-field-sm" placeholder="e.g. MS_Hex_Nut_Blank_M12" disabled={disabled} />
                         </td>
                         <td>
-                          <input
-                            type="text"
-                            value={ri.source_warehouse}
-                            onChange={(e) => updateRequiredItem(ri.id, "source_warehouse", e.target.value)}
-                            className="form-field form-field-sm"
-                            placeholder="e.g. Stores - T"
-                            disabled={disabled}
-                          />
+                          <input type="text" value={ri.item_name}
+                            onChange={e => updateItem(ri.id, "item_name", e.target.value)}
+                            className="form-field form-field-sm" placeholder="e.g. MS Hex Nut Blank M12" disabled={disabled} />
                         </td>
                         <td>
-                          <input
-                            type="number"
-                            value={ri.required_qty || ""}
-                            onChange={(e) => updateRequiredItem(ri.id, "required_qty", Number(e.target.value))}
-                            className="form-field form-field-sm"
-                            min="0"
-                            disabled={disabled}
-                          />
+                          <input type="text" value={ri.source_warehouse}
+                            onChange={e => updateItem(ri.id, "source_warehouse", e.target.value)}
+                            className="form-field form-field-sm" placeholder="e.g. Raw Material Store" disabled={disabled} />
                         </td>
                         <td>
-                          <input
-                            type="number"
-                            value={ri.transferred_qty || ""}
-                            onChange={(e) => updateRequiredItem(ri.id, "transferred_qty", Number(e.target.value))}
-                            className="form-field form-field-sm"
-                            min="0"
-                            disabled={disabled}
-                          />
+                          <input type="number" value={ri.required_qty || ""}
+                            onChange={e => updateItem(ri.id, "required_qty", Number(e.target.value))}
+                            className="form-field form-field-sm" min="0" step="0.001" disabled={disabled} />
                         </td>
                         <td>
-                          <input
-                            type="number"
-                            value={ri.consumed_qty || ""}
-                            onChange={(e) => updateRequiredItem(ri.id, "consumed_qty", Number(e.target.value))}
-                            className="form-field form-field-sm"
-                            min="0"
-                            disabled={disabled}
-                          />
+                          <input type="text" value={ri.uom}
+                            onChange={e => updateItem(ri.id, "uom", e.target.value)}
+                            className="form-field form-field-sm" placeholder="Nos" disabled={disabled} />
                         </td>
                         <td>
-                          <input
-                            type="number"
-                            value={ri.returned_qty || ""}
-                            onChange={(e) => updateRequiredItem(ri.id, "returned_qty", Number(e.target.value))}
-                            className="form-field form-field-sm"
-                            min="0"
-                            disabled={disabled}
-                          />
+                          <input type="number" value={ri.rate || ""}
+                            onChange={e => updateItem(ri.id, "rate", Number(e.target.value))}
+                            className="form-field form-field-sm" min="0" step="0.01" disabled={disabled} />
+                        </td>
+                        <td>
+                          <input type="number" value={ri.amount || ""}
+                            onChange={e => updateItem(ri.id, "amount", Number(e.target.value))}
+                            className="form-field form-field-sm" min="0" step="0.01" disabled={disabled} />
                         </td>
                         <td className="wof-col-action">
-                          <button
-                            type="button"
-                            className="wof-row-delete-btn"
-                            onClick={() => removeRequiredItem(ri.id)}
-                            disabled={wo.required_items.length <= 1}
-                          >
+                          <button type="button" className="wof-row-delete-btn"
+                            onClick={() => setWo(p => ({ ...p, required_items: p.required_items.filter(r => r.id !== ri.id) }))}
+                            disabled={wo.required_items.length <= 1}>
                             <FaTrash size={11} />
                           </button>
                         </td>
@@ -1230,412 +1068,205 @@ export default function WorkOrderForm() {
                 </table>
               </div>
 
-              <div className="wof-field" style={{ marginTop: 18 }}>
-                <label className="wof-label">Status</label>
-                <div className="wof-status-selector">
-                  {STATUS_OPTIONS.map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      className={`wof-status-btn ${wo.status === s ? "wof-status-btn-active" : ""}`}
-                      onClick={() => handleStatusChange(s)}
-                      disabled={disabled}
-                    >
-                      <span className={`wof-status-dot ${STATUS_CLASS[s]}`} />
-                      {STATUS_LABELS[s]}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ════════════════════ TAB 2: CONFIGURATION ════════════════════ */}
-          {activeTab === "configuration" && (
-            <div className="wof-card">
-              <div className="wof-grid-2">
-                <div className="wof-checkbox-field">
-                  <input
-                    type="checkbox"
-                    id="allow_alternative_item"
-                    checked={wo.allow_alternative_item}
-                    onChange={(e) => setField("allow_alternative_item", e.target.checked)}
-                    disabled={disabled}
-                  />
-                  <label htmlFor="allow_alternative_item">Allow Alternative Item</label>
-                </div>
-                <div className="wof-checkbox-field">
-                  <input
-                    type="checkbox"
-                    id="skip_material_transfer"
-                    checked={wo.skip_material_transfer}
-                    onChange={(e) => setField("skip_material_transfer", e.target.checked)}
-                    disabled={disabled}
-                  />
-                  <div>
-                    <label htmlFor="skip_material_transfer">Skip Material Transfer to WIP Warehouse</label>
-                    <div className="wof-hint">Check if material transfer entry is not required</div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="wof-grid-2">
-                <div className="wof-checkbox-field">
-                  <input
-                    type="checkbox"
-                    id="use_multi_level_bom"
-                    checked={wo.use_multi_level_bom}
-                    onChange={(e) => setField("use_multi_level_bom", e.target.checked)}
-                    disabled={disabled}
-                  />
-                  <div>
-                    <label htmlFor="use_multi_level_bom">Use Multi-Level BOM</label>
-                    <div className="wof-hint">Plan material for sub-assemblies</div>
-                  </div>
-                </div>
-                <div className="wof-checkbox-field">
-                  <input
-                    type="checkbox"
-                    id="update_consumed_material_cost_in_project"
-                    checked={wo.update_consumed_material_cost_in_project}
-                    onChange={(e) => setField("update_consumed_material_cost_in_project", e.target.checked)}
-                    disabled={disabled}
-                  />
-                  <label htmlFor="update_consumed_material_cost_in_project">
-                    Update Consumed Material Cost In Project
-                  </label>
-                </div>
+              {/* Total Raw Material Cost */}
+              <div className="wof-total-cost">
+                <span className="wof-total-label">Total Raw Material Cost:</span>
+                <span className="wof-total-value">₹ {totalRawMaterialCost.toFixed(2)}</span>
               </div>
 
               <div className="wof-divider" />
-              <span className="wof-section-title">Time</span>
+              <span className="wof-section-title">Operating Costs</span>
 
-              <div className="wof-grid-2">
+              <div className="wof-grid-2" style={{ marginTop: 10 }}>
                 <div className="wof-field">
                   <label className="wof-label">
-                    Planned Start Date <span className="wof-required">*</span>
+                    Planned Operating Cost
+                    {bomDetail && <span className="wof-hint" style={{ marginLeft: 6 }}>auto from BOM</span>}
                   </label>
-                  <input
-                    type="date"
-                    value={wo.planned_start_date}
-                    onChange={(e) => setField("planned_start_date", e.target.value)}
-                    className="form-field"
-                    disabled={disabled}
-                  />
+                  <input type="number" value={wo.planned_operating_cost || ""}
+                    onChange={e => set("planned_operating_cost", Number(e.target.value))}
+                    className="form-field" min="0" step="0.01" disabled={disabled} />
                 </div>
                 <div className="wof-field">
-                  <label className="wof-label">Actual Start Date</label>
-                  <input
-                    type="date"
-                    value={wo.actual_start_date}
-                    onChange={(e) => setField("actual_start_date", e.target.value)}
-                    className="form-field"
-                    disabled={disabled}
-                  />
-                </div>
-              </div>
-
-              <div className="wof-grid-2">
-                <div className="wof-field">
-                  <label className="wof-label">Planned End Date</label>
-                  <input
-                    type="date"
-                    value={wo.planned_end_date}
-                    onChange={(e) => setField("planned_end_date", e.target.value)}
-                    className="form-field"
-                    disabled={disabled}
-                  />
+                  <label className="wof-label">Actual Operating Cost</label>
+                  <input type="number" value={wo.actual_operating_cost || ""}
+                    onChange={e => set("actual_operating_cost", Number(e.target.value))}
+                    className="form-field" min="0" step="0.01" disabled={disabled} />
                 </div>
                 <div className="wof-field">
-                  <label className="wof-label">Actual End Date</label>
-                  <input
-                    type="date"
-                    value={wo.actual_end_date}
-                    onChange={(e) => setField("actual_end_date", e.target.value)}
-                    className="form-field"
-                    disabled={disabled}
-                  />
-                </div>
-              </div>
-
-              <div className="wof-grid-2">
-                <div className="wof-field">
-                  <label className="wof-label">Expected Delivery Date</label>
-                  <input
-                    type="date"
-                    value={wo.expected_delivery_date}
-                    onChange={(e) => setField("expected_delivery_date", e.target.value)}
-                    className="form-field"
-                    disabled={disabled}
-                  />
-                </div>
-                <div className="wof-field">
-                  <label className="wof-label">Lead Time (mins)</label>
-                  <input
-                    type="number"
-                    value={wo.lead_time_mins || ""}
-                    onChange={(e) => setField("lead_time_mins", Number(e.target.value))}
-                    className="form-field"
-                    min="0"
-                    step="0.001"
-                    disabled={disabled}
-                  />
-                </div>
-              </div>
-
-              <div className="wof-divider" />
-              <span className="wof-section-title">Operation Cost</span>
-
-              <div className="wof-grid-2">
-                <div className="wof-field">
-                  <label className="wof-label">Planned Operating Cost</label>
-                  <input
-                    type="number"
-                    value={wo.planned_operating_cost || ""}
-                    onChange={(e) => setField("planned_operating_cost", Number(e.target.value))}
-                    className="form-field"
-                    min="0"
-                    step="0.01"
-                    disabled={disabled}
-                  />
+                  <label className="wof-label">Additional Operating Cost</label>
+                  <input type="number" value={wo.additional_operating_cost || ""}
+                    onChange={e => set("additional_operating_cost", Number(e.target.value))}
+                    className="form-field" min="0" step="0.01" disabled={disabled} />
                 </div>
                 <div className="wof-field">
                   <label className="wof-label">Corrective Operation Cost</label>
-                  <input
-                    type="number"
-                    value={wo.corrective_operation_cost || ""}
-                    onChange={(e) => setField("corrective_operation_cost", Number(e.target.value))}
-                    className="form-field"
-                    min="0"
-                    step="0.01"
-                    disabled={disabled}
-                  />
+                  <input type="number" value={wo.corrective_operation_cost || ""}
+                    onChange={e => set("corrective_operation_cost", Number(e.target.value))}
+                    className="form-field" min="0" step="0.01" disabled={disabled} />
                   <span className="wof-hint">From Corrective Job Card</span>
-                </div>
-              </div>
-
-              <div className="wof-grid-2">
-                <div className="wof-field">
-                  <label className="wof-label">Actual Operating Cost</label>
-                  <input
-                    type="number"
-                    value={wo.actual_operating_cost || ""}
-                    onChange={(e) => setField("actual_operating_cost", Number(e.target.value))}
-                    className="form-field"
-                    min="0"
-                    step="0.01"
-                    disabled={disabled}
-                  />
                 </div>
                 <div className="wof-field">
                   <label className="wof-label">Total Operating Cost</label>
-                  <input
-                    type="number"
-                    value={
-                      wo.actual_operating_cost + wo.corrective_operation_cost + wo.additional_operating_cost || ""
-                    }
-                    className="form-field"
-                    disabled
-                  />
+                  <input type="number"
+                    value={wo.planned_operating_cost + wo.corrective_operation_cost + wo.additional_operating_cost}
+                    className="form-field" disabled />
                 </div>
               </div>
 
-              <div className="wof-field">
-                <label className="wof-label">Additional Operating Cost</label>
-                <input
-                  type="number"
-                  value={wo.additional_operating_cost || ""}
-                  onChange={(e) => setField("additional_operating_cost", Number(e.target.value))}
-                  className="form-field"
-                  min="0"
-                  step="0.01"
-                  disabled={disabled}
-                />
+            </div>
+          )}
+
+          {/* ══════════ TAB 2: CONFIGURATION ══════════ */}
+          {activeTab === "configuration" && (
+            <div className="wof-card">
+              <span className="wof-section-title">Dates</span>
+
+              <div className="wof-grid-2" style={{ marginTop: 10 }}>
+                <div className="wof-field">
+                  <label className="wof-label">Planned Start Date <span className="wof-required">*</span></label>
+                  <input type="date" value={wo.planned_start_date}
+                    onChange={e => set("planned_start_date", e.target.value)}
+                    className="form-field" disabled={disabled} />
+                </div>
+                <div className="wof-field">
+                  <label className="wof-label">Planned End Date</label>
+                  <input type="date" value={wo.planned_end_date}
+                    onChange={e => set("planned_end_date", e.target.value)}
+                    className="form-field" disabled={disabled} />
+                </div>
+                <div className="wof-field">
+                  <label className="wof-label">Expected Delivery Date</label>
+                  <input type="date" value={wo.expected_delivery_date}
+                    onChange={e => set("expected_delivery_date", e.target.value)}
+                    className="form-field" disabled={disabled} />
+                </div>
+                <div className="wof-field">
+                  <label className="wof-label">Actual Start Date</label>
+                  <input type="date" value={wo.actual_start_date}
+                    onChange={e => set("actual_start_date", e.target.value)}
+                    className="form-field" disabled={disabled} />
+                </div>
+                <div className="wof-field">
+                  <label className="wof-label">Actual End Date</label>
+                  <input type="date" value={wo.actual_end_date}
+                    onChange={e => set("actual_end_date", e.target.value)}
+                    className="form-field" disabled={disabled} />
+                </div>
+                <div className="wof-field">
+                  <label className="wof-label">
+                    Lead Time (mins)
+                    {bomDetail && <span className="wof-hint" style={{ marginLeft: 6 }}>auto from BOM ops</span>}
+                  </label>
+                  <input type="number" value={wo.lead_time_mins || ""}
+                    onChange={e => set("lead_time_mins", Number(e.target.value))}
+                    className="form-field" min="0" step="0.01" disabled={disabled} />
+                </div>
               </div>
             </div>
           )}
 
-          {/* ════════════════════ TAB 3: MORE INFO ════════════════════ */}
+          {/* ══════════ TAB 3: MORE INFO ══════════ */}
           {activeTab === "more_info" && (
             <div className="wof-card">
-              <span className="wof-section-title wof-section-title-flush">Production Item Info</span>
-
-              <div className="wof-field" style={{ marginTop: 14 }}>
-                <label className="wof-label">Item Name</label>
-                <input
-                  type="text"
-                  value={wo.item_name}
-                  onChange={(e) => setField("item_name", e.target.value)}
-                  className="form-field"
-                  placeholder="e.g. FRP Box"
-                  disabled={disabled}
-                />
-              </div>
-
-              <div className="wof-grid-2">
+              <span className="wof-section-title">Production Item Info</span>
+              <div className="wof-grid-2" style={{ marginTop: 14 }}>
                 <div className="wof-field">
-                  <label className="wof-label">Stock UOM</label>
-                  <input
-                    type="text"
-                    value={wo.stock_uom}
-                    onChange={(e) => setField("stock_uom", e.target.value)}
-                    className="form-field"
-                    placeholder="e.g. Nos"
-                    disabled={disabled}
-                  />
+                  <label className="wof-label">Item Name</label>
+                  <input type="text" value={wo.item_name}
+                    onChange={e => set("item_name", e.target.value)}
+                    className="form-field" disabled={disabled} />
                 </div>
                 <div className="wof-field">
-                  <label className="wof-label">
-                    Status <span className="wof-required">*</span>
-                  </label>
-                  <input type="text" value={wo.status} className="form-field" disabled />
+                  <label className="wof-label">Stock UOM</label>
+                  <input type="text" value={wo.stock_uom}
+                    onChange={e => set("stock_uom", e.target.value)}
+                    className="form-field" disabled={disabled} />
                 </div>
               </div>
 
               <div className="wof-divider" />
-              <span className="wof-section-title wof-section-title-flush">Comments</span>
+              <span className="wof-section-title">Comments</span>
 
               <div className="wof-comment-input-row" style={{ marginTop: 12 }}>
-                <div className="wof-comment-avatar">TT</div>
-                <input
-                  type="text"
-                  value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
-                  className="wof-comment-input"
-                  placeholder="Type a reply / comment"
-                  disabled={submitting || loading}
-                  onKeyDown={(e) => {
+                <div className="wof-comment-avatar">You</div>
+                <input type="text" value={newComment}
+                  onChange={e => setNewComment(e.target.value)}
+                  className="wof-comment-input" placeholder="Add a comment…"
+                  disabled={disabled}
+                  onKeyDown={e => {
                     if (e.key === "Enter") {
                       e.preventDefault();
-                      handleAddComment();
+                      if (newComment.trim()) {
+                        setWo(p => ({ ...p, comments: [...p.comments, { id: uid(), author: "You", text: newComment.trim(), time: "Just now" }] }));
+                        setNewComment("");
+                      }
                     }
-                  }}
-                />
-                <button
-                  type="button"
-                  className="wof-comment-send"
-                  onClick={handleAddComment}
-                  disabled={submitting || loading || !newComment.trim()}
-                >
+                  }} />
+                <button type="button" className="wof-comment-send" disabled={disabled || !newComment.trim()}
+                  onClick={() => {
+                    if (newComment.trim()) {
+                      setWo(p => ({ ...p, comments: [...p.comments, { id: uid(), author: "You", text: newComment.trim(), time: "Just now" }] }));
+                      setNewComment("");
+                    }
+                  }}>
                   <FaPaperPlane size={11} />
                 </button>
               </div>
 
-              {wo.comments.length > 0 && (
-                <div style={{ marginTop: 16 }}>
-                  {wo.comments.map((c) => (
-                    <div key={c.id} className="wof-comment-row">
-                      <div className="wof-comment-avatar">{c.author.slice(0, 2).toUpperCase()}</div>
-                      <div>
-                        <span className="wof-comment-author">
-                          {c.author} <span className="wof-comment-time">· {c.time}</span>
-                        </span>
-                        <div className="wof-comment-text">{c.text}</div>
-                      </div>
-                    </div>
-                  ))}
+              {wo.comments.map(c => (
+                <div key={c.id} className="wof-comment-row" style={{ marginTop: 10 }}>
+                  <div className="wof-comment-avatar">{c.author.slice(0, 2).toUpperCase()}</div>
+                  <div>
+                    <span className="wof-comment-author">{c.author} <span className="wof-comment-time">· {c.time}</span></span>
+                    <div className="wof-comment-text">{c.text}</div>
+                  </div>
                 </div>
-              )}
+              ))}
 
               <div className="wof-divider" />
-              <div className="wof-activity-header">
-                <span className="wof-section-title wof-activity-title">Activity</span>
-              </div>
+              <span className="wof-section-title">Activity</span>
               <ul className="wof-activity-list">
-                {wo.activity.length === 0 && <li className="wof-activity-item">No activity yet.</li>}
-                {wo.activity.map((a) => (
-                  <li key={a.id} className="wof-activity-item">
-                    {a.text} <span className="wof-activity-time">· {a.time}</span>
-                  </li>
-                ))}
+                {wo.activity.length === 0
+                  ? <li className="wof-activity-item" style={{ opacity: 0.5 }}>No activity yet.</li>
+                  : wo.activity.map(a => (
+                    <li key={a.id} className="wof-activity-item">
+                      {a.text} <span className="wof-activity-time">· {a.time}</span>
+                    </li>
+                  ))
+                }
               </ul>
             </div>
           )}
 
-          {/* ════════════════════ TAB 4: CONNECTIONS ════════════════════ */}
-          {activeTab === "connections" && (
+          {/* ══════════ TAB 4: TOTAL PRODUCED ══════════ */}
+          {activeTab === "total_produced" && (
             <div className="wof-card">
               <div className="wof-progress-block">
                 <div className="wof-progress-bar">
-                  <div
-                    className="wof-progress-fill"
-                    style={{ width: `${Math.min(100, Math.max(0, wo.items_produced_pct))}%` }}
-                  />
+                  <div className="wof-progress-fill"
+                    style={{ width: `${Math.min(100, Math.max(0, wo.items_produced_pct))}%` }} />
                 </div>
-                <span className="wof-progress-label">
-                  {wo.manufactured_qty || 0} items produced
-                </span>
+                <span className="wof-progress-label">{wo.manufactured_qty} items produced</span>
               </div>
-
               <div className="wof-progress-block">
                 <div className="wof-progress-bar">
-                  <div
-                    className="wof-progress-fill"
-                    style={{
-                      width:
-                        wo.operations.length > 0
-                          ? `${(wo.completed_operations.length / wo.operations.length) * 100}%`
-                          : "0%",
-                    }}
-                  />
+                  <div className="wof-progress-fill"
+                    style={{ width: wo.operations.length > 0 ? `${(wo.completed_operations.length / wo.operations.length) * 100}%` : "0%" }} />
                 </div>
                 <span className="wof-progress-label">
-                  Completed Operations:{" "}
-                  <strong>{wo.completed_operations.length > 0 ? wo.completed_operations.join(", ") : "None"}</strong>
+                  Completed Operations: <strong>{wo.completed_operations.join(", ") || "None"}</strong>
                 </span>
-              </div>
-
-              <div className="wof-divider" />
-
-              <div className="wof-connections-grid">
-                <div>
-                  <span className="wof-section-title wof-section-title-flush">Transactions</span>
-                  <div className="wof-connection-row">
-                    <span>Stock Entry</span>
-                    <span className="wof-connection-count">{wo.stock_entry_count}</span>
-                  </div>
-                  <div className="wof-connection-row">
-                    <span>Job Card</span>
-                    <span className="wof-connection-count">{wo.job_card_count}</span>
-                  </div>
-                  <div className="wof-connection-row">
-                    <span>Pick List</span>
-                    <span className="wof-connection-count">{wo.pick_list_count}</span>
-                  </div>
-                </div>
-
-                <div>
-                  <span className="wof-section-title wof-section-title-flush">Reference</span>
-                  <div className="wof-connection-row">
-                    <span>Serial No</span>
-                    <span className="wof-connection-count">{wo.serial_no_count || "+"}</span>
-                  </div>
-                  <div className="wof-connection-row">
-                    <span>Batch</span>
-                    <span className="wof-connection-count">{wo.batch_count || "+"}</span>
-                  </div>
-                  <div className="wof-connection-row">
-                    <span>Material Request</span>
-                    <span className="wof-connection-count">{wo.material_request_count || "+"}</span>
-                  </div>
-                </div>
-
-                <div>
-                  <span className="wof-section-title wof-section-title-flush">Stock Reservation</span>
-                  <div className="wof-connection-row">
-                    <span>Stock Reservation Entry</span>
-                  </div>
-                </div>
               </div>
             </div>
           )}
 
-          {/* ─── Footer ────────────────────────────────────────────────── */}
+          {/* Footer */}
           <div className="wof-footer">
-            <button type="button" onClick={() => navigate("/work-order")} className="cancel-btn" disabled={submitting}>
+            <button type="button" className="cancel-btn" onClick={() => navigate("/work-order")} disabled={submitting}>
               Cancel
             </button>
-            <button type="submit" disabled={submitting} className="submit-btn">
+            <button type="submit" className="submit-btn" disabled={submitting}>
               {submitting && <FaSpinner className="spinning" />}
               <FaSave size={12} />
               {isNew ? "Create" : "Update"}
