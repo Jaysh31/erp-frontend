@@ -127,7 +127,7 @@ function App() {
               <Route path="/supplier-quotation" element={<SupplierQuotation />} />
               <Route path="/supplier-quotation/new" element={<NewSupplierQuotation />} />
               <Route path="/purchase-invoice" element={<PurchaseInvoice />} />
-              <Route path="/purchase-invoice/new" element={<NewPurchaseInvoice />} />
+              <Route path="/purchase-invoice/new" element={<PurchaseInvoiceForm />} />
               {/* <Route path="/sales" element={<SalesPage />} />
           
           
