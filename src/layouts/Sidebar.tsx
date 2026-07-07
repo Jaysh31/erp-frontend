@@ -3,7 +3,9 @@ import { NavLink, useLocation } from 'react-router-dom';
 import './Sidebar.css';
 import { useModule } from '../context/ModuleContext';
 import logo from '../assets/logo.png';
+import { UserIcon } from 'lucide-react';
 //import { time } from 'framer-motion';
+import { GiHumanCannonball } from 'react-icons/gi';
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -89,6 +91,7 @@ const allMenuCategories = [
       module: 'sales',
       icon: <SalesIcon />,
       items: [
+        { title: 'lead', icon: <GiHumanCannonball />, path: '/lead'},
         { title: 'Quotation', icon: <QuotationIcon />, path: '/quotation' },
         { title: 'Sales Order', icon: <SalesOrderIcon />, path: '/sales-order' },
         { title: 'Sales Invoice', icon: <InvoiceIcon />, path: '/sales-invoice' }
@@ -124,8 +127,10 @@ const allMenuCategories = [
       module: 'organization',
       icon: <OrganizationIcon />,
       items: [
+        {title: 'User Management', icon: <UserIcon />, path: '/user-management' },
         { title: 'Company', icon: <CompanyIcon />, path: '/company' },
         { title: 'Letter Head', icon: <LetterHeadIcon />, path: '/letter-head' }
+
       ]
     },
     {
@@ -158,6 +163,7 @@ const allMenuCategories = [
       module: 'purchasing',
       icon: <BuyingIcon />,
       items: [
+        {title: ' Goods Receipt Note' , icon:<PurchaseOrderIcon />,path: '/grn' },
         { title: 'Material Request', icon: <MaterialRequestIcon />, path: '/material-request' },
         { title: 'Request for Quotation', icon: <RFQIcon />, path: '/request-for-quotation' },
         { title: 'Supplier Quotation', icon: <SupplierQuotationIcon />, path: '/supplier-quotation' },

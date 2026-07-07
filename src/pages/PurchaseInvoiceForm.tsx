@@ -4,8 +4,8 @@ import {
   FaPlus, FaSave, FaSpinner, FaArrowLeft,
   FaExclamationCircle, FaExclamationTriangle, FaInfoCircle,
   FaTimesCircle, FaTag, FaBuilding, FaMoneyBillWave,
-  FaCalendarAlt, FaFileAlt, FaBoxes, FaTruck, FaClipboardList,
-  FaReceipt, FaUser, FaClock, FaSearch
+  FaCalendarAlt, FaFileAlt, FaBoxes, FaClipboardList,
+  FaReceipt, FaClock, FaSearch
 } from 'react-icons/fa';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
@@ -137,8 +137,6 @@ const mockPurchaseInvoices: PurchaseInvoice[] = [
 ];
 
 const statusOptions = ['Draft', 'Submitted', 'Partially Paid', 'Fully Paid', 'Overdue', 'Cancelled'];
-const suppliers = ['ABC Manufacturing Co.', 'XYZ Electronics Ltd.', 'PQR Packaging Solutions'];
-const poOptions = ['PO-2026-001', 'PO-2026-002', 'PO-2026-003'];
 const currencies = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD'];
 const uomOptions = ['NOS', 'KG', 'LTR', 'MTR', 'BOX', 'SET', 'DOZ', 'ROL', 'SQM', 'CBM'];
 
@@ -515,89 +513,36 @@ export default function PurchaseInvoiceForm() {
     const totalAmount = formData.items.reduce((sum, item) => sum + item.amount, 0);
     const totalQty = formData.items.reduce((sum, item) => sum + item.quantity, 0);
     
-    // Find selected supplier
+    // Find selected supplier and purchase order
     const selectedSupplier = suppliersList.find(s => s.supplier_name === formData.supplier);
-    // Find selected purchase order
     const selectedPO = purchaseOrders.find(po => po.name === formData.purchaseOrder);
-    
-    // Prepare payload
+
+    // Build payload with only fields that are present in the form
     const payload: any = {
+      // Core fields from form
       name: formData.invoiceNumber,
-      naming_series: "PI-.YYYY.-",
       supplier: selectedSupplier?.id || formData.supplierCode || "SUP-00001",
       supplier_name: formData.supplier,
       purchase_order: selectedPO?.id || formData.purchaseOrder,
-      transaction_date: formData.date,
+      posting_date: formData.date,
       due_date: formData.dueDate,
-      company: "My Company Pvt Ltd",
       currency: formData.currency,
-      conversion_rate: 1,
-      buying_price_list: "Standard Buying",
-      price_list_currency: formData.currency,
-      plc_conversion_rate: 1,
-      set_warehouse: "",
+      status: formData.status,
+      remarks: formData.notes || "",
+      
+      // Calculated fields
       total_qty: totalQty,
-      total_net_weight: 0,
-      base_total: totalAmount,
-      base_net_total: totalAmount,
       total: totalAmount,
       net_total: totalAmount,
-      tax_category: "",
-      taxes_and_charges: "",
-      shipping_rule: "",
-      incoterm: "",
-      named_place: "",
-      base_taxes_and_charges_added: 0,
-      base_taxes_and_charges_deducted: 0,
-      base_total_taxes_and_charges: 0,
-      taxes_and_charges_added: 0,
-      taxes_and_charges_deducted: 0,
-      total_taxes_and_charges: 0,
       grand_total: totalAmount,
       rounded_total: totalAmount,
+      base_total: totalAmount,
+      base_net_total: totalAmount,
       base_grand_total: totalAmount,
       base_rounded_total: totalAmount,
-      disable_rounded_total: 0,
-      rounding_adjustment: 0,
-      base_rounding_adjustment: 0,
-      advance_paid: 0,
-      apply_discount_on: "Grand Total",
-      base_discount_amount: 0,
-      additional_discount_percentage: 0,
-      discount_amount: 0,
-      other_charges_calculation: "Net Total",
-      supplier_address: "",
-      address_display: "",
-      supplier_group: "Local",
-      contact_person: "",
-      contact_display: "",
-      contact_mobile: "",
-      contact_email: "",
-      dispatch_address: "",
-      dispatch_address_display: "",
-      shipping_address: "",
-      shipping_address_display: "",
-      billing_address: "",
-      billing_address_display: "",
-      payment_terms_template: "Net 30",
-      tc_name: "Purchase Terms",
-      terms: formData.notes || "",
-      status: formData.status,
-      advance_payment_status: "Not Requested",
-      per_billed: 0,
-      per_received: 0,
-      letter_head: "Standard",
-      group_same_items: 0,
-      select_print_heading: "Purchase Invoice",
-      language: "en",
-      title: `Purchase Invoice ${formData.invoiceNumber}`,
-      party_account_currency: formData.currency,
-      represents_company: "",
-      amended_from: "",
-      modified_by: "Administrator",
-      owner: "Administrator",
-      docstatus: 0,
-      idx: 0,
+      outstanding_amount: totalAmount,
+      
+      // Items array
       items: formData.items.map(item => ({
         item_code: item.itemCode,
         item_name: item.itemName,
@@ -607,12 +552,67 @@ export default function PurchaseInvoiceForm() {
         amount: item.amount,
         received_qty: item.receivedQty || 0,
         balance_qty: item.balanceQty || item.quantity
-      }))
+      })),
+      
+      // Default required fields
+      naming_series: "PINV-.YYYY.-",
+      company: "My Company",
+      modified_by: "Administrator",
+      owner: "Administrator",
+      docstatus: 0,
+      idx: 1,
+      set_posting_time: 1,
+      is_paid: 0,
+      is_return: 0,
+      update_outstanding_for_self: 1,
+      update_billed_amount_in_purchase_order: 1,
+      update_billed_amount_in_purchase_receipt: 1,
+      apply_tds: 0,
+      conversion_rate: 1,
+      use_transaction_date_exchange_rate: 0,
+      buying_price_list: "Standard Buying",
+      price_list_currency: formData.currency,
+      plc_conversion_rate: 1,
+      ignore_pricing_rule: 0,
+      update_stock: 1,
+      is_subcontracted: 0,
+      total_net_weight: 0,
+      claimed_landed_cost_amount: 0,
+      base_taxes_and_charges_added: 0,
+      base_taxes_and_charges_deducted: 0,
+      base_total_taxes_and_charges: 0,
+      taxes_and_charges_added: 0,
+      taxes_and_charges_deducted: 0,
+      total_taxes_and_charges: 0,
+      use_company_roundoff_cost_center: 0,
+      disable_rounded_total: 0,
+      rounding_adjustment: 0,
+      base_rounding_adjustment: 0,
+      total_advance: 0,
+      apply_discount_on: "Grand Total",
+      base_discount_amount: 0,
+      additional_discount_percentage: 0,
+      discount_amount: 0,
+      other_charges_calculation: null,
+      base_paid_amount: 0,
+      paid_amount: 0,
+      allocate_advances_automatically: 0,
+      only_include_allocated_payments: 0,
+      write_off_amount: 0,
+      base_write_off_amount: 0,
+      per_received: 0,
+      per_billed: 0,
+      is_opening: "No",
+      group_same_items: 0,
+      language: "en",
+      on_hold: 0,
+      is_old_subcontracting_flow: 0,
     };
 
-    // If editing, add id at the beginning of payload
+    // If editing, add id
     if (isEdit && id) {
       payload.id = id;
+      payload.amended_from = null;
     }
 
     try {
