@@ -13,7 +13,6 @@ import api from "../../src/services/api";
 type LeadStatus = "Lead" | "Contacted" | "Qualified" | "Unqualified" | "Converted";
 
 interface LeadFormData {
-  // Lead Details
   firstName: string;
   lastName: string;
   organizationName: string;
@@ -22,23 +21,19 @@ interface LeadFormData {
   leadType: string;
   source: string;
 
-  // Contact
   email: string;
   mobileNo: string;
   phone: string;
   website: string;
 
-  // Organization
   industry: string;
   employees: string;
   annualRevenue: string;
 
-  // Address
   city: string;
   state: string;
   country: string;
 
-  // Qualification
   qualificationStatus: string;
   qualifiedBy: string;
   qualifiedOn: string;
@@ -84,8 +79,6 @@ const defaultFormData = (): LeadFormData => ({
 });
 
 // ─── mapping: form <-> /lead API payload ───────────────────────────────
-// Matches the Frappe-style payload given for POST /lead
-// (name, first_name, company_name, email_id, no_of_employees, etc.)
 
 function buildApiPayload(formData: LeadFormData) {
   const fullName = [formData.firstName, formData.lastName].filter(Boolean).join(" ");
@@ -111,8 +104,6 @@ function buildApiPayload(formData: LeadFormData) {
     phone: formData.phone,
     phone_ext: "",
     company_name: formData.organizationName,
-    // employees is stored as a bucket string like "11-50"; take the
-    // first number found since the backend field is numeric
     no_of_employees: formData.employees ? parseInt(formData.employees.replace(/\D/g, ""), 10) || 0 : 0,
     annual_revenue: formData.annualRevenue ? Number(formData.annualRevenue) || 0 : 0,
     industry: formData.industry,
@@ -144,9 +135,21 @@ function buildApiPayload(formData: LeadFormData) {
 }
 
 function mapApiLeadToForm(jc: any): LeadFormData {
+  let firstName = jc.first_name || "";
+  let lastName = jc.last_name || "";
+
+  // Fallback: some responses (especially trimmed list-view records) only
+  // include the combined `lead_name` and omit first_name/last_name. Split
+  // it so the form isn't blank even when the detail fields are missing.
+  if (!firstName && !lastName && jc.lead_name) {
+    const parts = String(jc.lead_name).trim().split(/\s+/);
+    firstName = parts[0] || "";
+    lastName = parts.slice(1).join(" ") || "";
+  }
+
   return {
-    firstName: jc.first_name || "",
-    lastName: jc.last_name || "",
+    firstName,
+    lastName,
     organizationName: jc.company_name || "",
     jobTitle: jc.job_title || "",
     status: (jc.status as LeadStatus) || "Lead",
@@ -168,8 +171,6 @@ function mapApiLeadToForm(jc: any): LeadFormData {
   };
 }
 
-// tolerant unwrapper for whatever shape GET /lead returns
-// (same defensive pattern as JobCardForm's /work-order fetch)
 function extractList(raw: any): any[] {
   const list = raw?.data?.records ?? raw?.data ?? raw?.leads ?? raw?.results ?? raw;
   return Array.isArray(list) ? list : [];
@@ -188,6 +189,10 @@ const LeadForm: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [loadingRecord, setLoadingRecord] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [notFound, setNotFound] = useState(false);
+
+ 
+  const [recordId, setRecordId] = useState<number | null>(null);
 
   const [showValidationSummary, setShowValidationSummary] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
@@ -195,41 +200,61 @@ const LeadForm: React.FC = () => {
   const [formData, setFormData] = useState<LeadFormData>(defaultFormData());
 
   const tabs = [
-    {
-      id: 0,
-      name: "Lead Details & Contact",
-      icon: <FaUser size={14} />,
-    },
-    {
-      id: 1,
-      name: "Organization & Address",
-      icon: <FaBuilding size={14} />,
-    },
+    { id: 0, name: "Lead Details & Contact", icon: <FaUser size={14} /> },
+    { id: 1, name: "Organization & Address", icon: <FaBuilding size={14} /> },
   ];
 
-  // ─── load existing lead when editing — GET /lead ──────────────────────
-
+  // ─── load existing lead when editing ──────────────────────────────────
+ 
   useEffect(() => {
-    if (isEditMode && id) {
-      const state = location.state as { lead?: any };
-      if (state?.lead) {
-        setFormData(mapApiLeadToForm(state.lead));
-      } else {
-        fetchLeadById(id);
-      }
+    if (!isEditMode || !id) return;
+
+    setFormData(defaultFormData());
+    setNotFound(false);
+    setApiError(null);
+    setRecordId(null);
+
+    const state = location.state as { lead?: any } | null;
+    if (state?.lead) {
+      setFormData(mapApiLeadToForm(state.lead));
+      if (state.lead.id != null) setRecordId(Number(state.lead.id));
     }
+
+    fetchLeadById(id);
   }, [id]);
 
   const fetchLeadById = async (leadId: string) => {
     setLoadingRecord(true);
     setApiError(null);
     try {
-      const response = await api.get("/lead");
-      const all = extractList(response.data);
-      const found = all.find((l: any) => l.name === leadId || String(l.id) === leadId);
+      let found: any = null;
+
+      
+      try {
+        const detailResp = await api.get(`/lead/${encodeURIComponent(leadId)}`);
+        const detailData = detailResp.data?.data ?? detailResp.data;
+        if (detailData && !Array.isArray(detailData)) {
+          found = detailData;
+        }
+      } catch (detailErr) {
+        // Detail endpoint may not exist on this backend — fall back below.
+        console.log("Detail endpoint /lead/:id not available, falling back to list scan");
+      }
+
+      // Fallback: scan the list endpoint for a matching record.
+      if (!found) {
+        const response = await api.get("/lead");
+        const all = extractList(response.data);
+        found = all.find((l: any) => String(l.name ?? l.id) === leadId);
+      }
+
       if (found) {
+        console.log("Full lead record loaded for edit:", found);
         setFormData(mapApiLeadToForm(found));
-      } else {
+        if (found.id != null) setRecordId(Number(found.id));
+      } else if (!formData.organizationName) {
+        // only flag not-found if we don't already have nav-state data shown
+        setNotFound(true);
         setApiError("Lead not found");
       }
     } catch (err: any) {
@@ -327,8 +352,8 @@ const LeadForm: React.FC = () => {
     checkTabWarnings(activeTab);
   };
 
-  // ─── submit — POST/PUT /lead ────────────────────────────────────────
-
+  // ─── submit — POST on create, PUT on edit ──────────────────────────────
+ 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
@@ -347,7 +372,8 @@ const LeadForm: React.FC = () => {
 
       let response;
       if (isEditMode && id) {
-        response = await api.put("/lead", { name: id, ...payload });
+        const identifier = recordId ?? id;
+        response = await api.put("/lead", { id: identifier, ...payload });
       } else {
         response = await api.post("/lead", payload);
       }
@@ -444,9 +470,15 @@ const LeadForm: React.FC = () => {
       </div>
 
       <div className="jcf-container">
-        {loadingRecord ? (
+        {loadingRecord && !formData.organizationName ? (
           <div className="jcf-card" style={{ textAlign: "center", padding: "40px" }}>
             <FaSpinner className="jcf-spinning" /> Loading lead...
+          </div>
+        ) : notFound ? (
+          <div className="jcf-card" style={{ textAlign: "center", padding: "40px" }}>
+            <FaExclamationTriangle style={{ marginBottom: 8 }} />
+            <p>Lead not found.</p>
+            <button type="button" className="jcf-btn-secondary" onClick={() => navigate("/lead")}>Back to Leads</button>
           </div>
         ) : (
         <form onSubmit={handleSubmit}>
