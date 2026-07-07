@@ -26,9 +26,12 @@ import {
   FaFileContract,
   FaPhone,
   FaEnvelope,
-  FaUserCircle
+  FaUserCircle,
+  FaSpinner
 } from 'react-icons/fa';
 import { useNavigate, useLocation } from 'react-router-dom';
+import api from '../services/api';
+import toast from 'react-hot-toast';
 
 // ===== INTERFACES =====
 
@@ -88,6 +91,118 @@ interface DeliveryChallanItem {
   unit: string;
 }
 
+// ===== DELIVERY NOTE PAYLOAD INTERFACE =====
+interface DeliveryNotePayload {
+  name: string;
+  naming_series: string;
+  customer: string;
+  tax_id: string;
+  customer_name: string;
+  posting_date: string;
+  posting_time: string;
+  set_posting_time: 0 | 1;
+  company: string;
+  amended_from: string | null;
+  is_return: 0 | 1;
+  issue_credit_note: 0 | 1;
+  return_against: string | null;
+  cost_center: string;
+  project: string | null;
+  currency: string;
+  conversion_rate: number;
+  selling_price_list: string;
+  price_list_currency: string;
+  plc_conversion_rate: number;
+  ignore_pricing_rule: 0 | 1;
+  scan_barcode: string | null;
+  set_warehouse: string;
+  set_target_warehouse: string | null;
+  total_qty: number;
+  total_net_weight: number;
+  base_total: number;
+  base_net_total: number;
+  total: number;
+  net_total: number;
+  tax_category: string;
+  taxes_and_charges: string;
+  shipping_rule: string;
+  incoterm: string;
+  named_place: string;
+  base_total_taxes_and_charges: number;
+  total_taxes_and_charges: number;
+  grand_total: number;
+  in_words: string;
+  disable_rounded_total: 0 | 1;
+  rounding_adjustment: number;
+  rounded_total: number;
+  base_grand_total: number;
+  base_in_words: string;
+  base_rounding_adjustment: number;
+  base_rounded_total: number;
+  apply_discount_on: string;
+  base_discount_amount: number;
+  additional_discount_percentage: number;
+  discount_amount: number;
+  other_charges_calculation: string | null;
+  customer_address: string;
+  address_display: string;
+  contact_person: string;
+  contact_display: string;
+  contact_mobile: string;
+  contact_email: string;
+  shipping_address_name: string;
+  shipping_address: string;
+  dispatch_address_name: string;
+  dispatch_address: string;
+  company_address: string;
+  company_address_display: string;
+  company_contact_person: string;
+  tc_name: string;
+  terms: string;
+  per_billed: number;
+  status: string;
+  per_installed: number;
+  installation_status: string;
+  per_returned: number;
+  transporter: string;
+  lr_no: string;
+  delivery_trip: string | null;
+  driver: string;
+  transporter_name: string;
+  lr_date: string;
+  vehicle_no: string;
+  driver_name: string;
+  po_no: string;
+  po_date: string;
+  sales_partner: string;
+  amount_eligible_for_commission: number;
+  commission_rate: number;
+  total_commission: number;
+  auto_repeat: string | null;
+  letter_head: string;
+  print_without_amount: 0 | 1;
+  group_same_items: 0 | 1;
+  select_print_heading: string;
+  language: string;
+  utm_source: string;
+  utm_medium: string;
+  utm_campaign: string;
+  utm_content: string;
+  is_internal_customer: 0 | 1;
+  represents_company: string | null;
+  inter_company_reference: string | null;
+  customer_group: string;
+  territory: string;
+  title: string;
+  excise_page: string | null;
+  instructions: string;
+  _user_tags: string;
+  _comments: string;
+  _assign: string;
+  _liked_by: string;
+  _seen: string;
+}
+
 const NewDeliveryChallan: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -109,7 +224,7 @@ const NewDeliveryChallan: React.FC = () => {
   const [invoiceData, setInvoiceData] = useState<Invoice | null>(null);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [dcNumber, setDcNumber] = useState<string>('DC-2024-007');
+  const [dcNumber, setDcNumber] = useState<string>('DN-2024-001');
 
   // Sample invoices for dropdown - Only invoices with pending dispatch
   const availableInvoices: Invoice[] = [
@@ -268,6 +383,158 @@ const NewDeliveryChallan: React.FC = () => {
     return items.reduce((sum, item) => sum + item.deliveredQty, 0);
   };
 
+  // ===== BUILD DELIVERY NOTE PAYLOAD =====
+  const buildDeliveryNotePayload = (): DeliveryNotePayload => {
+    const totalQty = getTotalDispatchQty();
+    const totalAmount = items.reduce((sum, item) => sum + (item.dispatchQty * item.rate), 0);
+    
+    return {
+      name: dcNumber,
+      naming_series: "DN-.YYYY.-",
+      customer: invoiceData?.customer.code || '',
+      tax_id: invoiceData?.customer.gstin || '',
+      customer_name: invoiceData?.customer.name || '',
+      posting_date: dcDate,
+      posting_time: new Date().toLocaleTimeString('en-US', { hour12: false }),
+      set_posting_time: 1,
+      company: invoiceData?.company || 'My Company',
+      amended_from: null,
+      is_return: 0,
+      issue_credit_note: 0,
+      return_against: null,
+      cost_center: 'Main - MC',
+      project: null,
+      currency: 'INR',
+      conversion_rate: 1,
+      selling_price_list: 'Standard Selling',
+      price_list_currency: 'INR',
+      plc_conversion_rate: 1,
+      ignore_pricing_rule: 0,
+      scan_barcode: null,
+      set_warehouse: warehouse,
+      set_target_warehouse: null,
+      total_qty: totalQty,
+      total_net_weight: 0,
+      base_total: totalAmount,
+      base_net_total: totalAmount,
+      total: totalAmount,
+      net_total: totalAmount,
+      tax_category: 'In-State',
+      taxes_and_charges: 'GST 18%',
+      shipping_rule: 'Standard Delivery',
+      incoterm: 'FOB',
+      named_place: 'Nagpur',
+      base_total_taxes_and_charges: 0,
+      total_taxes_and_charges: 0,
+      grand_total: totalAmount,
+      in_words: `Rupees ${totalAmount} Only`,
+      disable_rounded_total: 0,
+      rounding_adjustment: 0,
+      rounded_total: totalAmount,
+      base_grand_total: totalAmount,
+      base_in_words: `Rupees ${totalAmount} Only`,
+      base_rounding_adjustment: 0,
+      base_rounded_total: totalAmount,
+      apply_discount_on: 'Grand Total',
+      base_discount_amount: 0,
+      additional_discount_percentage: 0,
+      discount_amount: 0,
+      other_charges_calculation: null,
+      customer_address: invoiceData?.customer.address || '',
+      address_display: invoiceData?.customer.address || '',
+      contact_person: invoiceData?.customer.contactPerson || '',
+      contact_display: invoiceData?.customer.contactPerson || '',
+      contact_mobile: invoiceData?.customer.contactMobile || invoiceData?.customer.phone || '',
+      contact_email: invoiceData?.customer.contactEmail || invoiceData?.customer.email || '',
+      shipping_address_name: 'Shipping Address',
+      shipping_address: invoiceData?.customer.shippingAddress || invoiceData?.customer.address || '',
+      dispatch_address_name: 'Dispatch Address',
+      dispatch_address: invoiceData?.customer.address || '',
+      company_address: 'COMP-ADDR-001',
+      company_address_display: invoiceData?.company || 'My Company, Nagpur',
+      company_contact_person: 'Manager',
+      tc_name: 'Standard Terms',
+      terms: 'Goods once sold will not be taken back.',
+      per_billed: 0,
+      status: 'Draft',
+      per_installed: 0,
+      installation_status: 'Not Installed',
+      per_returned: 0,
+      transporter: transporter || 'TRANS-001',
+      lr_no: lrNumber || '',
+      delivery_trip: null,
+      driver: 'EMP-001',
+      transporter_name: transporter || '',
+      lr_date: lrDate || dcDate,
+      vehicle_no: vehicleNumber || '',
+      driver_name: driverName || '',
+      po_no: poNumber || '',
+      po_date: poDate || '',
+      sales_partner: 'SP-001',
+      amount_eligible_for_commission: totalAmount,
+      commission_rate: 0,
+      total_commission: 0,
+      auto_repeat: null,
+      letter_head: 'Standard',
+      print_without_amount: 0,
+      group_same_items: 0,
+      select_print_heading: 'Delivery Note',
+      language: 'en',
+      utm_source: 'ERP',
+      utm_medium: 'System',
+      utm_campaign: 'Delivery Note',
+      utm_content: 'Delivery',
+      is_internal_customer: 0,
+      represents_company: null,
+      inter_company_reference: null,
+      customer_group: 'Commercial',
+      territory: 'India',
+      title: `Delivery Note for ${invoiceData?.customer.name || ''}`,
+      excise_page: null,
+      instructions: remarks || '',
+      _user_tags: '',
+      _comments: '',
+      _assign: '',
+      _liked_by: '',
+      _seen: '[]'
+    };
+  };
+
+  // ===== API CALLS =====
+
+  // Create Delivery Note - POST
+  const createDeliveryNote = async (payload: DeliveryNotePayload) => {
+    try {
+      const response = await api.post('/delivery-note', payload);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error creating delivery note:', error);
+      throw error;
+    }
+  };
+
+  // Update Delivery Note - PUT (for Draft only)
+  const updateDeliveryNote = async (name: string, payload: Partial<DeliveryNotePayload>) => {
+    try {
+      const response = await api.put(`/delivery-note/${name}`, payload);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error updating delivery note:', error);
+      throw error;
+    }
+  };
+
+  // Submit Delivery Note - POST (Change status to Submitted)
+  const submitDeliveryNote = async (name: string) => {
+    try {
+      const response = await api.post(`/delivery-note/${name}/submit`, {});
+      return response.data;
+    } catch (error: any) {
+      console.error('Error submitting delivery note:', error);
+      throw error;
+    }
+  };
+
   // Validation
   const validateForm = (): boolean => {
     const newErrors: { [key: string]: string } = {};
@@ -293,43 +560,61 @@ const NewDeliveryChallan: React.FC = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  // Submit handlers
-  const handleSubmit = () => {
-    if (validateForm()) {
-      setIsSubmitting(true);
+  // ===== SUBMIT HANDLERS =====
+
+  // Submit - Create Delivery Note
+  const handleSubmit = async () => {
+    if (!validateForm()) return;
+
+    setIsSubmitting(true);
+    
+    try {
+      const payload = buildDeliveryNotePayload();
       
-      const dcData = {
-        dcNumber,
-        dcDate,
-        invoiceNo: invoiceData?.invoiceNo,
-        customer: invoiceData?.customer,
-        warehouse,
-        transporter,
-        vehicleNumber,
-        driverName,
-        lrNumber,
-        lrDate,
-        eWayBillNumber,
-        poNumber,
-        poDate,
-        remarks,
-        items,
-        totalDispatchQty: getTotalDispatchQty(),
-        deliveryStatus: getTotalRemaining() === 0 ? 'Fully Dispatched' : 'Partial Dispatch'
-      };
+      // First, create the delivery note
+      const created = await createDeliveryNote(payload);
       
-      console.log('Submitting DC:', dcData);
-      
-      setIsSubmitting(false);
+      // Then, submit it (change status to Submitted)
+      if (created && created.name) {
+        await submitDeliveryNote(created.name);
+        toast.success('Delivery Note created and submitted successfully!');
+      }
       
       // Navigate back to DC list
       navigate('/delivery-challans');
+      
+    } catch (error: any) {
+      console.error('Error submitting DC:', error);
+      toast.error(error.response?.data?.message || 'Failed to create Delivery Note. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const handleSaveDraft = () => {
-    console.log('Saving draft DC');
-    navigate('/delivery-challans');
+  // Save Draft
+  const handleSaveDraft = async () => {
+    if (!validateForm()) return;
+
+    setIsSubmitting(true);
+    
+    try {
+      const payload = buildDeliveryNotePayload();
+      
+      // Create delivery note in Draft status
+      const created = await createDeliveryNote(payload);
+      
+      if (created && created.name) {
+        toast.success('Delivery Note saved as Draft successfully!');
+      }
+      
+      navigate('/delivery-challans');
+      
+    } catch (error: any) {
+      console.error('Error saving draft DC:', error);
+      toast.error(error.response?.data?.message || 'Failed to save Draft. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleCancel = () => {
@@ -364,11 +649,13 @@ const NewDeliveryChallan: React.FC = () => {
           <button className="btn-secondary" onClick={handlePrint}>
             <FaPrint /> Print
           </button>
-          <button className="btn-secondary" onClick={handleSaveDraft}>
-            <FaSave /> Save Draft
+          <button className="btn-secondary" onClick={handleSaveDraft} disabled={isSubmitting}>
+            {isSubmitting ? <FaSpinner className="spinning" /> : <FaSave />}
+            {isSubmitting ? 'Saving...' : 'Save Draft'}
           </button>
           <button className="btn-primary" onClick={handleSubmit} disabled={isSubmitting}>
-            <FaPaperPlane /> {isSubmitting ? 'Submitting...' : 'Submit'}
+            {isSubmitting ? <FaSpinner className="spinning" /> : <FaPaperPlane />}
+            {isSubmitting ? 'Submitting...' : 'Submit'}
           </button>
           <button className="btn-secondary" onClick={handleCancel}>
             <FaTimes /> Cancel
@@ -770,11 +1057,13 @@ const NewDeliveryChallan: React.FC = () => {
             </button>
           </div>
           <div className="form-footer-right">
-            <button className="btn-secondary" onClick={handleSaveDraft}>
-              <FaSave /> Save Draft
+            <button className="btn-secondary" onClick={handleSaveDraft} disabled={isSubmitting}>
+              {isSubmitting ? <FaSpinner className="spinning" /> : <FaSave />}
+              {isSubmitting ? 'Saving...' : 'Save Draft'}
             </button>
             <button className="btn-primary" onClick={handleSubmit} disabled={isSubmitting}>
-              <FaPaperPlane /> {isSubmitting ? 'Submitting...' : 'Submit'}
+              {isSubmitting ? <FaSpinner className="spinning" /> : <FaPaperPlane />}
+              {isSubmitting ? 'Submitting...' : 'Submit'}
             </button>
             <button className="btn-secondary" onClick={handleCancel}>
               <FaTimes /> Cancel
@@ -854,6 +1143,14 @@ const NewDeliveryChallan: React.FC = () => {
           flex-wrap: wrap;
         }
 
+        .spinning {
+          animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+
         /* ===== BUTTONS ===== */
         .btn-primary {
           display: inline-flex;
@@ -900,6 +1197,11 @@ const NewDeliveryChallan: React.FC = () => {
           background: #f8fafc;
           border-color: #2563eb;
           color: #2563eb;
+        }
+
+        .btn-secondary:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
         }
 
         /* ===== FORM BODY ===== */

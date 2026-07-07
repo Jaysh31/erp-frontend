@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   FaPlus, 
   FaSearch, 
@@ -15,30 +15,21 @@ import {
   FaClock,
   FaExclamationTriangle,
   FaEllipsisV,
-  FaUser,
-  FaRupeeSign,
   FaFilePdf,
   FaFileExcel,
   FaEnvelope,
   FaBan,
-  FaReceipt,
   FaPaperPlane,
   FaTruck,
-  FaBox,
-  FaWarehouse,
-  FaRoad,
-  FaUserTie,
   FaFileInvoice,
-  FaBuilding,
-  FaMapMarkerAlt,
-  FaCalendarAlt,
-  FaIdCard,
-  FaHashtag,
   FaCopy,
-  FaSave,
-  FaExternalLinkAlt
+  FaExternalLinkAlt,
+  FaSpinner,
+  FaSync
 } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
+import api from '../services/api';
+import toast from 'react-hot-toast';
 
 // ===== INTERFACES =====
 
@@ -51,32 +42,6 @@ interface Customer {
   address: string;
   shippingAddress?: string;
   gstin?: string;
-}
-
-interface InvoiceItem {
-  id: string;
-  itemCode: string;
-  description: string;
-  quantity: number;
-  unit: string;
-  rate: number;
-  amount: number;
-}
-
-interface Invoice {
-  id: string;
-  invoiceNo: string;
-  customer: Customer;
-  invoiceDate: string;
-  salesOrderNo?: string;
-  salesPerson?: string;
-  paymentTerms: string;
-  grandTotal: number;
-  company: string;
-  branch: string;
-  items: InvoiceItem[];
-  deliveryStatus: 'Pending' | 'Partial Dispatch' | 'Fully Dispatched';
-  status: 'Approved' | 'Draft' | 'Cancelled';
 }
 
 interface DeliveryChallanItem {
@@ -114,6 +79,13 @@ interface DeliveryChallan {
   submittedDate?: string;
   cancelledBy?: string;
   cancelledDate?: string;
+}
+
+// ===== API RESPONSE INTERFACE =====
+interface ApiResponse<T> {
+  success: boolean;
+  message: string;
+  data: T;
 }
 
 // ===== STATUS BADGE COMPONENT =====
@@ -157,229 +129,82 @@ const DeliveryChallans: React.FC = () => {
   const [selectedDeliveryStatus, setSelectedDeliveryStatus] = useState<string>('all');
   const [selectedDCStatus, setSelectedDCStatus] = useState<string>('all');
   const [selectedCustomer, setSelectedCustomer] = useState<string>('all');
-  const [selectedInvoice, setSelectedInvoice] = useState<DeliveryChallan | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const [showMoreMenu, setShowMoreMenu] = useState<string | null>(null);
-  const [showDetailModal, setShowDetailModal] = useState(false);
+  
+  // ===== API STATE =====
+  const [deliveryChallans, setDeliveryChallans] = useState<DeliveryChallan[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Sample Data - In real app, this would come from API
-  const deliveryChallans: DeliveryChallan[] = [
-    {
-      id: '1',
-      dcNo: 'DC-2024-001',
-      dcDate: '2024-01-18',
-      invoiceNo: 'INV-2024-001',
-      customer: {
-        id: 'c1',
-        name: 'ABC Traders Pvt Ltd',
-        code: 'CUST001',
-        email: 'info@abctraders.com',
-        phone: '+91 98765 43210',
-        address: '123, Business Park, Mumbai - 400001',
-        shippingAddress: '123, Business Park, Mumbai - 400001',
-        gstin: '27AABCU1234D1Z1'
-      },
-      warehouse: 'Main Warehouse',
-      transporter: 'ABC Transport',
-      vehicleNumber: 'MH-01-AB-1234',
-      driverName: 'Rajesh Kumar',
-      lrNumber: 'LR-2024-001',
-      eWayBillNumber: 'EWB-2024-001',
-      remarks: 'First dispatch - 3 pumps',
-      items: [
-        {
-          id: 'i1',
-          itemId: 'inv1',
-          itemCode: 'PRD-P001',
-          description: 'Industrial Pump - 5 HP',
-          invoiceQty: 10,
-          deliveredQty: 0,
-          remainingQty: 10,
-          dispatchQty: 3,
-          unit: 'pcs'
+  // ===== FETCH DELIVERY CHALLANS =====
+  const fetchDeliveryChallans = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const params = new URLSearchParams();
+      if (searchTerm) params.append('search', searchTerm);
+      if (selectedDeliveryStatus !== 'all') params.append('deliveryStatus', selectedDeliveryStatus);
+      if (selectedDCStatus !== 'all') params.append('dcStatus', selectedDCStatus);
+      if (selectedCustomer !== 'all') params.append('customer', selectedCustomer);
+      
+      const response = await api.get<ApiResponse<DeliveryChallan[]>>(`/delivery-note?${params.toString()}`);
+      
+      // ===== FIX: Check if response.data.data is an array =====
+      let challansData: DeliveryChallan[] = [];
+      
+      if (response.data && response.data.success) {
+        // If data is an array, use it directly
+        if (Array.isArray(response.data.data)) {
+          challansData = response.data.data;
+        } 
+        // If data is an object with results property
+        else if (response.data.data && typeof response.data.data === 'object') {
+          // Check if it has a 'results' or 'items' property that is an array
+          if (Array.isArray((response.data.data as any).results)) {
+            challansData = (response.data.data as any).results;
+          } else if (Array.isArray((response.data.data as any).items)) {
+            challansData = (response.data.data as any).items;
+          } else if (Array.isArray((response.data.data as any).data)) {
+            challansData = (response.data.data as any).data;
+          } else {
+            // If it's a single object, wrap it in an array
+            challansData = [response.data.data] as DeliveryChallan[];
+          }
         }
-      ],
-      totalDispatchQty: 3,
-      deliveryStatus: 'Partial Dispatch',
-      dcStatus: 'Submitted',
-      createdBy: 'Admin User',
-      createdAt: '2024-01-18T10:30:00',
-      submittedBy: 'Admin User',
-      submittedDate: '2024-01-18T10:30:00'
-    },
-    {
-      id: '2',
-      dcNo: 'DC-2024-002',
-      dcDate: '2024-01-25',
-      invoiceNo: 'INV-2024-001',
-      customer: {
-        id: 'c1',
-        name: 'ABC Traders Pvt Ltd',
-        code: 'CUST001',
-        email: 'info@abctraders.com',
-        phone: '+91 98765 43210',
-        address: '123, Business Park, Mumbai - 400001',
-        shippingAddress: '123, Business Park, Mumbai - 400001',
-        gstin: '27AABCU1234D1Z1'
-      },
-      warehouse: 'Main Warehouse',
-      transporter: 'XYZ Logistics',
-      vehicleNumber: 'MH-02-CD-5678',
-      driverName: 'Amit Singh',
-      lrNumber: 'LR-2024-002',
-      eWayBillNumber: 'EWB-2024-002',
-      remarks: 'Second dispatch - 4 pumps',
-      items: [
-        {
-          id: 'i2',
-          itemId: 'inv1',
-          itemCode: 'PRD-P001',
-          description: 'Industrial Pump - 5 HP',
-          invoiceQty: 10,
-          deliveredQty: 3,
-          remainingQty: 7,
-          dispatchQty: 4,
-          unit: 'pcs'
-        }
-      ],
-      totalDispatchQty: 4,
-      deliveryStatus: 'Partial Dispatch',
-      dcStatus: 'Draft',
-      createdBy: 'Admin User',
-      createdAt: '2024-01-25T14:15:00'
-    },
-    {
-      id: '3',
-      dcNo: 'DC-2024-003',
-      dcDate: '2024-02-01',
-      invoiceNo: 'INV-2024-002',
-      customer: {
-        id: 'c2',
-        name: 'XYZ Enterprises',
-        code: 'CUST002',
-        email: 'contact@xyzent.com',
-        phone: '+91 87654 32109',
-        address: '456, Industrial Estate, Pune - 411001',
-        shippingAddress: '456, Industrial Estate, Pune - 411001',
-        gstin: '27BXYZU5678D1Z1'
-      },
-      warehouse: 'Secondary Warehouse',
-      transporter: 'PQR Couriers',
-      vehicleNumber: 'MH-03-EF-9012',
-      driverName: 'Suresh Patil',
-      lrNumber: 'LR-2024-003',
-      eWayBillNumber: 'EWB-2024-003',
-      remarks: 'Full dispatch',
-      items: [
-        {
-          id: 'i3',
-          itemId: 'inv2',
-          itemCode: 'PRD-S001',
-          description: 'Submersible Pump - 2 HP',
-          invoiceQty: 5,
-          deliveredQty: 0,
-          remainingQty: 5,
-          dispatchQty: 5,
-          unit: 'pcs'
-        }
-      ],
-      totalDispatchQty: 5,
-      deliveryStatus: 'Fully Dispatched',
-      dcStatus: 'Submitted',
-      createdBy: 'Sales Manager',
-      createdAt: '2024-02-01T09:45:00',
-      submittedBy: 'Sales Manager',
-      submittedDate: '2024-02-01T09:45:00'
-    },
-    {
-      id: '4',
-      dcNo: 'DC-2024-004',
-      dcDate: '2024-02-10',
-      invoiceNo: 'INV-2024-001',
-      customer: {
-        id: 'c1',
-        name: 'ABC Traders Pvt Ltd',
-        code: 'CUST001',
-        email: 'info@abctraders.com',
-        phone: '+91 98765 43210',
-        address: '123, Business Park, Mumbai - 400001',
-        shippingAddress: '123, Business Park, Mumbai - 400001',
-        gstin: '27AABCU1234D1Z1'
-      },
-      warehouse: 'Main Warehouse',
-      transporter: 'ABC Transport',
-      vehicleNumber: 'MH-01-AB-1234',
-      driverName: 'Rajesh Kumar',
-      lrNumber: 'LR-2024-004',
-      eWayBillNumber: 'EWB-2024-004',
-      remarks: 'Final dispatch - remaining 3 pumps',
-      items: [
-        {
-          id: 'i4',
-          itemId: 'inv1',
-          itemCode: 'PRD-P001',
-          description: 'Industrial Pump - 5 HP',
-          invoiceQty: 10,
-          deliveredQty: 7,
-          remainingQty: 3,
-          dispatchQty: 3,
-          unit: 'pcs'
-        }
-      ],
-      totalDispatchQty: 3,
-      deliveryStatus: 'Fully Dispatched',
-      dcStatus: 'Submitted',
-      createdBy: 'Admin User',
-      createdAt: '2024-02-10T11:20:00',
-      submittedBy: 'Admin User',
-      submittedDate: '2024-02-10T11:20:00'
-    },
-    {
-      id: '5',
-      dcNo: 'DC-2024-005',
-      dcDate: '2024-02-15',
-      invoiceNo: 'INV-2024-003',
-      customer: {
-        id: 'c3',
-        name: 'PQR Solutions Ltd',
-        code: 'CUST003',
-        email: 'info@pqrsolutions.com',
-        phone: '+91 76543 21098',
-        address: '789, Tech Park, Bangalore - 560001',
-        shippingAddress: '789, Tech Park, Bangalore - 560001',
-        gstin: '27CPQRU9012D1Z1'
-      },
-      warehouse: 'Main Warehouse',
-      transporter: 'XYZ Logistics',
-      vehicleNumber: 'KA-01-GH-3456',
-      driverName: 'Manoj Reddy',
-      lrNumber: 'LR-2024-005',
-      eWayBillNumber: 'EWB-2024-005',
-      remarks: 'Dispatch completed',
-      items: [
-        {
-          id: 'i5',
-          itemId: 'inv3',
-          itemCode: 'PRD-G001',
-          description: 'Motor Assembly - 7.5 HP',
-          invoiceQty: 3,
-          deliveredQty: 0,
-          remainingQty: 3,
-          dispatchQty: 3,
-          unit: 'pcs'
-        }
-      ],
-      totalDispatchQty: 3,
-      deliveryStatus: 'Fully Dispatched',
-      dcStatus: 'Cancelled',
-      createdBy: 'Admin User',
-      createdAt: '2024-02-15T16:00:00',
-      cancelledBy: 'Admin User',
-      cancelledDate: '2024-02-16T10:00:00'
+        
+        setDeliveryChallans(challansData);
+      } else {
+        setError(response.data?.message || 'Failed to fetch delivery challans');
+        toast.error(response.data?.message || 'Failed to fetch delivery challans');
+        setDeliveryChallans([]);
+      }
+    } catch (err: any) {
+      console.error('Error fetching delivery challans:', err);
+      const errorMsg = err.response?.data?.message || 'Failed to load delivery challans. Please try again.';
+      setError(errorMsg);
+      toast.error(errorMsg);
+      setDeliveryChallans([]);
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
+
+  // ===== INITIAL LOAD & REFRESH =====
+  useEffect(() => {
+    fetchDeliveryChallans();
+  }, []);
+
+  // ===== REFETCH ON FILTER CHANGE =====
+  useEffect(() => {
+    const debounceTimer = setTimeout(() => {
+      fetchDeliveryChallans();
+    }, 500);
+    return () => clearTimeout(debounceTimer);
+  }, [searchTerm, selectedDeliveryStatus, selectedDCStatus, selectedCustomer]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -398,25 +223,18 @@ const DeliveryChallans: React.FC = () => {
     });
   };
 
-  const formatDateTime = (date: string) => {
-    return new Date(date).toLocaleString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  // Filter logic
-  const filteredChallans = deliveryChallans.filter(challan => {
-    const matchesSearch = challan.dcNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          challan.invoiceNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          challan.customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          challan.vehicleNumber.toLowerCase().includes(searchTerm.toLowerCase());
+  // ===== SAFE FILTER LOGIC =====
+  // Ensure deliveryChallans is always an array before filtering
+  const safeChallans = Array.isArray(deliveryChallans) ? deliveryChallans : [];
+  
+  const filteredChallans = safeChallans.filter(challan => {
+    const matchesSearch = challan.dcNo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          challan.invoiceNo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          challan.customer?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          challan.vehicleNumber?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesDeliveryStatus = selectedDeliveryStatus === 'all' || challan.deliveryStatus === selectedDeliveryStatus;
     const matchesDCStatus = selectedDCStatus === 'all' || challan.dcStatus === selectedDCStatus;
-    const matchesCustomer = selectedCustomer === 'all' || challan.customer.id === selectedCustomer;
+    const matchesCustomer = selectedCustomer === 'all' || challan.customer?.id === selectedCustomer;
     return matchesSearch && matchesDeliveryStatus && matchesDCStatus && matchesCustomer;
   });
 
@@ -427,64 +245,47 @@ const DeliveryChallans: React.FC = () => {
     currentPage * itemsPerPage
   );
 
-  // Summary statistics
+  // Summary statistics (safe)
   const summaryData = [
-    { label: 'Total DCs', value: filteredChallans.length, color: '#2563eb', icon: <FaTruck /> },
-    { label: 'Draft', value: filteredChallans.filter(d => d.dcStatus === 'Draft').length, color: '#94a3b8', icon: <FaFileInvoice /> },
-    { label: 'Submitted', value: filteredChallans.filter(d => d.dcStatus === 'Submitted').length, color: '#3b82f6', icon: <FaPaperPlane /> },
-    { label: 'Cancelled', value: filteredChallans.filter(d => d.dcStatus === 'Cancelled').length, color: '#f59e0b', icon: <FaBan /> },
-    { label: 'Pending Dispatch', value: filteredChallans.filter(d => d.deliveryStatus === 'Pending' || d.deliveryStatus === 'Partial Dispatch').length, color: '#f59e0b', icon: <FaClock /> },
-    { label: 'Fully Dispatched', value: filteredChallans.filter(d => d.deliveryStatus === 'Fully Dispatched').length, color: '#10b981', icon: <FaCheckCircle /> }
+    { label: 'Total DCs', value: safeChallans.length, color: '#2563eb', icon: <FaTruck /> },
+    { label: 'Draft', value: safeChallans.filter(d => d.dcStatus === 'Draft').length, color: '#94a3b8', icon: <FaFileInvoice /> },
+    { label: 'Submitted', value: safeChallans.filter(d => d.dcStatus === 'Submitted').length, color: '#3b82f6', icon: <FaPaperPlane /> },
+    { label: 'Cancelled', value: safeChallans.filter(d => d.dcStatus === 'Cancelled').length, color: '#f59e0b', icon: <FaBan /> },
+    { label: 'Pending Dispatch', value: safeChallans.filter(d => d.deliveryStatus === 'Pending' || d.deliveryStatus === 'Partial Dispatch').length, color: '#f59e0b', icon: <FaClock /> },
+    { label: 'Fully Dispatched', value: safeChallans.filter(d => d.deliveryStatus === 'Fully Dispatched').length, color: '#10b981', icon: <FaCheckCircle /> }
   ];
-
-  const getCustomers = () => {
-    const unique = new Map();
-    deliveryChallans.forEach(d => {
-      if (!unique.has(d.customer.id)) {
-        unique.set(d.customer.id, d.customer);
-      }
-    });
-    return Array.from(unique.values());
-  };
 
   // ===== NAVIGATION HANDLERS =====
   
-  // Navigate to New Delivery Challan page
   const handleCreateChallan = () => {
-    navigate('/sales-receipts/new');
+    navigate('/delivery-challans/new');
   };
 
-  // Navigate to Edit page (only for Draft)
   const handleEditChallan = (dcId: string) => {
     navigate(`/delivery-challans/edit/${dcId}`);
     setShowMoreMenu(null);
   };
 
-  // Navigate to View/Detail page
   const handleViewChallan = (challan: DeliveryChallan) => {
     navigate(`/delivery-challans/view/${challan.id}`);
     setShowMoreMenu(null);
   };
 
-  // Navigate to View Invoice
   const handleViewInvoice = (invoiceNo: string) => {
     navigate(`/customer-invoices?invoice=${invoiceNo}`);
     setShowMoreMenu(null);
   };
 
-  // Navigate to Duplicate
   const handleDuplicateChallan = (dcId: string) => {
     navigate(`/delivery-challans/duplicate/${dcId}`);
     setShowMoreMenu(null);
   };
 
-  // Print handler
   const handlePrintChallan = () => {
     window.print();
     setShowMoreMenu(null);
   };
 
-  // Download handlers
   const handleDownloadPDF = (dcId: string) => {
     console.log('Downloading PDF for DC:', dcId);
     setShowMoreMenu(null);
@@ -495,21 +296,28 @@ const DeliveryChallans: React.FC = () => {
     setShowMoreMenu(null);
   };
 
-  // Email handler
   const handleEmailChallan = (dcId: string) => {
     console.log('Emailing DC:', dcId);
     setShowMoreMenu(null);
   };
 
-  // Cancel handler
-  const handleCancelChallan = (dcId: string) => {
+  const handleCancelChallan = async (dcId: string) => {
     if (window.confirm('Are you sure you want to cancel this Delivery Challan?')) {
-      console.log('Cancelling DC:', dcId);
+      try {
+        const response = await api.post(`/delivery-note/${dcId}/cancel`, {});
+        if (response.data.success) {
+          toast.success('Delivery Challan cancelled successfully!');
+          fetchDeliveryChallans();
+        } else {
+          toast.error(response.data.message || 'Failed to cancel Delivery Challan');
+        }
+      } catch (err: any) {
+        toast.error(err.response?.data?.message || 'Failed to cancel Delivery Challan');
+      }
     }
     setShowMoreMenu(null);
   };
 
-  // More menu toggle
   const toggleMoreMenu = (dcId: string) => {
     setShowMoreMenu(showMoreMenu === dcId ? null : dcId);
   };
@@ -523,9 +331,37 @@ const DeliveryChallans: React.FC = () => {
     return challan.dcStatus === 'Draft';
   };
 
-  const canViewInvoice = (challan: DeliveryChallan) => {
+  const canViewInvoice = () => {
     return true;
   };
+
+  // Render loading state
+  if (loading && safeChallans.length === 0) {
+    return (
+      <div className="delivery-challan-page">
+        <div className="loading-container">
+          <FaSpinner className="spinning" size={40} />
+          <p>Loading delivery challans...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Render error state
+  if (error) {
+    return (
+      <div className="delivery-challan-page">
+        <div className="error-container">
+          <FaExclamationTriangle size={40} color="#ef4444" />
+          <h3>Failed to load delivery challans</h3>
+          <p>{error}</p>
+          <button className="btn-primary" onClick={fetchDeliveryChallans}>
+            <FaSync /> Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="delivery-challan-page">
@@ -548,6 +384,9 @@ const DeliveryChallans: React.FC = () => {
         <div className="page-header-right">
           <button className="btn-primary" onClick={handleCreateChallan}>
             <FaPlus /> New DC
+          </button>
+          <button className="btn-secondary" onClick={fetchDeliveryChallans}>
+            <FaSync /> Refresh
           </button>
           <button className="btn-secondary">
             <FaDownload /> Export
@@ -624,25 +463,30 @@ const DeliveryChallans: React.FC = () => {
 
       {/* Table */}
       <div className="table-container">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>DC No</th>
-              <th>DC Date</th>
-              <th>Invoice No</th>
-              <th>Customer</th>
-              <th>Warehouse</th>
-              <th>Items</th>
-              <th>Dispatch Qty</th>
-              <th>Delivery Status</th>
-              <th>DC Status</th>
-              <th>Created By</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {paginatedData.length > 0 ? (
-              paginatedData.map(challan => (
+        {loading ? (
+          <div className="loading-spinner">
+            <FaSpinner className="spinning" size={30} />
+            <span>Loading...</span>
+          </div>
+        ) : paginatedData.length > 0 ? (
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>DC No</th>
+                <th>DC Date</th>
+                <th>Invoice No</th>
+                <th>Customer</th>
+                <th>Warehouse</th>
+                <th>Items</th>
+                <th>Dispatch Qty</th>
+                <th>Delivery Status</th>
+                <th>DC Status</th>
+                <th>Created By</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginatedData.map(challan => (
                 <tr key={challan.id}>
                   <td className="dc-number">{challan.dcNo}</td>
                   <td>{formatDate(challan.dcDate)}</td>
@@ -665,7 +509,6 @@ const DeliveryChallans: React.FC = () => {
                   <td>{challan.createdBy}</td>
                   <td>
                     <div className="action-buttons">
-                      {/* View - Navigates to detail page */}
                       <button 
                         className="action-btn" 
                         title="View Details"
@@ -674,7 +517,6 @@ const DeliveryChallans: React.FC = () => {
                         <FaEye />
                       </button>
                       
-                      {/* Edit - Only for Draft */}
                       {canEdit(challan) && (
                         <button 
                           className="action-btn" 
@@ -685,7 +527,6 @@ const DeliveryChallans: React.FC = () => {
                         </button>
                       )}
                       
-                      {/* Print */}
                       <button 
                         className="action-btn" 
                         title="Print"
@@ -694,7 +535,6 @@ const DeliveryChallans: React.FC = () => {
                         <FaPrintIcon />
                       </button>
                       
-                      {/* More Menu */}
                       <div className="more-menu-container">
                         <button 
                           className="action-btn" 
@@ -731,7 +571,7 @@ const DeliveryChallans: React.FC = () => {
                               <FaEnvelope /> Email DC
                             </button>
                             
-                            {canViewInvoice(challan) && (
+                            {canViewInvoice() && (
                               <button onClick={() => handleViewInvoice(challan.invoiceNo)}>
                                 <FaExternalLinkAlt /> View Invoice
                               </button>
@@ -752,23 +592,21 @@ const DeliveryChallans: React.FC = () => {
                     </div>
                   </td>
                 </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan={11} className="empty-state">
-                  <div className="empty-state-content">
-                    <FaTruck className="empty-icon" />
-                    <h3>No Delivery Challans found</h3>
-                    <p>Create your first delivery challan to get started</p>
-                    <button className="btn-primary" onClick={handleCreateChallan}>
-                      <FaPlus /> New DC
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <div className="empty-state">
+            <div className="empty-state-content">
+              <FaTruck className="empty-icon" />
+              <h3>No Delivery Challans found</h3>
+              <p>Create your first delivery challan to get started</p>
+              <button className="btn-primary" onClick={handleCreateChallan}>
+                <FaPlus /> New DC
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Pagination */}
         {filteredChallans.length > 0 && (
@@ -811,6 +649,62 @@ const DeliveryChallans: React.FC = () => {
           background: #f8fafc;
           min-height: 100vh;
           font-family: 'Inter', sans-serif;
+        }
+
+        .loading-container {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          min-height: 400px;
+          gap: 16px;
+        }
+
+        .loading-container .spinning {
+          animation: spin 1s linear infinite;
+          color: #2563eb;
+        }
+
+        .loading-container p {
+          color: #64748b;
+          font-size: 14px;
+        }
+
+        .error-container {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          min-height: 400px;
+          gap: 16px;
+          text-align: center;
+        }
+
+        .error-container h3 {
+          color: #1e293b;
+          margin: 0;
+        }
+
+        .error-container p {
+          color: #64748b;
+          margin: 0;
+        }
+
+        .loading-spinner {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 40px;
+          gap: 12px;
+        }
+
+        .loading-spinner .spinning {
+          animation: spin 1s linear infinite;
+          color: #2563eb;
+        }
+
+        @keyframes spin {
+          to { transform: rotate(360deg); }
         }
 
         /* Header */
@@ -1022,6 +916,7 @@ const DeliveryChallans: React.FC = () => {
           border-radius: 12px;
           box-shadow: 0 1px 3px rgba(0,0,0,0.06);
           overflow: hidden;
+          min-height: 300px;
         }
         .data-table {
           width: 100%;
@@ -1160,7 +1055,11 @@ const DeliveryChallans: React.FC = () => {
         .pagination-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
         /* Empty State */
-        .empty-state { padding: 60px 20px !important; text-align: center !important; }
+        .empty-state { 
+          padding: 60px 20px !important; 
+          text-align: center !important; 
+          display: table-cell !important;
+        }
         .empty-state-content {
           display: flex;
           flex-direction: column;

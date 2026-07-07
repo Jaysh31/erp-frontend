@@ -61,8 +61,8 @@ import Accounts from "./pages/Accounts";
 import ChartOfAccounts from "./pages/ChartOfAccounts";
 import LedgerAccounts from "./pages/LedgerAccounts";
 import CustomerInvoices from "./pages/CustomerInvoices";
-import SalesReceiptList from "./pages/SalesReceiptList";
-import SalesReceiptForm from "./pages/SalesReceiptForm";
+import DeliveryChallan from "./pages/Delivery_Challan";
+import DeliveryChallanForm from "./pages/CreateDeliveryChallan";
 // import { StatusBadge } from "./components/StatusBadge";
 // import { SummaryCards } from "./pages/components/SummaryCards";
 import OutstandingDashboard from "./pages/OutstandingDashboard";
@@ -111,8 +111,8 @@ function App() {
             <Route path="/chart-of-accounts" element={<ChartOfAccounts />} />
             <Route path="/ledger-accounts" element={<LedgerAccounts />} />
             <Route path="/customer-invoices" element={<CustomerInvoices />} />
-            <Route path="/sales-receipts" element={<SalesReceiptList />} />
-            <Route path="/sales-receipts/new" element={<SalesReceiptForm />} />
+            <Route path="/delivery-challan" element={<DeliveryChallan />} />
+            <Route path="/delivery-challan/new" element={<DeliveryChallanForm />} />
             <Route path="/outstanding-receivables" element={<OutstandingDashboard />} />
             <Route path="/customer-payments" element={<CustomerPayments />} />
 
