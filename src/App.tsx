@@ -56,7 +56,7 @@ import RequestForQuotation from "./pages/RequestForQuotation";
 import NewSupplierQuotation from "./pages/NewSupplierQuotation";
 import SupplierQuotation from "./pages/SupplierQuotation";
 import PurchaseInvoice from "./pages/PurchaseInvoice";
-import NewPurchaseInvoice from "./pages/NewPurchaseInvoice";
+// import NewPurchaseInvoice from "./pages/NewPurchaseInvoice";
 import Accounts from "./pages/Accounts";
 import ChartOfAccounts from "./pages/ChartOfAccounts";
 import LedgerAccounts from "./pages/LedgerAccounts";
@@ -84,6 +84,10 @@ import ToolsDashboard from "./pages/DashboardPages/ToolsDashboard";
 import ReportsDashboard from "./pages/DashboardPages/ReportsDashboard";
 import StockDashboard from "./pages/DashboardPages/StockDashboard";
 import QualityDashboard from "./pages/DashboardPages/QualityDashboard";
+import GRNForm from "./pages/GRNForm";
+import GRNList from "./pages/GRNList";
+import PurchaseInvoiceForm from "./pages/PurchaseInvoiceForm";
+import UserManagement from "./pages/UserManagement/UserManagement";
 
 
 function App() {
@@ -132,7 +136,7 @@ function App() {
             <Route path="/supplier-quotation" element={<SupplierQuotation />} />
             <Route path="/supplier-quotation/new" element={<NewSupplierQuotation />} />
             <Route path="/purchase-invoice" element={<PurchaseInvoice />} />
-            <Route path="/purchase-invoice/new" element={<NewPurchaseInvoice />} />
+            <Route path="/purchase-invoice/new" element={<PurchaseInvoiceForm />} />
             <Route path="/accounts" element={<Accounts />} />
             <Route path="/chart-of-accounts" element={<ChartOfAccounts />} />
             <Route path="/ledger-accounts" element={<LedgerAccounts />} />
@@ -182,6 +186,11 @@ function App() {
               <Route path="/letter-head/new" element={<AddLetterHeadForm />} />
               <Route path="/letter-head/:id" element={<AddLetterHeadForm />} />
 
+                   {/* GRN Routes */}
+              <Route path="/grn" element={<GRNList />} />
+              <Route path="/grn/new" element={<GRNForm />} />
+              <Route path="/grn/:id" element={<GRNForm />} />
+
               {/* Warehouse Routes */}
               <Route path="/warehouse" element={<WarehouseList />} />
               <Route path="/warehouse/new" element={<WarehouseForm />} />
@@ -214,10 +223,14 @@ function App() {
 
 
               <Route path="/purchase-invoice" element={<PurchaseInvoice />} />
-<Route path="/purchase-invoice/new" element={<NewPurchaseInvoice />} />
-<Route path="/purchase-invoice/edit/:id" element={<NewPurchaseInvoice />} />
+<Route path="/purchase-invoice/new" element={<PurchaseInvoiceForm />} />
+<Route path="/purchase-invoice/edit/:id" element={<PurchaseInvoiceForm />} />
 
 
+ {/* User Management Routes */}
+              <Route path="/user-management" element={<UserManagement />} />
+
+              
               {/* UOM Routes */}
               <Route path="/uom" element={<UOMList />} />
               <Route path="/uom/new" element={<UOMForm />} />

@@ -182,7 +182,7 @@
   cursor: pointer;
   transition: all 0.2s;
   user-select: none;
-  color: var(--sidebar-text-secondary, #6b7280);
+  color: var(--sidebar-text-primary);
 }
 
 .category-header:hover {
@@ -197,20 +197,20 @@
 
 .category-icon {
   font-size: 16px;
-  color: var(--sidebar-text-secondary, #6b7280);
+  color: var(--sidebar-text-primary);
   display: flex;
   align-items: center;
 }
 
 .category-icon svg {
-  stroke: var(--sidebar-text-secondary, #6b7280);
-  color: var(--sidebar-text-secondary, #6b7280);
+stroke: var(--sidebar-text-primary);
+  color: var(--sidebar-text-primary);
 }
 
 .category-title {
   font-size: 13px;
   font-weight: 500;
-  color: var(--sidebar-text-secondary, #6b7280);
+  color: white !important;
 }
 
 .category-toggle {
@@ -831,12 +831,14 @@ body .sidebar.minimized + .sidebar-toggle-btn {
 
 .module-indicator {
   font-size: 10px;
-  color: var(--sidebar-text-secondary, #9CA3AF);
+  color: var(--primary-color);
   margin-top: 2px;
-  font-weight: 400;
+  font-weight: 500;
   letter-spacing: 0.3px;
-  opacity: 0.8;
-  background: rgba(255, 255, 255, 0.05);
+
+  background: color-mix(in srgb, var(--primary-color) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary-color) 35%, transparent);
+
   padding: 2px 8px;
   border-radius: 10px;
   display: inline-block;

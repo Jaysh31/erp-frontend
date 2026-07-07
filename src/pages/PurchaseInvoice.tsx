@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   FaSearch, FaPlus, FaEdit, FaTrash, FaFilter, 
@@ -9,10 +9,12 @@ import {
   FaAngleDoubleLeft,
   FaAngleDoubleRight,
   FaChevronLeft,
-  FaChevronRight
+  FaChevronRight,
+  FaMoneyBillWave
 } from 'react-icons/fa';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
+import api from '../services/api';
 import './PurchaseInvoice.css';
 
 interface PurchaseInvoice {
@@ -32,6 +34,37 @@ interface PurchaseInvoice {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+}
+
+// API Response interface
+interface ApiPurchaseInvoice {
+  id: number;
+  name: string;
+  supplier: string;
+  supplier_name: string;
+  purchase_order: string;
+  status: string;
+  posting_date: string;
+  due_date: string;
+  currency: string;
+  total: number;
+  paid_amount: number;
+  outstanding_amount: number;
+  items_count: number;
+  created_by: string;
+  creation: string;
+  modified: string;
+  is_paid: number;
+}
+
+interface ApiResponse {
+  success: number;
+  data: {
+    total: number;
+    page: number;
+    limit: number;
+    records: ApiPurchaseInvoice[];
+  };
 }
 
 export default function PurchaseInvoice() {
@@ -54,6 +87,8 @@ export default function PurchaseInvoice() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<PurchaseInvoice | null>(null);
   const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(true);
+  const [apiError, setApiError] = useState<string | null>(null);
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -61,67 +96,83 @@ export default function PurchaseInvoice() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [allChecked, setAllChecked] = useState(false);
 
-  const [invoices, setInvoices] = useState<PurchaseInvoice[]>([
-    {
-      id: '1',
-      invoiceNumber: 'PI-2026-001',
-      supplier: 'ABC Manufacturing Co.',
-      supplierCode: 'SUP-001',
-      purchaseOrder: 'PO-2026-001',
-      status: 'Partially Paid',
-      date: '2026-06-20',
-      dueDate: '2026-07-20',
-      currency: 'INR',
-      totalAmount: 175000,
-      paidAmount: 75000,
-      balanceAmount: 100000,
-      itemsCount: 2,
-      createdBy: 'Tejas Tarte',
-      createdAt: '2026-06-20T10:00:00Z',
-      updatedAt: '2026-06-20T10:00:00Z'
-    },
-    {
-      id: '2',
-      invoiceNumber: 'PI-2026-002',
-      supplier: 'XYZ Electronics Ltd.',
-      supplierCode: 'SUP-002',
-      purchaseOrder: 'PO-2026-002',
-      status: 'Fully Paid',
-      date: '2026-06-18',
-      dueDate: '2026-07-18',
-      currency: 'USD',
-      totalAmount: 45000,
-      paidAmount: 45000,
-      balanceAmount: 0,
-      itemsCount: 3,
-      createdBy: 'Nirjala Bagal',
-      createdAt: '2026-06-18T10:00:00Z',
-      updatedAt: '2026-06-18T10:00:00Z'
-    },
-    {
-      id: '3',
-      invoiceNumber: 'PI-2026-003',
-      supplier: 'PQR Packaging Solutions',
-      supplierCode: 'SUP-003',
-      purchaseOrder: 'PO-2026-003',
-      status: 'Draft',
-      date: '2026-06-22',
-      dueDate: '2026-07-22',
-      currency: 'INR',
-      totalAmount: 120000,
-      paidAmount: 0,
-      balanceAmount: 120000,
-      itemsCount: 2,
-      createdBy: 'P S Kamthe',
-      createdAt: '2026-06-22T10:00:00Z',
-      updatedAt: '2026-06-22T10:00:00Z'
+  const [invoices, setInvoices] = useState<PurchaseInvoice[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [suppliersList, setSuppliersList] = useState<string[]>([]);
+
+  // Map API status to component status
+  const mapStatus = (apiStatus: string): PurchaseInvoice['status'] => {
+    switch (apiStatus?.toLowerCase()) {
+      case 'draft': return 'Draft';
+      case 'submitted': return 'Submitted';
+      case 'partially paid':
+      case 'partial': return 'Partially Paid';
+      case 'fully paid':
+      case 'paid': return 'Fully Paid';
+      case 'overdue': return 'Overdue';
+      case 'cancelled': return 'Cancelled';
+      default: return 'Draft';
     }
-  ]);
+  };
 
-  const suppliers = ['ABC Manufacturing Co.', 'XYZ Electronics Ltd.', 'PQR Packaging Solutions'];
-  const statusOptions = ['Draft', 'Submitted', 'Partially Paid', 'Fully Paid', 'Overdue', 'Cancelled'];
-  const currencies = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD'];
+  // Fetch purchase invoices from API
+  const fetchPurchaseInvoices = async () => {
+    setFetching(true);
+    setApiError(null);
+    try {
+      const response = await api.get<ApiResponse>(`/purchase-invoice?page=${currentPage}&limit=${itemsPerPage}`);
+      
+      if (response.data.success === 1) {
+        const records = response.data.data.records || [];
+        setTotalRecords(response.data.data.total || 0);
+        
+        // Transform API data to component format
+        const transformedInvoices: PurchaseInvoice[] = records.map((item: ApiPurchaseInvoice) => ({
+          id: String(item.id),
+          invoiceNumber: item.name || `PI-${String(item.id).padStart(5, '0')}`,
+          supplier: item.supplier_name || item.supplier || 'N/A',
+          supplierCode: item.supplier || 'N/A',
+          purchaseOrder: item.purchase_order || 'N/A',
+          status: mapStatus(item.status),
+          date: item.posting_date ? new Date(item.posting_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+          dueDate: item.due_date ? new Date(item.due_date).toISOString().split('T')[0] : '',
+          currency: item.currency || 'INR',
+          totalAmount: item.total || 0,
+          paidAmount: item.paid_amount || 0,
+          balanceAmount: item.outstanding_amount || item.total || 0,
+          itemsCount: item.items_count || 0,
+          createdBy: item.created_by || 'System',
+          createdAt: item.creation || new Date().toISOString(),
+          updatedAt: item.modified || new Date().toISOString()
+        }));
+        
+        setInvoices(transformedInvoices);
+        
+        // Extract unique suppliers for filter
+        const uniqueSuppliers = [...new Set(transformedInvoices.map(inv => inv.supplier))];
+        setSuppliersList(uniqueSuppliers);
+      } else {
+        setApiError('Failed to fetch purchase invoices');
+      }
+    } catch (err: any) {
+      console.error('Error fetching purchase invoices:', err);
+      setApiError('An error occurred while fetching purchase invoices');
+    } finally {
+      setFetching(false);
+    }
+  };
 
+  // Fetch when dependencies change
+  useEffect(() => {
+    fetchPurchaseInvoices();
+  }, [currentPage, itemsPerPage]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterText, selectedStatus, selectedSupplier]);
+
+  // Filter data based on search and status
   const filteredInvoices = invoices.filter(inv => {
     const matchesSearch = inv.invoiceNumber.toLowerCase().includes(filterText.toLowerCase()) ||
                          inv.supplier.toLowerCase().includes(filterText.toLowerCase()) ||
@@ -235,39 +286,48 @@ export default function PurchaseInvoice() {
     setShowDeleteModal(true);
   };
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (!selectedInvoice) return;
     setLoading(true);
     
-    setTimeout(() => {
-      setInvoices(prev => prev.filter(inv => inv.id !== selectedInvoice.id));
-      setShowDeleteModal(false);
+    try {
+      const response = await api.delete(`/purchase-invoice/${selectedInvoice.id}`);
+      if (response.data.success === 1) {
+        setShowDeleteModal(false);
+        toast.success('Purchase Invoice deleted successfully!');
+        fetchPurchaseInvoices();
+      } else {
+        toast.error('Failed to delete purchase invoice');
+      }
+    } catch (err: any) {
+      console.error('Error deleting purchase invoice:', err);
+      toast.error(err.response?.data?.message || 'An error occurred while deleting');
+    } finally {
       setLoading(false);
-      toast.success('Purchase Invoice deleted successfully!');
-    }, 1000);
+    }
   };
 
-  const handleDuplicate = (invoice: PurchaseInvoice, e: React.MouseEvent) => {
+  const handleDuplicate = async (invoice: PurchaseInvoice, e: React.MouseEvent) => {
     e.stopPropagation();
-    const newInvoice: PurchaseInvoice = {
-      ...invoice,
-      id: String(invoices.length + 1),
-      invoiceNumber: `PI-2026-${String(invoices.length + 1).padStart(3, '0')}`,
-      status: 'Draft',
-      paidAmount: 0,
-      balanceAmount: invoice.totalAmount,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-    setInvoices(prev => [...prev, newInvoice]);
-    toast.success('Purchase Invoice duplicated successfully!');
+    try {
+      const response = await api.post(`/purchase-invoice/${invoice.id}/duplicate`);
+      if (response.data.success === 1) {
+        toast.success('Purchase Invoice duplicated successfully!');
+        fetchPurchaseInvoices();
+      } else {
+        toast.error('Failed to duplicate purchase invoice');
+      }
+    } catch (err: any) {
+      console.error('Error duplicating purchase invoice:', err);
+      toast.error(err.response?.data?.message || 'An error occurred while duplicating');
+    }
   };
 
   const totalInvoices = invoices.length;
   const paidInvoices = invoices.filter(inv => inv.status === 'Fully Paid').length;
   const overdueInvoices = invoices.filter(inv => inv.status === 'Overdue').length;
-  const totalAmount = invoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
   const draftInvoices = invoices.filter(inv => inv.status === 'Draft').length;
+  const totalAmount = invoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
 
   const clearFilters = () => {
     setFilterText('');
@@ -275,13 +335,27 @@ export default function PurchaseInvoice() {
     setSelectedSupplier('All');
   };
 
+  const statusOptions = ['Draft', 'Submitted', 'Partially Paid', 'Fully Paid', 'Overdue', 'Cancelled'];
+  const currencies = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD'];
+
+  if (fetching) {
+    return (
+      <div className={`inv-page ${theme}-theme`}>
+        <div className="inv-loading">
+          <FaSpinner className="inv-spinning" size={32} />
+          <p>Loading purchase invoices...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`inv-page ${theme}-theme`}>
       {/* Header */}
       <div className="inv-header">
         <div className="inv-header-left">
           <h1 className="inv-title">Purchase Invoices</h1>
-          <span className="inv-badge">{invoices.length}</span>
+          <span className="inv-badge">{totalRecords}</span>
         </div>
         <div className="inv-header-actions">
           <button className="inv-btn-primary" onClick={handleCreate}>
@@ -328,6 +402,15 @@ export default function PurchaseInvoice() {
             <p className="inv-stat-value">{overdueInvoices}</p>
           </div>
         </div>
+        <div className="inv-stat-card" style={{ background: 'linear-gradient(135deg, #8b5cf6 0%, #a78bfacc 100%)' }}>
+          <div className="inv-stat-icon">
+            <FaMoneyBillWave size={20} />
+          </div>
+          <div className="inv-stat-content">
+            <p className="inv-stat-title">Total Amount</p>
+            <p className="inv-stat-value">₹{totalAmount.toLocaleString()}</p>
+          </div>
+        </div>
       </div>
 
       {/* Search and Filter Bar */}
@@ -368,6 +451,15 @@ export default function PurchaseInvoice() {
         </div>
       </div>
 
+      {/* API Error */}
+      {apiError && (
+        <div className="inv-api-error">
+          <FaExclamationTriangle size={16} />
+          <span>{apiError}</span>
+          <button onClick={fetchPurchaseInvoices} className="inv-retry-btn">Retry</button>
+        </div>
+      )}
+
       {/* Active filters indicator */}
       {(filterText || selectedStatus !== 'All' || selectedSupplier !== 'All') && (
         <div className="inv-active-filters">
@@ -407,7 +499,7 @@ export default function PurchaseInvoice() {
               onChange={(e) => setSelectedSupplier(e.target.value)}
             >
               <option value="All">All Suppliers</option>
-              {suppliers.map(s => <option key={s} value={s}>{s}</option>)}
+              {suppliersList.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
           <div className="inv-filter-group">
@@ -437,7 +529,7 @@ export default function PurchaseInvoice() {
               <th className="inv-th">Balance</th>
               <th className="inv-th">Status</th>
               <th className="inv-th inv-th-meta">
-                <span className="inv-count-label">{totalFilteredItems} of {invoices.length}</span>
+                <span className="inv-count-label">{totalFilteredItems} of {totalRecords}</span>
               </th>
             </tr>
           </thead>
