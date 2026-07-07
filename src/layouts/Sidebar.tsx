@@ -5,6 +5,7 @@ import { useModule } from '../context/ModuleContext';
 import logo from '../assets/logo.png';
 import { UserIcon } from 'lucide-react';
 //import { time } from 'framer-motion';
+import { GiHumanCannonball } from 'react-icons/gi';
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -90,6 +91,7 @@ const allMenuCategories = [
       module: 'sales',
       icon: <SalesIcon />,
       items: [
+        { title: 'lead', icon: <GiHumanCannonball />, path: '/lead'},
         { title: 'Quotation', icon: <QuotationIcon />, path: '/quotation' },
         { title: 'Sales Order', icon: <SalesOrderIcon />, path: '/sales-order' },
         { title: 'Sales Invoice', icon: <InvoiceIcon />, path: '/sales-invoice' }
