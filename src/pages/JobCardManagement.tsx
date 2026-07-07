@@ -5,10 +5,6 @@ import {
   FaSearch,
   FaFilter,
   FaTimes,
-  FaChevronLeft,
-  FaChevronRight,
-  FaAngleDoubleLeft,
-  FaAngleDoubleRight,
   FaEye,
   FaEdit,
   FaTrash,
@@ -154,9 +150,9 @@ export default function JobCardManagement() {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [totalItems, setTotalItems] = useState(0);
+  // const [currentPage, setCurrentPage] = useState(1);
+  // const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [, setTotalItems] = useState(0);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedItem, setSelectedItem] = useState<JobCardDisplay | null>(null);
   const [now, setNow] = useState<Date>(() => new Date());

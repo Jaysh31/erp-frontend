@@ -577,7 +577,7 @@ export default function WorkOrderForm() {
 
     const totalTime = ops.reduce((s, o) => s + o.time_in_mins, 0);
     const totalCost = ops.reduce((s, o) => s + o.operating_cost, 0);
-    const totalRawMaterialCost = items.reduce((s, i) => s + (i.amount || 0), 0);
+    // const totalRawMaterialCost = items.reduce((s, i) => s + (i.amount || 0), 0);
 
     setWo(prev => ({
       ...prev,
