@@ -4,7 +4,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import {
   FaArrowLeft, FaSave, FaSpinner, FaExclamationTriangle,
   FaInfoCircle, FaTimesCircle, FaPlus, FaTrash,
-  FaPaperPlane, FaSearch, FaSyncAlt,
+  FaPaperPlane, FaSearch, FaSyncAlt, FaBuilding, FaTruck,
+  FaImage, FaVideo, FaCalendarAlt,
 } from "react-icons/fa";
 import "./WorkOrderForm.css";
 import { useAdminTheme } from "../admin-theme/AdminThemeContext";
@@ -13,6 +14,7 @@ import api from "../services/api";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Status = "Draft" | "Not Started" | "In Process" | "Completed" | "Stopped";
+type OrderType = "internal" | "external";
 
 interface OperationRow {
   id: string;
@@ -44,10 +46,35 @@ interface CommentRow {
   time: string;
 }
 
+interface GRNItem {
+  id: number;
+  item_code: string;
+  item_name: string;
+  qty: number;
+  uom: string;
+  rate: number;
+  amount: number;
+  warehouse: string;
+}
+
+interface GRNData {
+  id: number;
+  name: string;
+  supplier: string;
+  date: string;
+  items: GRNItem[];
+  total_qty: number;
+  total_amount: number;
+  status: string;
+  po_number?: string;
+  delivery_note?: string;
+}
+
 interface WorkOrderData {
   id?: number;
   name: string;
   status: Status;
+  order_type: OrderType;
   // Core
   company: string;
   qty_to_manufacture: number;
@@ -91,6 +118,13 @@ interface WorkOrderData {
   serial_no_count: number;
   batch_count: number;
   material_request_count: number;
+  // External WO fields
+  selected_grn_id?: number;
+  grn_items?: GRNItem[];
+  customer_name?: string;
+  customer_po?: string;
+  // Media
+  media_files: { id: string; type: "image" | "video"; url: string; name: string; }[];
 }
 
 // ─── BOM API shape ────────────────────────────────────────────────────────────
@@ -237,6 +271,10 @@ interface WOPayload {
   _assign: string;
   _liked_by: string;
   _seen: string;
+  // External WO fields
+  customer_name?: string;
+  customer_po?: string;
+  selected_grn_id?: number;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -252,12 +290,13 @@ const STATUS_CLASS: Record<Status, string> = {
   Stopped: "s-stopped",
 };
 
-type TabKey = "production_item" | "configuration" | "more_info" | "total_produced";
+type TabKey = "production_item" | "configuration" | "more_info" | "total_produced" | "grn_selection";
 const TABS: { key: TabKey; label: string }[] = [
   { key: "production_item", label: "Production Item" },
   { key: "configuration", label: "Configuration" },
   { key: "more_info", label: "More Info" },
   { key: "total_produced", label: "Total Produced" },
+  { key: "grn_selection", label: "GRN Selection" },
 ];
 
 const emptyOp = (): OperationRow => ({
@@ -268,7 +307,7 @@ const emptyItem = (): RequiredItemRow => ({
   uom: "", transferred_qty: 0, consumed_qty: 0, returned_qty: 0, rate: 0, amount: 0,
 });
 const emptyWO = (): WorkOrderData => ({
-  name: "", status: "Draft",
+  name: "", status: "Draft", order_type: "internal",
   company: "", qty_to_manufacture: 0, item_to_manufacture: "", item_name: "", stock_uom: "Nos",
   bom_no: "",
   material_transferred_for_manufacturing: 0, manufactured_qty: 0,
@@ -286,7 +325,415 @@ const emptyWO = (): WorkOrderData => ({
   items_produced_pct: 0, completed_operations: [],
   stock_entry_count: 0, job_card_count: 0, pick_list_count: 0,
   serial_no_count: 0, batch_count: 0, material_request_count: 0,
+  media_files: [],
 });
+
+// ─── Hardcoded GRN Data ──────────────────────────────────────────────────────
+
+const HARDCODED_GRNS: GRNData[] = [
+  {
+    id: 1001,
+    name: "GRN-2026-001",
+    supplier: "ABC Engineering Supplies",
+    date: "2026-07-01",
+    po_number: "PO-2026-0042",
+    delivery_note: "DN-2026-0089",
+    status: "Received",
+    total_qty: 150,
+    total_amount: 42500,
+    items: [
+      {
+        id: 1,
+        item_code: "MS_Hex_Bolt_M12_100",
+        item_name: "MS Hex Bolt M12 x 100mm",
+        qty: 50,
+        uom: "Nos",
+        rate: 150,
+        amount: 7500,
+        warehouse: "Raw Material Store"
+      },
+      {
+        id: 2,
+        item_code: "MS_Hex_Nut_M12",
+        item_name: "MS Hex Nut M12",
+        qty: 100,
+        uom: "Nos",
+        rate: 45,
+        amount: 4500,
+        warehouse: "Raw Material Store"
+      }
+    ]
+  },
+  {
+    id: 1002,
+    name: "GRN-2026-002",
+    supplier: "Precision Metal Works",
+    date: "2026-07-03",
+    po_number: "PO-2026-0056",
+    delivery_note: "DN-2026-0094",
+    status: "Received",
+    total_qty: 80,
+    total_amount: 125000,
+    items: [
+      {
+        id: 3,
+        item_code: "SS_Plate_316_5mm",
+        item_name: "Stainless Steel Plate 316 5mm",
+        qty: 20,
+        uom: "Kg",
+        rate: 4500,
+        amount: 90000,
+        warehouse: "Raw Material Store"
+      },
+      {
+        id: 4,
+        item_code: "Alu_Sheet_2mm",
+        item_name: "Aluminum Sheet 2mm",
+        qty: 60,
+        uom: "Kg",
+        rate: 583.33,
+        amount: 35000,
+        warehouse: "Raw Material Store"
+      }
+    ]
+  },
+  {
+    id: 1003,
+    name: "GRN-2026-003",
+    supplier: "Electronic Components Ltd",
+    date: "2026-07-05",
+    po_number: "PO-2026-0068",
+    delivery_note: "DN-2026-0102",
+    status: "Received",
+    total_qty: 500,
+    total_amount: 87500,
+    items: [
+      {
+        id: 5,
+        item_code: "PCB_Controller_v2",
+        item_name: "PCB Controller Board v2.0",
+        qty: 250,
+        uom: "Pcs",
+        rate: 250,
+        amount: 62500,
+        warehouse: "Electronic Store"
+      },
+      {
+        id: 6,
+        item_code: "Wire_Harness_12C",
+        item_name: "Wire Harness 12 Core",
+        qty: 250,
+        uom: "Mtr",
+        rate: 100,
+        amount: 25000,
+        warehouse: "Electronic Store"
+      }
+    ]
+  },
+  {
+    id: 1004,
+    name: "GRN-2026-004",
+    supplier: "Fastener World Inc",
+    date: "2026-07-08",
+    po_number: "PO-2026-0074",
+    delivery_note: "DN-2026-0115",
+    status: "Received",
+    total_qty: 1000,
+    total_amount: 28000,
+    items: [
+      {
+        id: 7,
+        item_code: "Machine_Screw_M4_20mm",
+        item_name: "Machine Screw M4 x 20mm",
+        qty: 500,
+        uom: "Nos",
+        rate: 12,
+        amount: 6000,
+        warehouse: "Raw Material Store"
+      },
+      {
+        id: 8,
+        item_code: "Washer_Spring_M4",
+        item_name: "Spring Washer M4",
+        qty: 500,
+        uom: "Nos",
+        rate: 44,
+        amount: 22000,
+        warehouse: "Raw Material Store"
+      }
+    ]
+  },
+  {
+    id: 1005,
+    name: "GRN-2026-005",
+    supplier: "Industrial Paints & Chemicals",
+    date: "2026-07-10",
+    po_number: "PO-2026-0082",
+    delivery_note: "DN-2026-0128",
+    status: "Received",
+    total_qty: 200,
+    total_amount: 65000,
+    items: [
+      {
+        id: 9,
+        item_code: "Paint_Red_Oxide_5L",
+        item_name: "Red Oxide Paint 5L",
+        qty: 100,
+        uom: "Ltr",
+        rate: 350,
+        amount: 35000,
+        warehouse: "Chemical Store"
+      },
+      {
+        id: 10,
+        item_code: "Thinner_General_5L",
+        item_name: "General Thinner 5L",
+        qty: 100,
+        uom: "Ltr",
+        rate: 300,
+        amount: 30000,
+        warehouse: "Chemical Store"
+      }
+    ]
+  },
+  {
+    id: 1006,
+    name: "GRN-2026-006",
+    supplier: "Advanced Machining Solutions",
+    date: "2026-07-12",
+    po_number: "PO-2026-0093",
+    delivery_note: "DN-2026-0137",
+    status: "Received",
+    total_qty: 30,
+    total_amount: 210000,
+    items: [
+      {
+        id: 11,
+        item_code: "CNC_Tool_Holder_HSK63",
+        item_name: "CNC Tool Holder HSK63",
+        qty: 10,
+        uom: "Pcs",
+        rate: 12000,
+        amount: 120000,
+        warehouse: "Tool Store"
+      },
+      {
+        id: 12,
+        item_code: "Carbide_Insert_CNMG1204",
+        item_name: "Carbide Insert CNMG 120408",
+        qty: 20,
+        uom: "Box",
+        rate: 4500,
+        amount: 90000,
+        warehouse: "Tool Store"
+      }
+    ]
+  },
+  {
+    id: 1007,
+    name: "GRN-2026-007",
+    supplier: "Packaging Solutions Ltd",
+    date: "2026-07-15",
+    po_number: "PO-2026-0101",
+    delivery_note: "DN-2026-0145",
+    status: "Received",
+    total_qty: 1000,
+    total_amount: 120000,
+    items: [
+      {
+        id: 13,
+        item_code: "Carton_Box_30x20x15",
+        item_name: "Carton Box 30x20x15 cm",
+        qty: 500,
+        uom: "Pcs",
+        rate: 180,
+        amount: 90000,
+        warehouse: "Packaging Store"
+      },
+      {
+        id: 14,
+        item_code: "Foam_Sheet_5mm",
+        item_name: "Foam Sheet 5mm",
+        qty: 500,
+        uom: "Sheet",
+        rate: 60,
+        amount: 30000,
+        warehouse: "Packaging Store"
+      }
+    ]
+  }
+];
+
+// ─── Custom DatePicker with Calendar ─────────────────────────────────────────
+
+function DatePickerField({
+  label, value, onChange, required = false, disabled = false,
+  min, max, hint, error,
+}: {
+  label: string; value: string; onChange: (v: string) => void;
+  required?: boolean; disabled?: boolean; min?: string; max?: string;
+  hint?: string; error?: string;
+}) {
+  const [showCalendar, setShowCalendar] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setShowCalendar(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const getDaysInMonth = (year: number, month: number) => {
+    return new Date(year, month + 1, 0).getDate();
+  };
+
+  const getFirstDayOfMonth = (year: number, month: number) => {
+    return new Date(year, month, 1).getDay();
+  };
+
+  const [viewYear, setViewYear] = useState(() => {
+    const d = value ? new Date(value) : new Date();
+    return d.getFullYear();
+  });
+  const [viewMonth, setViewMonth] = useState(() => {
+    const d = value ? new Date(value) : new Date();
+    return d.getMonth();
+  });
+
+  const handleDateSelect = (day: number) => {
+    const date = new Date(viewYear, viewMonth, day);
+    const formatted = date.toISOString().split("T")[0];
+    onChange(formatted);
+    setShowCalendar(false);
+  };
+
+  return (
+    <div className="date-picker-field" ref={ref}>
+      <label className="wof-label">{label}{required && <span className="wof-required"> *</span>}</label>
+      <div className="date-picker-wrapper">
+        <div className="date-picker-input-wrap">
+          <FaCalendarAlt className="date-picker-icon" />
+          <input
+            type="text"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            onFocus={() => setShowCalendar(true)}
+            placeholder="Select date..."
+            disabled={disabled}
+            className={`form-field date-picker-input${error ? " field-error" : ""}`}
+            readOnly
+          />
+          {value && !disabled && (
+            <button
+              type="button"
+              className="date-picker-clear-btn"
+              onClick={() => { onChange(""); setShowCalendar(false); }}
+            >
+              ×
+            </button>
+          )}
+        </div>
+
+        {showCalendar && !disabled && (
+          <div className="date-picker-calendar">
+            <div className="calendar-header">
+              <button
+                type="button"
+                className="calendar-nav-btn"
+                onClick={() => {
+                  if (viewMonth === 0) {
+                    setViewMonth(11);
+                    setViewYear(viewYear - 1);
+                  } else {
+                    setViewMonth(viewMonth - 1);
+                  }
+                }}
+              >
+                ‹
+              </button>
+              <span className="calendar-month-year">
+                {new Date(viewYear, viewMonth).toLocaleString("default", { month: "long", year: "numeric" })}
+              </span>
+              <button
+                type="button"
+                className="calendar-nav-btn"
+                onClick={() => {
+                  if (viewMonth === 11) {
+                    setViewMonth(0);
+                    setViewYear(viewYear + 1);
+                  } else {
+                    setViewMonth(viewMonth + 1);
+                  }
+                }}
+              >
+                ›
+              </button>
+            </div>
+            <div className="calendar-weekdays">
+              {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map(day => (
+                <div key={day} className="calendar-weekday">{day}</div>
+              ))}
+            </div>
+            <div className="calendar-days">
+              {Array.from({ length: getFirstDayOfMonth(viewYear, viewMonth) }, (_, i) => (
+                <div key={`empty-${i}`} className="calendar-day empty" />
+              ))}
+              {Array.from({ length: getDaysInMonth(viewYear, viewMonth) }, (_, i) => {
+                const day = i + 1;
+                const dateObj = new Date(viewYear, viewMonth, day);
+                const dateStr = dateObj.toISOString().split("T")[0];
+                const isToday = dateStr === new Date().toISOString().split("T")[0];
+                const isSelected = dateStr === value;
+                const isDisabled = (min && dateStr < min) || (max && dateStr > max);
+
+                return (
+                  <button
+                    key={day}
+                    type="button"
+                    className={`calendar-day${isSelected ? " selected" : ""}${isToday ? " today" : ""}${isDisabled ? " disabled" : ""}`}
+                    onClick={() => !isDisabled && handleDateSelect(day)}
+                    disabled={isDisabled}
+                  >
+                    {day}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="calendar-footer">
+              <button
+                type="button"
+                className="calendar-today-btn"
+                onClick={() => {
+                  const today = new Date();
+                  const formatted = today.toISOString().split("T")[0];
+                  onChange(formatted);
+                  setViewYear(today.getFullYear());
+                  setViewMonth(today.getMonth());
+                  setShowCalendar(false);
+                }}
+              >
+                Today
+              </button>
+              <button
+                type="button"
+                className="calendar-clear-btn"
+                onClick={() => { onChange(""); setShowCalendar(false); }}
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+      {hint && <span className="wof-hint">{hint}</span>}
+      {error && <div className="wof-error-msg">{error}</div>}
+    </div>
+  );
+}
 
 // ─── WarehouseSearchField ─────────────────────────────────────────────────────
 
@@ -467,12 +914,54 @@ export default function WorkOrderForm() {
   const [validationErrors, setValidationErrors] = useState<{ field: string; label: string; message: string }[]>([]);
   const [showValidation, setShowValidation] = useState(false);
 
+  // GRN state
+  const [grnList, setGrnList] = useState<GRNData[]>(HARDCODED_GRNS);
+  const [grnLoading, setGrnLoading] = useState(false);
+  const [showGrnModal, setShowGrnModal] = useState(false);
+
   // BOM state
   const [selectedBomLabel, setSelectedBomLabel] = useState("");
   const [bomDetail, setBomDetail] = useState<{ bom: BomDetail; items: BomApiItem[]; operations: BomApiOperation[] } | null>(null);
   const [bomLoading, setBomLoading] = useState(false);
 
+  // Media upload state
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
+
   const disabled = submitting || loading;
+
+  // ─── Load GRNs ──────────────────────────────────────────────────────
+  const loadGRNs = async () => {
+    setGrnLoading(true);
+    try {
+      // Try to fetch from API first, fallback to hardcoded
+      const response = await api.get("/grn?status=received");
+      if (response.data?.success === 1) {
+        const apiGrns = response.data.data?.records || [];
+        if (apiGrns.length > 0) {
+          setGrnList(apiGrns);
+        } else {
+          // If API returns empty, use hardcoded
+          setGrnList(HARDCODED_GRNS);
+        }
+      } else {
+        // If API fails, use hardcoded
+        setGrnList(HARDCODED_GRNS);
+      }
+    } catch (err) {
+      console.log("Using hardcoded GRN data");
+      setGrnList(HARDCODED_GRNS);
+    } finally {
+      setGrnLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (wo.order_type === "external") {
+      loadGRNs();
+      setActiveTab("grn_selection");
+    }
+  }, [wo.order_type]);
 
   // ─── Load existing WO ────────────────────────────────────────────────
   useEffect(() => {
@@ -517,13 +1006,11 @@ export default function WorkOrderForm() {
         if (r.data.success === 1) {
           const detail = r.data.data;
           setBomDetail(detail);
-          // Auto-fill source/target warehouse from BOM defaults
           setWo(prev => ({
             ...prev,
             source_warehouse: prev.source_warehouse || detail.bom.default_source_warehouse || "",
             target_warehouse: prev.target_warehouse || detail.bom.default_target_warehouse || "",
           }));
-          // Apply initial scaling with current qty
           applyBomToWo(detail, wo.qty_to_manufacture || bom.quantity);
         }
       })
@@ -550,7 +1037,6 @@ export default function WorkOrderForm() {
     const base = detail.bom.quantity > 0 ? detail.bom.quantity : 1;
     const scale = qty > 0 ? qty / base : 0;
 
-    // Map operations directly from BOM API shape
     const ops: OperationRow[] = detail.operations.map(op => ({
       id: uid(),
       operation: op.operation,
@@ -560,7 +1046,6 @@ export default function WorkOrderForm() {
       operating_cost: Math.round(op.operating_cost * scale * 100) / 100,
     }));
 
-    // Map items directly from BOM API shape
     const items: RequiredItemRow[] = detail.items.map(it => ({
       id: uid(),
       item_code: it.item_code,
@@ -577,7 +1062,6 @@ export default function WorkOrderForm() {
 
     const totalTime = ops.reduce((s, o) => s + o.time_in_mins, 0);
     const totalCost = ops.reduce((s, o) => s + o.operating_cost, 0);
-    const totalRawMaterialCost = items.reduce((s, i) => s + (i.amount || 0), 0);
 
     setWo(prev => ({
       ...prev,
@@ -595,6 +1079,60 @@ export default function WorkOrderForm() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wo.qty_to_manufacture]);
+
+  // ─── GRN Selection ────────────────────────────────────────────────────
+  const handleSelectGRN = (grn: GRNData) => {
+    // Get the first item's warehouse as source
+    const sourceWarehouse = grn.items.length > 0 ? grn.items[0].warehouse : "";
+    
+    setWo(prev => ({
+      ...prev,
+      selected_grn_id: grn.id,
+      grn_items: grn.items,
+      customer_name: grn.supplier,
+      customer_po: grn.po_number || "",
+      source_warehouse: prev.source_warehouse || sourceWarehouse,
+      // Auto-fill item from GRN if only one item
+      ...(grn.items.length === 1 ? {
+        item_to_manufacture: grn.items[0].item_code,
+        item_name: grn.items[0].item_name,
+        qty_to_manufacture: grn.items[0].qty,
+        stock_uom: grn.items[0].uom,
+      } : {}),
+    }));
+    setShowGrnModal(false);
+  };
+
+  // ─── Media Upload ─────────────────────────────────────────────────────
+  const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setUploadingMedia(true);
+    const formData = new FormData();
+    for (let i = 0; i < files.length; i++) {
+      formData.append("media", files[i]);
+    }
+
+    try {
+      const response = await api.post("/work-order/media", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      if (response.data?.success === 1) {
+        const uploadedFiles = response.data.data || [];
+        setWo(prev => ({
+          ...prev,
+          media_files: [...prev.media_files, ...uploadedFiles],
+        }));
+      }
+    } catch (err) {
+      console.error("Error uploading media:", err);
+      setApiError("Failed to upload media files");
+    } finally {
+      setUploadingMedia(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
 
   // ─── Field helpers ────────────────────────────────────────────────────
   const set = <K extends keyof WorkOrderData>(k: K, v: WorkOrderData[K]) =>
@@ -677,6 +1215,9 @@ export default function WorkOrderForm() {
     track_semi_finished_goods: 0,
     amended_from: "",
     _user_tags: "", _comments: "", _assign: "", _liked_by: "", _seen: "",
+    customer_name: wo.customer_name,
+    customer_po: wo.customer_po,
+    selected_grn_id: wo.selected_grn_id,
   });
 
   // ─── Submit ───────────────────────────────────────────────────────────
@@ -801,6 +1342,26 @@ export default function WorkOrderForm() {
           </div>
         </div>
 
+        {/* Order Type Selector */}
+        <div className="wof-order-type-bar">
+          <button
+            type="button"
+            className={`order-type-btn ${wo.order_type === "internal" ? "active" : ""}`}
+            onClick={() => set("order_type", "internal")}
+            disabled={disabled}
+          >
+            <FaBuilding /> Internal WO
+          </button>
+          <button
+            type="button"
+            className={`order-type-btn ${wo.order_type === "external" ? "active" : ""}`}
+            onClick={() => set("order_type", "external")}
+            disabled={disabled}
+          >
+            <FaTruck /> External WO
+          </button>
+        </div>
+
         {/* Status Selector - Moved to top */}
         <div className="wof-status-bar">
           <label className="wof-label">Status</label>
@@ -818,16 +1379,92 @@ export default function WorkOrderForm() {
 
         {/* Tabs */}
         <div className="wof-tabs">
-          {TABS.map(t => (
-            <button key={t.key} type="button"
-              className={`wof-tab-btn${activeTab === t.key ? " wof-tab-btn-active" : ""}`}
-              onClick={() => setActiveTab(t.key)}>
-              {t.label}
-            </button>
-          ))}
+          {TABS.map(t => {
+            // Hide GRN Selection tab for internal WO
+            if (t.key === "grn_selection" && wo.order_type !== "external") return null;
+            return (
+              <button key={t.key} type="button"
+                className={`wof-tab-btn${activeTab === t.key ? " wof-tab-btn-active" : ""}`}
+                onClick={() => setActiveTab(t.key)}>
+                {t.label}
+              </button>
+            );
+          })}
         </div>
 
         <form onSubmit={handleSave}>
+
+          {/* ══════════ TAB: GRN SELECTION ══════════ */}
+          {activeTab === "grn_selection" && wo.order_type === "external" && (
+            <div className="wof-card">
+              <div className="wof-section-header">
+                <span className="wof-section-title">Select GRN for External Work Order</span>
+                <button
+                  type="button"
+                  className="wof-row-add-btn"
+                  onClick={() => setShowGrnModal(true)}
+                  disabled={grnLoading}
+                >
+                  <FaPlus size={10} /> Select GRN
+                </button>
+              </div>
+
+              {wo.selected_grn_id ? (
+                <div className="wof-selected-grn">
+                  <div className="wof-grn-info">
+                    <div className="wof-grn-row">
+                      <span className="wof-grn-label">GRN ID:</span>
+                      <span className="wof-grn-value">#{wo.selected_grn_id}</span>
+                    </div>
+                    <div className="wof-grn-row">
+                      <span className="wof-grn-label">Customer:</span>
+                      <span className="wof-grn-value">{wo.customer_name || "N/A"}</span>
+                    </div>
+                    <div className="wof-grn-row">
+                      <span className="wof-grn-label">Customer PO:</span>
+                      <span className="wof-grn-value">{wo.customer_po || "N/A"}</span>
+                    </div>
+                  </div>
+                  {wo.grn_items && wo.grn_items.length > 0 && (
+                    <div className="wof-grn-items">
+                      <span className="wof-section-title" style={{ fontSize: "12px" }}>GRN Items</span>
+                      <table className="wof-editable-table">
+                        <thead>
+                          <tr>
+                            <th>Item Code</th>
+                            <th>Item Name</th>
+                            <th>Qty</th>
+                            <th>UOM</th>
+                            <th>Rate</th>
+                            <th>Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {wo.grn_items.map((item, idx) => (
+                            <tr key={idx}>
+                              <td>{item.item_code}</td>
+                              <td>{item.item_name}</td>
+                              <td>{item.qty}</td>
+                              <td>{item.uom}</td>
+                              <td>₹{item.rate}</td>
+                              <td>₹{item.amount}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="wof-no-grn">
+                  <p>No GRN selected. Please click "Select GRN" to choose a Goods Receipt Note.</p>
+                  <p style={{ fontSize: "12px", color: "var(--text-secondary, #6b7280)", marginTop: "8px" }}>
+                    <FaInfoCircle /> {grnList.length} GRNs available in the system
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* ══════════ TAB 1: PRODUCTION ITEM ══════════ */}
           {activeTab === "production_item" && (
@@ -1114,6 +1751,54 @@ export default function WorkOrderForm() {
                 </div>
               </div>
 
+              {/* ── Media Upload Section ── */}
+              <div className="wof-divider" />
+              <span className="wof-section-title">Media Attachments</span>
+              <div className="wof-media-upload">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleMediaUpload}
+                  accept="image/*,video/*"
+                  multiple
+                  style={{ display: "none" }}
+                />
+                <button
+                  type="button"
+                  className="wof-media-btn"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingMedia || disabled}
+                >
+                  {uploadingMedia ? <FaSpinner className="spinning" /> : <FaImage />}
+                  {uploadingMedia ? "Uploading..." : "Upload Images/Videos"}
+                </button>
+                <span className="wof-hint">Upload product images, process videos, or inspection photos (optional)</span>
+              </div>
+
+              {wo.media_files.length > 0 && (
+                <div className="wof-media-gallery">
+                  {wo.media_files.map((file) => (
+                    <div key={file.id} className="wof-media-item">
+                      {file.type === "image" ? (
+                        <img src={file.url} alt={file.name} className="wof-media-preview" />
+                      ) : (
+                        <video src={file.url} className="wof-media-preview" controls />
+                      )}
+                      <button
+                        type="button"
+                        className="wof-media-delete"
+                        onClick={() => setWo(prev => ({
+                          ...prev,
+                          media_files: prev.media_files.filter(f => f.id !== file.id)
+                        }))}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
             </div>
           )}
 
@@ -1124,34 +1809,48 @@ export default function WorkOrderForm() {
 
               <div className="wof-grid-2" style={{ marginTop: 10 }}>
                 <div className="wof-field">
-                  <label className="wof-label">Planned Start Date <span className="wof-required">*</span></label>
-                  <input type="date" value={wo.planned_start_date}
-                    onChange={e => set("planned_start_date", e.target.value)}
-                    className="form-field" disabled={disabled} />
+                  <DatePickerField
+                    label="Planned Start Date"
+                    value={wo.planned_start_date}
+                    onChange={v => set("planned_start_date", v)}
+                    required
+                    disabled={disabled}
+                  />
                 </div>
                 <div className="wof-field">
-                  <label className="wof-label">Planned End Date</label>
-                  <input type="date" value={wo.planned_end_date}
-                    onChange={e => set("planned_end_date", e.target.value)}
-                    className="form-field" disabled={disabled} />
+                  <DatePickerField
+                    label="Planned End Date"
+                    value={wo.planned_end_date}
+                    onChange={v => set("planned_end_date", v)}
+                    disabled={disabled}
+                    min={wo.planned_start_date}
+                  />
                 </div>
                 <div className="wof-field">
-                  <label className="wof-label">Expected Delivery Date</label>
-                  <input type="date" value={wo.expected_delivery_date}
-                    onChange={e => set("expected_delivery_date", e.target.value)}
-                    className="form-field" disabled={disabled} />
+                  <DatePickerField
+                    label="Expected Delivery Date"
+                    value={wo.expected_delivery_date}
+                    onChange={v => set("expected_delivery_date", v)}
+                    disabled={disabled}
+                    min={wo.planned_start_date}
+                  />
                 </div>
                 <div className="wof-field">
-                  <label className="wof-label">Actual Start Date</label>
-                  <input type="date" value={wo.actual_start_date}
-                    onChange={e => set("actual_start_date", e.target.value)}
-                    className="form-field" disabled={disabled} />
+                  <DatePickerField
+                    label="Actual Start Date"
+                    value={wo.actual_start_date}
+                    onChange={v => set("actual_start_date", v)}
+                    disabled={disabled}
+                  />
                 </div>
                 <div className="wof-field">
-                  <label className="wof-label">Actual End Date</label>
-                  <input type="date" value={wo.actual_end_date}
-                    onChange={e => set("actual_end_date", e.target.value)}
-                    className="form-field" disabled={disabled} />
+                  <DatePickerField
+                    label="Actual End Date"
+                    value={wo.actual_end_date}
+                    onChange={v => set("actual_end_date", v)}
+                    disabled={disabled}
+                    min={wo.actual_start_date}
+                  />
                 </div>
                 <div className="wof-field">
                   <label className="wof-label">
@@ -1184,6 +1883,27 @@ export default function WorkOrderForm() {
                     className="form-field" disabled={disabled} />
                 </div>
               </div>
+
+              {wo.order_type === "external" && (
+                <>
+                  <div className="wof-divider" />
+                  <span className="wof-section-title">External Order Details</span>
+                  <div className="wof-grid-2" style={{ marginTop: 14 }}>
+                    <div className="wof-field">
+                      <label className="wof-label">Customer Name</label>
+                      <input type="text" value={wo.customer_name || ""}
+                        onChange={e => set("customer_name", e.target.value)}
+                        className="form-field" disabled={disabled} />
+                    </div>
+                    <div className="wof-field">
+                      <label className="wof-label">Customer PO Number</label>
+                      <input type="text" value={wo.customer_po || ""}
+                        onChange={e => set("customer_po", e.target.value)}
+                        className="form-field" disabled={disabled} />
+                    </div>
+                  </div>
+                </>
+              )}
 
               <div className="wof-divider" />
               <span className="wof-section-title">Comments</span>
@@ -1274,6 +1994,55 @@ export default function WorkOrderForm() {
           </div>
         </form>
       </div>
+
+      {/* GRN Selection Modal */}
+      {showGrnModal && (
+        <div className="modal-overlay" onClick={() => setShowGrnModal(false)}>
+          <div className="grn-modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Select GRN</h2>
+              <button className="modal-close" onClick={() => setShowGrnModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              {grnLoading ? (
+                <div className="grn-loading"><FaSpinner className="spinning" /> Loading GRNs...</div>
+              ) : grnList.length === 0 ? (
+                <div className="grn-empty">No GRNs available</div>
+              ) : (
+                <div className="grn-list">
+                  {grnList.map(grn => (
+                    <div key={grn.id} className="grn-item" onClick={() => handleSelectGRN(grn)}>
+                      <div className="grn-item-header">
+                        <span className="grn-item-id">GRN #{grn.id}</span>
+                        <span className="grn-item-status">{grn.status}</span>
+                      </div>
+                      <div className="grn-item-details">
+                        <span>Supplier: {grn.supplier}</span>
+                        <span>Date: {new Date(grn.date).toLocaleDateString()}</span>
+                        <span>Items: {grn.items.length}</span>
+                        <span>Total: ₹{grn.total_amount.toFixed(2)}</span>
+                      </div>
+                      <div className="grn-item-items">
+                        {grn.items.slice(0, 3).map((item, idx) => (
+                          <span key={idx} className="grn-item-tag">
+                            {item.item_name} ({item.qty} {item.uom})
+                          </span>
+                        ))}
+                        {grn.items.length > 3 && (
+                          <span className="grn-item-tag">+{grn.items.length - 3} more</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button className="btn-cancel" onClick={() => setShowGrnModal(false)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-// StockEntryForm2.tsx - Fixed with proper portal-based dropdown
+// StockEntryForm2.tsx - Fixed with proper portal-based dropdown, WO integration, and edit functionality
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -17,6 +17,8 @@ import {
   FaCalculator,
   FaSearch,
   FaChevronDown,
+  FaSync,
+  FaBuilding,
 } from "react-icons/fa";
 import "./StockEntryForm2.css";
 import { useAdminTheme } from "../admin-theme/AdminThemeContext";
@@ -32,6 +34,8 @@ interface ItemRow {
   itemGroup: string;
   qty: string;
   basicRate: string;
+  uom?: string;
+  amount?: string;
 }
 
 interface AdditionalCostRow {
@@ -77,6 +81,70 @@ interface ItemOption {
   disabled: number;
 }
 
+// ─── Work Order Types ────────────────────────────────────────────────────
+
+interface WorkOrder {
+  id: number;
+  name: string;
+  production_item: string;
+  bom_no: string;
+  qty: number;
+  produced_qty: number;
+  company: string;
+  status: string;
+  planned_start_date: string;
+  planned_end_date: string;
+  source_warehouse?: string;
+  wip_warehouse?: string;
+  fg_warehouse?: string;
+  item_name?: string;
+  stock_uom?: string;
+  lead_time?: number;
+  planned_operating_cost?: number;
+}
+
+interface WorkOrderDetail {
+  id: number;
+  name: string;
+  company: string;
+  production_item: string;
+  bom_no: string;
+  qty: number;
+  produced_qty: number;
+  source_warehouse: string;
+  wip_warehouse: string;
+  fg_warehouse: string;
+  item_name: string;
+  stock_uom: string;
+  status: string;
+  planned_start_date: string;
+  planned_end_date: string;
+  lead_time: number;
+  planned_operating_cost: number;
+  actual_operating_cost: number;
+  additional_operating_cost: number;
+  corrective_operation_cost: number;
+  total_operating_cost: number;
+  material_transferred_for_manufacturing: number;
+  additional_transferred_qty: number;
+  transfer_material_against: string;
+}
+
+interface WorkOrderListResponse {
+  success: number;
+  data: {
+    total: number;
+    page: number;
+    limit: number;
+    records: WorkOrder[];
+  };
+}
+
+interface WorkOrderDetailResponse {
+  success: number;
+  data: WorkOrderDetail;
+}
+
 interface StockEntryData {
   name: string;
   supplier: string;
@@ -96,6 +164,8 @@ interface StockEntryData {
   isOpening: string;
   perTransferred: string;
   remarks: string;
+  workOrderId: string;
+  workOrderName: string;
   items: ItemRow[];
   additionalCosts: AdditionalCostRow[];
 }
@@ -162,6 +232,15 @@ interface ApiStockEntryPayload {
   _comments: string;
   _assign: string;
   _liked_by: string;
+  items?: Array<{
+    item_code: string;
+    item_name: string;
+    qty: number;
+    uom: string;
+    rate: number;
+    amount: number;
+    warehouse: string;
+  }>;
 }
 
 const STOCK_ENTRY_TYPES = [
@@ -226,6 +305,8 @@ const emptyItem = (): ItemRow => ({
   itemGroup: "",
   qty: "0.000",
   basicRate: "0.00",
+  uom: "",
+  amount: "0.00",
 });
 
 const emptyCost = (): AdditionalCostRow => ({
@@ -256,10 +337,371 @@ const emptyStockEntry = (): StockEntryData => {
     isOpening: "No",
     perTransferred: "100",
     remarks: "Material transferred for production.",
+    workOrderId: "",
+    workOrderName: "",
     items: [emptyItem()],
     additionalCosts: [],
   };
 };
+
+// ─── Work Order Search Component ────────────────────────────────────────
+
+interface WorkOrderSearchFieldProps {
+  value: string;
+  onSelect: (wo: WorkOrder) => void;
+  onClear: () => void;
+  disabled?: boolean;
+  error?: string;
+}
+
+function WorkOrderSearchField({
+  value,
+  onSelect,
+  onClear,
+  disabled = false,
+  error,
+}: WorkOrderSearchFieldProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [selectedWO, setSelectedWO] = useState<WorkOrder | null>(null);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  const [dropdownPosition, setDropdownPosition] = useState<{
+    top: number;
+    left: number;
+    width: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (value && !selectedWO) {
+      setSearchTerm(value);
+    }
+  }, [value, selectedWO]);
+
+  const searchWorkOrders = useCallback(async (search: string) => {
+    if (!search.trim()) {
+      setWorkOrders([]);
+      return;
+    }
+
+    setLoading(true);
+    setFetchError(null);
+    try {
+      const response = await api.get<WorkOrderListResponse>(
+        `/work-order?page=1&limit=20&search=${encodeURIComponent(search.trim())}`
+      );
+      if (response.data.success === 1) {
+        const records = response.data.data?.records || [];
+        setWorkOrders(records);
+      } else {
+        setFetchError("Failed to load work orders");
+        setWorkOrders([]);
+      }
+    } catch (err) {
+      console.error("Error fetching work orders:", err);
+      setFetchError("Could not load work orders");
+      setWorkOrders([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const calculateDropdownPosition = useCallback(() => {
+    if (!inputRef.current) return null;
+    
+    const rect = inputRef.current.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    const dropdownHeight = Math.min(280, workOrders.length * 50 + 20);
+    
+    const spaceBelow = viewportHeight - rect.bottom;
+    
+    let top: number;
+    if (spaceBelow >= dropdownHeight || spaceBelow >= 200) {
+      top = rect.bottom + 4;
+    } else {
+      top = rect.top - dropdownHeight - 4;
+    }
+    
+    return {
+      top,
+      left: rect.left,
+      width: rect.width,
+    };
+  }, [workOrders.length]);
+
+  const updateDropdownPosition = useCallback(() => {
+    if (!isOpen) return;
+    const position = calculateDropdownPosition();
+    if (position) {
+      setDropdownPosition(position);
+    }
+  }, [isOpen, calculateDropdownPosition]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let rafId: number | null = null;
+    const handleUpdate = () => {
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+      }
+      rafId = requestAnimationFrame(() => {
+        updateDropdownPosition();
+      });
+    };
+
+    window.addEventListener('scroll', handleUpdate, true);
+    window.addEventListener('resize', handleUpdate);
+    document.addEventListener('scroll', handleUpdate, true);
+
+    return () => {
+      window.removeEventListener('scroll', handleUpdate, true);
+      window.removeEventListener('resize', handleUpdate);
+      document.removeEventListener('scroll', handleUpdate, true);
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+      }
+    };
+  }, [isOpen, updateDropdownPosition]);
+
+  const handleClickOutside = useCallback((event: MouseEvent) => {
+    const target = event.target as Node;
+    if (
+      wrapperRef.current &&
+      !wrapperRef.current.contains(target) &&
+      dropdownRef.current &&
+      !dropdownRef.current.contains(target)
+    ) {
+      setIsOpen(false);
+      setHighlightedIndex(-1);
+      setDropdownPosition(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [handleClickOutside]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setSearchTerm(val);
+    setHighlightedIndex(-1);
+
+    if (selectedWO && val !== selectedWO.name) {
+      setSelectedWO(null);
+      onClear();
+    }
+
+    if (val.trim()) {
+      setIsOpen(true);
+      setTimeout(updateDropdownPosition, 0);
+    } else {
+      setIsOpen(false);
+      setWorkOrders([]);
+      setDropdownPosition(null);
+    }
+
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    searchTimeoutRef.current = setTimeout(() => {
+      searchWorkOrders(val);
+    }, 300);
+  };
+
+  const handleSelectWO = (wo: WorkOrder) => {
+    setSelectedWO(wo);
+    setSearchTerm(`${wo.name} - ${wo.production_item}`);
+    onSelect(wo);
+    setIsOpen(false);
+    setHighlightedIndex(-1);
+    setDropdownPosition(null);
+    inputRef.current?.blur();
+  };
+
+  const handleFocus = () => {
+    if (!disabled) {
+      if (searchTerm.trim()) {
+        setIsOpen(true);
+        searchWorkOrders(searchTerm);
+        setTimeout(updateDropdownPosition, 0);
+      } else {
+        setIsOpen(true);
+        setWorkOrders([]);
+        setTimeout(updateDropdownPosition, 0);
+      }
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!isOpen || workOrders.length === 0) {
+      if (e.key === 'Enter' && isOpen) {
+        e.preventDefault();
+        setIsOpen(false);
+        setDropdownPosition(null);
+      }
+      return;
+    }
+
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        setHighlightedIndex((prev) =>
+          prev < workOrders.length - 1 ? prev + 1 : prev
+        );
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        setHighlightedIndex((prev) => (prev > 0 ? prev - 1 : -1));
+        break;
+      case "Enter":
+        e.preventDefault();
+        if (highlightedIndex >= 0 && highlightedIndex < workOrders.length) {
+          handleSelectWO(workOrders[highlightedIndex]);
+        }
+        break;
+      case "Escape":
+        e.preventDefault();
+        setIsOpen(false);
+        setHighlightedIndex(-1);
+        setDropdownPosition(null);
+        inputRef.current?.blur();
+        break;
+    }
+  };
+
+  const handleClear = () => {
+    setSearchTerm("");
+    setSelectedWO(null);
+    onClear();
+    setWorkOrders([]);
+    setIsOpen(false);
+    setHighlightedIndex(-1);
+    setDropdownPosition(null);
+    inputRef.current?.focus();
+  };
+
+  const renderDropdownContent = () => {
+    if (!isOpen || disabled || !dropdownPosition) return null;
+
+    return (
+      <div
+        ref={dropdownRef}
+        className="item-dropdown-portal"
+        style={{
+          position: 'fixed',
+          top: dropdownPosition.top,
+          left: dropdownPosition.left,
+          width: dropdownPosition.width,
+          maxHeight: 280,
+          overflowY: 'auto',
+          zIndex: 99999,
+        }}
+        onMouseDown={(e) => e.preventDefault()}
+      >
+        {loading ? (
+          <div className="item-dropdown-loading">
+            <FaSpinner className="spinning" />
+            <span>Searching work orders...</span>
+          </div>
+        ) : fetchError ? (
+          <div className="item-dropdown-error">
+            <FaExclamationCircle />
+            <span>{fetchError}</span>
+          </div>
+        ) : workOrders.length === 0 ? (
+          <div className="item-dropdown-empty">
+            {searchTerm.trim() ? (
+              <>
+                <FaSearch />
+                <span>No work orders found for "{searchTerm}"</span>
+              </>
+            ) : (
+              <span>Type to search work orders</span>
+            )}
+          </div>
+        ) : (
+          <ul className="item-dropdown-list">
+            {workOrders.map((wo, index) => (
+              <li
+                key={wo.id}
+                className={`item-dropdown-item ${
+                  selectedWO?.id === wo.id ? "selected" : ""
+                } ${highlightedIndex === index ? "highlighted" : ""}`}
+                onClick={() => handleSelectWO(wo)}
+                onMouseEnter={() => setHighlightedIndex(index)}
+              >
+                <div className="item-main-info">
+                  <span className="item-code">{wo.name}</span>
+                  <span className="item-name">{wo.production_item}</span>
+                  <span className="item-uom-badge">Qty: {wo.qty}</span>
+                </div>
+                <div className="item-sub-info">
+                  <span className="item-tag">{wo.status}</span>
+                  <span className="item-tag">{wo.company}</span>
+                  <span className="item-tag">BOM: {wo.bom_no}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="item-search-field" ref={wrapperRef}>
+      <div className="item-search-wrapper">
+        <div className="item-search-input-wrap">
+          <FaBuilding className="item-search-icon" />
+          <input
+            ref={inputRef}
+            type="text"
+            value={searchTerm}
+            onChange={handleInputChange}
+            onFocus={handleFocus}
+            onKeyDown={handleKeyDown}
+            placeholder="Search work order by name or item..."
+            disabled={disabled}
+            className={`form-field form-field-sm item-search-input ${
+              error ? "field-error" : ""
+            } ${selectedWO ? "item-selected" : ""}`}
+            autoComplete="off"
+          />
+          {selectedWO && !disabled && (
+            <button
+              type="button"
+              className="item-clear-btn"
+              onClick={handleClear}
+              aria-label="Clear selection"
+            >
+              ×
+            </button>
+          )}
+          {loading && <FaSpinner className="item-loading-spinner spinning" />}
+          {!loading && !selectedWO && (
+            <FaChevronDown className="item-dropdown-icon" />
+          )}
+        </div>
+      </div>
+      
+      {createPortal(renderDropdownContent(), document.body)}
+    </div>
+  );
+}
 
 // ─── Item Search Component ─────────────────────────────────────────────
 
@@ -290,21 +732,18 @@ function ItemSearchField({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
-  // Portal positioning state
   const [dropdownPosition, setDropdownPosition] = useState<{
     top: number;
     left: number;
     width: number;
   } | null>(null);
 
-  // Update search term when value prop changes
   useEffect(() => {
     if (value && !selectedItem) {
       setSearchTerm(value);
     }
   }, [value, selectedItem]);
 
-  // Search items with debounce
   const searchItems = useCallback(async (search: string) => {
     if (!search.trim()) {
       setItems([]);
@@ -333,7 +772,6 @@ function ItemSearchField({
     }
   }, []);
 
-  // ─── Calculate dropdown position ──────────────────────────────────────
   const calculateDropdownPosition = useCallback(() => {
     if (!inputRef.current) return null;
     
@@ -341,12 +779,9 @@ function ItemSearchField({
     const viewportHeight = window.innerHeight;
     const dropdownHeight = Math.min(280, items.length * 45 + 20);
     
-    // Calculate available space below and above
     const spaceBelow = viewportHeight - rect.bottom;
-    // const spaceAbove = rect.top;
     
     let top: number;
-    // Prefer showing below, but if not enough space, show above
     if (spaceBelow >= dropdownHeight || spaceBelow >= 200) {
       top = rect.bottom + 4;
     } else {
@@ -360,7 +795,6 @@ function ItemSearchField({
     };
   }, [items.length]);
 
-  // ─── Update dropdown position ────────────────────────────────────────
   const updateDropdownPosition = useCallback(() => {
     if (!isOpen) return;
     const position = calculateDropdownPosition();
@@ -369,11 +803,9 @@ function ItemSearchField({
     }
   }, [isOpen, calculateDropdownPosition]);
 
-  // ─── Handle scroll and resize ────────────────────────────────────────
   useEffect(() => {
     if (!isOpen) return;
 
-    // Use requestAnimationFrame for smooth updates
     let rafId: number | null = null;
     const handleUpdate = () => {
       if (rafId) {
@@ -384,11 +816,8 @@ function ItemSearchField({
       });
     };
 
-    // Listen to all scroll events (capture phase)
     window.addEventListener('scroll', handleUpdate, true);
     window.addEventListener('resize', handleUpdate);
-    
-    // Also listen to scroll events on the document
     document.addEventListener('scroll', handleUpdate, true);
 
     return () => {
@@ -401,7 +830,6 @@ function ItemSearchField({
     };
   }, [isOpen, updateDropdownPosition]);
 
-  // ─── Handle click outside ────────────────────────────────────────────
   const handleClickOutside = useCallback((event: MouseEvent) => {
     const target = event.target as Node;
     if (
@@ -426,22 +854,18 @@ function ItemSearchField({
     };
   }, [handleClickOutside]);
 
-  // ─── Input handlers ──────────────────────────────────────────────────
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setSearchTerm(val);
     setHighlightedIndex(-1);
 
-    // Clear selection if user types something different
     if (selectedItem && val !== selectedItem.item_code) {
       setSelectedItem(null);
       onSelect({} as ItemOption);
     }
 
-    // Open dropdown if there's input
     if (val.trim()) {
       setIsOpen(true);
-      // Update position after opening
       setTimeout(updateDropdownPosition, 0);
     } else {
       setIsOpen(false);
@@ -449,7 +873,6 @@ function ItemSearchField({
       setDropdownPosition(null);
     }
 
-    // Debounce search
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
     }
@@ -470,13 +893,11 @@ function ItemSearchField({
 
   const handleFocus = () => {
     if (!disabled) {
-      // If we have a search term, open dropdown and search
       if (searchTerm.trim()) {
         setIsOpen(true);
         searchItems(searchTerm);
         setTimeout(updateDropdownPosition, 0);
       } else {
-        // Open empty dropdown
         setIsOpen(true);
         setItems([]);
         setTimeout(updateDropdownPosition, 0);
@@ -484,19 +905,8 @@ function ItemSearchField({
     }
   };
 
-  const handleBlur = () => {
-    // Delay closing to allow click events on dropdown items
-    setTimeout(() => {
-      setIsOpen(false);
-      setHighlightedIndex(-1);
-      setDropdownPosition(null);
-    }, 150);
-  };
-
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    // Only handle keyboard navigation if dropdown is open with items
     if (!isOpen || items.length === 0) {
-      // Handle Enter to close dropdown if open but empty
       if (e.key === 'Enter' && isOpen) {
         e.preventDefault();
         setIsOpen(false);
@@ -511,44 +921,17 @@ function ItemSearchField({
         setHighlightedIndex((prev) =>
           prev < items.length - 1 ? prev + 1 : prev
         );
-        // Scroll highlighted item into view
-        setTimeout(() => {
-          const highlightedElement = document.querySelector(
-            `.item-dropdown-item.highlighted`
-          );
-          if (highlightedElement && dropdownRef.current) {
-            highlightedElement.scrollIntoView({
-              block: 'nearest',
-              behavior: 'smooth',
-            });
-          }
-        }, 0);
         break;
-        
       case "ArrowUp":
         e.preventDefault();
         setHighlightedIndex((prev) => (prev > 0 ? prev - 1 : -1));
-        // Scroll highlighted item into view
-        setTimeout(() => {
-          const highlightedElement = document.querySelector(
-            `.item-dropdown-item.highlighted`
-          );
-          if (highlightedElement && dropdownRef.current) {
-            highlightedElement.scrollIntoView({
-              block: 'nearest',
-              behavior: 'smooth',
-            });
-          }
-        }, 0);
         break;
-        
       case "Enter":
         e.preventDefault();
         if (highlightedIndex >= 0 && highlightedIndex < items.length) {
           handleSelectItem(items[highlightedIndex]);
         }
         break;
-        
       case "Escape":
         e.preventDefault();
         setIsOpen(false);
@@ -570,7 +953,6 @@ function ItemSearchField({
     inputRef.current?.focus();
   };
 
-  // ─── Render dropdown content ──────────────────────────────────────────
   const renderDropdownContent = () => {
     if (!isOpen || disabled || !dropdownPosition) return null;
 
@@ -587,7 +969,7 @@ function ItemSearchField({
           overflowY: 'auto',
           zIndex: 99999,
         }}
-        onMouseDown={(e) => e.preventDefault()} // Prevent blur
+        onMouseDown={(e) => e.preventDefault()}
       >
         {loading ? (
           <div className="item-dropdown-loading">
@@ -653,7 +1035,6 @@ function ItemSearchField({
             value={searchTerm}
             onChange={handleInputChange}
             onFocus={handleFocus}
-            onBlur={handleBlur}
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
             disabled={disabled}
@@ -679,7 +1060,6 @@ function ItemSearchField({
         </div>
       </div>
       
-      {/* Render dropdown in portal - NOTHING ELSE AFTER THE INPUT */}
       {createPortal(renderDropdownContent(), document.body)}
     </div>
   );
@@ -691,17 +1071,16 @@ export default function StockEntryForm2() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { theme } = useAdminTheme();
-  const isNew = id === "new";
+  const isNew = !id || id === "new";
 
   const [se, setSe] = useState<StockEntryData>(emptyStockEntry());
   const [, setIsDirty] = useState(isNew);
   const [submitting, setSubmitting] = useState(false);
-  const [loading, ] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [showValidationSummary, setShowValidationSummary] = useState(false);
-  const [validationErrors, setValidationErrors] = useState<ValidationError[]>(
-    []
-  );
+  const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [loadingWorkOrder, setLoadingWorkOrder] = useState(false);
 
   const [warehouses, setWarehouses] = useState<WarehouseOption[]>([]);
   const [warehousesLoading, setWarehousesLoading] = useState(false);
@@ -755,6 +1134,70 @@ export default function StockEntryForm2() {
     fetchSuppliers();
   }, []);
 
+  // ─── Load existing Stock Entry ──────────────────────────────────────
+  useEffect(() => {
+    if (!isNew && id) {
+      setLoading(true);
+      setApiError(null);
+      
+      api.get(`/stock-entry/${id}`)
+        .then(r => {
+          if (r.data.success === 1) {
+            const d = r.data.data;
+            
+            console.log("📦 Loaded Stock Entry:", d);
+            
+            // Determine item details from available fields
+            let itemCode = d.production_item || d.item_code || "";
+            let itemName = d.item_name || "";
+            let qty = d.fg_completed_qty || d.qty || 1;
+            let amount = d.total_outgoing_value || d.total_amount || 0;
+            let sourceWh = d.from_warehouse || "";
+            let targetWh = d.to_warehouse || "";
+            
+            setSe(prev => ({
+              ...prev,
+              name: d.name || "",
+              supplier: d.supplier || "",
+              stockEntryType: d.stock_entry_type || "Material Transfer",
+              postingDate: d.posting_date ? d.posting_date.split("T")[0] : getToday().date,
+              postingTime: d.posting_time || getToday().time,
+              editPostingDate: d.set_posting_time === 1,
+              sourceWarehouse: sourceWh,
+              targetWarehouse: targetWh,
+              remarks: d.remarks || "",
+              workOrderId: String(d.work_order || ""),
+              scanBarcode: d.scan_barcode || "",
+              addToTransit: d.add_to_transit === 1,
+              applyPutawayRule: d.apply_putaway_rule === 1,
+              inspectionRequired: d.inspection_required === 1,
+              isOpening: d.is_opening || "No",
+              perTransferred: String(d.per_transferred || 100),
+              // Create a single item from the stock entry data
+              items: [{
+                id: uid(),
+                targetWarehouse: targetWh,
+                itemCode: itemCode,
+                itemName: itemName || itemCode,
+                itemGroup: "",
+                qty: String(qty),
+                basicRate: qty > 0 ? String(amount / qty) : "0.00",
+                uom: "Nos",
+                amount: String(amount),
+              }],
+            }));
+          } else {
+            setApiError("Failed to load stock entry");
+          }
+        })
+        .catch((err) => {
+          console.error("Error loading stock entry:", err);
+          setApiError("Failed to load stock entry. Please try again.");
+        })
+        .finally(() => setLoading(false));
+    }
+  }, [id, isNew]);
+
   const setField = <K extends keyof StockEntryData>(
     field: K,
     value: StockEntryData[K]
@@ -791,12 +1234,67 @@ export default function StockEntryForm2() {
                 basicRate: item.standard_rate
                   ? item.standard_rate.toString()
                   : "0.00",
+                uom: item.stock_uom || "",
               }
             : itemRow
         ),
       }));
       setIsDirty(true);
     }
+  };
+
+  // ─── Work Order Selection Handler ──────────────────────────────────
+  const handleWorkOrderSelect = async (wo: WorkOrder) => {
+    setLoadingWorkOrder(true);
+    setApiError(null);
+    
+    try {
+      const response = await api.get<WorkOrderDetailResponse>(`/work-order/${wo.id}`);
+      
+      if (response.data.success === 1) {
+        const detail = response.data.data;
+        
+        setSe(prev => ({
+          ...prev,
+          workOrderId: String(wo.id),
+          workOrderName: wo.name,
+          sourceWarehouse: detail.source_warehouse || prev.sourceWarehouse,
+          targetWarehouse: detail.fg_warehouse || prev.targetWarehouse,
+          remarks: `Material transfer for Work Order: ${wo.name} - ${detail.production_item}`,
+          items: [
+            {
+              id: uid(),
+              targetWarehouse: detail.fg_warehouse || "",
+              itemCode: detail.production_item,
+              itemName: detail.item_name || "",
+              itemGroup: "",
+              qty: String(detail.qty - detail.produced_qty),
+              basicRate: String(detail.planned_operating_cost / (detail.qty || 1) || 0),
+              uom: detail.stock_uom || "Nos",
+              amount: String(detail.planned_operating_cost || 0),
+            }
+          ],
+        }));
+        
+        setIsDirty(true);
+      } else {
+        setApiError("Failed to load work order details");
+      }
+    } catch (err) {
+      console.error("Error loading work order:", err);
+      setApiError("Failed to load work order details");
+    } finally {
+      setLoadingWorkOrder(false);
+    }
+  };
+
+  const handleClearWorkOrder = () => {
+    setSe(prev => ({
+      ...prev,
+      workOrderId: "",
+      workOrderName: "",
+    }));
+    setIsDirty(true);
   };
 
   const addItem = () => {
@@ -848,6 +1346,13 @@ export default function StockEntryForm2() {
     (sum, cost) => sum + (parseFloat(cost.amount) || 0),
     0
   );
+
+  const totalItemAmount = se.items.reduce(
+    (sum, item) => sum + (parseFloat(item.amount) || 0),
+    0
+  );
+
+  const totalAmount = totalItemAmount + totalAdditionalCosts;
 
   // ─── Validation ──────────────────────────────────────────────────────
 
@@ -909,6 +1414,18 @@ export default function StockEntryForm2() {
     data: StockEntryData,
     entryId?: string
   ): ApiStockEntryPayload => {
+    const items = data.items
+      .filter(item => item.itemCode.trim())
+      .map(item => ({
+        item_code: item.itemCode,
+        item_name: item.itemName || item.itemCode,
+        qty: parseFloat(item.qty) || 0,
+        uom: item.uom || "Nos",
+        rate: parseFloat(item.basicRate) || 0,
+        amount: parseFloat(item.amount) || 0,
+        warehouse: item.targetWarehouse || data.targetWarehouse,
+      }));
+
     const payload: ApiStockEntryPayload = {
       name: data.name || "STE-00001",
       company: "SculptorTech Pvt Ltd",
@@ -921,16 +1438,16 @@ export default function StockEntryForm2() {
       add_to_transit: data.addToTransit ? 1 : 0,
       apply_putaway_rule: data.applyPutawayRule ? 1 : 0,
       inspection_required: data.inspectionRequired ? 1 : 0,
-      work_order: "WO-00001",
+      work_order: data.workOrderId || "WO-00001",
       subcontracting_order: "",
       outgoing_stock_entry: "",
       source_stock_entry: "",
-      from_bom: 1,
+      from_bom: data.workOrderId ? 1 : 0,
       use_multi_level_bom: 1,
       bom_no: "BOM-00001",
-      fg_completed_qty: 100,
+      fg_completed_qty: data.items.reduce((sum, item) => sum + (parseFloat(item.qty) || 0), 0),
       process_loss_percentage: 2,
-      process_loss_qty: 2,
+      process_loss_qty: 0,
       from_warehouse: data.sourceWarehouse || "Stores - ST",
       source_warehouse_address: "Warehouse Address",
       source_address_display: "Pune, Maharashtra",
@@ -938,8 +1455,8 @@ export default function StockEntryForm2() {
       target_warehouse_address: "WIP Address",
       target_address_display: "Pune, Maharashtra",
       scan_barcode: data.scanBarcode,
-      total_outgoing_value: 0,
-      total_incoming_value: 0,
+      total_outgoing_value: totalItemAmount,
+      total_incoming_value: totalItemAmount,
       value_difference: 0,
       total_additional_costs: totalAdditionalCosts,
       supplier: data.supplier || "",
@@ -962,7 +1479,7 @@ export default function StockEntryForm2() {
       is_opening: data.isOpening,
       remarks: data.remarks,
       per_transferred: parseInt(data.perTransferred) || 100,
-      total_amount: 0,
+      total_amount: totalAmount,
       amended_from: "",
       credit_note: "",
       is_return: 0,
@@ -970,6 +1487,7 @@ export default function StockEntryForm2() {
       _comments: "",
       _assign: "",
       _liked_by: "",
+      items: items,
     };
 
     if (entryId) {
@@ -980,74 +1498,74 @@ export default function StockEntryForm2() {
   };
 
   // ─── Save ────────────────────────────────────────────────────────────
+// ─── Save ────────────────────────────────────────────────────────────
 
-  const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setApiError(null);
+const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
+  e.preventDefault();
+  setApiError(null);
 
-    const validationErrorsList = getAllValidationErrors();
-    if (validationErrorsList.length > 0) {
-      setValidationErrors(validationErrorsList);
-      setShowValidationSummary(true);
-      return;
+  const validationErrorsList = getAllValidationErrors();
+  if (validationErrorsList.length > 0) {
+    setValidationErrors(validationErrorsList);
+    setShowValidationSummary(true);
+    return;
+  }
+
+  setSubmitting(true);
+  try {
+    // Pass the ID in the payload for both create and update
+    const payload = convertToApiPayload(se, !isNew ? id : undefined);
+
+    let response;
+    // Always use POST to /stock-entry with ID in payload
+    response = await api.post("/stock-entry", payload);
+
+    if (response.data && response.data.success === 1) {
+      console.log(
+        isNew
+          ? "Stock entry created successfully:"
+          : "Stock entry updated successfully:",
+        response.data
+      );
+      setIsDirty(false);
+      navigate("/stock-entry");
+    } else {
+      setApiError(
+        response.data?.message ||
+          `Failed to ${isNew ? "create" : "update"} stock entry`
+      );
     }
-
-    setSubmitting(true);
-    try {
-      const payload = convertToApiPayload(se, !isNew ? id : undefined);
-
-      let response;
-      if (isNew) {
-        response = await api.post("/stock-entry", payload);
-      } else {
-        response = await api.put("/stock-entry", payload);
-      }
-
-      if (response.data && response.data.success === 1) {
-        console.log(
-          isNew
-            ? "Stock entry created successfully:"
-            : "Stock entry updated successfully:",
-          response.data
-        );
-        setIsDirty(false);
-        navigate("/stock-entry");
+  } catch (err: any) {
+    console.error("Error saving stock entry:", err);
+    if (err.response) {
+      if (err.response.status === 409) {
+        setApiError("A stock entry with this name already exists");
+      } else if (err.response.status === 400) {
+        setApiError(err.response.data?.message || "Invalid data provided");
+      } else if (err.response.status === 404) {
+        setApiError("Stock entry not found. It may have been deleted.");
       } else {
         setApiError(
-          response.data?.message ||
+          err.response.data?.message ||
             `Failed to ${isNew ? "create" : "update"} stock entry`
         );
       }
-    } catch (err: any) {
-      console.error("Error saving stock entry:", err);
-      if (err.response) {
-        if (err.response.status === 409) {
-          setApiError("A stock entry with this name already exists");
-        } else if (err.response.status === 400) {
-          setApiError(err.response.data?.message || "Invalid data provided");
-        } else {
-          setApiError(
-            err.response.data?.message ||
-              `Failed to ${isNew ? "create" : "update"} stock entry`
-          );
-        }
-      } else if (err.request) {
-        setApiError("Network error. Please check your connection.");
-      } else {
-        setApiError("An unexpected error occurred. Please try again.");
-      }
-    } finally {
-      setSubmitting(false);
+    } else if (err.request) {
+      setApiError("Network error. Please check your connection.");
+    } else {
+      setApiError("An unexpected error occurred. Please try again.");
     }
-  };
-
+  } finally {
+    setSubmitting(false);
+  }
+};
   // ─── Render ──────────────────────────────────────────────────────────
 
   if (loading) {
     return (
       <div className={`sef-page ${theme}`}>
         <div className="sef-inner">
-          <div className="sef-loading">Loading stock entry data...</div>
+          <div className="sef-loading"><FaSpinner className="spinning" /> Loading stock entry data...</div>
         </div>
       </div>
     );
@@ -1146,12 +1664,32 @@ export default function StockEntryForm2() {
         <form onSubmit={handleSave}>
           {/* ─── Main Form Content ─────────────────────────────────────── */}
           <div className="sef-card">
-            {/* ── Entry basics ── */}
-            <div className="sef-grid-2">
+            {/* ── Work Order Selection ── */}
+            <div className="sef-section-title" style={{ marginBottom: "12px" }}>
+              <FaBuilding className="sef-section-icon" /> Work Order Reference
+            </div>
+            
+            <div className="wof-grid-2" style={{ marginBottom: "16px" }}>
               <div className="sef-field">
-                <label className="sef-label">
-                  Stock Entry Type <span className="sef-required">*</span>
-                </label>
+                <label className="sef-label">Work Order</label>
+                <WorkOrderSearchField
+                  value={se.workOrderName || se.workOrderId}
+                  onSelect={handleWorkOrderSelect}
+                  onClear={handleClearWorkOrder}
+                  disabled={disabled || loadingWorkOrder}
+                  error=""
+                />
+                {loadingWorkOrder && (
+                  <span className="sef-hint"><FaSpinner className="spinning" /> Loading work order details...</span>
+                )}
+                {se.workOrderId && (
+                  <span className="wof-hint" style={{ color: "var(--success-color, #10b981)" }}>
+                    <FaInfoCircle /> Work Order #{se.workOrderId} loaded successfully
+                  </span>
+                )}
+              </div>
+              <div className="sef-field">
+                <label className="sef-label">Stock Entry Type <span className="sef-required">*</span></label>
                 <select
                   className="form-field"
                   value={se.stockEntryType}
@@ -1166,7 +1704,10 @@ export default function StockEntryForm2() {
                   ))}
                 </select>
               </div>
+            </div>
 
+            {/* ── Entry basics ── */}
+            <div className="sef-grid-2">
               <div className="sef-field">
                 <label className="sef-label">Supplier</label>
                 <select
@@ -1186,11 +1727,9 @@ export default function StockEntryForm2() {
                   <span className="sef-hint">Loading suppliers...</span>
                 )}
               </div>
-            </div>
 
-            <div className="sef-grid-2">
               <div className="sef-field">
-                <div className="sef-checkbox-field">
+                <div className="sef-checkbox-field" style={{ marginTop: "24px" }}>
                   <input
                     type="checkbox"
                     id="editPostingDate"
@@ -1205,7 +1744,6 @@ export default function StockEntryForm2() {
                   </label>
                 </div>
               </div>
-              <div />
             </div>
 
             <div className="sef-grid-2">
@@ -1235,6 +1773,48 @@ export default function StockEntryForm2() {
                   onChange={() => {}}
                   disabled={!se.editPostingDate}
                 />
+              </div>
+            </div>
+
+            {/* ── Warehouse Selection ── */}
+            <div className="sef-divider" />
+            <div className="sef-section-title" style={{ marginBottom: "12px" }}>
+              Warehouse Information
+            </div>
+
+            <div className="sef-grid-2">
+              <div className="sef-field">
+                <label className="sef-label">Source Warehouse</label>
+                <select
+                  className="form-field"
+                  value={se.sourceWarehouse}
+                  onChange={(e) => setField("sourceWarehouse", e.target.value)}
+                  disabled={disabled || warehousesLoading}
+                >
+                  <option value="">Select source warehouse...</option>
+                  {warehouses.map((w) => (
+                    <option key={w.id} value={w.warehouse_name}>
+                      {w.warehouse_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="sef-field">
+                <label className="sef-label">Target Warehouse</label>
+                <select
+                  className="form-field"
+                  value={se.targetWarehouse}
+                  onChange={(e) => setField("targetWarehouse", e.target.value)}
+                  disabled={disabled || warehousesLoading}
+                >
+                  <option value="">Select target warehouse...</option>
+                  {warehouses.map((w) => (
+                    <option key={w.id} value={w.warehouse_name}>
+                      {w.warehouse_name}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
@@ -1268,6 +1848,7 @@ export default function StockEntryForm2() {
                       Qty <span className="sef-required">*</span>
                     </th>
                     <th className="text-right">Basic Rate</th>
+                    <th className="text-right">Amount</th>
                     <th className="sef-col-action" />
                   </tr>
                 </thead>
@@ -1330,6 +1911,18 @@ export default function StockEntryForm2() {
                           disabled={disabled}
                         />
                       </td>
+                      <td>
+                        <input
+                          type="text"
+                          className="form-field form-field-sm text-right"
+                          value={item.amount}
+                          onChange={(e) =>
+                            updateItem(item.id, "amount", e.target.value)
+                          }
+                          placeholder="0.00"
+                          disabled={disabled}
+                        />
+                      </td>
                       <td className="sef-col-action">
                         <button
                           type="button"
@@ -1355,24 +1948,12 @@ export default function StockEntryForm2() {
                 >
                   <FaPlus size={12} /> Add row
                 </button>
-                <button type="button" className="sef-link-btn sef-link-btn-muted">
-                  Add multiple
-                </button>
               </div>
               <div className="sef-table-footer-right">
-                <button type="button" className="sef-update-btn">
-                  Download
-                </button>
-                <button type="button" className="sef-update-btn">
-                  Upload
-                </button>
+                <span className="sef-total-label">
+                  Total Items Amount: ₹ {totalItemAmount.toFixed(2)}
+                </span>
               </div>
-            </div>
-
-            <div style={{ paddingTop: 12 }}>
-              <button type="button" className="sef-update-btn">
-                Update Rate and Availability
-              </button>
             </div>
 
             <div className="sef-divider" />
@@ -1501,6 +2082,27 @@ export default function StockEntryForm2() {
                 </span>
               </div>
             </div>
+
+            {/* ── Grand Total ── */}
+            <div className="sef-grand-total">
+              <span className="sef-grand-total-label">Grand Total:</span>
+              <span className="sef-grand-total-value">₹ {totalAmount.toFixed(2)}</span>
+            </div>
+
+            <div className="sef-divider" />
+
+            {/* ── Remarks ── */}
+            <div className="sef-field" style={{ marginTop: "12px" }}>
+              <label className="sef-label">Remarks</label>
+              <textarea
+                className="form-field"
+                value={se.remarks}
+                onChange={(e) => setField("remarks", e.target.value)}
+                rows={3}
+                disabled={disabled}
+                placeholder="Add any remarks or notes here..."
+              />
+            </div>
           </div>
 
           {/* ─── Footer ────────────────────────────────────────────────── */}
@@ -1513,7 +2115,7 @@ export default function StockEntryForm2() {
             >
               Cancel
             </button>
-            <button type="submit" disabled={submitting} className="submit-btn">
+            <button type="submit" disabled={submitting || loadingWorkOrder} className="submit-btn">
               {submitting && <FaSpinner className="spinning" />}
               <FaSave size={12} />
               {isNew ? "Create" : "Update"}
