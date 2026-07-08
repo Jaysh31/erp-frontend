@@ -108,11 +108,11 @@ function App() {
               <Route path="/sales-order/new" element={<CreateSalesOrder />} />
               <Route path="/sales-invoice/new" element={<CreateSalesInvoice />} />
               <Route path="/lead" element={<LeadManagement />} />
-              <Route path="/leads/new" element={<LeadForm />} /> 
-              <Route path="/leads/:id" element={<LeadForm />} /> 
+              <Route path="/leads/new" element={<LeadForm />} />
+              <Route path="/leads/:id" element={<LeadForm />} />
               <Route path="/quotation" element={<QuotationPage />} />
               <Route path="/quotation/new" element={<CreateQuotationPage />} />
-              
+
               <Route path="/price-list" element={<PriceList />} />
               <Route path="/item-price" element={<ItemPrice />} />
               <Route path="/pricing-rule" element={<PricingRule />} />
@@ -133,52 +133,53 @@ function App() {
           
 
                   {/* Module Dashboards */}
-        <Route path="/dashboard/manufacturing" element={<DashboardPage />} />
-        <Route path="/dashboard/sales" element={<SalesDashboard />} />
-        <Route path="/dashboard/setup" element={<SetupDashboard />} />
-        <Route path="/dashboard/purchasing" element={<PurchasingDashboard />} />
-        <Route path="/dashboard/organization" element={<OrganizationDashboard />} />
-        <Route path="/dashboard/accounting" element={<AccountingDashboard />} />
-        <Route path="/dashboard/tools" element={<ToolsDashboard />} />
-        <Route path="/dashboard/reports" element={<ReportsDashboard />} />
-        <Route path="/dashboard/stock" element={<StockDashboard />} />
-        <Route path="/dashboard/quality" element={<QualityDashboard />} />
-
-        
-                          <Route path="/sales-order" element={<SalesOrder />} />
-            <Route path="/sales-invoice" element={<SalesInvoice />} />
-            <Route path="/sales-order/new" element={<CreateSalesOrder />} />
-            <Route path="/sales-invoice/new" element={<CreateSalesInvoice />} />
-            <Route path="/quotation" element={<QuotationPage />} />
-            <Route path="/quotation/new" element={<CreateQuotationPage />} />
-            <Route path="/price-list" element={<PriceList />} />
-            <Route path="/item-price" element={<ItemPrice />} />
-            <Route path="/pricing-rule" element={<PricingRule />} />
-            <Route path="/coupon-codes" element={<CouponCode />} />
-            <Route path="/supplier" element={<Supplier />} />
-           <Route path="/supplier/new" element={<AddSupplier />} />
-           <Route path="/supplier-group" element={<SupplierGroup />} />
-            <Route path="/contacts" element={<Contacts />} />
-            <Route path="/material-request" element={<MaterialRequest />} />
-            <Route path="/purchase-order" element={<PurchaseOrder />} />
-            <Route path="/request-for-quotation" element={<RequestForQuotation />} />
-            <Route path="/supplier-quotation" element={<SupplierQuotation />} />
-            <Route path="/supplier-quotation/new" element={<NewSupplierQuotation />} />
-            <Route path="/purchase-invoice" element={<PurchaseInvoice />} />
-            <Route path="/purchase-invoice/new" element={<PurchaseInvoiceForm />} />
-            <Route path="/accounts" element={<Accounts />} />
-            <Route path="/chart-of-accounts" element={<ChartOfAccounts />} />
-            <Route path="/ledger-accounts" element={<LedgerAccounts />} />
-            <Route path="/customer-invoices" element={<CustomerInvoices />} />
-            <Route path="/sales-receipts" element={<SalesReceiptList />} />
-            <Route path="/sales-receipts/new" element={<SalesReceiptForm />} />
-            <Route path="/outstanding-receivables" element={<OutstandingDashboard />} />
-            <Route path="/customer-payments" element={<CustomerPayments />} />
+              <Route path="/dashboard/manufacturing" element={<DashboardPage />} />
+              <Route path="/dashboard/sales" element={<SalesDashboard />} />
+              <Route path="/dashboard/setup" element={<SetupDashboard />} />
+              <Route path="/dashboard/purchasing" element={<PurchasingDashboard />} />
+              <Route path="/dashboard/organization" element={<OrganizationDashboard />} />
+              <Route path="/dashboard/accounting" element={<AccountingDashboard />} />
+              <Route path="/dashboard/tools" element={<ToolsDashboard />} />
+              <Route path="/dashboard/reports" element={<ReportsDashboard />} />
+              <Route path="/dashboard/stock" element={<StockDashboard />} />
+              <Route path="/dashboard/quality" element={<QualityDashboard />} />
 
 
+              <Route path="/sales-order" element={<SalesOrder />} />
+              <Route path="/sales-invoice" element={<SalesInvoice />} />
+              <Route path="/sales-order/new" element={<CreateSalesOrder />} />
+              <Route path="/sales-invoice/new" element={<CreateSalesInvoice />} />
+              <Route path="/quotation" element={<QuotationPage />} />
+              <Route path="/quotation/new" element={<CreateQuotationPage />} />
+              <Route path="/quotation/:id" element={<CreateQuotationPage />} />
+              <Route path="/price-list" element={<PriceList />} />
+              <Route path="/item-price" element={<ItemPrice />} />
+              <Route path="/pricing-rule" element={<PricingRule />} />
+              <Route path="/coupon-codes" element={<CouponCode />} />
+              <Route path="/supplier" element={<Supplier />} />
+              <Route path="/supplier/new" element={<AddSupplier />} />
+              <Route path="/supplier-group" element={<SupplierGroup />} />
+              <Route path="/contacts" element={<Contacts />} />
+              <Route path="/material-request" element={<MaterialRequest />} />
+              <Route path="/purchase-order" element={<PurchaseOrder />} />
+              <Route path="/request-for-quotation" element={<RequestForQuotation />} />
+              <Route path="/supplier-quotation" element={<SupplierQuotation />} />
+              <Route path="/supplier-quotation/new" element={<NewSupplierQuotation />} />
+              <Route path="/purchase-invoice" element={<PurchaseInvoice />} />
+              <Route path="/purchase-invoice/new" element={<PurchaseInvoiceForm />} />
+              <Route path="/accounts" element={<Accounts />} />
+              <Route path="/chart-of-accounts" element={<ChartOfAccounts />} />
+              <Route path="/ledger-accounts" element={<LedgerAccounts />} />
+              <Route path="/customer-invoices" element={<CustomerInvoices />} />
+              <Route path="/sales-receipts" element={<SalesReceiptList />} />
+              <Route path="/sales-receipts/new" element={<SalesReceiptForm />} />
+              <Route path="/outstanding-receivables" element={<OutstandingDashboard />} />
+              <Route path="/customer-payments" element={<CustomerPayments />} />
 
-            
-            {/* <Route path="/sales" element={<SalesPage />} />
+
+
+
+              {/* <Route path="/sales" element={<SalesPage />} />
             <Route path="/purchase" element={<PurchasePage />} />
             <Route path="/inventory" element={<InventoryPage />} />
             <Route path="/production" element={<ProductionPage />} />
@@ -201,7 +202,7 @@ function App() {
               <Route path="/item-attribute/:id" element={<ItemAttributeForm />} />
 
 
-                       {/* Purchase Order Routes */}
+              {/* Purchase Order Routes */}
               <Route path="/purchase-order" element={<PurchaseOrder />} />
               <Route path="/purchase-order/new" element={<PurchaseOrderForm />} />
               <Route path="/purchase-order/edit/:id" element={<PurchaseOrderForm />} />
@@ -215,7 +216,7 @@ function App() {
               <Route path="/letter-head/new" element={<AddLetterHeadForm />} />
               <Route path="/letter-head/:id" element={<AddLetterHeadForm />} />
 
-                   {/* GRN Routes */}
+              {/* GRN Routes */}
               <Route path="/grn" element={<GRNList />} />
               <Route path="/grn/new" element={<GRNForm />} />
               <Route path="/grn/:id" element={<GRNForm />} />
@@ -252,14 +253,14 @@ function App() {
 
 
               <Route path="/purchase-invoice" element={<PurchaseInvoice />} />
-<Route path="/purchase-invoice/new" element={<PurchaseInvoiceForm />} />
-<Route path="/purchase-invoice/edit/:id" element={<PurchaseInvoiceForm />} />
+              <Route path="/purchase-invoice/new" element={<PurchaseInvoiceForm />} />
+              <Route path="/purchase-invoice/edit/:id" element={<PurchaseInvoiceForm />} />
 
 
- {/* User Management Routes */}
+              {/* User Management Routes */}
               <Route path="/user-management" element={<UserManagement />} />
 
-              
+
               {/* UOM Routes */}
               <Route path="/uom" element={<UOMList />} />
               <Route path="/uom/new" element={<UOMForm />} />
