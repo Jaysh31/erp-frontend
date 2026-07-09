@@ -17,14 +17,12 @@ import {
   FaBoxes,
   FaClipboardList,
   FaWarehouse,
-  FaDollarSign,
   FaCalendarAlt,
   FaUser,
   FaFileAlt,
   FaChartPie,
   FaLayerGroup,
   FaList,
-  FaThLarge,
 } from "react-icons/fa";
 import "./Stockentry.css";
 import { useAdminTheme } from "../admin-theme/AdminThemeContext";

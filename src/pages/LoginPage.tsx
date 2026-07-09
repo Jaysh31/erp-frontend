@@ -1,4 +1,5 @@
-// LoginPage.tsx
+// LoginPage.tsx (Updated)
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./LoginPage.css";
@@ -21,7 +22,6 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
     
-    // Basic validation
     if (!email || !password) {
       setError("Please fill in all fields");
       return;
@@ -35,39 +35,32 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      // Call the login API
       const response = await api.post('/user/login', {
         username: email,
         password: password
       });
 
-      // Check if login was successful
       if (response.data && response.data.success === 1) {
         const { data } = response.data;
         
-        // Store all auth data using the storage utility
+        // Store all auth data including modules
         storage.setAuthData({
           user: data.user,
-          token: data.token
+          token: data.token,
+          modules: data.user.modules // Store modules from response
         });
 
         console.log('Login successful:', response.data);
-        console.log('User data stored:', storage.getUser());
-        console.log('Token stored:', storage.getToken());
+        console.log('User modules:', data.user.modules);
         
-        // Navigate to home
         navigate("/home");
       } else {
-        // Handle unsuccessful login
         setError(response.data?.message || "Invalid email or password. Please try again.");
       }
     } catch (err: any) {
       console.error('Login error:', err);
       
-      // Handle different error scenarios
       if (err.response) {
-        // The request was made and the server responded with a status code
-        // that falls out of the range of 2xx
         if (err.response.status === 401) {
           setError("Invalid email or password. Please try again.");
         } else if (err.response.status === 404) {
@@ -78,10 +71,8 @@ export default function LoginPage() {
           setError(err.response.data?.message || "Login failed. Please try again.");
         }
       } else if (err.request) {
-        // The request was made but no response was received
         setError("Network error. Please check your connection.");
       } else {
-        // Something happened in setting up the request that triggered an Error
         setError("An unexpected error occurred. Please try again.");
       }
     } finally {

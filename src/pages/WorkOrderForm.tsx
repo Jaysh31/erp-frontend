@@ -5,7 +5,7 @@ import {
   FaArrowLeft, FaSave, FaSpinner, FaExclamationTriangle,
   FaInfoCircle, FaTimesCircle, FaPlus, FaTrash,
   FaPaperPlane, FaSearch, FaSyncAlt, FaBuilding, FaTruck,
-  FaImage, FaVideo, FaCalendarAlt,
+  FaImage,  FaCalendarAlt,
 } from "react-icons/fa";
 import "./WorkOrderForm.css";
 import { useAdminTheme } from "../admin-theme/AdminThemeContext";
@@ -688,7 +688,7 @@ function DatePickerField({
                 const dateStr = dateObj.toISOString().split("T")[0];
                 const isToday = dateStr === new Date().toISOString().split("T")[0];
                 const isSelected = dateStr === value;
-                const isDisabled = (min && dateStr < min) || (max && dateStr > max);
+                const isDisabled = (min ? dateStr < min : false) || (max ? dateStr > max : false);
 
                 return (
                   <button

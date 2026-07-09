@@ -90,6 +90,7 @@ import GRNForm from "./pages/GRNForm";
 import GRNList from "./pages/GRNList";
 import PurchaseInvoiceForm from "./pages/PurchaseInvoiceForm";
 import UserManagement from "./pages/UserManagement/UserManagement";
+import UserForm from "./pages/UserManagement/UserForm";
 
 
 function App() {
@@ -238,6 +239,11 @@ function App() {
 
               {/* NewWorkstation Routes */}
               <Route path="/NewWorkstation" element={<NewWorkstation />} />
+
+              {/* User Management Routes */}
+<Route path="/user-management" element={<UserManagement />} />
+<Route path="/users/new" element={<UserForm />} />
+<Route path="/users/:id" element={<UserForm />} />
 
 
 
