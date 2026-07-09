@@ -54,9 +54,15 @@ interface WorkOrderOption {
   [key: string]: any;
 }
 
+/** Shape returned by GET /employee (paginated, records array). */
 interface EmployeeOption {
-  id: string;
-  name: string;
+  id: number;
+  employee: string | null;
+  employee_name: string;
+  employee_number?: string | null;
+  designation?: string | null;
+  department?: string | null;
+  [key: string]: any;
 }
 
 interface JobCardFormData {
@@ -310,6 +316,8 @@ const JobCardForm: React.FC = () => {
 
   // The real numeric primary key from the backend
   const [recordId, setRecordId] = useState<number | string | null>(null);
+  // The Job Card's own docname (e.g. "JC-00001") — needed as the "parent" for time logs
+  const [jobCardDocName, setJobCardDocName] = useState<string>("");
 
   // ─── work order dropdown ────────────────────────────────────────────
   const [workOrders, setWorkOrders] = useState<WorkOrderOption[]>([]);
@@ -320,6 +328,7 @@ const JobCardForm: React.FC = () => {
   const [loadingEmployees, setLoadingEmployees] = useState(false);
   const [showEmployeeModal, setShowEmployeeModal] = useState(false);
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<Set<string>>(new Set());
+  const [assigningEmployees, setAssigningEmployees] = useState(false);
 
   // ─── job timer ───────────────────────────────────────────────────────
   const [timerRunning, setTimerRunning] = useState(false);
@@ -437,6 +446,7 @@ const JobCardForm: React.FC = () => {
 
   const loadJobCardIntoForm = (jc: any) => {
     setRecordId(jc.id ?? null);
+    setJobCardDocName(jc.name || jc.job_card_id || "");
 
     setFormData((prev) => ({
       ...prev,
@@ -633,6 +643,10 @@ const JobCardForm: React.FC = () => {
 
   // ─── employee assignment ────────────────────────────────────────────
 
+  /** Resolve the employee "code" (docname) used as the employee/name field in payloads. */
+  const getEmployeeCode = (emp: EmployeeOption) =>
+    emp.employee || emp.employee_number || `EMP-${String(emp.id).padStart(5, "0")}`;
+
   const openEmployeeModal = async () => {
     setSelectedEmployeeIds(new Set(formData.assigned_employees));
     setShowEmployeeModal(true);
@@ -640,11 +654,26 @@ const JobCardForm: React.FC = () => {
       setLoadingEmployees(true);
       try {
         const response = await api.get("/employee");
-        if (response.data.success === 1) {
-          setEmployees(response.data.data || []);
+        console.log("GET /employee raw response:", response.data);
+
+        // Response is paginated: { success, data: { total, page, limit, records: [...] } }
+        const raw = response.data;
+        let list: any =
+          raw?.data?.records ??
+          raw?.data ??
+          raw?.employees ??
+          raw?.results ??
+          raw;
+
+        if (!Array.isArray(list)) {
+          console.warn("Unexpected /employee response shape, defaulting to empty list:", raw);
+          list = [];
         }
+
+        setEmployees(list);
       } catch (err) {
         console.error("Error fetching employees:", err);
+        setEmployees([]);
       } finally {
         setLoadingEmployees(false);
       }
@@ -659,9 +688,67 @@ const JobCardForm: React.FC = () => {
     });
   };
 
-  const confirmEmployeeAssignment = () => {
-    setFormData((prev) => ({ ...prev, assigned_employees: Array.from(selectedEmployeeIds) }));
-    setShowEmployeeModal(false);
+  /**
+   * Confirms employee selection. For each selected employee, POSTs a
+   * /job-card-time-log record built from the employee's own record plus
+   * job-card context. Does NOT touch /job-card create/update/delete.
+   */
+  const confirmEmployeeAssignment = async () => {
+    const selected = employees.filter((emp) => selectedEmployeeIds.has(String(emp.id)));
+
+    if (selected.length === 0) {
+      setFormData((prev) => ({ ...prev, assigned_employees: [] }));
+      setShowEmployeeModal(false);
+      return;
+    }
+
+    // The time log's "parent" field needs the Job Card's own docname,
+    // which only exists once the Job Card has actually been saved.
+    if (!isEditMode || !jobCardDocName) {
+      setApiError("Please save the Job Card first, then assign employees.");
+      setShowEmployeeModal(false);
+      return;
+    }
+
+    setAssigningEmployees(true);
+    setApiError(null);
+    try {
+      const startTime = new Date();
+
+      await Promise.all(
+        selected.map((emp, index) => {
+          const empCode = getEmployeeCode(emp);
+          const payload = {
+            name: empCode,
+            modified_by: "Administrator",
+            owner: "Administrator",
+            docstatus: 0,
+            idx: index + 1,
+            employee: empCode,
+            from_time: formatDateTime(startTime),
+            to_time: null,
+            time_in_mins: 0,
+            completed_qty: 0,
+            operation: formData.operation || "",
+            parent: jobCardDocName,
+            parentfield: "time_logs",
+            parenttype: "Job Card",
+          };
+          return api.post("/job-card-time-log", payload);
+        })
+      );
+
+      setFormData((prev) => ({
+        ...prev,
+        assigned_employees: selected.map((emp) => getEmployeeCode(emp)),
+      }));
+      setShowEmployeeModal(false);
+    } catch (err: any) {
+      console.error("Error creating job card time log:", err);
+      setApiError(err.response?.data?.message || "Failed to assign employee(s) to job card");
+    } finally {
+      setAssigningEmployees(false);
+    }
   };
 
   // ─── job timer controls ─────────────────────────────────────────────
@@ -678,6 +765,7 @@ const JobCardForm: React.FC = () => {
 
   const jobStarted = !!formData.actual_start_date;
   const jobCompleted = formData.status === "Completed";
+  const hasAssignedEmployees = formData.assigned_employees.length > 0;
 
   const handleStartJob = () => {
     setFormData((prev) => ({
@@ -789,6 +877,7 @@ const JobCardForm: React.FC = () => {
       idx: 0,
     };
 
+    // Edit mode: id goes in the payload body, never in the URL.
     if (isEditMode && recordId) {
       payload.id = Number(recordId);
     }
@@ -817,6 +906,7 @@ const JobCardForm: React.FC = () => {
 
       let response;
       if (isEditMode && recordId) {
+        // Update: PUT to the collection endpoint, id lives in the payload (not the URL).
         response = await api.put("/job-card", payload);
       } else {
         response = await api.post("/job-card", payload);
@@ -901,16 +991,21 @@ const JobCardForm: React.FC = () => {
 
       {/* Assign Employee Modal */}
       {showEmployeeModal && (
-        <div className="jcf-modal-overlay" onClick={() => setShowEmployeeModal(false)}>
+        <div className="jcf-modal-overlay" onClick={() => !assigningEmployees && setShowEmployeeModal(false)}>
           <div className="jcf-validation-modal" onClick={(e) => e.stopPropagation()}>
             <div className="jcf-modal-header">
               <h2 className="jcf-modal-title-plain">Assign Job to Employee</h2>
-              <button className="jcf-modal-close" onClick={() => setShowEmployeeModal(false)}>
+              <button className="jcf-modal-close" onClick={() => setShowEmployeeModal(false)} disabled={assigningEmployees}>
                 <FaTimes size={16} />
               </button>
             </div>
             <div className="jcf-modal-body">
-              {loadingEmployees ? (
+              {!isEditMode || !jobCardDocName ? (
+                <div className="jcf-hint-banner">
+                  <FaInfoCircle className="jcf-hint-icon" />
+                  Please save the Job Card first, then assign employees.
+                </div>
+              ) : loadingEmployees ? (
                 <p className="jcf-modal-intro">Loading employees...</p>
               ) : employees.length === 0 ? (
                 <p className="jcf-modal-intro">No employees found.</p>
@@ -920,13 +1015,13 @@ const JobCardForm: React.FC = () => {
                     <label key={emp.id} className="jcf-employee-item">
                       <input
                         type="checkbox"
-                        checked={selectedEmployeeIds.has(emp.id)}
-                        onChange={() => toggleEmployeeSelect(emp.id)}
+                        checked={selectedEmployeeIds.has(String(emp.id))}
+                        onChange={() => toggleEmployeeSelect(String(emp.id))}
                         className="jcf-checkbox"
                       />
                       <div>
-                        <div className="jcf-employee-id">{emp.id}</div>
-                        <div className="jcf-employee-name">{emp.name}</div>
+                        <div className="jcf-employee-id">{getEmployeeCode(emp)}</div>
+                        <div className="jcf-employee-name">{emp.employee_name}</div>
                       </div>
                     </label>
                   ))}
@@ -934,8 +1029,16 @@ const JobCardForm: React.FC = () => {
               )}
             </div>
             <div className="jcf-modal-footer">
-              <button className="jcf-btn-cancel" onClick={() => setShowEmployeeModal(false)}>Cancel</button>
-              <button className="jcf-btn-primary" onClick={confirmEmployeeAssignment}>Assign</button>
+              <button className="jcf-btn-cancel" onClick={() => setShowEmployeeModal(false)} disabled={assigningEmployees}>
+                Cancel
+              </button>
+              <button
+                className="jcf-btn-primary"
+                onClick={confirmEmployeeAssignment}
+                disabled={assigningEmployees || !isEditMode || !jobCardDocName}
+              >
+                {assigningEmployees ? <FaSpinner className="jcf-spinning" /> : null} Assign
+              </button>
             </div>
           </div>
         </div>
@@ -983,7 +1086,13 @@ const JobCardForm: React.FC = () => {
               </button>
 
               {!jobStarted && !jobCompleted && (
-                <button type="button" className="jcf-btn-start" onClick={handleStartJob}>
+                <button
+                  type="button"
+                  className="jcf-btn-start"
+                  onClick={handleStartJob}
+                  disabled={!hasAssignedEmployees}
+                  title={!hasAssignedEmployees ? "Assign at least one employee before starting the job" : ""}
+                >
                   <FaPlay size={11} /> Start Job
                 </button>
               )}
@@ -1001,7 +1110,13 @@ const JobCardForm: React.FC = () => {
 
               {jobStarted && !jobCompleted && !timerRunning && (
                 <>
-                  <button type="button" className="jcf-btn-start" onClick={handleStartJob}>
+                  <button
+                    type="button"
+                    className="jcf-btn-start"
+                    onClick={handleStartJob}
+                    disabled={!hasAssignedEmployees}
+                    title={!hasAssignedEmployees ? "Assign at least one employee before resuming the job" : ""}
+                  >
                     <FaPlay size={11} /> Resume Job
                   </button>
                   <button type="button" className="jcf-btn-complete" onClick={handleCompleteJobClick}>
@@ -1013,6 +1128,13 @@ const JobCardForm: React.FC = () => {
               {jobCompleted && <span className="jcf-status-done"><FaCheck size={11} /> Completed</span>}
             </div>
           </div>
+
+          {!hasAssignedEmployees && !jobStarted && !jobCompleted && (
+            <div className="jcf-tab-warning-banner">
+              <FaExclamationTriangle size={12} />
+              <span>Assign at least one employee before you can start this job.</span>
+            </div>
+          )}
 
           {/* Tabs */}
           <div className="jcf-tabs-wrap">

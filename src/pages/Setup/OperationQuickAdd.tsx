@@ -14,13 +14,15 @@ interface Operation {
   owner: string;
   docstatus: number;
   idx: number;
-  workstation: string;
+  workstationId: number;
+  workstation_name: string | null;
   is_corrective_operation: number;
   create_job_card_based_on_batch_size: number;
   quality_inspection_template: string;
   batch_size: number;
   total_operation_time: number;
   description: string;
+  hour_rate: number | null;
 }
 
 interface Workstation {
@@ -28,7 +30,7 @@ interface Workstation {
   workstation_name: string;
   workstation_type: string;
   plant_floor: string;
-  disabled: number;
+  is_deleted: number; // Changed from disabled to is_deleted
   production_capacity: number;
   warehouse: string;
   status: string;
@@ -51,14 +53,16 @@ export default function OperationForm() {
   const [mode, setMode] = useState<'new' | 'edit' | 'view'>('new');
   const [formData, setFormData] = useState<Partial<Operation>>({
     name: '',
-    workstation: '',
+    workstationId: 0,
+    workstation_name: '',
     is_corrective_operation: 0,
     create_job_card_based_on_batch_size: 1,
     quality_inspection_template: '',
     batch_size: 100,
     total_operation_time: 0,
     description: '',
-    docstatus: 0
+    docstatus: 0,
+    hour_rate: null
   });
   const [workstations, setWorkstations] = useState<Workstation[]>([]);
   const [loading, setLoading] = useState(false);
@@ -71,7 +75,6 @@ export default function OperationForm() {
   const operationData = location.state?.operationData;
 
   useEffect(() => {
-    // Determine mode from URL and state
     const path = location.pathname;
     if (path.includes('/new')) {
       setMode('new');
@@ -81,40 +84,41 @@ export default function OperationForm() {
       setMode('view');
     }
 
-    // Load operation data
     if (operationData) {
       setFormData({
         name: operationData.name,
-        workstation: operationData.workstation,
+        workstationId: operationData.workstationId || 0,
+        workstation_name: operationData.workstation_name || '',
         is_corrective_operation: operationData.is_corrective_operation,
         create_job_card_based_on_batch_size: operationData.create_job_card_based_on_batch_size,
         quality_inspection_template: operationData.quality_inspection_template || '',
         batch_size: operationData.batch_size,
         total_operation_time: operationData.total_operation_time,
         description: operationData.description || '',
-        docstatus: operationData.docstatus || 0
+        docstatus: operationData.docstatus || 0,
+        hour_rate: operationData.hour_rate || null
       });
       setOriginalData({
         name: operationData.name,
-        workstation: operationData.workstation,
+        workstationId: operationData.workstationId || 0,
+        workstation_name: operationData.workstation_name || '',
         is_corrective_operation: operationData.is_corrective_operation,
         create_job_card_based_on_batch_size: operationData.create_job_card_based_on_batch_size,
         quality_inspection_template: operationData.quality_inspection_template || '',
         batch_size: operationData.batch_size,
         total_operation_time: operationData.total_operation_time,
         description: operationData.description || '',
-        docstatus: operationData.docstatus || 0
+        docstatus: operationData.docstatus || 0,
+        hour_rate: operationData.hour_rate || null
       });
     } else if (id && mode !== 'new') {
       fetchOperation(id);
     }
 
-    // Load workstations
     fetchWorkstations();
   }, [id, location.pathname, operationData]);
 
   useEffect(() => {
-    // Check for changes
     if (originalData && mode !== 'new') {
       const hasChanged = JSON.stringify(formData) !== JSON.stringify(originalData);
       setHasChanges(hasChanged);
@@ -129,25 +133,29 @@ export default function OperationForm() {
         const data = response.data.data;
         setFormData({
           name: data.name,
-          workstation: data.workstation,
+          workstationId: data.workstationId || 0,
+          workstation_name: data.workstation_name || '',
           is_corrective_operation: data.is_corrective_operation,
           create_job_card_based_on_batch_size: data.create_job_card_based_on_batch_size,
           quality_inspection_template: data.quality_inspection_template || '',
           batch_size: data.batch_size,
           total_operation_time: data.total_operation_time,
           description: data.description || '',
-          docstatus: data.docstatus || 0
+          docstatus: data.docstatus || 0,
+          hour_rate: data.hour_rate || null
         });
         setOriginalData({
           name: data.name,
-          workstation: data.workstation,
+          workstationId: data.workstationId || 0,
+          workstation_name: data.workstation_name || '',
           is_corrective_operation: data.is_corrective_operation,
           create_job_card_based_on_batch_size: data.create_job_card_based_on_batch_size,
           quality_inspection_template: data.quality_inspection_template || '',
           batch_size: data.batch_size,
           total_operation_time: data.total_operation_time,
           description: data.description || '',
-          docstatus: data.docstatus || 0
+          docstatus: data.docstatus || 0,
+          hour_rate: data.hour_rate || null
         });
       }
     } catch (err) {
@@ -162,23 +170,47 @@ export default function OperationForm() {
     try {
       const response = await api.get<ApiResponse>('/workstation');
       if (response.data.success === 1) {
-        // Handle both array and object responses
-        const workstationData = Array.isArray(response.data.data) 
-          ? response.data.data 
-          : [response.data.data];
-        setWorkstations(workstationData);
+        const data = response.data.data;
+        let workstationList: Workstation[] = [];
+        
+        if (Array.isArray(data)) {
+          workstationList = data;
+        } else if (data && data.records) {
+          workstationList = data.records;
+        } else {
+          workstationList = [];
+        }
+        
+        // Filter workstations where is_deleted === 0 (active)
+        const activeWorkstations = workstationList.filter(w => w.is_deleted === 0);
+        setWorkstations(activeWorkstations);
+        
+        console.log('Fetched workstations:', activeWorkstations); // Debug log
       }
     } catch (err) {
       console.error('Error fetching workstations:', err);
+      setWorkstations([]);
     }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'number' ? parseFloat(value) || 0 : value
-    }));
+    
+    if (name === 'workstationId') {
+      const selectedId = parseInt(value);
+      const selectedWs = workstations.find(w => w.id === selectedId);
+      setFormData(prev => ({
+        ...prev,
+        workstationId: selectedId,
+        workstation_name: selectedWs ? selectedWs.workstation_name : '',
+        hour_rate: selectedWs ? selectedWs.hour_rate || null : null
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: type === 'number' ? parseFloat(value) || 0 : value
+      }));
+    }
   };
 
   const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -192,12 +224,11 @@ export default function OperationForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validate required fields
     if (!formData.name?.trim()) {
       setError('Operation name is required');
       return;
     }
-    if (!formData.workstation) {
+    if (!formData.workstationId || formData.workstationId === 0) {
       setError('Workstation is required');
       return;
     }
@@ -211,7 +242,6 @@ export default function OperationForm() {
     }
 
     if (mode === 'view') {
-      // In view mode, confirm before saving
       if (!window.confirm('Do you want to save changes to this operation?')) {
         return;
       }
@@ -223,14 +253,23 @@ export default function OperationForm() {
 
     try {
       const payload = {
-        ...formData,
+        name: formData.name,
+        workstationId: formData.workstationId,
+        workstation_name: formData.workstation_name,
+        is_corrective_operation: formData.is_corrective_operation,
+        create_job_card_based_on_batch_size: formData.create_job_card_based_on_batch_size,
+        quality_inspection_template: formData.quality_inspection_template || '',
+        batch_size: formData.batch_size,
+        total_operation_time: formData.total_operation_time,
+        description: formData.description || '',
+        docstatus: formData.docstatus || 0,
+        hour_rate: formData.hour_rate || null,
         modified_by: 'Administrator',
         owner: 'Administrator'
       };
 
       let response;
       if (mode === 'edit' || mode === 'view') {
-        // For edit/view, pass id in payload
         response = await api.put('/operation', { 
           id: parseInt(id || '0'),
           ...payload 
@@ -249,7 +288,6 @@ export default function OperationForm() {
             navigate('/operations');
           }, 1500);
         } else {
-          // Refresh the data after update
           if (id) fetchOperation(id);
           setTimeout(() => {
             setSuccess(null);
@@ -397,26 +435,31 @@ export default function OperationForm() {
               </div>
 
               <div className="opf-form-group">
-                <label htmlFor="workstation">Workstation *</label>
+                <label htmlFor="workstationId">Workstation *</label>
                 <select
-                  id="workstation"
-                  name="workstation"
-                  value={formData.workstation || ''}
+                  id="workstationId"
+                  name="workstationId"
+                  value={formData.workstationId || 0}
                   onChange={handleChange}
                   required
                   disabled={isViewMode}
                   className={isViewMode ? 'opf-disabled' : ''}
                 >
-                  <option value="">Select Workstation</option>
+                  <option value={0}>Select Workstation</option>
                   {workstations
-                    .filter(w => w.disabled === 0)
+                    .filter(w => w.is_deleted === 0) // Filter active workstations
                     .map(w => (
-                      <option key={w.id} value={w.workstation_name}>
-                        {w.workstation_name} - {w.workstation_type} ({w.plant_floor})
+                      <option key={w.id} value={w.id}>
+                        {w.workstation_name} - {w.workstation_type} (₹{w.hour_rate}/hr)
                       </option>
                     ))
                   }
                 </select>
+                {workstations.length === 0 && (
+                  <small style={{ color: '#ef4444', display: 'block', marginTop: '4px' }}>
+                    No active workstations found. Please add a workstation first.
+                  </small>
+                )}
               </div>
 
               <div className="opf-form-group">

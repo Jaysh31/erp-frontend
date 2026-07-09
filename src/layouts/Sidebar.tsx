@@ -138,6 +138,8 @@ const allMenuCategories = [
       module: 'setup',
       icon: <SetupIcon />,
       items: [
+        { title: 'Employee', icon: <WarehouseIcon />, path: '/employee' },
+
         { title: 'Item', icon: <ItemIcon />, path: '/item-list' },
         { title: 'Item Group', icon: <FolderIcon />, path: '/item-group' },
         { title: 'Item Attribute', icon: <TagIcon />, path: '/item-attribute' },

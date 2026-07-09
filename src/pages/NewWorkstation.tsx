@@ -23,12 +23,10 @@ interface WorkstationFormData {
   workstation_name: string;
   workstation_type: string;
   plant_floor: string;
-  disabled: number;
+  // disabled: number;
   production_capacity: number;
   warehouse: string;
   status: string;
-  on_status_image: string;
-  off_status_image: string;
   hour_rate: number;
   description: string;
   holiday_list: string;
@@ -125,12 +123,10 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
     workstation_name: "",
     workstation_type: "",
     plant_floor: "Ground Floor",
-    disabled: 0,
+    // disabled: 0,
     production_capacity: 0,
     warehouse: "",
     status: "Active",
-    on_status_image: "on.png",
-    off_status_image: "off.png",
     hour_rate: 0,
     description: "",
     holiday_list: "India Holidays",
@@ -192,7 +188,6 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      // Check if click is outside the holiday container and picker
       if (
         holidayContainerRef.current && 
         !holidayContainerRef.current.contains(event.target as Node) &&
@@ -322,22 +317,16 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
         workstation_name: formData.workstation_name.trim(),
         workstation_type: formData.workstation_type,
         plant_floor: formData.plant_floor,
-        disabled: formData.disabled || 0,
+        // disabled: formData.disabled || 0,
         production_capacity: formData.production_capacity || 0,
         warehouse: formData.warehouse || "Main Warehouse",
         status: formData.status || "Active",
-        on_status_image: formData.on_status_image || "on.png",
-        off_status_image: formData.off_status_image || "off.png",
         hour_rate: formData.hour_rate || 0,
         description: formData.description || "",
         holiday_list: selectedHolidays.length > 0 
           ? `Custom: ${selectedHolidays.join(', ')}`
           : formData.holiday_list || "India Holidays",
         total_working_hours: formData.total_working_hours || 8,
-        _user_tags: formData._user_tags || "",
-        _comments: "",
-        _assign: "",
-        _liked_by: "",
         custom_holidays: selectedHolidays,
       };
 
@@ -457,10 +446,10 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
             </div>
           )}
           <span className="nws-badge--unsaved">Not Saved</span>
-          <button className="nws-btn-save" onClick={handleSave} disabled={saving}>
+          {/* <button className="nws-btn-save" onClick={handleSave} disabled={saving}>
             <Save size={13} />
             {saving ? 'Saving...' : 'Save'}
-          </button>
+          </button> */}
         </div>
       </div>
 
@@ -660,7 +649,7 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
                   className="nws-input"
                   value={formData.warehouse}
                   onChange={handleChange('warehouse')}
-                  disabled={warehousesLoading}
+                  // disabled={warehousesLoading}
                 >
                   <option value="">Select warehouse...</option>
                   {warehouses.map(warehouse => (
@@ -699,59 +688,6 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
           </div>
         </div>
 
-        {/* Images */}
-        <div className="nws-card">
-          <div className="nws-card__header">
-            <span className="nws-card__title">
-              <span className="nws-card__title-dot" style={{ background: '#8b5cf6' }} />
-              Status Images
-            </span>
-          </div>
-          <div className="nws-card__body">
-            <div className="nws-form-grid">
-              <div className="nws-field">
-                <label className="nws-label">On Status Image</label>
-                <input
-                  className="nws-input"
-                  value={formData.on_status_image}
-                  onChange={handleChange('on_status_image')}
-                  placeholder="on.png"
-                />
-              </div>
-              <div className="nws-field">
-                <label className="nws-label">Off Status Image</label>
-                <input
-                  className="nws-input"
-                  value={formData.off_status_image}
-                  onChange={handleChange('off_status_image')}
-                  placeholder="off.png"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Tags */}
-        <div className="nws-card">
-          <div className="nws-card__header">
-            <span className="nws-card__title">
-              <span className="nws-card__title-dot" style={{ background: '#f59e0b' }} />
-              Tags
-            </span>
-          </div>
-          <div className="nws-card__body">
-            <div className="nws-field">
-              <label className="nws-label">User Tags</label>
-              <input
-                className="nws-input"
-                value={formData._user_tags}
-                onChange={handleChange('_user_tags')}
-                placeholder="Enter tags separated by commas..."
-              />
-            </div>
-          </div>
-        </div>
-
         {/* Description */}
         <div className="nws-card">
           <div className="nws-card__header">
@@ -770,29 +706,6 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
                 rows={4}
               />
             </div>
-          </div>
-        </div>
-
-        {/* Disabled Toggle */}
-        <div className="nws-card">
-          <div className="nws-card__header">
-            <span className="nws-card__title">
-              <span className="nws-card__title-dot" style={{ background: '#ef4444' }} />
-              Status Control
-            </span>
-          </div>
-          <div className="nws-card__body">
-            <label className="nws-checkbox-label" style={{ fontSize: '14px' }}>
-              <input
-                type="checkbox"
-                checked={formData.disabled === 1}
-                onChange={(e) => setFormData(prev => ({
-                  ...prev,
-                  disabled: e.target.checked ? 1 : 0
-                }))}
-              />
-              <span>Disable Workstation</span>
-            </label>
           </div>
         </div>
       </div>

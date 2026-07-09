@@ -11,7 +11,6 @@ import {
   AlertTriangle,
   Package,
   Wrench,
-  Info,
   XCircle,
   InfoIcon,
   Save,
@@ -35,21 +34,8 @@ interface ComponentRow {
   conversionFactor?: string;
   itemGroup?: string;
   valuationRate?: number;
+  standardRate?: number;
   isNew?: boolean;
-}
-
-interface SecondaryRow {
-  id: number;
-  type: string;
-  itemCode: string;
-  itemName: string;
-  uom: string;
-  qty: string;
-  stockUom?: string;
-  conversionFactor?: string;
-  rate?: string;
-  costAllocationPer?: string;
-  processLossPer?: string;
 }
 
 interface OperationRow {
@@ -115,8 +101,10 @@ interface BOMOperationData {
 interface Operation {
   id: number;
   name: string;
-  workstation: string;
+  workstation?: string;
+  workstation_name?: string;
   workstationId?: number;
+  hour_rate?: number;
   is_corrective_operation: number;
   create_job_card_based_on_batch_size: number;
   quality_inspection_template: string;
@@ -140,24 +128,14 @@ interface Workstation {
   workstation_name: string;
   workstation_type: string;
   plant_floor: string;
-  disabled: number;
+  status: string;          // "Active" / "Inactive" etc — not `disabled`
+  is_deleted: number;      // 0 / 1
   production_capacity: number;
   warehouse: string;
-  status: string;
   hour_rate: number;
   description: string;
   holiday_list: string;
   total_working_hours: number;
-  _user_tags: string;
-  _comments: string | null;
-  _assign: string | null;
-  _liked_by: string | null;
-  creation: string;
-  modified: string;
-  modified_by: string;
-  owner: string;
-  docstatus: number;
-  idx: number;
 }
 
 interface Warehouse {
@@ -183,14 +161,10 @@ interface Item {
   brand: string | null;
   valuation_method: string;
   valuation_rate: number;
+  standard_rate: number;
   creation: string;
   modified: string;
 }
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const TYPE_OPTIONS = ["By-Product", "Scrap"];
-// const WORKSTATION_TYPES = ["Machine", "Work Center", "Assembly Line"];
 
 // ─── Shared atoms ─────────────────────────────────────────────────────────────
 
@@ -224,6 +198,18 @@ const Checkbox: React.FC<{ label: string; hint?: string; checked?: boolean; onCh
   </div>
 );
 
+const RadioOption: React.FC<{ label: string; hint?: string; name: string; value: string; checked: boolean; onChange: () => void }> = ({
+  label, hint, name, value, checked, onChange,
+}) => (
+  <label className="nbom-check-row" style={{ cursor: "pointer" }}>
+    <input type="radio" name={name} value={value} checked={checked} onChange={onChange} />
+    <div>
+      <div className="nbom-check-row__label">{label}</div>
+      {hint && <div className="nbom-check-row__hint">{hint}</div>}
+    </div>
+  </label>
+);
+
 // ─── BOM Configuration Tab ────────────────────────────────────────────────────
 
 interface BOMConfigTabProps {
@@ -232,6 +218,8 @@ interface BOMConfigTabProps {
   warehouses: Warehouse[];
   onDefaultSourceChange?: (value: string) => void;
   onDefaultTargetChange?: (value: string) => void;
+  bomType: "Internal" | "External";
+  onBomTypeChange: (value: "Internal" | "External") => void;
 }
 
 const BOMConfigTab: React.FC<BOMConfigTabProps> = ({ 
@@ -239,12 +227,11 @@ const BOMConfigTab: React.FC<BOMConfigTabProps> = ({
   defaultTargetWarehouse, 
   warehouses,
   onDefaultSourceChange,
-  onDefaultTargetChange 
+  onDefaultTargetChange,
+  bomType,
+  onBomTypeChange,
 }) => {
-  // const [isActive] = useState(true);
-  // const [isDefault] = useState(true);
   const [qiRequired, setQiRequired] = useState(false);
-  const [basedOn, setBasedOn] = useState("");
 
   return (
     <div className="nbom-tab-content">
@@ -290,47 +277,22 @@ const BOMConfigTab: React.FC<BOMConfigTabProps> = ({
       </div>
 
       <div className="nbom-config-section">
-        <div className="nbom-config-section__title">Consume Components</div>
-        <div style={{ maxWidth: 400 }}>
-          <div className="nbom-field">
-            <Label text="Based On" info />
-            <select className="nbom-input" value={basedOn} onChange={e => setBasedOn(e.target.value)}>
-              <option value=""></option>
-              <option value="BOM">BOM</option>
-              <option value="Sales Order">Sales Order</option>
-            </select>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ─── More Info Tab ────────────────────────────────────────────────────────────
-
-const MoreInfoTab: React.FC = () => {
-  const [project, setProject] = useState("");
-
-  return (
-    <div className="nbom-tab-content">
-      <div className="nbom-card" style={{ marginBottom: 0 }}>
-        <div className="nbom-card__body">
-          <div className="nbom-form-grid">
-            <div className="nbom-field">
-              <Label text="Currency" required />
-              <Input readOnly value="INR" />
-            </div>
-            <div className="nbom-field">
-              <Label text="Conversion Rate" required />
-              <Input readOnly value="1.000000000" />
-            </div>
-          </div>
-        </div>
-      </div>
-      <div style={{ padding: "16px 0", maxWidth: 400 }}>
-        <div className="nbom-field">
-          <Label text="Project" />
-          <Input value={project} onChange={e => setProject(e.target.value)} placeholder="" />
+        <div className="nbom-config-section__title">BOM Type</div>
+        <div style={{ display: "flex", gap: 24 }}>
+          <RadioOption
+            label="Internal"
+            name="bomType"
+            value="Internal"
+            checked={bomType === "Internal"}
+            onChange={() => onBomTypeChange("Internal")}
+          />
+          <RadioOption
+            label="External"
+            name="bomType"
+            value="External"
+            checked={bomType === "External"}
+            onChange={() => onBomTypeChange("External")}
+          />
         </div>
       </div>
     </div>
@@ -441,91 +403,6 @@ const ComponentPopup: React.FC<ComponentPopupProps> = ({ row, rowIndex, onClose,
   );
 };
 
-// ─── Secondary Item popup ─────────────────────────────────────────────────────
-
-interface SecondaryPopupProps {
-  row: SecondaryRow; rowIndex: number;
-  onClose: () => void; onSave: (u: SecondaryRow) => void;
-}
-
-const SecondaryPopup: React.FC<SecondaryPopupProps> = ({ row, rowIndex, onClose, onSave }) => {
-  const [form, setForm] = useState<SecondaryRow>({ ...row });
-  const set = (k: keyof SecondaryRow) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
-    setForm(f => ({ ...f, [k]: e.target.value }));
-
-  return (
-    <div className="nbom-overlay" onMouseDown={e => e.target === e.currentTarget && onClose()}>
-      <div className="nbom-popup">
-        <div className="nbom-popup__head">
-          <span className="nbom-popup__title">Editing Row #{rowIndex + 1}</span>
-          <div className="nbom-popup__actions">
-            <button className="nbom-popup-btn nbom-popup-btn--danger"><Trash2 size={13} /> Delete</button>
-            <button className="nbom-popup-btn">Insert Below</button>
-            <button className="nbom-popup-btn">Insert Above</button>
-            <button className="nbom-popup-btn"><Copy size={12} /> Duplicate</button>
-            <button className="nbom-popup-btn nbom-popup-btn--move">Move <ChevronDown size={13} /></button>
-            <button className="nbom-popup__close" onClick={onClose}><X size={16} /></button>
-          </div>
-        </div>
-        <div className="nbom-popup__body">
-          <div className="nbom-field">
-            <Label text="Type" required />
-            <select className="nbom-input" value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>
-              <option value="">Select…</option>
-              {TYPE_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
-          <div className="nbom-popup-grid">
-            <div className="nbom-field"><Label text="Item Code" required /><Input value={form.itemCode} onChange={set("itemCode")} placeholder="Search item…" /></div>
-            <div className="nbom-field"><Label text="Qty" required /><Input value={form.qty} onChange={set("qty")} type="number" /></div>
-          </div>
-          <div className="nbom-popup-grid">
-            <div className="nbom-field"><Label text="UOM" required /><Input value={form.uom} onChange={set("uom")} /></div>
-            <div className="nbom-field"><Label text="Stock UOM" /><Input readOnly value="Nos" /></div>
-          </div>
-          <div className="nbom-popup-grid">
-            <div /><div className="nbom-field"><Label text="Conversion Factor" required /><Input readOnly value="1.000" /></div>
-          </div>
-          <div className="nbom-field">
-            <Label text="Description" />
-            <div className="nbom-editor-wrap">
-              <div className="nbom-editor-toolbar">
-                <span style={{ fontSize: 12, color: "var(--c-text-muted)", padding: "0 6px", fontWeight: 600 }}>Normal</span>
-                <div className="nbom-editor-divider" />
-                {["B","I","U","S"].map(t => (
-                  <button key={t} className="nbom-editor-btn" style={{ fontWeight: t==="B"?700:400, fontStyle: t==="I"?"italic":"normal", textDecoration: t==="U"?"underline":t==="S"?"line-through":"none" }}>{t}</button>
-                ))}
-                <div className="nbom-editor-divider" />
-                {["≡","⊟","⊞","⟨⟩","🔗"].map((ic, i) => <button key={i} className="nbom-editor-btn">{ic}</button>)}
-              </div>
-              <textarea className="nbom-editor-area" placeholder="Add a description…" rows={5} />
-            </div>
-          </div>
-          <div className="nbom-popup-section">
-            <div className="nbom-popup-grid" style={{ padding: "14px 12px" }}>
-              <div className="nbom-field"><Label text="Cost Allocation %" required /><Input readOnly value="0.000" /></div>
-              <div className="nbom-field"><Label text="Cost" required /><Input readOnly value="₹ 0.00" /></div>
-              <div className="nbom-field"><Label text="Process Loss %" required /><Input readOnly value="0.000" /></div>
-              <div className="nbom-field"><Label text="Process Loss Qty" required /><Input readOnly value="0" /></div>
-            </div>
-          </div>
-        </div>
-        <div className="nbom-popup__foot">
-          <div className="nbom-shortcuts">
-            <span>Shortcuts:</span>
-            <kbd className="nbom-kbd">Ctrl + Up</kbd><span>·</span>
-            <kbd className="nbom-kbd">Ctrl + Down</kbd><span>·</span>
-            <kbd className="nbom-kbd">ESC</kbd>
-          </div>
-          <button className="nbom-popup-btn nbom-popup-btn--primary" onClick={() => { onSave(form); onClose(); }}>
-            Insert Below
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 // ─── Validation Modal ─────────────────────────────────────────────────────────
 
 interface ValidationModalProps {
@@ -578,12 +455,11 @@ const ValidationModal: React.FC<ValidationModalProps> = ({ errors, onClose, onJu
 
 // ─── Tab definitions ──────────────────────────────────────────────────────────
 
-type TabId = "production" | "config" | "info";
+type TabId = "production" | "config";
 
 const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: "production", label: "Production Item", icon: <Package size={14} /> },
   { id: "config", label: "BOM Configuration", icon: <Wrench size={14} /> },
-  { id: "info", label: "More Info", icon: <Info size={14} /> },
 ];
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
@@ -609,16 +485,12 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
   const [apiError, setApiError] = useState<string | null>(null);
   const [defaultSourceWarehouse, setDefaultSourceWarehouse] = useState("");
   const [defaultTargetWarehouse, setDefaultTargetWarehouse] = useState("");
+  const [bomType, setBomType] = useState<"Internal" | "External">("Internal");
 
   const [compRows, setCompRows] = useState<ComponentRow[]>([
-    { id: 1, itemCode: "", itemName: "", qty: "", uom: "", rate: "0", amount: "₹ 0.00", itemGroup: "", valuationRate: 0, isNew: true },
+    { id: 1, itemCode: "", itemName: "", qty: "", uom: "", rate: "0", amount: "₹ 0.00", itemGroup: "", valuationRate: 0, standardRate: 0, isNew: true },
   ]);
   const [editingComp, setEditingComp] = useState<{ row: ComponentRow; idx: number } | null>(null);
-
-  const [secRows, setSecRows] = useState<SecondaryRow[]>([
-    { id: 1, type: "", itemCode: "", itemName: "", uom: "", qty: "" },
-  ]);
-  const [editingSec, setEditingSec] = useState<{ row: SecondaryRow; idx: number } | null>(null);
 
   const [opRows, setOpRows] = useState<OperationRow[]>([
     {
@@ -670,6 +542,9 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
       // Set default warehouses
       setDefaultSourceWarehouse(bom.default_source_warehouse || "");
       setDefaultTargetWarehouse(bom.default_target_warehouse || "");
+
+      // Set BOM type
+      setBomType(bom.type === "External" ? "External" : "Internal");
       
       // Populate components
       if (items && items.length > 0) {
@@ -679,10 +554,11 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
           itemName: item.item_name,
           qty: String(item.qty),
           uom: item.uom,
-          rate: String(item.rate || item.valuation_rate || 0),
-          amount: `₹ ${(item.rate || item.valuation_rate || 0) * (item.qty || 0)}`,
+          rate: String(item.rate || item.standard_rate || item.valuation_rate || 0),
+          amount: `₹ ${(item.rate || item.standard_rate || item.valuation_rate || 0) * (item.qty || 0)}`,
           itemGroup: item.item_group || '',
           valuationRate: item.valuation_rate || 0,
+          standardRate: item.standard_rate || 0,
           isNew: false,
         }));
         setCompRows(comps);
@@ -748,7 +624,6 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
       setOperationsLoading(false);
     }
   };
-
   const fetchWorkstations = async () => {
     try {
       setWorkstationsLoading(true);
@@ -761,7 +636,10 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
         } else if (data && 'records' in data) {
           workstationList = data.records || [];
         }
-        setWorkstations(workstationList.filter(w => w.disabled === 0));
+        // was: w.disabled === 0  → always false, wiped everything
+        setWorkstations(
+          workstationList.filter(w => w.is_deleted === 0 && w.status === 'Active')
+        );
       }
     } catch (err: any) {
       console.error('Error fetching workstations:', err);
@@ -864,6 +742,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
       amount: "₹ 0.00",
       itemGroup: "",
       valuationRate: 0,
+      standardRate: 0,
       isNew: true
     }]);
 
@@ -874,25 +753,6 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
       return;
     }
     setCompRows(r => r.filter(row => row.id !== id));
-  };
-
-  const addSecRow = () =>
-    setSecRows(r => [...r, {
-      id: Date.now(),
-      type: "",
-      itemCode: "",
-      itemName: "",
-      uom: "",
-      qty: ""
-    }]);
-
-  const deleteSecRow = (id: number) => {
-    if (secRows.length <= 1) {
-      setApiError("Cannot delete the last row");
-      setTimeout(() => setApiError(null), 3000);
-      return;
-    }
-    setSecRows(r => r.filter(row => row.id !== id));
   };
 
   const addOpRow = () =>
@@ -920,32 +780,39 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
     setOpRows(r => r.filter(row => row.id !== id));
   };
 
-  // ─── When operation is selected, auto-fill workstation and hour rate ────
+  // ─── When operation is selected, auto-fill workstation, hour rate & time
+  //     directly from the /api/operation response ──────────────────────────
 
   const handleOperationSelect = (idx: number, operationName: string) => {
     const selectedOp = operations.find(op => op.name === operationName);
     if (selectedOp) {
       const workstationDetails = workstations.find(w => w.id === selectedOp.workstationId);
-      
+  
+      // Prefer the canonical list (workstations) so the value always matches
+      // an <option> in the dropdown. Fall back to the denormalized name only
+      // if the workstation truly isn't in the loaded list (e.g. disabled).
+      const workstationName = workstationDetails?.workstation_name || selectedOp.workstation_name || selectedOp.workstation || '';
+  
+      const hourRate = (workstationDetails?.hour_rate ?? selectedOp.hour_rate ?? 0).toString();
+      const timeInMins = selectedOp.total_operation_time?.toString() || '0';
+      const operatingCost = ((parseFloat(hourRate) || 0) * (parseFloat(timeInMins) || 0) / 60).toFixed(2);
+  
       setOpRows(rs => rs.map((r, i) => 
         i === idx ? {
           ...r,
           operation: operationName,
           operationId: selectedOp.id,
-          workstation: workstationDetails?.workstation_name || selectedOp.workstation || '',
+          workstation: workstationName,
           workstationId: selectedOp.workstationId,
-          timeInMins: selectedOp.total_operation_time?.toString() || r.timeInMins,
+          timeInMins,
           workstationType: workstationDetails?.workstation_type || '',
-          hourRate: workstationDetails?.hour_rate?.toString() || r.hourRate || '0',
-          operatingCost: workstationDetails?.hour_rate 
-            ? ((workstationDetails.hour_rate * (parseFloat(selectedOp.total_operation_time?.toString() || '0'))) / 60).toFixed(2)
-            : r.operatingCost || '0',
+          hourRate,
+          operatingCost,
           isNew: r.isNew,
         } : r
       ));
     }
   };
-
   // ─── When workstation is manually selected ──────────────────────────────
 
   const handleWorkstationSelect = (idx: number, workstationName: string) => {
@@ -1020,18 +887,10 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
       }
     });
 
-    let totalSecondaryCost = 0;
-    secRows.forEach(row => {
-      const rate = parseFloat(row.rate ?? '0') || 0;
-      const qty = parseFloat(row.qty ?? '0') || 0;
-      totalSecondaryCost += rate * qty;
-    });
-
     return {
       totalComponentCost: totalComponentCost.toFixed(2),
       totalOperationCost: totalOperationCost.toFixed(2),
-      totalSecondaryCost: totalSecondaryCost.toFixed(2),
-      totalCost: (totalComponentCost + totalOperationCost + totalSecondaryCost).toFixed(2)
+      totalCost: (totalComponentCost + totalOperationCost).toFixed(2)
     };
   };
 
@@ -1098,13 +957,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
         return sum + (parseFloat(row.operatingCost || "0") || 0);
       }, 0);
 
-      const totalSecondaryCost = secRows.reduce((sum, row) => {
-        const rate = parseFloat(row.rate || "0") || 0;
-        const qty = parseFloat(row.qty || "0") || 0;
-        return sum + (rate * qty);
-      }, 0);
-
-      const totalCost = totalComponentCost + totalOperationCost + totalSecondaryCost;
+      const totalCost = totalComponentCost + totalOperationCost;
       
       let bomResponse;
       const bomPayload = {
@@ -1115,17 +968,16 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
         uom: selectedItem?.stock_uom || "Nos",
         is_active: 1,
         is_default: 1,
+        type: bomType,
         description: `${itemToManufacture} BOM`,
-        owner: "Administrator",
+        // owner: "Administrator",
         modified_by: "Administrator",
         default_source_warehouse: defaultSourceWarehouse,
         default_target_warehouse: defaultTargetWarehouse,
         operating_cost: totalOperationCost,
         raw_material_cost: totalComponentCost,
-        secondary_items_cost: totalSecondaryCost,
         base_operating_cost: totalOperationCost,
         base_raw_material_cost: totalComponentCost,
-        base_secondary_items_cost: totalSecondaryCost,
         total_cost: totalCost,
         base_total_cost: totalCost,
       };
@@ -1154,7 +1006,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
       for (const comp of validComponents) {
         const compItem = items.find(i => i.item_code === comp.itemCode);
         const qty = parseFloat(comp.qty) || 0;
-        const rate = parseFloat(comp.rate) || compItem?.valuation_rate || 0;
+        const rate = parseFloat(comp.rate) || compItem?.standard_rate || compItem?.valuation_rate || 0;
         const amount = qty * rate;
         
         const itemPayload: BOMItemData = {
@@ -1206,35 +1058,6 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
           };
           await api.post('/bom-operation', opPayload);
         }
-      }
-
-      // 4) Create Secondary Items if any
-      const validSec = secRows.filter(r => r.itemCode.trim());
-      for (const sec of validSec) {
-        const secItem = items.find(i => i.item_code === sec.itemCode);
-        const secPayload = {
-          item_code: sec.itemCode,
-          item_name: secItem?.item_name || sec.itemName || sec.itemCode,
-          type: sec.type || "By Product",
-          rate: 0,
-          is_legacy: 0,
-          uom: sec.uom || secItem?.stock_uom || "Nos",
-          qty: parseFloat(sec.qty) || 0,
-          stock_uom: sec.uom || secItem?.stock_uom || "Nos",
-          conversion_factor: 1,
-          image: "",
-          description: `${sec.type || 'Secondary'} item generated from ${itemToManufacture}`,
-          cost_allocation_per: 0,
-          process_loss_per: 0,
-          parent: parentRef,
-          parentfield: "scrap_items",
-          parenttype: "BOM",
-          modified_by: "Administrator",
-          owner: "Administrator",
-          docstatus: 0,
-          idx: 0
-        };
-        await api.post('/bom-secondary', secPayload);
       }
 
       const totalCostFormatted = totalCost.toFixed(2);
@@ -1396,9 +1219,10 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
             warehouses={warehouses}
             onDefaultSourceChange={setDefaultSourceWarehouse}
             onDefaultTargetChange={setDefaultTargetWarehouse}
+            bomType={bomType}
+            onBomTypeChange={setBomType}
           />
         )}
-        {activeTab === "info" && <MoreInfoTab />}
 
         {activeTab === "production" && (
           <>
@@ -1482,16 +1306,16 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                                 <td className="nbom-table-cb"><input type="checkbox" /></td>
                                 <td className="nbom-table-no">{idx + 1}</td>
                                 <td>
-                                  <select
-                                    className="nbom-table-select"
-                                    value={row.operation}
-                                    onChange={e => handleOperationSelect(idx, e.target.value)}
-                                    disabled={operationsLoading}
-                                  >
+                                <select
+  className="nbom-table-select"
+  value={row.operation}
+  onChange={e => handleOperationSelect(idx, e.target.value)}
+  disabled={operationsLoading || workstationsLoading}
+>
                                     <option value="">{operationsLoading ? 'Loading operations...' : 'Select operation...'}</option>
                                     {operations.map(op => (
                                       <option key={op.id} value={op.name}>
-                                        {op.name} {op.description ? `- ${op.description}` : ''}
+                                        {op.name} {op.workstation_name ? `- ${op.workstation_name}` : ''} {op.hour_rate ? `(₹${op.hour_rate}/hr)` : ''}
                                       </option>
                                     ))}
                                   </select>
@@ -1624,23 +1448,25 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                               value={row.itemCode}
                               onChange={e => {
                                 const selectedItem = items.find(i => i.item_code === e.target.value);
+                                const rate = selectedItem?.standard_rate ?? selectedItem?.valuation_rate ?? 0;
                                 setCompRows(rs => rs.map((r, i) => i === idx ? {
                                   ...r,
                                   itemCode: e.target.value,
                                   itemName: selectedItem?.item_name || '',
                                   itemGroup: selectedItem?.item_group || '',
                                   uom: selectedItem?.stock_uom || r.uom,
-                                  rate: String(selectedItem?.valuation_rate || 0),
+                                  rate: String(rate),
                                   valuationRate: selectedItem?.valuation_rate || 0,
-                                  amount: `₹ ${((selectedItem?.valuation_rate || 0) * (parseFloat(r.qty) || 0)).toFixed(2)}`
+                                  standardRate: selectedItem?.standard_rate || 0,
+                                  amount: `₹ ${(rate * (parseFloat(r.qty) || 0)).toFixed(2)}`
                                 } : r));
                               }}
                             >
                               <option value="">Select item...</option>
                               {items.map(item => (
                                 <option key={item.id} value={item.item_code}>
-                                  {item.item_code} - {item.item_name} 
-                                  {item.valuation_rate ? ` (₹${item.valuation_rate})` : ''}
+                                  {item.item_code} - {item.item_name}
+                                  {item.standard_rate ? ` (₹${item.standard_rate})` : ''}
                                 </option>
                               ))}
                             </select>
@@ -1741,122 +1567,6 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
               </div>
             </div>
 
-            {/* Secondary Items */}
-            <div className="nbom-card">
-              <div className="nbom-card__body">
-                <div className="nbom-card__title" style={{ marginBottom: 14 }}>
-                  <span className="nbom-card__title-dot" style={{ background: "var(--c-teal)" }} />Secondary Items
-                </div>
-                <div className="nbom-table-wrap">
-                  <table className="nbom-table">
-                    <thead>
-                      <tr>
-                        <th className="nbom-table-cb"><input type="checkbox" /></th>
-                        <th className="nbom-table-no">No.</th>
-                        <th>Type</th>
-                        <th>Item Code <span style={{ color: "var(--c-danger)" }}>*</span></th>
-                        <th>Item Name</th>
-                        <th>UOM <span style={{ color: "var(--c-danger)" }}>*</span></th>
-                        <th>Qty <span style={{ color: "var(--c-danger)" }}>*</span></th>
-                        <th><Settings size={13} style={{ color: "var(--c-text-muted)" }} /></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {secRows.map((row, idx) => (
-                        <tr key={row.id}>
-                          <td className="nbom-table-cb"><input type="checkbox" /></td>
-                          <td className="nbom-table-no">{idx + 1}</td>
-                          <td>
-                            <select
-                              className="nbom-table-select"
-                              value={row.type}
-                              onChange={e => setSecRows(rs => rs.map((r, i) => i === idx ? { ...r, type: e.target.value } : r))}
-                            >
-                              <option value="">Select…</option>
-                              {TYPE_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
-                            </select>
-                          </td>
-                          <td>
-                            <select
-                              className="nbom-table-select"
-                              value={row.itemCode}
-                              onChange={e => {
-                                const selectedItem = items.find(i => i.item_code === e.target.value);
-                                setSecRows(rs => rs.map((r, i) => i === idx ? {
-                                  ...r,
-                                  itemCode: e.target.value,
-                                  itemName: selectedItem?.item_name || '',
-                                  uom: selectedItem?.stock_uom || r.uom
-                                } : r));
-                              }}
-                            >
-                              <option value="">Select item...</option>
-                              {items.map(item => (
-                                <option key={item.id} value={item.item_code}>
-                                  {item.item_code} - {item.item_name}
-                                </option>
-                              ))}
-                            </select>
-                          </td>
-                          <td>
-                            <input
-                              className="nbom-table-input"
-                              value={row.itemName}
-                              readOnly
-                              style={{ background: "var(--c-bg-muted)" }}
-                            />
-                          </td>
-                          <td>
-                            <input
-                              className="nbom-table-input"
-                              value={row.uom}
-                              onChange={e => setSecRows(rs => rs.map((r, i) => i === idx ? { ...r, uom: e.target.value } : r))}
-                              placeholder="UOM"
-                              style={{ width: 80 }}
-                            />
-                          </td>
-                          <td>
-                            <input
-                              className="nbom-table-input"
-                              value={row.qty}
-                              onChange={e => setSecRows(rs => rs.map((r, i) => i === idx ? { ...r, qty: e.target.value } : r))}
-                              placeholder="Qty"
-                              style={{ width: 70, textAlign: "right" }}
-                              type="number"
-                              step="0.001"
-                            />
-                          </td>
-                          <td style={{ textAlign: "center" }}>
-                            <button
-                              className="nbom-edit-btn"
-                              onClick={() => setEditingSec({ row, idx })}
-                              title="Edit row"
-                            >
-                              <Pencil size={12} />
-                            </button>
-                            <button
-                              className="nbom-edit-btn nbom-edit-btn--delete"
-                              onClick={() => deleteSecRow(row.id)}
-                              title="Delete row"
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="nbom-table-footer">
-                  <div className="nbom-table-footer__left">
-                    <button className="nbom-btn-link" onClick={addSecRow}>
-                      <Plus size={12} /> Add Secondary
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
             {/* Cost Summary */}
             <div className="nbom-card">
               <div className="nbom-card__body">
@@ -1871,10 +1581,6 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                   <div className="nbom-cost-item">
                     <span>Operation Cost:</span>
                     <strong>₹{calculateTotalCost().totalOperationCost}</strong>
-                  </div>
-                  <div className="nbom-cost-item">
-                    <span>Secondary Items Cost:</span>
-                    <strong>₹{calculateTotalCost().totalSecondaryCost}</strong>
                   </div>
                   <div className="nbom-cost-item nbom-cost-total">
                     <span>Total BOM Cost:</span>
@@ -1911,11 +1617,6 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
         <ComponentPopup row={editingComp.row} rowIndex={editingComp.idx}
           onClose={() => setEditingComp(null)}
           onSave={updated => setCompRows(rs => rs.map((r, i) => i === editingComp.idx ? updated : r))} />
-      )}
-      {editingSec && (
-        <SecondaryPopup row={editingSec.row} rowIndex={editingSec.idx}
-          onClose={() => setEditingSec(null)}
-          onSave={updated => setSecRows(rs => rs.map((r, i) => i === editingSec.idx ? updated : r))} />
       )}
     </div>
   );
