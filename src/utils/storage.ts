@@ -5,11 +5,27 @@ interface UserData {
   fullName: string;
   mobileNumber: string | null;
   email: string;
+  role?: {
+    id: number;
+    name: string;
+  };
+}
+
+interface SubModule {
+  submoduleId: number;
+  submoduleName: string;
+}
+
+interface Module {
+  moduleId: number;
+  moduleName: string;
+  submodules: SubModule[];
 }
 
 interface AuthData {
   user: UserData;
   token: string;
+  modules?: Module[];
 }
 
 const STORAGE_KEYS = {
@@ -19,14 +35,19 @@ const STORAGE_KEYS = {
   USER_NAME: 'userName',
   USER_EMAIL: 'userEmail',
   USER_MOBILE: 'userMobile',
+  USER_ROLE: 'userRole',
   AUTH_DATA: 'authData',
+  MODULES: 'modules',
 } as const;
 
-// Generic get/set/remove functions
 export const storage = {
-  // Generic methods
   set: <T>(key: string, value: T): void => {
     try {
+      // Don't store undefined or null values
+      if (value === undefined || value === null) {
+        localStorage.removeItem(key);
+        return;
+      }
       localStorage.setItem(key, JSON.stringify(value));
     } catch (error) {
       console.error(`Error saving to localStorage key "${key}":`, error);
@@ -36,7 +57,9 @@ export const storage = {
   get: <T>(key: string, defaultValue?: T): T | null => {
     try {
       const item = localStorage.getItem(key);
-      if (item === null) return defaultValue || null;
+      if (item === null || item === 'undefined' || item === 'null') {
+        return defaultValue || null;
+      }
       return JSON.parse(item) as T;
     } catch (error) {
       console.error(`Error reading from localStorage key "${key}":`, error);
@@ -60,9 +83,8 @@ export const storage = {
     }
   },
 
-  // Auth specific methods
   setAuthData: (authData: AuthData): void => {
-    const { user, token } = authData;
+    const { user, token, modules } = authData;
     
     // Store token
     storage.set(STORAGE_KEYS.TOKEN, token);
@@ -75,6 +97,16 @@ export const storage = {
     storage.set(STORAGE_KEYS.USER_NAME, user.fullName);
     storage.set(STORAGE_KEYS.USER_EMAIL, user.email);
     storage.set(STORAGE_KEYS.USER_MOBILE, user.mobileNumber);
+    if (user.role) {
+      storage.set(STORAGE_KEYS.USER_ROLE, user.role);
+    }
+    
+    // Store modules
+    if (modules && modules.length > 0) {
+      storage.set(STORAGE_KEYS.MODULES, modules);
+    } else {
+      storage.remove(STORAGE_KEYS.MODULES);
+    }
     
     // Store complete auth data
     storage.set(STORAGE_KEYS.AUTH_DATA, authData);
@@ -108,25 +140,30 @@ export const storage = {
     return storage.get<string>(STORAGE_KEYS.USER_MOBILE);
   },
 
+  getUserRole: (): { id: number; name: string } | null => {
+    return storage.get<{ id: number; name: string }>(STORAGE_KEYS.USER_ROLE);
+  },
+
+  getModules: (): Module[] | null => {
+    return storage.get<Module[]>(STORAGE_KEYS.MODULES);
+  },
+
   isAuthenticated: (): boolean => {
     const token = storage.getToken();
     return !!token && token.length > 0;
   },
 
   clearAuthData: (): void => {
-    // Remove all auth-related data
     Object.values(STORAGE_KEYS).forEach(key => {
       storage.remove(key);
     });
   },
 
-  // Utility to check if token is expired
   isTokenExpired: (): boolean => {
     try {
       const token = storage.getToken();
       if (!token) return true;
 
-      // Decode JWT token to check expiration
       const payload = token.split('.')[1];
       const decoded = JSON.parse(atob(payload));
       
@@ -141,7 +178,6 @@ export const storage = {
     }
   },
 
-  // Get token expiry time
   getTokenExpiry: (): Date | null => {
     try {
       const token = storage.getToken();
@@ -161,7 +197,6 @@ export const storage = {
   },
 };
 
-// Export individual functions for convenience
 export const {
   set: setStorageItem,
   get: getStorageItem,
@@ -175,11 +210,12 @@ export const {
   getUserName,
   getUserEmail,
   getUserMobile,
+  getUserRole,
+  getModules,
   isAuthenticated,
   clearAuthData,
   isTokenExpired,
   getTokenExpiry,
 } = storage;
 
-// Default export for convenience
 export default storage;

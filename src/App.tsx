@@ -94,6 +94,7 @@ import Employee from "./pages/Setup/Employee";
 import EmployeeForm from "./pages/Setup/EmployeeForm";
 import Stock from "./pages/Stock";
 
+import UserForm from "./pages/UserManagement/UserForm";
 
 
 function App() {
@@ -251,6 +252,11 @@ function App() {
               
               <Route path="/employee" element={<Employee />} />
               <Route path="/employee/new" element={<EmployeeForm />} />
+              {/* User Management Routes */}
+<Route path="/user-management" element={<UserManagement />} />
+<Route path="/users/new" element={<UserForm />} />
+<Route path="/users/:id" element={<UserForm />} />
+
 
               <Route path="/employee/:id" element={<EmployeeForm />} />
 

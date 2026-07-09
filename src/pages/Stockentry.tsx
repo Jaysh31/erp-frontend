@@ -17,7 +17,6 @@ import {
   FaBoxes,
   FaClipboardList,
   FaWarehouse,
-  FaDollarSign,
   FaCalendarAlt,
   FaUser,
   FaFileAlt,

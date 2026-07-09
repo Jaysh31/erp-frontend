@@ -17,7 +17,6 @@ import {
   FaCalculator,
   FaSearch,
   FaChevronDown,
-  FaSync,
   FaBuilding,
 } from "react-icons/fa";
 import "./StockEntryForm2.css";
@@ -1343,12 +1342,12 @@ export default function StockEntryForm2() {
   // ─── Calculations ──────────────────────────────────────────────────────
 
   const totalAdditionalCosts = se.additionalCosts.reduce(
-    (sum, cost) => sum + (parseFloat(cost.amount) || 0),
+    (sum, cost) => sum + (parseFloat(cost.amount ?? '0') || 0),
     0
   );
 
   const totalItemAmount = se.items.reduce(
-    (sum, item) => sum + (parseFloat(item.amount) || 0),
+    (sum, item) => sum + (parseFloat(item.amount ?? '0') || 0),
     0
   );
 
@@ -1422,7 +1421,7 @@ export default function StockEntryForm2() {
         qty: parseFloat(item.qty) || 0,
         uom: item.uom || "Nos",
         rate: parseFloat(item.basicRate) || 0,
-        amount: parseFloat(item.amount) || 0,
+        amount: parseFloat(item.amount || "0") || 0,
         warehouse: item.targetWarehouse || data.targetWarehouse,
       }));
 
