@@ -61,7 +61,7 @@ interface ValidationError {
 interface GRNData {
   id?: string;
   grn_number: string;
-  supplier_id: number;
+  supplier_id?: number;
   grnDate: string;
   supplier: string;
   supplierId?: number;

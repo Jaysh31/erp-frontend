@@ -29,6 +29,7 @@ import {
   FaCheckCircle,
   FaClock,
   FaExclamationCircle,
+  FaDollarSign,
 } from "react-icons/fa";
 import "./Stockentry.css";
 import { useAdminTheme } from "../admin-theme/AdminThemeContext";
