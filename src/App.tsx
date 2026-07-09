@@ -90,6 +90,10 @@ import GRNForm from "./pages/GRNForm";
 import GRNList from "./pages/GRNList";
 import PurchaseInvoiceForm from "./pages/PurchaseInvoiceForm";
 import UserManagement from "./pages/UserManagement/UserManagement";
+import Employee from "./pages/Setup/Employee";
+import EmployeeForm from "./pages/Setup/EmployeeForm";
+import Stock from "./pages/Stock";
+
 
 
 function App() {
@@ -193,6 +197,10 @@ function App() {
               <Route path="/stock-entry" element={<Stockentry />} />
               <Route path="/stock-entry/new" element={<StockentryForm2 />} />
               <Route path="/stock-entry/:id" element={<StockentryForm2 />} />
+
+
+              {/* <Route path="/new" element={<Stock />} /> */}
+
               {/* Item Routes */}
               <Route path="/item-list" element={<Itemlist />} />
               <Route path="/item/:id" element={<ItemForm />} />
@@ -239,7 +247,12 @@ function App() {
               {/* NewWorkstation Routes */}
               <Route path="/NewWorkstation" element={<NewWorkstation />} />
 
+              {/* Employee Routes */}
+              
+              <Route path="/employee" element={<Employee />} />
+              <Route path="/employee/new" element={<EmployeeForm />} />
 
+              <Route path="/employee/:id" element={<EmployeeForm />} />
 
               {/* operation Routes */}
 

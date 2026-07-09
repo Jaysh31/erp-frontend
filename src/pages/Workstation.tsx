@@ -1,4 +1,4 @@
-// Workstation.tsx - Updated with clean light theme
+// Workstation.tsx - Updated with correct status handling
 
 import { useState, useEffect } from "react";
 import {
@@ -48,6 +48,7 @@ interface Workstation {
   owner: string;
   docstatus: number;
   idx: number;
+  is_deleted: number; // Add this field
 }
 
 interface ApiResponse {
@@ -158,9 +159,10 @@ export default function WorkstationList() {
     const matchesSearch = ws.workstation_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           ws.workstation_type?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           ws.plant_floor?.toLowerCase().includes(searchTerm.toLowerCase());
+    // Use is_deleted instead of disabled for filtering
     const matchesStatus = statusFilter === 'all' || 
-                         (statusFilter === 'active' && ws.disabled === 0) ||
-                         (statusFilter === 'disabled' && ws.disabled === 1);
+                         (statusFilter === 'active' && ws.is_deleted === 0) ||
+                         (statusFilter === 'disabled' && ws.is_deleted === 1);
     return matchesSearch && matchesStatus;
   });
 
@@ -189,14 +191,14 @@ export default function WorkstationList() {
     },
     { 
       title: 'Active', 
-      value: workstations.filter(ws => ws.disabled === 0).length, 
+      value: workstations.filter(ws => ws.is_deleted === 0).length, 
       icon: <FaCheckCircle />, 
       color: '#10B981',
       lightColor: '#ECFDF5'
     },
     { 
       title: 'Disabled', 
-      value: workstations.filter(ws => ws.disabled === 1).length, 
+      value: workstations.filter(ws => ws.is_deleted === 1).length, 
       icon: <FaExclamationTriangle />, 
       color: '#EF4444',
       lightColor: '#FEF2F2'
@@ -332,6 +334,11 @@ export default function WorkstationList() {
   const clearFilters = () => {
     setSearchTerm('');
     setStatusFilter('all');
+  };
+
+  // ─── Check if workstation is active ──────────────────────────────────────
+  const isWorkstationActive = (ws: Workstation) => {
+    return ws.is_deleted === 0;
   };
 
   // ─── Render ───────────────────────────────────────────────────────────────
@@ -494,25 +501,26 @@ export default function WorkstationList() {
                           <td className="wo-td-name">{ws.workstation_name}</td>
                           <td className="wo-td-type">{ws.workstation_type}</td>
                           <td>
-                            {ws.status && ws.status.toLowerCase() !== 'active' ? (
+                            {/* Use is_deleted to determine active/disabled status */}
+                            {isWorkstationActive(ws) ? (
                               <span 
                                 className="wo-status-badge"
                                 style={{
-                                  background: getStatusBgColor(ws.status),
-                                  color: getStatusColor(ws.status),
+                                  background: '#D1FAE5',
+                                  color: '#10B981',
                                 }}
                               >
-                                {ws.status}
+                                Active
                               </span>
                             ) : (
                               <span 
                                 className="wo-status-badge"
                                 style={{
-                                  background: ws.disabled === 0 ? '#D1FAE5' : '#FEE2E2',
-                                  color: ws.disabled === 0 ? '#10B981' : '#EF4444',
+                                  background: '#FEE2E2',
+                                  color: '#EF4444',
                                 }}
                               >
-                                {ws.disabled === 0 ? 'Active' : 'Disabled'}
+                                Disabled
                               </span>
                             )}
                           </td>
@@ -680,25 +688,25 @@ export default function WorkstationList() {
                       <div className="wo-detail-row">
                         <span className="wo-detail-label">Status</span>
                         <span className="wo-detail-value">
-                          {selectedWorkstation.status && selectedWorkstation.status.toLowerCase() !== 'active' ? (
+                          {isWorkstationActive(selectedWorkstation) ? (
                             <span 
                               className="wo-status-badge"
                               style={{
-                                background: getStatusBgColor(selectedWorkstation.status),
-                                color: getStatusColor(selectedWorkstation.status),
+                                background: '#D1FAE5',
+                                color: '#10B981',
                               }}
                             >
-                              {selectedWorkstation.status}
+                              Active
                             </span>
                           ) : (
                             <span 
                               className="wo-status-badge"
                               style={{
-                                background: selectedWorkstation.disabled === 0 ? '#D1FAE5' : '#FEE2E2',
-                                color: selectedWorkstation.disabled === 0 ? '#10B981' : '#EF4444',
+                                background: '#FEE2E2',
+                                color: '#EF4444',
                               }}
                             >
-                              {selectedWorkstation.disabled === 0 ? 'Active' : 'Disabled'}
+                              Disabled
                             </span>
                           )}
                         </span>

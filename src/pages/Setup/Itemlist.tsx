@@ -471,16 +471,11 @@ export default function ItemList() {
         </>
       )}
 
-      {/* Quick Add Modal */}
-      {showModal && (
-        <ItemQuickAdd
-          onClose={() => setShowModal(false)}
-          onEditFull={(data) => {
-            setShowModal(false);
-            navigate("/item/new", { state: { prefill: data } });
-          }}
-        />
-      )}
+    {showModal && (
+  <>
+    {navigate("/item/new")}
+  </>
+)}
     </div>
   );
 }
