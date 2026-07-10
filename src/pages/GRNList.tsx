@@ -17,38 +17,63 @@ import {
   FaClipboardCheck,
   FaClock,
   FaExclamationTriangle,
+  FaUser,
+  FaHashtag,
+  FaCalendarAlt,
 } from 'react-icons/fa';
 import "./GRNList.css";
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import api from '../services/api';
 
 interface GRN {
-  id: string;
-  grn_no: string;
+  id: number;
+  grn_number: string;
   grn_date: string;
-  supplier: string;
-  purchase_order: string;
-  warehouse: string;
+  supplier_id: number;
+  supplier_name: string;
+  purchase_order_id: number;
+  warehouse_id: number;
   received_by: string;
+  vehicle_number: string | null;
+  delivery_challan_no: string;
+  invoice_number: string | null;
   status: 'draft' | 'submitted' | 'completed' | 'rejected';
+  total_ordered_qty: number;
+  total_received_qty: number;
+  total_accepted_qty: number;
+  total_rejected_qty: number;
+  remarks: string | null;
   total_items: number;
-  creation: string;
 }
 
 interface GRNDisplay {
   id: string;
   grnNo: string;
   supplier: string;
+  supplierId: number;
   poReference: string;
   date: string;
   status: 'draft' | 'submitted' | 'completed' | 'rejected';
   items: number;
+  receivedBy: string;
+  orderedQty: number;
+  receivedQty: number;
+  acceptedQty: number;
+  rejectedQty: number;
   createdAgo: string;
 }
 
 interface ApiResponse {
   success: number;
-  data: GRN[];
+  data: {
+    data: GRN[];
+    totalRecords: number;
+    page: number;
+    limit: number;
+  };
+  totalRecords: number;
+  page: number;
+  limit: number;
 }
 
 export default function GRNList() {
@@ -64,7 +89,7 @@ export default function GRNList() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [, setTotalItems] = useState(0);
+  const [totalRecords, setTotalRecords] = useState(0);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedItem, setSelectedItem] = useState<GRNDisplay | null>(null);
 
@@ -94,6 +119,13 @@ export default function GRNList() {
     return `${Math.floor(diffDays / 365)} y`;
   };
 
+  // Format date for display
+  const formatDateDisplay = (dateString: string) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+
   // Fetch GRNs from API
   const fetchGRNs = async () => {
     setLoading(true);
@@ -102,31 +134,40 @@ export default function GRNList() {
       const response = await api.get<ApiResponse>(`/grn?page=${currentPage}&limit=${itemsPerPage}`);
       
       if (response.data.success === 1) {
-        const data = response.data.data;
-        setTotalItems(data.length);
+        const apiData = response.data.data;
+        const records = apiData.data || [];
+        const total = apiData.totalRecords || response.data.totalRecords || 0;
+        
+        setTotalRecords(total);
         
         // Transform API data to display format
-        const transformedData: GRNDisplay[] = data.map((item: GRN) => ({
+        const transformedData: GRNDisplay[] = records.map((item: GRN) => ({
           id: item.id.toString(),
-          grnNo: item.grn_no || `GRN-${String(item.id).padStart(5, '0')}`,
-          supplier: item.supplier || 'N/A',
-          poReference: item.purchase_order || 'N/A',
-          date: item.grn_date ? new Date(item.grn_date).toLocaleDateString() : 'N/A',
+          grnNo: item.grn_number || `GRN-${String(item.id).padStart(5, '0')}`,
+          supplier: item.supplier_name || 'N/A',
+          supplierId: item.supplier_id || 0,
+          poReference: item.purchase_order_id ? `PO-${String(item.purchase_order_id).padStart(5, '0')}` : 'N/A',
+          date: formatDateDisplay(item.grn_date),
           status: item.status || 'draft',
           items: item.total_items || 0,
-          createdAgo: formatDate(item.creation || new Date().toISOString()),
+          receivedBy: item.received_by || 'N/A',
+          orderedQty: item.total_ordered_qty || 0,
+          receivedQty: item.total_received_qty || 0,
+          acceptedQty: item.total_accepted_qty || 0,
+          rejectedQty: item.total_rejected_qty || 0,
+          createdAgo: formatDate(item.grn_date || new Date().toISOString()),
         }));
         
         setGrns(transformedData);
 
         // Update stats
-        const total = transformedData.length;
+        const totalGrns = transformedData.length;
         const pending = transformedData.filter(g => g.status === 'draft' || g.status === 'submitted').length;
         const completed = transformedData.filter(g => g.status === 'completed').length;
         const rejected = transformedData.filter(g => g.status === 'rejected').length;
 
         setStats([
-          { title: 'Total GRNs', value: total, icon: <FaBoxes />, color: '#6366f1' },
+          { title: 'Total GRNs', value: totalGrns, icon: <FaBoxes />, color: '#6366f1' },
           { title: 'Pending GRNs', value: pending, icon: <FaClock />, color: '#f59e0b' },
           { title: 'Completed', value: completed, icon: <FaClipboardCheck />, color: '#10b981' },
           { title: 'Rejected', value: rejected, icon: <FaExclamationTriangle />, color: '#ef4444' },
@@ -154,9 +195,11 @@ export default function GRNList() {
 
   // Filter data based on search and status
   const filteredData = grns.filter(item => {
-    const matchesSearch = item.grnNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          item.supplier.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          item.poReference.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = 
+      item.grnNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.supplier.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.poReference.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.receivedBy.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || item.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -396,26 +439,20 @@ export default function GRNList() {
                   </th>
                   <th className="grn-th">GRN No.</th>
                   <th className="grn-th">Supplier</th>
-                  <th className="grn-th">PO Reference</th>
+                  <th className="grn-th">PO</th>
+                  <th className="grn-th">Received By</th>
                   <th className="grn-th">Date</th>
                   <th className="grn-th">Status</th>
-                  <th className="grn-th">Items</th>
-                  <th className="grn-th grn-th-meta">
-                    <span className="grn-count-label">{totalFilteredItems} of {grns.length}</span>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary, #9ca3af)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                    </svg>
-                  </th>
+                  <th className="grn-th">Qty (Rcv/Acpt)</th>
+                  <th className="grn-th grn-th-meta">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {paginatedData.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="grn-empty-state">
+                    <td colSpan={9} className="grn-empty-state">
                       <div className="grn-empty-content">
-                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-                        </svg>
+                        <FaBoxes size={48} style={{ color: 'var(--text-secondary)' }} />
                         <p>No GRNs found</p>
                         <span>Try adjusting your search criteria</span>
                       </div>
@@ -430,37 +467,60 @@ export default function GRNList() {
                       <td className="grn-td-check" onClick={(e) => { e.stopPropagation(); toggleRow(row.id); }}>
                         <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleRow(row.id)} className="grn-checkbox" />
                       </td>
-                      <td className="grn-td grn-td-id">{row.grnNo}</td>
-                      <td className="grn-td">{row.supplier}</td>
-                      <td className="grn-td">{row.poReference}</td>
-                      <td className="grn-td">{row.date}</td>
+                      <td className="grn-td grn-td-id">
+                        <span className="grn-id">{row.grnNo}</span>
+                      </td>
+                      <td className="grn-td grn-td-supplier">
+                        <span className="grn-supplier-name">{row.supplier}</span>
+                      </td>
+                      <td className="grn-td grn-td-po">
+                        <span className="grn-po-ref">{row.poReference}</span>
+                      </td>
+                      <td className="grn-td grn-td-received-by">
+                        <span className="grn-received-by">
+                          <FaUser size={10} />
+                          {row.receivedBy}
+                        </span>
+                      </td>
+                      <td className="grn-td grn-td-date">
+                        <span className="grn-date">
+                          <FaCalendarAlt size={10} />
+                          {row.date}
+                        </span>
+                      </td>
                       <td className="grn-td">
                         <span className={`grn-status-badge ${getStatusBadgeClass(row.status)}`}>
                           {getStatusLabel(row.status)}
                         </span>
                       </td>
-                      <td className="grn-td">{row.items}</td>
-                      <td className="grn-td grn-td-meta">
+                      <td className="grn-td grn-td-qty">
+                        <div className="grn-qty-info">
+                          <span className="grn-qty-received">{row.receivedQty}</span>
+                          <span className="grn-qty-sep">/</span>
+                          <span className="grn-qty-accepted">{row.acceptedQty}</span>
+                        </div>
+                      </td>
+                      <td className="grn-td grn-td-meta" onClick={(e) => e.stopPropagation()}>
                         <span className="grn-ago">{row.createdAgo}</span>
                         <span className="grn-dot">·</span>
                         <div className="grn-action-buttons">
                           <button 
                             className="grn-action-btn grn-action-view" 
-                            onClick={(e) => { e.stopPropagation(); handleView(row); }}
+                            onClick={() => handleView(row)}
                             title="View"
                           >
                             <FaEye size={12} />
                           </button>
                           <button 
                             className="grn-action-btn grn-action-edit" 
-                            onClick={(e) => { e.stopPropagation(); handleEdit(row); }}
+                            onClick={() => handleEdit(row)}
                             title="Edit"
                           >
                             <FaEdit size={12} />
                           </button>
                           <button 
                             className="grn-action-btn grn-action-delete" 
-                            onClick={(e) => { e.stopPropagation(); handleDelete(row); }}
+                            onClick={() => handleDelete(row)}
                             title="Delete"
                           >
                             <FaTrash size={12} />
@@ -474,7 +534,7 @@ export default function GRNList() {
             </table>
           </div>
 
-          {/* Pagination - Always visible */}
+          {/* Pagination */}
           <div className="grn-pagination">
             <div className="grn-pagination-left">
               <span className="grn-pagination-label">Show:</span>
@@ -489,6 +549,7 @@ export default function GRNList() {
                 <option value={100}>100</option>
               </select>
               <span className="grn-pagination-label">entries</span>
+              <span className="grn-pagination-total">of {totalRecords}</span>
             </div>
             <div className="grn-pagination-center">
               <button 
