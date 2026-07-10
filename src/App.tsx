@@ -95,6 +95,7 @@ import EmployeeForm from "./pages/Setup/EmployeeForm";
 import Stock from "./pages/Stock";
 
 import UserForm from "./pages/UserManagement/UserForm";
+import InventoryList from "./pages/InventoryList";
 
 
 function App() {
@@ -190,6 +191,9 @@ function App() {
             <Route path="/production" element={<ProductionPage />} />
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/settings" element={<SettingsPage />} /> */}
+
+{/* <Route path="/inventory" element={<InventoryPage />} /> */}
+
               <Route path="/job-card" element={<JobCardManagement />} />
               <Route path="/job-cards/new" element={<JobCardForm />} />
               <Route path="/job-cards/:id" element={<JobCardForm />} />
@@ -202,6 +206,17 @@ function App() {
 
 
               {/* <Route path="/new" element={<Stock />} /> */}
+
+
+
+              {/* Inventory Routes */}
+              <Route path="/InventoryList" element={<InventoryList />} />
+
+              {/* Inventory Routes */}
+
+
+
+
 
               {/* Item Routes */}
               <Route path="/item-list" element={<Itemlist />} />

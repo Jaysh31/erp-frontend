@@ -119,9 +119,23 @@ const allMenuCategories = [
         { title: 'Work Order', icon: <WorkOrderIcon />, path: '/work-order' },
         { title: 'Job Card', icon: <JobCardIcon />, path: '/job-card' },
         { title: 'Stock Entry', icon: <StockIcon />, path: '/stock-entry' },
+                { title: 'Inventory', icon: <BomIcon />, path: '/InventoryList' },
+        // ]
         // { title: 'Material Planning', icon: <TruckIcon />, path: '/material-planning' }
       ]
     },
+   
+    // {
+    //   title: 'Inventory',
+    //   module: 'Inventory',
+    //   icon: <ManufacturingIcon />,
+    //   items: [
+    //     { title: 'BOM', icon: <BomIcon />, path: '/InventoryList' },
+    //     ]
+    // },
+
+
+    
     {
       title: 'Organization',
       module: 'organization',
