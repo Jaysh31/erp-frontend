@@ -1,4 +1,4 @@
-// GRNForm.tsx
+// GRNForm.tsx - Fixed with proper item_id handling
 import { useState, useEffect, type FormEvent, useRef } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import {
@@ -61,7 +61,6 @@ interface ValidationError {
 interface GRNData {
   id?: string;
   grn_number: string;
-  supplier_id?: number;
   grnDate: string;
   supplier: string;
   supplierId?: number;
@@ -201,6 +200,51 @@ interface EmployeeApiResponse {
   };
 }
 
+// ─── GRN API Response Interface ──────────────────────────────────────
+interface GRNApiResponse {
+  success: number;
+  data: {
+    id: number;
+    grn_number: string;
+    grn_date: string;
+    supplier_id: number;
+    supplier_name: string;
+    purchase_order_id: number;
+    warehouse_id: number;
+    warehouse_name: string;
+    received_by: string;
+    received_by_id?: number;
+    vehicle_number: string | null;
+    delivery_challan_no: string;
+    invoice_number: string | null;
+    status: 'draft' | 'submitted' | 'completed' | 'rejected';
+    total_ordered_qty: number;
+    total_received_qty: number;
+    total_accepted_qty: number;
+    total_rejected_qty: number;
+    remarks: string | null;
+    total_items: number;
+    items?: GRNApiItem[];
+  };
+}
+
+interface GRNApiItem {
+  id: number;
+  item_code: string;
+  item_name: string;
+  ordered_qty: number;
+  received_qty: number;
+  accepted_qty: number;
+  rejected_qty: number;
+  uom: string;
+  rate: number;
+  batch_no: string;
+  expiry_date: string;
+  remarks: string;
+  po_item_id?: number;
+  item_id?: number;  // Add item_id field
+}
+
 export default function GRNForm() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -212,7 +256,6 @@ export default function GRNForm() {
   // ─── Form State ────────────────────────────────────────────────────────
   const [formData, setFormData] = useState<GRNData>({
     grn_number: '',
-    supplier_id:undefined,
     grnDate: new Date().toISOString().split('T')[0],
     supplier: '',
     supplierId: undefined,
@@ -350,10 +393,9 @@ export default function GRNForm() {
       expiryDate: '',
       remarks: '',
       poItemId: item.id,
-      itemId: undefined,
+      itemId: item.id, // Use the PO item id as the item_id
     }));
 
-    // Find warehouse ID from the warehouses list
     let warehouseId: number | undefined;
     if (poDetail.set_warehouse) {
       const found = warehouses.find(w => w.warehouse_name === poDetail.set_warehouse);
@@ -362,9 +404,7 @@ export default function GRNForm() {
       }
     }
 
-    // Extract supplier ID from the PO detail
     let supplierId: number | undefined = poDetail.supplier_id;
-    // If supplier_id is not directly available, try to extract from supplier field
     if (!supplierId && poDetail.supplier) {
       const supplierNum = parseInt(poDetail.supplier);
       if (!isNaN(supplierNum)) {
@@ -464,33 +504,55 @@ export default function GRNForm() {
     }
   }, [showPODropdown, poCurrentPage]);
 
+  // ─── Fetch GRN Data for Edit ──────────────────────────────────────
   const fetchGRNData = async (grnId: string) => {
     setLoading(true);
     try {
-      const response = await api.get(`/grn/${grnId}`);
+      const response = await api.get<GRNApiResponse>(`/grn/${grnId}`);
       if (response.data.success === 1) {
         const data = response.data.data;
+        
+        // Map items from API response - ensure item_id is set
+        const items: GRNItem[] = data.items?.map((item, index) => ({
+          id: item.id?.toString() || `item-${index}-${Date.now()}`,
+          itemCode: item.item_code || '',
+          itemName: item.item_name || '',
+          orderedQty: item.ordered_qty || 0,
+          receivedQty: item.received_qty || 0,
+          acceptedQty: item.accepted_qty || 0,
+          rejectedQty: item.rejected_qty || 0,
+          uom: item.uom || '',
+          rate: item.rate || 0,
+          batchNo: item.batch_no || '',
+          expiryDate: item.expiry_date || '',
+          remarks: item.remarks || '',
+          poItemId: item.po_item_id || item.id,
+          itemId: item.item_id || item.id, // Use item_id if available, fallback to id
+        })) || [];
+
         setFormData({
-          grn_number: data.grn_no || '',
-          grnDate: data.grn_date || new Date().toISOString().split('T')[0],
-           supplier_id:data.id,
-          supplier: data.supplier_name || data.supplier || '',
-          supplierId: data.id,
-          purchaseOrder: data.purchase_order_name || data.purchase_order || '',
+          id: data.id?.toString(),
+          grn_number: data.grn_number || '',
+          grnDate: data.grn_date ? new Date(data.grn_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+          supplier: data.supplier_name || '',
+          supplierId: data.supplier_id,
+          purchaseOrder: data.purchase_order_id ? `PO-${String(data.purchase_order_id).padStart(5, '0')}` : '',
           purchaseOrderId: data.purchase_order_id,
-          warehouse: data.warehouse_name || data.warehouse || '',
+          warehouse: data.warehouse_name || '',
           warehouseId: data.warehouse_id,
-          receivedBy: data.received_by_name || data.received_by || '',
+          receivedBy: data.received_by || '',
           receivedById: data.received_by_id,
-          vehicleNo: data.vehicle_no || '',
+          vehicleNo: data.vehicle_number || '',
           deliveryChallanNo: data.delivery_challan_no || '',
-          invoiceNo: data.invoice_no || '',
+          invoiceNo: data.invoice_number || '',
           status: data.status || 'draft',
-          items: data.items || [],
+          items: items,
         });
-        setWarehouseSearchTerm(data.warehouse_name || data.warehouse || '');
-        setEmployeeSearchTerm(data.received_by_name || data.received_by || '');
-        setPOSearchTerm(data.purchase_order_name || data.purchase_order || '');
+
+        // Set search terms for dropdowns
+        setWarehouseSearchTerm(data.warehouse_name || '');
+        setEmployeeSearchTerm(data.received_by || '');
+        setPOSearchTerm(data.purchase_order_id ? `PO-${String(data.purchase_order_id).padStart(5, '0')}` : '');
       }
     } catch (err) {
       console.error('Error fetching GRN:', err);
@@ -586,11 +648,9 @@ export default function GRNForm() {
       purchaseOrder: po.name,
       purchaseOrderId: po.id,
       supplier: po.supplier_name,
-      // Extract supplier ID from the supplier field
       supplierId: po.supplier ? parseInt(po.supplier) || undefined : undefined,
     }));
     setShowPODropdown(false);
-    // Fetch PO details to get items
     fetchPurchaseOrderDetail(po.id);
   };
 
@@ -636,6 +696,7 @@ export default function GRNForm() {
     setIsDirty(true);
   };
 
+  // ─── Save Handler ──────────────────────────────────────────────────
   const handleSave = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setApiError(null);
@@ -649,42 +710,49 @@ export default function GRNForm() {
 
     setSubmitting(true);
     try {
-      const payload = {
+      // Build payload - ensure item_id is passed for each item
+      const payload: any = {
         grn_number: formData.grn_number || `GRN-${Date.now()}`,
         grn_date: formData.grnDate,
-        supplier: formData.supplier,
-        supplier_id: formData.purchaseOrderId,
-        purchase_order: formData.purchaseOrder,
+        supplier_id: formData.supplierId,
+        supplier_name: formData.supplier,
         purchase_order_id: formData.purchaseOrderId,
-        warehouse: formData.warehouse,
         warehouse_id: formData.warehouseId,
+        warehouse_name: formData.warehouse,
         received_by: formData.receivedBy,
         received_by_id: formData.receivedById,
-        vehicle_no: formData.vehicleNo,
-        delivery_challan_no: formData.deliveryChallanNo,
-        invoice_no: formData.invoiceNo,
+        vehicle_number: formData.vehicleNo || null,
+        delivery_challan_no: formData.deliveryChallanNo || '',
+        invoice_number: formData.invoiceNo || null,
         status: formData.status,
         items: formData.items.map(item => ({
           item_code: item.itemCode,
           item_name: item.itemName,
-          item_id: item.poItemId,
-          po_item_id: item.poItemId,
-          ordered_qty: item.orderedQty,
-          received_qty: item.receivedQty,
-          accepted_qty: item.acceptedQty,
-          rejected_qty: item.rejectedQty,
-          uom: item.uom,
-          rate: item.rate,
-          batch_no: item.batchNo,
-          expiry_date: item.expiryDate,
-          remarks: item.remarks,
+          ordered_qty: item.orderedQty || 0,
+          received_qty: item.receivedQty || 0,
+          accepted_qty: item.acceptedQty || 0,
+          rejected_qty: item.rejectedQty || 0,
+          uom: item.uom || '',
+          rate: item.rate || 0,
+          batch_no: item.batchNo || '',
+          expiry_date: item.expiryDate || null,
+          remarks: item.remarks || null,
+          // ✅ CRITICAL: Pass item_id (from PO item) - this is required by the API
+          item_id: item.itemId || item.poItemId || undefined,
         })),
       };
 
+      // ✅ For edit, add ID to payload (not in URL)
+      if (isEditMode && id) {
+        payload.id = parseInt(id);
+      }
+
       let response;
       if (isEditMode && id) {
-        response = await api.put(`/grn/${id}`, payload);
+        // ✅ UPDATE: POST with ID in payload (Frappe style)
+        response = await api.post('/grn', payload);
       } else {
+        // ✅ CREATE: POST without ID
         response = await api.post('/grn', payload);
       }
 
@@ -734,7 +802,7 @@ export default function GRNForm() {
     return (
       <div className="grnf-page">
         <div className="grnf-inner">
-          <div className="grnf-loading">Loading GRN data...</div>
+          <div className="grnf-loading"><FaSpinner className="grnf-spinning" /> Loading GRN data...</div>
         </div>
       </div>
     );
@@ -1111,76 +1179,8 @@ export default function GRNForm() {
             </div>
 
             <div className="grnf-divider" />
-
-            {/* Delivery Details */}
-            <span className="grnf-section-title">Delivery Details</span>
-
-            <div className="grnf-grid-3">
-              <div className="grnf-field">
-                <label className="grnf-label">
-                  <FaTruck className="grnf-label-icon" />Vehicle Number
-                </label>
-                <input
-                  type="text"
-                  value={formData.vehicleNo}
-                  onChange={(e) => handleFieldChange('vehicleNo', e.target.value)}
-                  className="grnf-form-field"
-                  placeholder="Enter vehicle number"
-                  disabled={submitting}
-                />
-              </div>
-
-              <div className="grnf-field">
-                <label className="grnf-label">
-                  <FaHashtag className="grnf-label-icon" />Delivery Challan No.
-                </label>
-                <input
-                  type="text"
-                  value={formData.deliveryChallanNo}
-                  onChange={(e) => handleFieldChange('deliveryChallanNo', e.target.value)}
-                  className="grnf-form-field"
-                  placeholder="Enter delivery challan number"
-                  disabled={submitting}
-                />
-              </div>
-
-              <div className="grnf-field">
-                <label className="grnf-label">
-                  <FaFileInvoice className="grnf-label-icon" />Invoice Number
-                </label>
-                <input
-                  type="text"
-                  value={formData.invoiceNo}
-                  onChange={(e) => handleFieldChange('invoiceNo', e.target.value)}
-                  className="grnf-form-field"
-                  placeholder="Enter supplier invoice number"
-                  disabled={submitting}
-                />
-              </div>
-            </div>
-
-            <div className="grnf-divider" />
-
-            {/* Status */}
-            <div className="grnf-field">
-              <label className="grnf-label">Status</label>
-              <select
-                value={formData.status}
-                onChange={(e) => handleFieldChange('status', e.target.value as any)}
-                className="grnf-form-field"
-                disabled={submitting}
-              >
-                <option value="draft">Draft</option>
-                <option value="submitted">Submitted</option>
-                <option value="completed">Completed</option>
-                <option value="rejected">Rejected</option>
-              </select>
-            </div>
-
-            <div className="grnf-divider" />
-
-            {/* Items Table */}
-            <div className="grnf-items-section">
+{/* Items Table */}
+<div className="grnf-items-section">
               <div className="grnf-items-header">
                 <span className="grnf-section-title" style={{ marginBottom: 0, borderBottom: 'none' }}>Items</span>
                 <div className="grnf-items-actions">
@@ -1340,6 +1340,75 @@ export default function GRNForm() {
                 </div>
               )}
             </div>
+            <div></div>
+            {/* Delivery Details */}
+            <span className="grnf-section-title">Delivery Details</span>
+
+            <div className="grnf-grid-3">
+              <div className="grnf-field">
+                <label className="grnf-label">
+                  <FaTruck className="grnf-label-icon" />Vehicle Number
+                </label>
+                <input
+                  type="text"
+                  value={formData.vehicleNo}
+                  onChange={(e) => handleFieldChange('vehicleNo', e.target.value)}
+                  className="grnf-form-field"
+                  placeholder="Enter vehicle number"
+                  disabled={submitting}
+                />
+              </div>
+
+              <div className="grnf-field">
+                <label className="grnf-label">
+                  <FaHashtag className="grnf-label-icon" />Delivery Challan No.
+                </label>
+                <input
+                  type="text"
+                  value={formData.deliveryChallanNo}
+                  onChange={(e) => handleFieldChange('deliveryChallanNo', e.target.value)}
+                  className="grnf-form-field"
+                  placeholder="Enter delivery challan number"
+                  disabled={submitting}
+                />
+              </div>
+
+              <div className="grnf-field">
+                <label className="grnf-label">
+                  <FaFileInvoice className="grnf-label-icon" />Invoice Number
+                </label>
+                <input
+                  type="text"
+                  value={formData.invoiceNo}
+                  onChange={(e) => handleFieldChange('invoiceNo', e.target.value)}
+                  className="grnf-form-field"
+                  placeholder="Enter supplier invoice number"
+                  disabled={submitting}
+                />
+              </div>
+            </div>
+
+            <div className="grnf-divider" />
+
+            {/* Status */}
+            <div className="grnf-field">
+              <label className="grnf-label">Status</label>
+              <select
+                value={formData.status}
+                onChange={(e) => handleFieldChange('status', e.target.value as any)}
+                className="grnf-form-field"
+                disabled={submitting}
+              >
+                <option value="draft">Draft</option>
+                <option value="submitted">Submitted</option>
+                <option value="completed">Completed</option>
+                <option value="rejected">Rejected</option>
+              </select>
+            </div>
+
+            <div className="grnf-divider" />
+
+            
           </div>
 
           {/* ─── Footer ────────────────────────────────────────────────── */}

@@ -2,9 +2,9 @@ import axios from "axios";
 import type { AxiosInstance, InternalAxiosRequestConfig } from "axios";
  
 //export baseURL separately
-export const baseURL = 'http://localhost:7200/api';
+// export const baseURL = 'http://localhost:4200/api';
 
-// export const baseURL = 'https://erp.sculptortechpvtltd.com/api';
+export const baseURL = 'https://erp.sculptortechpvtltd.com/api';
  
 export const imageBaseURL = `${baseURL}/getmedia/`;
  
