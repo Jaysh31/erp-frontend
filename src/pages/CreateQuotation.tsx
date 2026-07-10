@@ -1085,7 +1085,7 @@ export default function CreateQuotation() {
                     <span className="section-shortcut">Series: {formData.namingSeries}</span>
                   </div>
                 </div>
-                <div className="form-grid">
+                <div className="form-grid compact-grid">
                   <div className="form-group">
                     <label>Series</label>
                     <select
@@ -1565,7 +1565,7 @@ export default function CreateQuotation() {
                 <div className="section-header">
                   <h3 className="section-title"><FaAddressCard size={13} /> Addresses</h3>
                 </div>
-                <div className="form-grid">
+                <div className="form-grid compact-grid">
                   <div className="form-group">
                     <label>Billing Address</label>
                     <select
@@ -1614,7 +1614,7 @@ export default function CreateQuotation() {
                       {withOption(shippingAddresses, formData.shippingAddress).map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
                   </div>
-                  <div className="form-group full-width">
+                  <div className="form-group half-width">
                     <label>Company Address</label>
                     <select
                       name="companyAddress"
@@ -1633,7 +1633,7 @@ export default function CreateQuotation() {
                 <div className="section-header">
                   <h3 className="section-title"><FaCreditCard size={13} /> Payment Terms</h3>
                 </div>
-                <div className="form-grid compact-grid">
+                <div className="form-grid">
                   <div className="form-group">
                     <label>Payment Terms Template</label>
                     <select

@@ -20,10 +20,11 @@
   --jcf-red-bg: #fef2f2;
   --jcf-red-border: #fca5a5;
 }
+
 /* ── Header ──────────────────────────────────────────────── */
 
 .jcf-header-wrap {
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .jcf-header-row {
@@ -156,7 +157,7 @@
   padding-right: 4px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .form-scrollable::-webkit-scrollbar {
@@ -196,7 +197,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .section-actions {
@@ -219,15 +220,40 @@
 }
 
 /* ── Form Grid ───────────────────────────────────────────── */
+
 .form-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px 12px;
+  margin-bottom: 10px;
 }
 
+/* 4-column grid for shorter fields (matches JobCardForm's .jcf-grid-4) */
 .form-grid.compact-grid {
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px 12px;
+  margin-bottom: 10px;
+}
+
+.form-grid:last-child,
+.form-grid.compact-grid:last-child {
+  margin-bottom: 0;
+}
+
+@media (max-width: 900px) {
+
+  .form-grid,
+  .form-grid.compact-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 680px) {
+
+  .form-grid,
+  .form-grid.compact-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .form-group.full-width {
@@ -235,25 +261,31 @@
 }
 
 .form-group label {
-  font-size: 11px;
-  font-weight: 500;
+  font-size: 11.5px;
+  font-weight: 600;
   color: var(--text-secondary, #6b7280);
   display: block;
-  margin-bottom: 3px;
+  margin-bottom: 4px;
 }
 
 .form-group input,
 .form-group select,
 .form-group textarea {
   width: 100%;
-  padding: 6px 10px;
+  height: 34px;
+  padding: 0 10px;
   border: 1px solid var(--border-color, #e5e7eb);
   border-radius: 6px;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--text-primary, #374151);
   transition: all 0.2s ease;
   background: var(--input-bg, #ffffff);
   font-family: inherit;
+}
+
+.form-group textarea {
+  height: auto;
+  padding: 8px 10px;
 }
 
 .form-group input:focus,
@@ -299,7 +331,7 @@
   padding: 8px 12px;
   background: var(--layout-bg, #f3f4f6);
   border-radius: 6px;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
   border: 1px solid var(--border-color, #e5e7eb);
 }
 
@@ -359,7 +391,7 @@
   overflow-x: auto;
   border: 1px solid var(--border-color, #e5e7eb);
   border-radius: 6px;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .items-table {
@@ -374,7 +406,7 @@
 }
 
 .items-table th {
-  padding: 6px 10px;
+  padding: 5px 10px;
   text-align: left;
   font-weight: 500;
   color: var(--text-secondary, #6b7280);
@@ -385,7 +417,7 @@
 }
 
 .items-table td {
-  padding: 4px 6px;
+  padding: 3px 6px;
   border-bottom: 1px solid var(--border-color, #f3f4f6);
   vertical-align: middle;
 }
@@ -399,7 +431,7 @@
   transition: all 0.2s ease;
   background: var(--input-bg, #ffffff);
   color: var(--text-primary, #374151);
-  height: 28px;
+  height: 26px;
 }
 
 .items-table input:focus {
@@ -429,7 +461,7 @@
 .items-table .total-label {
   text-align: right;
   font-weight: 600;
-  padding: 6px 10px;
+  padding: 5px 10px;
 }
 
 .items-table .total-value {
@@ -484,7 +516,7 @@
   display: flex;
   justify-content: flex-end;
   gap: 24px;
-  padding: 8px 12px;
+  padding: 7px 12px;
   background: var(--layout-bg, #f8f9fa);
   border-radius: 6px;
   margin-bottom: 8px;
@@ -523,7 +555,7 @@
 .keyboard-tips {
   display: flex;
   gap: 12px;
-  padding: 6px 10px;
+  padding: 5px 10px;
   background: var(--layout-bg, #f3f4f6);
   border-radius: 4px;
   font-size: 11px;
@@ -539,14 +571,14 @@
 
 /* ── Tax Table ───────────────────────────────────────────── */
 .tax-table-wrapper {
-  margin-top: 12px;
+  margin-top: 10px;
 }
 
 .tax-table-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .tax-table-header span {
@@ -585,7 +617,7 @@
 }
 
 .tax-table th {
-  padding: 6px 10px;
+  padding: 5px 10px;
   text-align: left;
   font-weight: 500;
   color: var(--text-secondary, #6b7280);
@@ -595,7 +627,7 @@
 }
 
 .tax-table td {
-  padding: 4px 8px;
+  padding: 3px 8px;
   border-bottom: 1px solid var(--border-color, #f3f4f6);
   vertical-align: middle;
 }
@@ -609,7 +641,7 @@
   font-size: 12px;
   background: var(--input-bg, #ffffff);
   color: var(--text-primary, #374151);
-  height: 28px;
+  height: 26px;
 }
 
 .tax-table input:focus,
@@ -625,7 +657,7 @@
 .empty-tax-row {
   text-align: center;
   color: var(--text-secondary, #6b7280);
-  padding: 20px !important;
+  padding: 16px !important;
 }
 
 .tax-table tfoot {
@@ -635,7 +667,7 @@
 .tax-table .total-label {
   text-align: right;
   font-weight: 600;
-  padding: 6px 10px;
+  padding: 5px 10px;
 }
 
 .tax-table .total-amount {
@@ -674,7 +706,7 @@
 .total-row {
   display: flex;
   justify-content: space-between;
-  padding: 6px 12px;
+  padding: 5px 12px;
   font-size: 13px;
   color: var(--text-primary, #1f2433);
   border-bottom: 1px solid var(--border-color, #f3f4f6);
@@ -701,14 +733,14 @@
 
 /* ── Payment Schedule ────────────────────────────────────── */
 .payment-schedule-wrapper {
-  margin-top: 12px;
+  margin-top: 10px;
 }
 
 .payment-schedule-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .payment-schedule-header span {
@@ -747,7 +779,7 @@
 }
 
 .payment-schedule-table th {
-  padding: 6px 10px;
+  padding: 5px 10px;
   text-align: left;
   font-weight: 500;
   color: var(--text-secondary, #6b7280);
@@ -757,7 +789,7 @@
 }
 
 .payment-schedule-table td {
-  padding: 4px 8px;
+  padding: 3px 8px;
   border-bottom: 1px solid var(--border-color, #f3f4f6);
   vertical-align: middle;
 }
@@ -771,7 +803,7 @@
   font-size: 12px;
   background: var(--input-bg, #ffffff);
   color: var(--text-primary, #374151);
-  height: 28px;
+  height: 26px;
 }
 
 .payment-schedule-table input:focus,
@@ -813,7 +845,7 @@
   justify-content: space-between;
   align-items: center;
   flex-shrink: 0;
-  padding-top: 12px;
+  padding-top: 10px;
   border-top: 1px solid var(--border-color, #e5e7eb);
   margin-top: 4px;
 }
@@ -830,8 +862,8 @@
   background: var(--card-bg, #ffffff);
   border: 1px solid var(--border-color, #e5e7eb);
   border-radius: 8px;
-  padding: 8px;
-  margin-bottom: 16px;
+  padding: 6px;
+  margin-bottom: 12px;
 }
 
 .jcf-tabs-row {
@@ -850,7 +882,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px;
+  padding: 8px 12px;
   border: none;
   background: none;
   cursor: pointer;
@@ -875,9 +907,9 @@
 
 .jcf-tab-circle {
   position: relative;
-  width: 30px;
-  height: 30px;
-  min-width: 30px;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
   border-radius: 50%;
   background: var(--layout-bg, #f3f4f6);
   display: flex;
@@ -970,8 +1002,8 @@
   font-size: 12.5px;
   font-weight: 500;
   border-radius: 6px;
-  padding: 9px 14px;
-  margin-bottom: 14px;
+  padding: 8px 14px;
+  margin-bottom: 10px;
 }
 
 /* ── Validation Modal ──────────────────────────────────────── */
@@ -1244,14 +1276,6 @@ kbd {
 
   .shortcuts-hint {
     display: none;
-  }
-
-  .form-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .form-grid.compact-grid {
-    grid-template-columns: 1fr;
   }
 
   .items-table {

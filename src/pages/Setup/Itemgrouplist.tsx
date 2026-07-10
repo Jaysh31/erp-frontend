@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FaSearch,
@@ -12,8 +12,12 @@ import {
   FaEdit,
   FaTrash,
   FaPlus,
+  FaSave,
+  FaSpinner,
+  FaTag,
+  FaFolder,
 } from 'react-icons/fa';
-import "./ItemGroupList.css";
+import "./Itemgrouplist.css";
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
 
@@ -41,10 +45,17 @@ interface ApiResponse {
   data: ItemGroup[];
 }
 
+interface EditFormState {
+  id: string;
+  itemGroupName: string;
+  parentItemGroup: string;
+  isGroup: boolean;
+}
+
 export default function ItemGroupList() {
   const navigate = useNavigate();
   const { theme } = useAdminTheme();
-  
+
   const [itemGroups, setItemGroups] = useState<ItemGroupDisplay[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,6 +68,12 @@ export default function ItemGroupList() {
   const [, setTotalItems] = useState(0);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedItem, setSelectedItem] = useState<ItemGroupDisplay | null>(null);
+
+  // ─── Edit Modal State ──────────────────────────────────────────────────
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editForm, setEditForm] = useState<EditFormState | null>(null);
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   // Format date to "X h" or "X d" format
   const formatDate = (dateString: string) => {
@@ -82,11 +99,11 @@ export default function ItemGroupList() {
     setError(null);
     try {
       const response = await api.get<ApiResponse>(`/item-group?page=${currentPage}&limit=${itemsPerPage}`);
-      
+
       if (response.data.success === 1) {
         const data = response.data.data;
         setTotalItems(data.length);
-        
+
         // Transform API data to display format
         const transformedData: ItemGroupDisplay[] = data.map((item: ItemGroup) => ({
           id: item.id.toString(),
@@ -96,7 +113,7 @@ export default function ItemGroupList() {
           createdAgo: formatDate(item.creation),
           comments: 0,
         }));
-        
+
         setItemGroups(transformedData);
       } else {
         setError('Failed to fetch item groups');
@@ -123,7 +140,7 @@ export default function ItemGroupList() {
   const filteredData = itemGroups.filter(item => {
     const matchesSearch = item.itemGroupName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           item.id.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || 
+    const matchesStatus = statusFilter === 'all' ||
                          (statusFilter === 'group' && item.isGroup) ||
                          (statusFilter === 'item' && !item.isGroup);
     return matchesSearch && matchesStatus;
@@ -131,19 +148,26 @@ export default function ItemGroupList() {
 
   const totalFilteredItems = filteredData.length;
   const totalPages = Math.ceil(totalFilteredItems / itemsPerPage);
-  
+
   // Ensure current page is valid when data changes
   const validCurrentPage = Math.min(currentPage, totalPages || 1);
   if (validCurrentPage !== currentPage) {
     setCurrentPage(validCurrentPage);
   }
-  
+
   const paginatedData = filteredData.slice(
     (validCurrentPage - 1) * itemsPerPage,
     validCurrentPage * itemsPerPage
   );
 
-
+  // Distinct list of parent item groups from the fetched data, for the edit dropdown
+  const parentGroupOptions = Array.from(
+    new Set(
+      itemGroups
+        .map((g) => g.parentItemGroup)
+        .filter((p) => p && p !== 'N/A' && p !== 'NA')
+    )
+  ).sort((a, b) => a.localeCompare(b));
 
   const toggleAll = () => {
     if (allChecked) {
@@ -208,8 +232,73 @@ export default function ItemGroupList() {
     }
   };
 
+  // ─── Edit Modal Handlers ───────────────────────────────────────────────
   const handleEdit = (item: ItemGroupDisplay) => {
-    navigate(`/item-group/${encodeURIComponent(item.id)}`);
+    setEditForm({
+      id: item.id,
+      itemGroupName: item.itemGroupName,
+      parentItemGroup: item.parentItemGroup === 'NA' || item.parentItemGroup === 'N/A' ? '' : item.parentItemGroup,
+      isGroup: item.isGroup,
+    });
+    setEditError(null);
+    setShowEditModal(true);
+  };
+
+  const closeEditModal = () => {
+    if (editSubmitting) return;
+    setShowEditModal(false);
+    setEditForm(null);
+    setEditError(null);
+  };
+
+  const handleEditSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!editForm) return;
+
+    if (!editForm.itemGroupName.trim()) {
+      setEditError('Item group name is required');
+      return;
+    }
+
+    setEditSubmitting(true);
+    setEditError(null);
+    try {
+      const payload = {
+        id: Number(editForm.id),
+        item_group_name: editForm.itemGroupName.trim(),
+        parent_item_group: editForm.parentItemGroup || 'NA',
+        is_group: editForm.isGroup ? 1 : 0,
+        modified_by: 'Administrator',
+      };
+
+      const response = await api.put('/item-group', payload);
+
+      if (response.data && response.data.success === 1) {
+        // Reflect the change immediately in the table
+        setItemGroups((prev) =>
+          prev.map((g) =>
+            g.id === editForm.id
+              ? { ...g, itemGroupName: payload.item_group_name, parentItemGroup: payload.parent_item_group }
+              : g
+          )
+        );
+        setShowEditModal(false);
+        setEditForm(null);
+      } else {
+        setEditError(response.data?.message || 'Failed to update item group');
+      }
+    } catch (err: any) {
+      console.error('Error updating item group:', err);
+      if (err.response) {
+        setEditError(err.response.data?.message || 'Failed to update item group');
+      } else if (err.request) {
+        setEditError('Network error. Please check your connection.');
+      } else {
+        setEditError('An unexpected error occurred. Please try again.');
+      }
+    } finally {
+      setEditSubmitting(false);
+    }
   };
 
   const handleView = (item: ItemGroupDisplay) => {
@@ -231,19 +320,6 @@ export default function ItemGroupList() {
 
   return (
     <div className={`igl-page ${theme}`}>
-      {/* Stats Cards */}
-      {/* <div className="igl-stats-container">
-        {stats.map((stat, index) => (
-          <div key={index} className="igl-stat-card" style={{ background: `linear-gradient(135deg, ${stat.color} 0%, ${stat.color}cc 100%)` }}>
-            <div className="igl-stat-icon">{stat.icon}</div>
-            <div className="igl-stat-content">
-              <p className="igl-stat-title">{stat.title}</p>
-              <p className="igl-stat-value">{stat.value}</p>
-            </div>
-          </div>
-        ))}
-      </div> */}
-
       {/* Search and Filter Bar */}
       <div className="igl-filter-bar">
         <div className="igl-filter-left">
@@ -264,8 +340,8 @@ export default function ItemGroupList() {
           </div>
         </div>
         <div className="igl-filter-right">
-          <select 
-            value={statusFilter} 
+          <select
+            value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
             className="igl-filter-select"
           >
@@ -306,7 +382,7 @@ export default function ItemGroupList() {
               <strong>Type:</strong> {statusFilter === 'group' ? 'Parent Groups' : 'Sub Items'}
             </span>
           )}
-          <button 
+          <button
             onClick={clearFilters}
             className="igl-clear-filters"
           >
@@ -388,22 +464,22 @@ export default function ItemGroupList() {
                         <span className="igl-ago">{row.createdAgo}</span>
                         <span className="igl-dot">·</span>
                         <div className="igl-action-buttons">
-                          <button 
-                            className="igl-action-btn igl-action-view" 
+                          <button
+                            className="igl-action-btn igl-action-view"
                             onClick={(e) => { e.stopPropagation(); handleView(row); }}
                             title="View"
                           >
                             <FaEye size={12} />
                           </button>
-                          <button 
-                            className="igl-action-btn igl-action-edit" 
+                          <button
+                            className="igl-action-btn igl-action-edit"
                             onClick={(e) => { e.stopPropagation(); handleEdit(row); }}
                             title="Edit"
                           >
                             <FaEdit size={12} />
                           </button>
-                          <button 
-                            className="igl-action-btn igl-action-delete" 
+                          <button
+                            className="igl-action-btn igl-action-delete"
                             onClick={(e) => { e.stopPropagation(); handleDelete(row); }}
                             title="Delete"
                           >
@@ -422,8 +498,8 @@ export default function ItemGroupList() {
           <div className="igl-pagination">
             <div className="igl-pagination-left">
               <span className="igl-pagination-label">Show:</span>
-              <select 
-                value={itemsPerPage} 
+              <select
+                value={itemsPerPage}
                 onChange={(e) => handlePageSizeChange(Number(e.target.value))}
                 className="igl-page-size-select"
               >
@@ -435,16 +511,16 @@ export default function ItemGroupList() {
               <span className="igl-pagination-label">entries</span>
             </div>
             <div className="igl-pagination-center">
-              <button 
-                onClick={goToFirstPage} 
-                disabled={currentPage === 1 || totalFilteredItems === 0} 
+              <button
+                onClick={goToFirstPage}
+                disabled={currentPage === 1 || totalFilteredItems === 0}
                 className="igl-page-btn"
               >
                 <FaAngleDoubleLeft size={12} />
               </button>
-              <button 
-                onClick={goToPrevPage} 
-                disabled={currentPage === 1 || totalFilteredItems === 0} 
+              <button
+                onClick={goToPrevPage}
+                disabled={currentPage === 1 || totalFilteredItems === 0}
                 className="igl-page-btn"
               >
                 <FaChevronLeft size={12} />
@@ -458,16 +534,16 @@ export default function ItemGroupList() {
                   {page}
                 </button>
               ))}
-              <button 
-                onClick={goToNextPage} 
-                disabled={currentPage === totalPages || totalFilteredItems === 0} 
+              <button
+                onClick={goToNextPage}
+                disabled={currentPage === totalPages || totalFilteredItems === 0}
                 className="igl-page-btn"
               >
                 <FaChevronRight size={12} />
               </button>
-              <button 
-                onClick={goToLastPage} 
-                disabled={currentPage === totalPages || totalFilteredItems === 0} 
+              <button
+                onClick={goToLastPage}
+                disabled={currentPage === totalPages || totalFilteredItems === 0}
                 className="igl-page-btn"
               >
                 <FaAngleDoubleRight size={12} />
@@ -489,7 +565,7 @@ export default function ItemGroupList() {
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && selectedItem && (
         <div className="igl-modal-overlay" onClick={() => setShowDeleteConfirm(false)}>
-          <div className="igl-modal igl-modal-delete">
+          <div className="igl-modal igl-modal-delete" onClick={(e) => e.stopPropagation()}>
             <div className="igl-modal-header">
               <span className="igl-modal-title">Confirm Delete</span>
               <button className="igl-modal-close" onClick={() => setShowDeleteConfirm(false)}>
@@ -509,6 +585,104 @@ export default function ItemGroupList() {
                 <FaTrash size={12} /> Delete
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Item Group Modal */}
+      {showEditModal && editForm && (
+        <div className="igl-modal-overlay" onClick={closeEditModal}>
+          <div className="igl-modal igl-modal-edit" onClick={(e) => e.stopPropagation()}>
+            <div className="igl-edit-header">
+              <div className="igl-edit-header-icon">
+                <FaEdit size={16} />
+              </div>
+              <div className="igl-edit-header-text">
+                <span className="igl-modal-title">Edit Item Group</span>
+                <span className="igl-edit-subtitle">Update the details for this item group</span>
+              </div>
+              <button
+                className="igl-modal-close"
+                onClick={closeEditModal}
+                disabled={editSubmitting}
+                type="button"
+              >
+                <FaTimes size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditSubmit}>
+              <div className="igl-modal-body">
+                {editError && (
+                  <div className="igl-edit-error">
+                    <FaTimes size={12} />
+                    <span>{editError}</span>
+                  </div>
+                )}
+
+                <div className="igl-edit-field igl-edit-field-name">
+                  <label className="igl-edit-label">
+                    <FaTag className="igl-edit-label-icon" />
+                    Item Group Name <span className="igl-required">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    className="igl-edit-input"
+                    value={editForm.itemGroupName}
+                    onChange={(e) => setEditForm({ ...editForm, itemGroupName: e.target.value })}
+                    placeholder="Enter item group name"
+                    disabled={editSubmitting}
+                    autoFocus
+                  />
+                </div>
+
+                <div className="igl-edit-field igl-edit-field-parent">
+                  <label className="igl-edit-label">
+                    <FaFolder className="igl-edit-label-icon" />
+                    Parent Item Group
+                  </label>
+                  <select
+                    className="igl-edit-select"
+                    value={editForm.parentItemGroup}
+                    onChange={(e) => setEditForm({ ...editForm, parentItemGroup: e.target.value })}
+                    disabled={editSubmitting}
+                  >
+                    <option value="">-- None --</option>
+                    {parentGroupOptions.map((p) => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                  </select>
+                  <p className="igl-edit-hint">Choose the parent this group should nest under</p>
+                </div>
+
+                {/* <div className="igl-edit-preview">
+                  <FaLayerGroup className="igl-edit-preview-icon" />
+                  <div className="igl-edit-preview-text">
+                    <span className="igl-edit-preview-label">Preview</span>
+                    <span className="igl-edit-preview-value">
+                      {editForm.parentItemGroup ? editForm.parentItemGroup : 'Root'}
+                      <span className="igl-edit-preview-arrow">→</span>
+                      <strong>{editForm.itemGroupName || 'Item Group Name'}</strong>
+                    </span>
+                  </div>
+                </div> */}
+              </div>
+
+              <div className="igl-modal-footer">
+                <button
+                  type="button"
+                  className="igl-btn-cancel"
+                  onClick={closeEditModal}
+                  disabled={editSubmitting}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="igl-btn-save" disabled={editSubmitting}>
+                  {editSubmitting ? <FaSpinner className="igl-spin" size={12} /> : <FaSave size={12} />}
+                  {editSubmitting ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
