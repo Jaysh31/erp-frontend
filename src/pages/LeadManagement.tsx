@@ -23,7 +23,8 @@ import api from "../../src/services/api";
 type LeadStatus = "Lead" | "Contacted" | "Qualified" | "Unqualified" | "Converted";
 
 interface LeadDisplay {
-  id: string;
+  id: string; 
+  recordId?: number; 
   leadName: string;
   organizationName: string;
   jobTitle: string;
@@ -55,13 +56,13 @@ const STATUS_LABELS: Record<LeadStatus, string> = {
 };
 
 // ─── raw API record -> display record ──────────────────────────────────
-// Matches the /lead POST payload shape (name, first_name, company_name, etc.)
 
 function mapApiLeadToDisplay(raw: any, formatDate: (d: string) => string): LeadDisplay {
   const firstName = raw.first_name || "";
   const lastName = raw.last_name || "";
   return {
     id: String(raw.name ?? raw.id ?? ""),
+    recordId: raw.id != null ? Number(raw.id) : undefined,
     leadName: raw.lead_name || [firstName, lastName].filter(Boolean).join(" ") || "—",
     organizationName: raw.company_name || "",
     jobTitle: raw.job_title || "",
@@ -77,8 +78,6 @@ function mapApiLeadToDisplay(raw: any, formatDate: (d: string) => string): LeadD
   };
 }
 
-// defensively unwraps whatever shape the backend wraps the list in
-// (same tolerant pattern used for /work-order in JobCardForm)
 function extractList(raw: any): any[] {
   const list = raw?.data?.records ?? raw?.data ?? raw?.leads ?? raw?.results ?? raw;
   return Array.isArray(list) ? list : [];
@@ -89,6 +88,7 @@ export default function LeadManagement() {
   const { theme } = useAdminTheme();
 
   const [leads, setLeads] = useState<LeadDisplay[]>([]);
+  const [rawLeads, setRawLeads] = useState<any[]>([]); 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -129,6 +129,13 @@ export default function LeadManagement() {
       console.log("GET /lead raw response:", response.data);
 
       const list = extractList(response.data);
+      setRawLeads(list);
+
+     
+      if (list.length > 0) {
+        console.log("First raw lead record:", list[0]);
+      }
+
       const transformedData: LeadDisplay[] = list.map((item) => mapApiLeadToDisplay(item, formatDate));
 
       setTotalItems(transformedData.length);
@@ -226,44 +233,37 @@ export default function LeadManagement() {
   };
 
   // ─── delete via DELETE /lead ─────────────────────────────────────────
-
+ 
   const confirmDelete = async () => {
-    if (!selectedItem) return;
-    setDeleting(true);
-    try {
-      const response = await api.delete("/lead", { data: { name: selectedItem.id } });
+  if (!selectedItem) return;
 
-      if (response.data?.success !== undefined && response.data.success !== 1) {
-        throw new Error(response.data?.message || "Failed to delete lead");
-      }
+  setDeleting(true);
 
-      setShowDeleteConfirm(false);
-      setSelectedItem(null);
-      fetchLeads();
-    } catch (err: any) {
-      console.error("Error deleting lead:", err);
-      if (err.response) {
-        alert(err.response.data?.message || `Server error: ${err.response.status}`);
-      } else if (err.request) {
-        alert("Network error. Please check your connection.");
-      } else {
-        alert(err.message || "Failed to delete lead");
-      }
-    } finally {
-      setDeleting(false);
+  try {
+    const response = await api.delete(`/lead/${selectedItem.recordId}`);
+
+    if (response.data.success !== 1) {
+      throw new Error(response.data?.message || "Failed to delete lead");
     }
-  };
 
-  const handleRowClick = (item: LeadDisplay) => {
-    navigate(`/leads/${encodeURIComponent(item.id)}`);
-  };
+    setShowDeleteConfirm(false);
+    setSelectedItem(null);
 
-  const handleEdit = (item: LeadDisplay) => {
-    navigate(`/leads/${encodeURIComponent(item.id)}`);
-  };
+    await fetchLeads();
+  } catch (err: any) {
+    console.error("Error deleting lead:", err);
+    
+    alert(err.response?.data?.message || "Failed to delete lead");
+  } finally {
+    setDeleting(false);
+  }
+};
 
-  const handleView = (item: LeadDisplay) => {
-    navigate(`/leads/${encodeURIComponent(item.id)}`);
+  const findRawById = (id: string) => rawLeads.find((l) => String(l.name ?? l.id) === id);
+
+  const goToLead = (item: LeadDisplay) => {
+    const raw = findRawById(item.id);
+    navigate(`/leads/${encodeURIComponent(item.id)}`, { state: { lead: raw } });
   };
 
   const clearFilters = () => {
@@ -408,7 +408,7 @@ export default function LeadManagement() {
                     <tr
                       key={row.id}
                       className={`jc-tr ${selected.has(row.id) ? "jc-tr-selected" : ""}`}
-                      onClick={() => handleRowClick(row)}
+                      onClick={() => goToLead(row)}
                       style={{ cursor: "pointer" }}
                     >
                       <td className="jc-td-check" onClick={(e) => { e.stopPropagation(); toggleRow(row.id); }}>
@@ -432,10 +432,10 @@ export default function LeadManagement() {
                         <span className="jc-ago">{row.createdAgo}</span>
                         <span className="jc-dot">·</span>
                         <div className="jc-action-buttons">
-                          <button className="jc-action-btn jc-action-view" onClick={(e) => { e.stopPropagation(); handleView(row); }} title="View">
+                          <button className="jc-action-btn jc-action-view" onClick={(e) => { e.stopPropagation(); goToLead(row); }} title="View">
                             <FaEye size={12} />
                           </button>
-                          <button className="jc-action-btn jc-action-edit" onClick={(e) => { e.stopPropagation(); handleEdit(row); }} title="Edit">
+                          <button className="jc-action-btn jc-action-edit" onClick={(e) => { e.stopPropagation(); goToLead(row); }} title="Edit">
                             <FaEdit size={12} />
                           </button>
                           <button className="jc-action-btn jc-action-delete" onClick={(e) => { e.stopPropagation(); handleDelete(row); }} title="Delete">
