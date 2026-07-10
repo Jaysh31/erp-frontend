@@ -228,6 +228,11 @@ export default function Sidebar({
     module: 'accounting',
     icon: <ReceivablesIcon />,
     items: [
+       {
+            title: 'Sales Invoices',
+            icon: <InvoiceIcon />,
+            path: '/customer-invoices'
+        },
         {
             title: 'Delivery Challans',
             icon: <ReceiptIcon />,
@@ -238,11 +243,7 @@ export default function Sidebar({
             icon: <PaymentIcon />,
             path: '/Customer-payments'
         },
-        {
-            title: 'Customer Invoices',
-            icon: <InvoiceIcon />,
-            path: '/customer-invoices'
-        },
+       
         {
             title: 'Credit Notes',
             icon: <CreditNoteIcon />,
@@ -283,14 +284,14 @@ title: 'Banking',
         { title: 'Expense ', icon: <TagIcon />, path: '/expenses/expense' },
       ]
     },
-    {
-      title: 'System',
-      module: 'system',
-      icon: <SettingsIcon />,
-      items: [
-        { title: 'Settings', icon: <SettingsIcon />, path: '/settings' }
-      ]
-    }
+    // {
+    //   title: 'System',
+    //   module: 'system',
+    //   icon: <SettingsIcon />,
+    //   items: [
+    //     { title: 'Settings', icon: <SettingsIcon />, path: '/settings' }
+    //   ]
+    // }
   ];
 
   // Filter categories based on current module
