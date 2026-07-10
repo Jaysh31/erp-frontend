@@ -141,7 +141,11 @@ const allMenuCategories = [
       module: 'organization',
       icon: <OrganizationIcon />,
       items: [
+         { title: 'Employee', icon: <WarehouseIcon />, path: '/employee' },
+         
         {title: 'User Management', icon: <UserIcon />, path: '/user-management' },
+
+        {title: 'Role Management', icon: <UserIcon />, path: '/role' },
         { title: 'Company', icon: <CompanyIcon />, path: '/company' },
         { title: 'Letter Head', icon: <LetterHeadIcon />, path: '/letter-head' }
 
@@ -152,7 +156,7 @@ const allMenuCategories = [
       module: 'setup',
       icon: <SetupIcon />,
       items: [
-        { title: 'Employee', icon: <WarehouseIcon />, path: '/employee' },
+       
 
         { title: 'Item', icon: <ItemIcon />, path: '/item-list' },
         { title: 'Item Group', icon: <FolderIcon />, path: '/item-group' },
