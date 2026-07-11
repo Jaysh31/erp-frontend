@@ -1,5 +1,5 @@
 // Stock.tsx
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FaSearch,
@@ -14,7 +14,6 @@ import {
   FaExclamationTriangle,
   FaCheckCircle,
   FaClock,
-  FaFilter,
   FaDownload,
   FaPrint,
   FaEye,
@@ -27,19 +26,16 @@ import {
   FaSortUp,
   FaSortDown,
   FaCircle,
-  FaShoppingCart,
   FaTruck,
   
   FaUser,
-  FaCalendarAlt,
   FaFileAlt,
-  FaInfoCircle,
   FaThLarge,
   FaList,
 } from "react-icons/fa";
 import "./Stock.css";
 import { useAdminTheme } from "../admin-theme/AdminThemeContext";
-import api from "../services/api";
+// import api from "../services/api";
 import { FaMapPin } from "react-icons/fa6";
 
 // ─── Types ───────────────────────────────────────────────────────────────
@@ -162,7 +158,7 @@ export default function Stock() {
     recentActivity: 0,
   });
 
-  const [stockItems, setStockItems] = useState<StockItem[]>(mockStockItems);
+  const [stockItems, ] = useState<StockItem[]>(mockStockItems);
   const [warehouses] = useState<Warehouse[]>(mockWarehouses);
   const [transactions] = useState<StockTransaction[]>(mockTransactions);
   const [recentTransactions, setRecentTransactions] = useState<StockTransaction[]>([]);

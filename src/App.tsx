@@ -104,6 +104,8 @@ import InventoryList from "./pages/InventoryList";
 // import ModuleList from "./pages/UserManagement/ModuleList";
 // import SubModulePermissions from "./pages/UserManagement/SubModulePermissions";
 
+import SubModulePermissions from "./pages/UserManagement/SubModulePermissions";
+
 
 function App() {
   return (
@@ -162,6 +164,7 @@ function App() {
               <Route path="/sales-order" element={<SalesOrder />} />
               <Route path="/sales-invoice" element={<SalesInvoice />} />
               <Route path="/sales-order/new" element={<CreateSalesOrder />} />
+              <Route path="/sales-order/:id" element={<CreateSalesOrder />} />
               <Route path="/sales-invoice/new" element={<CreateSalesInvoice />} />
               <Route path="/quotation" element={<QuotationPage />} />
               <Route path="/quotation/new" element={<CreateQuotationPage />} />
@@ -199,7 +202,6 @@ function App() {
             <Route path="/production" element={<ProductionPage />} />
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/settings" element={<SettingsPage />} /> */}
-
 
 
               <Route path="/job-card" element={<JobCardManagement />} />
@@ -273,13 +275,6 @@ function App() {
               <Route path="/NewWorkstation" element={<NewWorkstation />} />
 
               {/* Employee Routes */}
-              
-              <Route path="/employee" element={<Employee />} />
-              <Route path="/employee/new" element={<EmployeeForm />} />
-              {/* User Management Routes */}
-<Route path="/user-management" element={<UserManagement />} />
-<Route path="/users/new" element={<UserForm />} />
-<Route path="/users/:id" element={<UserForm />} />
 
               <Route path="/employee" element={<Employee />} />
               <Route path="/employee/new" element={<EmployeeForm />} />
@@ -316,9 +311,9 @@ function App() {
               <Route path="/user/roles/:id" element={<UserRoles />} />
 
               <Route path="/role" element={<RoleList />} />
-<Route path="/role/new" element={<RoleForm />} />
-<Route path="/role/:id" element={<RoleForm />} />
-<Route path="/role/permissions/:roleId" element={<ModulePermissions />} />
+              <Route path="/role/new" element={<RoleForm />} />
+              <Route path="/role/:id" element={<RoleForm />} />
+              <Route path="/role/permissions/:roleId" element={<ModulePermissions />} />
 
               {/* UOM Routes */}
               <Route path="/uom" element={<UOMList />} />

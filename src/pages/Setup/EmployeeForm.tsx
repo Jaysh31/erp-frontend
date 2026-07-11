@@ -7,24 +7,13 @@ import {
   FaSpinner,
   FaExclamationCircle,
   FaExclamationTriangle,
-  FaInfoCircle,
   FaTimesCircle,
   FaUser,
   FaEnvelope,
-  FaPhone,
-  FaBuilding,
-  FaCalendarAlt,
-  FaMapMarkerAlt,
   FaBriefcase,
-  FaIdCard,
-  FaUserCircle,
-  FaMoneyBillWave,
   FaUniversity,
-  FaHeart,
-  FaUsers,
   FaUserFriends,
   FaPassport,
-  FaFileAlt,
 } from "react-icons/fa";
 import "./EmployeeForm.css";
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
@@ -175,7 +164,7 @@ export default function EmployeeForm() {
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [activeTab, setActiveTab] = useState<"personal" | "contact" | "employment" | "bank" | "emergency" | "documents">("personal");
 
-  const disabled = submitting || loading;
+  // const disabled = submitting || loading;
 
   // Fetch employee data if editing
   useEffect(() => {

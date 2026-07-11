@@ -1,11 +1,12 @@
+// PurchaseOrderForm.tsx - Cleaner UI (no addresses, no supplier code, compact grid, better item table, auto-dropdown)
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   FaPlus,  FaSave, FaSpinner,  FaArrowLeft,
   FaExclamationCircle, FaExclamationTriangle, FaInfoCircle,
   FaTimesCircle, FaTag, FaBuilding, FaMoneyBillWave,
-  FaCalendarAlt, FaFileAlt, FaBoxes, FaTruck, FaClipboardList,
-  FaSearch
+  FaCalendarAlt, FaFileAlt, FaBoxes, FaClipboardList,
+  FaSearch, FaFilter
 } from 'react-icons/fa';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
@@ -23,6 +24,10 @@ interface PurchaseOrderItem {
   amount: number;
   receivedQty: number;
   balanceQty: number;
+  itemGroup?: string;
+  brand?: string;
+  description?: string;
+  taxRate?: number;
 }
 
 interface PurchaseOrder {
@@ -60,89 +65,29 @@ interface ItemSuggestion {
   item_name: string;
   stock_uom: string;
   standard_rate: number;
+  valuation_rate: number;
   description?: string;
   brand?: string;
   item_group?: string;
+  tax_id?: number;
 }
 
-// Mock data for demo - in real app, this would come from an API
-const mockPurchaseOrders: PurchaseOrder[] = [
-  {
-    id: '1',
-    poNumber: 'PO-2026-001',
-    title: 'Raw Material Purchase',
-    supplier: 'ABC Manufacturing Co.',
-    supplierCode: 'SUP-001',
-    status: 'Partially Received',
-    orderDate: '2026-06-20',
-    deliveryDate: '2026-07-05',
-    currency: 'INR',
-    totalAmount: 250000,
-    receivedAmount: 100000,
-    balanceAmount: 150000,
-    paymentTerms: 'Net 30',
-    shippingAddress: '123, Business Park, Mumbai - 400001',
-    billingAddress: '123, Business Park, Mumbai - 400001',
-    notes: 'Urgent delivery required',
-    createdBy: 'Tejas Tarte',
-    createdAt: '2026-06-20T10:00:00Z',
-    updatedAt: '2026-06-20T10:00:00Z',
-    items: [
-      { id: '1', itemCode: 'RM-001', itemName: 'Steel Sheets 2mm', quantity: 500, uom: 'NOS', rate: 350, amount: 175000, receivedQty: 200, balanceQty: 300 },
-      { id: '2', itemCode: 'RM-002', itemName: 'Aluminum Bars', quantity: 300, uom: 'KG', rate: 250, amount: 75000, receivedQty: 100, balanceQty: 200 }
-    ]
-  },
-  {
-    id: '2',
-    poNumber: 'PO-2026-002',
-    title: 'Electronic Components',
-    supplier: 'XYZ Electronics Ltd.',
-    supplierCode: 'SUP-002',
-    status: 'Fully Received',
-    orderDate: '2026-06-18',
-    deliveryDate: '2026-06-28',
-    currency: 'USD',
-    totalAmount: 45000,
-    receivedAmount: 45000,
-    balanceAmount: 0,
-    paymentTerms: 'Net 15',
-    shippingAddress: '456, Tech Park, Bangalore - 560100',
-    billingAddress: '456, Tech Park, Bangalore - 560100',
-    notes: 'Quality check required upon receipt',
-    createdBy: 'Nirjala Bagal',
-    createdAt: '2026-06-18T10:00:00Z',
-    updatedAt: '2026-06-18T10:00:00Z',
-    items: [
-      { id: '1', itemCode: 'EC-001', itemName: 'Resistor Pack 100k', quantity: 1000, uom: 'NOS', rate: 15, amount: 15000, receivedQty: 1000, balanceQty: 0 },
-      { id: '2', itemCode: 'EC-002', itemName: 'Capacitor 100uF', quantity: 500, uom: 'NOS', rate: 60, amount: 30000, receivedQty: 500, balanceQty: 0 }
-    ]
-  },
-  {
-    id: '3',
-    poNumber: 'PO-2026-003',
-    title: 'Packaging Materials',
-    supplier: 'PQR Packaging Solutions',
-    supplierCode: 'SUP-003',
-    status: 'Draft',
-    orderDate: '2026-06-22',
-    deliveryDate: '2026-07-10',
-    currency: 'INR',
-    totalAmount: 120000,
-    receivedAmount: 0,
-    balanceAmount: 120000,
-    paymentTerms: 'Net 45',
-    shippingAddress: '789, Packaging Park, Pune - 411001',
-    billingAddress: '789, Packaging Park, Pune - 411001',
-    notes: 'Pending approval',
-    createdBy: 'P S Kamthe',
-    createdAt: '2026-06-22T10:00:00Z',
-    updatedAt: '2026-06-22T10:00:00Z',
-    items: [
-      { id: '1', itemCode: 'PKG-001', itemName: 'Carton Boxes Large', quantity: 200, uom: 'NOS', rate: 300, amount: 60000, receivedQty: 0, balanceQty: 200 },
-      { id: '2', itemCode: 'PKG-002', itemName: 'Packing Tape', quantity: 150, uom: 'ROL', rate: 400, amount: 60000, receivedQty: 0, balanceQty: 150 }
-    ]
-  }
-];
+interface Supplier {
+  id: number;
+  supplier_name: string;
+  supplier_type: string;
+  supplier_group: string;
+  country: string;
+  mobile_no: string;
+  email_id: string;
+  disabled: number;
+  address?: string;
+}
+
+interface TaxOption {
+  tax_id: number;
+  tax_type: string;
+}
 
 const statusOptions = ['Draft', 'Submitted', 'Partially Received', 'Fully Received', 'Cancelled', 'Closed'];
 const currencies = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD'];
@@ -152,7 +97,7 @@ const uomOptions = ['NOS', 'KG', 'LTR', 'MTR', 'BOX', 'SET', 'DOZ', 'ROL', 'SQM'
 export default function PurchaseOrderForm() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-  const isEdit = Boolean(id);
+  const isEdit = Boolean(id) && id !== 'new';
   
   let theme = 'light';
   try {
@@ -163,24 +108,35 @@ export default function PurchaseOrderForm() {
   }
 
   const [loading, setLoading] = useState(false);
+  const [loadingData, setLoadingData] = useState(false);
   const [showValidationSummary, setShowValidationSummary] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [apiError, setApiError] = useState<string | null>(null);
   
   // State for suppliers
-  const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loadingSuppliers, setLoadingSuppliers] = useState(false);
 
-  // State for item suggestions
-  const [itemSuggestions, setItemSuggestions] = useState<{ [key: number]: ItemSuggestion[] }>({});
-  const [loadingItems, setLoadingItems] = useState<{ [key: number]: boolean }>({});
+  // State for tax options
+  const [taxOptions, setTaxOptions] = useState<TaxOption[]>([]);
+  const [loadingTaxes, setLoadingTaxes] = useState(false);
+
+  // State for items (all items loaded once)
+  const [allItems, setAllItems] = useState<ItemSuggestion[]>([]);
+  const [loadingItems, setLoadingItems] = useState(false);
+  const [itemGroupFilter, setItemGroupFilter] = useState<string>('all');
+  
+  // Get unique item groups from all items
+  const itemGroups = [...new Set(allItems.map(item => item.item_group).filter(Boolean))];
+  
+  // State for filtered items per row
+  const [filteredItems, setFilteredItems] = useState<{ [key: number]: ItemSuggestion[] }>({});
   const [showSuggestions, setShowSuggestions] = useState<{ [key: number]: boolean }>({});
-  const [, setSearchTerms] = useState<{ [key: number]: string }>({});
+  const [searchTerms, setSearchTerms] = useState<{ [key: number]: string }>({});
   
   // Refs for positioning the dropdown
   const inputRefs = useRef<{ [key: number]: HTMLInputElement | null }>({});
   const suggestionRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
-  const searchTimeoutRef = useRef<{ [key: number]: ReturnType<typeof setTimeout> }>({});
   
   // State for dropdown position
   const [dropdownPositions, setDropdownPositions] = useState<{ [key: number]: { top: number; left: number; width: number } }>({});
@@ -199,6 +155,9 @@ export default function PurchaseOrderForm() {
     billingAddress: string;
     notes: string;
     items: PurchaseOrderItem[];
+    taxRate: number;
+    taxCategory: string;
+    taxId: string;
   }>({
     poNumber: '',
     title: '',
@@ -212,10 +171,94 @@ export default function PurchaseOrderForm() {
     shippingAddress: '',
     billingAddress: '',
     notes: '',
-    items: [{ id: '1', itemCode: '', itemName: '', quantity: 1, uom: 'NOS', rate: 0, amount: 0, receivedQty: 0, balanceQty: 0 }]
+    items: [{ id: '1', itemCode: '', itemName: '', quantity: 1, uom: 'NOS', rate: 0, amount: 0, receivedQty: 0, balanceQty: 0 }],
+    taxRate: 18,
+    taxCategory: 'GST',
+    taxId: '',
   });
 
-  // Fetch suppliers from API
+  // ─── Helper to extract tax info from tax_type ──────────────────────
+  const extractTaxInfo = (taxType: string) => {
+    const rateMatch = taxType.match(/(\d+)/);
+    const rate = rateMatch ? parseInt(rateMatch[1]) : 0;
+    const category = taxType.includes('GST') ? 'GST' : 
+                     taxType.includes('VAT') ? 'VAT' : 'Tax';
+    return { rate, category };
+  };
+
+  // ─── Fetch Tax Options ──────────────────────────────────────────────
+  const fetchTaxOptions = async () => {
+    setLoadingTaxes(true);
+    try {
+      const response = await api.get('/item/get-tax');
+      if (response.data && response.data.success === 1) {
+        const taxData = response.data.data || [];
+        setTaxOptions(taxData);
+        
+        // Set default tax if available and not in edit mode
+        if (taxData.length > 0 && !isEdit) {
+          const defaultTax = taxData[0];
+          const { rate, category } = extractTaxInfo(defaultTax.tax_type);
+          
+          setFormData(prev => ({
+            ...prev,
+            taxId: String(defaultTax.tax_id),
+            taxRate: rate || 18,
+            taxCategory: category,
+          }));
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching tax options:', err);
+      toast.error('Failed to load tax options');
+    } finally {
+      setLoadingTaxes(false);
+    }
+  };
+
+  // ─── Fetch all items from API ──────────────────────────────────────
+  const fetchAllItems = async () => {
+    setLoadingItems(true);
+    try {
+      const response = await api.get('/item');
+      if (response.data && response.data.success === 1) {
+        const items = response.data.data || [];
+        const mappedItems = items.map((item: any) => ({
+          id: item.id,
+          item_code: item.item_code,
+          item_name: item.item_name,
+          stock_uom: item.stock_uom || 'NOS',
+          standard_rate: item.standard_rate || 0,
+          valuation_rate: item.valuation_rate || item.standard_rate || 0,
+          description: item.description,
+          brand: item.brand,
+          item_group: item.item_group || 'Uncategorized',
+          tax_id: item.tax_id,
+        }));
+        
+        setAllItems(mappedItems);
+        
+        // Initialize filtered items for all rows
+        setFilteredItems(prev => {
+          const newFiltered = { ...prev };
+          formData.items.forEach((_, index) => {
+            newFiltered[index] = mappedItems;
+          });
+          return newFiltered;
+        });
+      } else {
+        console.error('Failed to fetch items:', response.data?.message || 'Unknown error');
+        toast.error('Failed to load items');
+      }
+    } catch (err: any) {
+      console.error('Error fetching items:', err);
+      toast.error('Failed to load items. Please try again.');
+    } finally {
+      setLoadingItems(false);
+    }
+  };
+
+  // ─── Fetch suppliers from API ──────────────────────────────────────
   const fetchSuppliers = async () => {
     setLoadingSuppliers(true);
     try {
@@ -223,10 +266,6 @@ export default function PurchaseOrderForm() {
       if (response.data && response.data.success === 1) {
         const supplierRecords = response.data.data?.records || [];
         setSuppliers(supplierRecords);
-        
-        if (supplierRecords.length === 0) {
-          console.log('No suppliers found');
-        }
       } else {
         console.error('Failed to fetch suppliers:', response.data?.message || 'Unknown error');
         toast.error('Failed to load suppliers');
@@ -239,42 +278,121 @@ export default function PurchaseOrderForm() {
     }
   };
 
-  // Fetch item suggestions from API
-  const fetchItemSuggestions = async (index: number, searchTerm: string) => {
-    if (!searchTerm || searchTerm.length < 1) {
-      setItemSuggestions(prev => ({ ...prev, [index]: [] }));
-      setShowSuggestions(prev => ({ ...prev, [index]: false }));
-      return;
-    }
-
-    setLoadingItems(prev => ({ ...prev, [index]: true }));
-    
+  // ─── Fetch single purchase order ──────────────────────────────────
+  const fetchPurchaseOrder = async (poId: string) => {
+    setLoadingData(true);
     try {
-      const response = await api.get(`/item?page=1&limit=10&search=${encodeURIComponent(searchTerm)}`);
-      
+      const response = await api.get(`/purchase-order/${poId}`);
       if (response.data && response.data.success === 1) {
-        const items = response.data.data || [];
-        setItemSuggestions(prev => ({ ...prev, [index]: items }));
-        setShowSuggestions(prev => ({ ...prev, [index]: items.length > 0 }));
+        const data = response.data.data;
         
-        // Update dropdown position when suggestions appear
-        if (items.length > 0 && inputRefs.current[index]) {
-          updateDropdownPosition(index);
+        const items = data.items?.map((item: any, index: number) => ({
+          id: String(index + 1),
+          itemCode: item.item_code || '',
+          itemName: item.item_name || '',
+          quantity: item.qty || 0,
+          uom: item.uom || 'NOS',
+          rate: item.rate || 0,
+          amount: item.amount || 0,
+          receivedQty: item.received_qty || 0,
+          balanceQty: item.balance_qty || item.qty || 0,
+          itemGroup: item.item_group || '',
+          brand: item.brand || '',
+          description: item.description || '',
+          taxRate: item.item_tax_rate ? parseFloat(item.item_tax_rate) : 18,
+        })) || [{ id: '1', itemCode: '', itemName: '', quantity: 1, uom: 'NOS', rate: 0, amount: 0, receivedQty: 0, balanceQty: 0 }];
+
+        // --- Extract tax info from response ---
+        let taxRate = 18;
+        let taxCategory = 'GST';
+        let taxId = '';
+        
+        if (data.taxes_and_charges) {
+          const taxString = data.taxes_and_charges;
+          // Extract percentage
+          const percentMatch = taxString.match(/(\d+)%/);
+          if (percentMatch) {
+            taxRate = parseInt(percentMatch[1]);
+          } else {
+            const numberMatch = taxString.match(/(\d+)/);
+            if (numberMatch) {
+              taxRate = parseInt(numberMatch[1]);
+            }
+          }
+          
+          // Check category
+          if (taxString.includes('GST')) {
+            taxCategory = 'GST';
+          } else if (taxString.includes('VAT')) {
+            taxCategory = 'VAT';
+          } else if (taxString.includes('Tax')) {
+            taxCategory = 'Tax';
+          }
         }
+        
+        // Find matching tax ID from taxOptions
+        if (taxOptions.length > 0) {
+          // Try to find tax by rate and category
+          let foundTax = taxOptions.find(t => {
+            const { rate, category } = extractTaxInfo(t.tax_type);
+            return rate === taxRate && category === taxCategory;
+          });
+          
+          // If not found, try just by rate
+          if (!foundTax) {
+            foundTax = taxOptions.find(t => {
+              const { rate } = extractTaxInfo(t.tax_type);
+              return rate === taxRate;
+            });
+          }
+          
+          // If still not found, use first available
+          if (foundTax) {
+            taxId = String(foundTax.tax_id);
+            const { rate, category } = extractTaxInfo(foundTax.tax_type);
+            taxRate = rate;
+            taxCategory = category;
+          } else if (taxOptions.length > 0) {
+            const firstTax = taxOptions[0];
+            taxId = String(firstTax.tax_id);
+            const { rate, category } = extractTaxInfo(firstTax.tax_type);
+            taxRate = rate;
+            taxCategory = category;
+          }
+        }
+
+        setFormData({
+          poNumber: data.name || data.po_number || '',
+          title: data.title || '',
+          supplier: data.supplier_name || data.supplier || '',
+          supplierCode: data.supplier || '',
+          status: data.status || 'Draft',
+          orderDate: data.transaction_date ? data.transaction_date.split('T')[0] : new Date().toISOString().split('T')[0],
+          deliveryDate: data.schedule_date ? data.schedule_date.split('T')[0] : '',
+          currency: data.currency || 'INR',
+          paymentTerms: data.payment_terms_template || 'Net 30',
+          shippingAddress: data.shipping_address_display || data.shipping_address || '',
+          billingAddress: data.billing_address_display || data.billing_address || '',
+          notes: data.terms || data.notes || '',
+          items: items,
+          taxRate: taxRate,
+          taxCategory: taxCategory,
+          taxId: taxId,
+        });
       } else {
-        setItemSuggestions(prev => ({ ...prev, [index]: [] }));
-        setShowSuggestions(prev => ({ ...prev, [index]: false }));
+        toast.error('Failed to load purchase order');
+        navigate('/purchase-order');
       }
     } catch (err: any) {
-      console.error('Error fetching items:', err);
-      setItemSuggestions(prev => ({ ...prev, [index]: [] }));
-      setShowSuggestions(prev => ({ ...prev, [index]: false }));
+      console.error('Error fetching purchase order:', err);
+      toast.error('Failed to load purchase order');
+      navigate('/purchase-order');
     } finally {
-      setLoadingItems(prev => ({ ...prev, [index]: false }));
+      setLoadingData(false);
     }
   };
 
-  // Update dropdown position
+  // ─── Update dropdown position ─────────────────────────────────────
   const updateDropdownPosition = (index: number) => {
     const input = inputRefs.current[index];
     if (input) {
@@ -290,33 +408,77 @@ export default function PurchaseOrderForm() {
     }
   };
 
-  // Handle item search with debounce
-  const handleItemSearch = (index: number, value: string) => {
-    // Clear previous timeout
-    if (searchTimeoutRef.current[index]) {
-      clearTimeout(searchTimeoutRef.current[index]);
+  // ─── Filter items based on search term and group filter ──────────
+  const filterItems = (index: number, searchTerm: string) => {
+    let filtered = allItems;
+    
+    if (itemGroupFilter !== 'all') {
+      filtered = filtered.filter(item => item.item_group === itemGroupFilter);
     }
-
-    // Update search term
-    setSearchTerms(prev => ({ ...prev, [index]: value }));
-
-    // Debounce the API call
-    searchTimeoutRef.current[index] = setTimeout(() => {
-      fetchItemSuggestions(index, value);
-    }, 300);
+    
+    if (searchTerm && searchTerm.length >= 1) {
+      const term = searchTerm.toLowerCase().trim();
+      filtered = filtered.filter(item => 
+        item.item_code.toLowerCase().includes(term) ||
+        item.item_name.toLowerCase().includes(term) ||
+        (item.item_group && item.item_group.toLowerCase().includes(term))
+      );
+    }
+    
+    setFilteredItems(prev => ({ ...prev, [index]: filtered }));
+    // Show the dropdown whenever there are matching items — even with an empty
+    // search term — so clicking into the field immediately reveals the list.
+    setShowSuggestions(prev => ({ ...prev, [index]: filtered.length > 0 }));
+    
+    if (inputRefs.current[index]) {
+      updateDropdownPosition(index);
+    }
   };
 
-  // Handle item selection from suggestions
+  // ─── Open the item dropdown (used on focus/click) ─────────────────
+  const openItemDropdown = (index: number) => {
+    updateDropdownPosition(index);
+    const searchVal = searchTerms[index] || '';
+    filterItems(index, searchVal);
+  };
+
+  // ─── Handle tax selection ──────────────────────────────────────────
+  const handleTaxChange = (taxId: string) => {
+    const selectedTax = taxOptions.find(t => t.tax_id.toString() === taxId);
+    if (selectedTax) {
+      const { rate, category } = extractTaxInfo(selectedTax.tax_type);
+      
+      setFormData(prev => ({
+        ...prev,
+        taxId: taxId,
+        taxRate: rate || 0,
+        taxCategory: category,
+      }));
+    }
+  };
+
+  // ─── Handle item search (client-side) ─────────────────────────────
+  const handleItemSearch = (index: number, value: string) => {
+    setSearchTerms(prev => ({ ...prev, [index]: value }));
+    filterItems(index, value);
+  };
+
+  // ─── Handle item selection from suggestions ──────────────────────
   const handleSelectItem = (index: number, item: ItemSuggestion) => {
     const updatedItems = [...formData.items];
+    const rate = item.standard_rate || item.valuation_rate || 0;
     updatedItems[index] = {
       ...updatedItems[index],
       itemCode: item.item_code,
       itemName: item.item_name,
       uom: item.stock_uom || 'NOS',
-      rate: item.standard_rate || 0,
-      amount: (item.standard_rate || 0) * updatedItems[index].quantity,
-      balanceQty: updatedItems[index].quantity - updatedItems[index].receivedQty
+      rate: rate,
+      amount: rate * updatedItems[index].quantity,
+      balanceQty: updatedItems[index].quantity - updatedItems[index].receivedQty,
+      itemGroup: item.item_group || '',
+      brand: item.brand || '',
+      description: item.description || '',
+      taxRate: formData.taxRate,
     };
     
     setFormData(prev => ({ ...prev, items: updatedItems }));
@@ -324,7 +486,7 @@ export default function PurchaseOrderForm() {
     setSearchTerms(prev => ({ ...prev, [index]: item.item_code }));
   };
 
-  // Close suggestions when clicking outside
+  // ─── Close suggestions when clicking outside ─────────────────────
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       Object.keys(suggestionRefs.current).forEach((key) => {
@@ -345,7 +507,7 @@ export default function PurchaseOrderForm() {
     };
   }, []);
 
-  // Update dropdown position on scroll or resize
+  // ─── Update dropdown position on scroll or resize ────────────────
   useEffect(() => {
     const handleScrollOrResize = () => {
       Object.keys(showSuggestions).forEach((key) => {
@@ -365,59 +527,61 @@ export default function PurchaseOrderForm() {
     };
   }, [showSuggestions]);
 
-  // Load data if editing
+  // ─── Load data ─────────────────────────────────────────────────────
   useEffect(() => {
-    fetchSuppliers();
-
-    if (isEdit && id) {
-      const purchaseOrder = mockPurchaseOrders.find(po => po.id === id);
-      if (purchaseOrder) {
-        setFormData({
-          poNumber: purchaseOrder.poNumber,
-          title: purchaseOrder.title,
-          supplier: purchaseOrder.supplier,
-          supplierCode: purchaseOrder.supplierCode,
-          status: purchaseOrder.status,
-          orderDate: purchaseOrder.orderDate,
-          deliveryDate: purchaseOrder.deliveryDate,
-          currency: purchaseOrder.currency,
-          paymentTerms: purchaseOrder.paymentTerms,
-          shippingAddress: purchaseOrder.shippingAddress,
-          billingAddress: purchaseOrder.billingAddress,
-          notes: purchaseOrder.notes || '',
-          items: purchaseOrder.items.map(item => ({ ...item }))
-        });
+    const loadData = async () => {
+      await fetchSuppliers();
+      await fetchAllItems();
+      await fetchTaxOptions();
+      
+      // Now tax options are loaded, fetch the purchase order
+      if (isEdit && id) {
+        // Small delay to ensure taxOptions state is updated
+        setTimeout(() => {
+          fetchPurchaseOrder(id);
+        }, 150);
+      } else {
+        const today = new Date();
+        const year = today.getFullYear();
+        const nextNumber = Math.floor(Math.random() * 1000) + 1;
+        setFormData(prev => ({
+          ...prev,
+          poNumber: `PO-${year}-${String(nextNumber).padStart(3, '0')}`
+        }));
       }
-    } else {
-      const nextNumber = mockPurchaseOrders.length + 1;
-      setFormData(prev => ({
-        ...prev,
-        poNumber: `PO-2026-${String(nextNumber).padStart(3, '0')}`
-      }));
-    }
-
-    // Cleanup timeouts on unmount
-    return () => {
-      Object.values(searchTimeoutRef.current).forEach(timeout => {
-        if (timeout) clearTimeout(timeout);
-      });
     };
+    
+    loadData();
   }, [id, isEdit]);
 
+  // ─── Re-filter items when group filter changes ────────────────────
+  useEffect(() => {
+    Object.keys(searchTerms).forEach(key => {
+      const index = parseInt(key);
+      filterItems(index, searchTerms[index] || '');
+    });
+  }, [itemGroupFilter]);
+
+  // ─── Calculate totals ─────────────────────────────────────────────
+  const calculateTotals = () => {
+    const totalAmount = formData.items.reduce((sum, item) => sum + item.amount, 0);
+    const taxRate = formData.taxRate / 100;
+    const taxAmount = totalAmount * taxRate;
+    const grandTotal = totalAmount + taxAmount;
+    
+    return { totalAmount, taxAmount, grandTotal };
+  };
+
+  const { totalAmount, taxAmount, grandTotal } = calculateTotals();
+
+  // ─── Handlers ──────────────────────────────────────────────────────
   const handleItemChange = (index: number, field: keyof PurchaseOrderItem, value: string | number) => {
     const updatedItems = [...formData.items];
     updatedItems[index] = { ...updatedItems[index], [field]: value };
     
-    // If itemCode changes, trigger search
     if (field === 'itemCode') {
       const stringValue = value as string;
       handleItemSearch(index, stringValue);
-      // Clear other fields if user types manually
-      if (stringValue !== updatedItems[index].itemCode) {
-        updatedItems[index].itemName = '';
-        updatedItems[index].rate = 0;
-        updatedItems[index].amount = 0;
-      }
     }
     
     if (field === 'quantity' || field === 'rate') {
@@ -440,6 +604,15 @@ export default function PurchaseOrderForm() {
       ...prev,
       items: [...prev.items, { id: newId, itemCode: '', itemName: '', quantity: 1, uom: 'NOS', rate: 0, amount: 0, receivedQty: 0, balanceQty: 0 }]
     }));
+    const filtered = allItems;
+    if (itemGroupFilter !== 'all') {
+      setFilteredItems(prev => ({ 
+        ...prev, 
+        [formData.items.length]: filtered.filter(item => item.item_group === itemGroupFilter) 
+      }));
+    } else {
+      setFilteredItems(prev => ({ ...prev, [formData.items.length]: filtered }));
+    }
   };
 
   const removeItemRow = (index: number) => {
@@ -448,18 +621,12 @@ export default function PurchaseOrderForm() {
       ...prev,
       items: prev.items.filter((_, i) => i !== index)
     }));
-    // Clean up suggestion state for removed row
-    setItemSuggestions(prev => {
+    setFilteredItems(prev => {
       const newState = { ...prev };
       delete newState[index];
       return newState;
     });
     setShowSuggestions(prev => {
-      const newState = { ...prev };
-      delete newState[index];
-      return newState;
-    });
-    setLoadingItems(prev => {
       const newState = { ...prev };
       delete newState[index];
       return newState;
@@ -491,6 +658,7 @@ export default function PurchaseOrderForm() {
     return errors;
   };
 
+  // ─── Submit Handler ────────────────────────────────────────────────
   const handleSubmit = async () => {
     setApiError(null);
     
@@ -503,22 +671,24 @@ export default function PurchaseOrderForm() {
 
     setLoading(true);
     
-    const totalAmount = formData.items.reduce((sum, item) => sum + item.amount, 0);
     const totalQty = formData.items.reduce((sum, item) => sum + item.quantity, 0);
-    
     const selectedSupplier = suppliers.find(s => s.supplier_name === formData.supplier);
     
+    const taxRate = formData.taxRate / 100;
+    const taxAmountCalc = totalAmount * taxRate;
+    const grandTotalCalc = totalAmount + taxAmountCalc;
+
     const payload: any = {
       name: formData.poNumber,
       naming_series: "PO-.YYYY.-",
-      supplier: selectedSupplier?.id || formData.supplierCode || "SUP-00001",
+      supplier: selectedSupplier?.id?.toString() || formData.supplierCode || "SUP-00001",
       supplier_name: formData.supplier,
       order_confirmation_no: "",
-      order_confirmation_date: "",
+      order_confirmation_date: null,
       transaction_date: formData.orderDate,
       transaction_time: "10:30:00",
       schedule_date: formData.deliveryDate || "",
-      company: "My Company Pvt Ltd",
+      company: "SculptorTech Pvt Ltd",
       is_subcontracted: 0,
       has_unit_price_items: 0,
       supplier_warehouse: "",
@@ -532,7 +702,7 @@ export default function PurchaseOrderForm() {
       ignore_pricing_rule: 0,
       scan_barcode: "",
       set_from_warehouse: "",
-      set_warehouse: "",
+      set_warehouse: "Main Warehouse",
       total_qty: totalQty,
       total_net_weight: 0,
       base_total: totalAmount,
@@ -540,21 +710,21 @@ export default function PurchaseOrderForm() {
       total: totalAmount,
       net_total: totalAmount,
       set_reserve_warehouse: "",
-      tax_category: "",
-      taxes_and_charges: "",
+      tax_category: formData.taxCategory,
+      taxes_and_charges: `${formData.taxCategory} ${formData.taxRate}%`,
       shipping_rule: "",
       incoterm: "",
       named_place: "",
-      base_taxes_and_charges_added: 0,
+      base_taxes_and_charges_added: taxAmountCalc,
       base_taxes_and_charges_deducted: 0,
-      base_total_taxes_and_charges: 0,
-      taxes_and_charges_added: 0,
+      base_total_taxes_and_charges: taxAmountCalc,
+      taxes_and_charges_added: taxAmountCalc,
       taxes_and_charges_deducted: 0,
-      total_taxes_and_charges: 0,
-      grand_total: totalAmount,
-      rounded_total: totalAmount,
-      base_grand_total: totalAmount,
-      base_rounded_total: totalAmount,
+      total_taxes_and_charges: taxAmountCalc,
+      grand_total: grandTotalCalc,
+      rounded_total: Math.round(grandTotalCalc),
+      base_grand_total: grandTotalCalc,
+      base_rounded_total: Math.round(grandTotalCalc),
       disable_rounded_total: 0,
       rounding_adjustment: 0,
       base_rounding_adjustment: 0,
@@ -564,9 +734,9 @@ export default function PurchaseOrderForm() {
       additional_discount_percentage: 0,
       discount_amount: 0,
       other_charges_calculation: "Net Total",
-      supplier_address: "",
+      supplier_address: selectedSupplier?.address || "",
       address_display: formData.shippingAddress || "",
-      supplier_group: "Local",
+      supplier_group: selectedSupplier?.supplier_group || "Local",
       contact_person: "",
       contact_display: "",
       contact_mobile: "",
@@ -611,29 +781,83 @@ export default function PurchaseOrderForm() {
       docstatus: 0,
       idx: 0,
       items: formData.items.map(item => ({
+        fg_item: "FG-0001",
+        fg_item_qty: item.quantity || 0,
         item_code: item.itemCode,
+        supplier_part_no: `SP-${String(formData.items.indexOf(item) + 1).padStart(3, '0')}`,
         item_name: item.itemName,
+        brand: item.brand || "",
+        product_bundle: "",
+        schedule_date: formData.deliveryDate || "",
+        expected_delivery_date: formData.deliveryDate || "",
+        item_group: item.itemGroup || "Raw Material",
+        description: item.description || item.itemName || "",
+        image: "",
         qty: item.quantity,
-        uom: item.uom,
+        stock_uom: item.uom || "Nos",
+        subcontracted_qty: 0,
+        uom: item.uom || "Nos",
+        conversion_factor: 1,
+        price_list_rate: item.rate,
+        last_purchase_rate: item.rate * 0.98,
+        base_price_list_rate: item.rate,
+        margin_type: "Percentage",
+        margin_rate_or_amount: 0,
+        rate_with_margin: item.rate,
+        discount_percentage: 0,
+        distributed_discount_amount: 0,
+        base_rate_with_margin: item.rate,
         rate: item.rate,
-        amount: item.amount,
+        item_tax_template: `${formData.taxCategory} ${formData.taxRate}%`,
+        pricing_rules: "",
+        is_free_item: 0,
+        from_warehouse: "",
+        warehouse: "Main Warehouse",
+        actual_qty: 0,
+        company_total_stock: 0,
+        material_request: "",
+        material_request_item: "",
+        sales_order: "",
+        sales_order_item: "",
+        sales_order_packed_item: "",
+        supplier_quotation: "",
+        supplier_quotation_item: "",
+        delivered_by_supplier: 0,
+        against_blanket_order: 0,
+        blanket_order: "",
+        blanket_order_rate: 0,
         received_qty: item.receivedQty || 0,
-        balance_qty: item.balanceQty || item.quantity
+        returned_qty: 0,
+        billed_amt: 0,
+        expense_account: "Stock In Hand",
+        wip_composite_asset: "",
+        manufacturer: "",
+        manufacturer_part_no: "",
+        bom: "",
+        include_exploded_items: 0,
+        weight_per_unit: 0,
+        weight_uom: "Kg",
+        project: "",
+        cost_center: "Main - STPL",
+        is_fixed_asset: 0,
+        item_tax_rate: String(formData.taxRate),
+        production_plan: "",
+        production_plan_item: "",
+        production_plan_sub_assembly_item: "",
+        page_break: 0,
+        job_card: ""
       }))
     };
 
     if (isEdit && id) {
-      payload.id = id;
+      payload.id = parseInt(id);
     }
 
     try {
-      let response;
-      if (isEdit && id) {
-        response = await api.put('/purchase-order', payload);
-      } else {
-        response = await api.post('/purchase-order', payload);
-      }
-      
+      const response = isEdit && id
+        ? await api.put('/purchase-order', payload)
+        : await api.post('/purchase-order', payload);
+
       if (response.data && response.data.success === 1) {
         toast.success(isEdit ? 'Purchase Order updated successfully!' : 'Purchase Order created successfully!');
         navigate('/purchase-order');
@@ -660,16 +884,17 @@ export default function PurchaseOrderForm() {
 
   const hasErrors = getAllValidationErrors().length > 0;
 
-  const getSupplierDisplayName = (supplier: any) => {
+  const getSupplierDisplayName = (supplier: Supplier) => {
     if (supplier.supplier_name) {
       return `${supplier.supplier_name} ${supplier.supplier_type ? `(${supplier.supplier_type})` : ''}`;
     }
-    return supplier.name || supplier.id || 'Unnamed Supplier';
+    return supplier.supplier_name || supplier.id?.toString() || 'Unnamed Supplier';
   };
 
-  // Render suggestions using portal
+  // ─── Render suggestions using portal ──────────────────────────────
   const renderSuggestions = (index: number) => {
-    if (!showSuggestions[index] || !itemSuggestions[index]?.length) return null;
+    const items = filteredItems[index] || [];
+    if (!showSuggestions[index] || items.length === 0) return null;
 
     const position = dropdownPositions[index];
     if (!position) return null;
@@ -685,25 +910,43 @@ export default function PurchaseOrderForm() {
           width: position.width,
           maxHeight: '250px',
           overflowY: 'auto',
-          zIndex: 9999
+          zIndex: 9999,
         }}
       >
-        {itemSuggestions[index].map((suggestion) => (
+        {items.map((suggestion) => (
           <div
             key={suggestion.id}
             className="pof-suggestion-item"
             onClick={() => handleSelectItem(index, suggestion)}
           >
-            <div className="pof-suggestion-code">{suggestion.item_code}</div>
-            <div className="pof-suggestion-name">{suggestion.item_name}</div>
-            {suggestion.brand && (
-              <div className="pof-suggestion-brand">{suggestion.brand}</div>
-            )}
-            {suggestion.standard_rate > 0 && (
-              <div className="pof-suggestion-rate">
-                {formData.currency} {suggestion.standard_rate.toFixed(2)}
+            <div>
+              <div className="pof-suggestion-code">
+                {suggestion.item_code}
               </div>
-            )}
+              <div className="pof-suggestion-name">
+                {suggestion.item_name}
+              </div>
+              <div style={{ display: 'flex', gap: '6px', marginTop: '2px' }}>
+                {suggestion.item_group && (
+                  <span className="pof-suggestion-chip">
+                    {suggestion.item_group}
+                  </span>
+                )}
+                {suggestion.brand && (
+                  <span className="pof-suggestion-chip pof-suggestion-chip-brand">
+                    {suggestion.brand}
+                  </span>
+                )}
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div className="pof-suggestion-rate">
+                {formData.currency} {suggestion.standard_rate?.toFixed(2) || suggestion.valuation_rate?.toFixed(2) || '0.00'}
+              </div>
+              <div className="pof-suggestion-uom">
+                UOM: {suggestion.stock_uom || 'NOS'}
+              </div>
+            </div>
           </div>
         ))}
       </div>
@@ -711,6 +954,19 @@ export default function PurchaseOrderForm() {
 
     return createPortal(dropdownContent, document.body);
   };
+
+  if (loadingData) {
+    return (
+      <div className={`pof-page ${theme}`}>
+        <div className="pof-inner">
+          <div className="pof-loading">
+            <FaSpinner className="spinning" size={24} />
+            <span>Loading purchase order...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`pof-page ${theme}`}>
@@ -771,6 +1027,7 @@ export default function PurchaseOrderForm() {
           </button>
           <div className="header-title">
             <h1>{isEdit ? 'Edit Purchase Order' : 'New Purchase Order'}</h1>
+            {isEdit && <span className="pof-status-badge">{formData.status}</span>}
           </div>
           {hasErrors && (
             <div className="error-badge">
@@ -790,7 +1047,8 @@ export default function PurchaseOrderForm() {
               <FaFileAlt className="pof-section-icon" /> Purchase Order Information
             </span>
 
-            <div className="pof-grid-2">
+            {/* Row 1: PO Number / Status / Title */}
+            <div className="pof-grid-3">
               <div className="pof-field">
                 <label className="pof-label">
                   <FaTag className="pof-label-icon" />PO Number
@@ -799,8 +1057,7 @@ export default function PurchaseOrderForm() {
                   type="text"
                   value={formData.poNumber}
                   disabled
-                  className="form-field"
-                  style={{ background: 'var(--layout-bg, #f3f4f6)', cursor: 'not-allowed' }}
+                  className="form-field form-field-disabled"
                 />
               </div>
               <div className="pof-field">
@@ -815,38 +1072,41 @@ export default function PurchaseOrderForm() {
                   {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
+              <div className="pof-field">
+                <label className="pof-label">
+                  <FaTag className="pof-label-icon" />Title <span className="pof-required">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.title}
+                  onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                  className={`form-field ${validationErrors.some(e => e.field === 'title') ? 'field-error' : ''}`}
+                  placeholder="Enter PO title"
+                />
+                {validationErrors.some(e => e.field === 'title') && (
+                  <span className="pof-error-msg">
+                    <FaExclamationCircle size={10} />Title is required
+                  </span>
+                )}
+              </div>
             </div>
 
-            <div className="pof-field">
-              <label className="pof-label">
-                <FaTag className="pof-label-icon" />Title <span className="pof-required">*</span>
-              </label>
-              <input
-                type="text"
-                value={formData.title}
-                onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                className={`form-field ${validationErrors.some(e => e.field === 'title') ? 'field-error' : ''}`}
-                placeholder="Enter PO title"
-              />
-              {validationErrors.some(e => e.field === 'title') && (
-                <span className="pof-error-msg">
-                  <FaExclamationCircle size={10} />Title is required
-                </span>
-              )}
-            </div>
-
-            <div className="pof-grid-2">
+            {/* Row 2: Supplier / Order Date / Delivery Date */}
+            <div className="pof-grid-3">
               <div className="pof-field">
                 <label className="pof-label">
                   <FaBuilding className="pof-label-icon" />Supplier <span className="pof-required">*</span>
                 </label>
                 <select
                   value={formData.supplier}
-                  onChange={(e) => setFormData(prev => ({ 
-                    ...prev, 
-                    supplier: e.target.value,
-                    supplierCode: e.target.value ? suppliers.find(s => s.supplier_name === e.target.value)?.id || '' : ''
-                  }))}
+                  onChange={(e) => {
+                    const selectedSupplier = suppliers.find(s => s.supplier_name === e.target.value);
+                    setFormData(prev => ({ 
+                      ...prev, 
+                      supplier: e.target.value,
+                      supplierCode: selectedSupplier?.id?.toString() || '',
+                    }));
+                  }}
                   className={`form-field ${validationErrors.some(e => e.field === 'supplier') ? 'field-error' : ''}`}
                   disabled={loadingSuppliers}
                 >
@@ -877,21 +1137,6 @@ export default function PurchaseOrderForm() {
               </div>
               <div className="pof-field">
                 <label className="pof-label">
-                  <FaTag className="pof-label-icon" />Supplier Code
-                </label>
-                <input
-                  type="text"
-                  value={formData.supplierCode}
-                  onChange={(e) => setFormData(prev => ({ ...prev, supplierCode: e.target.value }))}
-                  className="form-field"
-                  placeholder="SUP-001"
-                />
-              </div>
-            </div>
-
-            <div className="pof-grid-2">
-              <div className="pof-field">
-                <label className="pof-label">
                   <FaCalendarAlt className="pof-label-icon" />Order Date <span className="pof-required">*</span>
                 </label>
                 <input
@@ -908,7 +1153,8 @@ export default function PurchaseOrderForm() {
               </div>
               <div className="pof-field">
                 <label className="pof-label">
-                  <FaCalendarAlt className="pof-label-icon" />Delivery Date                </label>
+                  <FaCalendarAlt className="pof-label-icon" />Delivery Date
+                </label>
                 <input
                   type="date"
                   value={formData.deliveryDate}
@@ -918,7 +1164,8 @@ export default function PurchaseOrderForm() {
               </div>
             </div>
 
-            <div className="pof-grid-2">
+            {/* Row 3: Currency / Payment Terms */}
+            <div className="pof-grid-3">
               <div className="pof-field">
                 <label className="pof-label">
                   <FaMoneyBillWave className="pof-label-icon" />Currency
@@ -947,39 +1194,29 @@ export default function PurchaseOrderForm() {
 
             <div className="pof-divider" />
 
-            {/* Addresses */}
-            <span className="pof-section-title">
-              <FaTruck className="pof-section-icon" />Addresses
-            </span>
-
-            <div className="pof-field">
-              <label className="pof-label">Shipping Address</label>
-              <input
-                type="text"
-                value={formData.shippingAddress}
-                onChange={(e) => setFormData(prev => ({ ...prev, shippingAddress: e.target.value }))}
-                className="form-field"
-                placeholder="Enter shipping address"
-              />
-            </div>
-
-            <div className="pof-field">
-              <label className="pof-label">Billing Address</label>
-              <input
-                type="text"
-                value={formData.billingAddress}
-                onChange={(e) => setFormData(prev => ({ ...prev, billingAddress: e.target.value }))}
-                className="form-field"
-                placeholder="Enter billing address"
-              />
-            </div>
-
-            <div className="pof-divider" />
-
             {/* Items Section */}
             <span className="pof-section-title">
               <FaBoxes className="pof-section-icon" />Items <span className="pof-required">*</span>
             </span>
+
+            {/* Item Group Filter */}
+            <div className="pof-item-filter">
+              <FaFilter className="pof-filter-icon" />
+              <span className="pof-filter-label">Filter by Group:</span>
+              <select
+                value={itemGroupFilter}
+                onChange={(e) => setItemGroupFilter(e.target.value)}
+                className="pof-filter-select"
+              >
+                <option value="all">All Groups</option>
+                {itemGroups.map(group => (
+                  <option key={group} value={group}>{group}</option>
+                ))}
+              </select>
+              <span className="pof-filter-count">
+                {allItems.length} items available
+              </span>
+            </div>
 
             <div className="pof-field">
               <div className="pof-table-block">
@@ -993,7 +1230,6 @@ export default function PurchaseOrderForm() {
                       <th className="pof-ith">UOM</th>
                       <th className="pof-ith">Rate <span className="pof-required">*</span></th>
                       <th className="pof-ith">Amount</th>
-                      <th className="pof-ith">Received</th>
                       <th className="pof-ith pof-ith-action"></th>
                     </tr>
                   </thead>
@@ -1008,44 +1244,38 @@ export default function PurchaseOrderForm() {
                               className="pof-cell-input"
                               type="text"
                               value={item.itemCode}
-                              onChange={(e) => handleItemChange(index, 'itemCode', e.target.value)}
-                              placeholder="Search item code"
-                              onFocus={() => {
-                                if (item.itemCode && itemSuggestions[index]?.length > 0) {
-                                  updateDropdownPosition(index);
-                                  setShowSuggestions(prev => ({ ...prev, [index]: true }));
-                                }
-                              }}
+                              onChange={(e) => handleItemSearch(index, e.target.value)}
+                              placeholder="Search or click to browse items"
+                              onFocus={() => openItemDropdown(index)}
+                              onClick={() => openItemDropdown(index)}
                               onKeyDown={(e) => {
                                 if (e.key === 'Escape') {
                                   setShowSuggestions(prev => ({ ...prev, [index]: false }));
                                 }
                               }}
                             />
-                            {loadingItems[index] && (
+                            {loadingItems && (
                               <FaSpinner className="spinning pof-search-spinner" size={14} />
                             )}
-                            {item.itemCode && !loadingItems[index] && (
+                            {item.itemCode && !loadingItems && (
                               <FaSearch className="pof-search-icon" size={14} />
                             )}
                             
-                            {/* Render suggestions using portal */}
                             {renderSuggestions(index)}
                             
-                            {/* Show "No items found" message */}
-                            {showSuggestions[index] && itemSuggestions[index]?.length === 0 && !loadingItems[index] && (
+                            {showSuggestions[index] && filteredItems[index]?.length === 0 && !loadingItems && (
                               createPortal(
                                 <div 
-                                  className="pof-suggestions-dropdown-portal"
+                                  className="pof-suggestions-dropdown-portal pof-suggestions-empty-state"
                                   style={{
                                     position: 'fixed',
                                     top: dropdownPositions[index]?.top || 0,
                                     left: dropdownPositions[index]?.left || 0,
                                     width: dropdownPositions[index]?.width || 'auto',
-                                    zIndex: 9999
+                                    zIndex: 9999,
                                   }}
                                 >
-                                  <div className="pof-suggestion-empty">No items found</div>
+                                  No items found
                                 </div>,
                                 document.body
                               )
@@ -1059,6 +1289,7 @@ export default function PurchaseOrderForm() {
                             value={item.itemName}
                             onChange={(e) => handleItemChange(index, 'itemName', e.target.value)}
                             placeholder="Name"
+                            disabled
                           />
                         </td>
                         <td className="pof-itd">
@@ -1090,17 +1321,7 @@ export default function PurchaseOrderForm() {
                           />
                         </td>
                         <td className="pof-itd pof-itd-amount">{formData.currency} {item.amount.toFixed(2)}</td>
-                        <td className="pof-itd">
-                          <input
-                            className="pof-cell-input pof-cell-number"
-                            type="number"
-                            value={item.receivedQty}
-                            onChange={(e) => handleItemChange(index, 'receivedQty', Number(e.target.value))}
-                            min="0"
-                            disabled={!isEdit}
-                            style={!isEdit ? { background: 'var(--layout-bg, #f3f4f6)', cursor: 'not-allowed' } : {}}
-                          />
-                        </td>
+                        
                         <td className="pof-itd">
                           {formData.items.length > 1 && (
                             <button
@@ -1115,11 +1336,47 @@ export default function PurchaseOrderForm() {
                       </tr>
                     ))}
                   </tbody>
+                  
                   <tfoot>
                     <tr>
-                      <td colSpan={6} className="pof-total-label">Total</td>
-                      <td className="pof-total-amount">{formData.currency} {formData.items.reduce((sum, item) => sum + item.amount, 0).toFixed(2)}</td>
+                      <td colSpan={5} className="pof-total-label">Subtotal</td>
+                      <td colSpan={2} className="pof-total-amount">{formData.currency} {totalAmount.toFixed(2)}</td>
                       <td></td>
+                    </tr>
+                    <tr>
+                      <td colSpan={5} className="pof-total-label">
+                        <div className="pof-tax-selector-wrapper">
+                          <span>Tax</span>
+                          <select
+                            value={formData.taxId}
+                            onChange={(e) => handleTaxChange(e.target.value)}
+                            className="pof-tax-select"
+                            disabled={loadingTaxes}
+                          >
+                            <option value="">
+                              {loadingTaxes ? 'Loading...' : 'Select Tax'}
+                            </option>
+                            {taxOptions.map(tax => {
+                              const { rate, category } = extractTaxInfo(tax.tax_type);
+                              const displayText = `${category} ${rate}%`;
+                              return (
+                                <option key={tax.tax_id} value={String(tax.tax_id)}>
+                                  {displayText}
+                                </option>
+                              );
+                            })}
+                          </select>
+                          <span className="pof-tax-rate-display">
+                            ({formData.taxRate}% {formData.taxCategory})
+                          </span>
+                        </div>
+                      </td>
+                      <td colSpan={2} className="pof-total-amount">{formData.currency} {taxAmount.toFixed(2)}</td>
+                      <td></td>
+                    </tr>
+                    <tr>
+                      <td colSpan={5} className="pof-total-label pof-total-grand">Grand Total</td>
+                      <td colSpan={2} className="pof-total-amount pof-total-grand-amount">{formData.currency} {grandTotal.toFixed(2)}</td>
                       <td></td>
                     </tr>
                   </tfoot>
@@ -1135,9 +1392,8 @@ export default function PurchaseOrderForm() {
               )}
             </div>
 
-            <div className="pof-divider" />
-
             {/* Notes */}
+            <div className="pof-divider" />
             <div className="pof-field">
               <label className="pof-label">Notes</label>
               <textarea

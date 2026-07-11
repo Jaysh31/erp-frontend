@@ -8,8 +8,6 @@ import {
   FaExclamationCircle,
   FaUserTag,
   FaToggleOn,
-  FaToggleOff,
-  FaLock,
   FaUnlock,
   FaShieldAlt,
 } from 'react-icons/fa';
@@ -17,17 +15,17 @@ import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
 import "./RoleForm.css";
 
-interface Role {
-  id: number;
-  name: string;
-  role_name: string;
-  disabled: number;
-  desk_access: number;
-  two_factor_auth: number;
-  is_custom: number;
-  home_page: string;
-  restrict_to_domain: string;
-}
+// interface Role {
+//   id: number;
+//   name: string;
+//   role_name: string;
+//   disabled: number;
+//   desk_access: number;
+//   two_factor_auth: number;
+//   is_custom: number;
+//   home_page: string;
+//   restrict_to_domain: string;
+// }
 
 export default function RoleForm() {
   const navigate = useNavigate();

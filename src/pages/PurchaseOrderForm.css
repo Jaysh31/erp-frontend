@@ -9,13 +9,13 @@
   max-width: 1100px;
   margin: 0 auto;
 }
-/* PurchaseOrderForm.css - Add these styles */
 
-/* ─── Grid 3 Columns ─── */
+/* ─── Grid 3 Columns (compact rows: PO#/Status/Title, Supplier/Dates, etc.) ─── */
 .pof-grid-3 {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 16px;
+  margin-bottom: 18px;
 }
 
 /* ─── Loading State ─── */
@@ -44,44 +44,20 @@
   color: var(--text-secondary, #6b7280);
 }
 
-/* ─── Dark Theme ─── */
-.dark .pof-suggestions-dropdown-portal {
-  background: #1f2937 !important;
-  border-color: #374151 !important;
-}
-
-.dark .pof-suggestion-item {
-  border-bottom-color: #374151 !important;
-}
-
-.dark .pof-suggestion-item:hover {
-  background: #374151 !important;
-}
-
-.dark .pof-suggestion-code {
-  color: #f3f4f6 !important;
-}
-
-.dark .pof-suggestion-name {
-  color: #9ca3af !important;
-}
-
-.dark .pof-suggestion-rate {
-  color: #818cf8 !important;
-}
-
-/* ─── Responsive ─── */
+/* ─── Responsive grid-3 ─── */
 @media (max-width: 992px) {
   .pof-grid-3 {
     grid-template-columns: 1fr 1fr;
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 640px) {
   .pof-grid-3 {
     grid-template-columns: 1fr;
+    gap: 0;
   }
 }
+
 /* ─── API Error ───────────────────────────────────────────────────────── */
 .pof-api-error {
   display: flex;
@@ -257,6 +233,13 @@
   background: color-mix(in srgb, var(--danger-color) 2%, var(--card-bg));
 }
 
+.form-field-disabled,
+.form-field:disabled {
+  background: var(--layout-bg, #f3f4f6);
+  cursor: not-allowed;
+  color: var(--text-secondary);
+}
+
 .pof-error-msg {
   font-size: 11px;
   color: var(--danger-color);
@@ -264,6 +247,20 @@
   display: flex;
   align-items: center;
   gap: 3px;
+}
+
+.pof-loading-msg,
+.pof-warning-msg {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pof-warning-msg {
+  color: #b45309;
 }
 
 .pof-textarea {
@@ -287,11 +284,52 @@
   margin: 18px 0;
 }
 
+/* ─── Item Group Filter Bar ─────────────────────────────────────────── */
+.pof-item-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: var(--layout-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+
+.pof-filter-icon {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.pof-filter-label {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.pof-filter-select {
+  padding: 5px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 12px;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.pof-filter-count {
+  margin-left: auto;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
 /* ─── Tables ──────────────────────────────────────────────────────────── */
 .pof-table-block {
   border: 1px solid var(--border-color);
-  border-radius: 10px;
+  border-radius: 12px;
   overflow: hidden;
+  box-shadow: 0 1px 2px var(--shadow-color, rgba(0,0,0,0.03));
 }
 
 .pof-inline-table {
@@ -301,16 +339,16 @@
 }
 
 .pof-ith {
-  padding: 8px 12px;
+  padding: 10px 14px;
   text-align: left;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text-secondary);
   background: var(--layout-bg);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1.5px solid var(--border-color);
   white-space: nowrap;
-  font-size: 11px;
+  font-size: 10.5px;
   text-transform: uppercase;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.4px;
 }
 
 .pof-ith-action {
@@ -327,14 +365,19 @@
 
 .pof-itr {
   border-top: 1px solid var(--border-color);
+  transition: background 0.12s;
+}
+
+.pof-itr:nth-child(even) {
+  background: color-mix(in srgb, var(--layout-bg) 45%, transparent);
 }
 
 .pof-itr:hover {
-  background: var(--nav-hover);
+  background: color-mix(in srgb, var(--primary-color) 5%, var(--card-bg));
 }
 
 .pof-itd {
-  padding: 6px 12px;
+  padding: 8px 12px;
   color: var(--text-primary);
   vertical-align: middle;
 }
@@ -344,23 +387,24 @@
   font-size: 12px;
   text-align: center;
   width: 30px;
+  font-weight: 600;
 }
 
 .pof-itd-amount {
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-primary);
   white-space: nowrap;
 }
 
 .pof-cell-input {
   width: 100%;
-  height: 28px;
-  padding: 0 8px;
-  border: 1px solid transparent;
-  border-radius: 6px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border-color, transparent);
+  border-radius: 7px;
   font-size: 12.5px;
   color: var(--text-primary);
-  background: transparent;
+  background: var(--card-bg);
   outline: none;
   transition: all 0.15s;
   box-sizing: border-box;
@@ -373,22 +417,29 @@
 }
 
 .pof-cell-input:hover {
-  background: color-mix(in srgb, var(--primary-color) 3%, var(--card-bg));
+  border-color: color-mix(in srgb, var(--primary-color) 40%, var(--border-color));
+}
+
+.pof-cell-input:disabled {
+  background: var(--layout-bg);
+  color: var(--text-secondary);
+  cursor: not-allowed;
 }
 
 .pof-cell-number {
-  width: 70px;
+  width: 78px;
+  text-align: right;
 }
 
 .pof-cell-select {
   width: 100%;
-  height: 28px;
-  padding: 0 6px;
-  border: 1px solid transparent;
-  border-radius: 6px;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 7px;
   font-size: 12px;
   color: var(--text-primary);
-  background: transparent;
+  background: var(--card-bg);
   outline: none;
   transition: all 0.15s;
   cursor: pointer;
@@ -396,7 +447,6 @@
 
 .pof-cell-select:focus {
   border-color: var(--primary-color);
-  background: var(--card-bg);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 12%, transparent);
 }
 
@@ -418,37 +468,25 @@
 }
 
 .pof-add-row {
-  margin-top: 8px;
+  margin-top: 10px;
   background: none;
-  border: none;
+  border: 1px dashed var(--border-color);
   color: var(--primary-color);
-  font-size: 13px;
+  font-size: 12.5px;
   cursor: pointer;
-  padding: 4px 0;
+  padding: 7px 14px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   gap: 6px;
-  font-weight: 500;
+  font-weight: 600;
   transition: all 0.15s;
 }
 
 .pof-add-row:hover {
-  color: var(--primary-hover);
-  transform: translateX(4px);
-}
-
-.pof-total-label {
-  text-align: right;
-  font-weight: 600;
-  padding: 8px 12px;
-  color: var(--text-secondary);
-}
-
-.pof-total-amount {
-  font-weight: 700;
-  color: var(--primary-color);
-  padding: 8px 12px;
-  text-align: left;
+  color: var(--primary-hover, var(--primary-color));
+  border-color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 5%, transparent);
 }
 
 /* ─── Footer ──────────────────────────────────────────────────────────── */
@@ -690,6 +728,188 @@
   }
 }
 
+/* ─── Item Search Dropdown (portal) ──────────────────────────────────── */
+.pof-item-search-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.pof-search-icon {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #9ca3af;
+  pointer-events: none;
+}
+
+.pof-search-spinner {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #6b7280;
+}
+
+.pof-suggestions-dropdown-portal {
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+  max-height: 260px;
+  overflow-y: auto;
+  min-width: 220px;
+}
+
+.pof-suggestions-empty-state {
+  padding: 14px;
+  text-align: center;
+  color: var(--text-secondary, #6b7280);
+  font-size: 12.5px;
+}
+
+.pof-suggestion-item {
+  padding: 9px 14px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--border-color, #f3f4f6);
+  transition: background-color 0.15s;
+}
+
+.pof-suggestion-item:last-child {
+  border-bottom: none;
+}
+
+.pof-suggestion-item:hover {
+  background-color: color-mix(in srgb, var(--primary-color) 6%, var(--card-bg));
+}
+
+.pof-suggestion-code {
+  font-weight: 600;
+  color: var(--text-primary, #1f2937);
+  font-size: 13px;
+}
+
+.pof-suggestion-name {
+  font-size: 12px;
+  color: var(--text-secondary, #6b7280);
+  margin-top: 1px;
+}
+
+.pof-suggestion-chip {
+  font-size: 9px;
+  padding: 1px 6px;
+  background: var(--layout-bg, #f1f5f9);
+  border-radius: 4px;
+  color: var(--text-secondary, #64748b);
+}
+
+.pof-suggestion-chip-brand {
+  background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+  color: var(--primary-color, #1e40af);
+}
+
+.pof-suggestion-rate {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--primary-color, #4f46e5);
+  white-space: nowrap;
+}
+
+.pof-suggestion-uom {
+  font-size: 10px;
+  color: var(--text-secondary, #94a3b8);
+  margin-top: 2px;
+}
+
+.pof-suggestions-dropdown-portal::-webkit-scrollbar {
+  width: 6px;
+}
+
+.pof-suggestions-dropdown-portal::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.pof-suggestions-dropdown-portal::-webkit-scrollbar-thumb {
+  background: var(--border-color, #d1d5db);
+  border-radius: 3px;
+}
+
+/* ─── Table Totals / Tax Row ─────────────────────────────────────────── */
+.pof-total-label {
+  text-align: right;
+  padding: 9px 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.pof-total-amount {
+  font-weight: 700;
+  color: var(--text-primary);
+  padding: 9px 14px;
+  text-align: right;
+}
+
+.pof-total-grand {
+  font-weight: 700;
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.pof-total-grand-amount {
+  font-weight: 800;
+  color: var(--primary-color);
+  font-size: 14.5px;
+}
+
+.pof-inline-table tfoot td {
+  border-top: 1px solid var(--border-color);
+  background: var(--layout-bg);
+}
+
+.pof-inline-table tfoot tr:last-child td {
+  border-top: 2px solid var(--border-color);
+}
+
+.pof-tax-selector-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.pof-tax-select {
+  padding: 5px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 7px;
+  font-size: 12px;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  cursor: pointer;
+  min-width: 110px;
+}
+
+.pof-tax-select:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 12%, transparent);
+}
+
+.pof-tax-select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.pof-tax-rate-display {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
 /* ─── Dark Theme ──────────────────────────────────────────────────────── */
 .dark-theme .pof-page {
   background: var(--layout-bg, #0f172a);
@@ -722,6 +942,11 @@
   color: var(--text-primary, #f8fafc);
 }
 
+.dark-theme .form-field-disabled,
+.dark-theme .form-field:disabled {
+  background: var(--layout-bg, #0f172a);
+}
+
 .dark-theme .form-field:hover {
   background: color-mix(in srgb, var(--primary-color) 5%, var(--card-bg));
 }
@@ -729,6 +954,11 @@
 .dark-theme .form-field:focus {
   border-color: var(--primary-color, #818cf8);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 20%, transparent);
+}
+
+.dark-theme .pof-item-filter {
+  background: var(--layout-bg, #0f172a);
+  border-color: var(--border-color, #334155);
 }
 
 .dark-theme .pof-ith {
@@ -740,40 +970,63 @@
   border-color: var(--border-color, #334155);
 }
 
+.dark-theme .pof-itr:nth-child(even) {
+  background: color-mix(in srgb, var(--layout-bg, #0f172a) 60%, transparent);
+}
+
 .dark-theme .pof-itr:hover {
-  background: var(--nav-hover, rgba(255,255,255,0.05));
+  background: color-mix(in srgb, var(--primary-color) 8%, var(--card-bg));
 }
 
 .dark-theme .pof-itd {
   color: var(--text-primary, #f8fafc);
 }
 
-.dark-theme .pof-cell-input {
-  color: var(--text-primary, #f8fafc);
-}
-
-.dark-theme .pof-cell-input:focus {
-  background: var(--card-bg, #1e293b);
-  border-color: var(--primary-color, #818cf8);
-}
-
-.dark-theme .pof-cell-input:hover {
-  background: color-mix(in srgb, var(--primary-color) 5%, var(--card-bg));
-}
-
+.dark-theme .pof-cell-input,
 .dark-theme .pof-cell-select {
   color: var(--text-primary, #f8fafc);
-  background: transparent;
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
 }
 
+.dark-theme .pof-cell-input:focus,
 .dark-theme .pof-cell-select:focus {
-  background: var(--card-bg, #1e293b);
   border-color: var(--primary-color, #818cf8);
 }
 
 .dark-theme .pof-cell-select option {
   background: var(--card-bg, #1e293b);
   color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .pof-inline-table tfoot td {
+  background: var(--layout-bg, #0f172a);
+}
+
+.dark-theme .pof-suggestions-dropdown-portal {
+  background: #1f2937;
+  border-color: #374151;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
+}
+
+.dark-theme .pof-suggestion-item {
+  border-bottom-color: #374151;
+}
+
+.dark-theme .pof-suggestion-item:hover {
+  background: #374151;
+}
+
+.dark-theme .pof-suggestion-code {
+  color: #f3f4f6;
+}
+
+.dark-theme .pof-suggestion-name {
+  color: #9ca3af;
+}
+
+.dark-theme .pof-suggestion-rate {
+  color: #818cf8;
 }
 
 .dark-theme .validation-summary-modal {
@@ -853,6 +1106,10 @@
 }
 
 .dark-theme .pof-total-amount {
+  color: var(--text-primary, #f1f5f9);
+}
+
+.dark-theme .pof-total-grand-amount {
   color: var(--primary-color, #818cf8);
 }
 
@@ -903,6 +1160,15 @@
   .error-message {
     margin-left: 0;
   }
+
+  .pof-item-filter {
+    flex-wrap: wrap;
+  }
+
+  .pof-filter-count {
+    margin-left: 0;
+    width: 100%;
+  }
 }
 
 @media (max-width: 520px) {
@@ -928,300 +1194,6 @@
   }
 
   .pof-cell-number {
-    width: 50px;
+    width: 56px;
   }
-}
-
-/* PurchaseOrderForm.css - Add these styles */
-
-/* Item search wrapper */
-.pof-item-search-wrapper {
-  position: relative;
-  width: 100%;
-}
-
-.pof-search-icon {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: #9ca3af;
-  pointer-events: none;
-}
-
-.pof-search-spinner {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: #6b7280;
-}
-
-/* Suggestions dropdown */
-.pof-suggestions-dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  max-height: 250px;
-  overflow-y: auto;
-  z-index: 1000;
-  margin-top: 2px;
-  min-width: 300px;
-}
-
-/* Dark theme support */
-.pof-page.dark .pof-suggestions-dropdown {
-  background: #1f2937;
-  border-color: #374151;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-}
-
-.pof-suggestion-item {
-  padding: 8px 12px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  border-bottom: 1px solid #f3f4f6;
-  transition: background-color 0.15s;
-}
-
-.pof-page.dark .pof-suggestion-item {
-  border-bottom-color: #374151;
-}
-
-.pof-suggestion-item:hover {
-  background-color: #f3f4f6;
-}
-
-.pof-page.dark .pof-suggestion-item:hover {
-  background-color: #374151;
-}
-
-.pof-suggestion-item:last-child {
-  border-bottom: none;
-}
-
-.pof-suggestion-code {
-  font-weight: 600;
-  color: #1f2937;
-  font-size: 13px;
-  min-width: 100px;
-}
-
-.pof-page.dark .pof-suggestion-code {
-  color: #e5e7eb;
-}
-
-.pof-suggestion-name {
-  flex: 1;
-  color: #4b5563;
-  font-size: 13px;
-}
-
-.pof-page.dark .pof-suggestion-name {
-  color: #d1d5db;
-}
-
-.pof-suggestion-brand {
-  color: #6b7280;
-  font-size: 12px;
-  background: #f3f4f6;
-  padding: 2px 8px;
-  border-radius: 4px;
-}
-
-.pof-page.dark .pof-suggestion-brand {
-  background: #374151;
-  color: #9ca3af;
-}
-
-.pof-suggestion-rate {
-  color: #059669;
-  font-weight: 500;
-  font-size: 13px;
-  margin-left: auto;
-}
-
-.pof-page.dark .pof-suggestion-rate {
-  color: #34d399;
-}
-
-.pof-suggestion-empty {
-  padding: 12px;
-  color: #6b7280;
-  text-align: center;
-  font-size: 13px;
-}
-
-.pof-page.dark .pof-suggestion-empty {
-  color: #9ca3af;
-}
-
-/* Scrollbar styling for suggestions */
-.pof-suggestions-dropdown::-webkit-scrollbar {
-  width: 6px;
-}
-
-.pof-suggestions-dropdown::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 3px;
-}
-
-.pof-page.dark .pof-suggestions-dropdown::-webkit-scrollbar-track {
-  background: #374151;
-}
-
-.pof-suggestions-dropdown::-webkit-scrollbar-thumb {
-  background: #d1d5db;
-  border-radius: 3px;
-}
-
-.pof-page.dark .pof-suggestions-dropdown::-webkit-scrollbar-thumb {
-  background: #4b5563;
-}
-
-.pof-suggestions-dropdown::-webkit-scrollbar-thumb:hover {
-  background: #9ca3af;
-}
-
-.pof-page.dark .pof-suggestions-dropdown::-webkit-scrollbar-thumb:hover {
-  background: #6b7280;
-}
-
-/* ─── Portal Suggestions Dropdown ─────────────────────────────────────── */
-.pof-suggestions-dropdown-portal {
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-  max-height: 250px;
-  overflow-y: auto;
-  z-index: 9999;
-  min-width: 200px;
-}
-
-/* Dark theme support for portal */
-.dark-theme .pof-suggestions-dropdown-portal {
-  background: #1f2937;
-  border-color: #374151;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-}
-
-.pof-suggestions-dropdown-portal .pof-suggestion-item {
-  padding: 8px 12px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  border-bottom: 1px solid #f3f4f6;
-  transition: background-color 0.15s;
-}
-
-.dark-theme .pof-suggestions-dropdown-portal .pof-suggestion-item {
-  border-bottom-color: #374151;
-}
-
-.pof-suggestions-dropdown-portal .pof-suggestion-item:hover {
-  background-color: #f3f4f6;
-}
-
-.dark-theme .pof-suggestions-dropdown-portal .pof-suggestion-item:hover {
-  background-color: #374151;
-}
-
-.pof-suggestions-dropdown-portal .pof-suggestion-item:last-child {
-  border-bottom: none;
-}
-
-.pof-suggestions-dropdown-portal .pof-suggestion-code {
-  font-weight: 600;
-  color: #1f2937;
-  font-size: 13px;
-  min-width: 100px;
-}
-
-.dark-theme .pof-suggestions-dropdown-portal .pof-suggestion-code {
-  color: #e5e7eb;
-}
-
-.pof-suggestions-dropdown-portal .pof-suggestion-name {
-  flex: 1;
-  color: #4b5563;
-  font-size: 13px;
-}
-
-.dark-theme .pof-suggestions-dropdown-portal .pof-suggestion-name {
-  color: #d1d5db;
-}
-
-.pof-suggestions-dropdown-portal .pof-suggestion-brand {
-  color: #6b7280;
-  font-size: 12px;
-  background: #f3f4f6;
-  padding: 2px 8px;
-  border-radius: 4px;
-}
-
-.dark-theme .pof-suggestions-dropdown-portal .pof-suggestion-brand {
-  background: #374151;
-  color: #9ca3af;
-}
-
-.pof-suggestions-dropdown-portal .pof-suggestion-rate {
-  color: #059669;
-  font-weight: 500;
-  font-size: 13px;
-  margin-left: auto;
-}
-
-.dark-theme .pof-suggestions-dropdown-portal .pof-suggestion-rate {
-  color: #34d399;
-}
-
-.pof-suggestions-dropdown-portal .pof-suggestion-empty {
-  padding: 12px;
-  color: #6b7280;
-  text-align: center;
-  font-size: 13px;
-}
-
-.dark-theme .pof-suggestions-dropdown-portal .pof-suggestion-empty {
-  color: #9ca3af;
-}
-
-/* Scrollbar styling for portal suggestions */
-.pof-suggestions-dropdown-portal::-webkit-scrollbar {
-  width: 6px;
-}
-
-.pof-suggestions-dropdown-portal::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 3px;
-}
-
-.dark-theme .pof-suggestions-dropdown-portal::-webkit-scrollbar-track {
-  background: #374151;
-}
-
-.pof-suggestions-dropdown-portal::-webkit-scrollbar-thumb {
-  background: #d1d5db;
-  border-radius: 3px;
-}
-
-.dark-theme .pof-suggestions-dropdown-portal::-webkit-scrollbar-thumb {
-  background: #4b5563;
-}
-
-.pof-suggestions-dropdown-portal::-webkit-scrollbar-thumb:hover {
-  background: #9ca3af;
-}
-
-.dark-theme .pof-suggestions-dropdown-portal::-webkit-scrollbar-thumb:hover {
-  background: #6b7280;
 }

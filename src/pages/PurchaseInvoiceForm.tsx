@@ -1,11 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
-import { 
+import {
   FaPlus, FaSave, FaSpinner, FaArrowLeft,
   FaExclamationCircle, FaExclamationTriangle, FaInfoCircle,
   FaTimesCircle, FaTag, FaBuilding, FaMoneyBillWave,
   FaCalendarAlt, FaFileAlt, FaBoxes, FaClipboardList,
-  FaReceipt, FaClock, FaSearch
+  FaReceipt, FaClock, FaSearch, FaCheckCircle,
 } from 'react-icons/fa';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
@@ -13,745 +12,493 @@ import toast from 'react-hot-toast';
 import api from '../services/api';
 import './PurchaseInvoiceForm.css';
 
-interface PurchaseInvoiceItem {
-  id: string;
-  itemCode: string;
-  itemName: string;
-  quantity: number;
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface POItem {
+  id: number;            // PO item row id — used as the join key with GRN item_id
+  item_code: string;
+  item_name: string;
+  qty: number;           // ordered qty
   uom: string;
   rate: number;
   amount: number;
-  receivedQty: number;
-  balanceQty: number;
+  received_qty: number;  // as on PO record (may lag; we recalculate from GRNs)
+  billed_amt: number;
+  item_tax_rate?: string;
 }
 
-interface PurchaseInvoice {
-  id: string;
-  invoiceNumber: string;
-  supplier: string;
-  supplierCode: string;
-  purchaseOrder: string;
-  status: 'Draft' | 'Submitted' | 'Partially Paid' | 'Fully Paid' | 'Overdue' | 'Cancelled';
-  date: string;
-  dueDate: string;
-  currency: string;
-  totalAmount: number;
-  paidAmount: number;
-  balanceAmount: number;
-  itemsCount: number;
-  createdBy: string;
-  createdAt: string;
-  updatedAt: string;
-  items: PurchaseInvoiceItem[];
-  notes: string;
-}
-
-interface ValidationError {
-  field: string;
-  label: string;
-  message: string;
-}
-
-interface ItemSuggestion {
+interface PODetail {
   id: number;
+  name: string;
+  supplier: string;
+  supplier_name: string;
+  currency: string;
+  company: string;
+  status: string;
+  taxes_and_charges?: string;
+  tax_category?: string;
+  total_taxes_and_charges?: number;
+  base_total_taxes_and_charges?: number;
+  items: POItem[];
+}
+
+interface GRNItem {
+  id: number;
+  grn_id: number;
+  item_id: number;       // maps to POItem.id
   item_code: string;
   item_name: string;
-  stock_uom: string;
-  standard_rate: number;
-  description?: string;
-  brand?: string;
-  item_group?: string;
+  ordered_qty: number;
+  received_qty: number;
+  accepted_qty: number;
+  rejected_qty: number;
+  uom: string;
+  rate: number;
+  amount: number;
 }
 
-// Mock data for demo - in real app, this would come from an API
-const mockPurchaseInvoices: PurchaseInvoice[] = [
-  {
-    id: '1',
-    invoiceNumber: 'PI-2026-001',
-    supplier: 'ABC Manufacturing Co.',
-    supplierCode: 'SUP-001',
-    purchaseOrder: 'PO-2026-001',
-    status: 'Partially Paid',
-    date: '2026-06-20',
-    dueDate: '2026-07-20',
-    currency: 'INR',
-    totalAmount: 175000,
-    paidAmount: 75000,
-    balanceAmount: 100000,
-    itemsCount: 2,
-    createdBy: 'Tejas Tarte',
-    createdAt: '2026-06-20T10:00:00Z',
-    updatedAt: '2026-06-20T10:00:00Z',
-    items: [
-      { id: '1', itemCode: 'RM-001', itemName: 'Steel Sheets 2mm', quantity: 500, uom: 'NOS', rate: 350, amount: 175000, receivedQty: 200, balanceQty: 300 },
-      { id: '2', itemCode: 'RM-002', itemName: 'Aluminum Bars', quantity: 300, uom: 'KG', rate: 250, amount: 75000, receivedQty: 100, balanceQty: 200 }
-    ],
-    notes: 'Urgent payment required'
-  },
-  {
-    id: '2',
-    invoiceNumber: 'PI-2026-002',
-    supplier: 'XYZ Electronics Ltd.',
-    supplierCode: 'SUP-002',
-    purchaseOrder: 'PO-2026-002',
-    status: 'Fully Paid',
-    date: '2026-06-18',
-    dueDate: '2026-07-18',
-    currency: 'USD',
-    totalAmount: 45000,
-    paidAmount: 45000,
-    balanceAmount: 0,
-    itemsCount: 3,
-    createdBy: 'Nirjala Bagal',
-    createdAt: '2026-06-18T10:00:00Z',
-    updatedAt: '2026-06-18T10:00:00Z',
-    items: [
-      { id: '1', itemCode: 'EC-001', itemName: 'Resistor Pack 100k', quantity: 1000, uom: 'NOS', rate: 15, amount: 15000, receivedQty: 1000, balanceQty: 0 },
-      { id: '2', itemCode: 'EC-002', itemName: 'Capacitor 100uF', quantity: 500, uom: 'NOS', rate: 60, amount: 30000, receivedQty: 500, balanceQty: 0 }
-    ],
-    notes: 'Quality check required'
-  },
-  {
-    id: '3',
-    invoiceNumber: 'PI-2026-003',
-    supplier: 'PQR Packaging Solutions',
-    supplierCode: 'SUP-003',
-    purchaseOrder: 'PO-2026-003',
-    status: 'Draft',
-    date: '2026-06-22',
-    dueDate: '2026-07-22',
-    currency: 'INR',
-    totalAmount: 120000,
-    paidAmount: 0,
-    balanceAmount: 120000,
-    itemsCount: 2,
-    createdBy: 'P S Kamthe',
-    createdAt: '2026-06-22T10:00:00Z',
-    updatedAt: '2026-06-22T10:00:00Z',
-    items: [
-      { id: '1', itemCode: 'PKG-001', itemName: 'Carton Boxes Large', quantity: 200, uom: 'NOS', rate: 300, amount: 60000, receivedQty: 0, balanceQty: 200 },
-      { id: '2', itemCode: 'PKG-002', itemName: 'Packing Tape', quantity: 150, uom: 'ROL', rate: 400, amount: 60000, receivedQty: 0, balanceQty: 150 }
-    ],
-    notes: 'Pending approval'
-  }
-];
+interface GRNRecord {
+  id: number;
+  grn_number: string;
+  grn_date: string;
+  purchase_order_id: number;
+  purchase_order_number: string;
+  supplier_name: string;
+  warehouse_name: string;
+  status: string;
+  total_received_qty: number;
+  items: GRNItem[];
+}
 
-const statusOptions = ['Draft', 'Submitted', 'Partially Paid', 'Fully Paid', 'Overdue', 'Cancelled'];
+// What gets billed — one row per PO item, aggregated across all GRNs
+interface InvoiceItem {
+  po_item_id: number;     // POItem.id
+  item_code: string;
+  item_name: string;
+  uom: string;
+  rate: number;
+  ordered_qty: number;
+  total_received_qty: number;   // sum across all GRNs
+  unbilled_qty: number;         // received − already billed
+  bill_qty: number;             // editable — what user wants to bill now
+  amount: number;               // bill_qty × rate (computed)
+  grn_refs: string[];           // GRN numbers that contributed to received qty
+  tax_rate: number;
+}
+
+interface ValidationError { field: string; label: string; message: string; }
+
 const currencies = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD'];
-const uomOptions = ['NOS', 'KG', 'LTR', 'MTR', 'BOX', 'SET', 'DOZ', 'ROL', 'SQM', 'CBM'];
+const statusOptions = ['Draft', 'Submitted', 'Partially Paid', 'Fully Paid', 'Overdue', 'Cancelled'];
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function PurchaseInvoiceForm() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
-  
-  let theme = 'light';
-  try {
-    const context = useAdminTheme();
-    theme = context.theme;
-  } catch (error) {
-    console.log('Using default light theme');
-  }
+  const { theme } = useAdminTheme();
 
-  const [loading, setLoading] = useState(false);
-  const [showValidationSummary, setShowValidationSummary] = useState(false);
-  const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
-  const [apiError, setApiError] = useState<string | null>(null);
-  
-  // State for suppliers
-  const [suppliersList, setSuppliersList] = useState<any[]>([]);
-  const [loadingSuppliers, setLoadingSuppliers] = useState(false);
-
-  // State for purchase orders
-  const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
-  const [loadingPOs, setLoadingPOs] = useState(false);
-
-  // State for item suggestions
-  const [itemSuggestions, setItemSuggestions] = useState<{ [key: number]: ItemSuggestion[] }>({});
-  const [loadingItems, setLoadingItems] = useState<{ [key: number]: boolean }>({});
-  const [showSuggestions, setShowSuggestions] = useState<{ [key: number]: boolean }>({});
-  const [, setSearchTerms] = useState<{ [key: number]: string }>({});
-  
-  // Refs for positioning the dropdown
-  const inputRefs = useRef<{ [key: number]: HTMLInputElement | null }>({});
-  const suggestionRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
-  const searchTimeoutRef = useRef<{ [key: number]: ReturnType<typeof setTimeout> }>({});
-  
-  // State for dropdown position
-  const [dropdownPositions, setDropdownPositions] = useState<{ [key: number]: { top: number; left: number; width: number } }>({});
-
-  const [formData, setFormData] = useState<{
-    invoiceNumber: string;
-    supplier: string;
-    supplierCode: string;
-    purchaseOrder: string;
-    status: PurchaseInvoice['status'];
-    date: string;
-    dueDate: string;
-    currency: string;
-    notes: string;
-    items: PurchaseInvoiceItem[];
-  }>({
+  // ── Core form state ────────────────────────────────────────────────────────
+  const [formData, setFormData] = useState({
     invoiceNumber: '',
-    supplier: '',
-    supplierCode: '',
-    purchaseOrder: '',
-    status: 'Draft',
+    status: 'Draft' as typeof statusOptions[number],
     date: new Date().toISOString().split('T')[0],
     dueDate: '',
     currency: 'INR',
     notes: '',
-    items: [{ id: '1', itemCode: '', itemName: '', quantity: 1, uom: 'NOS', rate: 0, amount: 0, receivedQty: 0, balanceQty: 0 }]
   });
+  const [items, setItems] = useState<InvoiceItem[]>([]);
 
-  // Fetch suppliers from API
-  const fetchSuppliers = async () => {
-    setLoadingSuppliers(true);
-    try {
-      const response = await api.get('/supplier');
-      if (response.data && response.data.success === 1) {
-        const supplierRecords = response.data.data?.records || [];
-        setSuppliersList(supplierRecords);
-      } else {
-        console.error('Failed to fetch suppliers:', response.data?.message || 'Unknown error');
-        toast.error('Failed to load suppliers');
-      }
-    } catch (err: any) {
-      console.error('Error fetching suppliers:', err);
-      toast.error('Failed to load suppliers. Please try again.');
-    } finally {
-      setLoadingSuppliers(false);
-    }
-  };
+  // ── PO selection state ─────────────────────────────────────────────────────
+  const [poList, setPoList] = useState<{ id: number; name: string; supplier_name: string; status: string }[]>([]);
+  const [selectedPO, setSelectedPO] = useState<PODetail | null>(null);
+  const [loadingPOList, setLoadingPOList] = useState(false);
+  const [loadingPODetail, setLoadingPODetail] = useState(false);
 
-  // Fetch purchase orders from API
-  const fetchPurchaseOrders = async () => {
-    setLoadingPOs(true);
-    try {
-      const response = await api.get('/purchase-order');
-      if (response.data && response.data.success === 1) {
-        const poRecords = response.data.data?.records || [];
-        setPurchaseOrders(poRecords);
-      } else {
-        console.error('Failed to fetch purchase orders:', response.data?.message || 'Unknown error');
-        toast.error('Failed to load purchase orders');
-      }
-    } catch (err: any) {
-      console.error('Error fetching purchase orders:', err);
-      toast.error('Failed to load purchase orders. Please try again.');
-    } finally {
-      setLoadingPOs(false);
-    }
-  };
+  // ── GRN state ──────────────────────────────────────────────────────────────
+  const [grnsForPO, setGrnsForPO] = useState<GRNRecord[]>([]);
+  const [loadingGRNs, setLoadingGRNs] = useState(false);
 
-  // Fetch item suggestions from API
-  const fetchItemSuggestions = async (index: number, searchTerm: string) => {
-    if (!searchTerm || searchTerm.length < 1) {
-      setItemSuggestions(prev => ({ ...prev, [index]: [] }));
-      setShowSuggestions(prev => ({ ...prev, [index]: false }));
-      return;
-    }
+  // ── Supplier state (for display only, derived from PO) ────────────────────
+  const [supplierName, setSupplierName] = useState('');
+  const [supplierCode, setSupplierCode] = useState('');
 
-    setLoadingItems(prev => ({ ...prev, [index]: true }));
-    
-    try {
-      const response = await api.get(`/item?page=1&limit=10&search=${encodeURIComponent(searchTerm)}`);
-      
-      if (response.data && response.data.success === 1) {
-        const items = response.data.data || [];
-        setItemSuggestions(prev => ({ ...prev, [index]: items }));
-        setShowSuggestions(prev => ({ ...prev, [index]: items.length > 0 }));
-        
-        // Update dropdown position when suggestions appear
-        if (items.length > 0 && inputRefs.current[index]) {
-          updateDropdownPosition(index);
-        }
-      } else {
-        setItemSuggestions(prev => ({ ...prev, [index]: [] }));
-        setShowSuggestions(prev => ({ ...prev, [index]: false }));
-      }
-    } catch (err: any) {
-      console.error('Error fetching items:', err);
-      setItemSuggestions(prev => ({ ...prev, [index]: [] }));
-      setShowSuggestions(prev => ({ ...prev, [index]: false }));
-    } finally {
-      setLoadingItems(prev => ({ ...prev, [index]: false }));
-    }
-  };
+  // ── UI state ───────────────────────────────────────────────────────────────
+  const [loading, setLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
+  const [showValidationSummary, setShowValidationSummary] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
 
-  // Update dropdown position
-  const updateDropdownPosition = (index: number) => {
-    const input = inputRefs.current[index];
-    if (input) {
-      const rect = input.getBoundingClientRect();
-      setDropdownPositions(prev => ({
-        ...prev,
-        [index]: {
-          top: rect.bottom + window.scrollY + 4,
-          left: rect.left + window.scrollX,
-          width: rect.width
-        }
-      }));
-    }
-  };
+  // ── PO search ──────────────────────────────────────────────────────────────
+  const [poSearch, setPoSearch] = useState('');
+  const [showPODropdown, setShowPODropdown] = useState(false);
+  const poSearchRef = useRef<HTMLDivElement>(null);
 
-  // Handle item search with debounce
-  const handleItemSearch = (index: number, value: string) => {
-    // Clear previous timeout
-    if (searchTimeoutRef.current[index]) {
-      clearTimeout(searchTimeoutRef.current[index]);
-    }
-
-    // Update search term
-    setSearchTerms(prev => ({ ...prev, [index]: value }));
-
-    // Debounce the API call
-    searchTimeoutRef.current[index] = setTimeout(() => {
-      fetchItemSuggestions(index, value);
-    }, 300);
-  };
-
-  // Handle item selection from suggestions
-  const handleSelectItem = (index: number, item: ItemSuggestion) => {
-    const updatedItems = [...formData.items];
-    updatedItems[index] = {
-      ...updatedItems[index],
-      itemCode: item.item_code,
-      itemName: item.item_name,
-      uom: item.stock_uom || 'NOS',
-      rate: item.standard_rate || 0,
-      amount: (item.standard_rate || 0) * updatedItems[index].quantity,
-      balanceQty: updatedItems[index].quantity - updatedItems[index].receivedQty
-    };
-    
-    setFormData(prev => ({ ...prev, items: updatedItems }));
-    setShowSuggestions(prev => ({ ...prev, [index]: false }));
-    setSearchTerms(prev => ({ ...prev, [index]: item.item_code }));
-  };
-
-  // Close suggestions when clicking outside
+  // ─── Fetch PO list on mount ────────────────────────────────────────────────
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      Object.keys(suggestionRefs.current).forEach((key) => {
-        const index = parseInt(key);
-        const suggestionEl = suggestionRefs.current[index];
-        const inputEl = inputRefs.current[index];
-        
-        if (suggestionEl && !suggestionEl.contains(event.target as Node) && 
-            inputEl && !inputEl.contains(event.target as Node)) {
-          setShowSuggestions(prev => ({ ...prev, [index]: false }));
-        }
-      });
-    };
+    fetchPOList();
+    if (isEdit && id) loadExistingInvoice(id);
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (poSearchRef.current && !poSearchRef.current.contains(e.target as Node)) {
+        setShowPODropdown(false);
+      }
     };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, []);
 
-  // Update dropdown position on scroll or resize
-  useEffect(() => {
-    const handleScrollOrResize = () => {
-      Object.keys(showSuggestions).forEach((key) => {
-        const index = parseInt(key);
-        if (showSuggestions[index]) {
-          updateDropdownPosition(index);
+  const fetchPOList = async () => {
+    setLoadingPOList(true);
+    try {
+      const res = await api.get('/purchase-order?limit=200');
+      if (res.data?.success === 1) {
+        setPoList(res.data.data?.records || []);
+      }
+    } catch (err) {
+      console.error('Error fetching PO list:', err);
+    } finally {
+      setLoadingPOList(false);
+    }
+  };
+
+  // ─── When a PO is selected — fetch PO detail + all GRNs for that PO ───────
+  const handleSelectPO = async (po: { id: number; name: string; supplier_name: string }) => {
+    setPoSearch(po.name);
+    setShowPODropdown(false);
+    setSelectedPO(null);
+    setGrnsForPO([]);
+    setItems([]);
+    setSupplierName('');
+    setSupplierCode('');
+
+    setLoadingPODetail(true);
+    setLoadingGRNs(true);
+
+    try {
+      // Fetch PO detail and GRNs in parallel
+      const [poRes, grnRes] = await Promise.all([
+        api.get(`/purchase-order/${po.id}`),
+        api.get(`/grn?purchase_order_id=${po.id}&limit=200`),
+      ]);
+
+      let poDetail: PODetail | null = null;
+      let grns: GRNRecord[] = [];
+
+      if (poRes.data?.success === 1) {
+        poDetail = poRes.data.data as PODetail;
+        setSelectedPO(poDetail);
+        setSupplierName(poDetail.supplier_name || '');
+        setSupplierCode(poDetail.supplier || '');
+        setFormData(prev => ({ ...prev, currency: poDetail!.currency || 'INR' }));
+      } else {
+        toast.error('Failed to load PO details');
+      }
+
+      // GRN list response — handle both array and paginated shape
+      if (grnRes.data?.success === 1) {
+        const raw = grnRes.data.data;
+        grns = Array.isArray(raw) ? raw : (raw?.records || []);
+        setGrnsForPO(grns);
+      }
+
+      // If we got PO items, build the invoice rows
+      if (poDetail?.items?.length) {
+        buildInvoiceItems(poDetail.items, grns);
+      }
+    } catch (err) {
+      console.error('Error loading PO/GRN:', err);
+      toast.error('Error loading PO data');
+    } finally {
+      setLoadingPODetail(false);
+      setLoadingGRNs(false);
+    }
+  };
+
+  /**
+   * Core logic: for each PO item, sum received_qty across all GRNs where
+   * grn.items[].item_id === poItem.id, then subtract billed_amt/rate to get
+   * unbilled qty. The user can then edit bill_qty up to unbilled_qty.
+   */
+  const buildInvoiceItems = (poItems: POItem[], grns: GRNRecord[]) => {
+    // Build a map: po_item_id → { total_received, grn_refs }
+    const receivedMap: Record<number, { qty: number; grnNums: string[] }> = {};
+
+    grns.forEach(grn => {
+      grn.items?.forEach(gi => {
+        if (!receivedMap[gi.item_id]) {
+          receivedMap[gi.item_id] = { qty: 0, grnNums: [] };
+        }
+        receivedMap[gi.item_id].qty += gi.received_qty;
+        if (!receivedMap[gi.item_id].grnNums.includes(grn.grn_number)) {
+          receivedMap[gi.item_id].grnNums.push(grn.grn_number);
         }
       });
-    };
+    });
 
-    window.addEventListener('scroll', handleScrollOrResize, true);
-    window.addEventListener('resize', handleScrollOrResize);
-    
-    return () => {
-      window.removeEventListener('scroll', handleScrollOrResize, true);
-      window.removeEventListener('resize', handleScrollOrResize);
-    };
-  }, [showSuggestions]);
+    const invoiceRows: InvoiceItem[] = poItems.map(pi => {
+      const rec = receivedMap[pi.id] || { qty: 0, grnNums: [] };
+      const totalReceived = rec.qty;
 
-  // Load data if editing
-  useEffect(() => {
-    fetchSuppliers();
-    fetchPurchaseOrders();
+      // Already billed amount → convert to qty
+      const alreadyBilledQty = pi.rate > 0 ? (pi.billed_amt || 0) / pi.rate : 0;
+      const unbilledQty = Math.max(0, totalReceived - alreadyBilledQty);
+      const taxRate = parseFloat(pi.item_tax_rate || '0') || 0;
 
-    if (isEdit && id) {
-      const purchaseInvoice = mockPurchaseInvoices.find(inv => inv.id === id);
-      if (purchaseInvoice) {
+      return {
+        po_item_id: pi.id,
+        item_code: pi.item_code,
+        item_name: pi.item_name,
+        uom: pi.uom,
+        rate: pi.rate,
+        ordered_qty: pi.qty,
+        total_received_qty: totalReceived,
+        unbilled_qty: Math.round(unbilledQty * 1000) / 1000,
+        bill_qty: Math.round(unbilledQty * 1000) / 1000,  // default = bill all unbilled
+        amount: Math.round(unbilledQty * pi.rate * 100) / 100,
+        grn_refs: rec.grnNums,
+        tax_rate: taxRate,
+      };
+    });
+
+    setItems(invoiceRows);
+  };
+
+  // ─── Edit bill_qty for a row ───────────────────────────────────────────────
+  const handleBillQtyChange = (index: number, val: number) => {
+    setItems(prev => prev.map((row, i) => {
+      if (i !== index) return row;
+      const safeQty = Math.min(Math.max(0, val), row.unbilled_qty);
+      return {
+        ...row,
+        bill_qty: safeQty,
+        amount: Math.round(safeQty * row.rate * 100) / 100,
+      };
+    }));
+  };
+
+  // ─── Load existing invoice (edit mode) ────────────────────────────────────
+  const loadExistingInvoice = async (invoiceId: string) => {
+    setPageLoading(true);
+    try {
+      const res = await api.get(`/purchase-invoice/${invoiceId}`);
+      if (res.data?.success === 1) {
+        const inv = res.data.data;
         setFormData({
-          invoiceNumber: purchaseInvoice.invoiceNumber,
-          supplier: purchaseInvoice.supplier,
-          supplierCode: purchaseInvoice.supplierCode,
-          purchaseOrder: purchaseInvoice.purchaseOrder,
-          status: purchaseInvoice.status,
-          date: purchaseInvoice.date,
-          dueDate: purchaseInvoice.dueDate,
-          currency: purchaseInvoice.currency,
-          notes: purchaseInvoice.notes || '',
-          items: purchaseInvoice.items.map(item => ({ ...item }))
+          invoiceNumber: inv.name || '',
+          status: inv.status || 'Draft',
+          date: inv.posting_date?.split('T')[0] || '',
+          dueDate: inv.due_date?.split('T')[0] || '',
+          currency: inv.currency || 'INR',
+          notes: inv.remarks || '',
         });
+        setSupplierName(inv.supplier_name || '');
+        setPoSearch(inv.purchase_order || '');
+        // Rebuild items from saved invoice
+        if (inv.items?.length) {
+          const rows: InvoiceItem[] = inv.items.map((it: any) => ({
+            po_item_id: it.po_detail || 0,
+            item_code: it.item_code,
+            item_name: it.item_name,
+            uom: it.uom,
+            rate: it.rate,
+            ordered_qty: it.qty,
+            total_received_qty: it.qty,
+            unbilled_qty: it.qty,
+            bill_qty: it.qty,
+            amount: it.amount,
+            grn_refs: [],
+            tax_rate: 0,
+          }));
+          setItems(rows);
+        }
       }
-    } else {
-      // Generate new invoice number for create mode
-      const nextNumber = mockPurchaseInvoices.length + 1;
-      setFormData(prev => ({
-        ...prev,
-        invoiceNumber: `PI-2026-${String(nextNumber).padStart(3, '0')}`
-      }));
+    } catch (err) {
+      console.error('Error loading invoice:', err);
+      toast.error('Failed to load invoice');
+    } finally {
+      setPageLoading(false);
     }
-
-    // Cleanup timeouts on unmount
-    return () => {
-      Object.values(searchTimeoutRef.current).forEach(timeout => {
-        if (timeout) clearTimeout(timeout);
-      });
-    };
-  }, [id, isEdit]);
-
-  const handleItemChange = (index: number, field: keyof PurchaseInvoiceItem, value: string | number) => {
-    const updatedItems = [...formData.items];
-    updatedItems[index] = { ...updatedItems[index], [field]: value };
-    
-    // If itemCode changes, trigger search
-    if (field === 'itemCode') {
-      const stringValue = value as string;
-      handleItemSearch(index, stringValue);
-      // Clear other fields if user types manually
-      if (stringValue !== updatedItems[index].itemCode) {
-        updatedItems[index].itemName = '';
-        updatedItems[index].rate = 0;
-        updatedItems[index].amount = 0;
-      }
-    }
-    
-    if (field === 'quantity' || field === 'rate') {
-      const quantity = field === 'quantity' ? Number(value) : updatedItems[index].quantity;
-      const rate = field === 'rate' ? Number(value) : updatedItems[index].rate;
-      updatedItems[index].amount = quantity * rate;
-      updatedItems[index].balanceQty = quantity - updatedItems[index].receivedQty;
-    }
-    
-    if (field === 'receivedQty') {
-      updatedItems[index].balanceQty = updatedItems[index].quantity - Number(value);
-    }
-    
-    setFormData(prev => ({ ...prev, items: updatedItems }));
   };
 
-  const addItemRow = () => {
-    const newId = String(formData.items.length + 1);
-    setFormData(prev => ({
-      ...prev,
-      items: [...prev.items, { id: newId, itemCode: '', itemName: '', quantity: 1, uom: 'NOS', rate: 0, amount: 0, receivedQty: 0, balanceQty: 0 }]
-    }));
+  // ─── Computed totals ───────────────────────────────────────────────────────
+  const subTotal = items.reduce((s, r) => s + r.amount, 0);
+  const taxAmount = items.reduce((s, r) => s + (r.amount * r.tax_rate) / 100, 0);
+  const grandTotal = subTotal + taxAmount;
+
+  // ─── Filtered PO list for search ──────────────────────────────────────────
+  const filteredPOs = poList.filter(po =>
+    po.name.toLowerCase().includes(poSearch.toLowerCase()) ||
+    po.supplier_name?.toLowerCase().includes(poSearch.toLowerCase())
+  );
+
+  // ─── Validation ───────────────────────────────────────────────────────────
+  const validate = (): ValidationError[] => {
+    const errs: ValidationError[] = [];
+    if (!selectedPO && !isEdit) errs.push({ field: 'po', label: 'Purchase Order', message: 'Select a Purchase Order' });
+    if (!formData.date) errs.push({ field: 'date', label: 'Invoice Date', message: 'Invoice date is required' });
+    if (!formData.dueDate) errs.push({ field: 'dueDate', label: 'Due Date', message: 'Due date is required' });
+    const billableItems = items.filter(r => r.bill_qty > 0);
+    if (billableItems.length === 0) errs.push({ field: 'items', label: 'Items', message: 'At least one item must have billing quantity > 0' });
+    return errs;
   };
 
-  const removeItemRow = (index: number) => {
-    if (formData.items.length <= 1) return;
-    setFormData(prev => ({
-      ...prev,
-      items: prev.items.filter((_, i) => i !== index)
-    }));
-    // Clean up suggestion state for removed row
-    setItemSuggestions(prev => {
-      const newState = { ...prev };
-      delete newState[index];
-      return newState;
-    });
-    setShowSuggestions(prev => {
-      const newState = { ...prev };
-      delete newState[index];
-      return newState;
-    });
-    setLoadingItems(prev => {
-      const newState = { ...prev };
-      delete newState[index];
-      return newState;
-    });
-    setDropdownPositions(prev => {
-      const newState = { ...prev };
-      delete newState[index];
-      return newState;
-    });
-    delete inputRefs.current[index];
-  };
-
-  const getAllValidationErrors = (): ValidationError[] => {
-    const errors: ValidationError[] = [];
-
-    if (!formData.supplier.trim()) {
-      errors.push({ field: 'supplier', label: 'Supplier', message: 'Supplier is required' });
-    }
-    if (!formData.purchaseOrder.trim()) {
-      errors.push({ field: 'purchaseOrder', label: 'Purchase Order', message: 'Purchase Order is required' });
-    }
-    if (!formData.date) {
-      errors.push({ field: 'date', label: 'Invoice Date', message: 'Invoice date is required' });
-    }
-    if (!formData.dueDate) {
-      errors.push({ field: 'dueDate', label: 'Due Date', message: 'Due date is required' });
-    }
-    if (formData.items.some(item => !item.itemCode.trim() || !item.itemName.trim() || item.quantity <= 0 || item.rate <= 0)) {
-      errors.push({ field: 'items', label: 'Items', message: 'All items must have code, name, quantity > 0 and rate > 0' });
-    }
-
-    return errors;
-  };
-
-  const handleSubmit = async () => {
+  // ─── Submit ────────────────────────────────────────────────────────────────
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     setApiError(null);
-    
-    const validationErrorsList = getAllValidationErrors();
-    if (validationErrorsList.length > 0) {
-      setValidationErrors(validationErrorsList);
+
+    const errs = validate();
+    if (errs.length) {
+      setValidationErrors(errs);
       setShowValidationSummary(true);
       return;
     }
 
     setLoading(true);
-    
-    const totalAmount = formData.items.reduce((sum, item) => sum + item.amount, 0);
-    const totalQty = formData.items.reduce((sum, item) => sum + item.quantity, 0);
-    
-    // Find selected supplier and purchase order
-    const selectedSupplier = suppliersList.find(s => s.supplier_name === formData.supplier);
-    const selectedPO = purchaseOrders.find(po => po.name === formData.purchaseOrder);
 
-    // Build payload with only fields that are present in the form
+    const billableItems = items.filter(r => r.bill_qty > 0);
+
     const payload: any = {
-      // Core fields from form
-      name: formData.invoiceNumber,
-      supplier: selectedSupplier?.id || formData.supplierCode || "SUP-00001",
-      supplier_name: formData.supplier,
-      purchase_order: selectedPO?.id || formData.purchaseOrder,
+      name: formData.invoiceNumber || undefined,
+      naming_series: 'PINV-.YYYY.-',
+      supplier: supplierCode,
+      supplier_name: supplierName,
+      purchase_order: selectedPO?.name || poSearch,
       posting_date: formData.date,
       due_date: formData.dueDate,
       currency: formData.currency,
       status: formData.status,
-      remarks: formData.notes || "",
-      
-      // Calculated fields
-      total_qty: totalQty,
-      total: totalAmount,
-      net_total: totalAmount,
-      grand_total: totalAmount,
-      rounded_total: totalAmount,
-      base_total: totalAmount,
-      base_net_total: totalAmount,
-      base_grand_total: totalAmount,
-      base_rounded_total: totalAmount,
-      outstanding_amount: totalAmount,
-      
-      // Items array
-      items: formData.items.map(item => ({
-        item_code: item.itemCode,
-        item_name: item.itemName,
-        qty: item.quantity,
-        uom: item.uom,
-        rate: item.rate,
-        amount: item.amount,
-        received_qty: item.receivedQty || 0,
-        balance_qty: item.balanceQty || item.quantity
+      remarks: formData.notes || '',
+      company: selectedPO?.company || 'SculptorTech Pvt Ltd',
+
+      // Totals
+      total_qty: billableItems.reduce((s, r) => s + r.bill_qty, 0),
+      total: subTotal,
+      net_total: subTotal,
+      grand_total: grandTotal,
+      rounded_total: Math.round(grandTotal),
+      base_total: subTotal,
+      base_net_total: subTotal,
+      base_grand_total: grandTotal,
+      base_rounded_total: Math.round(grandTotal),
+      outstanding_amount: grandTotal,
+      total_taxes_and_charges: taxAmount,
+      base_total_taxes_and_charges: taxAmount,
+
+      // Items — one row per billable PO item
+      items: billableItems.map(r => ({
+        item_code: r.item_code,
+        item_name: r.item_name,
+        qty: r.bill_qty,
+        uom: r.uom,
+        rate: r.rate,
+        amount: r.amount,
+        net_rate: r.rate,
+        net_amount: r.amount,
+        base_rate: r.rate,
+        base_amount: r.amount,
+        base_net_rate: r.rate,
+        base_net_amount: r.amount,
+        received_qty: r.total_received_qty,
+        po_detail: r.po_item_id,        // links back to PO item row
+        purchase_order: selectedPO?.name || poSearch,
       })),
-      
-      // Default required fields
-      naming_series: "PINV-.YYYY.-",
-      company: "My Company",
-      modified_by: "Administrator",
-      owner: "Administrator",
+
+      // Standard defaults
       docstatus: 0,
       idx: 1,
       set_posting_time: 1,
       is_paid: 0,
       is_return: 0,
-      update_outstanding_for_self: 1,
-      update_billed_amount_in_purchase_order: 1,
-      update_billed_amount_in_purchase_receipt: 1,
-      apply_tds: 0,
+      update_stock: 1,
       conversion_rate: 1,
-      use_transaction_date_exchange_rate: 0,
-      buying_price_list: "Standard Buying",
+      buying_price_list: 'Standard Buying',
       price_list_currency: formData.currency,
       plc_conversion_rate: 1,
-      ignore_pricing_rule: 0,
-      update_stock: 1,
-      is_subcontracted: 0,
-      total_net_weight: 0,
-      claimed_landed_cost_amount: 0,
-      base_taxes_and_charges_added: 0,
-      base_taxes_and_charges_deducted: 0,
-      base_total_taxes_and_charges: 0,
-      taxes_and_charges_added: 0,
-      taxes_and_charges_deducted: 0,
-      total_taxes_and_charges: 0,
-      use_company_roundoff_cost_center: 0,
-      disable_rounded_total: 0,
-      rounding_adjustment: 0,
-      base_rounding_adjustment: 0,
-      total_advance: 0,
-      apply_discount_on: "Grand Total",
+      apply_discount_on: 'Grand Total',
       base_discount_amount: 0,
       additional_discount_percentage: 0,
       discount_amount: 0,
-      other_charges_calculation: null,
+      total_advance: 0,
       base_paid_amount: 0,
       paid_amount: 0,
-      allocate_advances_automatically: 0,
-      only_include_allocated_payments: 0,
       write_off_amount: 0,
       base_write_off_amount: 0,
       per_received: 0,
       per_billed: 0,
-      is_opening: "No",
-      group_same_items: 0,
-      language: "en",
-      on_hold: 0,
-      is_old_subcontracting_flow: 0,
+      owner: 'Administrator',
+      modified_by: 'Administrator',
     };
 
-    // If editing, add id
-    if (isEdit && id) {
-      payload.id = id;
-      payload.amended_from = null;
-    }
+    if (isEdit && id) payload.id = id;
 
     try {
-      let response;
-      if (isEdit && id) {
-        response = await api.put('/purchase-invoice', payload);
-      } else {
-        response = await api.post('/purchase-invoice', payload);
-      }
-      
-      if (response.data && response.data.success === 1) {
-        toast.success(isEdit ? 'Purchase Invoice updated successfully!' : 'Purchase Invoice created successfully!');
+      const res = isEdit
+        ? await api.put('/purchase-invoice', payload)
+        : await api.post('/purchase-invoice', payload);
+
+      if (res.data?.success === 1) {
+        toast.success(isEdit ? 'Invoice updated!' : 'Invoice created!');
         navigate('/purchase-invoice');
       } else {
-        setApiError(response.data?.message || 'Failed to save purchase invoice');
+        setApiError(res.data?.message || 'Failed to save invoice');
       }
     } catch (err: any) {
-      console.error('Error saving purchase invoice:', err);
-      if (err.response) {
-        setApiError(err.response.data?.message || 'Failed to save purchase invoice');
-      } else if (err.request) {
-        setApiError('Network error. Please check your connection.');
-      } else {
-        setApiError('An unexpected error occurred. Please try again.');
-      }
+      setApiError(err.response?.data?.message || 'Network error. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCancel = () => {
-    navigate('/purchase-invoice');
-  };
-
-  const hasErrors = getAllValidationErrors().length > 0;
-
-  const getSupplierDisplayName = (supplier: any) => {
-    if (supplier.supplier_name) {
-      return `${supplier.supplier_name} ${supplier.supplier_type ? `(${supplier.supplier_type})` : ''}`;
-    }
-    return supplier.name || supplier.id || 'Unnamed Supplier';
-  };
-
-  const getPODisplayName = (po: any) => {
-    if (po.name) {
-      return `${po.name} - ${po.title || ''}`;
-    }
-    return po.name || po.id || 'Unnamed PO';
-  };
-
-  // Render suggestions using portal
-  const renderSuggestions = (index: number) => {
-    if (!showSuggestions[index] || !itemSuggestions[index]?.length) return null;
-
-    const position = dropdownPositions[index];
-    if (!position) return null;
-
-    const dropdownContent = (
-      <div 
-        className="pif-suggestions-dropdown-portal"
-        ref={(el) => { suggestionRefs.current[index] = el; }}
-        style={{
-          position: 'fixed',
-          top: position.top,
-          left: position.left,
-          width: position.width,
-          maxHeight: '250px',
-          overflowY: 'auto',
-          zIndex: 9999
-        }}
-      >
-        {itemSuggestions[index].map((suggestion) => (
-          <div
-            key={suggestion.id}
-            className="pif-suggestion-item"
-            onClick={() => handleSelectItem(index, suggestion)}
-          >
-            <div className="pif-suggestion-code">{suggestion.item_code}</div>
-            <div className="pif-suggestion-name">{suggestion.item_name}</div>
-            {suggestion.brand && (
-              <div className="pif-suggestion-brand">{suggestion.brand}</div>
-            )}
-            {suggestion.standard_rate > 0 && (
-              <div className="pif-suggestion-rate">
-                {formData.currency} {suggestion.standard_rate.toFixed(2)}
-              </div>
-            )}
-          </div>
-        ))}
+  // ─── Render ────────────────────────────────────────────────────────────────
+  if (pageLoading) {
+    return (
+      <div className={`pif-page ${theme}`}>
+        <div className="pif-inner pif-loading">
+          <FaSpinner className="spinning" size={24} />
+          <span>Loading invoice…</span>
+        </div>
       </div>
     );
+  }
 
-    return createPortal(dropdownContent, document.body);
-  };
+  const hasErrors = validate().length > 0;
+  const allGrnNumbers = [...new Set(grnsForPO.map(g => g.grn_number))];
 
   return (
     <div className={`pif-page ${theme}`}>
       <div className="pif-inner">
 
-        {/* ─── Validation Summary Modal ────────────────────────────── */}
+        {/* Validation Modal */}
         {showValidationSummary && validationErrors.length > 0 && (
           <div className="modal-overlay" onClick={() => setShowValidationSummary(false)}>
-            <div className="validation-summary-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="validation-summary-modal" onClick={e => e.stopPropagation()}>
               <div className="modal-header">
-                <h2>
-                  <FaExclamationTriangle /> Missing Required Fields
-                </h2>
+                <h2><FaExclamationTriangle /> Missing Required Fields</h2>
                 <button className="modal-close" onClick={() => setShowValidationSummary(false)}>×</button>
               </div>
               <div className="modal-body">
-                <p className="modal-description">
-                  Please fill in the following required fields before submitting:
-                </p>
                 <div className="validation-errors-list">
-                  {validationErrors.map((error, idx) => (
-                    <div key={idx} className="validation-error-item">
-                      <div className="error-header">
-                        <FaTimesCircle className="error-icon" />
-                        <strong>{error.label}</strong>
-                      </div>
-                      <div className="error-message">{error.message}</div>
+                  {validationErrors.map((err, i) => (
+                    <div key={i} className="validation-error-item">
+                      <div className="error-header"><FaTimesCircle className="error-icon" /><strong>{err.label}</strong></div>
+                      <div className="error-message">{err.message}</div>
                     </div>
                   ))}
                 </div>
-                <div className="validation-tip">
-                  <FaInfoCircle className="tip-icon" />
-                  Please fix the errors above before submitting
-                </div>
+                <div className="validation-tip"><FaInfoCircle className="tip-icon" /> Fix the errors above before submitting</div>
               </div>
               <div className="modal-footer">
-                <button className="btn-cancel" onClick={() => setShowValidationSummary(false)}>
-                  Close
-                </button>
+                <button className="btn-cancel" onClick={() => setShowValidationSummary(false)}>Close</button>
               </div>
             </div>
           </div>
         )}
 
-        {/* ─── API Error Display ────────────────────────────────────── */}
+        {/* API Error */}
         {apiError && (
           <div className="pif-api-error">
             <FaExclamationCircle className="error-icon" />
@@ -760,9 +507,9 @@ export default function PurchaseInvoiceForm() {
           </div>
         )}
 
-        {/* ─── Header ────────────────────────────────────────────────── */}
+        {/* Header */}
         <div className="pif-header">
-          <button onClick={handleCancel} className="back-btn">
+          <button type="button" onClick={() => navigate('/purchase-invoice')} className="back-btn">
             <FaArrowLeft size={9} /> Back
           </button>
           <div className="header-title">
@@ -771,41 +518,36 @@ export default function PurchaseInvoiceForm() {
           {hasErrors && (
             <div className="error-badge">
               <FaExclamationTriangle size={12} />
-              {getAllValidationErrors().length} missing field{getAllValidationErrors().length !== 1 ? 's' : ''}
+              {validate().length} missing field{validate().length !== 1 ? 's' : ''}
             </div>
           )}
         </div>
 
-        <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
-
-          {/* ─── Main Form Card ────────────────────────────────────────── */}
+        <form onSubmit={handleSubmit}>
           <div className="pif-card">
 
-            {/* Invoice Information */}
+            {/* ── Section 1: Invoice Info ──────────────────────────────── */}
             <span className="pif-section-title">
-              <FaReceipt className="pif-section-icon" /> Purchase Invoice Information
+              <FaReceipt className="pif-section-icon" /> Invoice Information
             </span>
 
             <div className="pif-grid-2">
               <div className="pif-field">
-                <label className="pif-label">
-                  <FaTag className="pif-label-icon" />Invoice Number
-                </label>
+                <label className="pif-label"><FaTag className="pif-label-icon" />Invoice Number</label>
                 <input
                   type="text"
                   value={formData.invoiceNumber}
                   disabled
                   className="form-field"
+                  placeholder="Auto-generated on save"
                   style={{ background: 'var(--layout-bg, #f3f4f6)', cursor: 'not-allowed' }}
                 />
               </div>
               <div className="pif-field">
-                <label className="pif-label">
-                  <FaClipboardList className="pif-label-icon" />Status
-                </label>
+                <label className="pif-label"><FaClipboardList className="pif-label-icon" />Status</label>
                 <select
                   value={formData.status}
-                  onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as any }))}
+                  onChange={e => setFormData(p => ({ ...p, status: e.target.value }))}
                   className="form-field"
                 >
                   {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
@@ -815,104 +557,31 @@ export default function PurchaseInvoiceForm() {
 
             <div className="pif-grid-2">
               <div className="pif-field">
-                <label className="pif-label">
-                  <FaBuilding className="pif-label-icon" />Supplier <span className="pif-required">*</span>
-                </label>
-                <select
-                  value={formData.supplier}
-                  onChange={(e) => {
-                    const selectedSupplier = suppliersList.find(s => s.supplier_name === e.target.value);
-                    setFormData(prev => ({ 
-                      ...prev, 
-                      supplier: e.target.value,
-                      supplierCode: selectedSupplier?.id || ''
-                    }));
-                  }}
-                  className={`form-field ${validationErrors.some(e => e.field === 'supplier') ? 'field-error' : ''}`}
-                  disabled={loadingSuppliers}
-                >
-                  <option value="">
-                    {loadingSuppliers ? 'Loading suppliers...' : 'Select Supplier'}
-                  </option>
-                  {suppliersList.map((supplier) => (
-                    <option key={supplier.id} value={supplier.supplier_name}>
-                      {getSupplierDisplayName(supplier)}
-                    </option>
-                  ))}
-                </select>
-                {loadingSuppliers && (
-                  <span className="pif-loading-msg">
-                    <FaSpinner className="spinning" size={10} /> Loading suppliers...
-                  </span>
-                )}
-                {!loadingSuppliers && suppliersList.length === 0 && (
-                  <span className="pif-warning-msg">
-                    <FaExclamationCircle size={10} /> No suppliers found. Please add suppliers first.
-                  </span>
-                )}
-                {validationErrors.some(e => e.field === 'supplier') && (
-                  <span className="pif-error-msg">
-                    <FaExclamationCircle size={10} />Supplier is required
-                  </span>
-                )}
+                <label className="pif-label"><FaCalendarAlt className="pif-label-icon" />Invoice Date <span className="pif-required">*</span></label>
+                <input
+                  type="date"
+                  value={formData.date}
+                  onChange={e => setFormData(p => ({ ...p, date: e.target.value }))}
+                  className={`form-field ${validationErrors.some(e => e.field === 'date') ? 'field-error' : ''}`}
+                />
               </div>
               <div className="pif-field">
-                <label className="pif-label">
-                  <FaTag className="pif-label-icon" />Supplier Code
-                </label>
+                <label className="pif-label"><FaClock className="pif-label-icon" />Due Date <span className="pif-required">*</span></label>
                 <input
-                  type="text"
-                  value={formData.supplierCode}
-                  onChange={(e) => setFormData(prev => ({ ...prev, supplierCode: e.target.value }))}
-                  className="form-field"
-                  placeholder="SUP-001"
+                  type="date"
+                  value={formData.dueDate}
+                  onChange={e => setFormData(p => ({ ...p, dueDate: e.target.value }))}
+                  className={`form-field ${validationErrors.some(e => e.field === 'dueDate') ? 'field-error' : ''}`}
                 />
               </div>
             </div>
 
             <div className="pif-grid-2">
               <div className="pif-field">
-                <label className="pif-label">
-                  <FaFileAlt className="pif-label-icon" />Purchase Order <span className="pif-required">*</span>
-                </label>
-                <select
-                  value={formData.purchaseOrder}
-                  onChange={(e) => setFormData(prev => ({ ...prev, purchaseOrder: e.target.value }))}
-                  className={`form-field ${validationErrors.some(e => e.field === 'purchaseOrder') ? 'field-error' : ''}`}
-                  disabled={loadingPOs}
-                >
-                  <option value="">
-                    {loadingPOs ? 'Loading purchase orders...' : 'Select PO'}
-                  </option>
-                  {purchaseOrders.map((po) => (
-                    <option key={po.id || po.name} value={po.name}>
-                      {getPODisplayName(po)}
-                    </option>
-                  ))}
-                </select>
-                {loadingPOs && (
-                  <span className="pif-loading-msg">
-                    <FaSpinner className="spinning" size={10} /> Loading purchase orders...
-                  </span>
-                )}
-                {!loadingPOs && purchaseOrders.length === 0 && (
-                  <span className="pif-warning-msg">
-                    <FaExclamationCircle size={10} /> No purchase orders found. Please create a purchase order first.
-                  </span>
-                )}
-                {validationErrors.some(e => e.field === 'purchaseOrder') && (
-                  <span className="pif-error-msg">
-                    <FaExclamationCircle size={10} />Purchase Order is required
-                  </span>
-                )}
-              </div>
-              <div className="pif-field">
-                <label className="pif-label">
-                  <FaMoneyBillWave className="pif-label-icon" />Currency
-                </label>
+                <label className="pif-label"><FaMoneyBillWave className="pif-label-icon" />Currency</label>
                 <select
                   value={formData.currency}
-                  onChange={(e) => setFormData(prev => ({ ...prev, currency: e.target.value }))}
+                  onChange={e => setFormData(p => ({ ...p, currency: e.target.value }))}
                   className="form-field"
                 >
                   {currencies.map(c => <option key={c} value={c}>{c}</option>)}
@@ -920,237 +589,262 @@ export default function PurchaseInvoiceForm() {
               </div>
             </div>
 
+            <div className="pif-divider" />
+
+            {/* ── Section 2: Purchase Order Selection ──────────────────── */}
+            <span className="pif-section-title">
+              <FaFileAlt className="pif-section-icon" /> Purchase Order &amp; GRN
+            </span>
+
             <div className="pif-grid-2">
-              <div className="pif-field">
+              {/* PO search/select */}
+              <div className="pif-field" ref={poSearchRef} style={{ position: 'relative' }}>
                 <label className="pif-label">
-                  <FaCalendarAlt className="pif-label-icon" />Invoice Date <span className="pif-required">*</span>
+                  <FaSearch className="pif-label-icon" />
+                  Purchase Order <span className="pif-required">*</span>
                 </label>
-                <input
-                  type="date"
-                  value={formData.date}
-                  onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
-                  className={`form-field ${validationErrors.some(e => e.field === 'date') ? 'field-error' : ''}`}
-                />
-                {validationErrors.some(e => e.field === 'date') && (
-                  <span className="pif-error-msg">
-                    <FaExclamationCircle size={10} />Invoice date is required
-                  </span>
+                <div className="warehouse-search-input-wrap">
+                  <FaSearch className="warehouse-search-icon" />
+                  <input
+                    type="text"
+                    className={`form-field warehouse-search-input ${validationErrors.some(e => e.field === 'po') ? 'field-error' : ''}`}
+                    value={poSearch}
+                    onChange={e => { setPoSearch(e.target.value); setShowPODropdown(true); }}
+                    onFocus={() => setShowPODropdown(true)}
+                    placeholder={loadingPOList ? 'Loading…' : 'Search PO number or supplier…'}
+                    disabled={loadingPOList || isEdit}
+                  />
+                  {loadingPODetail && <FaSpinner className="warehouse-loading-spinner spinning" />}
+                  {selectedPO && !loadingPODetail && (
+                    <FaCheckCircle style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: '#22c55e', fontSize: 14 }} />
+                  )}
+                </div>
+                {showPODropdown && filteredPOs.length > 0 && (
+                  <div className="warehouse-dropdown">
+                    <ul className="warehouse-dropdown-list">
+                      {filteredPOs.map(po => (
+                        <li key={po.id} className="warehouse-dropdown-item" onClick={() => handleSelectPO(po)}>
+                          <div className="warehouse-item-name">{po.name}</div>
+                          <div className="warehouse-item-company">{po.supplier_name} · {po.status}</div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {showPODropdown && filteredPOs.length === 0 && poSearch && (
+                  <div className="warehouse-dropdown">
+                    <div className="warehouse-dropdown-empty">No POs found</div>
+                  </div>
                 )}
               </div>
+
+              {/* Supplier — auto-filled from PO */}
               <div className="pif-field">
-                <label className="pif-label">
-                  <FaClock className="pif-label-icon" />Due Date <span className="pif-required">*</span>
-                </label>
+                <label className="pif-label"><FaBuilding className="pif-label-icon" />Supplier</label>
                 <input
-                  type="date"
-                  value={formData.dueDate}
-                  onChange={(e) => setFormData(prev => ({ ...prev, dueDate: e.target.value }))}
-                  className={`form-field ${validationErrors.some(e => e.field === 'dueDate') ? 'field-error' : ''}`}
+                  type="text"
+                  value={supplierName}
+                  disabled
+                  className="form-field"
+                  placeholder="Auto-filled from PO"
+                  style={{ background: 'var(--layout-bg, #f3f4f6)', cursor: 'not-allowed' }}
                 />
-                {validationErrors.some(e => e.field === 'dueDate') && (
-                  <span className="pif-error-msg">
-                    <FaExclamationCircle size={10} />Due date is required
-                  </span>
-                )}
               </div>
             </div>
+
+            {/* GRN summary strip */}
+            {(loadingGRNs || grnsForPO.length > 0) && (
+              <div className="pif-grn-strip">
+                {loadingGRNs ? (
+                  <span className="pif-loading-msg">
+                    <FaSpinner className="spinning" size={10} /> Loading GRNs for this PO…
+                  </span>
+                ) : (
+                  <>
+                    <span className="pif-grn-label">
+                      {grnsForPO.length} GRN{grnsForPO.length !== 1 ? 's' : ''} linked to this PO:
+                    </span>
+                    <div className="pif-grn-badges">
+                      {grnsForPO.map(g => (
+                        <span key={g.id} className={`pif-grn-badge pif-grn-badge--${g.status.toLowerCase()}`}>
+                          {g.grn_number}
+                          <span className="pif-grn-badge-qty"> · {g.total_received_qty} rcvd</span>
+                        </span>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {selectedPO && grnsForPO.length === 0 && !loadingGRNs && (
+              <div className="pif-grn-strip pif-grn-strip--warn">
+                <FaExclamationTriangle size={12} />
+                No GRNs found for this PO. Create a GRN first to receive material before billing.
+              </div>
+            )}
 
             <div className="pif-divider" />
 
-            {/* Items Section */}
-            <span className="pif-section-title">
-              <FaBoxes className="pif-section-icon" />Items <span className="pif-required">*</span>
-            </span>
-
-            <div className="pif-field">
-              <div className="pif-table-block">
-                <table className="pif-inline-table">
-                  <thead>
-                    <tr>
-                      <th className="pif-ith">No.</th>
-                      <th className="pif-ith">Item Code <span className="pif-required">*</span></th>
-                      <th className="pif-ith">Item Name <span className="pif-required">*</span></th>
-                      <th className="pif-ith">Qty <span className="pif-required">*</span></th>
-                      <th className="pif-ith">UOM</th>
-                      <th className="pif-ith">Rate <span className="pif-required">*</span></th>
-                      <th className="pif-ith">Amount</th>
-                      <th className="pif-ith">Received</th>
-                      <th className="pif-ith pif-ith-action"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {formData.items.map((item, index) => (
-                      <tr key={item.id} className="pif-itr">
-                        <td className="pif-itd pif-itd-no">{index + 1}</td>
-                        <td className="pif-itd" style={{ position: 'relative' }}>
-                          <div className="pif-item-search-wrapper">
-                            <input
-                              ref={(el) => { inputRefs.current[index] = el; }}
-                              className="pif-cell-input"
-                              type="text"
-                              value={item.itemCode}
-                              onChange={(e) => handleItemChange(index, 'itemCode', e.target.value)}
-                              placeholder="Search item code"
-                              onFocus={() => {
-                                if (item.itemCode && itemSuggestions[index]?.length > 0) {
-                                  updateDropdownPosition(index);
-                                  setShowSuggestions(prev => ({ ...prev, [index]: true }));
-                                }
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Escape') {
-                                  setShowSuggestions(prev => ({ ...prev, [index]: false }));
-                                }
-                              }}
-                            />
-                            {loadingItems[index] && (
-                              <FaSpinner className="spinning pif-search-spinner" size={14} />
-                            )}
-                            {item.itemCode && !loadingItems[index] && (
-                              <FaSearch className="pif-search-icon" size={14} />
-                            )}
-                            
-                            {/* Render suggestions using portal */}
-                            {renderSuggestions(index)}
-                            
-                            {/* Show "No items found" message */}
-                            {showSuggestions[index] && itemSuggestions[index]?.length === 0 && !loadingItems[index] && (
-                              createPortal(
-                                <div 
-                                  className="pif-suggestions-dropdown-portal"
-                                  style={{
-                                    position: 'fixed',
-                                    top: dropdownPositions[index]?.top || 0,
-                                    left: dropdownPositions[index]?.left || 0,
-                                    width: dropdownPositions[index]?.width || 'auto',
-                                    zIndex: 9999
-                                  }}
-                                >
-                                  <div className="pif-suggestion-empty">No items found</div>
-                                </div>,
-                                document.body
-                              )
-                            )}
-                          </div>
-                        </td>
-                        <td className="pif-itd">
-                          <input
-                            className="pif-cell-input"
-                            type="text"
-                            value={item.itemName}
-                            onChange={(e) => handleItemChange(index, 'itemName', e.target.value)}
-                            placeholder="Name"
-                          />
-                        </td>
-                        <td className="pif-itd">
-                          <input
-                            className="pif-cell-input pif-cell-number"
-                            type="number"
-                            value={item.quantity}
-                            onChange={(e) => handleItemChange(index, 'quantity', Number(e.target.value))}
-                            min="1"
-                          />
-                        </td>
-                        <td className="pif-itd">
-                          <select
-                            className="pif-cell-select"
-                            value={item.uom}
-                            onChange={(e) => handleItemChange(index, 'uom', e.target.value)}
-                          >
-                            {uomOptions.map(u => <option key={u} value={u}>{u}</option>)}
-                          </select>
-                        </td>
-                        <td className="pif-itd">
-                          <input
-                            className="pif-cell-input pif-cell-number"
-                            type="number"
-                            value={item.rate}
-                            onChange={(e) => handleItemChange(index, 'rate', Number(e.target.value))}
-                            min="0"
-                            step="0.01"
-                          />
-                        </td>
-                        <td className="pif-itd pif-itd-amount">{formData.currency} {item.amount.toFixed(2)}</td>
-                        <td className="pif-itd">
-                          <input
-                            className="pif-cell-input pif-cell-number"
-                            type="number"
-                            value={item.receivedQty}
-                            onChange={(e) => handleItemChange(index, 'receivedQty', Number(e.target.value))}
-                            min="0"
-                            disabled={!isEdit}
-                            style={!isEdit ? { background: 'var(--layout-bg, #f3f4f6)', cursor: 'not-allowed' } : {}}
-                          />
-                        </td>
-                        <td className="pif-itd">
-                          {formData.items.length > 1 && (
-                            <button
-                              className="pif-remove-row"
-                              onClick={() => removeItemRow(index)}
-                              type="button"
-                            >
-                              ×
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr>
-                      <td colSpan={6} className="pif-total-label">Total</td>
-                      <td className="pif-total-amount">{formData.currency} {formData.items.reduce((sum, item) => sum + item.amount, 0).toFixed(2)}</td>
-                      <td></td>
-                      <td></td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-              <button className="pif-add-row" onClick={addItemRow} type="button">
-                <FaPlus size={10} /> Add row
-              </button>
-              {validationErrors.some(e => e.field === 'items') && (
-                <span className="pif-error-msg" style={{ marginTop: '8px' }}>
-                  <FaExclamationCircle size={10} />All items must have code, name, quantity {'>'} 0 and rate {'>'} 0
+            {/* ── Section 3: Items (from PO + GRN aggregation) ─────────── */}
+            <div className="pif-table-header-row">
+              <span className="pif-section-title" style={{ margin: 0 }}>
+                <FaBoxes className="pif-section-icon" /> Items to Bill
+              </span>
+              {items.length > 0 && (
+                <span className="pif-items-hint">
+                  Quantities pulled from PO + GRNs. Edit "Bill Qty" if needed.
                 </span>
               )}
             </div>
+
+            {(loadingPODetail || loadingGRNs) && (
+              <div className="pif-loading-msg" style={{ padding: '12px 0' }}>
+                <FaSpinner className="spinning" size={14} /> Building invoice from GRN data…
+              </div>
+            )}
+
+            {!loadingPODetail && !loadingGRNs && items.length > 0 && (
+              <>
+                <div className="pif-table-block">
+                  <table className="pif-inline-table">
+                    <thead>
+                      <tr>
+                        <th className="pif-ith pif-ith-no">#</th>
+                        <th className="pif-ith">Item Code</th>
+                        <th className="pif-ith">Item Name</th>
+                        <th className="pif-ith pif-ith-num">Ordered</th>
+                        <th className="pif-ith pif-ith-num">Total Rcvd</th>
+                        <th className="pif-ith pif-ith-num">Unbilled</th>
+                        <th className="pif-ith pif-ith-num">
+                          Bill Qty <span className="pif-required">*</span>
+                        </th>
+                        <th className="pif-ith">UOM</th>
+                        <th className="pif-ith pif-ith-num">Rate</th>
+                        <th className="pif-ith pif-ith-num">Amount</th>
+                        <th className="pif-ith pif-ith-num">Tax%</th>
+                        <th className="pif-ith">GRN Refs</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {items.map((row, i) => (
+                        <tr key={row.po_item_id} className={`pif-itr ${row.unbilled_qty === 0 ? 'pif-itr--zero' : ''}`}>
+                          <td className="pif-itd pif-itd-no">{i + 1}</td>
+                          <td className="pif-itd">
+                            <span className="pif-cell-readonly">{row.item_code}</span>
+                          </td>
+                          <td className="pif-itd">
+                            <span className="pif-cell-readonly">{row.item_name}</span>
+                          </td>
+                          <td className="pif-itd pif-itd-num">
+                            <span className="pif-cell-readonly">{row.ordered_qty}</span>
+                          </td>
+                          <td className="pif-itd pif-itd-num">
+                            <span className={`pif-cell-readonly ${row.total_received_qty > 0 ? 'pif-qty--received' : 'pif-qty--zero'}`}>
+                              {row.total_received_qty}
+                            </span>
+                          </td>
+                          <td className="pif-itd pif-itd-num">
+                            <span className={`pif-cell-readonly ${row.unbilled_qty > 0 ? 'pif-qty--unbilled' : 'pif-qty--zero'}`}>
+                              {row.unbilled_qty}
+                            </span>
+                          </td>
+                          <td className="pif-itd pif-itd-num">
+                            <input
+                              type="number"
+                              className="pif-cell-input pif-cell-number pif-bill-qty-input"
+                              value={row.bill_qty}
+                              min={0}
+                              max={row.unbilled_qty}
+                              step="any"
+                              onChange={e => handleBillQtyChange(i, Number(e.target.value))}
+                              disabled={row.unbilled_qty === 0}
+                              title={row.unbilled_qty === 0 ? 'Already fully billed' : `Max: ${row.unbilled_qty}`}
+                            />
+                          </td>
+                          <td className="pif-itd">
+                            <span className="pif-cell-readonly">{row.uom}</span>
+                          </td>
+                          <td className="pif-itd pif-itd-num">
+                            <span className="pif-cell-readonly">{row.rate.toFixed(2)}</span>
+                          </td>
+                          <td className="pif-itd pif-itd-num pif-amount">
+                            {formData.currency} {row.amount.toFixed(2)}
+                          </td>
+                          <td className="pif-itd pif-itd-num">
+                            <span className="pif-cell-readonly">{row.tax_rate}%</span>
+                          </td>
+                          <td className="pif-itd">
+                            <div className="pif-grn-refs">
+                              {row.grn_refs.length > 0
+                                ? row.grn_refs.map(g => <span key={g} className="pif-grn-ref-chip">{g}</span>)
+                                : <span className="pif-qty--zero">No GRN</span>
+                              }
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Totals summary */}
+                <div className="pif-totals-block">
+                  <div className="pif-totals-row">
+                    <span>Sub Total</span>
+                    <span>{formData.currency} {subTotal.toFixed(2)}</span>
+                  </div>
+                  {taxAmount > 0 && (
+                    <div className="pif-totals-row">
+                      <span>Tax</span>
+                      <span>{formData.currency} {taxAmount.toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div className="pif-totals-row pif-totals-grand">
+                    <span>Grand Total</span>
+                    <span>{formData.currency} {grandTotal.toFixed(2)}</span>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {!loadingPODetail && !loadingGRNs && !selectedPO && items.length === 0 && (
+              <div className="pif-empty-items">
+                <FaFileAlt size={32} style={{ opacity: 0.3 }} />
+                <p>Select a Purchase Order above to load items and GRN receipts.</p>
+              </div>
+            )}
+
+            {validationErrors.some(e => e.field === 'items') && (
+              <div className="pif-error-msg" style={{ marginTop: 8 }}>
+                <FaExclamationCircle size={10} /> At least one item must have billing quantity &gt; 0
+              </div>
+            )}
 
             <div className="pif-divider" />
 
             {/* Notes */}
             <div className="pif-field">
-              <label className="pif-label">
-                <FaFileAlt className="pif-label-icon" />Notes
-              </label>
+              <label className="pif-label"><FaFileAlt className="pif-label-icon" />Notes</label>
               <textarea
                 value={formData.notes}
-                onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+                onChange={e => setFormData(p => ({ ...p, notes: e.target.value }))}
                 className="form-field pif-textarea"
-                placeholder="Additional notes..."
+                placeholder="Additional notes…"
                 rows={3}
               />
             </div>
           </div>
 
-          {/* ─── Footer ────────────────────────────────────────────────── */}
+          {/* Footer */}
           <div className="pif-footer">
-            <button
-              type="button"
-              onClick={handleCancel}
-              className="cancel-btn"
-              disabled={loading}
-            >
+            <button type="button" onClick={() => navigate('/purchase-invoice')} className="cancel-btn" disabled={loading}>
               Cancel
             </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="submit-btn"
-            >
+            <button type="submit" disabled={loading} className="submit-btn">
               {loading && <FaSpinner className="spinning" />}
               <FaSave size={12} />
-              {isEdit ? 'Update' : 'Create'}
+              {isEdit ? 'Update' : 'Create Invoice'}
             </button>
           </div>
         </form>
