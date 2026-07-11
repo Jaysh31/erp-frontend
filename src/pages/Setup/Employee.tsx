@@ -1,5 +1,6 @@
-// Employee.tsx
-import { useState, useEffect, type JSX } from "react";
+// Employee.tsx - Updated version with actual API response
+
+import { useState, useEffect, useRef, type JSX } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FaSearch,
@@ -25,6 +26,9 @@ import {
   FaUserCircle,
   FaUserCheck,
   FaUserClock,
+  FaEllipsisV,
+  FaUserPlus,
+  FaUserSlash,
 } from "react-icons/fa";
 import "./Employee.css";
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
@@ -59,6 +63,8 @@ interface Employee {
   bank_ac_no: string;
   blood_group: string;
   marital_status: string;
+  user_id?: string | number;
+  is_user?: number; // 1 = has user account, 0 = no user account
 }
 
 interface EmployeeDisplay {
@@ -74,6 +80,8 @@ interface EmployeeDisplay {
   branch: string;
   gender: string;
   ctc: number;
+  isUser: boolean; // Converted from is_user (1/0) to boolean
+  userId: string | number | null; // Store the user_id for API calls
 }
 
 interface ApiResponse {
@@ -117,6 +125,8 @@ export default function Employee() {
   const [, setTotalPages] = useState(1);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedItem, setSelectedItem] = useState<EmployeeDisplay | null>(null);
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+  const dropdownRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
   const formatDate = (dateString: string) => {
     if (!dateString) return "N/A";
@@ -165,6 +175,9 @@ export default function Employee() {
           branch: item.branch || "",
           gender: item.gender || "",
           ctc: item.ctc || 0,
+          // Use the actual API response for is_user
+          isUser: item.is_user === 1,
+          userId: item.user_id || null,
         }));
 
         setEmployees(transformedData);
@@ -187,6 +200,21 @@ export default function Employee() {
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, statusFilter, departmentFilter]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (openDropdownId) {
+        const ref = dropdownRefs.current[openDropdownId];
+        if (ref && !ref.contains(event.target as Node)) {
+          setOpenDropdownId(null);
+        }
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [openDropdownId]);
 
   // Get unique departments for filter
   const departments = [...new Set(employees.map(e => e.department).filter(Boolean))];
@@ -266,6 +294,7 @@ export default function Employee() {
   const handleDelete = (item: EmployeeDisplay) => {
     setSelectedItem(item);
     setShowDeleteConfirm(true);
+    setOpenDropdownId(null);
   };
 
   const confirmDelete = async () => {
@@ -290,10 +319,34 @@ export default function Employee() {
 
   const handleEdit = (item: EmployeeDisplay) => {
     navigate(`/employee/${encodeURIComponent(item.id)}`);
+    setOpenDropdownId(null);
   };
 
   const handleView = (item: EmployeeDisplay) => {
     navigate(`/employee/${encodeURIComponent(item.id)}`);
+    setOpenDropdownId(null);
+  };
+
+const handleToggleUser = async (item: EmployeeDisplay) => {
+  try {
+    if (item.isUser) {
+      // Navigate to user roles page with user ID
+      navigate(`/user/roles/${item.userId}`);
+      setOpenDropdownId(null);
+    } else {
+      // Navigate to user creation page with employee_id
+      navigate(`/user/create?employee_id=${item.id}&email=${encodeURIComponent(item.email)}`);
+      setOpenDropdownId(null);
+    }
+  } catch (err) {
+    console.error("Error toggling user status:", err);
+    alert("Failed to toggle user status");
+  }
+};
+
+  const toggleDropdown = (id: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+    setOpenDropdownId(openDropdownId === id ? null : id);
   };
 
   const clearFilters = () => {
@@ -312,6 +365,14 @@ export default function Employee() {
 
   const getStatusBadgeClass = (status: string) => {
     return STATUS_CLASS[status] || "status-default";
+  };
+
+  const getUserStatusIcon = (isUser: boolean) => {
+    return isUser ? (
+      <FaUserCheck className="emp-user-icon active" title="User has access" />
+    ) : (
+      <FaUserSlash className="emp-user-icon inactive" title="User does not have access" />
+    );
   };
 
   return (
@@ -514,16 +575,85 @@ export default function Employee() {
                         </div>
                       </td>
                       <td className="emp-td emp-td-meta" onClick={(e) => e.stopPropagation()}>
-                        <div className="emp-action-buttons">
-                          <button className="emp-action-btn emp-action-view" onClick={() => handleView(row)} title="View">
-                            <FaEye size={12} />
+                        <div className="emp-action-wrapper">
+                          {/* User Status Button - Left side */}
+                          <button
+                            className={`emp-user-toggle ${row.isUser ? 'emp-user-active' : 'emp-user-inactive'}`}
+                            onClick={() => handleToggleUser(row)}
+                            title={row.isUser ? "Remove user access" : "Add user access"}
+                          >
+                            {row.isUser ? (
+                              <>
+                                <FaUserCheck size={12} />
+                                <span className="emp-user-label">User</span>
+                              </>
+                            ) : (
+                              <>
+                                <FaUserPlus size={12} />
+                                <span className="emp-user-label">Add User</span>
+                              </>
+                            )}
                           </button>
-                          <button className="emp-action-btn emp-action-edit" onClick={() => handleEdit(row)} title="Edit">
-                            <FaEdit size={12} />
-                          </button>
-                          <button className="emp-action-btn emp-action-delete" onClick={() => handleDelete(row)} title="Delete">
-                            <FaTrash size={12} />
-                          </button>
+
+                          {/* Dropdown Container - Right side */}
+                          <div 
+                            className="emp-dropdown-container" 
+                            ref={(el) => { dropdownRefs.current[row.id] = el; }}
+                          >
+                            <button 
+                              className={`emp-dropdown-trigger ${openDropdownId === row.id ? 'emp-dropdown-active' : ''}`}
+                              onClick={(e) => toggleDropdown(row.id, e)}
+                              aria-label="Actions"
+                            >
+                              <FaEllipsisV size={14} />
+                            </button>
+                            
+                            {openDropdownId === row.id && (
+                              <div className="emp-dropdown-menu">
+                                <button 
+                                  className="emp-dropdown-item emp-dropdown-view"
+                                  onClick={() => handleView(row)}
+                                >
+                                  <FaEye size={12} />
+                                  View
+                                </button>
+                                <button 
+                                  className="emp-dropdown-item emp-dropdown-edit"
+                                  onClick={() => handleEdit(row)}
+                                >
+                                  <FaEdit size={12} />
+                                  Edit
+                                </button>
+                                
+                                {row.isUser ? (
+                                  <button 
+                                    className="emp-dropdown-item emp-dropdown-user-remove"
+                                    onClick={() => handleToggleUser(row)}
+                                  >
+                                    <FaUserSlash size={12} />
+                                    Remove User Access
+                                  </button>
+                                ) : (
+                                  <button 
+                                    className="emp-dropdown-item emp-dropdown-user-add"
+                                    onClick={() => handleToggleUser(row)}
+                                  >
+                                    <FaUserPlus size={12} />
+                                    Add User Access
+                                  </button>
+                                )}
+                                
+                                <hr className="emp-dropdown-divider" />
+                                <button 
+                                  className="emp-dropdown-item emp-dropdown-delete"
+                                  onClick={() => handleDelete(row)}
+                                >
+                                  <FaTrash size={12} />
+                                  Delete
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </td>
                     </tr>
@@ -549,6 +679,12 @@ export default function Employee() {
               <span className="emp-stats-label">On Leave:</span>
               <span className="emp-stats-value" style={{ color: "#f59e0b" }}>
                 {employees.filter(e => e.status === "On Leave").length}
+              </span>
+            </div>
+            <div className="emp-stats-item">
+              <span className="emp-stats-label">Users:</span>
+              <span className="emp-stats-value" style={{ color: "#8b5cf6" }}>
+                {employees.filter(e => e.isUser).length}
               </span>
             </div>
             <div className="emp-stats-item">

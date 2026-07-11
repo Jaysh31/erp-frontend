@@ -95,6 +95,12 @@ import EmployeeForm from "./pages/Setup/EmployeeForm";
 import Stock from "./pages/Stock";
 
 import UserForm from "./pages/UserManagement/UserForm";
+import UserCreate from "./pages/Setup/UserCreate";
+import UserRoles from "./pages/Setup/UserRoles";
+import RoleForm from "./pages/UserManagement/RoleForm";
+import RoleList from "./pages/UserManagement/RoleList";
+import ModulePermissions from "./pages/UserManagement/ModulePermissions";
+import InventoryList from "./pages/InventoryList";
 
 
 function App() {
@@ -190,6 +196,9 @@ function App() {
             <Route path="/production" element={<ProductionPage />} />
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/settings" element={<SettingsPage />} /> */}
+
+{/* <Route path="/inventory" element={<InventoryPage />} /> */}
+
               <Route path="/job-card" element={<JobCardManagement />} />
               <Route path="/job-cards/new" element={<JobCardForm />} />
               <Route path="/job-cards/:id" element={<JobCardForm />} />
@@ -202,6 +211,17 @@ function App() {
 
 
               {/* <Route path="/new" element={<Stock />} /> */}
+
+
+
+              {/* Inventory Routes */}
+              <Route path="/InventoryList" element={<InventoryList />} />
+
+              {/* Inventory Routes */}
+
+
+
+
 
               {/* Item Routes */}
               <Route path="/item-list" element={<Itemlist />} />
@@ -278,7 +298,13 @@ function App() {
 
               {/* User Management Routes */}
               <Route path="/user-management" element={<UserManagement />} />
+              <Route path="/user/create" element={<UserCreate />} />
+              <Route path="/user/roles/:id" element={<UserRoles />} />
 
+              <Route path="/role" element={<RoleList />} />
+<Route path="/role/new" element={<RoleForm />} />
+<Route path="/role/:id" element={<RoleForm />} />
+<Route path="/role/permissions/:roleId" element={<ModulePermissions />} />
 
               {/* UOM Routes */}
               <Route path="/uom" element={<UOMList />} />
