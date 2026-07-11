@@ -26,6 +26,7 @@ interface ItemGroup {
   item_group_name: string;
   parent_item_group: string;
   is_group: number;
+  is_editable: number;
   image: string | null;
   creation: string;
   modified: string;
@@ -36,6 +37,7 @@ interface ItemGroupDisplay {
   itemGroupName: string;
   parentItemGroup: string;
   isGroup: boolean;
+  isEditable: boolean;
   createdAgo: string;
   comments: number;
 }
@@ -110,6 +112,7 @@ export default function ItemGroupList() {
           itemGroupName: item.item_group_name,
           parentItemGroup: item.parent_item_group || 'N/A',
           isGroup: item.is_group === 1,
+          isEditable: item.is_editable !== 0,
           createdAgo: formatDate(item.creation),
           comments: 0,
         }));
@@ -471,20 +474,24 @@ export default function ItemGroupList() {
                           >
                             <FaEye size={12} />
                           </button>
-                          <button
-                            className="igl-action-btn igl-action-edit"
-                            onClick={(e) => { e.stopPropagation(); handleEdit(row); }}
-                            title="Edit"
-                          >
-                            <FaEdit size={12} />
-                          </button>
-                          <button
-                            className="igl-action-btn igl-action-delete"
-                            onClick={(e) => { e.stopPropagation(); handleDelete(row); }}
-                            title="Delete"
-                          >
-                            <FaTrash size={12} />
-                          </button>
+                          {row.isEditable && (
+                            <>
+                              <button
+                                className="igl-action-btn igl-action-edit"
+                                onClick={(e) => { e.stopPropagation(); handleEdit(row); }}
+                                title="Edit"
+                              >
+                                <FaEdit size={12} />
+                              </button>
+                              <button
+                                className="igl-action-btn igl-action-delete"
+                                onClick={(e) => { e.stopPropagation(); handleDelete(row); }}
+                                title="Delete"
+                              >
+                                <FaTrash size={12} />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -654,18 +661,6 @@ export default function ItemGroupList() {
                   </select>
                   <p className="igl-edit-hint">Choose the parent this group should nest under</p>
                 </div>
-
-                {/* <div className="igl-edit-preview">
-                  <FaLayerGroup className="igl-edit-preview-icon" />
-                  <div className="igl-edit-preview-text">
-                    <span className="igl-edit-preview-label">Preview</span>
-                    <span className="igl-edit-preview-value">
-                      {editForm.parentItemGroup ? editForm.parentItemGroup : 'Root'}
-                      <span className="igl-edit-preview-arrow">→</span>
-                      <strong>{editForm.itemGroupName || 'Item Group Name'}</strong>
-                    </span>
-                  </div>
-                </div> */}
               </div>
 
               <div className="igl-modal-footer">
