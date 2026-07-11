@@ -3,7 +3,9 @@ import { NavLink, useLocation } from 'react-router-dom';
 import './Sidebar.css';
 import { useModule } from '../context/ModuleContext';
 import logo from '../assets/logo.png';
+import { UserIcon } from 'lucide-react';
 //import { time } from 'framer-motion';
+import { GiHumanCannonball } from 'react-icons/gi';
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -70,21 +72,26 @@ export default function Sidebar({
   };
 
   // All menu categories
-  const allMenuCategories = [
-    {
-      title: 'Home',
-      module: 'home',
-      icon: <HomeIcon />,
-      items: [
-        { title: 'Home', icon: <HomeIcon />, path: '/home' },
-        { title: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' }
-      ]
-    },
+const allMenuCategories = [
+  {
+    title: 'Home',
+    module: 'home',
+    icon: <HomeIcon />,
+    items: [
+      { title: 'Home', icon: <HomeIcon />, path: '/home' },
+      { 
+        title: 'Dashboard', 
+        icon: <DashboardIcon />, 
+        path: currentModule !== 'home' ? `/dashboard/${currentModule}` : '/dashboard/manufacturing' 
+      }
+    ]
+  },
     {
       title: 'Sales',
       module: 'sales',
       icon: <SalesIcon />,
       items: [
+        { title: 'lead', icon: <GiHumanCannonball />, path: '/lead'},
         { title: 'Quotation', icon: <QuotationIcon />, path: '/quotation' },
         { title: 'Sales Order', icon: <SalesOrderIcon />, path: '/sales-order' },
         { title: 'Sales Invoice', icon: <InvoiceIcon />, path: '/sales-invoice' }
@@ -112,16 +119,34 @@ export default function Sidebar({
         { title: 'Work Order', icon: <WorkOrderIcon />, path: '/work-order' },
         { title: 'Job Card', icon: <JobCardIcon />, path: '/job-card' },
         { title: 'Stock Entry', icon: <StockIcon />, path: '/stock-entry' },
+                { title: 'Inventory', icon: <BomIcon />, path: '/InventoryList' },
+        // ]
         // { title: 'Material Planning', icon: <TruckIcon />, path: '/material-planning' }
       ]
     },
+   
+    // {
+    //   title: 'Inventory',
+    //   module: 'Inventory',
+    //   icon: <ManufacturingIcon />,
+    //   items: [
+    //     { title: 'BOM', icon: <BomIcon />, path: '/InventoryList' },
+    //     ]
+    // },
+    
     {
       title: 'Organization',
       module: 'organization',
       icon: <OrganizationIcon />,
       items: [
+         { title: 'Employee', icon: <WarehouseIcon />, path: '/employee' },
+
+        {title: 'User Management', icon: <UserIcon />, path: '/user-management' },
+
+        {title: 'Role Management', icon: <UserIcon />, path: '/role' },
         { title: 'Company', icon: <CompanyIcon />, path: '/company' },
         { title: 'Letter Head', icon: <LetterHeadIcon />, path: '/letter-head' }
+
       ]
     },
     {
@@ -129,6 +154,8 @@ export default function Sidebar({
       module: 'setup',
       icon: <SetupIcon />,
       items: [
+       
+
         { title: 'Item', icon: <ItemIcon />, path: '/item-list' },
         { title: 'Item Group', icon: <FolderIcon />, path: '/item-group' },
         { title: 'Item Attribute', icon: <TagIcon />, path: '/item-attribute' },
@@ -138,10 +165,7 @@ export default function Sidebar({
         { title: 'Operations', icon: <WarehouseIcon />, path: '/operations' },
 
         { title: 'Unit of Measure (UOM)', icon: <RulerIcon />, path: '/uom' },
-        // { title: 'UOM Conversion Factor', icon: <RepeatIcon />, path: '/uom-conversion' },
-        // { title: 'Serial No', icon: <HashIcon />, path: '/serial-no' },
-        // { title: 'Batch No', icon: <LayersIcon />, path: '/batch-no' },
-        // { title: 'Serial and Batch Bundle', icon: <PackageIcon />, path: '/serial-batch-bundle' }
+
       ]
     },
     {
@@ -157,6 +181,7 @@ export default function Sidebar({
       module: 'purchasing',
       icon: <BuyingIcon />,
       items: [
+        {title: ' Goods Receipt Note' , icon:<PurchaseOrderIcon />,path: '/grn' },
         { title: 'Material Request', icon: <MaterialRequestIcon />, path: '/material-request' },
         { title: 'Request for Quotation', icon: <RFQIcon />, path: '/request-for-quotation' },
         { title: 'Supplier Quotation', icon: <SupplierQuotationIcon />, path: '/supplier-quotation' },
@@ -178,39 +203,6 @@ export default function Sidebar({
       items: [
         { title: 'Dashboard', icon: <DashboardIcon />, path: '/accounting/dashboard' },
         { title: 'Accounts', icon: <ChartOfAccountsIcon />, path: '/accounting/accounts' },
-        // { title: 'Chart of Accounts', icon: <ChartOfAccountsIcon />, path: '/accounting/chart-of-accounts' },
-        // { title: 'Ledger Accounts', icon: <LedgerIcon />, path: '/accounting/ledgers' },
-        // { title: 'Cost Centers', icon: <CostCenterIcon />, path: '/accounting/cost-centers' },
-        // { title: 'Receivables', icon: <ReceivableIcon />, path: '/accounting/receivables' },
-        // { title: 'Customer Invoices', icon: <CustomerInvoiceIcon />, path: '/accounting/customer-invoices' },
-        // { title: 'Customer Payments', icon: <CustomerPaymentIcon />, path: '/accounting/customer-payments' },
-        // { title: 'Outstanding Receivables', icon: <OutstandingReceivableIcon />, path: '/accounting/outstanding-receivables' },
-        // { title: 'Payables', icon: <PayableIcon />, path: '/accounting/payables' },
-        // { title: 'Supplier Bills', icon: <SupplierBillIcon />, path: '/accounting/supplier-bills' },
-        // { title: 'Supplier Payments', icon: <SupplierPaymentIcon />, path: '/accounting/supplier-payments' },
-        // { title: 'Outstanding Payables', icon: <OutstandingPayableIcon />, path: '/accounting/outstanding-payables' },
-        // { title: 'Banking', icon: <BankingIcon />, path: '/accounting/banking' },
-        // { title: 'Bank Accounts', icon: <BankAccountIcon />, path: '/accounting/bank-accounts' },
-        // { title: 'Bank Transactions', icon: <BankTransactionIcon />, path: '/accounting/bank-transactions' },
-        // { title: 'Bank Reconciliation', icon: <BankReconciliationIcon />, path: '/accounting/bank-reconciliation' },
-        // { title: 'Expenses', icon: <ExpenseIcon />, path: '/accounting/expenses' },
-        // { title: 'Expense Categories', icon: <TagIcon />, path: '/accounting/expense-categories' },
-        // { title: 'Expense Reports', icon: <ReportsIcon />, path: '/accounting/expense-reports' },
-        // { title: 'Taxes', icon: <TaxIcon />, path: '/accounting/taxes' },
-        // { title: 'Tax Configuration', icon: <TaxIcon />, path: '/accounting/tax-configuration' },
-        // { title: 'Tax Returns', icon: <ReportsIcon />, path: '/accounting/tax-returns' },
-        // { title: 'GST Reports', icon: <GSTIcon />, path: '/accounting/gst-reports' },
-        // { title: 'Journal Entries', icon: <JournalIcon />, path: '/accounting/journal-entries' },
-        // { title: 'Create Journal', icon: <JournalIcon />, path: '/accounting/create-journal' },
-        // { title: 'View Journals', icon: <LedgerReportIcon />, path: '/accounting/view-journals' },
-        // { title: 'General Ledger', icon: <LedgerReportIcon />, path: '/accounting/general-ledger' },
-        // { title: 'Trial Balance', icon: <TrialBalanceIcon />, path: '/accounting/trial-balance' },
-        // { title: 'Profit & Loss', icon: <PnLIcon />, path: '/accounting/profit-loss' },
-        // { title: 'Balance Sheet', icon: <BalanceSheetIcon />, path: '/accounting/balance-sheet' },
-        // { title: 'Cash Flow', icon: <CashFlowIcon />, path: '/accounting/cash-flow' },
-        // { title: 'Fund Flow', icon: <FundsFlowIcon />, path: '/accounting/funds-flow' },
-        // { title: 'Ratio Analysis', icon: <RatioIcon />, path: '/accounting/ratio-analysis' },
-        // { title: 'Settings', icon: <SettingsIcon />, path: '/accounting/settings' }
       ]
     },
     {
@@ -228,22 +220,21 @@ export default function Sidebar({
     module: 'accounting',
     icon: <ReceivablesIcon />,
     items: [
-       {
-            title: 'Sales Invoices',
-            icon: <InvoiceIcon />,
-            path: '/customer-invoices'
-        },
         {
             title: 'Delivery Challans',
             icon: <ReceiptIcon />,
-            path: '/delivery-challan'
+            path: '/sales-receipts'
         },
         {
             title: 'Customer Payments',
             icon: <PaymentIcon />,
             path: '/Customer-payments'
         },
-       
+        {
+            title: 'Customer Invoices',
+            icon: <InvoiceIcon />,
+            path: '/customer-invoices'
+        },
         {
             title: 'Credit Notes',
             icon: <CreditNoteIcon />,
@@ -284,14 +275,14 @@ title: 'Banking',
         { title: 'Expense ', icon: <TagIcon />, path: '/expenses/expense' },
       ]
     },
-    // {
-    //   title: 'System',
-    //   module: 'system',
-    //   icon: <SettingsIcon />,
-    //   items: [
-    //     { title: 'Settings', icon: <SettingsIcon />, path: '/settings' }
-    //   ]
-    // }
+    {
+      title: 'System',
+      module: 'system',
+      icon: <SettingsIcon />,
+      items: [
+        { title: 'Settings', icon: <SettingsIcon />, path: '/settings' }
+      ]
+    }
   ];
 
   // Filter categories based on current module
@@ -539,6 +530,15 @@ const FolderIcon = () => (
   </svg>
 );
 
+const OrganizationIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="9" y="2" width="6" height="4" rx="1"/>
+    <rect x="2" y="14" width="6" height="4" rx="1"/>
+    <rect x="16" y="14" width="6" height="4" rx="1"/>
+    <path d="M12 6v4M12 10H5v4M12 10h7v4"/>
+  </svg>
+);
+
 const TagIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M12 2H2v10l9.17 9.17a2 2 0 0 0 2.83 0l7-7a2 2 0 0 0 0-2.83L12 2z"/>
@@ -641,14 +641,6 @@ const StockIcon = () => (
   </svg>
 );
 
-// const ToolIcon = () => (
-//   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-//     <rect x="9" y="2" width="6" height="4" rx="1"/>
-//     <rect x="2" y="14" width="6" height="4" rx="1"/>
-//     <rect x="16" y="14" width="6" height="4" rx="1"/>
-//     <path d="M12 6v4M12 10H5v4M12 10h7v4"/>
-//   </svg>
-// );
 
 const CompanyIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -685,39 +677,6 @@ const WarehouseIcon = () => (
   </svg>
 );
 
-// const RepeatIcon = () => (
-//   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-//     <path d="M17 1l4 4-4 4"/>
-//     <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
-//     <path d="M7 23l-4-4 4-4"/>
-//     <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
-//   </svg>
-// );
-
-// const HashIcon = () => (
-//   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-//     <line x1="4" y1="9" x2="20" y2="9"/>
-//     <line x1="4" y1="15" x2="20" y2="15"/>
-//     <line x1="10" y1="3" x2="8" y2="21"/>
-//     <line x1="16" y1="3" x2="14" y2="21"/>
-//   </svg>
-// );
-
-// const LayersIcon = () => (
-//   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-//     <polygon points="12 2 2 7 12 12 22 7 12 2"/>
-//     <polyline points="2 17 12 22 22 17"/>
-//     <polyline points="2 12 12 17 22 12"/>
-//   </svg>
-// );
-
-// const PackageIcon = () => (
-//   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-//     <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-//     <path d="M2 17l10 5 10-5"/>
-//     <path d="M2 12l10 5 10-5"/>
-//   </svg>
-// );
 // ===== RECEIVABLES ICONS =====
 
 const ReceivablesIcon = () => (
@@ -1095,14 +1054,5 @@ const ChevronDownIcon = () => (
 const ChevronUpIcon = () => (
   <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
     <path d="M2 8l4-4 4 4" stroke="#9CA3AF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-  </svg>
-);
-// Organization Icons
-const OrganizationIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="9" y="2" width="6" height="4" rx="1"/>
-    <rect x="2" y="14" width="6" height="4" rx="1"/>
-    <rect x="16" y="14" width="6" height="4" rx="1"/>
-    <path d="M12 6v4M12 10H5v4M12 10h7v4"/>
   </svg>
 );
