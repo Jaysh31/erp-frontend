@@ -1,317 +1,71 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   FaSearch, FaPlus, FaEdit, FaTrash, FaFilter, 
   FaTimes, FaSpinner, FaCopy, FaEye,
   FaFileAlt, FaCheckCircle,
   FaTimesCircle, FaClock, FaExclamationTriangle,
-  FaPaperPlane, FaReceipt, FaBuilding, FaUser, 
-  FaCalendarAlt, FaRupeeSign, FaGlobe, FaTag,
-  FaBox, FaTruck, FaFileInvoice, FaPhone, FaEnvelope,
-  FaMapMarkerAlt, FaHashtag, FaPercent, FaInfoCircle
+  FaPaperPlane, FaReceipt,
+  FaAngleDoubleLeft,
+  FaAngleDoubleRight,
+  FaChevronLeft,
+  FaChevronRight,
+  FaMoneyBillWave
 } from 'react-icons/fa';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
-
-// ===== INTERFACES BASED ON PAYLOAD =====
+import api from '../services/api';
+import './PurchaseInvoice.css';
 
 interface PurchaseInvoice {
-  // Core Fields
+  id: string;
+  invoiceNumber: string;
+  supplier: string;
+  supplierCode: string;
+  purchaseOrder: string;
+  status: 'Draft' | 'Submitted' | 'Partially Paid' | 'Fully Paid' | 'Overdue' | 'Cancelled';
+  date: string;
+  dueDate: string;
+  currency: string;
+  totalAmount: number;
+  paidAmount: number;
+  balanceAmount: number;
+  itemsCount: number;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// API Response interface
+interface ApiPurchaseInvoice {
+  id: number;
   name: string;
   supplier: string;
   supplier_name: string;
-  company: string;
+  purchase_order: string;
+  status: string;
   posting_date: string;
   due_date: string;
-  status: 'Draft' | 'Submitted' | 'Partially Paid' | 'Fully Paid' | 'Overdue' | 'Cancelled';
-  
-  // Amounts
-  grand_total: number;
-  base_grand_total: number;
-  total: number;
-  net_total: number;
-  paid_amount: number;
-  base_paid_amount: number;
-  outstanding_amount: number;
-  total_advance: number;
-  write_off_amount: number;
-  
-  // Currency
   currency: string;
-  price_list_currency: string;
-  conversion_rate: number;
-  
-  // Taxes
-  total_taxes_and_charges: number;
-  taxes_and_charges_added: number;
-  tax_category: string;
-  taxes_and_charges: string;
-  
-  // Supplier Details
-  supplier_address: string;
-  address_display: string;
-  contact_person: string;
-  contact_display: string;
-  contact_mobile: string;
-  contact_email: string;
-  supplier_group: string;
-  tax_id: string;
-  
-  // Reference
-  bill_no: string;
-  bill_date: string;
-  naming_series: string;
-  purchase_order: string;
-  
-  // Status Flags
-  docstatus: 0 | 1 | 2;
-  is_paid: 0 | 1;
-  is_return: 0 | 1;
-  on_hold: 0 | 1;
-  
-  // Quantities
-  total_qty: number;
-  total_net_weight: number;
-  
-  // Misc
-  cost_center: string;
-  project: string;
-  payment_terms_template: string;
-  terms: string;
-  remarks: string;
-  in_words: string;
-  title: string;
-  language: string;
-  letter_head: string;
-  
-  // Audit
-  owner: string;
-  modified_by: string;
+  total: number;
+  paid_amount: number;
+  outstanding_amount: number;
+  items_count: number;
   created_by: string;
-  createdAt: string;
-  updatedAt: string;
-  modified: string;
   creation: string;
-  
-  // Additional
-  mode_of_payment: string;
-  cash_bank_account: string;
-  set_warehouse: string;
-  incoterm: string;
-  named_place: string;
-  buyer: string;
-  tax_withholding_group: string;
-  is_subcontracted: 0 | 1;
-  update_stock: 1 | 0;
+  modified: string;
+  is_paid: number;
 }
 
-// ===== MOCK DATA =====
-const mockInvoices: PurchaseInvoice[] = [
-  {
-    name: 'PINV-2026-001',
-    supplier: 'SUP-0001',
-    supplier_name: 'ABC Suppliers',
-    company: 'My Company',
-    posting_date: '2026-07-05',
-    due_date: '2026-08-05',
-    status: 'Draft',
-    grand_total: 59000,
-    base_grand_total: 59000,
-    total: 50000,
-    net_total: 50000,
-    paid_amount: 0,
-    base_paid_amount: 0,
-    outstanding_amount: 59000,
-    total_advance: 0,
-    write_off_amount: 0,
-    currency: 'INR',
-    price_list_currency: 'INR',
-    conversion_rate: 1,
-    total_taxes_and_charges: 9000,
-    taxes_and_charges_added: 9000,
-    tax_category: 'In-State',
-    taxes_and_charges: 'GST 18%',
-    supplier_address: 'SUP-ADDR-0001',
-    address_display: 'Pune, Maharashtra',
-    contact_person: 'John Doe',
-    contact_display: 'John Doe',
-    contact_mobile: '9876543210',
-    contact_email: 'john@example.com',
-    supplier_group: 'Local',
-    tax_id: 'GSTIN123456789',
-    bill_no: 'INV-2026-001',
-    bill_date: '2026-07-05',
-    naming_series: 'PINV-.YYYY.-',
-    purchase_order: 'PO-2026-001',
-    docstatus: 0,
-    is_paid: 0,
-    is_return: 0,
-    on_hold: 0,
-    total_qty: 100,
-    total_net_weight: 250,
-    cost_center: 'Main - MC',
-    project: 'PRJ-0001',
-    payment_terms_template: '30 Days',
-    terms: 'Payment due within 30 days.',
-    remarks: 'Purchase invoice created via API.',
-    in_words: 'INR Fifty Nine Thousand Only',
-    title: 'Purchase Invoice for ABC Suppliers',
-    language: 'en',
-    letter_head: 'Standard',
-    owner: 'Administrator',
-    modified_by: 'Administrator',
-    created_by: 'Administrator',
-    createdAt: '2026-07-05T10:30:00Z',
-    updatedAt: '2026-07-05T10:30:00Z',
-    modified: '2026-07-05T10:30:00Z',
-    creation: '2026-07-05T10:30:00Z',
-    mode_of_payment: 'Bank',
-    cash_bank_account: 'Bank - MC',
-    set_warehouse: 'Stores - MC',
-    incoterm: 'FOB',
-    named_place: 'Pune',
-    buyer: 'My Company',
-    tax_withholding_group: 'None',
-    is_subcontracted: 0,
-    update_stock: 1
-  },
-  {
-    name: 'PINV-2026-002',
-    supplier: 'SUP-0002',
-    supplier_name: 'XYZ Electronics Ltd',
-    company: 'My Company',
-    posting_date: '2026-06-18',
-    due_date: '2026-07-18',
-    status: 'Fully Paid',
-    grand_total: 45000,
-    base_grand_total: 45000,
-    total: 45000,
-    net_total: 45000,
-    paid_amount: 45000,
-    base_paid_amount: 45000,
-    outstanding_amount: 0,
-    total_advance: 0,
-    write_off_amount: 0,
-    currency: 'USD',
-    price_list_currency: 'USD',
-    conversion_rate: 83.5,
-    total_taxes_and_charges: 0,
-    taxes_and_charges_added: 0,
-    tax_category: 'No Tax',
-    taxes_and_charges: '',
-    supplier_address: 'SUP-ADDR-0002',
-    address_display: 'Mumbai, Maharashtra',
-    contact_person: 'Jane Smith',
-    contact_display: 'Jane Smith',
-    contact_mobile: '8765432109',
-    contact_email: 'jane@xyz.com',
-    supplier_group: 'International',
-    tax_id: 'GSTIN987654321',
-    bill_no: 'INV-2026-002',
-    bill_date: '2026-06-18',
-    naming_series: 'PINV-.YYYY.-',
-    purchase_order: 'PO-2026-002',
-    docstatus: 1,
-    is_paid: 1,
-    is_return: 0,
-    on_hold: 0,
-    total_qty: 50,
-    total_net_weight: 120,
-    cost_center: 'Main - MC',
-    project: 'PRJ-0002',
-    payment_terms_template: '15 Days',
-    terms: 'Payment due within 15 days.',
-    remarks: 'Fully paid',
-    in_words: 'USD Forty Five Thousand Only',
-    title: 'Purchase Invoice for XYZ Electronics',
-    language: 'en',
-    letter_head: 'Standard',
-    owner: 'Administrator',
-    modified_by: 'Administrator',
-    created_by: 'Administrator',
-    createdAt: '2026-06-18T10:00:00Z',
-    updatedAt: '2026-06-20T14:00:00Z',
-    modified: '2026-06-20T14:00:00Z',
-    creation: '2026-06-18T10:00:00Z',
-    mode_of_payment: 'Wire Transfer',
-    cash_bank_account: 'Bank - MC',
-    set_warehouse: 'Stores - MC',
-    incoterm: 'CIF',
-    named_place: 'Mumbai Port',
-    buyer: 'My Company',
-    tax_withholding_group: 'None',
-    is_subcontracted: 0,
-    update_stock: 1
-  },
-  {
-    name: 'PINV-2026-003',
-    supplier: 'SUP-0003',
-    supplier_name: 'PQR Packaging Solutions',
-    company: 'My Company',
-    posting_date: '2026-06-22',
-    due_date: '2026-07-22',
-    status: 'Partially Paid',
-    grand_total: 120000,
-    base_grand_total: 120000,
-    total: 101695,
-    net_total: 101695,
-    paid_amount: 50000,
-    base_paid_amount: 50000,
-    outstanding_amount: 70000,
-    total_advance: 0,
-    write_off_amount: 0,
-    currency: 'INR',
-    price_list_currency: 'INR',
-    conversion_rate: 1,
-    total_taxes_and_charges: 18305,
-    taxes_and_charges_added: 18305,
-    tax_category: 'In-State',
-    taxes_and_charges: 'GST 18%',
-    supplier_address: 'SUP-ADDR-0003',
-    address_display: 'Bangalore, Karnataka',
-    contact_person: 'Raj Kumar',
-    contact_display: 'Raj Kumar',
-    contact_mobile: '7654321098',
-    contact_email: 'raj@pqr.com',
-    supplier_group: 'Local',
-    tax_id: 'GSTIN456789123',
-    bill_no: 'INV-2026-003',
-    bill_date: '2026-06-22',
-    naming_series: 'PINV-.YYYY.-',
-    purchase_order: 'PO-2026-003',
-    docstatus: 1,
-    is_paid: 0,
-    is_return: 0,
-    on_hold: 0,
-    total_qty: 75,
-    total_net_weight: 180,
-    cost_center: 'Main - MC',
-    project: 'PRJ-0003',
-    payment_terms_template: '30 Days',
-    terms: 'Payment due within 30 days.',
-    remarks: 'Partial payment received',
-    in_words: 'INR One Lakh Twenty Thousand Only',
-    title: 'Purchase Invoice for PQR Packaging',
-    language: 'en',
-    letter_head: 'Standard',
-    owner: 'Administrator',
-    modified_by: 'Administrator',
-    created_by: 'Administrator',
-    createdAt: '2026-06-22T10:00:00Z',
-    updatedAt: '2026-06-25T09:00:00Z',
-    modified: '2026-06-25T09:00:00Z',
-    creation: '2026-06-22T10:00:00Z',
-    mode_of_payment: 'Bank',
-    cash_bank_account: 'Bank - MC',
-    set_warehouse: 'Stores - MC',
-    incoterm: 'FOB',
-    named_place: 'Bangalore',
-    buyer: 'My Company',
-    tax_withholding_group: 'None',
-    is_subcontracted: 0,
-    update_stock: 1
-  }
-];
+interface ApiResponse {
+  success: number;
+  data: {
+    total: number;
+    page: number;
+    limit: number;
+    records: ApiPurchaseInvoice[];
+  };
+}
 
 export default function PurchaseInvoice() {
   const navigate = useNavigate();
@@ -333,30 +87,165 @@ export default function PurchaseInvoice() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<PurchaseInvoice | null>(null);
   const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(true);
+  const [apiError, setApiError] = useState<string | null>(null);
 
-  const [invoices, setInvoices] = useState<PurchaseInvoice[]>(mockInvoices);
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [allChecked, setAllChecked] = useState(false);
 
-  const suppliers = [...new Set(invoices.map(inv => inv.supplier_name))];
-  const statusOptions = ['Draft', 'Submitted', 'Partially Paid', 'Fully Paid', 'Overdue', 'Cancelled'];
+  const [invoices, setInvoices] = useState<PurchaseInvoice[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [suppliersList, setSuppliersList] = useState<string[]>([]);
 
+  // Map API status to component status
+  const mapStatus = (apiStatus: string): PurchaseInvoice['status'] => {
+    switch (apiStatus?.toLowerCase()) {
+      case 'draft': return 'Draft';
+      case 'submitted': return 'Submitted';
+      case 'partially paid':
+      case 'partial': return 'Partially Paid';
+      case 'fully paid':
+      case 'paid': return 'Fully Paid';
+      case 'overdue': return 'Overdue';
+      case 'cancelled': return 'Cancelled';
+      default: return 'Draft';
+    }
+  };
+
+  // Fetch purchase invoices from API
+  const fetchPurchaseInvoices = async () => {
+    setFetching(true);
+    setApiError(null);
+    try {
+      const response = await api.get<ApiResponse>(`/purchase-invoice?page=${currentPage}&limit=${itemsPerPage}`);
+      
+      if (response.data.success === 1) {
+        const records = response.data.data.records || [];
+        setTotalRecords(response.data.data.total || 0);
+        
+        // Transform API data to component format
+        const transformedInvoices: PurchaseInvoice[] = records.map((item: ApiPurchaseInvoice) => ({
+          id: String(item.id),
+          invoiceNumber: item.name || `PI-${String(item.id).padStart(5, '0')}`,
+          supplier: item.supplier_name || item.supplier || 'N/A',
+          supplierCode: item.supplier || 'N/A',
+          purchaseOrder: item.purchase_order || 'N/A',
+          status: mapStatus(item.status),
+          date: item.posting_date ? new Date(item.posting_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+          dueDate: item.due_date ? new Date(item.due_date).toISOString().split('T')[0] : '',
+          currency: item.currency || 'INR',
+          totalAmount: item.total || 0,
+          paidAmount: item.paid_amount || 0,
+          balanceAmount: item.outstanding_amount || item.total || 0,
+          itemsCount: item.items_count || 0,
+          createdBy: item.created_by || 'System',
+          createdAt: item.creation || new Date().toISOString(),
+          updatedAt: item.modified || new Date().toISOString()
+        }));
+        
+        setInvoices(transformedInvoices);
+        
+        // Extract unique suppliers for filter
+        const uniqueSuppliers = [...new Set(transformedInvoices.map(inv => inv.supplier))];
+        setSuppliersList(uniqueSuppliers);
+      } else {
+        setApiError('Failed to fetch purchase invoices');
+      }
+    } catch (err: any) {
+      console.error('Error fetching purchase invoices:', err);
+      setApiError('An error occurred while fetching purchase invoices');
+    } finally {
+      setFetching(false);
+    }
+  };
+
+  // Fetch when dependencies change
+  useEffect(() => {
+    fetchPurchaseInvoices();
+  }, [currentPage, itemsPerPage]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterText, selectedStatus, selectedSupplier]);
+
+  // Filter data based on search and status
   const filteredInvoices = invoices.filter(inv => {
-    const matchesSearch = inv.name.toLowerCase().includes(filterText.toLowerCase()) ||
-                         inv.supplier_name.toLowerCase().includes(filterText.toLowerCase()) ||
-                         inv.purchase_order.toLowerCase().includes(filterText.toLowerCase()) ||
-                         inv.bill_no.toLowerCase().includes(filterText.toLowerCase());
+    const matchesSearch = inv.invoiceNumber.toLowerCase().includes(filterText.toLowerCase()) ||
+                         inv.supplier.toLowerCase().includes(filterText.toLowerCase()) ||
+                         inv.purchaseOrder.toLowerCase().includes(filterText.toLowerCase());
     const matchesStatus = selectedStatus === 'All' || inv.status === selectedStatus;
-    const matchesSupplier = selectedSupplier === 'All' || inv.supplier_name === selectedSupplier;
+    const matchesSupplier = selectedSupplier === 'All' || inv.supplier === selectedSupplier;
     return matchesSearch && matchesStatus && matchesSupplier;
   });
 
+  // Pagination calculations
+  const totalFilteredItems = filteredInvoices.length;
+  const totalPages = Math.ceil(totalFilteredItems / itemsPerPage);
+  const validCurrentPage = Math.min(currentPage, totalPages || 1);
+  
+  const paginatedData = filteredInvoices.slice(
+    (validCurrentPage - 1) * itemsPerPage,
+    validCurrentPage * itemsPerPage
+  );
+
+  const getStartIndex = () => (validCurrentPage - 1) * itemsPerPage + 1;
+  const getEndIndex = () => Math.min(validCurrentPage * itemsPerPage, totalFilteredItems);
+
+  const toggleAll = () => {
+    if (allChecked) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(paginatedData.map((r) => r.id)));
+    }
+    setAllChecked(!allChecked);
+  };
+
+  const toggleRow = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const next = new Set(selected);
+    next.has(id) ? next.delete(id) : next.add(id);
+    setSelected(next);
+    setAllChecked(next.size === paginatedData.length);
+  };
+
+  const goToPage = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+    }
+  };
+
+  const goToFirstPage = () => goToPage(1);
+  const goToLastPage = () => goToPage(totalPages);
+  const goToNextPage = () => goToPage(currentPage + 1);
+  const goToPrevPage = () => goToPage(currentPage - 1);
+
+  const handlePageSizeChange = (newSize: number) => {
+    setItemsPerPage(newSize);
+    setCurrentPage(1);
+  };
+
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisible = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+    if (endPage - startPage + 1 < maxVisible) startPage = Math.max(1, endPage - maxVisible + 1);
+    for (let i = startPage; i <= endPage; i++) pages.push(i);
+    return pages;
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'Draft': return 'status-draft';
-      case 'Submitted': return 'status-submitted';
-      case 'Partially Paid': return 'status-partial';
-      case 'Fully Paid': return 'status-paid';
-      case 'Overdue': return 'status-overdue';
-      case 'Cancelled': return 'status-cancelled';
+      case 'Draft': return 'inv-status-draft';
+      case 'Submitted': return 'inv-status-submitted';
+      case 'Partially Paid': return 'inv-status-partial';
+      case 'Fully Paid': return 'inv-status-paid';
+      case 'Overdue': return 'inv-status-overdue';
+      case 'Cancelled': return 'inv-status-cancelled';
       default: return '';
     }
   };
@@ -378,1071 +267,455 @@ export default function PurchaseInvoice() {
   };
 
   const handleEdit = (invoice: PurchaseInvoice) => {
-    navigate(`/purchase-invoice/edit/${invoice.name}`);
+    navigate(`/purchase-invoice/edit/${invoice.id}`);
   };
 
-  const handleView = (invoice: PurchaseInvoice) => {
+  const handleRowClick = (invoice: PurchaseInvoice) => {
+    navigate(`/purchase-invoice/edit/${invoice.id}`);
+  };
+
+  const handleView = (invoice: PurchaseInvoice, e: React.MouseEvent) => {
+    e.stopPropagation();
     setSelectedInvoice(invoice);
     setShowViewModal(true);
   };
 
-  const handleDelete = (invoice: PurchaseInvoice) => {
+  const handleDelete = (invoice: PurchaseInvoice, e: React.MouseEvent) => {
+    e.stopPropagation();
     setSelectedInvoice(invoice);
     setShowDeleteModal(true);
   };
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (!selectedInvoice) return;
     setLoading(true);
     
-    setTimeout(() => {
-      setInvoices(prev => prev.filter(inv => inv.name !== selectedInvoice.name));
-      setShowDeleteModal(false);
+    try {
+      const response = await api.delete(`/purchase-invoice/${selectedInvoice.id}`);
+      if (response.data.success === 1) {
+        setShowDeleteModal(false);
+        toast.success('Purchase Invoice deleted successfully!');
+        fetchPurchaseInvoices();
+      } else {
+        toast.error('Failed to delete purchase invoice');
+      }
+    } catch (err: any) {
+      console.error('Error deleting purchase invoice:', err);
+      toast.error(err.response?.data?.message || 'An error occurred while deleting');
+    } finally {
       setLoading(false);
-      toast.success('Purchase Invoice deleted successfully!');
-    }, 1000);
+    }
   };
 
-  const handleDuplicate = (invoice: PurchaseInvoice) => {
-    const newInvoice: PurchaseInvoice = {
-      ...invoice,
-      name: `PINV-2026-${String(invoices.length + 1).padStart(3, '0')}`,
-      status: 'Draft',
-      docstatus: 0,
-      is_paid: 0,
-      paid_amount: 0,
-      base_paid_amount: 0,
-      outstanding_amount: invoice.grand_total,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-    setInvoices(prev => [...prev, newInvoice]);
-    toast.success('Purchase Invoice duplicated successfully!');
+  const handleDuplicate = async (invoice: PurchaseInvoice, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const response = await api.post(`/purchase-invoice/${invoice.id}/duplicate`);
+      if (response.data.success === 1) {
+        toast.success('Purchase Invoice duplicated successfully!');
+        fetchPurchaseInvoices();
+      } else {
+        toast.error('Failed to duplicate purchase invoice');
+      }
+    } catch (err: any) {
+      console.error('Error duplicating purchase invoice:', err);
+      toast.error(err.response?.data?.message || 'An error occurred while duplicating');
+    }
   };
 
   const totalInvoices = invoices.length;
   const paidInvoices = invoices.filter(inv => inv.status === 'Fully Paid').length;
   const overdueInvoices = invoices.filter(inv => inv.status === 'Overdue').length;
-  const totalAmount = invoices.reduce((sum, inv) => sum + inv.grand_total, 0);
-  const totalOutstanding = invoices.reduce((sum, inv) => sum + inv.outstanding_amount, 0);
+  const draftInvoices = invoices.filter(inv => inv.status === 'Draft').length;
+  const totalAmount = invoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
+
+  const clearFilters = () => {
+    setFilterText('');
+    setSelectedStatus('All');
+    setSelectedSupplier('All');
+  };
+
+  const statusOptions = ['Draft', 'Submitted', 'Partially Paid', 'Fully Paid', 'Overdue', 'Cancelled'];
+  const currencies = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD'];
+
+  if (fetching) {
+    return (
+      <div className={`inv-page ${theme}-theme`}>
+        <div className="inv-loading">
+          <FaSpinner className="inv-spinning" size={32} />
+          <p>Loading purchase invoices...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className={`purchase-invoice-page ${theme}-theme`}>
-      <style>{`
-        .purchase-invoice-page {
-          display: flex;
-          flex-direction: column;
-          height: 100%;
-          background: var(--layout-bg, #f5f7fb);
-          padding: 16px 24px;
-          gap: 12px;
-          overflow-y: auto;
-          font-family: -apple-system, "Inter", "Segoe UI", Roboto, sans-serif;
-          color: var(--text-primary, #1f2433);
-        }
-
-        .purchase-invoice-page::-webkit-scrollbar { width: 4px; }
-        .purchase-invoice-page::-webkit-scrollbar-track { background: transparent; }
-        .purchase-invoice-page::-webkit-scrollbar-thumb { background: var(--border-color, #e5e7eb); border-radius: 2px; }
-
-        .page-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          flex-wrap: wrap;
-          gap: 8px;
-          flex-shrink: 0;
-        }
-
-        .header-left {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-        }
-
-        .page-title {
-          font-size: 20px;
-          font-weight: 600;
-          color: var(--text-primary, #1f2433);
-          margin: 0;
-        }
-
-        .badge {
-          font-size: 11px;
-          font-weight: 500;
-          color: var(--text-secondary, #6b7280);
-          background: var(--card-bg, #ffffff);
-          padding: 1px 10px;
-          border-radius: 12px;
-          border: 1px solid var(--border-color, #e5e7eb);
-        }
-
-        .header-actions {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-        }
-
-        .btn-primary {
-          display: inline-flex;
-          align-items: center;
-          gap: 5px;
-          padding: 6px 16px;
-          background: var(--primary-color, #6366f1);
-          color: white;
-          border: none;
-          border-radius: 6px;
-          font-size: 12px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.15s ease;
-        }
-
-        .btn-primary:hover {
-          background: var(--primary-hover, #4f46e5);
-          transform: translateY(-1px);
-        }
-
-        .btn-primary:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-          transform: none;
-        }
-
-        .btn-secondary {
-          display: inline-flex;
-          align-items: center;
-          gap: 5px;
-          padding: 6px 14px;
-          background: var(--card-bg, #ffffff);
-          color: var(--text-primary, #1f2433);
-          border: 1px solid var(--border-color, #e5e7eb);
-          border-radius: 6px;
-          font-size: 12px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.15s ease;
-        }
-
-        .btn-secondary:hover {
-          background: var(--layout-bg, #f3f4f6);
-        }
-
-        .btn-danger {
-          display: inline-flex;
-          align-items: center;
-          gap: 5px;
-          padding: 6px 14px;
-          background: #ef4444;
-          color: white;
-          border: none;
-          border-radius: 6px;
-          font-size: 12px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.15s ease;
-        }
-
-        .btn-danger:hover {
-          background: #dc2626;
-        }
-
-        .compact-stats {
-          display: flex;
-          align-items: center;
-          gap: 16px;
-          padding: 10px 16px;
-          background: var(--card-bg, #ffffff);
-          border-radius: 8px;
-          border: 1px solid var(--border-color, #e5e7eb);
-          flex-shrink: 0;
-          flex-wrap: wrap;
-        }
-
-        .stat-item {
-          display: flex;
-          align-items: baseline;
-          gap: 6px;
-        }
-
-        .stat-label {
-          font-size: 11px;
-          color: var(--text-secondary, #6b7280);
-          font-weight: 500;
-        }
-
-        .stat-value {
-          font-size: 14px;
-          font-weight: 600;
-          color: var(--text-primary, #1f2433);
-        }
-
-        .stat-paid {
-          color: #10b981;
-        }
-
-        .stat-overdue {
-          color: #ef4444;
-        }
-
-        .stat-outstanding {
-          color: #f59e0b;
-        }
-
-        .stat-divider {
-          width: 1px;
-          height: 20px;
-          background: var(--border-color, #e5e7eb);
-        }
-
-        .search-bar {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          flex-shrink: 0;
-        }
-
-        .search-wrapper {
-          display: flex;
-          align-items: center;
-          flex: 1;
-          background: var(--card-bg, #ffffff);
-          border: 1px solid var(--border-color, #e5e7eb);
-          border-radius: 8px;
-          padding: 0 12px;
-          transition: all 0.15s ease;
-          height: 34px;
-        }
-
-        .search-wrapper:focus-within {
-          border-color: var(--primary-color, #6366f1);
-          box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.08);
-        }
-
-        .search-icon {
-          color: var(--text-secondary, #9ca3af);
-          font-size: 13px;
-          flex-shrink: 0;
-        }
-
-        .search-input {
-          border: none;
-          background: transparent;
-          padding: 6px 10px;
-          font-size: 13px;
-          color: var(--text-primary, #374151);
-          outline: none;
-          flex: 1;
-          min-width: 120px;
-        }
-
-        .search-input::placeholder {
-          color: var(--text-secondary, #9ca3af);
-        }
-
-        .clear-btn {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          width: 20px;
-          height: 20px;
-          border: none;
-          border-radius: 50%;
-          background: var(--border-color, #e5e7eb);
-          color: var(--text-secondary, #6b7280);
-          font-size: 14px;
-          cursor: pointer;
-          transition: all 0.15s ease;
-        }
-
-        .clear-btn:hover {
-          background: var(--text-secondary, #6b7280);
-          color: white;
-        }
-
-        .filter-wrapper {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          flex-wrap: wrap;
-        }
-
-        .filter-toggle {
-          display: inline-flex;
-          align-items: center;
-          gap: 4px;
-          padding: 4px 12px;
-          border: 1px solid var(--border-color, #e5e7eb);
-          border-radius: 6px;
-          background: var(--card-bg, #ffffff);
-          color: var(--text-secondary, #6b7280);
-          font-size: 12px;
-          cursor: pointer;
-          transition: all 0.15s ease;
-          height: 34px;
-        }
-
-        .filter-toggle:hover {
-          background: var(--nav-hover, #f3f4f6);
-        }
-
-        .filter-toggle.active {
-          border-color: var(--primary-color, #6366f1);
-          color: var(--primary-color, #6366f1);
-          background: color-mix(in srgb, var(--primary-color) 8%, transparent);
-        }
-
-        .result-count {
-          font-size: 12px;
-          color: var(--text-secondary, #6b7280);
-        }
-
-        .expandable-filters {
-          display: flex;
-          align-items: flex-end;
-          gap: 16px;
-          padding: 12px 16px;
-          background: var(--card-bg, #ffffff);
-          border-radius: 8px;
-          border: 1px solid var(--border-color, #e5e7eb);
-          animation: slideDown 0.2s ease;
-          flex-wrap: wrap;
-        }
-
-        @keyframes slideDown {
-          from { opacity: 0; transform: translateY(-8px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-
-        .filter-group {
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-        }
-
-        .filter-group label {
-          font-size: 11px;
-          font-weight: 500;
-          color: var(--text-secondary, #6b7280);
-        }
-
-        .filter-group select {
-          padding: 4px 10px;
-          border: 1px solid var(--border-color, #e5e7eb);
-          border-radius: 6px;
-          font-size: 12px;
-          background: var(--input-bg, #ffffff);
-          color: var(--text-primary, #374151);
-          outline: none;
-          height: 30px;
-        }
-
-        .filter-group select:focus {
-          border-color: var(--primary-color, #6366f1);
-        }
-
-        .apply-filters {
-          padding: 4px 16px;
-          background: var(--primary-color, #6366f1);
-          color: white;
-          border: none;
-          border-radius: 6px;
-          font-size: 12px;
-          font-weight: 500;
-          cursor: pointer;
-          height: 30px;
-          transition: all 0.15s ease;
-        }
-
-        .apply-filters:hover {
-          background: var(--primary-hover, #4f46e5);
-        }
-
-        .invoice-container {
-          flex: 1;
-          min-height: 0;
-          background: var(--card-bg, #ffffff);
-          border-radius: 8px;
-          border: 1px solid var(--border-color, #e5e7eb);
-          overflow: hidden;
-        }
-
-        .table-wrapper {
-          overflow-x: auto;
-          height: 100%;
-        }
-
-        .invoice-table {
-          width: 100%;
-          border-collapse: collapse;
-          font-size: 13px;
-          min-width: 1200px;
-        }
-
-        .invoice-table thead {
-          background: var(--layout-bg, #f8f9fa);
-          border-bottom: 1px solid var(--border-color, #e5e7eb);
-        }
-
-        .invoice-table th {
-          padding: 10px 14px;
-          text-align: left;
-          font-size: 11px;
-          font-weight: 600;
-          color: var(--text-secondary, #6b7280);
-          text-transform: uppercase;
-          letter-spacing: 0.3px;
-        }
-
-        .invoice-table td {
-          padding: 10px 14px;
-          border-bottom: 1px solid var(--border-color, #f3f4f6);
-          color: var(--text-primary, #374151);
-        }
-
-        .invoice-row {
-          transition: background 0.15s ease;
-        }
-
-        .invoice-row:hover {
-          background: var(--nav-hover, #f9fafb);
-        }
-
-        .number-cell {
-          font-weight: 600;
-          color: var(--primary-color, #6366f1);
-          font-size: 12px;
-        }
-
-        .supplier-cell {
-          font-weight: 500;
-          color: var(--text-primary, #1f2433);
-        }
-
-        .po-cell {
-          font-size: 12px;
-          color: var(--text-secondary, #6b7280);
-        }
-
-        .date-cell {
-          font-size: 12px;
-          color: var(--text-secondary, #6b7280);
-        }
-
-        .amount-cell {
-          font-weight: 600;
-          color: var(--text-primary, #1f2433);
-        }
-
-        .paid-cell {
-          font-weight: 500;
-          color: #10b981;
-        }
-
-        .balance-cell {
-          font-weight: 600;
-          color: #f59e0b;
-        }
-
-        .balance-cell.overdue {
-          color: #ef4444;
-        }
-
-        .status-badge {
-          display: inline-flex;
-          align-items: center;
-          gap: 4px;
-          padding: 2px 10px;
-          border-radius: 10px;
-          font-size: 11px;
-          font-weight: 500;
-        }
-
-        .status-draft {
-          background: #f3f4f6;
-          color: #6b7280;
-        }
-
-        .status-submitted {
-          background: #dbeafe;
-          color: #1e40af;
-        }
-
-        .status-partial {
-          background: #fef3c7;
-          color: #92400e;
-        }
-
-        .status-paid {
-          background: #d1fae5;
-          color: #065f46;
-        }
-
-        .status-overdue {
-          background: #fee2e2;
-          color: #991b1b;
-        }
-
-        .status-cancelled {
-          background: #f3f4f6;
-          color: #6b7280;
-        }
-
-        .action-group {
-          display: flex;
-          align-items: center;
-          gap: 2px;
-        }
-
-        .action-btn {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          width: 28px;
-          height: 28px;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
-          transition: all 0.15s ease;
-          background: transparent;
-          color: var(--text-secondary, #6b7280);
-        }
-
-        .action-btn:hover {
-          background: var(--nav-hover, #f3f4f6);
-        }
-
-        .action-btn.view:hover { color: var(--primary-color, #6366f1); }
-        .action-btn.edit:hover { color: #f59e0b; }
-        .action-btn.copy:hover { color: #8b5cf6; }
-        .action-btn.delete:hover { color: #ef4444; background: #fef2f2; }
-
-        .empty-state {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          padding: 48px 20px;
-          text-align: center;
-        }
-
-        .empty-icon {
-          color: var(--text-secondary, #9ca3af);
-          margin-bottom: 12px;
-        }
-
-        .empty-state h3 {
-          font-size: 16px;
-          font-weight: 600;
-          color: var(--text-primary, #1f2433);
-          margin: 0 0 4px 0;
-        }
-
-        .empty-state p {
-          font-size: 13px;
-          color: var(--text-secondary, #6b7280);
-          margin: 0 0 16px 0;
-        }
-
-        .list-footer {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 6px 4px 0 4px;
-          font-size: 12px;
-          color: var(--text-secondary, #6b7280);
-          flex-shrink: 0;
-        }
-
-        .conversion-badge {
-          display: inline-flex;
-          align-items: center;
-          gap: 4px;
-          padding: 2px 10px;
-          background: color-mix(in srgb, var(--primary-color) 10%, transparent);
-          color: var(--primary-color, #6366f1);
-          border-radius: 12px;
-          font-size: 11px;
-          font-weight: 500;
-        }
-
-        .modal-overlay {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: rgba(0,0,0,0.5);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 1000;
-          padding: 20px;
-        }
-
-        .modal-container {
-          background: var(--card-bg, #ffffff);
-          border-radius: 12px;
-          max-width: 750px;
-          width: 100%;
-          max-height: 90vh;
-          display: flex;
-          flex-direction: column;
-          overflow: hidden;
-          box-shadow: 0 20px 60px rgba(0,0,0,0.2);
-        }
-
-        .view-modal { max-width: 800px; }
-        .delete-modal { max-width: 420px; }
-
-        .modal-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 16px 20px;
-          border-bottom: 1px solid var(--border-color, #e5e7eb);
-          flex-shrink: 0;
-        }
-
-        .modal-header h2 {
-          font-size: 18px;
-          font-weight: 600;
-          color: var(--text-primary, #1f2433);
-          margin: 0;
-        }
-
-        .modal-close {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          width: 32px;
-          height: 32px;
-          border: none;
-          border-radius: 6px;
-          background: transparent;
-          color: var(--text-secondary, #6b7280);
-          cursor: pointer;
-          font-size: 20px;
-          transition: all 0.15s ease;
-        }
-
-        .modal-close:hover {
-          background: var(--nav-hover, #f3f4f6);
-        }
-
-        .modal-body {
-          padding: 20px;
-          overflow-y: auto;
-          flex: 1;
-        }
-
-        .modal-footer {
-          display: flex;
-          justify-content: flex-end;
-          gap: 8px;
-          padding: 12px 20px;
-          border-top: 1px solid var(--border-color, #e5e7eb);
-          flex-shrink: 0;
-        }
-
-        .view-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 16px;
-        }
-
-        .view-section {
-          padding: 12px;
-          background: var(--layout-bg, #f8f9fa);
-          border-radius: 8px;
-        }
-
-        .view-section.full-width {
-          grid-column: 1 / -1;
-        }
-
-        .view-section h4 {
-          font-size: 12px;
-          font-weight: 600;
-          color: var(--text-secondary, #6b7280);
-          margin: 0 0 8px 0;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-        }
-
-        .view-row {
-          display: flex;
-          padding: 3px 0;
-          font-size: 13px;
-        }
-
-        .view-row label {
-          font-weight: 500;
-          color: var(--text-secondary, #6b7280);
-          min-width: 120px;
-        }
-
-        .view-row span {
-          color: var(--text-primary, #1f2433);
-        }
-
-        .delete-body {
-          text-align: center;
-          padding: 32px 20px;
-        }
-
-        .delete-icon {
-          color: #ef4444;
-          margin-bottom: 16px;
-        }
-
-        .delete-body h3 {
-          font-size: 18px;
-          font-weight: 600;
-          color: var(--text-primary, #1f2433);
-          margin: 0 0 8px 0;
-        }
-
-        .delete-body p {
-          font-size: 14px;
-          color: var(--text-secondary, #6b7280);
-          margin: 4px 0;
-        }
-
-        .delete-warning {
-          color: #ef4444 !important;
-          font-weight: 500;
-          margin-top: 12px !important;
-        }
-
-        .spinning {
-          animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-
-        @media (max-width: 768px) {
-          .purchase-invoice-page { padding: 12px 16px; }
-          .page-header { flex-direction: column; align-items: stretch; }
-          .header-actions { flex-wrap: wrap; justify-content: flex-end; }
-          .search-bar { flex-direction: column; align-items: stretch; }
-          .filter-wrapper { justify-content: space-between; }
-          .invoice-table { min-width: 800px; }
-          .modal-container { max-width: 100%; margin: 10px; }
-          .modal-footer { flex-direction: column; }
-          .modal-footer button { width: 100%; justify-content: center; }
-          .view-grid { grid-template-columns: 1fr; }
-          .compact-stats { flex-wrap: wrap; gap: 8px; padding: 8px 12px; }
-          .stat-divider { display: none; }
-        }
-
-        @media (max-width: 480px) {
-          .purchase-invoice-page { padding: 8px 12px; }
-          .invoice-table { font-size: 12px; min-width: 700px; }
-          .invoice-table th, .invoice-table td { padding: 6px 10px; }
-          .action-group { gap: 0; }
-          .action-btn { width: 24px; height: 24px; }
-        }
-
-        .dark-theme .purchase-invoice-page { background: var(--layout-bg, #0f172a); }
-        .dark-theme .page-title { color: var(--text-primary, #f8fafc); }
-        .dark-theme .badge { background: var(--card-bg, #1e293b); border-color: var(--border-color, #334155); color: var(--text-secondary, #94a3b8); }
-        .dark-theme .search-wrapper { background: var(--card-bg, #1e293b); border-color: var(--border-color, #334155); }
-        .dark-theme .search-input { color: var(--text-primary, #f8fafc); }
-        .dark-theme .search-input::placeholder { color: var(--text-secondary, #64748b); }
-        .dark-theme .filter-toggle { background: var(--card-bg, #1e293b); border-color: var(--border-color, #334155); color: var(--text-secondary, #94a3b8); }
-        .dark-theme .filter-toggle:hover { background: var(--nav-hover, rgba(255,255,255,0.05)); }
-        .dark-theme .expandable-filters { background: var(--card-bg, #1e293b); border-color: var(--border-color, #334155); }
-        .dark-theme .filter-group select { background: var(--input-bg, #0f172a); border-color: var(--border-color, #334155); color: var(--text-primary, #f8fafc); }
-        .dark-theme .invoice-container { background: var(--card-bg, #1e293b); border-color: var(--border-color, #334155); }
-        .dark-theme .invoice-table thead { background: var(--layout-bg, #0f172a); }
-        .dark-theme .invoice-table th { color: var(--text-secondary, #94a3b8); border-bottom-color: var(--border-color, #334155); }
-        .dark-theme .invoice-table td { border-bottom-color: var(--border-color, #334155); color: var(--text-primary, #f8fafc); }
-        .dark-theme .invoice-row:hover { background: var(--nav-hover, rgba(255,255,255,0.05)); }
-        .dark-theme .number-cell { color: var(--primary-color, #818cf8); }
-        .dark-theme .supplier-cell { color: var(--text-primary, #f8fafc); }
-        .dark-theme .po-cell { color: var(--text-secondary, #94a3b8); }
-        .dark-theme .date-cell { color: var(--text-secondary, #94a3b8); }
-        .dark-theme .amount-cell { color: var(--text-primary, #f8fafc); }
-        .dark-theme .paid-cell { color: #34d399; }
-        .dark-theme .balance-cell { color: #fbbf24; }
-        .dark-theme .balance-cell.overdue { color: #f87171; }
-        .dark-theme .action-btn { color: var(--text-secondary, #64748b); }
-        .dark-theme .action-btn:hover { background: var(--nav-hover, rgba(255,255,255,0.05)); }
-        .dark-theme .modal-container { background: var(--card-bg, #1e293b); }
-        .dark-theme .modal-header { border-bottom-color: var(--border-color, #334155); }
-        .dark-theme .modal-header h2 { color: var(--text-primary, #f8fafc); }
-        .dark-theme .modal-close { color: var(--text-secondary, #94a3b8); }
-        .dark-theme .modal-close:hover { background: var(--nav-hover, rgba(255,255,255,0.05)); }
-        .dark-theme .modal-footer { border-top-color: var(--border-color, #334155); }
-        .dark-theme .view-section { background: var(--layout-bg, #0f172a); }
-        .dark-theme .view-row span { color: var(--text-primary, #f8fafc); }
-        .dark-theme .btn-secondary { background: var(--card-bg, #1e293b); border-color: var(--border-color, #334155); color: var(--text-primary, #f8fafc); }
-        .dark-theme .btn-secondary:hover { background: var(--layout-bg, #0f172a); }
-        .dark-theme .btn-primary { background: var(--primary-color, #3b82f6); }
-        .dark-theme .btn-primary:hover { background: var(--primary-hover, #2563eb); }
-        .dark-theme .status-draft { background: rgba(107,114,128,0.2); color: #9ca3af; }
-        .dark-theme .status-submitted { background: rgba(59,130,246,0.2); color: #60a5fa; }
-        .dark-theme .status-partial { background: rgba(251,191,36,0.2); color: #fbbf24; }
-        .dark-theme .status-paid { background: rgba(16,185,129,0.2); color: #34d399; }
-        .dark-theme .status-overdue { background: rgba(239,68,68,0.2); color: #f87171; }
-        .dark-theme .status-cancelled { background: rgba(107,114,128,0.2); color: #9ca3af; }
-        .dark-theme .compact-stats { background: var(--card-bg, #1e293b); border-color: var(--border-color, #334155); }
-        .dark-theme .stat-value { color: var(--text-primary, #f8fafc); }
-        .dark-theme .stat-divider { background: var(--border-color, #334155); }
-        .dark-theme .empty-state h3 { color: var(--text-primary, #f8fafc); }
-        .dark-theme .empty-state p { color: var(--text-secondary, #94a3b8); }
-        .dark-theme .conversion-badge { background: rgba(99,102,241,0.15); color: var(--primary-color, #818cf8); }
-        .dark-theme .result-count { color: var(--text-secondary, #94a3b8); }
-        .dark-theme .list-footer { color: var(--text-secondary, #94a3b8); }
-        .dark-theme .delete-body h3 { color: var(--text-primary, #f8fafc); }
-        .dark-theme .delete-body p { color: var(--text-secondary, #94a3b8); }
-      `}</style>
-
+    <div className={`inv-page ${theme}-theme`}>
       {/* Header */}
-      <div className="page-header">
-        <div className="header-left">
-          <h1 className="page-title">Purchase Invoices</h1>
-          <span className="badge">{invoices.length}</span>
+      <div className="inv-header">
+        <div className="inv-header-left">
+          <h1 className="inv-title">Purchase Invoices</h1>
+          <span className="inv-badge">{totalRecords}</span>
         </div>
-        <div className="header-actions">
-          <button className="btn-primary" onClick={handleCreate}>
+        <div className="inv-header-actions">
+          <button className="inv-btn-primary" onClick={handleCreate}>
             <FaPlus size={12} /> New Invoice
           </button>
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="compact-stats">
-        <div className="stat-item">
-          <span className="stat-label">Total</span>
-          <span className="stat-value">{totalInvoices}</span>
+      {/* Stats Cards */}
+      <div className="inv-stats-container">
+        <div className="inv-stat-card" style={{ background: 'linear-gradient(135deg, #6366f1 0%, #818cf8cc 100%)' }}>
+          <div className="inv-stat-icon">
+            <FaReceipt size={20} />
+          </div>
+          <div className="inv-stat-content">
+            <p className="inv-stat-title">Total Invoices</p>
+            <p className="inv-stat-value">{totalInvoices}</p>
+          </div>
         </div>
-        <div className="stat-divider" />
-        <div className="stat-item">
-          <span className="stat-label">Paid</span>
-          <span className="stat-value stat-paid">{paidInvoices}</span>
+        <div className="inv-stat-card" style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #fbbf24cc 100%)' }}>
+          <div className="inv-stat-icon">
+            <FaFileAlt size={20} />
+          </div>
+          <div className="inv-stat-content">
+            <p className="inv-stat-title">Draft</p>
+            <p className="inv-stat-value">{draftInvoices}</p>
+          </div>
         </div>
-        <div className="stat-divider" />
-        <div className="stat-item">
-          <span className="stat-label">Overdue</span>
-          <span className="stat-value stat-overdue">{overdueInvoices}</span>
+        <div className="inv-stat-card" style={{ background: 'linear-gradient(135deg, #10b981 0%, #34d399cc 100%)' }}>
+          <div className="inv-stat-icon">
+            <FaCheckCircle size={20} />
+          </div>
+          <div className="inv-stat-content">
+            <p className="inv-stat-title">Fully Paid</p>
+            <p className="inv-stat-value">{paidInvoices}</p>
+          </div>
         </div>
-        <div className="stat-divider" />
-        <div className="stat-item">
-          <span className="stat-label">Outstanding</span>
-          <span className="stat-value stat-outstanding">{totalOutstanding.toLocaleString()}</span>
+        <div className="inv-stat-card" style={{ background: 'linear-gradient(135deg, #ef4444 0%, #f87171cc 100%)' }}>
+          <div className="inv-stat-icon">
+            <FaExclamationTriangle size={20} />
+          </div>
+          <div className="inv-stat-content">
+            <p className="inv-stat-title">Overdue</p>
+            <p className="inv-stat-value">{overdueInvoices}</p>
+          </div>
         </div>
-        <div className="stat-divider" />
-        <div className="stat-item">
-          <span className="stat-label">Total Amount</span>
-          <span className="stat-value">₹{totalAmount.toLocaleString()}</span>
+        <div className="inv-stat-card" style={{ background: 'linear-gradient(135deg, #8b5cf6 0%, #a78bfacc 100%)' }}>
+          <div className="inv-stat-icon">
+            <FaMoneyBillWave size={20} />
+          </div>
+          <div className="inv-stat-content">
+            <p className="inv-stat-title">Total Amount</p>
+            <p className="inv-stat-value">₹{totalAmount.toLocaleString()}</p>
+          </div>
         </div>
       </div>
 
-      {/* Search & Filter */}
-      <div className="search-bar">
-        <div className="search-wrapper">
-          <FaSearch className="search-icon" />
-          <input
-            type="text"
-            placeholder="Search by invoice #, supplier, PO or bill no..."
-            value={filterText}
-            onChange={(e) => setFilterText(e.target.value)}
-            className="search-input"
-          />
-          {filterText && (
-            <button className="clear-btn" onClick={() => setFilterText('')}>×</button>
-          )}
+      {/* Search and Filter Bar */}
+      <div className="inv-filter-bar">
+        <div className="inv-filter-left">
+          <div className="inv-search-wrapper">
+            <FaSearch className="inv-search-icon" />
+            <input
+              type="text"
+              placeholder="Search by invoice #, supplier or PO..."
+              value={filterText}
+              onChange={(e) => setFilterText(e.target.value)}
+              className="inv-search-input"
+            />
+            {filterText && (
+              <button className="inv-search-clear" onClick={() => setFilterText('')}>
+                <FaTimes size={12} />
+              </button>
+            )}
+          </div>
         </div>
-        <div className="filter-wrapper">
+        <div className="inv-filter-right">
           <select 
-            className="filter-toggle"
-            value={selectedStatus}
+            value={selectedStatus} 
             onChange={(e) => setSelectedStatus(e.target.value)}
-            style={{ width: '120px' }}
+            className="inv-filter-select"
           >
             <option value="All">All Status</option>
             {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
           <button 
-            className={`filter-toggle ${showFilters ? 'active' : ''}`}
+            className={`inv-filter-btn ${showFilters ? 'active' : ''}`}
             onClick={() => setShowFilters(!showFilters)}
           >
-            <FaFilter size={12} /> Filter
+            <FaFilter size={12} />
+            Filter
           </button>
-          <span className="result-count">{filteredInvoices.length} of {invoices.length}</span>
         </div>
       </div>
 
-      {/* Filters */}
+      {/* API Error */}
+      {apiError && (
+        <div className="inv-api-error">
+          <FaExclamationTriangle size={16} />
+          <span>{apiError}</span>
+          <button onClick={fetchPurchaseInvoices} className="inv-retry-btn">Retry</button>
+        </div>
+      )}
+
+      {/* Active filters indicator */}
+      {(filterText || selectedStatus !== 'All' || selectedSupplier !== 'All') && (
+        <div className="inv-active-filters">
+          <FaFilter size={12} style={{ color: 'var(--primary-color)' }} />
+          <span style={{ color: 'var(--text-primary)' }}>Active filters:</span>
+          {filterText && (
+            <span style={{ color: 'var(--text-primary)' }}>
+              <strong>Search:</strong> "{filterText}"
+            </span>
+          )}
+          {selectedStatus !== 'All' && (
+            <span style={{ color: 'var(--text-primary)' }}>
+              <strong>Status:</strong> {selectedStatus}
+            </span>
+          )}
+          {selectedSupplier !== 'All' && (
+            <span style={{ color: 'var(--text-primary)' }}>
+              <strong>Supplier:</strong> {selectedSupplier}
+            </span>
+          )}
+          <button 
+            onClick={clearFilters}
+            className="inv-clear-filters"
+          >
+            <FaTimes size={10} /> Clear All
+          </button>
+        </div>
+      )}
+
+      {/* Expandable Filters */}
       {showFilters && (
-        <div className="expandable-filters">
-          <div className="filter-group">
+        <div className="inv-expandable-filters">
+          <div className="inv-filter-group">
             <label>Supplier</label>
             <select
               value={selectedSupplier}
               onChange={(e) => setSelectedSupplier(e.target.value)}
             >
               <option value="All">All Suppliers</option>
-              {suppliers.map(s => <option key={s} value={s}>{s}</option>)}
+              {suppliersList.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
-          <div className="filter-group">
+          <div className="inv-filter-group">
             <label>Currency</label>
-            <select defaultValue="all">
+            <select>
               <option value="all">All Currencies</option>
-              <option value="INR">INR</option>
-              <option value="USD">USD</option>
-              <option value="EUR">EUR</option>
+              {currencies.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
-          <button className="apply-filters">Apply</button>
+          <button className="inv-apply-filters">Apply</button>
         </div>
       )}
 
-      {/* Invoice List */}
-      <div className="invoice-container">
-        {filteredInvoices.length === 0 ? (
-          <div className="empty-state">
-            <div className="empty-icon">
-              <FaReceipt size={48} />
-            </div>
-            <h3>No purchase invoices found</h3>
-            <p>Create your first purchase invoice to get started</p>
-            <button className="btn-primary" onClick={handleCreate}>
-              <FaPlus size={12} /> New Invoice
-            </button>
-          </div>
-        ) : (
-          <div className="table-wrapper">
-            <table className="invoice-table">
-              <thead>
-                <tr>
-                  <th>Invoice #</th>
-                  <th>Supplier</th>
-                  <th>PO #</th>
-                  <th>Date</th>
-                  <th>Due Date</th>
-                  <th>Total</th>
-                  <th>Paid</th>
-                  <th>Outstanding</th>
-                  <th>Status</th>
-                  <th className="text-center">Actions</th>
+      {/* Table */}
+      <div className="inv-table-wrap">
+        <table className="inv-table">
+          <thead>
+            <tr>
+              <th className="inv-th-check">
+                <input type="checkbox" checked={allChecked} onChange={toggleAll} className="inv-checkbox" />
+              </th>
+              <th className="inv-th">Invoice #</th>
+              <th className="inv-th">Supplier</th>
+              <th className="inv-th">PO #</th>
+              <th className="inv-th">Date</th>
+              <th className="inv-th">Total</th>
+              <th className="inv-th">Balance</th>
+              <th className="inv-th">Status</th>
+              <th className="inv-th inv-th-meta">
+                <span className="inv-count-label">{totalFilteredItems} of {totalRecords}</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {paginatedData.length === 0 ? (
+              <tr>
+                <td colSpan={9} className="inv-empty-state">
+                  <div className="inv-empty-content">
+                    <FaReceipt size={48} />
+                    <p>No purchase invoices found</p>
+                    <span>Create your first purchase invoice to get started</span>
+                    <button className="inv-btn-primary" onClick={handleCreate} style={{ marginTop: '12px' }}>
+                      <FaPlus size={12} /> New Invoice
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ) : (
+              paginatedData.map((inv) => (
+                <tr
+                  key={inv.id}
+                  className={`inv-tr ${selected.has(inv.id) ? "inv-tr-selected" : ""}`}
+                  onClick={() => handleRowClick(inv)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <td className="inv-td-check" onClick={(e) => toggleRow(inv.id, e)}>
+                    <input type="checkbox" checked={selected.has(inv.id)} onChange={() => {}} className="inv-checkbox" />
+                  </td>
+                  <td className="inv-td inv-td-id">{inv.invoiceNumber}</td>
+                  <td className="inv-td">{inv.supplier}</td>
+                  <td className="inv-td">{inv.purchaseOrder}</td>
+                  <td className="inv-td">{new Date(inv.date).toLocaleDateString()}</td>
+                  <td className="inv-td">{inv.currency} {inv.totalAmount.toLocaleString()}</td>
+                  <td className={`inv-td ${inv.balanceAmount > 0 && new Date(inv.dueDate) < new Date() ? 'inv-balance-overdue' : ''}`}>
+                    {inv.currency} {inv.balanceAmount.toLocaleString()}
+                  </td>
+                  <td className="inv-td">
+                    <span className={`inv-status-badge ${getStatusColor(inv.status)}`}>
+                      {getStatusIcon(inv.status)}
+                      {inv.status}
+                    </span>
+                  </td>
+                  <td className="inv-td inv-td-meta">
+                    <span className="inv-ago">{new Date(inv.createdAt).toLocaleDateString()}</span>
+                    <span className="inv-dot">·</span>
+                    <div className="inv-action-buttons">
+                      <button 
+                        className="inv-action-btn inv-action-view" 
+                        onClick={(e) => handleView(inv, e)}
+                        title="View"
+                      >
+                        <FaEye size={12} />
+                      </button>
+                      <button 
+                        className="inv-action-btn inv-action-edit" 
+                        onClick={(e) => { e.stopPropagation(); handleEdit(inv); }}
+                        title="Edit"
+                      >
+                        <FaEdit size={12} />
+                      </button>
+                      <button 
+                        className="inv-action-btn inv-action-copy" 
+                        onClick={(e) => handleDuplicate(inv, e)}
+                        title="Duplicate"
+                      >
+                        <FaCopy size={12} />
+                      </button>
+                      <button 
+                        className="inv-action-btn inv-action-delete" 
+                        onClick={(e) => handleDelete(inv, e)}
+                        title="Delete"
+                      >
+                        <FaTrash size={12} />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {filteredInvoices.map((inv) => (
-                  <tr key={inv.name} className="invoice-row">
-                    <td className="number-cell">{inv.name}</td>
-                    <td className="supplier-cell">{inv.supplier_name}</td>
-                    <td className="po-cell">{inv.purchase_order}</td>
-                    <td className="date-cell">{new Date(inv.posting_date).toLocaleDateString()}</td>
-                    <td className="date-cell">{new Date(inv.due_date).toLocaleDateString()}</td>
-                    <td className="amount-cell">{inv.currency} {inv.grand_total.toLocaleString()}</td>
-                    <td className="paid-cell">{inv.currency} {inv.paid_amount.toLocaleString()}</td>
-                    <td className={`balance-cell ${inv.outstanding_amount > 0 && new Date(inv.due_date) < new Date() ? 'overdue' : ''}`}>
-                      {inv.currency} {inv.outstanding_amount.toLocaleString()}
-                    </td>
-                    <td>
-                      <span className={`status-badge ${getStatusColor(inv.status)}`}>
-                        {getStatusIcon(inv.status)}
-                        {inv.status}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="action-group">
-                        <button className="action-btn view" title="View" onClick={() => handleView(inv)}>
-                          <FaEye size={12} />
-                        </button>
-                        <button className="action-btn edit" title="Edit" onClick={() => handleEdit(inv)}>
-                          <FaEdit size={12} />
-                        </button>
-                        <button className="action-btn copy" title="Duplicate" onClick={() => handleDuplicate(inv)}>
-                          <FaCopy size={12} />
-                        </button>
-                        <button className="action-btn delete" title="Delete" onClick={() => handleDelete(inv)}>
-                          <FaTrash size={12} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
 
-      {/* Footer */}
-      <div className="list-footer">
-        <span>{filteredInvoices.length} of {invoices.length} invoices</span>
-        <div className="footer-actions">
-          <span className="conversion-badge">
-            <FaCheckCircle size={11} /> {paidInvoices} paid
+      {/* Pagination */}
+      <div className="inv-pagination">
+        <div className="inv-pagination-left">
+          <span className="inv-pagination-label">Show:</span>
+          <select 
+            value={itemsPerPage} 
+            onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+            className="inv-page-size-select"
+          >
+            <option value={10}>10</option>
+            <option value={25}>25</option>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
+          </select>
+          <span className="inv-pagination-label">entries</span>
+        </div>
+        <div className="inv-pagination-center">
+          <button 
+            onClick={goToFirstPage} 
+            disabled={currentPage === 1 || totalFilteredItems === 0} 
+            className="inv-page-btn"
+          >
+            <FaAngleDoubleLeft size={12} />
+          </button>
+          <button 
+            onClick={goToPrevPage} 
+            disabled={currentPage === 1 || totalFilteredItems === 0} 
+            className="inv-page-btn"
+          >
+            <FaChevronLeft size={12} />
+          </button>
+          {totalFilteredItems > 0 && getPageNumbers().map(page => (
+            <button
+              key={page}
+              onClick={() => goToPage(page)}
+              className={`inv-page-btn ${currentPage === page ? 'inv-page-btn-active' : ''}`}
+            >
+              {page}
+            </button>
+          ))}
+          <button 
+            onClick={goToNextPage} 
+            disabled={currentPage === totalPages || totalFilteredItems === 0} 
+            className="inv-page-btn"
+          >
+            <FaChevronRight size={12} />
+          </button>
+          <button 
+            onClick={goToLastPage} 
+            disabled={currentPage === totalPages || totalFilteredItems === 0} 
+            className="inv-page-btn"
+          >
+            <FaAngleDoubleRight size={12} />
+          </button>
+        </div>
+        <div className="inv-pagination-right">
+          <span className="inv-pagination-info">
+            {totalFilteredItems > 0 ? (
+              `Showing ${getStartIndex()} to ${getEndIndex()} of ${totalFilteredItems} entries`
+            ) : (
+              'No entries to show'
+            )}
           </span>
         </div>
       </div>
 
-      {/* View Modal */}
+      {/* ====== VIEW MODAL ====== */}
       {showViewModal && selectedInvoice && (
-        <div className="modal-overlay" onClick={() => setShowViewModal(false)}>
-          <div className="modal-container view-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>{selectedInvoice.name}</h2>
-              <button className="modal-close" onClick={() => setShowViewModal(false)}>
-                <FaTimes />
+        <div className="inv-modal-overlay" onClick={() => setShowViewModal(false)}>
+          <div className="inv-modal inv-modal-view" onClick={(e) => e.stopPropagation()}>
+            <div className="inv-modal-header">
+              <span className="inv-modal-title">{selectedInvoice.invoiceNumber}</span>
+              <button className="inv-modal-close" onClick={() => setShowViewModal(false)}>
+                <FaTimes size={16} />
               </button>
             </div>
-            <div className="modal-body">
-              <div className="view-grid">
-                <div className="view-section">
-                  <h4><FaFileInvoice /> Invoice Details</h4>
-                  <div className="view-row"><label>Number:</label><span>{selectedInvoice.name}</span></div>
-                  <div className="view-row"><label>Status:</label><span className={`status-badge ${getStatusColor(selectedInvoice.status)}`}>{selectedInvoice.status}</span></div>
-                  <div className="view-row"><label>Date:</label><span>{new Date(selectedInvoice.posting_date).toLocaleDateString()}</span></div>
-                  <div className="view-row"><label>Due Date:</label><span>{new Date(selectedInvoice.due_date).toLocaleDateString()}</span></div>
-                  <div className="view-row"><label>Bill No:</label><span>{selectedInvoice.bill_no || 'N/A'}</span></div>
+            <div className="inv-modal-body">
+              <div className="inv-view-grid">
+                <div className="inv-view-section">
+                  <h4>Invoice Details</h4>
+                  <div className="inv-view-row"><label>Number:</label><span>{selectedInvoice.invoiceNumber}</span></div>
+                  <div className="inv-view-row"><label>Status:</label><span className={`inv-status-badge ${getStatusColor(selectedInvoice.status)}`}>{selectedInvoice.status}</span></div>
+                  <div className="inv-view-row"><label>Date:</label><span>{new Date(selectedInvoice.date).toLocaleDateString()}</span></div>
+                  <div className="inv-view-row"><label>Due Date:</label><span>{new Date(selectedInvoice.dueDate).toLocaleDateString()}</span></div>
                 </div>
-                <div className="view-section">
-                  <h4><FaUser /> Supplier Details</h4>
-                  <div className="view-row"><label>Supplier:</label><span>{selectedInvoice.supplier_name}</span></div>
-                  <div className="view-row"><label>Code:</label><span>{selectedInvoice.supplier}</span></div>
-                  <div className="view-row"><label>Contact:</label><span>{selectedInvoice.contact_person}</span></div>
-                  <div className="view-row"><label>Phone:</label><span>{selectedInvoice.contact_mobile}</span></div>
-                  <div className="view-row"><label>Email:</label><span>{selectedInvoice.contact_email}</span></div>
+                <div className="inv-view-section">
+                  <h4>Supplier Details</h4>
+                  <div className="inv-view-row"><label>Supplier:</label><span>{selectedInvoice.supplier}</span></div>
+                  <div className="inv-view-row"><label>Code:</label><span>{selectedInvoice.supplierCode}</span></div>
+                  <div className="inv-view-row"><label>PO #:</label><span>{selectedInvoice.purchaseOrder}</span></div>
                 </div>
-                <div className="view-section">
-                  <h4><FaRupeeSign /> Financial Summary</h4>
-                  <div className="view-row"><label>Total:</label><span className="amount-cell">{selectedInvoice.currency} {selectedInvoice.grand_total.toLocaleString()}</span></div>
-                  <div className="view-row"><label>Net Total:</label><span>{selectedInvoice.currency} {selectedInvoice.net_total.toLocaleString()}</span></div>
-                  <div className="view-row"><label>Tax:</label><span>{selectedInvoice.currency} {selectedInvoice.total_taxes_and_charges.toLocaleString()}</span></div>
-                  <div className="view-row"><label>Paid:</label><span className="paid-cell">{selectedInvoice.currency} {selectedInvoice.paid_amount.toLocaleString()}</span></div>
-                  <div className="view-row"><label>Outstanding:</label><span className="balance-cell">{selectedInvoice.currency} {selectedInvoice.outstanding_amount.toLocaleString()}</span></div>
-                </div>
-                <div className="view-section">
-                  <h4><FaBox /> Item Details</h4>
-                  <div className="view-row"><label>Total Qty:</label><span>{selectedInvoice.total_qty}</span></div>
-                  <div className="view-row"><label>Net Weight:</label><span>{selectedInvoice.total_net_weight}</span></div>
-                  <div className="view-row"><label>Warehouse:</label><span>{selectedInvoice.set_warehouse}</span></div>
-                  <div className="view-row"><label>Incoterm:</label><span>{selectedInvoice.incoterm}</span></div>
-                </div>
-                <div className="view-section full-width">
-                  <h4><FaInfoCircle /> Additional Information</h4>
-                  <div className="view-row"><label>Company:</label><span>{selectedInvoice.company}</span></div>
-                  <div className="view-row"><label>Project:</label><span>{selectedInvoice.project || 'N/A'}</span></div>
-                  <div className="view-row"><label>Cost Center:</label><span>{selectedInvoice.cost_center}</span></div>
-                  <div className="view-row"><label>Payment Terms:</label><span>{selectedInvoice.payment_terms_template}</span></div>
-                  <div className="view-row"><label>Remarks:</label><span>{selectedInvoice.remarks}</span></div>
-                  <div className="view-row"><label>Terms:</label><span>{selectedInvoice.terms}</span></div>
+                <div className="inv-view-section full-width">
+                  <h4>Financial Summary</h4>
+                  <div className="inv-view-row"><label>Total Amount:</label><span className="inv-amount-cell">{selectedInvoice.currency} {selectedInvoice.totalAmount.toLocaleString()}</span></div>
+                  <div className="inv-view-row"><label>Paid Amount:</label><span className="inv-paid-cell">{selectedInvoice.currency} {selectedInvoice.paidAmount.toLocaleString()}</span></div>
+                  <div className="inv-view-row"><label>Balance Amount:</label><span className="inv-balance-cell">{selectedInvoice.currency} {selectedInvoice.balanceAmount.toLocaleString()}</span></div>
+                  <div className="inv-view-row"><label>Items:</label><span>{selectedInvoice.itemsCount} items</span></div>
                 </div>
               </div>
             </div>
-            <div className="modal-footer">
-              <button className="btn-secondary" onClick={() => setShowViewModal(false)}>Close</button>
-              <button className="btn-primary" onClick={() => handleEdit(selectedInvoice)}>
+            <div className="inv-modal-footer">
+              <button className="inv-btn-cancel" onClick={() => setShowViewModal(false)}>Close</button>
+              <button className="inv-btn-primary" onClick={() => handleEdit(selectedInvoice)}>
                 <FaEdit size={12} /> Edit
               </button>
             </div>
@@ -1450,28 +723,27 @@ export default function PurchaseInvoice() {
         </div>
       )}
 
-      {/* Delete Modal */}
+      {/* ====== DELETE MODAL ====== */}
       {showDeleteModal && selectedInvoice && (
-        <div className="modal-overlay" onClick={() => setShowDeleteModal(false)}>
-          <div className="modal-container delete-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Delete Purchase Invoice</h2>
-              <button className="modal-close" onClick={() => setShowDeleteModal(false)}>
-                <FaTimes />
+        <div className="inv-modal-overlay" onClick={() => setShowDeleteModal(false)}>
+          <div className="inv-modal inv-modal-delete" onClick={(e) => e.stopPropagation()}>
+            <div className="inv-modal-header">
+              <span className="inv-modal-title">Confirm Delete</span>
+              <button className="inv-modal-close" onClick={() => setShowDeleteModal(false)}>
+                <FaTimes size={16} />
               </button>
             </div>
-            <div className="modal-body delete-body">
-              <div className="delete-icon">
-                <FaTrash size={48} />
-              </div>
-              <h3>Are you sure?</h3>
-              <p>You are about to delete <strong>{selectedInvoice.name}</strong></p>
-              <p className="delete-warning">This action cannot be undone.</p>
+            <div className="inv-modal-body">
+              <p>Are you sure you want to delete this purchase invoice?</p>
+              <p className="inv-modal-item-name"><strong>{selectedInvoice.invoiceNumber}</strong></p>
+              <p className="inv-modal-warning">This action cannot be undone.</p>
             </div>
-            <div className="modal-footer">
-              <button className="btn-secondary" onClick={() => setShowDeleteModal(false)}>Cancel</button>
-              <button className="btn-danger" onClick={handleDeleteConfirm} disabled={loading}>
-                {loading && <FaSpinner className="spinning" />}
+            <div className="inv-modal-footer">
+              <button className="inv-btn-cancel" onClick={() => setShowDeleteModal(false)}>
+                Cancel
+              </button>
+              <button className="inv-btn-delete" onClick={handleDeleteConfirm} disabled={loading}>
+                {loading && <FaSpinner className="inv-spinning" />}
                 <FaTrash size={12} /> Delete
               </button>
             </div>
