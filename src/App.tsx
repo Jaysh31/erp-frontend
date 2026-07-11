@@ -61,8 +61,8 @@ import Accounts from "./pages/Accounts";
 import ChartOfAccounts from "./pages/ChartOfAccounts";
 import LedgerAccounts from "./pages/LedgerAccounts";
 import CustomerInvoices from "./pages/CustomerInvoices";
-import SalesReceiptList from "./pages/SalesReceiptList";
-import SalesReceiptForm from "./pages/SalesReceiptForm";
+import DeliveryChallan from "./pages/Delivery_Challan";
+import DeliveryChallanForm from "./pages/CreateDeliveryChallan";
 // import { StatusBadge } from "./components/StatusBadge";
 // import { SummaryCards } from "./pages/components/SummaryCards";
 import OutstandingDashboard from "./pages/OutstandingDashboard";
@@ -92,7 +92,7 @@ import PurchaseInvoiceForm from "./pages/PurchaseInvoiceForm";
 import UserManagement from "./pages/UserManagement/UserManagement";
 import Employee from "./pages/Setup/Employee";
 import EmployeeForm from "./pages/Setup/EmployeeForm";
-import Stock from "./pages/Stock";
+// import Stock from "./pages/Stock";
 
 import UserForm from "./pages/UserManagement/UserForm";
 import UserCreate from "./pages/Setup/UserCreate";
@@ -101,8 +101,8 @@ import RoleForm from "./pages/UserManagement/RoleForm";
 import RoleList from "./pages/UserManagement/RoleList";
 import ModulePermissions from "./pages/UserManagement/ModulePermissions";
 import InventoryList from "./pages/InventoryList";
-import ModuleList from "./pages/UserManagement/ModuleList";
-import SubModulePermissions from "./pages/UserManagement/SubModulePermissions";
+// import ModuleList from "./pages/UserManagement/ModuleList";
+// import SubModulePermissions from "./pages/UserManagement/SubModulePermissions";
 
 
 function App() {
@@ -141,7 +141,8 @@ function App() {
               <Route path="/supplier-quotation/new" element={<NewSupplierQuotation />} />
               <Route path="/purchase-invoice" element={<PurchaseInvoice />} />
               <Route path="/purchase-invoice/new" element={<PurchaseInvoiceForm />} />
-              {/* <Route path="/sales" element={<SalesPage />} />
+              {/* <
+              /* <Route path="/sales" element={<SalesPage />} /> */}
           
           
 
@@ -184,8 +185,8 @@ function App() {
               <Route path="/chart-of-accounts" element={<ChartOfAccounts />} />
               <Route path="/ledger-accounts" element={<LedgerAccounts />} />
               <Route path="/customer-invoices" element={<CustomerInvoices />} />
-              <Route path="/sales-receipts" element={<SalesReceiptList />} />
-              <Route path="/sales-receipts/new" element={<SalesReceiptForm />} />
+              <Route path="/delivery-challan" element={<DeliveryChallan />} />
+              <Route path="/delivery-challan/new" element={<DeliveryChallanForm />} />
               <Route path="/outstanding-receivables" element={<OutstandingDashboard />} />
               <Route path="/customer-payments" element={<CustomerPayments />} />
 
@@ -287,8 +288,8 @@ function App() {
               <Route path="/users/new" element={<UserForm />} />
               <Route path="/users/:id" element={<UserForm />} />
 // Add routes
-              <Route path="/modules" element={<ModuleList />} />
-              <Route path="/module/:moduleId/submodules" element={<SubModulePermissions />} />
+              {/* <Route path="/modules" element={<ModuleList />} />
+              <Route path="/module/:moduleId/submodules" element={<SubModulePermissions />} /> */}
 
               <Route path="/employee/:id" element={<EmployeeForm />} />
 

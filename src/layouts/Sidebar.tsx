@@ -94,6 +94,11 @@ const allMenuCategories = [
         { title: 'lead', icon: <GiHumanCannonball />, path: '/lead'},
         { title: 'Quotation', icon: <QuotationIcon />, path: '/quotation' },
         { title: 'Sales Order', icon: <SalesOrderIcon />, path: '/sales-order' },
+        {
+            title: 'Delivery Challans',
+            icon: <ReceiptIcon />,
+            path: '/delivery-challan'
+        },
         { title: 'Sales Invoice', icon: <InvoiceIcon />, path: '/sales-invoice' }
       ]
     },
@@ -220,11 +225,7 @@ const allMenuCategories = [
     module: 'accounting',
     icon: <ReceivablesIcon />,
     items: [
-        {
-            title: 'Delivery Challans',
-            icon: <ReceiptIcon />,
-            path: '/sales-receipts'
-        },
+        
         {
             title: 'Customer Payments',
             icon: <PaymentIcon />,
