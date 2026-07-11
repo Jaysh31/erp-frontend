@@ -20,25 +20,25 @@ import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
 import "./UserForm.css";
 
-interface User {
-  id: number;
-  name: string;
-  email: string;
-  full_name: string;
-  first_name: string;
-  last_name: string;
-  middle_name: string;
-  mobile_no?: string;
-  role_profile_name?: string;
-  gender?: string;
-  birth_date?: string;
-  location?: string;
-  redirect_url?: string;
-  creation: string;
-  modified: string;
-  modified_by: string | null;
-  owner: string | null;
-}
+// interface User {
+//   id: number;
+//   name: string;
+//   email: string;
+//   full_name: string;
+//   first_name: string;
+//   last_name: string;
+//   middle_name: string;
+//   mobile_no?: string;
+//   role_profile_name?: string;
+//   gender?: string;
+//   birth_date?: string;
+//   location?: string;
+//   redirect_url?: string;
+//   creation: string;
+//   modified: string;
+//   modified_by: string | null;
+//   owner: string | null;
+// }
 
 interface Employee {
   id: number;

@@ -92,7 +92,7 @@ import PurchaseInvoiceForm from "./pages/PurchaseInvoiceForm";
 import UserManagement from "./pages/UserManagement/UserManagement";
 import Employee from "./pages/Setup/Employee";
 import EmployeeForm from "./pages/Setup/EmployeeForm";
-import Stock from "./pages/Stock";
+// import Stock from "./pages/Stock";
 
 import UserForm from "./pages/UserManagement/UserForm";
 import UserCreate from "./pages/Setup/UserCreate";
@@ -101,6 +101,10 @@ import RoleForm from "./pages/UserManagement/RoleForm";
 import RoleList from "./pages/UserManagement/RoleList";
 import ModulePermissions from "./pages/UserManagement/ModulePermissions";
 import InventoryList from "./pages/InventoryList";
+import ModuleList from "./pages/UserManagement/ModuleList";
+import SubModulePermissions from "./pages/UserManagement/SubModulePermissions";
+
+import SubModulePermissions from "./pages/UserManagement/SubModulePermissions";
 
 
 function App() {
@@ -159,6 +163,7 @@ function App() {
               <Route path="/sales-order" element={<SalesOrder />} />
               <Route path="/sales-invoice" element={<SalesInvoice />} />
               <Route path="/sales-order/new" element={<CreateSalesOrder />} />
+              <Route path="/sales-order/:id" element={<CreateSalesOrder />} />
               <Route path="/sales-invoice/new" element={<CreateSalesInvoice />} />
               <Route path="/quotation" element={<QuotationPage />} />
               <Route path="/quotation/new" element={<CreateQuotationPage />} />
@@ -197,7 +202,6 @@ function App() {
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/settings" element={<SettingsPage />} /> */}
 
-{/* <Route path="/inventory" element={<InventoryPage />} /> */}
 
               <Route path="/job-card" element={<JobCardManagement />} />
               <Route path="/job-cards/new" element={<JobCardForm />} />
@@ -270,14 +274,18 @@ function App() {
               <Route path="/NewWorkstation" element={<NewWorkstation />} />
 
               {/* Employee Routes */}
-              
+
               <Route path="/employee" element={<Employee />} />
               <Route path="/employee/new" element={<EmployeeForm />} />
               {/* User Management Routes */}
-<Route path="/user-management" element={<UserManagement />} />
-<Route path="/users/new" element={<UserForm />} />
-<Route path="/users/:id" element={<UserForm />} />
+              <Route path="/user-management" element={<UserManagement />} />
+              <Route path="/users/new" element={<UserForm />} />
+              <Route path="/users/:id" element={<UserForm />} />
+// Add routes
+              <Route path="/modules" element={<ModuleList />} />
+              <Route path="/module/:moduleId/submodules" element={<SubModulePermissions />} />
 
+              <Route path="/employee/:id" element={<EmployeeForm />} />
 
               <Route path="/employee/:id" element={<EmployeeForm />} />
 
@@ -302,9 +310,9 @@ function App() {
               <Route path="/user/roles/:id" element={<UserRoles />} />
 
               <Route path="/role" element={<RoleList />} />
-<Route path="/role/new" element={<RoleForm />} />
-<Route path="/role/:id" element={<RoleForm />} />
-<Route path="/role/permissions/:roleId" element={<ModulePermissions />} />
+              <Route path="/role/new" element={<RoleForm />} />
+              <Route path="/role/:id" element={<RoleForm />} />
+              <Route path="/role/permissions/:roleId" element={<ModulePermissions />} />
 
               {/* UOM Routes */}
               <Route path="/uom" element={<UOMList />} />

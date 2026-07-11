@@ -123,6 +123,7 @@ const allMenuCategories = [
         { title: 'Inventory', icon: <BomIcon />, path: '/InventoryList' },
       ]
     },
+
     {
       title: 'Organization',
       module: 'organization',
