@@ -1035,3 +1035,214 @@
   align-items: center;
   gap: 6px;
 }
+/* ── GRN strip ──────────────────────────────────────────────────────────── */
+.pif-grn-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--card-bg, #f0f9ff);
+  border: 1px solid var(--border-color, #bae6fd);
+  border-radius: 8px;
+  margin: 8px 0 4px;
+  font-size: 12px;
+}
+
+.pif-grn-strip--warn {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #92400e;
+  gap: 6px;
+}
+
+.pif-grn-label {
+  font-weight: 600;
+  color: var(--text-color, #0369a1);
+  white-space: nowrap;
+}
+
+.pif-grn-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pif-grn-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #dbeafe;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+}
+
+.pif-grn-badge--submitted {
+  background: #dcfce7;
+  color: #166534;
+  border-color: #bbf7d0;
+}
+
+.pif-grn-badge--draft {
+  background: #f1f5f9;
+  color: #475569;
+  border-color: #e2e8f0;
+}
+
+.pif-grn-badge-qty {
+  font-weight: 400;
+  opacity: 0.8;
+}
+
+/* ── Table header row ───────────────────────────────────────────────────── */
+.pif-table-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.pif-items-hint {
+  font-size: 11px;
+  color: var(--muted-color, #64748b);
+  font-style: italic;
+}
+
+/* ── Table column width helpers ─────────────────────────────────────────── */
+.pif-ith-no  { width: 36px; text-align: center; }
+.pif-ith-num { text-align: right; }
+.pif-itd-no  { text-align: center; color: var(--muted-color, #64748b); font-size: 12px; }
+.pif-itd-num { text-align: right; }
+
+/* ── Read-only cell value ───────────────────────────────────────────────── */
+.pif-cell-readonly {
+  display: block;
+  padding: 4px 6px;
+  font-size: 13px;
+  color: var(--text-color, #1e293b);
+  white-space: nowrap;
+}
+
+/* ── Qty colour states ──────────────────────────────────────────────────── */
+.pif-qty--received {
+  color: #16a34a;
+  font-weight: 600;
+}
+
+.pif-qty--unbilled {
+  color: #0369a1;
+  font-weight: 600;
+}
+
+.pif-qty--zero {
+  color: var(--muted-color, #94a3b8);
+}
+
+/* ── Bill qty input ─────────────────────────────────────────────────────── */
+.pif-bill-qty-input {
+  width: 80px !important;
+  text-align: right;
+  font-weight: 600;
+  color: var(--primary-color, #0891b2);
+}
+
+.pif-bill-qty-input:disabled {
+  background: var(--layout-bg, #f3f4f6);
+  color: var(--muted-color, #94a3b8);
+  cursor: not-allowed;
+}
+
+/* ── Row dimmed when fully billed ───────────────────────────────────────── */
+.pif-itr--zero td {
+  opacity: 0.45;
+}
+
+/* ── Amount cell ────────────────────────────────────────────────────────── */
+.pif-amount {
+  font-weight: 600;
+  color: var(--text-color, #1e293b);
+  white-space: nowrap;
+}
+
+/* ── GRN reference chips inside table ──────────────────────────────────── */
+.pif-grn-refs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.pif-grn-ref-chip {
+  display: inline-block;
+  padding: 1px 6px;
+  background: #dbeafe;
+  color: #1e40af;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ── Totals block ───────────────────────────────────────────────────────── */
+.pif-totals-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  margin-top: 12px;
+  padding-right: 4px;
+}
+
+.pif-totals-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 48px;
+  font-size: 13px;
+  color: var(--text-color, #334155);
+  min-width: 260px;
+}
+
+.pif-totals-row span:last-child {
+  font-weight: 600;
+  text-align: right;
+}
+
+.pif-totals-grand {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--primary-color, #0369a1);
+  border-top: 1px solid var(--border-color, #e2e8f0);
+  padding-top: 6px;
+  margin-top: 4px;
+}
+
+/* ── Empty items state ──────────────────────────────────────────────────── */
+.pif-empty-items {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 32px 16px;
+  color: var(--muted-color, #64748b);
+  text-align: center;
+}
+
+.pif-empty-items p {
+  font-size: 13px;
+  margin: 0;
+}
+
+/* ── Loading state ──────────────────────────────────────────────────────── */
+.pif-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 200px;
+  font-size: 14px;
+  color: var(--muted-color, #64748b);
+}

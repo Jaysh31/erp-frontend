@@ -1240,7 +1240,7 @@ export default function WorkOrderForm() {
       if (isNew) {
         response = await api.post("/work-order", buildPayload());
         if (response.data?.success === 1) {
-          const insertId = response.data?.data?.insertId;
+          const insertId = response.data?.data?.workOrder?.insertId;
           if (insertId) {
             try {
               const jobCardResponse = await api.post(`/job-card/create-job-cards-from-wo/${insertId}`);
@@ -1260,7 +1260,7 @@ export default function WorkOrderForm() {
       } else {
         response = await api.post(`/work-order`, buildPayload());
         if (response.data?.success === 1) {
-          const workOrderId = id || response.data?.data?.insertId || response.data?.data?.id;
+          const workOrderId = id || response.data?.data?.workOrder?.insertId || response.data?.data?.workOrder?.id;
           if (workOrderId) {
             try {
               await api.post(`/job-card/create-job-cards-from-wo/${workOrderId}`);

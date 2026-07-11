@@ -4,7 +4,6 @@ import './Sidebar.css';
 import { useModule } from '../context/ModuleContext';
 import logo from '../assets/logo.png';
 import { UserIcon } from 'lucide-react';
-//import { time } from 'framer-motion';
 import { GiHumanCannonball } from 'react-icons/gi';
 
 interface SidebarProps {
@@ -34,6 +33,8 @@ export default function Sidebar({
       'Reports': false,
       'System': false,
       'Buying': false,
+      'Suppliers & Contacts': false,
+      'Pricing & Lists': false,
       'Accounting': true
     };
   });
@@ -91,7 +92,7 @@ const allMenuCategories = [
       module: 'sales',
       icon: <SalesIcon />,
       items: [
-        { title: 'lead', icon: <GiHumanCannonball />, path: '/lead'},
+        { title: 'Lead', icon: <GiHumanCannonball />, path: '/lead'},
         { title: 'Quotation', icon: <QuotationIcon />, path: '/quotation' },
         { title: 'Sales Order', icon: <SalesOrderIcon />, path: '/sales-order' },
         { title: 'Sales Invoice', icon: <InvoiceIcon />, path: '/sales-invoice' }
@@ -119,36 +120,19 @@ const allMenuCategories = [
         { title: 'Work Order', icon: <WorkOrderIcon />, path: '/work-order' },
         { title: 'Job Card', icon: <JobCardIcon />, path: '/job-card' },
         { title: 'Stock Entry', icon: <StockIcon />, path: '/stock-entry' },
-                { title: 'Inventory', icon: <BomIcon />, path: '/InventoryList' },
-        // ]
-        // { title: 'Material Planning', icon: <TruckIcon />, path: '/material-planning' }
+        { title: 'Inventory', icon: <BomIcon />, path: '/InventoryList' },
       ]
     },
-   
-    // {
-    //   title: 'Inventory',
-    //   module: 'Inventory',
-    //   icon: <ManufacturingIcon />,
-    //   items: [
-    //     { title: 'BOM', icon: <BomIcon />, path: '/InventoryList' },
-    //     ]
-    // },
-
-
-    
     {
       title: 'Organization',
       module: 'organization',
       icon: <OrganizationIcon />,
       items: [
-         { title: 'Employee', icon: <WarehouseIcon />, path: '/employee' },
-         
-        {title: 'User Management', icon: <UserIcon />, path: '/user-management' },
-
-        {title: 'Role Management', icon: <UserIcon />, path: '/role' },
+        { title: 'Employee', icon: <WarehouseIcon />, path: '/employee' },
+        { title: 'User Management', icon: <UserIcon />, path: '/user-management' },
+        { title: 'Role Management', icon: <UserIcon />, path: '/role' },
         { title: 'Company', icon: <CompanyIcon />, path: '/company' },
         { title: 'Letter Head', icon: <LetterHeadIcon />, path: '/letter-head' }
-
       ]
     },
     {
@@ -156,8 +140,6 @@ const allMenuCategories = [
       module: 'setup',
       icon: <SetupIcon />,
       items: [
-       
-
         { title: 'Item', icon: <ItemIcon />, path: '/item-list' },
         { title: 'Item Group', icon: <FolderIcon />, path: '/item-group' },
         { title: 'Item Attribute', icon: <TagIcon />, path: '/item-attribute' },
@@ -165,9 +147,7 @@ const allMenuCategories = [
         { title: 'Warehouse', icon: <WarehouseIcon />, path: '/warehouse' },
         { title: 'Workstation', icon: <WarehouseIcon />, path: '/Workstation' },
         { title: 'Operations', icon: <WarehouseIcon />, path: '/operations' },
-
         { title: 'Unit of Measure (UOM)', icon: <RulerIcon />, path: '/uom' },
-
       ]
     },
     {
@@ -178,24 +158,34 @@ const allMenuCategories = [
         { title: 'Tools', icon: <ToolIcon />, path: '/tools' }
       ]
     },
+    // ─── BUYING - Purchase Documents ───
     {
-      title: 'Buying',
+      title: 'Purchase Documents',
       module: 'purchasing',
-      icon: <BuyingIcon />,
+      icon: <PurchaseDocumentsIcon />,
       items: [
-        {title: ' Goods Receipt Note' , icon:<PurchaseOrderIcon />,path: '/grn' },
-        { title: 'Material Request', icon: <MaterialRequestIcon />, path: '/material-request' },
-        { title: 'Request for Quotation', icon: <RFQIcon />, path: '/request-for-quotation' },
-        { title: 'Supplier Quotation', icon: <SupplierQuotationIcon />, path: '/supplier-quotation' },
         { title: 'Purchase Order', icon: <PurchaseOrderIcon />, path: '/purchase-order' },
+        { title: 'Goods Receipt Note', icon: <GRNIcon />, path: '/grn' },
         { title: 'Purchase Invoice', icon: <PurchaseInvoiceIcon />, path: '/purchase-invoice' },
+      ]
+    },
+    // ─── SUPPLIERS & CONTACTS ───
+    {
+      title: 'Suppliers & Contacts',
+      module: 'purchasing',
+      icon: <SupplierContactsIcon />,
+      items: [
         { title: 'Supplier', icon: <SupplierIcon />, path: '/supplier' },
-        { title: 'Supplier Group', icon: <SupplierGroupIcon />, path: '/supplier-group' },
-        { title: 'Price List', icon: <PriceListIcon />, path: '/price-list' },
-        { title: 'Address', icon: <AddressIcon />, path: '/address' },
         { title: 'Contacts', icon: <ContactsIcon />, path: '/contacts' },
-        { title: 'Supplier Scorecard', icon: <SupplierScorecardIcon />, path: '/supplier-scorecard' },
-        { title: 'Supplier Scorecard Criteria', icon: <SupplierScorecardCriteriaIcon />, path: '/supplier-scorecard-criteria' }
+      ]
+    },
+    // ─── PRICING & LISTS ───
+    {
+      title: 'Pricing & Lists',
+      module: 'purchasing',
+      icon: <PricingListIcon />,
+      items: [
+        { title: 'Price List', icon: <PriceListIcon />, path: '/price-list' },
       ]
     },
     {
@@ -208,59 +198,39 @@ const allMenuCategories = [
       ]
     },
     {
-       title: 'Accounts',
-       module: 'accounting',
-        icon: <AccountingIcon />,
-        items: [
-           { title: 'Chart of Accounts', icon: <ChartOfAccountsIcon />, path: '/chart-of-accounts' },
-           { title: 'Ledger Accounts', icon: <LedgerIcon />, path: '/ledger-accounts' },
+      title: 'Accounts',
+      module: 'accounting',
+      icon: <AccountingIcon />,
+      items: [
+        { title: 'Chart of Accounts', icon: <ChartOfAccountsIcon />, path: '/chart-of-accounts' },
+        { title: 'Ledger Accounts', icon: <LedgerIcon />, path: '/ledger-accounts' },
         { title: 'Cost Centers', icon: <CostCenterIcon />, path: '/accounting/cost-centers' },
-        ]
-    },
-   {
-    title: 'Receivables',
-    module: 'accounting',
-    icon: <ReceivablesIcon />,
-    items: [
-        {
-            title: 'Delivery Challans',
-            icon: <ReceiptIcon />,
-            path: '/sales-receipts'
-        },
-        {
-            title: 'Customer Payments',
-            icon: <PaymentIcon />,
-            path: '/Customer-payments'
-        },
-        {
-            title: 'Customer Invoices',
-            icon: <InvoiceIcon />,
-            path: '/customer-invoices'
-        },
-        {
-            title: 'Credit Notes',
-            icon: <CreditNoteIcon />,
-            path: '/receivables/credit-notes'
-        },
-        {
-            title: 'Outstanding Receivables',
-            icon: <CustomerIcon />,
-            path: '/outstanding-receivables'
-        }
-    ]
-},
-    {
-       title: 'Payables',
-        module: 'accounting',
-        icon: <PayablesIcon />,
-        items: [
-          { title: 'Supplier Bills', icon: <SupplierIcon />, path: '/payables/supplier-bills' },
-          { title: 'Supplier Payments', icon: <PaymentIcon />, path: '/payables/supplier-payments' },
-          { title: 'Outstanding Payables', icon: <OutstandingIcon />, path: '/payables/outstanding-payables' }
-        ]
+      ]
     },
     {
-title: 'Banking',
+      title: 'Receivables',
+      module: 'accounting',
+      icon: <ReceivablesIcon />,
+      items: [
+        { title: 'Delivery Challans', icon: <ReceiptIcon />, path: '/sales-receipts' },
+        { title: 'Customer Payments', icon: <PaymentIcon />, path: '/Customer-payments' },
+        { title: 'Customer Invoices', icon: <InvoiceIcon />, path: '/customer-invoices' },
+        { title: 'Credit Notes', icon: <CreditNoteIcon />, path: '/receivables/credit-notes' },
+        { title: 'Outstanding Receivables', icon: <CustomerIcon />, path: '/outstanding-receivables' }
+      ]
+    },
+    {
+      title: 'Payables',
+      module: 'accounting',
+      icon: <PayablesIcon />,
+      items: [
+        { title: 'Supplier Bills', icon: <SupplierIcon />, path: '/payables/supplier-bills' },
+        { title: 'Supplier Payments', icon: <PaymentIcon />, path: '/payables/supplier-payments' },
+        { title: 'Outstanding Payables', icon: <OutstandingIcon />, path: '/payables/outstanding-payables' }
+      ]
+    },
+    {
+      title: 'Banking',
       module: 'accounting',
       icon: <BankingIcon />,
       items: [
@@ -274,7 +244,7 @@ title: 'Banking',
       module: 'accounting',
       icon: <ExpenseIcon />,
       items: [
-        { title: 'Expense ', icon: <TagIcon />, path: '/expenses/expense' },
+        { title: 'Expense', icon: <TagIcon />, path: '/expenses/expense' },
       ]
     },
     {
@@ -301,7 +271,6 @@ const getFilteredCategories = () => {
     );
   }
 };
-
 
   const menuCategories = getFilteredCategories();
 
@@ -350,26 +319,6 @@ const getFilteredCategories = () => {
             </button>
           )}
         </div>
-
-        {/* Search + Notification
-        <div className="sidebar-top">
-          <div className="search-row">
-            <svg className="search-icon" width="15" height="15" viewBox="0 0 16 16" fill="none">
-              <path d="M7.33333 12.6667C10.2789 12.6667 12.6667 10.2789 12.6667 7.33333C12.6667 4.38781 10.2789 2 7.33333 2C4.38781 2 2 4.38781 2 7.33333C2 10.2789 4.38781 12.6667 7.33333 12.6667Z" stroke="var(--sidebar-text-secondary, #9CA3AF)" strokeWidth="1.5" strokeLinecap="round"/>
-              <path d="M14 14L11 11" stroke="var(--sidebar-text-secondary, #9CA3AF)" strokeWidth="1.5" strokeLinecap="round"/>
-            </svg>
-            <input type="text" placeholder="Search" className="sidebar-search" />
-            <span className="search-shortcut">Ctrl+K</span>
-          </div>
-          <div className="notification-row">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--sidebar-text-secondary, #6B7280)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-            </svg>
-            <span className="notification-label">Notification</span>
-            <span className="notification-count">3</span>
-          </div>
-        </div> */}
 
         {/* Navigation */}
         <div className="sidebar-nav">
@@ -569,16 +518,7 @@ const CouponIcon = () => (
 );
 
 const ReceiptIcon = () => (
-  <svg
-    width="16"
-    height="16"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.8"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M6 2h12v20l-2-1.5L14 22l-2-1.5L10 22l-2-1.5L6 22V2z" />
     <path d="M9 7h6" />
     <path d="M9 11h6" />
@@ -587,16 +527,7 @@ const ReceiptIcon = () => (
 );
 
 const CreditNoteIcon = () => (
-  <svg
-    width="16"
-    height="16"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.8"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M6 2h12v20l-2-1.5L14 22l-2-1.5L10 22l-2-1.5L6 22V2z" />
     <path d="M9 7h6" />
     <path d="M9 11h4" />
@@ -642,7 +573,6 @@ const StockIcon = () => (
     <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
   </svg>
 );
-
 
 const CompanyIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -701,17 +631,6 @@ const CustomerIcon = () => (
   </svg>
 );
 
-// const InvoiceIcon = () => (
-//   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-//     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-//     <polyline points="14 2 14 8 20 8" />
-//     <line x1="8" y1="13" x2="16" y2="13" />
-//     <line x1="8" y1="17" x2="16" y2="17" />
-//     <line x1="8" y1="9" x2="10" y2="9" />
-//     <path d="M16 9v8" />
-//   </svg>
-// );
-
 const PaymentIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M3 6h18" />
@@ -738,18 +657,6 @@ const PayablesIcon = () => (
   </svg>
 );
 
-// const SupplierIcon = () => (
-//   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-//     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-//     <circle cx="12" cy="7" r="4" />
-//     <path d="M16 11l2 2 4-4" />
-//     <path d="M19 13v4" />
-//     <path d="M16 13h6" />
-//   </svg>
-// );
-
-
-
 const OutstandingIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="12" r="10" />
@@ -760,7 +667,6 @@ const OutstandingIcon = () => (
   </svg>
 );
 
-
 // Tools & Reports Icons
 const ToolIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -768,21 +674,12 @@ const ToolIcon = () => (
   </svg>
 );
 
+// ─── BUYING ICONS ───
 
-// Buying/Purchasing Icons
-const BuyingIcon = () => (
+// Purchase Documents Icon
+const PurchaseDocumentsIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
-    <line x1="3" y1="6" x2="21" y2="6"/>
-    <path d="M16 10a4 4 0 0 1-8 0"/>
-    <path d="M12 14v4"/>
-    <path d="M8 18h8"/>
-  </svg>
-);
-
-const MaterialRequestIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z"/>
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
     <polyline points="14 2 14 8 20 8"/>
     <line x1="16" y1="13" x2="8" y2="13"/>
     <line x1="16" y1="17" x2="8" y2="17"/>
@@ -790,27 +687,19 @@ const MaterialRequestIcon = () => (
   </svg>
 );
 
-const RFQIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-    <polyline points="14 2 14 8 20 8"/>
-    <line x1="8" y1="16" x2="16" y2="16"/>
-    <line x1="8" y1="12" x2="16" y2="12"/>
-    <line x1="8" y1="20" x2="12" y2="20"/>
-  </svg>
-);
-
-const SupplierQuotationIcon = () => (
+// GRN Icon
+const GRNIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M12 2L2 7l10 5 10-5-10-5z"/>
     <path d="M2 17l10 5 10-5"/>
     <path d="M2 12l10 5 10-5"/>
     <path d="M12 7v10"/>
-    <path d="M7 9.5v5"/>
-    <path d="M17 9.5v5"/>
+    <path d="M8 10l4 2 4-2"/>
+    <path d="M8 14l4 2 4-2"/>
   </svg>
 );
 
+// Purchase Order Icon
 const PurchaseOrderIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -821,6 +710,7 @@ const PurchaseOrderIcon = () => (
   </svg>
 );
 
+// Purchase Invoice Icon
 const PurchaseInvoiceIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -832,6 +722,21 @@ const PurchaseInvoiceIcon = () => (
   </svg>
 );
 
+// ─── SUPPLIERS & CONTACTS ICONS ───
+
+// Supplier Contacts Icon
+const SupplierContactsIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+    <circle cx="12" cy="7" r="4"/>
+    <path d="M16 11l2 2 4-4"/>
+    <path d="M17 12v6"/>
+    <path d="M14 15h6"/>
+    <path d="M21 15h-7"/>
+  </svg>
+);
+
+// Supplier Icon
 const SupplierIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
@@ -842,16 +747,32 @@ const SupplierIcon = () => (
   </svg>
 );
 
-const SupplierGroupIcon = () => (
+// Contacts Icon
+const ContactsIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-    <circle cx="9" cy="7" r="4"/>
-    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+    <circle cx="12" cy="7" r="4"/>
     <path d="M16 11l2 2 4-4"/>
+    <path d="M19 13v4"/>
+    <path d="M14 11h4"/>
+    <path d="M14 15h6"/>
   </svg>
 );
 
+// ─── PRICING & LISTS ICONS ───
+
+// Pricing List Icon
+const PricingListIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 2H2v10l9.17 9.17a2 2 0 0 0 2.83 0l7-7a2 2 0 0 0 0-2.83L12 2z"/>
+    <circle cx="7" cy="7" r="2" fill="none"/>
+    <path d="M17 10l-2 2"/>
+    <path d="M14 14l-2 2"/>
+    <path d="M19 7l-4 4"/>
+  </svg>
+);
+
+// Price List Icon (used in items)
 const PriceListIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M12 2H2v10l9.17 9.17a2 2 0 0 0 2.83 0l7-7a2 2 0 0 0 0-2.83L12 2z"/>
@@ -860,48 +781,7 @@ const PriceListIcon = () => (
   </svg>
 );
 
-const AddressIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
-    <circle cx="12" cy="10" r="3"/>
-    <path d="M12 7v3"/>
-    <path d="M9 10h6"/>
-  </svg>
-);
-
-const ContactsIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-    <circle cx="12" cy="7" r="4"/>
-    <path d="M16 11l2 2 4-4"/>
-    <path d="M19 13v4"/>
-  </svg>
-);
-
-const SupplierScorecardIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 12v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/>
-    <polyline points="15 3 21 3 21 9"/>
-    <line x1="10" y1="14" x2="21" y2="3"/>
-    <path d="M14 14h7"/>
-    <path d="M14 18h4"/>
-  </svg>
-);
-
-const SupplierScorecardCriteriaIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-    <line x1="3" y1="10" x2="21" y2="10"/>
-    <line x1="3" y1="14" x2="21" y2="14"/>
-    <line x1="3" y1="18" x2="21" y2="18"/>
-    <line x1="8" y1="4" x2="8" y2="10"/>
-    <line x1="16" y1="4" x2="16" y2="10"/>
-    <circle cx="12" cy="12" r="2"/>
-    <circle cx="12" cy="16" r="2"/>
-  </svg>
-);
-
-// ===== ACCOUNTING MODULE ICONS =====
+// ─── ACCOUNTING ICONS ───
 
 const AccountingIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -940,34 +820,6 @@ const CostCenterIcon = () => (
     <path d="M8 14h8" />
   </svg>
 );
-
-
-
-
-
-
-// const SupplierBillIcon = () => (
-//   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-//     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-//     <polyline points="14 2 14 8 20 8" />
-//     <line x1="8" y1="16" x2="16" y2="16" />
-//     <line x1="8" y1="12" x2="16" y2="12" />
-//     <line x1="8" y1="20" x2="10" y2="20" />
-//     <path d="M8 8h4" />
-//   </svg>
-// );
-
-// const SupplierPaymentIcon = () => (
-//   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-//     <path d="M3 6h18" />
-//     <rect x="2" y="6" width="20" height="14" rx="2" />
-//     <path d="M4 12h7" />
-//     <circle cx="8" cy="12" r="1" />
-//     <circle cx="12" cy="12" r="1" />
-//     <path d="M16 16h4" />
-//   </svg>
-// );
-
 
 const BankingIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -1027,24 +879,12 @@ const ExpenseIcon = () => (
   </svg>
 );
 
-
-
-
-
-
-
-
-
-
-
 const SettingsIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="12" r="3"/>
     <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
   </svg>
 );
-
-
 
 // Helper Icons
 const ChevronDownIcon = () => (
