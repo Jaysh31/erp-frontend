@@ -275,10 +275,10 @@ export default function PurchaseOrder() {
     navigate('/purchase-order/new');
   };
 
-  const handleEdit = (po: PurchaseOrder) => {
-    navigate(`/purchase-order/edit/${po.id}`);
-  };
-
+// ✅ Correct - going to /purchase-invoice/9
+const handleEdit = (invoice: PurchaseOrder) => {
+  navigate(`/purchase-invoice/${invoice.id}`);
+};
   const handleRowClick = (po: PurchaseOrder) => {
     navigate(`/purchase-order/edit/${po.id}`);
   };
@@ -600,18 +600,12 @@ export default function PurchaseOrder() {
                       </button>
                       <button 
                         className="po-action-btn po-action-edit" 
-                        onClick={(e) => { e.stopPropagation(); handleEdit(po); }}
+                        onClick={(e) => { e.stopPropagation(); handleRowClick(po); }}
                         title="Edit"
                       >
                         <FaEdit size={12} />
                       </button>
-                      <button 
-                        className="po-action-btn po-action-copy" 
-                        onClick={(e) => handleDuplicate(po, e)}
-                        title="Duplicate"
-                      >
-                        <FaCopy size={12} />
-                      </button>
+                     
                       <button 
                         className="po-action-btn po-action-delete" 
                         onClick={(e) => handleDelete(po, e)}
@@ -741,7 +735,7 @@ export default function PurchaseOrder() {
             </div>
             <div className="po-modal-footer">
               <button className="po-btn-cancel" onClick={() => setShowViewModal(false)}>Close</button>
-              <button className="po-btn-primary" onClick={() => handleEdit(selectedPO)}>
+              <button className="po-btn-primary" onClick={() => handleRowClick(selectedPO)}>
                 <FaEdit size={12} /> Edit
               </button>
             </div>
