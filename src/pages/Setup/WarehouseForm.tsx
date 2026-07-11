@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useParams, useLocation } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   FaArrowLeft,
   FaSave,
@@ -24,6 +24,7 @@ import {
   FaGlobe,
   FaMapPin,
   FaTruck,
+  FaEnvelope,
 } from 'react-icons/fa';
 import "./WarehouseForm.css";
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
@@ -36,33 +37,37 @@ interface ValidationError {
   message: string;
 }
 
-interface WarehouseData {
-  id: number;
-  warehouse_name: string;
-  company: string | null;
-  parent_warehouse: string | null;
-  warehouse_type: string | null;
-  city: string | null;
-  state: string | null;
-  email_id: string | null;
-  phone_no: string | null;
-  disabled: number;
-}
+// interface WarehouseData {
+//   id: number;
+//   warehouse_name: string;
+//   company: string | null;
+//   parent_warehouse: string | null;
+//   warehouse_type: string | null;
+//   city: string | null;
+//   state: string | null;
+//   email_id: string | null;
+//   phone_no: string | null;
+//   mobile_no: string | null;
+//   address_line_1: string | null;
+//   address_line_2: string | null;
+//   pin: string | null;
+//   account: string | null;
+//   customer: string | null;
+//   is_rejected_warehouse: number;
+//   is_group: number;
+//   default_in_transit_warehouse: string;
+//   disabled: number;
+// }
 
 export default function WarehouseForm() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const location = useLocation();
   const { theme } = useAdminTheme();
   
   const isNew = id === "new" || !id;
-  const warehouseName = isNew ? "New Warehouse" : decodeURIComponent(id || "");
   const isEditMode = !isNew;
 
-  // Get warehouse data from location state if available
-  const warehouseData = location.state?.warehouseData as WarehouseData | undefined;
-
-  // const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     warehouseName: "",
     company: "",
@@ -71,7 +76,6 @@ export default function WarehouseForm() {
     isGroupWarehouse: false,
     account: "",
     customer: "",
-    // Address and Contact fields
     addressLine1: "",
     addressLine2: "",
     city: "",
@@ -81,58 +85,63 @@ export default function WarehouseForm() {
     mobileNo: "",
     warehouseType: "",
     transit: false,
+    emailId: "",
   });
 
-  // const [comment, setComment] = useState("");
   const [isContactInfoExpanded, setIsContactInfoExpanded] = useState(true);
   const [isTransitExpanded, setIsTransitExpanded] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [showValidationSummary, setShowValidationSummary] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
+  const [warehouseId, setWarehouseId] = useState<number | null>(null);
 
-  // Load data if editing
+  // Fetch warehouse data if editing
   useEffect(() => {
-    if (!isNew && warehouseData) {
-      setForm({
-        warehouseName: warehouseData.warehouse_name || "",
-        company: warehouseData.company || "",
-        isRejectedWarehouse: false,
-        parentWarehouse: warehouseData.parent_warehouse || "",
-        isGroupWarehouse: false,
-        account: "",
-        customer: "",
-        addressLine1: "",
-        addressLine2: "",
-        city: warehouseData.city || "",
-        stateProvince: warehouseData.state || "",
-        pin: "",
-        phoneNo: warehouseData.phone_no || "",
-        mobileNo: "",
-        warehouseType: warehouseData.warehouse_type || "",
-        transit: false,
-      });
-    } else if (isNew) {
-      setForm({
-        warehouseName: "",
-        company: "",
-        isRejectedWarehouse: false,
-        parentWarehouse: "",
-        isGroupWarehouse: false,
-        account: "",
-        customer: "",
-        addressLine1: "",
-        addressLine2: "",
-        city: "",
-        stateProvince: "",
-        pin: "",
-        phoneNo: "",
-        mobileNo: "",
-        warehouseType: "",
-        transit: false,
-      });
-    }
-  }, [isNew, warehouseData]);
+    const fetchWarehouseData = async () => {
+      if (!isNew && id) {
+        setLoading(true);
+        try {
+
+          console.log('Fetching warehouse data for ID:', id); // Debugging log
+          // Use ID directly from URL params
+          const response = await api.get(`/warehouse/${id}`);
+          if (response.data && response.data.success === 1) {
+            const data = response.data.data;
+            setWarehouseId(data.id);
+            setForm({
+              warehouseName: data.warehouse_name || "",
+              company: data.company || "",
+              isRejectedWarehouse: data.is_rejected_warehouse === 1,
+              parentWarehouse: data.parent_warehouse || "",
+              isGroupWarehouse: data.is_group === 1,
+              account: data.account || "",
+              customer: data.customer || "",
+              addressLine1: data.address_line_1 || "",
+              addressLine2: data.address_line_2 || "",
+              city: data.city || "",
+              stateProvince: data.state || "",
+              pin: data.pin || "",
+              phoneNo: data.phone_no || "",
+              mobileNo: data.mobile_no || "",
+              warehouseType: data.warehouse_type || "",
+              transit: data.default_in_transit_warehouse === "1",
+              emailId: data.email_id || "",
+            });
+          } else {
+            toast.error('Failed to load warehouse data');
+          }
+        } catch (err: any) {
+          console.error('Error fetching warehouse:', err);
+          toast.error(err.response?.data?.message || 'Failed to load warehouse data');
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchWarehouseData();
+  }, [isNew, id]);
 
   // ─── Validation ──────────────────────────────────────────────────────
   const getAllValidationErrors = (): ValidationError[] => {
@@ -162,75 +171,42 @@ export default function WarehouseForm() {
     setErrors({});
 
     try {
-      // Prepare payload for API - only send fields that exist in the form
-      const payload: any = {
-        warehouse_name: form.warehouseName.trim(),
-        company: form.company.trim() || null,
-        parent_warehouse: form.parentWarehouse.trim() || null,
-        warehouse_type: form.warehouseType.trim() || null,
-        city: form.city.trim() || null,
-        state: form.stateProvince.trim() || null,
-        phone_no: form.phoneNo.trim() || null,
-        disabled: 0,
-        // Additional fields from the API spec
-        operation: null,
-        status: "Pending",
-        completed_qty: 0,
-        process_loss_qty: 0,
-        pending_qty: 0,
-        bom: null,
-        workstation_type: null,
-        workstation: null,
-        sequence_id: 1,
-        quality_inspection_required: 0,
-        bom_no: null,
-        finished_good: null,
-        is_subcontracted: 0,
-        skip_material_transfer: 0,
-        backflush_from_wip_warehouse: 0,
-        source_warehouse: null,
-        wip_warehouse: null,
-        fg_warehouse: null,
-        description: null,
-        planned_start_time: null,
-        hour_rate: 0,
-        time_in_mins: 0,
-        planned_end_time: null,
-        batch_size: 0,
-        planned_operating_cost: 0,
-        actual_start_time: null,
-        actual_operation_time: 0,
-        actual_end_time: null,
-        actual_operating_cost: 0,
-        parent: null,
-        parentfield: null,
-        parenttype: null,
-        modified_by: "Administrator",
-        owner: "Administrator",
-        docstatus: 0,
-        idx: 1
-      };
+      // Prepare payload for API - only send fields that exist in the database
+      const payload: any = {};
 
-      // Only add is_group if it's a group warehouse
-      if (form.isGroupWarehouse) {
-        // Note: The API might not have is_group field, but we keep it for UI state
-        // If the API has this field, uncomment below
-        // payload.is_group = 1;
+      // Add id first if editing
+      if (!isNew && warehouseId) {
+        payload.id = warehouseId;
       }
 
-      // If it's a rejected warehouse
-      if (form.isRejectedWarehouse) {
-        // Note: The API might not have is_rejected field
-        // If the API has this field, uncomment below
-        // payload.is_rejected = 1;
-      }
+      // Only include fields that exist in the warehouse table
+      payload.warehouse_name = form.warehouseName.trim();
+      payload.company = form.company.trim() || null;
+      payload.parent_warehouse = form.parentWarehouse.trim() || null;
+      payload.warehouse_type = form.warehouseType.trim() || null;
+      payload.city = form.city.trim() || null;
+      payload.state = form.stateProvince.trim() || null;
+      payload.phone_no = form.phoneNo.trim() || null;
+      payload.mobile_no = form.mobileNo.trim() || null;
+      payload.email_id = form.emailId.trim() || null;
+      payload.address_line_1 = form.addressLine1.trim() || null;
+      payload.address_line_2 = form.addressLine2.trim() || null;
+      payload.pin = form.pin.trim() || null;
+      payload.account = form.account.trim() || null;
+      payload.customer = form.customer.trim() || null;
+      
+      // Boolean fields - convert to 0/1
+      payload.is_rejected_warehouse = form.isRejectedWarehouse ? 1 : 0;
+      payload.is_group = form.isGroupWarehouse ? 1 : 0;
+      payload.default_in_transit_warehouse = form.transit ? 1 : 0;
 
       let response;
       if (isNew) {
+        // For create: POST to /api/warehouse
         response = await api.post('/warehouse', payload);
       } else {
-        // For update, you might need to use PUT or PATCH
-        response = await api.put(`/warehouse/${id}`, payload);
+        // For update: PUT to /api/warehouse (without ID in URL)
+        response = await api.put('/warehouse', payload);
       }
 
       if (response.data && response.data.success === 1) {
@@ -267,6 +243,19 @@ export default function WarehouseForm() {
   };
 
   const hasErrors = getAllValidationErrors().length > 0;
+
+  if (loading) {
+    return (
+      <div className={`wf-page ${theme}`}>
+        <div className="wf-inner">
+          <div className="wf-loading">
+            <FaSpinner className="spinning" size={40} />
+            <p>Loading warehouse data...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`wf-page ${theme}`}>
@@ -317,7 +306,7 @@ export default function WarehouseForm() {
             <FaArrowLeft size={9} /> Back
           </button>
           <div className="header-title">
-            <h1>{isNew ? 'Add New Warehouse' : `Edit: ${warehouseName}`}</h1>
+            <h1>{isNew ? 'Add New Warehouse' : `Edit: ${form.warehouseName || 'Warehouse'}`}</h1>
           </div>
           {hasErrors && (
             <div className="error-badge">
@@ -348,6 +337,22 @@ export default function WarehouseForm() {
                   placeholder="Enter warehouse name"
                 />
                 {errors.warehouseName && <span className="wf-error-msg"><FaExclamationCircle size={10} />{errors.warehouseName}</span>}
+              </div>
+            )}
+
+            {!isNew && (
+              <div className="wf-field">
+                <label className="wf-label">
+                  <FaBuilding className="wf-label-icon" />Warehouse Name
+                </label>
+                <input
+                  type="text"
+                  value={form.warehouseName}
+                  disabled
+                  className="form-field"
+                  style={{ backgroundColor: '#f5f5f5', cursor: 'not-allowed' }}
+                />
+                <p className="wf-field-hint">Warehouse name cannot be changed</p>
               </div>
             )}
 
@@ -416,12 +421,6 @@ export default function WarehouseForm() {
 
             {/* Address and Contact Section */}
             <span className="wf-section-title">Address and Contact</span>
-
-            {/* New Address button and empty state */}
-            <div className="wf-empty-state">No address added yet.</div>
-            <button type="button" className="wf-link-btn" style={{ marginBottom: '16px' }}>
-              <FaPlus size={10} /> New Address
-            </button>
 
             {/* Address Line 1 & 2 */}
             <div className="wf-grid-2">
@@ -497,27 +496,27 @@ export default function WarehouseForm() {
                   <div className="wf-grid-2">
                     <div className="wf-field">
                       <label className="wf-label">
-                        <FaMapMarkerAlt className="wf-label-icon" />Address Line 1
+                        <FaEnvelope className="wf-label-icon" />Email ID
                       </label>
                       <input
-                        type="text"
-                        value={form.addressLine1}
-                        onChange={(e) => setForm({ ...form, addressLine1: e.target.value })}
+                        type="email"
+                        value={form.emailId}
+                        onChange={(e) => setForm({ ...form, emailId: e.target.value })}
                         className="form-field"
-                        placeholder="Enter address line 1"
+                        placeholder="Enter email address"
                       />
                     </div>
 
                     <div className="wf-field">
                       <label className="wf-label">
-                        <FaMapMarkerAlt className="wf-label-icon" />Address Line 2
+                        <FaMapPin className="wf-label-icon" />PIN
                       </label>
                       <input
                         type="text"
-                        value={form.addressLine2}
-                        onChange={(e) => setForm({ ...form, addressLine2: e.target.value })}
+                        value={form.pin}
+                        onChange={(e) => setForm({ ...form, pin: e.target.value })}
                         className="form-field"
-                        placeholder="Enter address line 2"
+                        placeholder="Enter PIN code"
                       />
                     </div>
                   </div>
@@ -550,32 +549,17 @@ export default function WarehouseForm() {
                     </div>
                   </div>
 
-                  <div className="wf-grid-2">
-                    <div className="wf-field">
-                      <label className="wf-label">
-                        <FaMapPin className="wf-label-icon" />PIN
-                      </label>
-                      <input
-                        type="text"
-                        value={form.pin}
-                        onChange={(e) => setForm({ ...form, pin: e.target.value })}
-                        className="form-field"
-                        placeholder="Enter PIN code"
-                      />
-                    </div>
-
-                    <div className="wf-field">
-                      <label className="wf-label">
-                        <FaBoxes className="wf-label-icon" />Warehouse Type
-                      </label>
-                      <input
-                        type="text"
-                        value={form.warehouseType}
-                        onChange={(e) => setForm({ ...form, warehouseType: e.target.value })}
-                        className="form-field"
-                        placeholder="Enter warehouse type"
-                      />
-                    </div>
+                  <div className="wf-field">
+                    <label className="wf-label">
+                      <FaBoxes className="wf-label-icon" />Warehouse Type
+                    </label>
+                    <input
+                      type="text"
+                      value={form.warehouseType}
+                      onChange={(e) => setForm({ ...form, warehouseType: e.target.value })}
+                      className="form-field"
+                      placeholder="Enter warehouse type"
+                    />
                   </div>
 
                   <div className="wf-field-check">
@@ -588,7 +572,7 @@ export default function WarehouseForm() {
                     />
                     <div>
                       <label htmlFor="transit" className="wf-check-label">
-                        <FaTruck className="wf-check-icon" /> Transit
+                        <FaTruck className="wf-check-icon" /> Default In Transit Warehouse
                       </label>
                       <p className="wf-check-hint">Enable if this warehouse is used for transit</p>
                     </div>
@@ -628,7 +612,7 @@ export default function WarehouseForm() {
                     />
                     <div>
                       <label htmlFor="transitSection" className="wf-check-label">
-                        <FaTruck className="wf-check-icon" /> Transit
+                        <FaTruck className="wf-check-icon" /> Default In Transit Warehouse
                       </label>
                       <p className="wf-check-hint">Enable if this warehouse is used for transit</p>
                     </div>

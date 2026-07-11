@@ -1,5 +1,5 @@
 // Stockentry.tsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, type JSX } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FaSearch,
@@ -15,10 +15,26 @@ import {
   FaPlus,
   FaBuilding,
   FaBoxes,
+  FaClipboardList,
+  FaWarehouse,
+  FaCalendarAlt,
+  FaUser,
+  FaFileAlt,
+  FaArrowRight,
+  FaArrowLeft as FaArrowLeftIcon,
+  FaExchangeAlt,
+  FaIndustry,
+  FaChartPie,
+  FaTruck,
+  FaCheckCircle,
+  FaClock,
+  FaExclamationCircle,
+  FaDollarSign,
 } from "react-icons/fa";
 import "./Stockentry.css";
 import { useAdminTheme } from "../admin-theme/AdminThemeContext";
 import api from "../services/api";
+import { FaSpinner } from "react-icons/fa6";
 
 type EntryType =
   | "Disassemble"
@@ -36,10 +52,22 @@ interface StockEntry {
   id: number;
   name: string;
   stock_entry_type: EntryType;
-  source_warehouse: string;
-  target_warehouse: string;
+  from_warehouse: string;
+  to_warehouse: string;
   company: string;
   posting_date: string;
+  work_order: string;
+  supplier: string;
+  total_amount: number;
+  total_outgoing_value: number;
+  total_incoming_value: number;
+  total_additional_costs: number;
+  remarks: string;
+  created_by: string;
+  status: string;
+  docstatus: number;
+  fg_completed_qty: number;
+  purpose: string;
 }
 
 interface StockEntryDisplay {
@@ -51,6 +79,14 @@ interface StockEntryDisplay {
   company: string;
   postingDate: string;
   createdAgo: string;
+  workOrder: string;
+  supplier: string;
+  totalAmount: number;
+  remarks: string;
+  docstatus: number;
+  status: string;
+  qty: number;
+  itemName: string;
 }
 
 interface ApiResponse {
@@ -74,6 +110,19 @@ const TYPE_CLASS: Record<EntryType, string> = {
   "Receive from Customer": "s-completed",
   Repack: "s-cancelled",
   "Send to Subcontractor": "s-inprocess",
+};
+
+const TYPE_ICONS: Record<EntryType, JSX.Element> = {
+  Disassemble: <FaExchangeAlt />,
+  Manufacture: <FaIndustry />,
+  "Material Consumption for Manufacture": <FaBoxes />,
+  "Material Issue": <FaArrowRight />,
+  "Material Receipt": <FaArrowLeftIcon />,
+  "Material Transfer": <FaTruck />,
+  "Material Transfer for Manufacture": <FaTruck />,
+  "Receive from Customer": <FaUser />,
+  Repack: <FaBoxes />,
+  "Send to Subcontractor": <FaBuilding />,
 };
 
 const ENTRY_TYPES: EntryType[] = [
@@ -106,29 +155,45 @@ export default function Stockentry() {
   const [, setTotalPages] = useState(1);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedItem, setSelectedItem] = useState<StockEntryDisplay | null>(null);
+  const [viewMode, setViewMode] = useState<"list" | "cards">("list");
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
+    if (!dateString) return "N/A";
+    try {
+      const date = new Date(dateString);
+      const now = new Date();
+      const diffMs = now.getTime() - date.getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
 
-    if (diffMins < 1) return "Just now";
-    if (diffMins < 60) return `${diffMins} min`;
-    if (diffHours < 24) return `${diffHours} h`;
-    if (diffDays < 7) return `${diffDays} d`;
-    if (diffDays < 30) return `${Math.floor(diffDays / 7)} w`;
-    if (diffDays < 365) return `${Math.floor(diffDays / 30)} mo`;
-    return `${Math.floor(diffDays / 365)} y`;
+      if (diffMins < 1) return "Just now";
+      if (diffMins < 60) return `${diffMins} min ago`;
+      if (diffHours < 24) return `${diffHours}h ago`;
+      if (diffDays < 7) return `${diffDays}d ago`;
+      if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
+      if (diffDays < 365) return `${Math.floor(diffDays / 30)}mo ago`;
+      return `${Math.floor(diffDays / 365)}y ago`;
+    } catch {
+      return dateString;
+    }
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount || 0);
   };
 
   const fetchStockEntries = async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await api.get<ApiResponse>(`/stock-entry?page=${currentPage}&limit=${itemsPerPage}`);
+      // Remove pagination params to get all data
+      const response = await api.get<ApiResponse>(`/stock-entry`);
 
       if (response.data.success === 1 && response.data.data) {
         const { records, total, page, limit } = response.data.data;
@@ -136,16 +201,43 @@ export default function Stockentry() {
         setTotalPages(Math.ceil((total ?? 0) / (limit || itemsPerPage)));
         setCurrentPage(page ?? 1);
 
-        const transformedData: StockEntryDisplay[] = (records ?? []).map((item: StockEntry) => ({
-          id: item.id.toString(),
-          name: item.name,
-          entryType: item.stock_entry_type,
-          sourceWarehouse: item.source_warehouse,
-          targetWarehouse: item.target_warehouse,
-          company: item.company,
-          postingDate: item.posting_date,
-          createdAgo: formatDate(item.posting_date),
-        }));
+        const transformedData: StockEntryDisplay[] = (records ?? []).map((item: StockEntry) => {
+          // Extract item name from remarks or use default
+          let itemName = "Unknown Item";
+          let qty = item.fg_completed_qty || 0;
+          
+          // Try to extract item info from remarks
+          if (item.remarks) {
+            const match = item.remarks.match(/[–-]\s*([^-]+)$/);
+            if (match) {
+              itemName = match[1].trim();
+            }
+          }
+          
+          // If no item name found, use the entry type
+          if (itemName === "Unknown Item" && item.stock_entry_type) {
+            itemName = item.stock_entry_type;
+          }
+
+          return {
+            id: item.id.toString(),
+            name: item.name,
+            entryType: item.stock_entry_type,
+            sourceWarehouse: item.from_warehouse,
+            targetWarehouse: item.to_warehouse,
+            company: item.company,
+            postingDate: item.posting_date,
+            createdAgo: formatDate(item.posting_date),
+            workOrder: item.work_order,
+            supplier: item.supplier,
+            totalAmount: item.total_amount || item.total_outgoing_value || 0,
+            remarks: item.remarks,
+            docstatus: item.docstatus,
+            status: item.status || (item.docstatus === 1 ? "Submitted" : "Draft"),
+            qty: qty,
+            itemName: itemName,
+          };
+        });
 
         setStockEntries(transformedData);
       } else {
@@ -162,7 +254,7 @@ export default function Stockentry() {
 
   useEffect(() => {
     fetchStockEntries();
-  }, [currentPage, itemsPerPage]);
+  }, []);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -171,9 +263,13 @@ export default function Stockentry() {
   const filteredData = stockEntries.filter((item) => {
     const matchesSearch =
       (item.name ?? "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (item.itemName ?? "").toLowerCase().includes(searchTerm.toLowerCase()) ||
       (item.sourceWarehouse ?? "").toLowerCase().includes(searchTerm.toLowerCase()) ||
       (item.targetWarehouse ?? "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (item.company ?? "").toLowerCase().includes(searchTerm.toLowerCase());
+      (item.company ?? "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (item.workOrder ?? "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (item.supplier ?? "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (item.remarks ?? "").toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType = typeFilter === "all" || item.entryType === typeFilter;
     return matchesSearch && matchesType;
   });
@@ -282,16 +378,184 @@ export default function Stockentry() {
     return Math.min(validCurrentPage * itemsPerPage, totalFilteredItems);
   };
 
+  const getDocStatusLabel = (docstatus: number) => {
+    if (docstatus === 0) return { label: "Draft", class: "status-draft" };
+    if (docstatus === 1) return { label: "Submitted", class: "status-submitted" };
+    if (docstatus === 2) return { label: "Cancelled", class: "status-cancelled" };
+    return { label: "Unknown", class: "status-unknown" };
+  };
+
+  const getEntryTypeIcon = (type: EntryType) => {
+    return TYPE_ICONS[type] || <FaBoxes />;
+  };
+
+  // ─── Card View ──────────────────────────────────────────────────────
+  const renderCardView = () => (
+    <div className="se-card-grid">
+      {paginatedData.map((item) => (
+        <div 
+          key={item.id} 
+          className="se-card"
+          onClick={() => handleRowClick(item)}
+        >
+          <div className="se-card-header">
+            <div className="se-card-type">
+              <span className={`se-card-icon ${TYPE_CLASS[item.entryType]}`}>
+                {getEntryTypeIcon(item.entryType)}
+              </span>
+              <span className="se-card-type-label">{item.entryType}</span>
+            </div>
+            <span className={`se-status-badge ${TYPE_CLASS[item.entryType]}`}>
+              {item.entryType}
+            </span>
+          </div>
+          
+          <div className="se-card-body">
+            <div className="se-card-item">
+              <div className="se-card-item-name">{item.itemName}</div>
+              <div className="se-card-item-qty">
+                <span className="qty-label">Qty:</span>
+                <span className="qty-value">{item.qty || 0}</span>
+              </div>
+            </div>
+            
+            <div className="se-card-warehouse-flow">
+              <div className="se-card-warehouse">
+                <FaWarehouse className="wh-icon" />
+                <span>{item.sourceWarehouse || "—"}</span>
+              </div>
+              <FaArrowRight className="flow-arrow" />
+              <div className="se-card-warehouse">
+                <FaWarehouse className="wh-icon" />
+                <span>{item.targetWarehouse || "—"}</span>
+              </div>
+            </div>
+            
+            <div className="se-card-meta">
+              <div className="se-card-meta-item">
+                <FaCalendarAlt className="meta-icon" />
+                <span>{new Date(item.postingDate).toLocaleDateString("en-IN", { 
+                  day: "2-digit", 
+                  month: "short", 
+                  year: "numeric" 
+                })}</span>
+              </div>
+              <div className="se-card-meta-item">
+                <FaDollarSign className="meta-icon" />
+                <span className="amount">{formatCurrency(item.totalAmount)}</span>
+              </div>
+            </div>
+          </div>
+          
+          <div className="se-card-footer">
+            <div className="se-card-actions">
+              <button 
+                className="se-action-btn se-action-view" 
+                onClick={(e) => { e.stopPropagation(); handleView(item); }} 
+                title="View"
+              >
+                <FaEye size={12} />
+              </button>
+              <button 
+                className="se-action-btn se-action-edit" 
+                onClick={(e) => { e.stopPropagation(); handleEdit(item); }} 
+                title="Edit"
+              >
+                <FaEdit size={12} />
+              </button>
+              <button 
+                className="se-action-btn se-action-delete" 
+                onClick={(e) => { e.stopPropagation(); handleDelete(item); }} 
+                title="Delete"
+              >
+                <FaTrash size={12} />
+              </button>
+            </div>
+            <span className="se-card-time">{item.createdAgo}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  // ─── Stats Summary ─────────────────────────────────────────────────
+  const stats = {
+    total: stockEntries.length,
+    totalValue: stockEntries.reduce((sum, item) => sum + item.totalAmount, 0),
+    manufacture: stockEntries.filter(item => item.entryType === "Manufacture").length,
+    transfer: stockEntries.filter(item => item.entryType === "Material Transfer").length,
+    receipt: stockEntries.filter(item => item.entryType === "Material Receipt").length,
+    issue: stockEntries.filter(item => item.entryType === "Material Issue").length,
+  };
+
   return (
     <div className={`se-page ${theme}`}>
-      {/* Search and Filter Bar */}
+      {/* ─── Stats Bar ─── */}
+      <div className="se-stats-bar">
+        <div className="se-stat-item">
+          <div className="se-stat-icon blue">
+            <FaBoxes />
+          </div>
+          <div className="se-stat-content">
+            <span className="se-stat-value">{stats.total}</span>
+            <span className="se-stat-label">Total Entries</span>
+          </div>
+        </div>
+        <div className="se-stat-item">
+          <div className="se-stat-icon green">
+            <FaDollarSign />
+          </div>
+          <div className="se-stat-content">
+            <span className="se-stat-value">{formatCurrency(stats.totalValue)}</span>
+            <span className="se-stat-label">Total Value</span>
+          </div>
+        </div>
+        <div className="se-stat-item">
+          <div className="se-stat-icon purple">
+            <FaIndustry />
+          </div>
+          <div className="se-stat-content">
+            <span className="se-stat-value">{stats.manufacture}</span>
+            <span className="se-stat-label">Manufacture</span>
+          </div>
+        </div>
+        <div className="se-stat-item">
+          <div className="se-stat-icon orange">
+            <FaTruck />
+          </div>
+          <div className="se-stat-content">
+            <span className="se-stat-value">{stats.transfer}</span>
+            <span className="se-stat-label">Transfers</span>
+          </div>
+        </div>
+        <div className="se-stat-item">
+          <div className="se-stat-icon teal">
+            <FaArrowLeftIcon />
+          </div>
+          <div className="se-stat-content">
+            <span className="se-stat-value">{stats.receipt}</span>
+            <span className="se-stat-label">Receipts</span>
+          </div>
+        </div>
+        <div className="se-stat-item">
+          <div className="se-stat-icon red">
+            <FaArrowRight />
+          </div>
+          <div className="se-stat-content">
+            <span className="se-stat-value">{stats.issue}</span>
+            <span className="se-stat-label">Issues</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ─── Search and Filter Bar ─── */}
       <div className="se-filter-bar">
         <div className="se-filter-left">
           <div className="se-search-wrapper">
             <FaSearch className="se-search-icon" />
             <input
               type="text"
-              placeholder="Search stock entries by ID, warehouse, or company..."
+              placeholder="Search by item, warehouse, WO, or supplier..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="se-search-input"
@@ -304,23 +568,34 @@ export default function Stockentry() {
           </div>
         </div>
         <div className="se-filter-right">
-          <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="se-filter-select">
+          <select 
+            value={typeFilter} 
+            onChange={(e) => setTypeFilter(e.target.value)} 
+            className="se-filter-select"
+          >
             <option value="all">All Types</option>
             {ENTRY_TYPES.map((t) => (
               <option key={t} value={t}>{t}</option>
             ))}
           </select>
-          <button className="se-filter-btn">
-            <FaFilter size={12} />
-            Filter
-          </button>
-          <button className="se-sort-btn">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="15" y2="12" /><line x1="3" y1="18" x2="9" y2="18" />
-            </svg>
-            Posting Date
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-          </button>
+
+          <div className="se-view-toggle">
+            <button 
+              className={`se-view-btn ${viewMode === "list" ? "active" : ""}`}
+              onClick={() => setViewMode("list")}
+              title="List View"
+            >
+              <FaFileAlt size={14} />
+            </button>
+            <button 
+              className={`se-view-btn ${viewMode === "cards" ? "active" : ""}`}
+              onClick={() => setViewMode("cards")}
+              title="Card View"
+            >
+              <FaBoxes size={14} />
+            </button>
+          </div>
+
           <button className="se-btn-primary" onClick={() => navigate("/stock-entry/new")}>
             <FaPlus size={12} />
             Add Stock Entry
@@ -328,7 +603,7 @@ export default function Stockentry() {
         </div>
       </div>
 
-      {/* Active filters indicator */}
+      {/* ─── Active filters indicator ─── */}
       {(searchTerm || typeFilter !== "all") && (
         <div className="se-active-filters">
           <FaFilter size={12} style={{ color: "var(--primary-color)" }} />
@@ -349,16 +624,18 @@ export default function Stockentry() {
         </div>
       )}
 
-      {/* Loading State */}
+      {/* ─── Loading State ─── */}
       {loading && (
         <div className="se-loading">
+          <FaSpinner className="spinning" size={32} />
           <p>Loading stock entries...</p>
         </div>
       )}
 
-      {/* Error State */}
+      {/* ─── Error State ─── */}
       {error && (
         <div className="se-error">
+          <FaExclamationCircle size={32} />
           <p>{error}</p>
           <button onClick={fetchStockEntries} className="se-retry-btn">
             Retry
@@ -366,134 +643,162 @@ export default function Stockentry() {
         </div>
       )}
 
-      {/* Table */}
+      {/* ─── Content ─── */}
       {!loading && !error && (
         <>
-          <div className="se-table-wrap">
-            <table className="se-table">
-              <thead>
-                <tr>
-                  <th className="se-th-check">
-                    <input type="checkbox" checked={allChecked} onChange={toggleAll} className="se-checkbox" />
-                  </th>
-                  <th className="se-th">Entry #</th>
-                  <th className="se-th">Type</th>
-                  <th className="se-th">Source Warehouse</th>
-                  <th className="se-th">Target Warehouse</th>
-                  <th className="se-th">Company</th>
-                  <th className="se-th">Posting Date</th>
-                  <th className="se-th se-th-meta">
-                    <span className="se-count-label">{totalFilteredItems} of {totalItems}</span>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary, #9ca3af)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-                    </svg>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedData.length === 0 ? (
+          {viewMode === "cards" ? (
+            renderCardView()
+          ) : (
+            <div className="se-table-wrap">
+              <table className="se-table">
+                <thead>
                   <tr>
-                    <td colSpan={8} className="se-empty-state">
-                      <div className="se-empty-content">
-                        <FaBoxes size={48} style={{ color: "var(--text-secondary)" }} />
-                        <p>No stock entries found</p>
-                        <span>Try adjusting your search criteria</span>
-                      </div>
-                    </td>
+                    <th className="se-th-check">
+                      <input type="checkbox" checked={allChecked} onChange={toggleAll} className="se-checkbox" />
+                    </th>
+                    <th className="se-th">Item / Product</th>
+                    <th className="se-th">Type</th>
+                    <th className="se-th">Source → Target</th>
+                    <th className="se-th">Qty</th>
+                    <th className="se-th">Amount</th>
+                    <th className="se-th">Posting Date</th>
+                    <th className="se-th se-th-meta">Actions</th>
                   </tr>
-                ) : (
-                  paginatedData.map((row) => (
-                    <tr
-                      key={row.id}
-                      className={`se-tr ${selected.has(row.id) ? "se-tr-selected" : ""}`}
-                      onClick={() => handleRowClick(row)}
-                      style={{ cursor: "pointer" }}
-                    >
-                      <td className="se-td-check" onClick={(e) => { e.stopPropagation(); toggleRow(row.id); }}>
-                        <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleRow(row.id)} className="se-checkbox" />
-                      </td>
-                      <td className="se-td se-td-id">{row.name}</td>
-                      <td className="se-td">
-                        <span className={`se-status-badge ${TYPE_CLASS[row.entryType]}`}>
-                          {row.entryType}
-                        </span>
-                      </td>
-                      <td className="se-td se-td-link">{row.sourceWarehouse || "—"}</td>
-                      <td className="se-td se-td-link">{row.targetWarehouse || "—"}</td>
-                      <td className="se-td se-td-company">
-                        <FaBuilding size={10} className="se-company-icon" />
-                        {row.company}
-                      </td>
-                      <td className="se-td se-td-dates">
-                        {row.postingDate
-                          ? new Date(row.postingDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
-                          : "—"}
-                      </td>
-                      <td className="se-td se-td-meta" onClick={(e) => e.stopPropagation()}>
-                        <span className="se-ago">{row.createdAgo}</span>
-                        <span className="se-dot">·</span>
-                        <div className="se-action-buttons">
-                          <button className="se-action-btn se-action-view" onClick={(e) => { e.stopPropagation(); handleView(row); }} title="View">
-                            <FaEye size={12} />
-                          </button>
-                          <button className="se-action-btn se-action-edit" onClick={(e) => { e.stopPropagation(); handleEdit(row); }} title="Edit">
-                            <FaEdit size={12} />
-                          </button>
-                          <button className="se-action-btn se-action-delete" onClick={(e) => { e.stopPropagation(); handleDelete(row); }} title="Delete">
-                            <FaTrash size={12} />
-                          </button>
+                </thead>
+                <tbody>
+                  {paginatedData.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="se-empty-state">
+                        <div className="se-empty-content">
+                          <FaBoxes size={48} style={{ color: "var(--text-secondary)" }} />
+                          <p>No stock entries found</p>
+                          <span>Try adjusting your search criteria</span>
                         </div>
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                  ) : (
+                    paginatedData.map((row) => (
+                      <tr
+                        key={row.id}
+                        className={`se-tr ${selected.has(row.id) ? "se-tr-selected" : ""}`}
+                        onClick={() => handleRowClick(row)}
+                        style={{ cursor: "pointer" }}
+                      >
+                        <td className="se-td-check" onClick={(e) => { e.stopPropagation(); toggleRow(row.id); }}>
+                          <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleRow(row.id)} className="se-checkbox" />
+                        </td>
+                        <td className="se-td se-td-item">
+                          <div className="se-item-info">
+                            <span className="se-item-name">{row.itemName}</span>
+                            <span className="se-item-code">{row.name}</span>
+                          </div>
+                        </td>
+                        <td className="se-td">
+                          <span className={`se-status-badge ${TYPE_CLASS[row.entryType]}`}>
+                            {getEntryTypeIcon(row.entryType)}
+                            {row.entryType}
+                          </span>
+                        </td>
+                        <td className="se-td se-td-warehouses">
+                          <div className="se-warehouse-flow">
+                            <span className="se-warehouse-label">{row.sourceWarehouse || "—"}</span>
+                            <FaArrowRight className="flow-arrow-sm" />
+                            <span className="se-warehouse-label">{row.targetWarehouse || "—"}</span>
+                          </div>
+                        </td>
+                        <td className="se-td se-td-qty">
+                          <span className="se-qty">{row.qty || 0}</span>
+                        </td>
+                        <td className="se-td se-td-amount">
+                          <span className="se-amount">{formatCurrency(row.totalAmount)}</span>
+                        </td>
+                        <td className="se-td se-td-dates">
+                          <div className="se-date-info">
+                            <FaCalendarAlt size={10} className="se-date-icon" />
+                            {row.postingDate
+                              ? new Date(row.postingDate).toLocaleDateString("en-IN", { 
+                                  day: "2-digit", 
+                                  month: "short", 
+                                  year: "numeric" 
+                                })
+                              : "—"}
+                            <span className="se-ago-badge">{row.createdAgo}</span>
+                          </div>
+                        </td>
+                        <td className="se-td se-td-meta" onClick={(e) => e.stopPropagation()}>
+                          <div className="se-action-buttons">
+                            <button className="se-action-btn se-action-view" onClick={() => handleView(row)} title="View">
+                              <FaEye size={12} />
+                            </button>
+                            <button className="se-action-btn se-action-edit" onClick={() => handleEdit(row)} title="Edit">
+                              <FaEdit size={12} />
+                            </button>
+                            <button className="se-action-btn se-action-delete" onClick={() => handleDelete(row)} title="Delete">
+                              <FaTrash size={12} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
 
-          {/* Pagination */}
-          <div className="se-pagination">
-            <div className="se-pagination-left">
-              <span className="se-pagination-label">Show:</span>
-              <select value={itemsPerPage} onChange={(e) => handlePageSizeChange(Number(e.target.value))} className="se-page-size-select">
-                <option value={10}>10</option>
-                <option value={25}>25</option>
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-              </select>
-              <span className="se-pagination-label">entries</span>
-            </div>
-            <div className="se-pagination-center">
-              <button onClick={goToFirstPage} disabled={currentPage === 1 || totalFilteredItems === 0} className="se-page-btn">
-                <FaAngleDoubleLeft size={12} />
-              </button>
-              <button onClick={goToPrevPage} disabled={currentPage === 1 || totalFilteredItems === 0} className="se-page-btn">
-                <FaChevronLeft size={12} />
-              </button>
-              {totalFilteredItems > 0 && getPageNumbers().map((page) => (
-                <button key={page} onClick={() => goToPage(page)} className={`se-page-btn ${currentPage === page ? "se-page-btn-active" : ""}`}>
-                  {page}
+          {/* ─── Pagination ─── */}
+          {totalFilteredItems > 0 && (
+            <div className="se-pagination">
+              <div className="se-pagination-left">
+                <span className="se-pagination-label">Show:</span>
+                <select 
+                  value={itemsPerPage} 
+                  onChange={(e) => handlePageSizeChange(Number(e.target.value))} 
+                  className="se-page-size-select"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+                <span className="se-pagination-label">entries</span>
+              </div>
+              <div className="se-pagination-center">
+                <button onClick={goToFirstPage} disabled={currentPage === 1 || totalFilteredItems === 0} className="se-page-btn">
+                  <FaAngleDoubleLeft size={12} />
                 </button>
-              ))}
-              <button onClick={goToNextPage} disabled={currentPage === filteredTotalPages || totalFilteredItems === 0} className="se-page-btn">
-                <FaChevronRight size={12} />
-              </button>
-              <button onClick={goToLastPage} disabled={currentPage === filteredTotalPages || totalFilteredItems === 0} className="se-page-btn">
-                <FaAngleDoubleRight size={12} />
-              </button>
+                <button onClick={goToPrevPage} disabled={currentPage === 1 || totalFilteredItems === 0} className="se-page-btn">
+                  <FaChevronLeft size={12} />
+                </button>
+                {getPageNumbers().map((page) => (
+                  <button 
+                    key={page} 
+                    onClick={() => goToPage(page)} 
+                    className={`se-page-btn ${currentPage === page ? "se-page-btn-active" : ""}`}
+                  >
+                    {page}
+                  </button>
+                ))}
+                <button onClick={goToNextPage} disabled={currentPage === filteredTotalPages || totalFilteredItems === 0} className="se-page-btn">
+                  <FaChevronRight size={12} />
+                </button>
+                <button onClick={goToLastPage} disabled={currentPage === filteredTotalPages || totalFilteredItems === 0} className="se-page-btn">
+                  <FaAngleDoubleRight size={12} />
+                </button>
+              </div>
+              <div className="se-pagination-right">
+                <span className="se-pagination-info">
+                  {totalFilteredItems > 0
+                    ? `Showing ${getStartIndex()} to ${getEndIndex()} of ${totalFilteredItems} entries`
+                    : "No entries to show"}
+                </span>
+              </div>
             </div>
-            <div className="se-pagination-right">
-              <span className="se-pagination-info">
-                {totalFilteredItems > 0
-                  ? `Showing ${getStartIndex()} to ${getEndIndex()} of ${totalFilteredItems} entries`
-                  : "No entries to show"}
-              </span>
-            </div>
-          </div>
+          )}
         </>
       )}
 
-      {/* Delete Confirmation Modal */}
+      {/* ─── Delete Confirmation Modal ─── */}
       {showDeleteConfirm && selectedItem && (
         <div className="se-modal-overlay" onClick={() => setShowDeleteConfirm(false)}>
           <div className="se-modal se-modal-delete" onClick={(e) => e.stopPropagation()}>
@@ -505,8 +810,14 @@ export default function Stockentry() {
             </div>
             <div className="se-modal-body">
               <p>Are you sure you want to delete this stock entry?</p>
-              <p className="se-modal-item-name"><strong>{selectedItem.name}</strong> - {selectedItem.entryType}</p>
-              <p className="se-modal-warning">This action cannot be undone.</p>
+              <div className="se-modal-item-details">
+                <p><strong>Entry:</strong> {selectedItem.name}</p>
+                <p><strong>Item:</strong> {selectedItem.itemName}</p>
+                <p><strong>Type:</strong> {selectedItem.entryType}</p>
+                <p><strong>Qty:</strong> {selectedItem.qty}</p>
+                <p><strong>Amount:</strong> {formatCurrency(selectedItem.totalAmount)}</p>
+              </div>
+              <p className="se-modal-warning">⚠️ This action cannot be undone.</p>
             </div>
             <div className="se-modal-footer">
               <button className="se-btn-cancel" onClick={() => setShowDeleteConfirm(false)}>

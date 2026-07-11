@@ -1,6 +1,6 @@
-// Workstation.tsx - Updated with proper API response handling
+// Workstation.tsx - Updated with correct status handling
 
-import  { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   FaSearch,
   FaFilter,
@@ -48,6 +48,7 @@ interface Workstation {
   owner: string;
   docstatus: number;
   idx: number;
+  is_deleted: number; // Add this field
 }
 
 interface ApiResponse {
@@ -66,7 +67,6 @@ export default function WorkstationList() {
   const [showNewWorkstation, setShowNewWorkstation] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedWorkstation, setSelectedWorkstation] = useState<Workstation | null>(null);
-  const [] = useState(false);
   const [editData, setEditData] = useState<Workstation | null>(null);
   
   const [workstations, setWorkstations] = useState<Workstation[]>([]);
@@ -77,8 +77,6 @@ export default function WorkstationList() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [totalItems, setTotalItems] = useState(0);
-  const [selected, setSelected] = useState<Set<number>>(new Set());
-  const [allChecked, setAllChecked] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Workstation | null>(null);
 
@@ -108,29 +106,27 @@ export default function WorkstationList() {
     setError(null);
     try {
       const response = await api.get<ApiResponse>(
-        `/workstation?page=${currentPage}&limit=${itemsPerPage}`
+        `/workstation?page=${currentPage}&limit=${itemsPerPage}&sort_order=asc&sort_by=id`
       );
       
       if (response.data.success === 1) {
         const data = response.data.data;
         
-        // Handle both response formats
         let records: Workstation[] = [];
         let total = 0;
         
         if (Array.isArray(data)) {
-          // Direct array response
           records = data;
           total = data.length;
         } else if (data && 'records' in data) {
-          // Paginated response with records
           records = data.records || [];
           total = data.total || records.length;
         } else {
-          // Single object or other format
           records = data.records || [];
           total = records.length;
         }
+        
+        records.sort((a, b) => a.id - b.id);
         
         setWorkstations(records);
         setTotalItems(total);
@@ -163,9 +159,10 @@ export default function WorkstationList() {
     const matchesSearch = ws.workstation_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           ws.workstation_type?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           ws.plant_floor?.toLowerCase().includes(searchTerm.toLowerCase());
+    // Use is_deleted instead of disabled for filtering
     const matchesStatus = statusFilter === 'all' || 
-                         (statusFilter === 'active' && ws.disabled === 0) ||
-                         (statusFilter === 'disabled' && ws.disabled === 1);
+                         (statusFilter === 'active' && ws.is_deleted === 0) ||
+                         (statusFilter === 'disabled' && ws.is_deleted === 1);
     return matchesSearch && matchesStatus;
   });
 
@@ -189,25 +186,29 @@ export default function WorkstationList() {
       title: 'Total Workstations', 
       value: workstations.length, 
       icon: <FaClock />, 
-      color: '#6366f1' 
+      color: '#3B82F6',
+      lightColor: '#EFF6FF'
     },
     { 
       title: 'Active', 
-      value: workstations.filter(ws => ws.disabled === 0).length, 
+      value: workstations.filter(ws => ws.is_deleted === 0).length, 
       icon: <FaCheckCircle />, 
-      color: '#10b981' 
+      color: '#10B981',
+      lightColor: '#ECFDF5'
     },
     { 
       title: 'Disabled', 
-      value: workstations.filter(ws => ws.disabled === 1).length, 
+      value: workstations.filter(ws => ws.is_deleted === 1).length, 
       icon: <FaExclamationTriangle />, 
-      color: '#ef4444' 
+      color: '#EF4444',
+      lightColor: '#FEF2F2'
     },
     { 
       title: 'Total Capacity', 
       value: workstations.reduce((sum, ws) => sum + (ws.production_capacity || 0), 0), 
       icon: <FaHourglassHalf />, 
-      color: '#f59e0b' 
+      color: '#F59E0B',
+      lightColor: '#FFFBEB'
     },
   ];
 
@@ -216,42 +217,42 @@ export default function WorkstationList() {
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
       case 'active':
-        return '#10b981';
+        return '#10B981';
       case 'idle':
-        return '#6b7280';
+        return '#6B7280';
       case 'maintenance':
-        return '#8b5cf6';
+        return '#8B5CF6';
       case 'off':
-        return '#ef4444';
+        return '#EF4444';
       case 'problem':
-        return '#dc2626';
+        return '#EF4444';
       case 'setup':
-        return '#f59e0b';
+        return '#F59E0B';
       case 'production':
-        return '#3b82f6';
+        return '#3B82F6';
       default:
-        return '#6b7280';
+        return '#6B7280';
     }
   };
 
   const getStatusBgColor = (status: string) => {
     switch (status?.toLowerCase()) {
       case 'active':
-        return '#d1fae5';
+        return '#D1FAE5';
       case 'idle':
-        return '#f3f4f6';
+        return '#F3F4F6';
       case 'maintenance':
-        return '#ede9fe';
+        return '#EDE9FE';
       case 'off':
-        return '#fee2e2';
+        return '#FEE2E2';
       case 'problem':
-        return '#fecaca';
+        return '#FECACA';
       case 'setup':
-        return '#fef3c7';
+        return '#FEF3C7';
       case 'production':
-        return '#dbeafe';
+        return '#DBEAFE';
       default:
-        return '#f3f4f6';
+        return '#F3F4F6';
     }
   };
 
@@ -286,24 +287,6 @@ export default function WorkstationList() {
   const getStartIndex = () => (validCurrentPage - 1) * itemsPerPage + 1;
   const getEndIndex = () => Math.min(validCurrentPage * itemsPerPage, totalFilteredItems);
 
-  // ─── Selection ────────────────────────────────────────────────────────────
-
-  const toggleAll = () => {
-    if (allChecked) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(paginatedData.map((r) => r.id)));
-    }
-    setAllChecked(!allChecked);
-  };
-
-  const toggleRow = (id: number) => {
-    const next = new Set(selected);
-    next.has(id) ? next.delete(id) : next.add(id);
-    setSelected(next);
-    setAllChecked(next.size === paginatedData.length);
-  };
-
   // ─── Actions ─────────────────────────────────────────────────────────────
 
   const handleView = (ws: Workstation) => {
@@ -324,14 +307,25 @@ export default function WorkstationList() {
   const confirmDelete = async () => {
     if (deleteTarget) {
       try {
-        const response = await api.delete('/workstation', { data: { id: deleteTarget.id } });
+        const response = await api.delete(`/workstation/${deleteTarget.id}`);
+        
         if (response.data.success === 1) {
           setShowDeleteConfirm(false);
           setDeleteTarget(null);
           fetchWorkstations();
+          alert('Workstation deleted successfully');
+        } else {
+          setError('Failed to delete workstation');
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Error deleting workstation:', err);
+        if (err.response) {
+          setError(err.response.data?.message || `Server error: ${err.response.status}`);
+        } else if (err.request) {
+          setError('Network error. Please check your connection.');
+        } else {
+          setError('An unexpected error occurred.');
+        }
         alert('Failed to delete workstation');
       }
     }
@@ -340,6 +334,11 @@ export default function WorkstationList() {
   const clearFilters = () => {
     setSearchTerm('');
     setStatusFilter('all');
+  };
+
+  // ─── Check if workstation is active ──────────────────────────────────────
+  const isWorkstationActive = (ws: Workstation) => {
+    return ws.is_deleted === 0;
   };
 
   // ─── Render ───────────────────────────────────────────────────────────────
@@ -367,8 +366,17 @@ export default function WorkstationList() {
           {/* Stats Cards */}
           <div className="wo-stats-container">
             {stats.map((stat, index) => (
-              <div key={index} className="wo-stat-card" style={{ background: `linear-gradient(135deg, ${stat.color} 0%, ${stat.color}cc 100%)` }}>
-                <div className="wo-stat-icon">{stat.icon}</div>
+              <div 
+                key={index} 
+                className="wo-stat-card" 
+                style={{ 
+                  background: stat.lightColor,
+                  borderLeft: `4px solid ${stat.color}`
+                }}
+              >
+                <div className="wo-stat-icon" style={{ color: stat.color }}>
+                  {stat.icon}
+                </div>
                 <div className="wo-stat-content">
                   <p className="wo-stat-title">{stat.title}</p>
                   <p className="wo-stat-value">{stat.value}</p>
@@ -426,7 +434,7 @@ export default function WorkstationList() {
           {/* Active filters indicator */}
           {(searchTerm || statusFilter !== 'all') && (
             <div className="wo-active-filters">
-              <FaFilter size={12} style={{ color: 'var(--primary-color)' }} />
+              <FaFilter size={12} style={{ color: '#3B82F6' }} />
               <span>Active filters:</span>
               {searchTerm && (
                 <span><strong>Search:</strong> "{searchTerm}"</span>
@@ -476,10 +484,6 @@ export default function WorkstationList() {
                   <table className="wo-table">
                     <thead>
                       <tr>
-                        <th className="wo-th-check">
-                          <input type="checkbox" checked={allChecked} onChange={toggleAll} />
-                        </th>
-                        <th>ID</th>
                         <th>Name</th>
                         <th>Type</th>
                         <th>Status</th>
@@ -493,37 +497,30 @@ export default function WorkstationList() {
                     </thead>
                     <tbody>
                       {paginatedData.map((ws) => (
-                        <tr key={ws.id} className={`wo-tr ${selected.has(ws.id) ? 'wo-tr-selected' : ''}`}>
-                          <td className="wo-td-check">
-                            <input 
-                              type="checkbox" 
-                              checked={selected.has(ws.id)} 
-                              onChange={() => toggleRow(ws.id)} 
-                            />
-                          </td>
-                          <td className="wo-td-id">#{ws.id}</td>
+                        <tr key={ws.id} className="wo-tr">
                           <td className="wo-td-name">{ws.workstation_name}</td>
                           <td className="wo-td-type">{ws.workstation_type}</td>
                           <td>
-                            <span 
-                              className="wo-status-badge"
-                              style={{
-                                background: ws.disabled === 0 ? '#d1fae5' : '#fee2e2',
-                                color: ws.disabled === 0 ? '#10b981' : '#ef4444',
-                              }}
-                            >
-                              {ws.disabled === 0 ? 'Active' : 'Disabled'}
-                            </span>
-                            {ws.status && (
+                            {/* Use is_deleted to determine active/disabled status */}
+                            {isWorkstationActive(ws) ? (
                               <span 
                                 className="wo-status-badge"
                                 style={{
-                                  background: getStatusBgColor(ws.status),
-                                  color: getStatusColor(ws.status),
-                                  marginLeft: 4,
+                                  background: '#D1FAE5',
+                                  color: '#10B981',
                                 }}
                               >
-                                {ws.status}
+                                Active
+                              </span>
+                            ) : (
+                              <span 
+                                className="wo-status-badge"
+                                style={{
+                                  background: '#FEE2E2',
+                                  color: '#EF4444',
+                                }}
+                              >
+                                Disabled
                               </span>
                             )}
                           </td>
@@ -633,7 +630,7 @@ export default function WorkstationList() {
           {/* Delete Confirmation Modal */}
           {showDeleteConfirm && deleteTarget && (
             <div className="wo-modal-overlay" onClick={() => setShowDeleteConfirm(false)}>
-              <div className="wo-modal wo-modal-delete">
+              <div className="wo-modal wo-modal-delete" onClick={e => e.stopPropagation()}>
                 <div className="wo-modal-header">
                   <span className="wo-modal-title">Confirm Delete</span>
                   <button className="wo-modal-close" onClick={() => setShowDeleteConfirm(false)}>
@@ -691,25 +688,25 @@ export default function WorkstationList() {
                       <div className="wo-detail-row">
                         <span className="wo-detail-label">Status</span>
                         <span className="wo-detail-value">
-                          <span 
-                            className="wo-status-badge"
-                            style={{
-                              background: selectedWorkstation.disabled === 0 ? '#d1fae5' : '#fee2e2',
-                              color: selectedWorkstation.disabled === 0 ? '#10b981' : '#ef4444',
-                            }}
-                          >
-                            {selectedWorkstation.disabled === 0 ? 'Active' : 'Disabled'}
-                          </span>
-                          {selectedWorkstation.status && (
+                          {isWorkstationActive(selectedWorkstation) ? (
                             <span 
                               className="wo-status-badge"
                               style={{
-                                background: getStatusBgColor(selectedWorkstation.status),
-                                color: getStatusColor(selectedWorkstation.status),
-                                marginLeft: 4,
+                                background: '#D1FAE5',
+                                color: '#10B981',
                               }}
                             >
-                              {selectedWorkstation.status}
+                              Active
+                            </span>
+                          ) : (
+                            <span 
+                              className="wo-status-badge"
+                              style={{
+                                background: '#FEE2E2',
+                                color: '#EF4444',
+                              }}
+                            >
+                              Disabled
                             </span>
                           )}
                         </span>

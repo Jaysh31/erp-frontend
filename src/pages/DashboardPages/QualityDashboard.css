@@ -1,0 +1,351 @@
+/* QualityDashboard.css */
+.quality-dashboard .metrics-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.quality-dashboard .metric-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  background: var(--nav-hover, #f8fafc);
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.quality-dashboard .metric-row:hover {
+  background: var(--nav-active, #f1f5f9);
+}
+
+.metric-info {
+  flex: 1;
+}
+
+.metric-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary, #1e293b);
+}
+
+.metric-target {
+  font-size: 12px;
+  color: var(--text-secondary, #64748b);
+  margin-top: 2px;
+}
+
+.metric-value-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.metric-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary, #1e293b);
+}
+
+.metric-status {
+  font-size: 11px;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-weight: 500;
+  color: white;
+}
+
+.metric-status.good {
+  background: #22c55e;
+}
+
+.metric-status.warning {
+  background: #f59e0b;
+}
+
+.metric-status.critical {
+  background: #ef4444;
+}
+
+/* Inspection Items */
+.inspection-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.inspection-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background: var(--nav-hover, #f8fafc);
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.inspection-item:hover {
+  background: var(--nav-active, #f1f5f9);
+  transform: translateX(4px);
+}
+
+.inspection-item-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary, #1e293b);
+}
+
+.inspection-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+  flex-wrap: wrap;
+}
+
+.inspection-type {
+  font-size: 11px;
+  padding: 2px 8px;
+  background: var(--primary-color, #3b82f6);
+  color: white;
+  border-radius: 4px;
+}
+
+.inspection-inspector {
+  font-size: 11px;
+  color: var(--text-secondary, #64748b);
+}
+
+.inspection-date {
+  font-size: 11px;
+  color: var(--text-secondary, #94a3b8);
+}
+
+.inspection-details {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.inspection-defects {
+  font-size: 12px;
+  font-weight: 500;
+  color: #ef4444;
+  padding: 2px 8px;
+  background: #fef2f2;
+  border-radius: 4px;
+}
+
+.inspection-severity {
+  font-size: 11px;
+  padding: 2px 10px;
+  border-radius: 12px;
+  color: white;
+  font-weight: 500;
+}
+
+.inspection-result {
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  color: white;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Defect Categories */
+.defect-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.defect-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.defect-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 160px;
+}
+
+.defect-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.defect-name {
+  font-size: 13px;
+  color: var(--text-primary, #1e293b);
+  flex: 1;
+}
+
+.defect-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary, #1e293b);
+  min-width: 30px;
+}
+
+.defect-bar {
+  flex: 1;
+  height: 8px;
+  background: var(--nav-hover, #f1f5f9);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.defect-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.8s ease;
+}
+
+.defect-percentage {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary, #1e293b);
+  min-width: 40px;
+  text-align: right;
+}
+
+/* Overview Grid */
+.overview-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.overview-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--nav-hover, #f8fafc);
+  border-radius: 8px;
+}
+
+.overview-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.overview-content {
+  flex: 1;
+}
+
+.overview-label {
+  font-size: 12px;
+  color: var(--text-secondary, #64748b);
+}
+
+.overview-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary, #1e293b);
+}
+
+/* Dark Theme */
+.dark-theme.quality-dashboard .metric-row,
+.dark-theme.quality-dashboard .inspection-item,
+.dark-theme.quality-dashboard .overview-item,
+.dark-theme.quality-dashboard .defect-bar {
+  background: var(--nav-hover, rgba(255, 255, 255, 0.05));
+}
+
+.dark-theme.quality-dashboard .metric-row:hover,
+.dark-theme.quality-dashboard .inspection-item:hover {
+  background: var(--nav-active, rgba(59, 130, 246, 0.15));
+}
+
+.dark-theme.quality-dashboard .metric-name,
+.dark-theme.quality-dashboard .inspection-item-name,
+.dark-theme.quality-dashboard .defect-name,
+.dark-theme.quality-dashboard .defect-count,
+.dark-theme.quality-dashboard .overview-value,
+.dark-theme.quality-dashboard .defect-percentage {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme.quality-dashboard .metric-target,
+.dark-theme.quality-dashboard .inspection-inspector,
+.dark-theme.quality-dashboard .inspection-date,
+.dark-theme.quality-dashboard .overview-label {
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme.quality-dashboard .inspection-defects {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .defect-info {
+    flex: 0 0 120px;
+  }
+}
+
+@media (max-width: 768px) {
+  .quality-dashboard .inspection-item {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  
+  .quality-dashboard .inspection-details {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+  
+  .quality-dashboard .metric-row {
+    flex-wrap: wrap;
+  }
+  
+  .quality-dashboard .metric-value-wrapper {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  
+  .overview-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .defect-info {
+    flex: 0 0 100px;
+  }
+}
+
+@media (max-width: 480px) {
+  .quality-dashboard .inspection-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .quality-dashboard .inspection-details {
+    flex-wrap: wrap;
+  }
+  
+  .defect-item {
+    flex-wrap: wrap;
+  }
+  
+  .defect-info {
+    flex: 1 1 100%;
+  }
+}
