@@ -163,6 +163,7 @@ function App() {
               <Route path="/sales-order" element={<SalesOrder />} />
               <Route path="/sales-invoice" element={<SalesInvoice />} />
               <Route path="/sales-order/new" element={<CreateSalesOrder />} />
+              <Route path="/sales-order/:id" element={<CreateSalesOrder />} />
               <Route path="/sales-invoice/new" element={<CreateSalesInvoice />} />
               <Route path="/quotation" element={<QuotationPage />} />
               <Route path="/quotation/new" element={<CreateQuotationPage />} />

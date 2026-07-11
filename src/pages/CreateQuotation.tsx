@@ -38,8 +38,8 @@ interface QuotationForm {
   namingSeries: string;
   date: string;
   validTill: string;
-  customer: string;      // customer identifier (e.g. CUST-001)
-  customerName: string;  // display / party name
+  customer: string;      
+  customerName: string;  
   status: string;
   items: QuotationItem[];
   totalQuantity: number;
@@ -86,10 +86,7 @@ interface QuotationApiRecord {
   payment_schedule?: any[];
 }
 
-/**
- * Ensures a <select>'s currently-loaded value is always present as an option,
- * even if it isn't one of the predefined suggestions.
- */
+
 const withOption = (options: string[], value?: string | null): string[] => {
   if (!value) return options;
   return options.includes(value) ? options : [value, ...options];
@@ -181,7 +178,6 @@ export default function CreateQuotation() {
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [apiError, setApiError] = useState<string | null>(null);
 
-  // The real docname/primary key from the backend (used for PUT)
   const [recordName, setRecordName] = useState<string | null>(null);
 
   // ─── Customer lookup ────────────────────────────────────────────
@@ -218,7 +214,7 @@ export default function CreateQuotation() {
       { id: '1', paymentTerm: '', dueDate: '', durationDays: 30, invoicePortion: 100, paymentAmount: 0 }
     ],
     tcName: '',
-    termDetails: 'Payment due within 30 days. Late payment penalty of 2% per month applies.'
+    termDetails: ''
   });
 
   const [formData, setFormData] = useState<QuotationForm>(defaultFormData());
@@ -243,7 +239,6 @@ export default function CreateQuotation() {
         (el as any).showPicker();
         return;
       } catch {
-        // fall through to focus
       }
     }
     el.focus();
@@ -336,7 +331,6 @@ export default function CreateQuotation() {
   };
 
   const handleItemCodeBlur = () => {
-    // slight delay so a click on a suggestion registers before the list unmounts
     setTimeout(() => setOpenItemDropdown(null), 150);
   };
 
@@ -492,7 +486,6 @@ export default function CreateQuotation() {
     }));
   };
 
-  // once customers are loaded, resolve the selected customer's detail card for edit mode
   useEffect(() => {
     if (formData.customer && customers.length > 0) {
       const match = customers.find((c) => String(customerIdOf(c)) === String(formData.customer));
@@ -966,7 +959,7 @@ export default function CreateQuotation() {
             </div>
             <div className="form-grid compact-grid">
               {/* 1. Series */}
-              <div className="form-group">
+              {/* <div className="form-group">
                 <label>Series</label>
                 <select
                   name="namingSeries"
@@ -978,7 +971,7 @@ export default function CreateQuotation() {
                     <option key={s} value={s}>{s}</option>
                   ))}
                 </select>
-              </div>
+              </div> */}
 
               {/* 2. Date */}
               <div className="form-group">
