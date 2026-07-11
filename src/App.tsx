@@ -101,6 +101,8 @@ import RoleForm from "./pages/UserManagement/RoleForm";
 import RoleList from "./pages/UserManagement/RoleList";
 import ModulePermissions from "./pages/UserManagement/ModulePermissions";
 import InventoryList from "./pages/InventoryList";
+import ModuleList from "./pages/UserManagement/ModuleList";
+import SubModulePermissions from "./pages/UserManagement/SubModulePermissions";
 
 import SubModulePermissions from "./pages/UserManagement/SubModulePermissions";
 
@@ -199,7 +201,6 @@ function App() {
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/settings" element={<SettingsPage />} /> */}
 
-              {/* <Route path="/inventory" element={<InventoryPage />} /> */}
 
               <Route path="/job-card" element={<JobCardManagement />} />
               <Route path="/job-cards/new" element={<JobCardForm />} />
@@ -280,7 +281,10 @@ function App() {
               <Route path="/users/new" element={<UserForm />} />
               <Route path="/users/:id" element={<UserForm />} />
 // Add routes
+              <Route path="/modules" element={<ModuleList />} />
               <Route path="/module/:moduleId/submodules" element={<SubModulePermissions />} />
+
+              <Route path="/employee/:id" element={<EmployeeForm />} />
 
               <Route path="/employee/:id" element={<EmployeeForm />} />
 
