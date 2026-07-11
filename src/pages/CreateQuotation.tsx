@@ -35,7 +35,7 @@ interface PaymentScheduleRow {
 }
 
 interface QuotationForm {
-  namingSeries: string;
+  type: string;           // Changed from namingSeries to type
   date: string;
   validTill: string;
   customer: string;      
@@ -192,9 +192,10 @@ export default function CreateQuotation() {
   const itemSearchTimers = useRef<{ [index: number]: ReturnType<typeof setTimeout> }>({});
 
   const statusOptions = ['Draft', 'Sent', 'Accepted', 'Rejected', 'Expired', 'Converted'];
+  const typeOptions = ['Product', 'Service']; // Type options
 
   const defaultFormData = (): QuotationForm => ({
-    namingSeries: 'SAL-QTN-.YYYY.-',
+    type: 'Product', // Default to Product
     date: new Date().toISOString().split('T')[0],
     validTill: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     customer: '',
@@ -282,6 +283,15 @@ export default function CreateQuotation() {
     if (errors.customer) setErrors((prev) => ({ ...prev, customer: '' }));
   };
 
+  // Handle type change
+  const handleTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value;
+    setFormData((prev) => ({
+      ...prev,
+      type: value
+    }));
+  };
+
   const customerDetailFields: { label: string; key: string }[] = [
     { label: 'Customer Name', key: 'customer_name' },
     { label: 'Customer Group', key: 'customer_group' },
@@ -300,9 +310,11 @@ export default function CreateQuotation() {
   const fetchItemOptions = async (index: number, query: string) => {
     setItemSuggestLoading((prev) => ({ ...prev, [index]: true }));
     try {
+      // Filter items based on type
+      const typeFilter = formData.type === 'items' ? 'item' : 'service';
       const url = query
-        ? `/item?page=1&limit=10&search=${encodeURIComponent(query)}`
-        : `/item?page=1&limit=10`;
+        ? `/item?page=1&limit=10&search=${encodeURIComponent(query)}&type=${typeFilter}`
+        : `/item?page=1&limit=10&type=${typeFilter}`;
       const response = await api.get(url);
       const records = extractRecords(response.data);
       setItemSuggestions((prev) => ({ ...prev, [index]: records }));
@@ -470,9 +482,17 @@ export default function CreateQuotation() {
       }];
     }
 
+    // Try to determine type from items or default to 'Product'
+    let type = 'Product';
+    if (items.length > 0 && items[0].itemCode) {
+      // You might want to fetch the item type from API or infer from item code
+      // For now, keep the existing type or default to Product
+      type = formData.type || 'Product';
+    }
+
     setFormData((prev) => ({
       ...prev,
-      namingSeries: record.naming_series || prev.namingSeries,
+      type: type,
       customer: record.party_name || prev.customer,
       customerName: record.customer_name || prev.customerName,
       date: unwrapDate(record.transaction_date) || prev.date,
@@ -578,7 +598,7 @@ export default function CreateQuotation() {
 
   useEffect(() => {
     setTimeout(() => {
-      inputRefs.current['namingSeries']?.focus();
+      inputRefs.current['type']?.focus();
     }, 300);
   }, []);
 
@@ -742,12 +762,9 @@ export default function CreateQuotation() {
 
   const generateQuotationName = (): string => {
     const year = new Date().getFullYear();
-    const seriesPrefix = formData.namingSeries
-      .replace(/\.YYYY\.-?/gi, `${year}-`)
-      .replace(/\.YY\.-?/gi, `${String(year).slice(-2)}-`)
-      .replace(/\.#+/g, '');
+    const prefix = formData.type === 'Product' ? 'SAL-QTN' : 'SVC-QTN';
     const suffix = Date.now().toString(36).toUpperCase().slice(-6);
-    return `${seriesPrefix}${suffix}`;
+    return `${prefix}-${year}-${suffix}`;
   };
 
   const formatDate = (date: string) => {
@@ -758,7 +775,8 @@ export default function CreateQuotation() {
   const buildApiPayload = () => {
     const payload: any = {
       name: isEditMode && recordName ? recordName : generateQuotationName(),
-      naming_series: formData.namingSeries,
+      naming_series: formData.type === 'Product' ? 'SAL-QTN-.YYYY.-' : 'SVC-QTN-.YYYY.-',
+      type: formData.type,
       party_name: formData.customer,
       customer_name: formData.customerName,
       transaction_date: formatDate(formData.date),
@@ -958,20 +976,22 @@ export default function CreateQuotation() {
               <h3 className="section-title">Basic Information</h3>
             </div>
             <div className="form-grid compact-grid">
-              {/* 1. Series */}
-              {/* <div className="form-group">
-                <label>Series</label>
+              {/* 1. Type Dropdown - Changed from Series */}
+              <div className="form-group">
+                <label>Type *</label>
                 <select
-                  name="namingSeries"
-                  value={formData.namingSeries}
-                  onChange={handleInputChange}
-                  ref={setRef('namingSeries')}
+                  name="type"
+                  value={formData.type}
+                  onChange={handleTypeChange}
+                  ref={setRef('type')}
+                  className={errors.type ? 'error' : ''}
                 >
-                  {withOption(['SAL-QTN-.YYYY.-', 'SAL-QTN-.YY.-'], formData.namingSeries).map(s => (
+                  {typeOptions.map(s => (
                     <option key={s} value={s}>{s}</option>
                   ))}
                 </select>
-              </div> */}
+                {errors.type && <span className="error-text">{errors.type}</span>}
+              </div>
 
               {/* 2. Date */}
               <div className="form-group">

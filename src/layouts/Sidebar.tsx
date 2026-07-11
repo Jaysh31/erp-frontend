@@ -95,6 +95,11 @@ const allMenuCategories = [
         { title: 'Lead', icon: <GiHumanCannonball />, path: '/lead'},
         { title: 'Quotation', icon: <QuotationIcon />, path: '/quotation' },
         { title: 'Sales Order', icon: <SalesOrderIcon />, path: '/sales-order' },
+        {
+            title: 'Delivery Challans',
+            icon: <ReceiptIcon />,
+            path: '/delivery-challan'
+        },
         { title: 'Sales Invoice', icon: <InvoiceIcon />, path: '/sales-invoice' }
       ]
     },
@@ -208,6 +213,34 @@ const allMenuCategories = [
         { title: 'Cost Centers', icon: <CostCenterIcon />, path: '/accounting/cost-centers' },
       ]
     },
+   {
+    title: 'Receivables',
+    module: 'accounting',
+    icon: <ReceivablesIcon />,
+    items: [
+        
+        {
+            title: 'Customer Payments',
+            icon: <PaymentIcon />,
+            path: '/Customer-payments'
+        },
+        {
+            title: 'Customer Invoices',
+            icon: <InvoiceIcon />,
+            path: '/customer-invoices'
+        },
+        {
+            title: 'Credit Notes',
+            icon: <CreditNoteIcon />,
+            path: '/receivables/credit-notes'
+        },
+        {
+            title: 'Outstanding Receivables',
+            icon: <CustomerIcon />,
+            path: '/outstanding-receivables'
+        }
+    ]
+},
     {
       title: 'Receivables',
       module: 'accounting',

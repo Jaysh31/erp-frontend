@@ -14,15 +14,8 @@ import {
   FaTruck,
   FaFileInvoice,
   FaInfoCircle,
-  FaBuilding,
-  FaPhone,
-  FaEnvelope,
-  FaMapMarkerAlt,
   FaBox,
-  FaPercent,
-  FaTag,
   FaSearch,
-  FaSync,
   FaCheckSquare,
   FaSquare
 } from 'react-icons/fa';
@@ -260,8 +253,8 @@ export default function CreateSalesInvoice() {
   const [loading, setLoading] = useState(false);
   const [loadingCustomers, setLoadingCustomers] = useState(false);
   const [loadingDCs, setLoadingDCs] = useState(false);
-  const [focusedField, setFocusedField] = useState<string | null>(null);
-  const [invoiceNumber, setInvoiceNumber] = useState<string>(`SINV-${new Date().getFullYear()}-001`);
+  const [] = useState<string | null>(null);
+  const [] = useState<string>(`SINV-${new Date().getFullYear()}-001`);
   
   // State for dropdowns
   const [customers, setCustomers] = useState<Customer[]>(MOCK_CUSTOMERS);
@@ -340,7 +333,7 @@ export default function CreateSalesInvoice() {
     setFormData(prev => ({ ...prev, selectedDCIds: [], items: [] }));
     
     if (dcs.length === 0) {
-      toast.info('No submitted delivery challans found for this customer.');
+      toast.error('No submitted delivery challans found for this customer.');
     }
     setLoadingDCs(false);
   };

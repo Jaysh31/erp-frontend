@@ -6,7 +6,6 @@ import {
   FaPaperPlane,
   FaWarehouse,
   FaTruck,
-  FaRoad,
   FaUserTie,
   FaCalendarAlt,
   FaIdCard,
@@ -14,9 +13,7 @@ import {
   FaBox,
   FaInfoCircle,
   FaFileContract,
-  FaPhone,
   FaSpinner,
-  FaChevronLeft,
   FaUser,
   FaPlus,
   FaTrash,
@@ -111,6 +108,183 @@ interface DeliveryNotePayload {
     warehouse: string;
     type: string;
   }>;
+}
+
+interface ApiResponse<T = any> {
+  data: T;
+  message?: string;
+  status: number;
+  success: boolean;
+}
+
+// ===== API SERVICE WITH GENERIC METHODS =====
+
+class ApiService {
+  private static instance: ApiService;
+
+  private constructor() {}
+
+  public static getInstance(): ApiService {
+    if (!ApiService.instance) {
+      ApiService.instance = new ApiService();
+    }
+    return ApiService.instance;
+  }
+
+  async get<T>(endpoint: string, params?: Record<string, any>): Promise<ApiResponse<T>> {
+    try {
+      const response = await api.get(endpoint, { params });
+      return {
+        data: response.data,
+        status: response.status,
+        success: true,
+        message: response.data?.message || 'Operation successful'
+      };
+    } catch (error: any) {
+      return this.handleError(error);
+    }
+  }
+
+  async post<T>(endpoint: string, data: any): Promise<ApiResponse<T>> {
+    try {
+      const response = await api.post(endpoint, data);
+      return {
+        data: response.data,
+        status: response.status,
+        success: true,
+        message: response.data?.message || 'Operation successful'
+      };
+    } catch (error: any) {
+      return this.handleError(error);
+    }
+  }
+
+  async put<T>(endpoint: string, data: any): Promise<ApiResponse<T>> {
+    try {
+      const response = await api.put(endpoint, data);
+      return {
+        data: response.data,
+        status: response.status,
+        success: true,
+        message: response.data?.message || 'Operation successful'
+      };
+    } catch (error: any) {
+      return this.handleError(error);
+    }
+  }
+
+  async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
+    try {
+      const response = await api.delete(endpoint);
+      return {
+        data: response.data,
+        status: response.status,
+        success: true,
+        message: response.data?.message || 'Deletion successful'
+      };
+    } catch (error: any) {
+      return this.handleError(error);
+    }
+  }
+
+  async patch<T>(endpoint: string, data: any): Promise<ApiResponse<T>> {
+    try {
+      const response = await api.patch(endpoint, data);
+      return {
+        data: response.data,
+        status: response.status,
+        success: true,
+        message: response.data?.message || 'Operation successful'
+      };
+    } catch (error: any) {
+      return this.handleError(error);
+    }
+  }
+
+  private handleError(error: any): ApiResponse {
+    console.error('API Error:', error);
+    
+    let errorMessage = 'An unexpected error occurred';
+    let statusCode = 500;
+
+    if (error.response) {
+      statusCode = error.response.status;
+      errorMessage = error.response.data?.message || 
+                    error.response.data?.error || 
+                    error.response.statusText || 
+                    'Server error occurred';
+      
+      if (statusCode === 401) {
+        errorMessage = 'Unauthorized. Please login again.';
+      } else if (statusCode === 403) {
+        errorMessage = 'You do not have permission to perform this action.';
+      } else if (statusCode === 404) {
+        errorMessage = 'Resource not found.';
+      } else if (statusCode === 422) {
+        errorMessage = 'Validation error. Please check your input.';
+      } else if (statusCode === 500) {
+        errorMessage = 'Internal server error. Please try again later.';
+      }
+    } else if (error.request) {
+      errorMessage = 'Network error. Please check your connection.';
+    } else {
+      errorMessage = error.message || 'An unexpected error occurred';
+    }
+
+    return {
+      data: null as any,
+      status: statusCode,
+      success: false,
+      message: errorMessage
+    };
+  }
+}
+
+// ===== DELIVERY CHALLAN API =====
+
+class DeliveryChallanAPI {
+  private apiService: ApiService;
+
+  constructor() {
+    this.apiService = ApiService.getInstance();
+  }
+
+  async createDeliveryNote(payload: DeliveryNotePayload): Promise<ApiResponse<any>> {
+    return this.apiService.post('/delivery-note', payload);
+  }
+
+  async submitDeliveryNote(name: string): Promise<ApiResponse<any>> {
+    return this.apiService.post(`/delivery-note/${name}/submit`, {});
+  }
+
+  async getDeliveryNote(id: string): Promise<ApiResponse<any>> {
+    return this.apiService.get(`/delivery-note/${id}`);
+  }
+
+  async getDeliveryNotes(params?: Record<string, any>): Promise<ApiResponse<any[]>> {
+    return this.apiService.get('/delivery-notes', params);
+  }
+
+  async updateDeliveryNote(id: string, data: Partial<DeliveryNotePayload>): Promise<ApiResponse<any>> {
+    return this.apiService.put(`/delivery-note/${id}`, data);
+  }
+
+  async deleteDeliveryNote(id: string): Promise<ApiResponse<any>> {
+    return this.apiService.delete(`/delivery-note/${id}`);
+  }
+
+  async getCustomers(): Promise<ApiResponse<Customer[]>> {
+    return this.apiService.get('/customers');
+  }
+
+  async getSalesOrders(customerId: string): Promise<ApiResponse<SalesOrder[]>> {
+    return this.apiService.get(`/customers/${customerId}/sales-orders`);
+  }
+
+  async getProducts(type?: 'product' | 'service'): Promise<ApiResponse<Product[]>> {
+    const params = type ? { type } : {};
+    return this.apiService.get('/products', params);
+  }
 }
 
 // ===== MOCK DATA =====
@@ -208,6 +382,19 @@ const MOCK_SALES_ORDERS: SalesOrder[] = [
   }
 ];
 
+const MOCK_PRODUCTS: Product[] = [
+  { id: 'p1', itemCode: 'PRD-P001', description: 'Industrial Pump - 5 HP', unit: 'pcs', rate: 1500, tax: 18, type: 'product' },
+  { id: 'p2', itemCode: 'PRD-S001', description: 'Submersible Pump - 2 HP', unit: 'pcs', rate: 2000, tax: 18, type: 'product' },
+  { id: 'p3', itemCode: 'PRD-C001', description: 'Centrifugal Pump - 3 HP', unit: 'pcs', rate: 2500, tax: 12, type: 'product' },
+  { id: 'p4', itemCode: 'PRD-M001', description: 'Motor Assembly - 7.5 HP', unit: 'pcs', rate: 5000, tax: 18, type: 'product' },
+  { id: 'p5', itemCode: 'PRD-G001', description: 'Gear Box - 10:1 Ratio', unit: 'pcs', rate: 3000, tax: 12, type: 'product' },
+  { id: 's1', itemCode: 'SVC-C001', description: 'Consulting Services - Hourly', unit: 'hrs', rate: 1500, tax: 18, type: 'service' },
+  { id: 's2', itemCode: 'SVC-M001', description: 'Maintenance Services - Monthly', unit: 'month', rate: 25000, tax: 18, type: 'service' },
+  { id: 's3', itemCode: 'SVC-I001', description: 'Installation Services', unit: 'job', rate: 15000, tax: 18, type: 'service' },
+  { id: 's4', itemCode: 'SVC-T001', description: 'Training Services - Per Session', unit: 'session', rate: 5000, tax: 12, type: 'service' },
+  { id: 's5', itemCode: 'SVC-D001', description: 'Design Services - Hourly', unit: 'hrs', rate: 2000, tax: 18, type: 'service' }
+];
+
 const NewDeliveryChallan: React.FC = () => {
   const navigate = useNavigate();
   
@@ -230,20 +417,88 @@ const NewDeliveryChallan: React.FC = () => {
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [dcNumber, setDcNumber] = useState<string>(`DN-${new Date().getFullYear()}-001`);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [salesOrders, setSalesOrders] = useState<SalesOrder[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [useMockData, setUseMockData] = useState<boolean>(true);
 
-  // ===== GET CUSTOMER SALES ORDERS =====
-  const getCustomerSalesOrders = (customerId: string): SalesOrder[] => {
-    return MOCK_SALES_ORDERS.filter(so => so.customer === customerId);
+  // ===== API INSTANCE =====
+  const deliveryChallanAPI = new DeliveryChallanAPI();
+
+  // ===== FETCH INITIAL DATA =====
+  useEffect(() => {
+    fetchCustomers();
+    fetchProducts();
+  }, []);
+
+  // ===== FETCH CUSTOMERS =====
+  const fetchCustomers = async () => {
+    setIsLoading(true);
+    try {
+      const response = await deliveryChallanAPI.getCustomers();
+      if (response.success && response.data) {
+        setCustomers(response.data);
+        setUseMockData(false);
+        console.log('✅ Customers loaded from API:', response.data.length);
+      } else {
+        setCustomers(MOCK_CUSTOMERS);
+        setUseMockData(true);
+        toast.info('Using mock customer data (API unavailable)');
+      }
+    } catch (error) {
+      console.error('Error fetching customers:', error);
+      setCustomers(MOCK_CUSTOMERS);
+      setUseMockData(true);
+      toast.info('Using mock customer data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // ===== FETCH PRODUCTS =====
+  const fetchProducts = async () => {
+    try {
+      const response = await deliveryChallanAPI.getProducts();
+      if (response.success && response.data) {
+        setProducts(response.data);
+        console.log('✅ Products loaded from API:', response.data.length);
+      } else {
+        setProducts(MOCK_PRODUCTS);
+      }
+    } catch (error) {
+      console.error('Error fetching products:', error);
+      setProducts(MOCK_PRODUCTS);
+    }
+  };
+
+  // ===== FETCH SALES ORDERS BY CUSTOMER =====
+  const fetchSalesOrders = async (customerId: string) => {
+    setIsLoading(true);
+    try {
+      const response = await deliveryChallanAPI.getSalesOrders(customerId);
+      if (response.success && response.data) {
+        setSalesOrders(response.data);
+        console.log('✅ Sales orders loaded from API:', response.data.length);
+      } else {
+        const mockOrders = MOCK_SALES_ORDERS.filter(so => so.customer === customerId);
+        setSalesOrders(mockOrders);
+      }
+    } catch (error) {
+      console.error('Error fetching sales orders:', error);
+      const mockOrders = MOCK_SALES_ORDERS.filter(so => so.customer === customerId);
+      setSalesOrders(mockOrders);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // ===== LOAD CUSTOMER DATA =====
   const loadCustomerData = (customerId: string) => {
-    const customer = MOCK_CUSTOMERS.find(c => c.id === customerId);
+    const customer = customers.find(c => c.id === customerId);
     if (customer) {
       setCustomerData(customer);
-      // Reset sales order when customer changes
       setSelectedSalesOrder('');
-      // Reset items
       setItems([{
         id: '1',
         itemCode: '',
@@ -254,19 +509,18 @@ const NewDeliveryChallan: React.FC = () => {
         amount: 0,
         type: dcType === 'Products' ? 'product' : 'service'
       }]);
+      fetchSalesOrders(customerId);
       toast.success(`Selected ${customer.name}`);
     }
   };
 
   // ===== LOAD SALES ORDER =====
   const loadSalesOrder = (soId: string) => {
-    const so = MOCK_SALES_ORDERS.find(s => s.id === soId);
+    const so = salesOrders.find(s => s.id === soId);
     if (so) {
-      // Auto-populate PO details
       setPoNumber(so.po_no || '');
       setPoDate(so.po_date || '');
       
-      // Auto-populate items from Sales Order
       const initialItems: DeliveryChallanItem[] = (so.items || []).map((item, index) => ({
         id: `so-${index}`,
         itemCode: item.item_code || '',
@@ -278,7 +532,6 @@ const NewDeliveryChallan: React.FC = () => {
         type: dcType === 'Products' ? 'product' : 'service'
       }));
       
-      // If no items, add one default row
       if (initialItems.length === 0) {
         initialItems.push({
           id: '1',
@@ -309,6 +562,7 @@ const NewDeliveryChallan: React.FC = () => {
       setSelectedSalesOrder('');
       setPoNumber('');
       setPoDate('');
+      setSalesOrders([]);
       setItems([{
         id: '1',
         itemCode: '',
@@ -329,7 +583,6 @@ const NewDeliveryChallan: React.FC = () => {
     if (soId) {
       loadSalesOrder(soId);
     } else {
-      // Reset items when sales order is deselected
       setItems([{
         id: '1',
         itemCode: '',
@@ -393,27 +646,11 @@ const NewDeliveryChallan: React.FC = () => {
   };
 
   // ===== GET PRODUCTS LIST =====
-  const getProducts = (): Product[] => {
-    if (dcType === 'Products') {
-      return [
-        { id: 'p1', itemCode: 'PRD-P001', description: 'Industrial Pump - 5 HP', unit: 'pcs', rate: 1500, tax: 18, type: 'product' },
-        { id: 'p2', itemCode: 'PRD-S001', description: 'Submersible Pump - 2 HP', unit: 'pcs', rate: 2000, tax: 18, type: 'product' },
-        { id: 'p3', itemCode: 'PRD-C001', description: 'Centrifugal Pump - 3 HP', unit: 'pcs', rate: 2500, tax: 12, type: 'product' },
-        { id: 'p4', itemCode: 'PRD-M001', description: 'Motor Assembly - 7.5 HP', unit: 'pcs', rate: 5000, tax: 18, type: 'product' },
-        { id: 'p5', itemCode: 'PRD-G001', description: 'Gear Box - 10:1 Ratio', unit: 'pcs', rate: 3000, tax: 12, type: 'product' }
-      ];
-    } else {
-      return [
-        { id: 's1', itemCode: 'SVC-C001', description: 'Consulting Services - Hourly', unit: 'hrs', rate: 1500, tax: 18, type: 'service' },
-        { id: 's2', itemCode: 'SVC-M001', description: 'Maintenance Services - Monthly', unit: 'month', rate: 25000, tax: 18, type: 'service' },
-        { id: 's3', itemCode: 'SVC-I001', description: 'Installation Services', unit: 'job', rate: 15000, tax: 18, type: 'service' },
-        { id: 's4', itemCode: 'SVC-T001', description: 'Training Services - Per Session', unit: 'session', rate: 5000, tax: 12, type: 'service' },
-        { id: 's5', itemCode: 'SVC-D001', description: 'Design Services - Hourly', unit: 'hrs', rate: 2000, tax: 18, type: 'service' }
-      ];
-    }
+  const getFilteredProducts = (): Product[] => {
+    return products.filter(p => p.type === (dcType === 'Products' ? 'product' : 'service'));
   };
 
-  const products = getProducts();
+  const filteredProducts = getFilteredProducts();
 
   // ===== CALCULATIONS =====
   const getTotalQty = (): number => {
@@ -475,46 +712,92 @@ const NewDeliveryChallan: React.FC = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  // ===== API CALLS =====
-  const createDeliveryNote = async (payload: DeliveryNotePayload) => {
-    const response = await api.post('/delivery-note', payload);
-    return response.data;
-  };
-
-  const submitDeliveryNote = async (name: string) => {
-    const response = await api.post(`/delivery-note/${name}/submit`, {});
-    return response.data;
-  };
-
   // ===== SUBMIT HANDLERS =====
   const handleSubmit = async () => {
-    if (!validateForm()) return;
+    if (!validateForm()) {
+      const firstError = Object.keys(errors)[0];
+      if (firstError) {
+        const element = document.querySelector(`[name="${firstError}"]`) as HTMLElement;
+        if (element) element.focus();
+      }
+      return;
+    }
+
     setIsSubmitting(true);
+    const toastId = toast.loading('Creating delivery challan...');
+
     try {
       const payload = buildPayload('Submitted');
-      const created = await createDeliveryNote(payload);
-      if (created && created.name) {
-        await submitDeliveryNote(created.name);
-        toast.success('Delivery Challan created and submitted successfully!');
-        navigate('/delivery-challans');
+      console.log('📦 Submitting Delivery Challan Payload:', JSON.stringify(payload, null, 2));
+
+      const createResponse = await deliveryChallanAPI.createDeliveryNote(payload);
+      
+      if (!createResponse.success || !createResponse.data) {
+        throw new Error(createResponse.message || 'Failed to create delivery challan');
       }
+
+      const createdDC = createResponse.data;
+      toast.success('Delivery challan created successfully!', { id: toastId });
+
+      const submitToastId = toast.loading('Submitting delivery challan...');
+      
+      if (createdDC.name) {
+        const submitResponse = await deliveryChallanAPI.submitDeliveryNote(createdDC.name);
+        
+        if (!submitResponse.success) {
+          throw new Error(submitResponse.message || 'Failed to submit delivery challan');
+        }
+        
+        toast.success('Delivery challan submitted successfully!', { id: submitToastId });
+        toast.success(`DC ${createdDC.name} created and submitted!`);
+
+        setTimeout(() => {
+          navigate('/delivery-challans');
+        }, 1500);
+      } else {
+        throw new Error('Created delivery challan name not found');
+      }
+
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to create Delivery Challan');
+      console.error('❌ Error creating delivery challan:', error);
+      toast.error(error.message || 'Failed to create delivery challan', { id: toastId });
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleSaveDraft = async () => {
-    if (!validateForm()) return;
+    if (!validateForm()) {
+      const firstError = Object.keys(errors)[0];
+      if (firstError) {
+        const element = document.querySelector(`[name="${firstError}"]`) as HTMLElement;
+        if (element) element.focus();
+      }
+      return;
+    }
+
     setIsSubmitting(true);
+    const toastId = toast.loading('Saving draft...');
+
     try {
       const payload = buildPayload('Draft');
-      await createDeliveryNote(payload);
-      toast.success('Delivery Challan saved as Draft!');
-      navigate('/delivery-challans');
+      console.log('📦 Saving Draft Payload:', JSON.stringify(payload, null, 2));
+
+      const response = await deliveryChallanAPI.createDeliveryNote(payload);
+      
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to save draft');
+      }
+
+      toast.success('Delivery challan saved as draft!', { id: toastId });
+      
+      setTimeout(() => {
+        navigate('/delivery-challans');
+      }, 1000);
+
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to save Draft');
+      console.error('❌ Error saving draft:', error);
+      toast.error(error.message || 'Failed to save draft', { id: toastId });
     } finally {
       setIsSubmitting(false);
     }
@@ -527,7 +810,6 @@ const NewDeliveryChallan: React.FC = () => {
   };
 
   const handlePrint = () => window.print();
-  const handleBack = () => navigate('/delivery-challans');
 
   const getDcTypeIcon = () => dcType === 'Products' ? <FaCogs /> : <FaHands />;
 
@@ -614,7 +896,6 @@ const NewDeliveryChallan: React.FC = () => {
         }
         .page-header-left { display: flex; flex-direction: column; gap: 2px; }
         .breadcrumb { display: flex; align-items: center; gap: 4px; font-size: 12px; color: #94a3b8; }
-        .breadcrumb .separator { color: #e2e8f0; }
         .breadcrumb .active { color: #1e293b; font-weight: 500; }
         .page-title { font-size: 20px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 8px; margin: 0; }
         .page-title .title-icon { color: #2c7a8a; }
@@ -808,17 +1089,6 @@ const NewDeliveryChallan: React.FC = () => {
         }
         .remove-item-btn:hover { background: #fef2f2; color: #ef4444; }
 
-        .empty-items { padding: 30px 20px !important; text-align: center !important; }
-        .empty-items-content {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 6px;
-          color: #94a3b8;
-          font-size: 13px;
-        }
-        .empty-icon-small { font-size: 20px; }
-
         .summary-grid {
           display: grid;
           grid-template-columns: 1fr 1fr;
@@ -845,9 +1115,6 @@ const NewDeliveryChallan: React.FC = () => {
           margin-top: 4px;
           color: #2563eb;
         }
-        .text-blue { color: #2563eb; }
-        .text-red { color: #ef4444; }
-        .text-green { color: #10b981; }
 
         .status-card {
           padding: 12px 16px;
@@ -899,7 +1166,6 @@ const NewDeliveryChallan: React.FC = () => {
           .form-footer-right { width: 100%; flex-direction: column; }
           .form-footer-right button { width: 100%; min-width: unset; }
           .items-table { font-size: 12px; min-width: 500px; }
-          .items-table th, .items-table td { padding: 4px 6px; }
         }
         @media (max-width: 480px) {
           .page-title { font-size: 17px; }
@@ -907,11 +1173,9 @@ const NewDeliveryChallan: React.FC = () => {
           .form-section { padding: 12px 14px; }
         }
         @media print {
-          .form-footer, .btn-secondary, .btn-primary, .back-btn { display: none !important; }
+          .form-footer, .btn-secondary, .btn-primary { display: none !important; }
           .new-dc-page { padding: 0 !important; background: #fff !important; }
           .form-section { box-shadow: none !important; border: 1px solid #e2e8f0 !important; break-inside: avoid; }
-          .page-header { box-shadow: none !important; border-bottom: 2px solid #e2e8f0; }
-          .form-input:disabled, .form-select:disabled { background: transparent !important; opacity: 1 !important; }
         }
       `}</style>
 
@@ -927,6 +1191,14 @@ const NewDeliveryChallan: React.FC = () => {
           </h1>
           <p className="page-subtitle">Create a new delivery challan for a customer</p>
         </div>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          {isLoading && <FaSpinner className="spinning" style={{ color: '#94a3b8' }} />}
+          {useMockData && (
+            <span style={{ fontSize: '11px', color: '#f59e0b', background: '#fef3c7', padding: '3px 10px', borderRadius: '10px' }}>
+              Mock Mode
+            </span>
+          )}
+        </div>
       </div>
 
       {/* ===== FORM BODY ===== */}
@@ -938,7 +1210,6 @@ const NewDeliveryChallan: React.FC = () => {
             <span className="required-label">* Required fields</span>
           </div>
           <div className="form-grid">
-            {/* Customer Dropdown - FIRST & WORKING */}
             <div className="form-group">
               <label>Customer <span className="required">*</span></label>
               <div className="input-with-icon">
@@ -947,9 +1218,10 @@ const NewDeliveryChallan: React.FC = () => {
                   className={`form-select ${errors.customer ? 'error' : ''}`}
                   value={selectedCustomer}
                   onChange={handleCustomerChange}
+                  disabled={isLoading}
                 >
                   <option value="">Select Customer</option>
-                  {MOCK_CUSTOMERS.map(c => (
+                  {customers.map(c => (
                     <option key={c.id} value={c.id}>
                       {c.name} ({c.code})
                     </option>
@@ -959,7 +1231,6 @@ const NewDeliveryChallan: React.FC = () => {
               {errors.customer && <span className="error-text">{errors.customer}</span>}
             </div>
 
-            {/* Sales Order Dropdown - Filtered by Customer */}
             <div className="form-group">
               <label>Sales Order</label>
               <div className="input-with-icon">
@@ -968,10 +1239,10 @@ const NewDeliveryChallan: React.FC = () => {
                   className="form-select"
                   value={selectedSalesOrder}
                   onChange={handleSalesOrderChange}
-                  disabled={!selectedCustomer}
+                  disabled={!selectedCustomer || isLoading}
                 >
                   <option value="">Select Sales Order</option>
-                  {getCustomerSalesOrders(selectedCustomer).map(so => (
+                  {salesOrders.map(so => (
                     <option key={so.id} value={so.id}>
                       {so.name} - ₹{so.total.toFixed(2)}
                     </option>
@@ -979,7 +1250,7 @@ const NewDeliveryChallan: React.FC = () => {
                 </select>
               </div>
               {!selectedCustomer && <span className="so-hint">Select customer first</span>}
-              {selectedCustomer && getCustomerSalesOrders(selectedCustomer).length === 0 && (
+              {selectedCustomer && salesOrders.length === 0 && !isLoading && (
                 <span className="so-hint">No sales orders for this customer</span>
               )}
             </div>
@@ -1021,7 +1292,6 @@ const NewDeliveryChallan: React.FC = () => {
               </div>
             </div>
 
-            {/* PO Number - Compact */}
             <div className="form-group" style={{ maxWidth: '140px' }}>
               <label>PO Number</label>
               <div className="input-with-icon">
@@ -1051,7 +1321,7 @@ const NewDeliveryChallan: React.FC = () => {
           </div>
         </div>
 
-        {/* Customer Details - Compact */}
+        {/* Customer Details */}
         {customerData && (
           <div className="form-section customer-details">
             <div className="form-section-header">
@@ -1087,7 +1357,7 @@ const NewDeliveryChallan: React.FC = () => {
           </div>
         )}
 
-        {/* Products/Services - Compact */}
+        {/* Products/Services */}
         <div className="form-section">
           <div className="form-section-header">
             <h3>
@@ -1125,7 +1395,7 @@ const NewDeliveryChallan: React.FC = () => {
                         onChange={(e) => updateItem(item.id, 'itemCode', e.target.value)}
                       >
                         <option value="">Select</option>
-                        {products.map(p => (
+                        {filteredProducts.map(p => (
                           <option key={p.id} value={p.itemCode}>
                             {p.itemCode}
                           </option>
@@ -1189,7 +1459,7 @@ const NewDeliveryChallan: React.FC = () => {
           </div>
         </div>
 
-        {/* Dispatch Information - Compact */}
+        {/* Dispatch Information */}
         <div className="form-section">
           <div className="form-section-header">
             <h3><FaTruck style={{ color: '#2563eb', fontSize: '15px' }} /> Dispatch Information</h3>
@@ -1295,7 +1565,7 @@ const NewDeliveryChallan: React.FC = () => {
           </div>
         </div>
 
-        {/* Summary - Compact */}
+        {/* Summary */}
         <div className="form-section">
           <div className="summary-grid">
             <div className="summary-left">
