@@ -101,7 +101,7 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
     "Basement"
   ]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
-  const [warehousesLoading, setWarehousesLoading] = useState(false);
+  const [, setWarehousesLoading] = useState(false);
   
   // ─── New item input states ─────────────────────────────────────────────────
   const [newType, setNewType] = useState('');

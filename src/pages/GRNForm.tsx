@@ -14,17 +14,12 @@ import {
   FaWarehouse,
   FaTruck,
   FaFileInvoice,
-  FaUser,
   FaCalendar,
   FaHashtag,
   FaBuilding,
   FaBox,
-  FaSearch,
   FaChevronLeft,
   FaChevronRight,
-  FaFileAlt,
-  FaCheck,
-  FaTimes,
   FaPhone,
   FaEnvelope,
   FaMapMarkerAlt,
@@ -288,7 +283,7 @@ export default function GRNForm() {
   const [poCurrentPage, setPOCurrentPage] = useState(1);
   const [poItemsPerPage] = useState(10);
   const [totalPOs, setTotalPOs] = useState(0);
-  const [poDetailLoading, setPODetailLoading] = useState(false);
+  const [, setPODetailLoading] = useState(false);
   const poInputRef = useRef<HTMLInputElement>(null);
   const poDropdownRef = useRef<HTMLDivElement>(null);
 

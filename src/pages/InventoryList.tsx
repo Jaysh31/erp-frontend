@@ -3,7 +3,6 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FaSearch,
-  FaFilter,
   FaTimes,
   FaChevronLeft,
   FaChevronRight,
@@ -17,16 +16,10 @@ import {
   FaWarehouse,
   FaClipboardList,
   FaDollarSign,
-  FaCalendarAlt,
-  FaBuilding,
-  FaChartPie,
   FaList,
-  FaThLarge,
   FaArrowUp,
-  FaArrowDown,
   FaExclamationTriangle,
   FaCheckCircle,
-  FaClock,
 } from "react-icons/fa";
 import "./InventoryList.css";
 import { useAdminTheme } from "../admin-theme/AdminThemeContext";
@@ -215,7 +208,7 @@ export default function InventoryList() {
   };
   const getStockStatus = (
     actualQty: number,
-    projectedQty: number
+    _projectedQty: number
   ): InventoryStatus => {
     if (actualQty <= 0) return "Out of Stock";
     if (actualQty < 10) return "Low Stock";
@@ -319,15 +312,15 @@ export default function InventoryList() {
     }
   };
 
-  const getStatusColor = (status: StockStatus) => {
-    switch (status) {
-      case "In Stock": return "#10b981";
-      case "Low Stock": return "#f59e0b";
-      case "Out of Stock": return "#ef4444";
-      case "Over Stock": return "#3b82f6";
-      default: return "#6b7280";
-    }
-  };
+  // const getStatusColor = (status: StockStatus) => {
+  //   switch (status) {
+  //     case "In Stock": return "#10b981";
+  //     case "Low Stock": return "#f59e0b";
+  //     case "Out of Stock": return "#ef4444";
+  //     case "Over Stock": return "#3b82f6";
+  //     default: return "#6b7280";
+  //   }
+  // };
 
   const getStatusIcon = (status: StockStatus) => {
     switch (status) {

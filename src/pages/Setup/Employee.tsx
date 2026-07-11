@@ -14,18 +14,14 @@ import {
   FaEdit,
   FaTrash,
   FaPlus,
-  FaUser,
   FaUsers,
   FaPhone,
   FaEnvelope,
   FaBuilding,
   FaCalendarAlt,
-  FaMapMarkerAlt,
   FaBriefcase,
-  FaIdCard,
   FaUserCircle,
   FaUserCheck,
-  FaUserClock,
   FaEllipsisV,
   FaUserPlus,
   FaUserSlash,
@@ -128,27 +124,27 @@ export default function Employee() {
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const dropdownRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
-  const formatDate = (dateString: string) => {
-    if (!dateString) return "N/A";
-    try {
-      const date = new Date(dateString);
-      const now = new Date();
-      const diffMs = now.getTime() - date.getTime();
-      const diffMins = Math.floor(diffMs / 60000);
-      const diffHours = Math.floor(diffMs / 3600000);
-      const diffDays = Math.floor(diffMs / 86400000);
+  // const formatDate = (dateString: string) => {
+  //   if (!dateString) return "N/A";
+  //   try {
+  //     const date = new Date(dateString);
+  //     const now = new Date();
+  //     const diffMs = now.getTime() - date.getTime();
+  //     const diffMins = Math.floor(diffMs / 60000);
+  //     const diffHours = Math.floor(diffMs / 3600000);
+  //     const diffDays = Math.floor(diffMs / 86400000);
 
-      if (diffMins < 1) return "Just now";
-      if (diffMins < 60) return `${diffMins} min ago`;
-      if (diffHours < 24) return `${diffHours} h ago`;
-      if (diffDays < 7) return `${diffDays} d ago`;
-      if (diffDays < 30) return `${Math.floor(diffDays / 7)} w ago`;
-      if (diffDays < 365) return `${Math.floor(diffDays / 30)} mo ago`;
-      return `${Math.floor(diffDays / 365)} y ago`;
-    } catch {
-      return dateString;
-    }
-  };
+  //     if (diffMins < 1) return "Just now";
+  //     if (diffMins < 60) return `${diffMins} min ago`;
+  //     if (diffHours < 24) return `${diffHours} h ago`;
+  //     if (diffDays < 7) return `${diffDays} d ago`;
+  //     if (diffDays < 30) return `${Math.floor(diffDays / 7)} w ago`;
+  //     if (diffDays < 365) return `${Math.floor(diffDays / 30)} mo ago`;
+  //     return `${Math.floor(diffDays / 365)} y ago`;
+  //   } catch {
+  //     return dateString;
+  //   }
+  // };
 
   const fetchEmployees = async () => {
     setLoading(true);
@@ -367,13 +363,13 @@ const handleToggleUser = async (item: EmployeeDisplay) => {
     return STATUS_CLASS[status] || "status-default";
   };
 
-  const getUserStatusIcon = (isUser: boolean) => {
-    return isUser ? (
-      <FaUserCheck className="emp-user-icon active" title="User has access" />
-    ) : (
-      <FaUserSlash className="emp-user-icon inactive" title="User does not have access" />
-    );
-  };
+  // const getUserStatusIcon = (isUser: boolean) => {
+  //   return isUser ? (
+  //     <FaUserCheck className="emp-user-icon active" title="User has access" />
+  //   ) : (
+  //     <FaUserSlash className="emp-user-icon inactive" title="User does not have access" />
+  //   );
+  // };
 
   return (
     <div className={`emp-page ${theme}`}>

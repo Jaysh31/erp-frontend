@@ -160,15 +160,6 @@ const Label: React.FC<{ text: string; required?: boolean; info?: boolean }> = ({
   </span>
 );
 
-const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement> & { readOnly?: boolean; hasError?: boolean }> = ({
-  readOnly, hasError, className = "", ...props
-}) => (
-  <input
-    className={`nbom-input ${readOnly ? "nbom-input--readonly" : ""} ${hasError ? "nbom-input--error" : ""} ${className}`}
-    readOnly={readOnly}
-    {...props}
-  />
-);
 
 const Checkbox: React.FC<{ label: string; hint?: string; checked?: boolean; onChange?: () => void }> = ({
   label, hint, checked = false, onChange,
@@ -182,17 +173,6 @@ const Checkbox: React.FC<{ label: string; hint?: string; checked?: boolean; onCh
   </div>
 );
 
-const RadioOption: React.FC<{ label: string; hint?: string; name: string; value: string; checked: boolean; onChange: () => void }> = ({
-  label, hint, name, value, checked, onChange,
-}) => (
-  <label className="nbom-radio-option" style={{ cursor: "pointer" }}>
-    <input type="radio" name={name} value={value} checked={checked} onChange={onChange} />
-    <div>
-      <div className="nbom-radio-option__label">{label}</div>
-      {hint && <div className="nbom-radio-option__hint">{hint}</div>}
-    </div>
-  </label>
-);
 
 // ─── Toast Component ─────────────────────────────────────────────────────────
 
@@ -456,11 +436,11 @@ interface NewBOMPageProps {
 
 const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
   const [activeTab, setActiveTab] = useState<TabId>("production");
-  const [costAllocPanelOpen, setCostAllocPanelOpen] = useState(true);
+  // const [costAllocPanelOpen, setCostAllocPanelOpen] = useState(true);
   const [opsPanelOpen, setOpsPanelOpen] = useState(true);
   const [withOperations, setWithOperations] = useState(false);
   const [itemToManufacture, setItemToManufacture] = useState("");
-  const [bomNo, setBomNo] = useState("");
+  const [, setBomNo] = useState("");
   const [bomId, setBomId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);

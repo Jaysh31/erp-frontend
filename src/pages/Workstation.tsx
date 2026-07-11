@@ -214,47 +214,47 @@ export default function WorkstationList() {
 
   // ─── Status colors ────────────────────────────────────────────────────────
 
-  const getStatusColor = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case 'active':
-        return '#10B981';
-      case 'idle':
-        return '#6B7280';
-      case 'maintenance':
-        return '#8B5CF6';
-      case 'off':
-        return '#EF4444';
-      case 'problem':
-        return '#EF4444';
-      case 'setup':
-        return '#F59E0B';
-      case 'production':
-        return '#3B82F6';
-      default:
-        return '#6B7280';
-    }
-  };
+  // const getStatusColor = (status: string) => {
+  //   switch (status?.toLowerCase()) {
+  //     case 'active':
+  //       return '#10B981';
+  //     case 'idle':
+  //       return '#6B7280';
+  //     case 'maintenance':
+  //       return '#8B5CF6';
+  //     case 'off':
+  //       return '#EF4444';
+  //     case 'problem':
+  //       return '#EF4444';
+  //     case 'setup':
+  //       return '#F59E0B';
+  //     case 'production':
+  //       return '#3B82F6';
+  //     default:
+  //       return '#6B7280';
+  //   }
+  // };
 
-  const getStatusBgColor = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case 'active':
-        return '#D1FAE5';
-      case 'idle':
-        return '#F3F4F6';
-      case 'maintenance':
-        return '#EDE9FE';
-      case 'off':
-        return '#FEE2E2';
-      case 'problem':
-        return '#FECACA';
-      case 'setup':
-        return '#FEF3C7';
-      case 'production':
-        return '#DBEAFE';
-      default:
-        return '#F3F4F6';
-    }
-  };
+  // const getStatusBgColor = (status: string) => {
+  //   switch (status?.toLowerCase()) {
+  //     case 'active':
+  //       return '#D1FAE5';
+  //     case 'idle':
+  //       return '#F3F4F6';
+  //     case 'maintenance':
+  //       return '#EDE9FE';
+  //     case 'off':
+  //       return '#FEE2E2';
+  //     case 'problem':
+  //       return '#FECACA';
+  //     case 'setup':
+  //       return '#FEF3C7';
+  //     case 'production':
+  //       return '#DBEAFE';
+  //     default:
+  //       return '#F3F4F6';
+  //   }
+  // };
 
   // ─── Pagination ───────────────────────────────────────────────────────────
 
