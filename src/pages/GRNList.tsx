@@ -18,7 +18,6 @@ import {
   FaClock,
   FaExclamationTriangle,
   FaUser,
-  FaHashtag,
   FaCalendarAlt,
 } from 'react-icons/fa';
 import "./GRNList.css";

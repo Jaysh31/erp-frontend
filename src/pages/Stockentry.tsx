@@ -15,7 +15,6 @@ import {
   FaPlus,
   FaBuilding,
   FaBoxes,
-  FaClipboardList,
   FaWarehouse,
   FaCalendarAlt,
   FaUser,
@@ -24,10 +23,7 @@ import {
   FaArrowLeft as FaArrowLeftIcon,
   FaExchangeAlt,
   FaIndustry,
-  FaChartPie,
   FaTruck,
-  FaCheckCircle,
-  FaClock,
   FaExclamationCircle,
   FaDollarSign,
 } from "react-icons/fa";
@@ -151,7 +147,7 @@ export default function Stockentry() {
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [totalItems, setTotalItems] = useState(0);
+  const [, setTotalItems] = useState(0);
   const [, setTotalPages] = useState(1);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedItem, setSelectedItem] = useState<StockEntryDisplay | null>(null);
@@ -378,12 +374,12 @@ export default function Stockentry() {
     return Math.min(validCurrentPage * itemsPerPage, totalFilteredItems);
   };
 
-  const getDocStatusLabel = (docstatus: number) => {
-    if (docstatus === 0) return { label: "Draft", class: "status-draft" };
-    if (docstatus === 1) return { label: "Submitted", class: "status-submitted" };
-    if (docstatus === 2) return { label: "Cancelled", class: "status-cancelled" };
-    return { label: "Unknown", class: "status-unknown" };
-  };
+  // const getDocStatusLabel = (docstatus: number) => {
+  //   if (docstatus === 0) return { label: "Draft", class: "status-draft" };
+  //   if (docstatus === 1) return { label: "Submitted", class: "status-submitted" };
+  //   if (docstatus === 2) return { label: "Cancelled", class: "status-cancelled" };
+  //   return { label: "Unknown", class: "status-unknown" };
+  // };
 
   const getEntryTypeIcon = (type: EntryType) => {
     return TYPE_ICONS[type] || <FaBoxes />;

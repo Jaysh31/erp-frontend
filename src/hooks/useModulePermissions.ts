@@ -1,6 +1,5 @@
 // src/hooks/useModulePermissions.ts
 
-import { useMemo } from 'react';
 import { storage } from '../utils/storage';
 
 export interface SubModulePermission {

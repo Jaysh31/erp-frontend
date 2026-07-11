@@ -12,7 +12,7 @@ import {
   FaEdit,
   FaTrash,
 } from 'react-icons/fa';
-import ItemQuickAdd from "./Itemquickadd";
+// import ItemQuickAdd from "./Itemquickadd";
 import "./ItemList.css";
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
