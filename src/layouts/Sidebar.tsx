@@ -133,8 +133,6 @@ const allMenuCategories = [
     //     { title: 'BOM', icon: <BomIcon />, path: '/InventoryList' },
     //     ]
     // },
-
-
     
     {
       title: 'Organization',
@@ -142,7 +140,7 @@ const allMenuCategories = [
       icon: <OrganizationIcon />,
       items: [
          { title: 'Employee', icon: <WarehouseIcon />, path: '/employee' },
-         
+
         {title: 'User Management', icon: <UserIcon />, path: '/user-management' },
 
         {title: 'Role Management', icon: <UserIcon />, path: '/role' },
