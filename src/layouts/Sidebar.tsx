@@ -5,6 +5,9 @@ import { useModule } from '../context/ModuleContext';
 import logo from '../assets/logo.png';
 import { UserIcon } from 'lucide-react';
 import { GiHumanCannonball } from 'react-icons/gi';
+import { MdHighQuality } from 'react-icons/md';
+import { SiQualtrics } from 'react-icons/si';
+import { RiQuillPenAiLine } from 'react-icons/ri';
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -154,6 +157,7 @@ const allMenuCategories = [
         { title: 'Workstation', icon: <WarehouseIcon />, path: '/Workstation' },
         { title: 'Operations', icon: <WarehouseIcon />, path: '/operations' },
         { title: 'Unit of Measure (UOM)', icon: <RulerIcon />, path: '/uom' },
+        { title: 'Quality Inspection', icon: <RiQuillPenAiLine />, path: '/quality-inspection' },
       ]
     },
     {
