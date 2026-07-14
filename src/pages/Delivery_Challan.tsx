@@ -21,7 +21,8 @@ import {
   FaCopy,
   FaExternalLinkAlt,
   FaSpinner,
-  FaSync
+  FaSync,
+  FaTimes
 } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
@@ -40,7 +41,6 @@ interface DeliveryChallan {
   modified: string;
   modified_by: string;
   creation: string;
-  // Additional fields from your API
   invoiceNo?: string;
   warehouse?: string;
   vehicleNumber?: string;
@@ -61,34 +61,40 @@ interface ApiResponse {
 // ===== STATUS BADGE =====
 const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
   const configs: Record<string, { color: string; bg: string; label: string }> = {
-    'Draft': { color: '#94a3b8', bg: '#f1f5f9', label: 'Draft' },
-    'Submitted': { color: '#3b82f6', bg: '#eff6ff', label: 'Submitted' },
-    'Cancelled': { color: '#f59e0b', bg: '#fffbeb', label: 'Cancelled' },
-    'Pending': { color: '#f59e0b', bg: '#fffbeb', label: 'Pending' },
-    'Partial Dispatch': { color: '#3b82f6', bg: '#eff6ff', label: 'Partial Dispatch' },
-    'Fully Dispatched': { color: '#10b981', bg: '#ecfdf5', label: 'Fully Dispatched' }
+    'Draft': { color: '#6b7280', bg: '#f3f4f6', label: 'Draft' },
+    'Submitted': { color: '#1e40af', bg: '#dbeafe', label: 'Submitted' },
+    'Cancelled': { color: '#991b1b', bg: '#fee2e2', label: 'Cancelled' },
+    'Pending': { color: '#92400e', bg: '#fef3c7', label: 'Pending' },
+    'Partial Dispatch': { color: '#1e40af', bg: '#dbeafe', label: 'Partial Dispatch' },
+    'Fully Dispatched': { color: '#065f46', bg: '#d1fae5', label: 'Fully Dispatched' }
   };
   const config = configs[status] || configs['Draft'];
   
   return (
-    <span className="status-badge" style={{ color: config.color, background: config.bg }}>
-      <span className="dot" style={{ background: config.color }} />
+    <span className="qt-status-badge" style={{ color: config.color, background: config.bg }}>
+      <span className="qt-dot" style={{ background: config.color }} />
       {config.label}
     </span>
   );
 };
 
-// ===== SUMMARY CARD =====
-const SummaryCard: React.FC<{ label: string; value: string | number; color: string; icon?: React.ReactNode }> = ({ 
-  label, value, color, icon 
-}) => {
+// ===== STATS CARD =====
+const StatsCard: React.FC<{ 
+  label: string; 
+  value: string | number; 
+  color: string; 
+  icon?: React.ReactNode;
+  bgColor?: string;
+}> = ({ label, value, color, icon, bgColor }) => {
   return (
-    <div className="summary-card" style={{ borderLeftColor: color }}>
-      <div className="summary-card-label">
-        {icon && <span>{icon}</span>}
-        {label}
+    <div className="qt-stat-card" style={{ background: bgColor || 'white', borderLeft: `4px solid ${color}` }}>
+      <div className="qt-stat-icon" style={{ color }}>
+        {icon}
       </div>
-      <div className="summary-card-value">{value}</div>
+      <div className="qt-stat-content">
+        <p className="qt-stat-title">{label}</p>
+        <p className="qt-stat-value">{value}</p>
+      </div>
     </div>
   );
 };
@@ -99,8 +105,7 @@ const DeliveryChallans: React.FC = () => {
   
   // ===== STATE =====
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState<string>('all');
-  const [showFilters, setShowFilters] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState<string>('All');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const [showMoreMenu, setShowMoreMenu] = useState<string | null>(null);
@@ -111,13 +116,12 @@ const DeliveryChallans: React.FC = () => {
 
   // ===== FETCH DATA =====
   const fetchChallans = async () => {
+    setLoading(true);
+    setError(null);
     try {
-      setLoading(true);
-      setError(null);
-      
       const params = new URLSearchParams();
       if (searchTerm) params.append('search', searchTerm);
-      if (selectedStatus !== 'all') params.append('status', selectedStatus);
+      if (selectedStatus !== 'All') params.append('status', selectedStatus);
       params.append('page', String(currentPage));
       params.append('limit', String(itemsPerPage));
       
@@ -131,7 +135,7 @@ const DeliveryChallans: React.FC = () => {
       }
     } catch (err: any) {
       console.error('Error:', err);
-      setError(err.message || 'Failed to load');
+      setError(err.message || 'Failed to load delivery challans');
       toast.error('Failed to load delivery challans');
     } finally {
       setLoading(false);
@@ -173,7 +177,7 @@ const DeliveryChallans: React.FC = () => {
     const matchesSearch = 
       (item.name || '').toLowerCase().includes(search) ||
       (item.customer_name || '').toLowerCase().includes(search);
-    const matchesStatus = selectedStatus === 'all' || item.status === selectedStatus;
+    const matchesStatus = selectedStatus === 'All' || item.status === selectedStatus;
     return matchesSearch && matchesStatus;
   });
 
@@ -192,6 +196,8 @@ const DeliveryChallans: React.FC = () => {
     cancelled: challans.filter(d => d.status === 'Cancelled').length,
   };
 
+  const conversionRate = stats.total > 0 ? Math.round((stats.submitted / stats.total) * 100) : 0;
+
   // ===== ACTIONS =====
   const handleCreate = () => navigate('/delivery-challan/new');
   const handleRefresh = () => fetchChallans();
@@ -201,10 +207,10 @@ const DeliveryChallans: React.FC = () => {
   const handlePrint = () => window.print();
   
   const handleCancel = async (id: string | number) => {
-    if (!window.confirm('Cancel this Delivery Challan?')) return;
+    if (!window.confirm('Are you sure you want to cancel this Delivery Challan?')) return;
     try {
       await api.post(`/delivery-note/${id}/cancel`, {});
-      toast.success('Cancelled successfully');
+      toast.success('Delivery Challan cancelled successfully');
       fetchChallans();
     } catch (err) {
       toast.error('Failed to cancel');
@@ -225,7 +231,7 @@ const DeliveryChallans: React.FC = () => {
   };
 
   const handleDownloadPDF = (_id: string | number) => {
-    toast.success(`Downloading PDF...`);
+    toast.success('Downloading PDF...');
     setShowMoreMenu(null);
   };
 
@@ -233,405 +239,481 @@ const DeliveryChallans: React.FC = () => {
     setShowMoreMenu(showMoreMenu === String(id) ? null : String(id));
   };
 
-  // ===== LOADING =====
-  if (loading && challans.length === 0) {
-    return (
-      <div className="page-container">
-        <div className="loading-center">
-          <FaSpinner className="spinning" size={40} />
-          <p>Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // ===== ERROR =====
-  if (error) {
-    return (
-      <div className="page-container">
-        <div className="error-center">
-          <FaExclamationTriangle size={40} color="#ef4444" />
-          <h3>Failed to load</h3>
-          <p>{error}</p>
-          <button className="btn-primary" onClick={handleRefresh}>
-            <FaSync /> Retry
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const clearFilters = () => {
+    setSearchTerm('');
+    setSelectedStatus('All');
+    setCurrentPage(1);
+  };
 
   // ===== RENDER =====
   return (
-    <div className="page-container">
+    <div className="quotation-page">
       <style>{`
-        .page-container {
-          padding: 24px;
-          background: #f8fafc;
-          min-height: 100vh;
-          font-family: 'Inter', sans-serif;
-        }
-
-        .loading-center, .error-center {
+        /* ── Inherit styles from QuotationPage ── */
+        .quotation-page {
           display: flex;
           flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          min-height: 400px;
+          height: 100%;
+          background: var(--layout-bg, #f5f7fb);
+          border-radius: 8px;
+          padding: 20px;
           gap: 16px;
+          overflow-y: auto;
+          overflow-x: hidden;
         }
 
-        .spinning {
-          animation: spin 1s linear infinite;
-          color: #2563eb;
+        .quotation-page::-webkit-scrollbar {
+          width: 6px;
+        }
+        .quotation-page::-webkit-scrollbar-track {
+          background: var(--layout-bg, #f9fafb);
+          border-radius: 3px;
+        }
+        .quotation-page::-webkit-scrollbar-thumb {
+          background: var(--border-color, #e5e7eb);
+          border-radius: 3px;
+        }
+        .quotation-page::-webkit-scrollbar-thumb:hover {
+          background: var(--primary-color, #6366f1);
         }
 
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-
-        .btn-primary {
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          padding: 10px 20px;
-          background: #2563eb;
-          color: #fff;
-          border: none;
-          border-radius: 8px;
-          font-size: 14px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .btn-primary:hover {
-          background: #1d4ed8;
-          transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(37,99,235,0.3);
-        }
-
-        .btn-secondary {
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          padding: 10px 16px;
-          background: #fff;
-          color: #64748b;
-          border: 1px solid #e2e8f0;
-          border-radius: 8px;
-          font-size: 14px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .btn-secondary:hover {
-          background: #f8fafc;
-          border-color: #2563eb;
-          color: #2563eb;
-        }
-
-        .page-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          margin-bottom: 24px;
-          padding: 20px 24px;
-          background: #fff;
-          border-radius: 12px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-        }
-
-        .page-header-left {
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-        }
-
-        .breadcrumb {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          font-size: 13px;
-          color: #94a3b8;
-        }
-
-        .breadcrumb .separator { color: #e2e8f0; }
-        .breadcrumb .active { color: #1e293b; font-weight: 500; }
-
-        .page-title {
-          font-size: 24px;
-          font-weight: 700;
-          color: #1e293b;
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          margin: 0;
-        }
-
-        .page-title .title-icon { color: #2c7a8a; }
-
-        .page-subtitle {
-          font-size: 14px;
-          color: #64748b;
-          margin: 0;
-        }
-
-        .page-header-right {
-          display: flex;
-          gap: 12px;
-          flex-wrap: wrap;
-        }
-
-        .summary-cards {
+        /* ── Stats Cards ── */
+        .qt-stats-container {
           display: grid;
           grid-template-columns: repeat(4, 1fr);
           gap: 16px;
-          margin-bottom: 24px;
+          flex-shrink: 0;
         }
 
-        .summary-card {
-          background: #fff;
-          padding: 16px 20px;
-          border-radius: 10px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-          border-left: 4px solid;
-          transition: all 0.2s;
-        }
-
-        .summary-card:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-        }
-
-        .summary-card-label {
-          font-size: 13px;
-          color: #64748b;
-          font-weight: 500;
-          display: flex;
-          align-items: center;
-          gap: 6px;
-        }
-
-        .summary-card-value {
-          font-size: 24px;
-          font-weight: 700;
-          color: #1e293b;
-          margin-top: 4px;
-        }
-
-        .filter-section {
-          background: #fff;
+        .qt-stat-card {
           border-radius: 12px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-          margin-bottom: 24px;
-          overflow: hidden;
-        }
-
-        .filter-section-top {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
           padding: 16px 20px;
-          gap: 16px;
-          flex-wrap: wrap;
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          box-shadow: 0 1px 3px var(--shadow-color, rgba(0,0,0,0.06));
+          transition: transform 0.15s, box-shadow 0.15s;
+          background: white;
         }
 
-        .search-container {
+        .qt-stat-card:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px var(--shadow-color, rgba(0,0,0,0.08));
+        }
+
+        .qt-stat-icon {
+          width: 44px;
+          height: 44px;
+          border-radius: 12px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 18px;
+          flex-shrink: 0;
+          background: rgba(255,255,255,0.6);
+        }
+
+        .qt-stat-content {
+          flex: 1;
+          min-width: 0;
+        }
+
+        .qt-stat-title {
+          color: var(--text-secondary, #6b7280);
+          font-size: 12px;
+          font-weight: 500;
+          margin-bottom: 2px;
+          letter-spacing: 0.3px;
+        }
+
+        .qt-stat-value {
+          color: var(--text-primary, #111827);
+          font-size: 22px;
+          font-weight: 700;
+          margin: 0;
+          line-height: 1.2;
+        }
+
+        /* ── Filter Bar ── */
+        .qt-filter-bar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          flex-wrap: wrap;
+          flex-shrink: 0;
+        }
+
+        .qt-filter-left {
+          display: flex;
+          align-items: center;
+          flex: 1;
+          min-width: 200px;
+        }
+
+        .qt-search-wrapper {
           position: relative;
           flex: 1;
-          min-width: 280px;
+          max-width: 400px;
         }
 
-        .search-icon {
+        .qt-search-icon {
           position: absolute;
           left: 12px;
           top: 50%;
           transform: translateY(-50%);
-          color: #94a3b8;
-        }
-
-        .search-input {
-          width: 100%;
-          padding: 10px 40px;
-          border: 1px solid #e2e8f0;
-          border-radius: 8px;
+          color: var(--text-secondary, #9ca3af);
           font-size: 14px;
-          background: #f8fafc;
-          color: #1e293b;
-          transition: all 0.2s;
         }
 
-        .search-input:focus {
+        .qt-search-input {
+          width: 100%;
+          padding: 8px 36px 8px 36px;
+          border: 1px solid var(--border-color, #e5e7eb);
+          border-radius: 8px;
+          font-size: 13px;
+          background: var(--input-bg, white);
+          color: var(--text-primary, #374151);
           outline: none;
-          border-color: #2563eb;
-          box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
-          background: #fff;
+          transition: border-color 0.2s;
+          height: 38px;
         }
 
-        .clear-search {
+        .qt-search-input:focus {
+          border-color: var(--primary-color, #2563eb);
+          box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .qt-search-input::placeholder {
+          color: var(--text-secondary, #9ca3af);
+        }
+
+        .qt-search-clear {
           position: absolute;
-          right: 12px;
+          right: 10px;
           top: 50%;
           transform: translateY(-50%);
           background: none;
           border: none;
-          color: #94a3b8;
           cursor: pointer;
+          color: var(--text-secondary, #9ca3af);
           padding: 4px;
-        }
-
-        .clear-search:hover { color: #1e293b; }
-
-        .filter-actions {
           display: flex;
           align-items: center;
-          gap: 12px;
+        }
+
+        .qt-filter-right {
+          display: flex;
+          align-items: center;
+          gap: 8px;
           flex-wrap: wrap;
         }
 
-        .filter-toggle {
-          display: inline-flex;
+        .qt-filter-select {
+          padding: 7px 12px;
+          border: 1px solid var(--border-color, #e5e7eb);
+          border-radius: 8px;
+          font-size: 13px;
+          background: var(--card-bg, white);
+          color: var(--text-primary, #374151);
+          cursor: pointer;
+          outline: none;
+          height: 38px;
+        }
+
+        .qt-filter-select:focus {
+          border-color: var(--primary-color, #2563eb);
+          box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .qt-btn-new {
+          display: flex;
           align-items: center;
           gap: 6px;
-          padding: 10px 14px;
-          border: 1px solid #e2e8f0;
+          height: 38px;
+          padding: 0 16px;
+          border: none;
           border-radius: 8px;
-          background: #fff;
-          color: #64748b;
-          font-size: 14px;
+          background: var(--primary-color, #6366f1);
+          color: white;
+          font-size: 13px;
+          font-weight: 500;
           cursor: pointer;
-          transition: all 0.2s;
+          transition: all 0.15s;
+          white-space: nowrap;
         }
 
-        .filter-toggle:hover {
-          background: #f8fafc;
-          border-color: #2563eb;
-          color: #2563eb;
+        .qt-btn-new:hover {
+          background: var(--primary-hover, #4f46e5);
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
         }
 
-        .filter-toggle.active {
-          background: #eff6ff;
-          border-color: #2563eb;
-          color: #2563eb;
-        }
-
-        .filter-selects {
+        .qt-btn-secondary {
           display: flex;
-          gap: 8px;
-        }
-
-        .filter-select {
-          padding: 10px 36px 10px 14px;
-          border: 1px solid #e2e8f0;
+          align-items: center;
+          gap: 6px;
+          height: 38px;
+          padding: 0 14px;
+          border: 1px solid var(--border-color, #e5e7eb);
           border-radius: 8px;
-          font-size: 14px;
-          background: #f8fafc;
-          color: #1e293b;
+          background: var(--card-bg, white);
+          font-size: 13px;
+          color: var(--text-primary, #374151);
           cursor: pointer;
-          appearance: none;
-          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M6 8L1 3h10z' fill='%2364748b'/%3E%3C/svg%3E");
-          background-repeat: no-repeat;
-          background-position: right 12px center;
-          min-width: 160px;
+          transition: all 0.15s;
+          white-space: nowrap;
         }
 
-        .filter-select:focus { outline: none; border-color: #2563eb; }
+        .qt-btn-secondary:hover {
+          background: var(--nav-hover, #f9fafb);
+        }
 
-        .table-container {
-          background: #fff;
+        /* ── Active Filters ── */
+        .qt-active-filters {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 8px 16px;
+          background: color-mix(in srgb, var(--primary-color) 8%, transparent);
+          border-radius: 8px;
+          font-size: 12px;
+          flex-wrap: wrap;
+          border: 1px solid var(--border-color, #e5e7eb);
+          flex-shrink: 0;
+        }
+
+        .qt-active-filters span {
+          color: var(--text-primary, #111827);
+        }
+
+        .qt-clear-filters {
+          margin-left: auto;
+          padding: 4px 12px;
+          background: var(--card-bg, white);
+          border: 1px solid var(--border-color, #e5e7eb);
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 11px;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          color: var(--text-secondary, #6b7280);
+          transition: all 0.15s;
+        }
+
+        .qt-clear-filters:hover {
+          background: var(--nav-hover, #f3f4f6);
+        }
+
+        /* ── Table ── */
+        .qt-table-wrap {
+          background: var(--card-bg, #fff);
           border-radius: 12px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-          overflow: hidden;
-          min-height: 300px;
+          box-shadow: 0 1px 3px var(--shadow-color, rgba(0,0,0,0.05));
+          border: 1px solid var(--border-color, #e5e7eb);
+          overflow-x: auto;
+          overflow-y: visible;
+          flex-shrink: 0;
         }
 
-        .data-table {
+        .qt-table-wrap::-webkit-scrollbar {
+          height: 6px;
+        }
+        .qt-table-wrap::-webkit-scrollbar-track {
+          background: var(--layout-bg, #f9fafb);
+          border-radius: 3px;
+        }
+        .qt-table-wrap::-webkit-scrollbar-thumb {
+          background: var(--border-color, #e5e7eb);
+          border-radius: 3px;
+        }
+        .qt-table-wrap::-webkit-scrollbar-thumb:hover {
+          background: var(--primary-color, #6366f1);
+        }
+
+        .qt-table {
           width: 100%;
           border-collapse: collapse;
+          font-size: 13px;
+          min-width: 900px;
         }
 
-        .data-table thead {
-          background: #f8fafc;
-        }
-
-        .data-table th {
-          padding: 12px 16px;
+        .qt-th {
+          padding: 12px 14px;
           text-align: left;
           font-size: 12px;
           font-weight: 600;
-          color: #94a3b8;
+          color: var(--text-secondary, #6b7280);
+          background: var(--layout-bg, #f9fafb);
+          border-bottom: 1px solid var(--border-color, #e5e7eb);
+          white-space: nowrap;
           text-transform: uppercase;
-          letter-spacing: 0.5px;
-          border-bottom: 1px solid #e2e8f0;
+          letter-spacing: 0.3px;
         }
 
-        .data-table td {
-          padding: 12px 16px;
-          font-size: 14px;
-          color: #1e293b;
-          border-bottom: 1px solid #f1f5f9;
+        .qt-th-meta {
+          text-align: right;
+          padding-right: 20px;
+        }
+
+        .qt-tr {
+          cursor: default;
+          transition: background 0.15s;
+        }
+
+        .qt-tr:hover {
+          background: var(--nav-hover, #f9fafb);
+        }
+
+        .qt-tr+.qt-tr td {
+          border-top: 1px solid var(--border-color, #f3f4f6);
+        }
+
+        .qt-td {
+          padding: 10px 14px;
+          color: var(--text-primary, #374151);
           vertical-align: middle;
+          white-space: nowrap;
         }
 
-        .data-table tbody tr:hover { background: #f8fafc; }
-        .data-table tbody tr:last-child td { border-bottom: none; }
+        .qt-td-id {
+          font-weight: 600;
+          color: var(--text-primary, #111827);
+          font-family: monospace;
+        }
 
-        .dc-number { font-weight: 600; color: #2563eb; }
-        .status-badge {
-          display: inline-flex;
-          align-items: center;
-          gap: 4px;
-          padding: 4px 12px;
-          border-radius: 12px;
-          font-size: 12px;
+        .qt-td-link {
+          color: var(--primary-color, #6366f1);
           font-weight: 500;
         }
-        .status-badge .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
 
-        .action-buttons {
-          display: flex;
-          gap: 4px;
-          align-items: center;
+        .qt-td-link:hover {
+          text-decoration: underline;
+          cursor: pointer;
         }
 
-        .action-btn {
+        .qt-td-meta {
+          text-align: right;
+          padding-right: 20px;
+          white-space: nowrap;
+        }
+
+        .qt-text-right {
+          text-align: right;
+        }
+
+        .qt-text-center {
+          text-align: center;
+        }
+
+        /* ── Status Badge ── */
+        .qt-status-badge {
+          display: inline-flex;
+          align-items: center;
+          height: 24px;
+          padding: 0 12px;
+          border-radius: 99px;
+          font-size: 12px;
+          font-weight: 600;
+          gap: 4px;
+        }
+
+        .qt-dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          display: inline-block;
+        }
+
+        /* ── Action Buttons ── */
+        .qt-action-buttons {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+
+        .qt-action-btn {
+          width: 28px;
+          height: 28px;
+          border: none;
+          border-radius: 6px;
+          cursor: pointer;
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          width: 32px;
-          height: 32px;
-          border: none;
-          border-radius: 6px;
-          background: transparent;
-          color: #94a3b8;
-          cursor: pointer;
           transition: all 0.2s;
-          font-size: 14px;
+          background: transparent;
         }
 
-        .action-btn:hover {
-          background: #f1f5f9;
-          color: #1e293b;
+        .qt-action-view {
+          color: var(--primary-color, #6366f1);
         }
 
-        .more-menu-container { position: relative; }
-        .more-menu-dropdown {
+        .qt-action-view:hover {
+          background: rgba(99, 102, 241, 0.1);
+        }
+
+        .qt-action-edit {
+          color: #f59e0b;
+        }
+
+        .qt-action-edit:hover {
+          background: rgba(245, 158, 11, 0.1);
+        }
+
+        .qt-action-delete {
+          color: var(--danger-color, #ef4444);
+        }
+
+        .qt-action-delete:hover {
+          background: rgba(239, 68, 68, 0.1);
+        }
+
+        .qt-action-pdf {
+          color: #ef4444;
+        }
+
+        .qt-action-pdf:hover {
+          background: rgba(239, 68, 68, 0.1);
+        }
+
+        .qt-action-more {
+          color: var(--text-secondary, #6b7280);
+        }
+
+        .qt-action-more:hover {
+          background: var(--nav-hover, #f3f4f6);
+        }
+
+        .qt-action-print {
+          color: var(--text-secondary, #6b7280);
+        }
+
+        .qt-action-print:hover {
+          background: var(--nav-hover, #f3f4f6);
+        }
+
+        /* ── More Menu ── */
+        .qt-more-menu-container {
+          position: relative;
+        }
+
+        .qt-more-menu-dropdown {
           position: absolute;
           right: 0;
           top: 100%;
-          background: #fff;
-          border: 1px solid #e2e8f0;
+          background: var(--card-bg, #fff);
+          border: 1px solid var(--border-color, #e5e7eb);
           border-radius: 8px;
-          box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+          box-shadow: 0 10px 40px var(--shadow-color, rgba(0,0,0,0.15));
           min-width: 200px;
           z-index: 100;
           padding: 4px 0;
           margin-top: 4px;
         }
 
-        .more-menu-dropdown button {
+        .qt-more-menu-dropdown button {
           display: flex;
           align-items: center;
           gap: 10px;
@@ -639,301 +721,670 @@ const DeliveryChallans: React.FC = () => {
           padding: 8px 16px;
           border: none;
           background: transparent;
-          color: #1e293b;
-          font-size: 14px;
+          color: var(--text-primary, #1e293b);
+          font-size: 13px;
           cursor: pointer;
           transition: all 0.2s;
           text-align: left;
         }
 
-        .more-menu-dropdown button:hover { background: #f8fafc; color: #2563eb; }
-        .more-menu-dropdown button.danger { color: #ef4444; }
-        .more-menu-dropdown button.danger:hover { background: #fef2f2; }
-
-        .table-footer {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 12px 20px;
-          border-top: 1px solid #e2e8f0;
-          flex-wrap: wrap;
-          gap: 12px;
+        .qt-more-menu-dropdown button:hover {
+          background: var(--nav-hover, #f8fafc);
+          color: var(--primary-color, #2563eb);
         }
 
-        .pagination-info { font-size: 14px; color: #64748b; }
-        .pagination-controls { display: flex; gap: 4px; }
+        .qt-more-menu-dropdown button.danger {
+          color: var(--danger-color, #ef4444);
+        }
 
-        .pagination-btn {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          min-width: 36px;
-          height: 36px;
-          padding: 0 8px;
-          border: 1px solid #e2e8f0;
-          border-radius: 6px;
-          background: #fff;
-          color: #64748b;
+        .qt-more-menu-dropdown button.danger:hover {
+          background: #fef2f2;
+        }
+
+        /* ── Amount Cell ── */
+        .qt-amount-cell {
+          font-weight: 600;
           font-size: 14px;
-          cursor: pointer;
-          transition: all 0.2s;
+          color: var(--text-primary, #1f2433);
         }
 
-        .pagination-btn:hover:not(:disabled) {
-          background: #f8fafc;
-          border-color: #2563eb;
-          color: #2563eb;
+        .qt-currency {
+          font-size: 11px;
+          font-weight: 400;
+          color: var(--text-secondary, #6b7280);
+          margin-right: 2px;
         }
 
-        .pagination-btn.active {
-          background: #2563eb;
-          border-color: #2563eb;
-          color: #fff;
+        /* ── Empty State ── */
+        .qt-empty-state {
+          padding: 60px 20px;
+          text-align: center;
         }
 
-        .pagination-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-        .empty-state {
-          padding: 60px 20px !important;
-          text-align: center !important;
-          display: table-cell !important;
-        }
-
-        .empty-state-content {
+        .qt-empty-content {
           display: flex;
           flex-direction: column;
           align-items: center;
           gap: 12px;
         }
 
-        .empty-icon { font-size: 48px; color: #94a3b8; }
-        .empty-state-content h3 { font-size: 18px; color: #1e293b; margin: 0; }
-        .empty-state-content p { color: #64748b; margin: 0; }
-
-        .loading-spinner {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 40px;
-          gap: 12px;
+        .qt-empty-content svg {
+          color: var(--text-secondary, #9ca3af);
         }
 
+        .qt-empty-content p {
+          font-size: 18px;
+          font-weight: 500;
+          color: var(--text-primary, #111827);
+          margin: 0;
+        }
+
+        .qt-empty-content span {
+          font-size: 14px;
+          color: var(--text-secondary, #6b7280);
+        }
+
+        /* ── Loading ── */
+        .qt-loading {
+          padding: 40px;
+          text-align: center;
+          color: var(--text-secondary, #6b7280);
+        }
+
+        .qt-error {
+          padding: 40px;
+          text-align: center;
+          color: var(--danger-color, #ef4444);
+        }
+
+        .qt-retry-btn {
+          margin-top: 12px;
+          padding: 8px 20px;
+          background: var(--primary-color, #6366f1);
+          color: white;
+          border: none;
+          border-radius: 6px;
+          cursor: pointer;
+        }
+
+        /* ── Pagination ── */
+        .qt-pagination {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 12px 0 0 0;
+          flex-wrap: wrap;
+          gap: 12px;
+          background: transparent;
+          flex-shrink: 0;
+          border-top: 1px solid var(--border-color, #e5e7eb);
+          margin-top: 4px;
+        }
+
+        .qt-pagination-left,
+        .qt-pagination-right {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .qt-pagination-center {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+
+        .qt-pagination-info {
+          font-size: 13px;
+          color: var(--text-secondary, #6b7280);
+        }
+
+        .qt-page-btn {
+          height: 34px;
+          min-width: 34px;
+          padding: 0 10px;
+          border: 1px solid var(--border-color, #e5e7eb);
+          border-radius: 6px;
+          background: var(--card-bg, white);
+          font-size: 13px;
+          color: var(--text-primary, #374151);
+          cursor: pointer;
+          transition: all 0.15s;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .qt-page-btn:hover:not(:disabled) {
+          background: var(--nav-hover, #f3f4f6);
+          border-color: var(--primary-color, #6366f1);
+        }
+
+        .qt-page-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        .qt-page-btn-active {
+          background: var(--primary-color, #6366f1);
+          color: white;
+          border-color: var(--primary-color, #6366f1);
+        }
+
+        .qt-page-btn-active:hover {
+          background: var(--primary-hover, #4f46e5);
+        }
+
+        /* ── Spinner ── */
+        .spinning {
+          animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+
+        /* ── Dark Theme ── */
+        .dark-theme .quotation-page {
+          background: var(--layout-bg, #0f172a);
+        }
+
+        .dark-theme .qt-stat-card {
+          background: var(--card-bg, #1e293b);
+        }
+
+        .dark-theme .qt-stat-value {
+          color: var(--text-primary, #f8fafc);
+        }
+
+        .dark-theme .qt-stat-title {
+          color: var(--text-secondary, #94a3b8);
+        }
+
+        .dark-theme .qt-search-input {
+          background: var(--input-bg, #1e293b);
+          border-color: var(--border-color, #334155);
+          color: var(--text-primary, #f8fafc);
+        }
+
+        .dark-theme .qt-search-input::placeholder {
+          color: var(--text-secondary, #64748b);
+        }
+
+        .dark-theme .qt-filter-select {
+          background: var(--card-bg, #1e293b);
+          border-color: var(--border-color, #334155);
+          color: var(--text-primary, #f8fafc);
+        }
+
+        .dark-theme .qt-btn-secondary {
+          background: var(--card-bg, #1e293b);
+          border-color: var(--border-color, #334155);
+          color: var(--text-primary, #f8fafc);
+        }
+
+        .dark-theme .qt-btn-secondary:hover {
+          background: var(--nav-hover, rgba(255,255,255,0.05));
+        }
+
+        .dark-theme .qt-btn-new {
+          background: var(--primary-color, #3b82f6);
+        }
+
+        .dark-theme .qt-btn-new:hover {
+          background: var(--primary-hover, #2563eb);
+        }
+
+        .dark-theme .qt-table-wrap {
+          background: var(--card-bg, #1e293b);
+          border-color: var(--border-color, #334155);
+        }
+
+        .dark-theme .qt-th {
+          background: var(--layout-bg, #0f172a);
+          color: var(--text-secondary, #94a3b8);
+          border-bottom-color: var(--border-color, #334155);
+        }
+
+        .dark-theme .qt-td {
+          color: var(--text-primary, #f8fafc);
+          border-top-color: var(--border-color, #334155);
+        }
+
+        .dark-theme .qt-tr:hover {
+          background: var(--nav-hover, rgba(255,255,255,0.05));
+        }
+
+        .dark-theme .qt-amount-cell {
+          color: var(--text-primary, #f8fafc);
+        }
+
+        .dark-theme .qt-currency {
+          color: var(--text-secondary, #94a3b8);
+        }
+
+        .dark-theme .qt-empty-content p {
+          color: var(--text-primary, #f8fafc);
+        }
+
+        .dark-theme .qt-empty-content span {
+          color: var(--text-secondary, #94a3b8);
+        }
+
+        .dark-theme .qt-active-filters {
+          background: rgba(99, 102, 241, 0.08);
+          border-color: var(--border-color, #334155);
+        }
+
+        .dark-theme .qt-active-filters span {
+          color: var(--text-primary, #f8fafc);
+        }
+
+        .dark-theme .qt-clear-filters {
+          background: var(--card-bg, #1e293b);
+          border-color: var(--border-color, #334155);
+          color: var(--text-secondary, #94a3b8);
+        }
+
+        .dark-theme .qt-page-btn {
+          background: var(--card-bg, #1e293b);
+          border-color: var(--border-color, #334155);
+          color: var(--text-primary, #f8fafc);
+        }
+
+        .dark-theme .qt-page-btn:hover:not(:disabled) {
+          background: var(--nav-hover, rgba(255,255,255,0.05));
+        }
+
+        .dark-theme .qt-more-menu-dropdown {
+          background: var(--card-bg, #1e293b);
+          border-color: var(--border-color, #334155);
+        }
+
+        .dark-theme .qt-more-menu-dropdown button {
+          color: var(--text-primary, #f8fafc);
+        }
+
+        .dark-theme .qt-more-menu-dropdown button:hover {
+          background: var(--nav-hover, rgba(255,255,255,0.05));
+        }
+
+        /* ── Responsive ── */
         @media (max-width: 768px) {
-          .page-container { padding: 16px; }
-          .page-header { flex-direction: column; gap: 16px; }
-          .page-header-right { width: 100%; }
-          .summary-cards { grid-template-columns: 1fr 1fr; }
-          .filter-section-top { flex-direction: column; align-items: stretch; }
-          .filter-actions { width: 100%; flex-wrap: wrap; }
-          .filter-selects { flex: 1; flex-wrap: wrap; }
-          .filter-select { flex: 1; min-width: 120px; }
-          .data-table { display: block; overflow-x: auto; white-space: nowrap; }
-          .more-menu-dropdown { right: -80px; }
+          .qt-stats-container {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+          }
+
+          .quotation-page {
+            padding: 12px;
+            gap: 12px;
+          }
+
+          .qt-filter-bar {
+            flex-direction: column;
+            align-items: stretch;
+          }
+
+          .qt-filter-left {
+            width: 100%;
+          }
+
+          .qt-search-wrapper {
+            max-width: 100%;
+          }
+
+          .qt-filter-right {
+            justify-content: flex-start;
+            flex-wrap: wrap;
+          }
+
+          .qt-table {
+            min-width: 700px;
+          }
+
+          .qt-pagination {
+            flex-direction: column;
+            align-items: center;
+          }
+
+          .qt-td {
+            padding: 8px 10px;
+            font-size: 12px;
+          }
+
+          .qt-th {
+            padding: 8px 10px;
+            font-size: 11px;
+          }
         }
 
         @media (max-width: 480px) {
-          .summary-cards { grid-template-columns: 1fr; }
+          .qt-stats-container {
+            grid-template-columns: 1fr;
+          }
+
+          .qt-stat-card {
+            padding: 12px 16px;
+          }
+
+          .qt-stat-value {
+            font-size: 18px;
+          }
+
+          .qt-stat-icon {
+            width: 36px;
+            height: 36px;
+            font-size: 14px;
+          }
+
+          .qt-filter-right {
+            flex-direction: column;
+            width: 100%;
+          }
+
+          .qt-filter-right > * {
+            width: 100%;
+          }
+
+          .qt-btn-new {
+            justify-content: center;
+          }
+
+          .qt-pagination {
+            padding: 8px 0 0 0;
+          }
+
+          .qt-pagination-center {
+            flex-wrap: wrap;
+            justify-content: center;
+          }
         }
       `}</style>
 
-      {/* ===== HEADER ===== */}
-      <div className="page-header">
-        <div className="page-header-left">
-          <div className="breadcrumb">
-            <span>Accounts</span>
-            <span className="separator">/</span>
-            <span>Receivables</span>
-            <span className="separator">/</span>
-            <span className="active">Delivery Challans</span>
-          </div>
-          <h1 className="page-title">
-            <FaTruck className="title-icon" />
-            Delivery Challans
-          </h1>
-          <p className="page-subtitle">Create and manage delivery challans</p>
-        </div>
-        <div className="page-header-right">
-          <button className="btn-primary" onClick={handleCreate}>
-            <FaPlus /> New DC
-          </button>
-          <button className="btn-secondary" onClick={handleRefresh}>
-            <FaSync /> Refresh
-          </button>
-          <button className="btn-secondary">
-            <FaDownload /> Export
-          </button>
-          <button className="btn-secondary" onClick={handlePrint}>
-            <FaPrint /> Print
-          </button>
-        </div>
+      {/* ===== STATS CARDS ===== */}
+      <div className="qt-stats-container">
+        <StatsCard 
+          label="Total DCs" 
+          value={stats.total} 
+          color="#3B82F6" 
+          icon={<FaTruck size={18} />}
+          bgColor="#EFF6FF"
+        />
+        <StatsCard 
+          label="Draft" 
+          value={stats.draft} 
+          color="#6B7280" 
+          icon={<FaFileInvoice size={18} />}
+          bgColor="#F9FAFB"
+        />
+        <StatsCard 
+          label="Submitted" 
+          value={stats.submitted} 
+          color="#10B981" 
+          icon={<FaPaperPlane size={18} />}
+          bgColor="#ECFDF5"
+        />
+        <StatsCard 
+          label="Conversion Rate" 
+          value={`${conversionRate}%`} 
+          color="#8B5CF6" 
+          icon={<FaFilter size={18} />}
+          bgColor="#F5F3FF"
+        />
       </div>
 
-      {/* ===== SUMMARY CARDS ===== */}
-      <div className="summary-cards">
-        <SummaryCard label="Total DCs" value={stats.total} color="#2563eb" icon={<FaTruck />} />
-        <SummaryCard label="Draft" value={stats.draft} color="#94a3b8" icon={<FaFileInvoice />} />
-        <SummaryCard label="Submitted" value={stats.submitted} color="#3b82f6" icon={<FaPaperPlane />} />
-        <SummaryCard label="Cancelled" value={stats.cancelled} color="#f59e0b" icon={<FaBan />} />
-      </div>
-
-      {/* ===== FILTERS ===== */}
-      <div className="filter-section">
-        <div className="filter-section-top">
-          <div className="search-container">
-            <FaSearch className="search-icon" />
+      {/* ===== FILTER BAR ===== */}
+      <div className="qt-filter-bar">
+        <div className="qt-filter-left">
+          <div className="qt-search-wrapper">
+            <FaSearch className="qt-search-icon" />
             <input
               type="text"
               placeholder="Search by DC No or Customer..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="search-input"
+              className="qt-search-input"
             />
             {searchTerm && (
-              <button className="clear-search" onClick={() => setSearchTerm('')}>×</button>
+              <button className="qt-search-clear" onClick={() => setSearchTerm("")}>
+                <FaTimes size={12} />
+              </button>
             )}
           </div>
-          <div className="filter-actions">
-            <button 
-              className={`filter-toggle ${showFilters ? 'active' : ''}`}
-              onClick={() => setShowFilters(!showFilters)}
-            >
-              <FaFilter /> Filters
-            </button>
-            <div className="filter-selects">
-              <select 
-                className="filter-select"
-                value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value)}
-              >
-                <option value="all">All Status</option>
-                <option value="Draft">Draft</option>
-                <option value="Submitted">Submitted</option>
-                <option value="Cancelled">Cancelled</option>
-              </select>
-            </div>
-          </div>
+        </div>
+        <div className="qt-filter-right">
+          <select
+            value={selectedStatus}
+            onChange={(e) => setSelectedStatus(e.target.value)}
+            className="qt-filter-select"
+          >
+            <option value="All">All Status</option>
+            <option value="Draft">Draft</option>
+            <option value="Submitted">Submitted</option>
+            <option value="Cancelled">Cancelled</option>
+          </select>
+          <button className="qt-btn-secondary" onClick={handleRefresh}>
+            <FaSync size={12} /> Refresh
+          </button>
+          <button className="qt-btn-secondary" onClick={handlePrint}>
+            <FaPrint size={12} /> Print
+          </button>
+          <button className="qt-btn-new" onClick={handleCreate}>
+            <FaPlus size={12} /> New DC
+          </button>
         </div>
       </div>
 
-      {/* ===== TABLE ===== */}
-      <div className="table-container">
-        {loading ? (
-          <div className="loading-spinner">
-            <FaSpinner className="spinning" size={30} />
-            <span>Loading...</span>
-          </div>
-        ) : paginatedData.length > 0 ? (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>DC No</th>
-                <th>Customer</th>
-                <th>Date</th>
-                <th>Amount</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedData.map((item, index) => (
-                <tr key={item.id || index}>
-                  <td className="dc-number">{item.name || '-'}</td>
-                  <td>{item.customer_name || '-'}</td>
-                  <td>{formatDate(item.posting_date)}</td>
-                  <td>{formatCurrency(item.grand_total)}</td>
-                  <td><StatusBadge status={item.status || 'Draft'} /></td>
-                  <td>
-                    <div className="action-buttons">
-                      <button className="action-btn" title="View" onClick={() => handleView(item.id)}>
-                        <FaEye />
-                      </button>
-                      {item.status === 'Draft' && (
-                        <button className="action-btn" title="Edit" onClick={() => handleEdit(item.id)}>
-                          <FaEdit />
-                        </button>
-                      )}
-                      <button className="action-btn" title="Print" onClick={handlePrint}>
-                        <FaPrintIcon />
-                      </button>
-                      <div className="more-menu-container">
-                        <button className="action-btn" title="More" onClick={() => toggleMenu(item.id)}>
-                          <FaEllipsisV />
-                        </button>
-                        {showMoreMenu === String(item.id) && (
-                          <div className="more-menu-dropdown">
-                            <button onClick={() => handleView(item.id)}><FaEye /> View</button>
-                            {item.status === 'Draft' && (
-                              <>
-                                <button onClick={() => handleEdit(item.id)}><FaEdit /> Edit</button>
-                                <button onClick={() => handleSubmit(item.id)}><FaPaperPlane /> Submit</button>
-                              </>
-                            )}
-                            <button onClick={() => handleDuplicate(item.id)}><FaCopy /> Duplicate</button>
-                            <button onClick={() => handleDownloadPDF(item.id)}><FaFilePdf /> Download PDF</button>
-                            <button onClick={() => handleDownloadPDF(item.id)}><FaFileExcel /> Download Excel</button>
-                            <button onClick={() => navigate(`/customer-invoices?invoice=${item.invoiceNo || ''}`)}>
-                              <FaExternalLinkAlt /> View Invoice
-                            </button>
-                            {item.status !== 'Cancelled' && (
-                              <button className="danger" onClick={() => handleCancel(item.id)}>
-                                <FaBan /> Cancel
-                              </button>
-                            )}
-                            <button onClick={handlePrint}><FaPrintIcon /> Print</button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <div className="empty-state">
-            <div className="empty-state-content">
-              <FaTruck className="empty-icon" />
-              <h3>No Delivery Challans found</h3>
-              <p>Create your first delivery challan to get started</p>
-              <button className="btn-primary" onClick={handleCreate}>
-                <FaPlus /> New DC
-              </button>
-            </div>
-          </div>
-        )}
+      {/* ===== ACTIVE FILTERS ===== */}
+      {(searchTerm || selectedStatus !== "All") && (
+        <div className="qt-active-filters">
+          <FaFilter size={12} style={{ color: "var(--primary-color)" }} />
+          <span>Active filters:</span>
+          {searchTerm && (
+            <span>
+              <strong>Search:</strong> "{searchTerm}"
+            </span>
+          )}
+          {selectedStatus !== "All" && (
+            <span>
+              <strong>Status:</strong> {selectedStatus}
+            </span>
+          )}
+          <button onClick={clearFilters} className="qt-clear-filters">
+            <FaTimes size={10} /> Clear All
+          </button>
+        </div>
+      )}
 
-        {/* ===== PAGINATION ===== */}
-        {filteredData.length > 0 && (
-          <div className="table-footer">
-            <div className="pagination-info">
-              Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredData.length)} of {filteredData.length} entries
-            </div>
-            <div className="pagination-controls">
-              <button 
-                className="pagination-btn"
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-              >
-                <FaChevronLeft />
-              </button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                <button
-                  key={page}
-                  className={`pagination-btn ${currentPage === page ? 'active' : ''}`}
-                  onClick={() => setCurrentPage(page)}
-                >
-                  {page}
-                </button>
-              ))}
-              <button 
-                className="pagination-btn"
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-              >
-                <FaChevronRight />
+      {/* ===== TABLE ===== */}
+      <div className="qt-table-wrap">
+        {loading && challans.length === 0 ? (
+          <div className="qt-loading">
+            <FaSpinner className="spinning" size={30} style={{ display: 'block', margin: '0 auto 12px' }} />
+            <p>Loading delivery challans...</p>
+          </div>
+        ) : error ? (
+          <div className="qt-error">
+            <FaExclamationTriangle size={30} style={{ display: 'block', margin: '0 auto 12px' }} />
+            <p>{error}</p>
+            <button onClick={handleRefresh} className="qt-retry-btn">
+              <FaSync size={12} style={{ marginRight: '6px' }} /> Retry
+            </button>
+          </div>
+        ) : paginatedData.length === 0 ? (
+          <div className="qt-empty-state">
+            <div className="qt-empty-content">
+              <FaTruck size={48} />
+              <p>No delivery challans found</p>
+              <span>Try adjusting your search criteria or create a new one</span>
+              <button className="qt-btn-new" onClick={handleCreate} style={{ marginTop: '12px' }}>
+                <FaPlus size={12} /> New DC
               </button>
             </div>
           </div>
+        ) : (
+          <>
+            <table className="qt-table">
+              <thead>
+                <tr>
+                  <th className="qt-th">DC No</th>
+                  <th className="qt-th">Customer</th>
+                  <th className="qt-th">Date</th>
+                  <th className="qt-th qt-text-right">Amount</th>
+                  <th className="qt-th">Status</th>
+                  <th className="qt-th qt-th-meta">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedData.map((item) => (
+                  <tr key={item.id} className="qt-tr">
+                    <td className="qt-td qt-td-id">{item.name || '-'}</td>
+                    <td className="qt-td">
+                      <div className="qt-td-link" onClick={() => handleView(item.id)}>
+                        {item.customer_name || '-'}
+                      </div>
+                    </td>
+                    <td className="qt-td">
+                      <div>{formatDate(item.posting_date)}</div>
+                    </td>
+                    <td className="qt-td qt-text-right qt-amount-cell">
+                      <span className="qt-currency">INR </span>
+                      {item.grand_total.toLocaleString()}
+                    </td>
+                    <td className="qt-td">
+                      <StatusBadge status={item.status || 'Draft'} />
+                    </td>
+                    <td className="qt-td qt-td-meta">
+                      <div className="qt-action-buttons">
+                        <button 
+                          className="qt-action-btn qt-action-view" 
+                          onClick={() => handleView(item.id)} 
+                          title="View"
+                        >
+                          <FaEye size={12} />
+                        </button>
+                        {item.status === 'Draft' && (
+                          <button 
+                            className="qt-action-btn qt-action-edit" 
+                            onClick={() => handleEdit(item.id)} 
+                            title="Edit"
+                          >
+                            <FaEdit size={12} />
+                          </button>
+                        )}
+                        <button 
+                          className="qt-action-btn qt-action-print" 
+                          onClick={handlePrint} 
+                          title="Print"
+                        >
+                          <FaPrintIcon size={12} />
+                        </button>
+                        <div className="qt-more-menu-container">
+                          <button 
+                            className="qt-action-btn qt-action-more" 
+                            onClick={() => toggleMenu(item.id)} 
+                            title="More"
+                          >
+                            <FaEllipsisV size={12} />
+                          </button>
+                          {showMoreMenu === String(item.id) && (
+                            <div className="qt-more-menu-dropdown">
+                              <button onClick={() => handleView(item.id)}>
+                                <FaEye size={12} /> View
+                              </button>
+                              {item.status === 'Draft' && (
+                                <>
+                                  <button onClick={() => handleEdit(item.id)}>
+                                    <FaEdit size={12} /> Edit
+                                  </button>
+                                  <button onClick={() => handleSubmit(item.id)}>
+                                    <FaPaperPlane size={12} /> Submit
+                                  </button>
+                                </>
+                              )}
+                              <button onClick={() => handleDuplicate(item.id)}>
+                                <FaCopy size={12} /> Duplicate
+                              </button>
+                              <button onClick={() => handleDownloadPDF(item.id)}>
+                                <FaFilePdf size={12} /> Download PDF
+                              </button>
+                              <button onClick={() => handleDownloadPDF(item.id)}>
+                                <FaFileExcel size={12} /> Download Excel
+                              </button>
+                              <button onClick={() => navigate(`/customer-invoices?invoice=${item.invoiceNo || ''}`)}>
+                                <FaExternalLinkAlt size={12} /> View Invoice
+                              </button>
+                              {item.status !== 'Cancelled' && (
+                                <button className="danger" onClick={() => handleCancel(item.id)}>
+                                  <FaBan size={12} /> Cancel
+                                </button>
+                              )}
+                              <button onClick={handlePrint}>
+                                <FaPrintIcon size={12} /> Print
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {/* ===== PAGINATION ===== */}
+            {filteredData.length > 0 && (
+              <div className="qt-pagination">
+                <div className="qt-pagination-left">
+                  <span className="qt-pagination-info">
+                    Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredData.length)} of {filteredData.length} entries
+                  </span>
+                </div>
+                <div className="qt-pagination-center">
+                  <button 
+                    className="qt-page-btn"
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    <FaChevronLeft size={12} />
+                  </button>
+                  {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                    let pageNum = i + 1;
+                    if (totalPages > 7) {
+                      if (currentPage > 4) {
+                        pageNum = currentPage - 3 + i;
+                      }
+                      if (pageNum > totalPages) {
+                        pageNum = totalPages - (6 - i);
+                      }
+                    }
+                    return (
+                      <button
+                        key={pageNum}
+                        className={`qt-page-btn ${currentPage === pageNum ? 'qt-page-btn-active' : ''}`}
+                        onClick={() => setCurrentPage(pageNum)}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                  <button 
+                    className="qt-page-btn"
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    <FaChevronRight size={12} />
+                  </button>
+                </div>
+                <div className="qt-pagination-right">
+                  <span className="qt-pagination-info">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

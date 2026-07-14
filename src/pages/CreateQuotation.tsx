@@ -5,7 +5,8 @@ import {
   FaTrash, FaFileAlt,
   FaBarcode, FaTag,
   FaTimes, FaExclamationTriangle, FaInfoCircle,
-  FaUser, FaCreditCard, FaCalendarAlt
+  FaUser, FaCreditCard, FaCalendarAlt,
+  FaBox, FaHands // Added icons for Items/Services
 } from 'react-icons/fa';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import './CreateQuotation.css';
@@ -35,7 +36,7 @@ interface PaymentScheduleRow {
 }
 
 interface QuotationForm {
-  type: string;           // Changed from namingSeries to type
+  type: string;           // 'Items' or 'Services'
   date: string;
   validTill: string;
   customer: string;      
@@ -191,11 +192,13 @@ export default function CreateQuotation() {
   const [openItemDropdown, setOpenItemDropdown] = useState<number | null>(null);
   const itemSearchTimers = useRef<{ [index: number]: ReturnType<typeof setTimeout> }>({});
 
+  // ─── Type options ──────────────────────────────────────────────
+  const typeOptions = ['Items', 'Services']; // Updated to match DC page
+
   const statusOptions = ['Draft', 'Sent', 'Accepted', 'Rejected', 'Expired', 'Converted'];
-  const typeOptions = ['Product', 'Service']; // Type options
 
   const defaultFormData = (): QuotationForm => ({
-    type: 'Product', // Default to Product
+    type: 'Items', // Default to Items
     date: new Date().toISOString().split('T')[0],
     validTill: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     customer: '',
@@ -283,13 +286,31 @@ export default function CreateQuotation() {
     if (errors.customer) setErrors((prev) => ({ ...prev, customer: '' }));
   };
 
-  // Handle type change
+  // ─── Handle Type Change (Items/Services) ──────────────────────
   const handleTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const value = e.target.value;
+    
+    // Clear existing items when switching type
     setFormData((prev) => ({
       ...prev,
-      type: value
+      type: value,
+      items: [
+        { id: '1', itemCode: '', itemName: '', quantity: 1, rate: 0, cgst: 0, sgst: 0, amount: 0 }
+      ],
+      totalQuantity: 0,
+      baseTotal: 0,
+      cgstTotal: 0,
+      sgstTotal: 0,
+      grandTotal: 0,
+      roundedTotal: 0
     }));
+    
+    // Clear item suggestions when type changes
+    setItemSuggestions({});
+    setOpenItemDropdown(null);
+    
+    // Show toast notification
+    toast.success(`Switched to ${value}`);
   };
 
   const customerDetailFields: { label: string; key: string }[] = [
@@ -311,7 +332,7 @@ export default function CreateQuotation() {
     setItemSuggestLoading((prev) => ({ ...prev, [index]: true }));
     try {
       // Filter items based on type
-      const typeFilter = formData.type === 'items' ? 'item' : 'service';
+      const typeFilter = formData.type === 'Items' ? 'item' : 'service';
       const url = query
         ? `/item?page=1&limit=10&search=${encodeURIComponent(query)}&type=${typeFilter}`
         : `/item?page=1&limit=10&type=${typeFilter}`;
@@ -482,12 +503,17 @@ export default function CreateQuotation() {
       }];
     }
 
-    // Try to determine type from items or default to 'Product'
-    let type = 'Product';
-    if (items.length > 0 && items[0].itemCode) {
-      // You might want to fetch the item type from API or infer from item code
-      // For now, keep the existing type or default to Product
-      type = formData.type || 'Product';
+    // Determine type from naming_series or items
+    let type = 'Items'; // default to Items
+    if (record.naming_series) {
+      if (record.naming_series.includes('SVC')) {
+        type = 'Services';
+      } else if (record.naming_series.includes('SAL')) {
+        type = 'Items';
+      }
+    } else if (items.length > 0 && items[0].itemCode) {
+      // Try to determine from item code prefix or API
+      type = formData.type || 'Items';
     }
 
     setFormData((prev) => ({
@@ -762,7 +788,7 @@ export default function CreateQuotation() {
 
   const generateQuotationName = (): string => {
     const year = new Date().getFullYear();
-    const prefix = formData.type === 'Product' ? 'SAL-QTN' : 'SVC-QTN';
+    const prefix = formData.type === 'Items' ? 'SAL-QTN' : 'SVC-QTN';
     const suffix = Date.now().toString(36).toUpperCase().slice(-6);
     return `${prefix}-${year}-${suffix}`;
   };
@@ -775,8 +801,8 @@ export default function CreateQuotation() {
   const buildApiPayload = () => {
     const payload: any = {
       name: isEditMode && recordName ? recordName : generateQuotationName(),
-      naming_series: formData.type === 'Product' ? 'SAL-QTN-.YYYY.-' : 'SVC-QTN-.YYYY.-',
-      type: formData.type,
+      naming_series: formData.type === 'Items' ? 'SAL-QTN-.YYYY.-' : 'SVC-QTN-.YYYY.-',
+      type: formData.type === 'Items' ? 'item' : 'service',
       party_name: formData.customer,
       customer_name: formData.customerName,
       transaction_date: formatDate(formData.date),
@@ -886,6 +912,11 @@ export default function CreateQuotation() {
     }
   };
 
+  // Helper to get type icon
+  const getTypeIcon = () => {
+    return formData.type === 'Items' ? <FaBox size={14} /> : <FaHands size={14} />;
+  };
+
   const allValidationErrors = getAllValidationErrors();
   const hasAnyErrors = allValidationErrors.length > 0;
 
@@ -976,21 +1007,27 @@ export default function CreateQuotation() {
               <h3 className="section-title">Basic Information</h3>
             </div>
             <div className="form-grid compact-grid">
-              {/* 1. Type Dropdown - Changed from Series */}
+              {/* 1. Type Dropdown - Items/Services like DC page */}
               <div className="form-group">
                 <label>Type *</label>
-                <select
-                  name="type"
-                  value={formData.type}
-                  onChange={handleTypeChange}
-                  ref={setRef('type')}
-                  className={errors.type ? 'error' : ''}
-                >
-                  {typeOptions.map(s => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
+                <div className="cq-type-select-wrapper">
+                  <span className="cq-type-icon">{getTypeIcon()}</span>
+                  <select
+                    name="type"
+                    value={formData.type}
+                    onChange={handleTypeChange}
+                    ref={setRef('type')}
+                    className={errors.type ? 'error' : ''}
+                  >
+                    {typeOptions.map(s => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
                 {errors.type && <span className="error-text">{errors.type}</span>}
+                <small className="cq-type-hint">
+                  {formData.type === 'Items' ? '📦 Quotation for physical products' : '🛠️ Quotation for services'}
+                </small>
               </div>
 
               {/* 2. Date */}
@@ -1104,7 +1141,10 @@ export default function CreateQuotation() {
           {/* ── 6. Items ─────────────────────────────────────── */}
           <div className="form-section">
             <div className="section-header">
-              <h3 className="section-title"><FaTag size={13} /> Items</h3>
+              <h3 className="section-title">
+                {formData.type === 'Items' ? <FaTag size={13} /> : <FaHands size={13} />}
+                {formData.type === 'Items' ? ' Items' : ' Services'}
+              </h3>
               <div className="section-actions">
                 <button
                   type="button"
@@ -1115,7 +1155,7 @@ export default function CreateQuotation() {
                   <FaBarcode size={14} /> Scan Barcode
                 </button>
                 <button type="button" className="add-item-btn" onClick={addItemRow}>
-                  <FaPlus size={12} /> Add Item
+                  <FaPlus size={12} /> Add {formData.type === 'Items' ? 'Item' : 'Service'}
                 </button>
               </div>
             </div>
@@ -1143,8 +1183,8 @@ export default function CreateQuotation() {
                 <thead>
                   <tr>
                     <th style={{ width: '32px' }}>No.</th>
-                    <th className="cq-col-code">Item Code</th>
-                    <th style={{ minWidth: '110px' }}>Item Name</th>
+                    <th className="cq-col-code">{formData.type === 'Items' ? 'Item Code' : 'Service Code'}</th>
+                    <th style={{ minWidth: '110px' }}>{formData.type === 'Items' ? 'Item Name' : 'Service Name'}</th>
                     <th style={{ width: '64px' }}>Qty</th>
                     <th style={{ width: '80px' }}>Rate</th>
                     <th style={{ width: '58px' }}>CGST %</th>
@@ -1162,7 +1202,7 @@ export default function CreateQuotation() {
                           type="text"
                           value={item.itemCode}
                           onChange={(e) => handleItemChange(index, 'itemCode', e.target.value)}
-                          placeholder="Code"
+                          placeholder={formData.type === 'Items' ? 'Item Code' : 'Service Code'}
                           className={errors[`item_${index}_code`] ? 'error' : ''}
                           ref={setItemRef(`item_${index}_itemCode`)}
                           onFocus={() => { setFocusedField(`item_${index}`); handleItemCodeFocus(index); }}
@@ -1178,7 +1218,7 @@ export default function CreateQuotation() {
                               <div className="cq-item-suggest-loading"><FaSpinner className="spinning" size={11} /> Searching...</div>
                             )}
                             {!itemSuggestLoading[index] && (itemSuggestions[index]?.length ?? 0) === 0 && (
-                              <div className="cq-item-suggest-empty">No items found</div>
+                              <div className="cq-item-suggest-empty">No {formData.type.toLowerCase()} found</div>
                             )}
                             {!itemSuggestLoading[index] && itemSuggestions[index]?.map((rec, ri) => (
                               <div
@@ -1197,7 +1237,7 @@ export default function CreateQuotation() {
                           type="text"
                           value={item.itemName}
                           onChange={(e) => handleItemChange(index, 'itemName', e.target.value)}
-                          placeholder="Item name"
+                          placeholder={formData.type === 'Items' ? 'Item name' : 'Service name'}
                           ref={setItemRef(`item_${index}_itemName`)}
                           onKeyDown={(e) => handleItemKeyDown(e, index, 'itemName')}
                         />
@@ -1300,7 +1340,7 @@ export default function CreateQuotation() {
 
             <div className="keyboard-tips">
               <span><kbd>Enter</kbd> Next field</span>
-              <span><kbd>Ctrl+Shift+A</kbd> Add item</span>
+              <span><kbd>Ctrl+Shift+A</kbd> Add {formData.type === 'Items' ? 'item' : 'service'}</span>
               <span><kbd>Ctrl+B</kbd> Scan barcode</span>
             </div>
           </div>
