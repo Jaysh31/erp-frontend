@@ -1011,7 +1011,7 @@ export default function CreateQuotation() {
               <div className="form-group">
                 <label>Type *</label>
                 <div className="cq-type-select-wrapper">
-                  <span className="cq-type-icon">{getTypeIcon()}</span>
+                  {/* <span className="cq-type-icon">{getTypeIcon()}</span> */}
                   <select
                     name="type"
                     value={formData.type}
