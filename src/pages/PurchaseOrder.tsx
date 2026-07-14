@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { 
   FaSearch, FaPlus, FaEdit, FaTrash, FaFilter, 
-  FaTimes, FaCopy, FaEye,
+  FaTimes,  FaEye,
   FaFileAlt, FaCheckCircle,
   FaTimesCircle, FaClock, FaExclamationTriangle,
   FaTruck, FaSpinner,
@@ -275,10 +275,7 @@ export default function PurchaseOrder() {
     navigate('/purchase-order/new');
   };
 
-// ✅ Correct - going to /purchase-invoice/9
-const handleEdit = (invoice: PurchaseOrder) => {
-  navigate(`/purchase-invoice/${invoice.id}`);
-};
+
   const handleRowClick = (po: PurchaseOrder) => {
     navigate(`/purchase-order/edit/${po.id}`);
   };
@@ -316,21 +313,6 @@ const handleEdit = (invoice: PurchaseOrder) => {
     }
   };
 
-  const handleDuplicate = async (po: PurchaseOrder, e: React.MouseEvent) => {
-    e.stopPropagation();
-    try {
-      const response = await api.post(`/purchase-order/${po.id}/duplicate`);
-      if (response.data.success === 1) {
-        toast.success('Purchase Order duplicated successfully!');
-        fetchPurchaseOrders();
-      } else {
-        toast.error('Failed to duplicate purchase order');
-      }
-    } catch (err) {
-      console.error('Error duplicating purchase order:', err);
-      toast.error('An error occurred while duplicating');
-    }
-  };
 
   const totalOrders = purchaseOrders.length;
   const totalAmount = purchaseOrders.reduce((sum, po) => sum + po.totalAmount, 0);

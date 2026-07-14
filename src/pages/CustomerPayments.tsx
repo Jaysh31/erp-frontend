@@ -289,11 +289,13 @@ const CustomerPayments: React.FC = () => {
     setShowMoreMenu(null);
   };
 
-  const handleViewInvoice = (invoiceNo: string) => {
+  const handleViewInvoice = (invoiceNo?: string) => {
+    if (!invoiceNo) return;
     navigate(`/customer-invoices?invoice=${invoiceNo}`);
   };
 
-  const handleViewDC = (dcNo: string) => {
+  const handleViewDC = (dcNo?: string) => {
+    if (!dcNo) return;
     navigate(`/delivery-challans?dc=${dcNo}`);
   };
 

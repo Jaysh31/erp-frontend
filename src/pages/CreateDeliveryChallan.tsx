@@ -416,7 +416,7 @@ const NewDeliveryChallan: React.FC = () => {
   const [customerData, setCustomerData] = useState<Customer | null>(null);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [dcNumber, setDcNumber] = useState<string>(`DN-${new Date().getFullYear()}-001`);
+  const [dcNumber, ] = useState<string>(`DN-${new Date().getFullYear()}-001`);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [salesOrders, setSalesOrders] = useState<SalesOrder[]>([]);
@@ -444,13 +444,13 @@ const NewDeliveryChallan: React.FC = () => {
       } else {
         setCustomers(MOCK_CUSTOMERS);
         setUseMockData(true);
-        toast.info('Using mock customer data (API unavailable)');
+        toast('Using mock customer data (API unavailable)');
       }
     } catch (error) {
       console.error('Error fetching customers:', error);
       setCustomers(MOCK_CUSTOMERS);
       setUseMockData(true);
-      toast.info('Using mock customer data');
+      toast('Using mock customer data');
     } finally {
       setIsLoading(false);
     }

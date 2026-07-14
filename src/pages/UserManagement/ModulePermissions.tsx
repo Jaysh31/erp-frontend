@@ -124,7 +124,6 @@ export default function ModulePermissions() {
     module.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const totalFilteredItems = filteredModules.length;
 
   // ─── Pagination Handlers ─────────────────────────────────────────────
   const goToPage = (page: number) => {
