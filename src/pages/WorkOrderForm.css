@@ -1889,3 +1889,365 @@ select.form-field {
     grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
   }
 }
+/* ─── Stock Warning Modal ─────────────────────────────────────────────── */
+
+.stock-warning-modal {
+  background: var(--bg-primary, #ffffff);
+  border-radius: 12px;
+  max-width: 600px;
+  width: 95%;
+  margin: 20px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  animation: modalSlideIn 0.3s ease-out;
+  position: relative;
+  overflow: hidden;
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-30px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.stock-warning-modal .modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  background: #fef3c7;
+  border-bottom: 2px solid #f59e0b;
+}
+
+.stock-warning-modal .modal-header h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: #92400e;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.stock-warning-modal .modal-header .modal-close {
+  background: none;
+  border: none;
+  font-size: 28px;
+  cursor: pointer;
+  color: #92400e;
+  padding: 0 8px;
+  line-height: 1;
+  transition: transform 0.2s;
+}
+
+.stock-warning-modal .modal-header .modal-close:hover {
+  transform: rotate(90deg);
+  color: #78350f;
+}
+
+.stock-warning-modal .modal-body {
+  padding: 24px;
+}
+
+.stock-warning-modal .modal-body .warning-message-box {
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 16px 20px;
+  border-radius: 4px;
+  margin-bottom: 16px;
+}
+
+.stock-warning-modal .modal-body .warning-message-box p {
+  font-size: 16px;
+  color: #78350f;
+  margin: 0;
+  line-height: 1.6;
+}
+
+.stock-warning-modal .modal-body .info-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  background: #f8fafc;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+}
+
+.stock-warning-modal .modal-body .info-box svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: #3b82f6;
+  font-size: 18px;
+}
+
+.stock-warning-modal .modal-body .info-box span {
+  font-size: 14px;
+  color: #475569;
+  line-height: 1.5;
+}
+
+.stock-warning-modal .modal-body .wo-id-badge {
+  display: inline-block;
+  margin-top: 12px;
+  padding: 6px 14px;
+  background: #f1f5f9;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.stock-warning-modal .modal-footer {
+  display: flex;
+  justify-content: center;
+  padding: 16px 24px 24px;
+  gap: 12px;
+  border-top: 1px solid var(--border-color, #e5e7eb);
+}
+
+.stock-warning-modal .modal-footer .submit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 32px;
+  background: #f59e0b;
+  border: 2px solid #f59e0b;
+  border-radius: 8px;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 220px;
+}
+
+.stock-warning-modal .modal-footer .submit-btn:hover {
+  background: #d97706;
+  border-color: #d97706;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+}
+
+.stock-warning-modal .modal-footer .submit-btn:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+/* ─── Dark theme support ──────────────────────────────────────────────── */
+
+.dark .stock-warning-modal {
+  background: #1e293b;
+}
+
+.dark .stock-warning-modal .modal-header {
+  background: #451a03;
+  border-bottom-color: #b45309;
+}
+
+.dark .stock-warning-modal .modal-header h2 {
+  color: #fbbf24;
+}
+
+.dark .stock-warning-modal .modal-header .modal-close {
+  color: #fbbf24;
+}
+
+.dark .stock-warning-modal .modal-header .modal-close:hover {
+  color: #fcd34d;
+}
+
+.dark .stock-warning-modal .modal-body .warning-message-box {
+  background: #1e1b0a;
+  border-left-color: #f59e0b;
+}
+
+.dark .stock-warning-modal .modal-body .warning-message-box p {
+  color: #fde68a;
+}
+
+.dark .stock-warning-modal .modal-body .info-box {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+.dark .stock-warning-modal .modal-body .info-box span {
+  color: #94a3b8;
+}
+
+.dark .stock-warning-modal .modal-body .wo-id-badge {
+  background: #1e293b;
+  color: #94a3b8;
+}
+
+.dark .stock-warning-modal .modal-footer {
+  border-top-color: #334155;
+}
+
+.dark .stock-warning-modal .modal-footer .submit-btn {
+  background: #d97706;
+  border-color: #d97706;
+}
+
+.dark .stock-warning-modal .modal-footer .submit-btn:hover {
+  background: #b45309;
+  border-color: #b45309;
+}
+
+/* ─── Responsive ──────────────────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .stock-warning-modal {
+    width: 98%;
+    margin: 10px;
+    border-radius: 8px;
+  }
+
+  .stock-warning-modal .modal-header {
+    padding: 16px;
+  }
+
+  .stock-warning-modal .modal-header h2 {
+    font-size: 17px;
+    gap: 8px;
+  }
+
+  .stock-warning-modal .modal-body {
+    padding: 16px;
+  }
+
+  .stock-warning-modal .modal-body .warning-message-box p {
+    font-size: 14px;
+  }
+
+  .stock-warning-modal .modal-footer {
+    padding: 12px 16px 16px;
+    flex-direction: column;
+  }
+
+  .stock-warning-modal .modal-footer .submit-btn {
+    width: 100%;
+    min-width: unset;
+    padding: 12px;
+    font-size: 14px;
+  }
+}
+
+/* ─── Modal overlay enhancements ────────────────────────────────────── */
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 20px;
+}
+
+/* ─── Ensure existing modal styles don't conflict ──────────────────── */
+
+.stock-warning-modal .modal-close {
+  background: none !important;
+  border: none !important;
+  cursor: pointer;
+  font-size: 28px;
+  line-height: 1;
+  padding: 0 8px;
+}
+
+/* ─── Toast/Snackbar style for the warning (if needed) ─────────────── */
+
+.wo-stock-warning-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  max-width: 420px;
+  background: #fef3c7;
+  border-left: 4px solid #f59e0b;
+  padding: 16px 20px;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  z-index: 10000;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  animation: slideInUp 0.3s ease-out;
+}
+
+.wo-stock-warning-toast svg {
+  flex-shrink: 0;
+  color: #d97706;
+  font-size: 20px;
+  margin-top: 2px;
+}
+
+.wo-stock-warning-toast .toast-content {
+  flex: 1;
+}
+
+.wo-stock-warning-toast .toast-content .toast-title {
+  font-weight: 600;
+  color: #92400e;
+  font-size: 14px;
+}
+
+.wo-stock-warning-toast .toast-content .toast-message {
+  color: #78350f;
+  font-size: 13px;
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+.wo-stock-warning-toast .toast-close {
+  background: none;
+  border: none;
+  color: #92400e;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0 4px;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.wo-stock-warning-toast .toast-close:hover {
+  opacity: 1;
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dark .wo-stock-warning-toast {
+  background: #1e1b0a;
+  border-left-color: #f59e0b;
+}
+
+.dark .wo-stock-warning-toast .toast-content .toast-title {
+  color: #fbbf24;
+}
+
+.dark .wo-stock-warning-toast .toast-content .toast-message {
+  color: #fde68a;
+}
+
+.dark .wo-stock-warning-toast .toast-close {
+  color: #fbbf24;
+}

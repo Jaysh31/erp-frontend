@@ -691,93 +691,88 @@ export default function GRNForm() {
     setIsDirty(true);
   };
 
-  // ─── Save Handler ──────────────────────────────────────────────────
-  const handleSave = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setApiError(null);
+// ─── Save Handler ──────────────────────────────────────────────────
+const handleSave = async (e: FormEvent<HTMLFormElement>) => {
+  e.preventDefault();
+  setApiError(null);
 
-    const validationErrorsList = getAllValidationErrors();
-    if (validationErrorsList.length > 0) {
-      setValidationErrors(validationErrorsList);
-      setShowValidationSummary(true);
-      return;
+  const validationErrorsList = getAllValidationErrors();
+  if (validationErrorsList.length > 0) {
+    setValidationErrors(validationErrorsList);
+    setShowValidationSummary(true);
+    return;
+  }
+
+  setSubmitting(true);
+  try {
+    // Build payload
+    const payload: any = {
+      grn_number: formData.grn_number || `GRN-${Date.now()}`,
+      grn_date: formData.grnDate,
+      supplier_id: formData.supplierId,
+      supplier_name: formData.supplier,
+      purchase_order_id: formData.purchaseOrderId,
+      warehouse_id: formData.warehouseId,
+      warehouse_name: formData.warehouse,
+      received_by: formData.receivedBy,
+      received_by_id: formData.receivedById,
+      vehicle_number: formData.vehicleNo || null,
+      delivery_challan_no: formData.deliveryChallanNo || '',
+      invoice_number: formData.invoiceNo || null,
+      status: formData.status,
+      items: formData.items.map(item => ({
+        item_code: item.itemCode,
+        item_name: item.itemName,
+        ordered_qty: item.orderedQty || 0,
+        received_qty: item.receivedQty || 0,
+        accepted_qty: item.acceptedQty || 0,
+        rejected_qty: item.rejectedQty || 0,
+        uom: item.uom || '',
+        rate: item.rate || 0,
+        batch_no: item.batchNo || '',
+        expiry_date: item.expiryDate || null,
+        remarks: item.remarks || null,
+        item_id: item.itemId || item.poItemId || undefined,
+      })),
+    };
+
+    let response;
+    if (isEditMode && id) {
+      // ✅ UPDATE: Pass grn_id in payload for PUT
+      payload.id = parseInt(id); // Add grn_id to payload
+      response = await api.put(`/grn`, payload);
+    } else {
+      // ✅ CREATE: POST without ID
+      response = await api.post('/grn', payload);
     }
 
-    setSubmitting(true);
-    try {
-      // Build payload - ensure item_id is passed for each item
-      const payload: any = {
-        grn_number: formData.grn_number || `GRN-${Date.now()}`,
-        grn_date: formData.grnDate,
-        supplier_id: formData.supplierId,
-        supplier_name: formData.supplier,
-        purchase_order_id: formData.purchaseOrderId,
-        warehouse_id: formData.warehouseId,
-        warehouse_name: formData.warehouse,
-        received_by: formData.receivedBy,
-        received_by_id: formData.receivedById,
-        vehicle_number: formData.vehicleNo || null,
-        delivery_challan_no: formData.deliveryChallanNo || '',
-        invoice_number: formData.invoiceNo || null,
-        status: formData.status,
-        items: formData.items.map(item => ({
-          item_code: item.itemCode,
-          item_name: item.itemName,
-          ordered_qty: item.orderedQty || 0,
-          received_qty: item.receivedQty || 0,
-          accepted_qty: item.acceptedQty || 0,
-          rejected_qty: item.rejectedQty || 0,
-          uom: item.uom || '',
-          rate: item.rate || 0,
-          batch_no: item.batchNo || '',
-          expiry_date: item.expiryDate || null,
-          remarks: item.remarks || null,
-          // ✅ CRITICAL: Pass item_id (from PO item) - this is required by the API
-          item_id: item.itemId || item.poItemId || undefined,
-        })),
-      };
-
-      // ✅ For edit, add ID to payload (not in URL)
-      if (isEditMode && id) {
-        payload.id = parseInt(id);
-      }
-
-      let response;
-      if (isEditMode && id) {
-        // ✅ UPDATE: POST with ID in payload (Frappe style)
-        response = await api.post('/grn', payload);
-      } else {
-        // ✅ CREATE: POST without ID
-        response = await api.post('/grn', payload);
-      }
-
-      if (response.data && response.data.success === 1) {
-        console.log('GRN saved successfully:', response.data);
-        setIsDirty(false);
-        navigate('/grn');
-      } else {
-        setApiError(response.data?.message || 'Failed to save GRN');
-      }
-    } catch (err: any) {
-      console.error('Error saving GRN:', err);
-
-      if (err.response) {
-        if (err.response.status === 409) {
-          setApiError('A GRN with this number already exists');
-        } else if (err.response.status === 400) {
-          setApiError(err.response.data?.message || 'Invalid data provided');
-        } else {
-          setApiError(err.response.data?.message || 'Failed to save GRN');
-        }
-      } else if (err.request) {
-        setApiError('Network error. Please check your connection.');
-      } else {
-        setApiError('An unexpected error occurred. Please try again.');
-      }
-    } finally {
-      setSubmitting(false);
+    if (response.data && response.data.success === 1) {
+      console.log('GRN saved successfully:', response.data);
+      setIsDirty(false);
+      navigate('/grn');
+    } else {
+      setApiError(response.data?.message || 'Failed to save GRN');
     }
-  };
+  } catch (err: any) {
+    console.error('Error saving GRN:', err);
+
+    if (err.response) {
+      if (err.response.status === 409) {
+        setApiError('A GRN with this number already exists');
+      } else if (err.response.status === 400) {
+        setApiError(err.response.data?.message || 'Invalid data provided');
+      } else {
+        setApiError(err.response.data?.message || 'Failed to save GRN');
+      }
+    } else if (err.request) {
+      setApiError('Network error. Please check your connection.');
+    } else {
+      setApiError('An unexpected error occurred. Please try again.');
+    }
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   const hasErrors = getAllValidationErrors().length > 0;
 
