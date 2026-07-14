@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import {
-  FaPlus, FaSave, FaSpinner, FaArrowLeft,
+  FaSave, FaSpinner, FaArrowLeft,
   FaExclamationCircle, FaExclamationTriangle, FaInfoCircle,
   FaTimesCircle, FaTag, FaBuilding, FaMoneyBillWave,
   FaCalendarAlt, FaFileAlt, FaBoxes, FaClipboardList,
@@ -466,7 +466,6 @@ export default function PurchaseInvoiceForm() {
   }
 
   const hasErrors = validate().length > 0;
-  const allGrnNumbers = [...new Set(grnsForPO.map(g => g.grn_number))];
 
   return (
     <div className={`pif-page ${theme}`}>

@@ -60,7 +60,6 @@ import PurchaseInvoice from "./pages/PurchaseInvoice";
 import Accounts from "./pages/Accounts";
 import ChartOfAccounts from "./pages/ChartOfAccounts";
 import LedgerAccounts from "./pages/LedgerAccounts";
-import CustomerInvoices from "./pages/CustomerInvoices";
 import DeliveryChallan from "./pages/Delivery_Challan";
 import DeliveryChallanForm from "./pages/CreateDeliveryChallan";
 // import { StatusBadge } from "./components/StatusBadge";
@@ -101,8 +100,6 @@ import RoleForm from "./pages/UserManagement/RoleForm";
 import RoleList from "./pages/UserManagement/RoleList";
 import ModulePermissions from "./pages/UserManagement/ModulePermissions";
 import InventoryList from "./pages/InventoryList";
-// import ModuleList from "./pages/UserManagement/ModuleList";
-// import SubModulePermissions from "./pages/UserManagement/SubModulePermissions";
 
 import SubModulePermissions from "./pages/UserManagement/SubModulePermissions";
 import QualityInspectionReport from "./pages/QualityInspectionForm";
@@ -190,7 +187,6 @@ function App() {
               <Route path="/accounts" element={<Accounts />} />
               <Route path="/chart-of-accounts" element={<ChartOfAccounts />} />
               <Route path="/ledger-accounts" element={<LedgerAccounts />} />
-              <Route path="/customer-invoices" element={<CustomerInvoices />} />
               <Route path="/delivery-challan" element={<DeliveryChallan />} />
               <Route path="/delivery-challan/new" element={<DeliveryChallanForm />} />
               <Route path="/outstanding-receivables" element={<OutstandingDashboard />} />
