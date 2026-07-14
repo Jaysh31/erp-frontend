@@ -101,6 +101,10 @@ import RoleList from "./pages/UserManagement/RoleList";
 import ModulePermissions from "./pages/UserManagement/ModulePermissions";
 import InventoryList from "./pages/InventoryList";
 
+import SubModulePermissions from "./pages/UserManagement/SubModulePermissions";
+import QualityInspectionReport from "./pages/QualityInspectionForm";
+import QualityInspectionList from "./pages/QualityInspectionList";
+import QualityInspectionForm from "./pages/QualityInspectionForm";
 
 
 function App() {
@@ -314,6 +318,11 @@ function App() {
               <Route path="/uom" element={<UOMList />} />
               <Route path="/uom/new" element={<UOMForm />} />
               <Route path="/uom/:id" element={<UOMForm />} />
+
+              {/* Quality Inspection */}
+               <Route path="/quality-inspection" element={<QualityInspectionList />} />
+                <Route path="/quality-inspection/new" element={<QualityInspectionForm />} />
+
 
               <Route path="/bom" element={<BOMPage />} />
               <Route path="/bom/new" element={<NewBOMPage />} />
