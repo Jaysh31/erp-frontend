@@ -187,7 +187,8 @@ export default function Sidebar({
         { title: 'User Management', icon: <UserIcon />, path: '/user-management' },
         { title: 'Role Management', icon: <UserIcon />, path: '/role' },
         { title: 'Company', icon: <CompanyIcon />, path: '/company' },
-        { title: 'Letter Head', icon: <LetterHeadIcon />, path: '/letter-head' }
+        { title: 'Letter Head', icon: <LetterHeadIcon />, path: '/letter-head' },
+        { title: 'Bank Details', icon: <BankingIcon />, path: '/bank-details' }
       ]
     },
     {
