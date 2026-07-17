@@ -5,9 +5,9 @@ import { useModule } from '../context/ModuleContext';
 import logo from '../assets/logo.png';
 import { UserIcon } from 'lucide-react';
 import { GiHumanCannonball } from 'react-icons/gi';
-import { MdHighQuality } from 'react-icons/md';
-import { SiQualtrics } from 'react-icons/si';
 import { RiQuillPenAiLine } from 'react-icons/ri';
+// Import storage functions
+import { getUserName, getUserEmail, getUserRole } from '../utils/storage';
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -42,12 +42,59 @@ export default function Sidebar({
     };
   });
 
+  // State for user data
+  const [userData, setUserData] = useState({
+    fullName: 'User',
+    email: '',
+    role: '',
+    initials: 'U'
+  });
+
+  // Load user data from localStorage on component mount
+  useEffect(() => {
+    loadUserData();
+  }, []);
+
+  // Function to load user data from storage
+  const loadUserData = () => {
+    const fullName = getUserName() || 'User';
+    const email = getUserEmail() || '';
+    const role = getUserRole()?.name || '';
+    
+    // Generate initials from full name
+    const initials = fullName
+      .split(' ')
+      .map(name => name[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+
+    setUserData({
+      fullName,
+      email,
+      role,
+      initials: initials || 'U'
+    });
+  };
+
+  // Listen for storage changes (if user data updates in another tab)
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'user' || e.key === 'userName' || e.key === 'userEmail' || e.key === 'userRole') {
+        loadUserData();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
   // Update module based on current path
- useEffect(() => {
-  if (location.pathname === "/home") {
-    setCurrentModule("home");
-  }
-}, [location.pathname, setCurrentModule]);
+  useEffect(() => {
+    if (location.pathname === "/home") {
+      setCurrentModule("home");
+    }
+  }, [location.pathname, setCurrentModule]);
 
   // Save expanded categories to localStorage
   useEffect(() => {
@@ -76,20 +123,20 @@ export default function Sidebar({
   };
 
   // All menu categories
-const allMenuCategories = [
-  {
-    title: 'Home',
-    module: 'home',
-    icon: <HomeIcon />,
-    items: [
-      { title: 'Home', icon: <HomeIcon />, path: '/home' },
-      { 
-        title: 'Dashboard', 
-        icon: <DashboardIcon />, 
-        path: currentModule !== 'home' ? `/dashboard/${currentModule}` : '/dashboard/manufacturing' 
-      }
-    ]
-  },
+  const allMenuCategories = [
+    {
+      title: 'Home',
+      module: 'home',
+      icon: <HomeIcon />,
+      items: [
+        { title: 'Home', icon: <HomeIcon />, path: '/home' },
+        { 
+          title: 'Dashboard', 
+          icon: <DashboardIcon />, 
+          path: currentModule !== 'home' ? `/dashboard/${currentModule}` : '/dashboard/manufacturing' 
+        }
+      ]
+    },
     {
       title: 'Sales',
       module: 'sales',
@@ -99,11 +146,11 @@ const allMenuCategories = [
         { title: 'Quotation', icon: <QuotationIcon />, path: '/quotation' },
         { title: 'Sales Order', icon: <SalesOrderIcon />, path: '/sales-order' },
         {
-            title: 'Delivery Challans',
-            icon: <ReceiptIcon />,
-            path: '/delivery-challan'
+          title: 'Delivery Challans',
+          icon: <ReceiptIcon />,
+          path: '/delivery-challan'
         },
-        { title: 'Sales Invoice', icon: <InvoiceIcon />, path: '/sales-invoice' }
+        { title: 'Sales Bill', icon: <InvoiceIcon />, path: '/sales-bill' }
       ]
     },
     {
@@ -131,7 +178,6 @@ const allMenuCategories = [
         { title: 'Inventory', icon: <BomIcon />, path: '/InventoryList' },
       ]
     },
-
     {
       title: 'Organization',
       module: 'organization',
@@ -217,34 +263,33 @@ const allMenuCategories = [
         { title: 'Cost Centers', icon: <CostCenterIcon />, path: '/accounting/cost-centers' },
       ]
     },
-   {
-    title: 'Receivables',
-    module: 'accounting',
-    icon: <ReceivablesIcon />,
-    items: [
-        
+    {
+      title: 'Receivables',
+      module: 'accounting',
+      icon: <ReceivablesIcon />,
+      items: [
         {
-            title: 'Customer Payments',
-            icon: <PaymentIcon />,
-            path: '/Customer-payments'
+          title: 'Customer Payments',
+          icon: <PaymentIcon />,
+          path: '/Customer-payments'
         },
         {
-            title: 'Customer Invoices',
-            icon: <InvoiceIcon />,
-            path: '/customer-invoices'
+          title: 'Customer Invoices',
+          icon: <InvoiceIcon />,
+          path: '/customer-invoices'
         },
         {
-            title: 'Credit Notes',
-            icon: <CreditNoteIcon />,
-            path: '/receivables/credit-notes'
+          title: 'Credit Notes',
+          icon: <CreditNoteIcon />,
+          path: '/receivables/credit-notes'
         },
         {
-            title: 'Outstanding Receivables',
-            icon: <CustomerIcon />,
-            path: '/outstanding-receivables'
+          title: 'Outstanding Receivables',
+          icon: <CustomerIcon />,
+          path: '/outstanding-receivables'
         }
-    ]
-},
+      ]
+    },
     {
       title: 'Receivables',
       module: 'accounting',
@@ -296,19 +341,19 @@ const allMenuCategories = [
   ];
 
   // Filter categories based on current module
-const getFilteredCategories = () => {
-  if (currentModule === 'home') {
-    return allMenuCategories.filter(cat =>
-      cat.module === 'home' || cat.module === 'system'
-    );
-  } else {
-    return allMenuCategories.filter(cat =>
-      cat.module === 'home' ||
-      cat.module === currentModule ||
-      cat.module === 'system'
-    );
-  }
-};
+  const getFilteredCategories = () => {
+    if (currentModule === 'home') {
+      return allMenuCategories.filter(cat =>
+        cat.module === 'home' || cat.module === 'system'
+      );
+    } else {
+      return allMenuCategories.filter(cat =>
+        cat.module === 'home' ||
+        cat.module === currentModule ||
+        cat.module === 'system'
+      );
+    }
+  };
 
   const menuCategories = getFilteredCategories();
 
@@ -420,12 +465,25 @@ const getFilteredCategories = () => {
           )}
         </div>
 
-        {/* User */}
+        {/* User - Dynamic data from localStorage */}
         <div className="sidebar-user">
-          <div className="user-avatar">TT</div>
+          <div className="user-avatar">{userData.initials}</div>
           <div className="user-info">
-            <div className="user-name">Tejas Tarte</div>
-            <div className="user-email">tejasvitthaltarte@gm...</div>
+            <div className="user-name">{userData.fullName}</div>
+            <div className="user-email">
+              {userData.email.length > 20 
+                ? `${userData.email.substring(0, 20)}...` 
+                : userData.email}
+            </div>
+            {userData.role && (
+              <div className="user-role" style={{ 
+                fontSize: '11px', 
+                color: 'var(--sidebar-text-secondary, #9CA3AF)', 
+                marginTop: '2px' 
+              }}>
+                {userData.role}
+              </div>
+            )}
           </div>
         </div>
       </aside>

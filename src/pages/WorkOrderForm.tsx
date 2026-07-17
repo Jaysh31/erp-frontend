@@ -2052,7 +2052,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import {
   FaArrowLeft, FaSave, FaSpinner, FaExclamationTriangle,
   FaInfoCircle, FaTimesCircle, FaPlus, FaTrash,
-  FaPaperPlane, FaSearch, FaSyncAlt, FaBuilding, FaTruck,
+  FaPaperPlane, FaSearch,  FaBuilding, FaTruck,
   FaImage,  FaCalendarAlt,
   FaCheckCircle,
 } from "react-icons/fa";
