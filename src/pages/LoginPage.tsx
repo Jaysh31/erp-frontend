@@ -43,14 +43,27 @@ export default function LoginPage() {
       if (response.data && response.data.success === 1) {
         const { data } = response.data;
         
+            // Map the API response to match the UserData interface
+        const mappedUser = {
+          userId: data.user.userId || data.user.id?.toString() || data.user.email,
+          fullName: data.user.full_name || data.user.fullName || data.user.name || 'User',
+          mobileNumber: data.user.mobile_no || data.user.mobileNumber || null,
+          email: data.user.email,
+          role: data.user.role ? {
+            id: data.user.role.id,
+            name: data.user.role.name
+          } : undefined
+        };
+
         // Store all auth data including modules
         storage.setAuthData({
-          user: data.user,
+          user: mappedUser,
           token: data.token,
           modules: data.user.modules // Store modules from response
         });
 
         console.log('Login successful:', response.data);
+        console.log('Mapped user data:', mappedUser);
         console.log('User modules:', data.user.modules);
         
         navigate("/home");

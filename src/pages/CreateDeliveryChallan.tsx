@@ -1,29 +1,33 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  FaSave, 
-  FaTimes, 
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import ReactDOM from 'react-dom';
+import {
+  FaSave,
+  FaTimes,
   FaPrint,
   FaPaperPlane,
-  FaWarehouse,
-  FaTruck,
-  FaUserTie,
-  FaCalendarAlt,
-  FaIdCard,
-  FaHashtag,
-  FaBox,
-  FaInfoCircle,
-  FaFileContract,
-  FaSpinner,
   FaUser,
+  FaBox,
   FaPlus,
   FaTrash,
-  FaCogs,
-  FaHands,
-  FaFileInvoice
+  FaSpinner,
+  FaChevronDown,
+  FaArrowLeft,
+  FaInfoCircle,
+  FaRupeeSign,
+  FaListUl,
+  FaTruck,
+  FaCalendarAlt,
+  FaFileInvoice,
+  FaTags,
+  FaWarehouse,
+  FaMoneyBillWave,
+  FaCalculator
 } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import toast from 'react-hot-toast';
+import { useAdminTheme } from '../admin-theme/AdminThemeContext';
+import './CreateDeliveryChallan.css';
 
 // ===== INTERFACES =====
 
@@ -41,13 +45,18 @@ interface Customer {
 }
 
 interface SalesOrder {
-  id: string;
-  name: string;
+  id: number;
   customer: string;
   customer_name: string;
+  company: string;
+  transaction_date: string;
+  delivery_date: string;
+  total_qty: number;
+  grand_total: number;
+  status: string;
+  creation: string;
   po_no?: string;
   po_date?: string;
-  total: number;
   items?: Array<{
     item_code: string;
     description: string;
@@ -61,21 +70,28 @@ interface SalesOrder {
 interface Product {
   id: string;
   itemCode: string;
+  itemName: string;
   description: string;
   unit: string;
   rate: number;
   tax: number;
   type: 'product' | 'service';
+  stockUom?: string;
+  standardRate?: number;
 }
 
 interface DeliveryChallanItem {
   id: string;
   itemCode: string;
+  itemName: string;
   description: string;
   quantity: number;
   unit: string;
   rate: number;
   amount: number;
+  tax: number;
+  taxAmount: number;
+  totalAmount: number;
   type: 'product' | 'service';
 }
 
@@ -99,12 +115,17 @@ interface DeliveryNotePayload {
   status: string;
   dc_type: string;
   items: Array<{
+    name: string;
     item_code: string;
+    item_name: string;
     description: string;
     qty: number;
     uom: string;
     rate: number;
     amount: number;
+    tax: number;
+    tax_amount: number;
+    total_amount: number;
     warehouse: string;
     type: string;
   }>;
@@ -117,7 +138,7 @@ interface ApiResponse<T = any> {
   success: boolean;
 }
 
-// ===== API SERVICE WITH GENERIC METHODS =====
+// ===== API SERVICE =====
 
 class ApiService {
   private static instance: ApiService;
@@ -203,28 +224,16 @@ class ApiService {
 
   private handleError(error: any): ApiResponse {
     console.error('API Error:', error);
-    
+
     let errorMessage = 'An unexpected error occurred';
     let statusCode = 500;
 
     if (error.response) {
       statusCode = error.response.status;
-      errorMessage = error.response.data?.message || 
-                    error.response.data?.error || 
-                    error.response.statusText || 
+      errorMessage = error.response.data?.message ||
+                    error.response.data?.error ||
+                    error.response.statusText ||
                     'Server error occurred';
-      
-      if (statusCode === 401) {
-        errorMessage = 'Unauthorized. Please login again.';
-      } else if (statusCode === 403) {
-        errorMessage = 'You do not have permission to perform this action.';
-      } else if (statusCode === 404) {
-        errorMessage = 'Resource not found.';
-      } else if (statusCode === 422) {
-        errorMessage = 'Validation error. Please check your input.';
-      } else if (statusCode === 500) {
-        errorMessage = 'Internal server error. Please try again later.';
-      }
     } else if (error.request) {
       errorMessage = 'Network error. Please check your connection.';
     } else {
@@ -273,17 +282,20 @@ class DeliveryChallanAPI {
     return this.apiService.delete(`/delivery-note/${id}`);
   }
 
-  async getCustomers(): Promise<ApiResponse<Customer[]>> {
-    return this.apiService.get('/customers');
+  async getCustomers(): Promise<ApiResponse<any>> {
+    return this.apiService.get('/customer');
   }
 
-  async getSalesOrders(customerId: string): Promise<ApiResponse<SalesOrder[]>> {
-    return this.apiService.get(`/customers/${customerId}/sales-orders`);
+  async getSalesOrders(params?: { customer?: string; page?: number; limit?: number; search?: string }): Promise<ApiResponse<any>> {
+    return this.apiService.get('/sales-order', params);
   }
 
-  async getProducts(type?: 'product' | 'service'): Promise<ApiResponse<Product[]>> {
-    const params = type ? { type } : {};
-    return this.apiService.get('/products', params);
+  async getSalesOrderById(id: string | number): Promise<ApiResponse<any>> {
+    return this.apiService.get(`/sales-order/${id}`);
+  }
+
+  async getItems(params?: { page?: number; limit?: number; search?: string }): Promise<ApiResponse<any>> {
+    return this.apiService.get('/item', params);
   }
 }
 
@@ -327,80 +339,475 @@ const MOCK_CUSTOMERS: Customer[] = [
   }
 ];
 
-const MOCK_SALES_ORDERS: SalesOrder[] = [
-  {
-    id: '1',
-    name: 'SO-2026-001',
-    customer: '1',
-    customer_name: 'ABC Traders Pvt Ltd',
-    po_no: 'PO-1001',
-    po_date: '2026-07-01',
-    total: 150000,
-    items: [
-      { item_code: 'PRD-P001', description: 'Industrial Pump - 5 HP', qty: 10, uom: 'pcs', rate: 1500, amount: 15000 },
-      { item_code: 'PRD-S001', description: 'Submersible Pump - 2 HP', qty: 5, uom: 'pcs', rate: 2000, amount: 10000 }
-    ]
-  },
-  {
-    id: '2',
-    name: 'SO-2026-002',
-    customer: '1',
-    customer_name: 'ABC Traders Pvt Ltd',
-    po_no: 'PO-1002',
-    po_date: '2026-07-05',
-    total: 75000,
-    items: [
-      { item_code: 'PRD-C001', description: 'Centrifugal Pump - 3 HP', qty: 3, uom: 'pcs', rate: 2500, amount: 7500 },
-      { item_code: 'PRD-M001', description: 'Motor Assembly - 7.5 HP', qty: 2, uom: 'pcs', rate: 5000, amount: 10000 }
-    ]
-  },
-  {
-    id: '3',
-    name: 'SO-2026-003',
-    customer: '2',
-    customer_name: 'XYZ Enterprises',
-    po_no: 'PO-2001',
-    po_date: '2026-07-08',
-    total: 94400,
-    items: [
-      { item_code: 'PRD-G001', description: 'Gear Box - 10:1 Ratio', qty: 4, uom: 'pcs', rate: 3000, amount: 12000 },
-      { item_code: 'PRD-P002', description: 'Hydraulic Pump - 10 HP', qty: 2, uom: 'pcs', rate: 4500, amount: 9000 }
-    ]
-  },
-  {
-    id: '4',
-    name: 'SO-2026-004',
-    customer: '3',
-    customer_name: 'PQR Solutions Ltd',
-    po_no: 'PO-3001',
-    po_date: '2026-07-10',
-    total: 53100,
-    items: [
-      { item_code: 'SVC-C001', description: 'Consulting Services - Hourly', qty: 10, uom: 'hrs', rate: 1500, amount: 15000 },
-      { item_code: 'SVC-M001', description: 'Maintenance Services - Monthly', qty: 1, uom: 'month', rate: 25000, amount: 25000 }
-    ]
-  }
+const MOCK_PRODUCTS: Product[] = [
+  { id: 'p1', itemCode: 'PRD-P001', itemName: 'Industrial Pump - 5 HP', description: 'Industrial Pump - 5 HP', unit: 'pcs', rate: 1500, tax: 18, type: 'product' },
+  { id: 'p2', itemCode: 'PRD-S001', itemName: 'Submersible Pump - 2 HP', description: 'Submersible Pump - 2 HP', unit: 'pcs', rate: 2000, tax: 18, type: 'product' },
+  { id: 'p3', itemCode: 'PRD-C001', itemName: 'Centrifugal Pump - 3 HP', description: 'Centrifugal Pump - 3 HP', unit: 'pcs', rate: 2500, tax: 12, type: 'product' },
+  { id: 'p4', itemCode: 'PRD-M001', itemName: 'Motor Assembly - 7.5 HP', description: 'Motor Assembly - 7.5 HP', unit: 'pcs', rate: 5000, tax: 18, type: 'product' },
+  { id: 'p5', itemCode: 'PRD-G001', itemName: 'Gear Box - 10:1 Ratio', description: 'Gear Box - 10:1 Ratio', unit: 'pcs', rate: 3000, tax: 12, type: 'product' },
 ];
 
-const MOCK_PRODUCTS: Product[] = [
-  { id: 'p1', itemCode: 'PRD-P001', description: 'Industrial Pump - 5 HP', unit: 'pcs', rate: 1500, tax: 18, type: 'product' },
-  { id: 'p2', itemCode: 'PRD-S001', description: 'Submersible Pump - 2 HP', unit: 'pcs', rate: 2000, tax: 18, type: 'product' },
-  { id: 'p3', itemCode: 'PRD-C001', description: 'Centrifugal Pump - 3 HP', unit: 'pcs', rate: 2500, tax: 12, type: 'product' },
-  { id: 'p4', itemCode: 'PRD-M001', description: 'Motor Assembly - 7.5 HP', unit: 'pcs', rate: 5000, tax: 18, type: 'product' },
-  { id: 'p5', itemCode: 'PRD-G001', description: 'Gear Box - 10:1 Ratio', unit: 'pcs', rate: 3000, tax: 12, type: 'product' },
-  { id: 's1', itemCode: 'SVC-C001', description: 'Consulting Services - Hourly', unit: 'hrs', rate: 1500, tax: 18, type: 'service' },
-  { id: 's2', itemCode: 'SVC-M001', description: 'Maintenance Services - Monthly', unit: 'month', rate: 25000, tax: 18, type: 'service' },
-  { id: 's3', itemCode: 'SVC-I001', description: 'Installation Services', unit: 'job', rate: 15000, tax: 18, type: 'service' },
-  { id: 's4', itemCode: 'SVC-T001', description: 'Training Services - Per Session', unit: 'session', rate: 5000, tax: 12, type: 'service' },
-  { id: 's5', itemCode: 'SVC-D001', description: 'Design Services - Hourly', unit: 'hrs', rate: 2000, tax: 18, type: 'service' }
-];
+// ===== SHARED: portal-based dropdown menu position hook =====
+function useDropdownPosition(isOpen: boolean, triggerRef: React.RefObject<HTMLDivElement | null>) {
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
+
+  const recalc = useCallback(() => {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setPos({
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: rect.width
+      });
+    }
+  }, [triggerRef]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    recalc();
+    window.addEventListener('scroll', recalc, true);
+    window.addEventListener('resize', recalc);
+    return () => {
+      window.removeEventListener('scroll', recalc, true);
+      window.removeEventListener('resize', recalc);
+    };
+  }, [isOpen, recalc]);
+
+  return pos;
+}
+
+// ===== SEARCHABLE PRODUCT SELECT COMPONENT =====
+interface SearchableSelectProps {
+  value: string;
+  onChange: (value: string) => void;
+  options: Product[];
+  placeholder?: string;
+  disabled?: boolean;
+  error?: boolean;
+  onSearch?: (searchTerm: string) => Promise<void>;
+  loading?: boolean;
+}
+
+const SearchableSelect: React.FC<SearchableSelectProps> = ({
+  value,
+  onChange,
+  options,
+  placeholder = 'Search...',
+  disabled = false,
+  error = false,
+  onSearch,
+  loading = false
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filteredOptions, setFilteredOptions] = useState<Product[]>(options);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const menuPos = useDropdownPosition(isOpen, wrapperRef);
+
+  useEffect(() => {
+    if (!searchTerm) {
+      setFilteredOptions(options);
+      return;
+    }
+
+    const filtered = options.filter(opt =>
+      opt.itemCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      opt.itemName.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    setFilteredOptions(filtered);
+  }, [searchTerm, options]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      const clickedTrigger = wrapperRef.current?.contains(target);
+      const clickedMenu = menuRef.current?.contains(target);
+      if (!clickedTrigger && !clickedMenu) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const term = e.target.value;
+    setSearchTerm(term);
+    setHighlightedIndex(-1);
+
+    if (!isOpen) {
+      setIsOpen(true);
+    }
+
+    if (onSearch && term.length > 0) {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+
+      debounceTimerRef.current = setTimeout(() => {
+        onSearch(term).catch(err => console.error('Search error:', err));
+      }, 500);
+    }
+  };
+
+  const handleSelect = (option: Product) => {
+    onChange(option.itemCode);
+    setSearchTerm('');
+    setIsOpen(false);
+    if (inputRef.current) {
+      inputRef.current.blur();
+    }
+  };
+
+  const getSelectedLabel = () => {
+    const selected = options.find(opt => opt.itemCode === value);
+    return selected ? `${selected.itemCode}` : '';
+  };
+
+  const menu = isOpen ? (
+    <div
+      ref={menuRef}
+      className="ndc-custom-scroll"
+      style={{
+        position: 'fixed',
+        top: menuPos.top,
+        left: menuPos.left,
+        width: menuPos.width,
+        background: 'var(--card-bg, #ffffff)',
+        border: '0.5px solid var(--border-color, #e2e8f0)',
+        borderRadius: '6px',
+        boxShadow: '0 4px 16px var(--shadow-color, rgba(0,0,0,0.15))',
+        zIndex: 99999,
+        maxHeight: '220px',
+        overflowY: 'auto',
+        overflowX: 'hidden'
+      }}
+    >
+      {filteredOptions.length > 0 ? (
+        filteredOptions.map((option, index) => (
+          <div
+            key={option.id}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              handleSelect(option);
+            }}
+            style={{
+              padding: '8px 12px',
+              cursor: 'pointer',
+              background: highlightedIndex === index ? 'var(--nav-hover, #eff6ff)' : 'transparent',
+              borderLeft: value === option.itemCode ? '2px solid var(--primary-color, #2563eb)' : '2px solid transparent',
+              transition: 'background 0.15s',
+              borderBottom: index < filteredOptions.length - 1 ? '0.5px solid var(--border-color, #f1f5f9)' : 'none'
+            }}
+            onMouseEnter={() => setHighlightedIndex(index)}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontWeight: 500, fontSize: '13px', color: 'var(--text-primary, #0f172a)' }}>{option.itemCode}</span>
+              <span style={{ fontSize: '12px', color: 'var(--text-secondary, #64748b)', marginLeft: '8px', textAlign: 'right' }}>
+                ₹{option.rate}
+              </span>
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--text-secondary, #94a3b8)', marginTop: '2px' }}>
+              {option.itemName} | Tax: {option.tax}%
+            </div>
+          </div>
+        ))
+      ) : (
+        <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
+          {loading ? 'Loading...' : 'No items found'}
+        </div>
+      )}
+    </div>
+  ) : null;
+
+  return (
+    <div ref={wrapperRef} style={{ position: 'relative', width: '100%' }}>
+      <div style={{ position: 'relative' }}>
+        <input
+          ref={inputRef}
+          type="text"
+          placeholder={placeholder}
+          value={isOpen ? searchTerm : getSelectedLabel()}
+          onChange={handleSearchChange}
+          onFocus={() => !disabled && setIsOpen(true)}
+          disabled={disabled}
+          autoComplete="off"
+          className="ndc-table-input"
+          style={{
+            width: '100%',
+            padding: '4px 8px',
+            paddingRight: '30px',
+            border: error ? '0.5px solid var(--danger-color, #ef4444)' : '0.5px solid var(--border-color, #e2e8f0)',
+            borderRadius: '4px',
+            background: disabled ? 'var(--input-bg, #f3f4f6)' : 'var(--input-bg, #f8fafc)',
+            color: 'var(--text-primary, #0f172a)',
+            fontSize: '12px',
+            fontFamily: 'inherit',
+            cursor: disabled ? 'not-allowed' : 'text',
+            minHeight: '30px'
+          }}
+        />
+        {loading ? (
+          <FaSpinner className="ndc-spinning" style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', color: 'var(--primary-color, #2563eb)', fontSize: '11px' }} />
+        ) : (
+          <FaChevronDown style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary, #94a3b8)', fontSize: '11px', pointerEvents: 'none' }} />
+        )}
+      </div>
+
+      {menu && ReactDOM.createPortal(menu, document.body)}
+    </div>
+  );
+};
+
+// ===== SEARCHABLE SALES ORDER DROPDOWN =====
+interface SalesOrderDropdownProps {
+  value: string;
+  onChange: (value: string, orderData?: SalesOrder) => void;
+  customerId?: string;
+  placeholder?: string;
+  disabled?: boolean;
+  error?: boolean;
+}
+
+const SalesOrderDropdown: React.FC<SalesOrderDropdownProps> = ({
+  value,
+  onChange,
+  customerId,
+  placeholder = 'Search Sales Order...',
+  disabled = false,
+  error = false
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [orders, setOrders] = useState<SalesOrder[]>([]);
+  const [filteredOrders, setFilteredOrders] = useState<SalesOrder[]>([]);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const [loading, setLoading] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<SalesOrder | null>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const deliveryChallanAPI = new DeliveryChallanAPI();
+
+  const menuPos = useDropdownPosition(isOpen, wrapperRef);
+
+  useEffect(() => {
+    if (customerId) {
+      fetchOrders(customerId);
+    } else {
+      setOrders([]);
+      setFilteredOrders([]);
+    }
+  }, [customerId]);
+
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setFilteredOrders(orders);
+      return;
+    }
+
+    const filtered = orders.filter(order =>
+      String(order.id).includes(searchTerm) ||
+      order.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.status?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      String(order.total_qty).includes(searchTerm)
+    );
+    setFilteredOrders(filtered);
+  }, [searchTerm, orders]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      const clickedTrigger = wrapperRef.current?.contains(target);
+      const clickedMenu = menuRef.current?.contains(target);
+      if (!clickedTrigger && !clickedMenu) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const fetchOrders = async (custId: string) => {
+    setLoading(true);
+    try {
+      const response = await deliveryChallanAPI.getSalesOrders({
+        customer: custId,
+        page: 1,
+        limit: 50
+      });
+
+      if (response.success && response.data) {
+        let orderList: SalesOrder[] = [];
+        if (response.data.data?.records) {
+          orderList = response.data.data.records;
+        } else if (Array.isArray(response.data)) {
+          orderList = response.data;
+        } else if (response.data.data && Array.isArray(response.data.data)) {
+          orderList = response.data.data;
+        }
+        setOrders(orderList);
+        setFilteredOrders(orderList);
+      }
+    } catch (error) {
+      console.error('Error fetching sales orders:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const term = e.target.value;
+    setSearchTerm(term);
+    setHighlightedIndex(-1);
+
+    if (!isOpen) {
+      setIsOpen(true);
+    }
+  };
+
+  const handleSelect = (order: SalesOrder) => {
+    setSelectedOrder(order);
+    setSearchTerm('');
+    setIsOpen(false);
+    onChange(String(order.id), order);
+    if (inputRef.current) {
+      inputRef.current.blur();
+    }
+  };
+
+  const getDisplayValue = () => {
+    if (selectedOrder) {
+      return `#${selectedOrder.id} - ${selectedOrder.customer_name}`;
+    }
+    return '';
+  };
+
+  const isDisabled = disabled || !customerId;
+
+  const menu = (isOpen && !isDisabled) ? (
+    <div
+      ref={menuRef}
+      className="ndc-custom-scroll"
+      style={{
+        position: 'fixed',
+        top: menuPos.top,
+        left: menuPos.left,
+        width: menuPos.width,
+        background: 'var(--card-bg, #ffffff)',
+        border: '0.5px solid var(--border-color, #e2e8f0)',
+        borderRadius: '6px',
+        boxShadow: '0 4px 16px var(--shadow-color, rgba(0,0,0,0.15))',
+        zIndex: 99999,
+        maxHeight: '260px',
+        overflowY: 'auto',
+        overflowX: 'hidden'
+      }}
+    >
+      {loading ? (
+        <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
+          <FaSpinner className="ndc-spinning" style={{ display: 'inline-block', marginRight: '8px' }} /> Loading...
+        </div>
+      ) : filteredOrders.length > 0 ? (
+        filteredOrders.map((order, index) => (
+          <div
+            key={order.id}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              handleSelect(order);
+            }}
+            style={{
+              padding: '10px 14px',
+              cursor: 'pointer',
+              background: highlightedIndex === index ? 'var(--nav-hover, #eff6ff)' : 'transparent',
+              borderLeft: String(value) === String(order.id) ? '3px solid var(--primary-color, #2563eb)' : '3px solid transparent',
+              transition: 'background 0.15s',
+              borderBottom: index < filteredOrders.length - 1 ? '0.5px solid var(--border-color, #f1f5f9)' : 'none'
+            }}
+            onMouseEnter={() => setHighlightedIndex(index)}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary, #0f172a)' }}>#{order.id}</span>
+                <span style={{ fontSize: '12px', color: 'var(--text-secondary, #475569)', marginLeft: '8px' }}>{order.customer_name}</span>
+              </div>
+              <span style={{
+                fontSize: '11px',
+                padding: '2px 10px',
+                borderRadius: '12px',
+                background: order.status === 'Draft' ? '#fef3c7' : '#dbeafe',
+                color: order.status === 'Draft' ? '#92400e' : '#1e40af',
+                fontWeight: 500
+              }}>
+                {order.status}
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: '16px', marginTop: '4px', fontSize: '11px', color: 'var(--text-secondary, #64748b)' }}>
+              <span>Qty: {order.total_qty}</span>
+              <span>Total: ₹{order.grand_total}</span>
+              <span>Date: {new Date(order.transaction_date).toLocaleDateString()}</span>
+            </div>
+          </div>
+        ))
+      ) : (
+        <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
+          {searchTerm ? 'No matching orders found' : 'No sales orders available'}
+        </div>
+      )}
+    </div>
+  ) : null;
+
+  return (
+    <div ref={wrapperRef} style={{ position: 'relative', width: '100%' }}>
+      <div style={{ position: 'relative' }}>
+        <input
+          ref={inputRef}
+          type="text"
+          placeholder={isDisabled ? 'Select a customer first' : placeholder}
+          value={isOpen ? searchTerm : getDisplayValue()}
+          onChange={handleSearchChange}
+          onFocus={() => !isDisabled && setIsOpen(true)}
+          disabled={isDisabled}
+          autoComplete="off"
+          title={isDisabled ? 'Please select a customer first' : ''}
+          style={{
+            width: '100%',
+            padding: '6px 10px',
+            paddingRight: '35px',
+            border: error ? '0.5px solid var(--danger-color, #ef4444)' : '0.5px solid var(--border-color, #e2e8f0)',
+            borderRadius: '6px',
+            background: isDisabled ? 'var(--input-bg, #f3f4f6)' : 'var(--input-bg, #f8fafc)',
+            color: 'var(--text-primary, #0f172a)',
+            fontSize: '13px',
+            fontFamily: 'inherit',
+            cursor: isDisabled ? 'not-allowed' : 'text',
+            minHeight: '32px'
+          }}
+        />
+        {loading ? (
+          <FaSpinner className="ndc-spinning" style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--primary-color, #2563eb)', fontSize: '12px' }} />
+        ) : (
+          <FaChevronDown style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: isDisabled ? 'var(--text-secondary, #94a3b8)' : 'var(--text-secondary, #64748b)', fontSize: '12px', pointerEvents: 'none' }} />
+        )}
+      </div>
+
+      {menu && ReactDOM.createPortal(menu, document.body)}
+    </div>
+  );
+};
 
 const NewDeliveryChallan: React.FC = () => {
   const navigate = useNavigate();
-  
-  // ===== STATE =====
+  const { theme } = useAdminTheme();
+
   const [selectedCustomer, setSelectedCustomer] = useState<string>('');
   const [selectedSalesOrder, setSelectedSalesOrder] = useState<string>('');
+  const [selectedOrderData, setSelectedOrderData] = useState<SalesOrder | null>(null);
   const [dcType, setDcType] = useState<string>('Products');
   const [dcDate, setDcDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [warehouse, setWarehouse] = useState<string>('');
@@ -416,142 +823,203 @@ const NewDeliveryChallan: React.FC = () => {
   const [customerData, setCustomerData] = useState<Customer | null>(null);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [dcNumber, ] = useState<string>(`DN-${new Date().getFullYear()}-001`);
+  const [dcNumber] = useState<string>(`DN-${new Date().getFullYear()}-001`);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [salesOrders, setSalesOrders] = useState<SalesOrder[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [useMockData, setUseMockData] = useState<boolean>(true);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
+  const [isLoadingItems, setIsLoadingItems] = useState<boolean>(false);
+  const [roundOff, setRoundOff] = useState<number>(0);
 
-  // ===== API INSTANCE =====
   const deliveryChallanAPI = new DeliveryChallanAPI();
 
-  // ===== FETCH INITIAL DATA =====
   useEffect(() => {
     fetchCustomers();
-    fetchProducts();
+    fetchAllItems();
   }, []);
 
-  // ===== FETCH CUSTOMERS =====
+  // Calculate round off whenever items change
+  useEffect(() => {
+    const total = getGrandTotal();
+    const rounded = Math.round(total / 10) * 10;
+    const diff = rounded - total;
+    setRoundOff(diff);
+  }, [items]);
+
   const fetchCustomers = async () => {
     setIsLoading(true);
     try {
       const response = await deliveryChallanAPI.getCustomers();
       if (response.success && response.data) {
-        setCustomers(response.data);
-        setUseMockData(false);
-        console.log('✅ Customers loaded from API:', response.data.length);
+        let customerList: any[] = [];
+
+        if (response.data.data && Array.isArray(response.data.data.records)) {
+          customerList = response.data.data.records;
+        } else if (Array.isArray(response.data)) {
+          customerList = response.data;
+        } else if (response.data.data && Array.isArray(response.data.data)) {
+          customerList = response.data.data;
+        }
+
+        if (customerList.length > 0) {
+          const mappedCustomers: Customer[] = customerList.map((cust: any) => ({
+            id: cust.id?.toString() || '',
+            name: cust.customer_name || cust.name || '',
+            code: cust.customer_code || cust.code || `CUST${cust.id}`,
+            email: cust.email_id || cust.email || '',
+            phone: cust.mobile_no || cust.phone || '',
+            address: cust.address || '',
+            shippingAddress: cust.shipping_address || cust.address || '',
+            gstin: cust.gstin || '',
+            contactPerson: cust.contact_person || '',
+            contactMobile: cust.contact_mobile || cust.mobile_no || ''
+          }));
+          setCustomers(mappedCustomers);
+        } else {
+          setCustomers(MOCK_CUSTOMERS);
+        }
       } else {
         setCustomers(MOCK_CUSTOMERS);
-        setUseMockData(true);
-        toast('Using mock customer data (API unavailable)');
       }
     } catch (error) {
-      console.error('Error fetching customers:', error);
       setCustomers(MOCK_CUSTOMERS);
-      setUseMockData(true);
-      toast('Using mock customer data');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // ===== FETCH PRODUCTS =====
-  const fetchProducts = async () => {
+  const fetchAllItems = async () => {
+    setIsLoadingItems(true);
     try {
-      const response = await deliveryChallanAPI.getProducts();
-      if (response.success && response.data) {
-        setProducts(response.data);
-        console.log('✅ Products loaded from API:', response.data.length);
+      const response = await deliveryChallanAPI.getItems({ page: 1, limit: 100 });
+      if (response.success && response.data?.data) {
+        const itemsData = response.data.data.map((item: any) => ({
+          id: item.id.toString(),
+          itemCode: item.item_code,
+          itemName: item.item_name,
+          description: item.description || item.item_name,
+          unit: item.stock_uom || 'pcs',
+          rate: item.standard_rate || 0,
+          tax: item.gst_rate || item.tax_rate || 0,
+          type: 'product' as 'product' | 'service',
+          stockUom: item.stock_uom,
+          standardRate: item.standard_rate
+        }));
+        setAllProducts(itemsData);
+        setProducts(itemsData);
       } else {
+        setAllProducts(MOCK_PRODUCTS);
         setProducts(MOCK_PRODUCTS);
       }
     } catch (error) {
-      console.error('Error fetching products:', error);
+      setAllProducts(MOCK_PRODUCTS);
       setProducts(MOCK_PRODUCTS);
+    } finally {
+      setIsLoadingItems(false);
     }
   };
 
-  // ===== FETCH SALES ORDERS BY CUSTOMER =====
-  const fetchSalesOrders = async (customerId: string) => {
-    setIsLoading(true);
+  const handleItemSearch = useCallback(async (searchTerm: string) => {
+    if (!searchTerm.trim()) {
+      setProducts(allProducts);
+      return;
+    }
+
     try {
-      const response = await deliveryChallanAPI.getSalesOrders(customerId);
-      if (response.success && response.data) {
-        setSalesOrders(response.data);
-        console.log('✅ Sales orders loaded from API:', response.data.length);
-      } else {
-        const mockOrders = MOCK_SALES_ORDERS.filter(so => so.customer === customerId);
-        setSalesOrders(mockOrders);
+      const response = await deliveryChallanAPI.getItems({ page: 1, limit: 50, search: searchTerm });
+      if (response.success && response.data?.data) {
+        const itemsData = response.data.data.map((item: any) => ({
+          id: item.id.toString(),
+          itemCode: item.item_code,
+          itemName: item.item_name,
+          description: item.description || item.item_name,
+          unit: item.stock_uom || 'pcs',
+          rate: item.standard_rate || 0,
+          tax: item.gst_rate || item.tax_rate || 0,
+          type: 'product' as 'product' | 'service'
+        }));
+        setProducts(itemsData);
       }
     } catch (error) {
-      console.error('Error fetching sales orders:', error);
-      const mockOrders = MOCK_SALES_ORDERS.filter(so => so.customer === customerId);
-      setSalesOrders(mockOrders);
-    } finally {
-      setIsLoading(false);
+      console.error('Search error:', error);
     }
-  };
+  }, [allProducts]);
 
-  // ===== LOAD CUSTOMER DATA =====
   const loadCustomerData = (customerId: string) => {
     const customer = customers.find(c => c.id === customerId);
     if (customer) {
       setCustomerData(customer);
       setSelectedSalesOrder('');
+      setSelectedOrderData(null);
       setItems([{
         id: '1',
         itemCode: '',
+        itemName: '',
         description: '',
         quantity: 1,
         unit: 'pcs',
         rate: 0,
         amount: 0,
+        tax: 0,
+        taxAmount: 0,
+        totalAmount: 0,
         type: dcType === 'Products' ? 'product' : 'service'
       }]);
-      fetchSalesOrders(customerId);
       toast.success(`Selected ${customer.name}`);
     }
   };
 
-  // ===== LOAD SALES ORDER =====
-  const loadSalesOrder = (soId: string) => {
-    const so = salesOrders.find(s => s.id === soId);
-    if (so) {
-      setPoNumber(so.po_no || '');
-      setPoDate(so.po_date || '');
-      
-      const initialItems: DeliveryChallanItem[] = (so.items || []).map((item, index) => ({
-        id: `so-${index}`,
-        itemCode: item.item_code || '',
-        description: item.description || '',
-        quantity: item.qty || 0,
-        unit: item.uom || 'pcs',
-        rate: item.rate || 0,
-        amount: (item.qty || 0) * (item.rate || 0),
-        type: dcType === 'Products' ? 'product' : 'service'
-      }));
-      
-      if (initialItems.length === 0) {
-        initialItems.push({
-          id: '1',
-          itemCode: '',
-          description: '',
-          quantity: 1,
-          unit: 'pcs',
-          rate: 0,
-          amount: 0,
+  const loadSalesOrder = (soId: string, orderData?: SalesOrder) => {
+    if (!orderData) return;
+
+    setSelectedOrderData(orderData);
+    setPoNumber(orderData.po_no || '');
+    setPoDate(orderData.po_date || '');
+
+    if (orderData.items && orderData.items.length > 0) {
+      const initialItems: DeliveryChallanItem[] = orderData.items.map((item, index) => {
+        const product = allProducts.find(p => p.itemCode === item.item_code);
+        const taxRate = product?.tax || 0;
+        const amount = (item.qty || 0) * (item.rate || 0);
+        const taxAmount = (amount * taxRate) / 100;
+        
+        return {
+          id: `so-${index}`,
+          itemCode: item.item_code || '',
+          itemName: item.description || '',
+          description: item.description || '',
+          quantity: item.qty || 1,
+          unit: item.uom || 'pcs',
+          rate: item.rate || 0,
+          amount: amount,
+          tax: taxRate,
+          taxAmount: taxAmount,
+          totalAmount: amount + taxAmount,
           type: dcType === 'Products' ? 'product' : 'service'
-        });
-      }
-      
+        };
+      });
       setItems(initialItems);
-      setErrors({});
-      toast.success(`Loaded ${so.name} successfully!`);
+    } else {
+      setItems([{
+        id: '1',
+        itemCode: '',
+        itemName: '',
+        description: '',
+        quantity: 1,
+        unit: 'pcs',
+        rate: 0,
+        amount: 0,
+        tax: 0,
+        taxAmount: 0,
+        totalAmount: 0,
+        type: dcType === 'Products' ? 'product' : 'service'
+      }]);
     }
+
+    setErrors({});
+    toast.success(`Loaded order #${orderData.id}`);
   };
 
-  // ===== HANDLE CUSTOMER CHANGE =====
   const handleCustomerChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const customerId = e.target.value;
     setSelectedCustomer(customerId);
@@ -560,66 +1028,34 @@ const NewDeliveryChallan: React.FC = () => {
     } else {
       setCustomerData(null);
       setSelectedSalesOrder('');
-      setPoNumber('');
-      setPoDate('');
-      setSalesOrders([]);
-      setItems([{
-        id: '1',
-        itemCode: '',
-        description: '',
-        quantity: 1,
-        unit: 'pcs',
-        rate: 0,
-        amount: 0,
-        type: dcType === 'Products' ? 'product' : 'service'
-      }]);
+      setSelectedOrderData(null);
     }
   };
 
-  // ===== HANDLE SALES ORDER CHANGE =====
-  const handleSalesOrderChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const soId = e.target.value;
+  const handleSalesOrderChange = (soId: string, orderData?: SalesOrder) => {
     setSelectedSalesOrder(soId);
-    if (soId) {
-      loadSalesOrder(soId);
+    if (soId && orderData) {
+      loadSalesOrder(soId, orderData);
     } else {
-      setItems([{
-        id: '1',
-        itemCode: '',
-        description: '',
-        quantity: 1,
-        unit: 'pcs',
-        rate: 0,
-        amount: 0,
-        type: dcType === 'Products' ? 'product' : 'service'
-      }]);
-      setPoNumber('');
-      setPoDate('');
+      setSelectedOrderData(null);
     }
   };
 
-  useEffect(() => {
-    if (dcType) {
-      setItems(prev => prev.map(item => ({
-        ...item,
-        type: dcType === 'Products' ? 'product' : 'service'
-      })));
-    }
-  }, [dcType]);
-
-  // ===== ITEM MANAGEMENT =====
   const addItem = () => {
-    const newItem: DeliveryChallanItem = {
+    setItems([...items, {
       id: Date.now().toString(),
       itemCode: '',
+      itemName: '',
       description: '',
       quantity: 1,
       unit: 'pcs',
       rate: 0,
       amount: 0,
+      tax: 0,
+      taxAmount: 0,
+      totalAmount: 0,
       type: dcType === 'Products' ? 'product' : 'service'
-    };
-    setItems([...items, newItem]);
+    }]);
   };
 
   const removeItem = (id: string) => {
@@ -631,13 +1067,32 @@ const NewDeliveryChallan: React.FC = () => {
   };
 
   const updateItem = (id: string, field: keyof DeliveryChallanItem, value: any) => {
-    setItems(prevItems => 
+    setItems(prevItems =>
       prevItems.map(item => {
         if (item.id === id) {
           const updated = { ...item, [field]: value };
-          if (field === 'quantity' || field === 'rate') {
-            updated.amount = (updated.quantity || 0) * (updated.rate || 0);
+
+          if (field === 'itemCode') {
+            const product = allProducts.find(p => p.itemCode === value);
+            if (product) {
+              updated.itemName = product.itemName;
+              updated.unit = product.unit;
+              updated.rate = product.rate;
+              updated.tax = product.tax || 0;
+              const amount = (updated.quantity || 0) * product.rate;
+              updated.amount = amount;
+              updated.taxAmount = (amount * updated.tax) / 100;
+              updated.totalAmount = amount + updated.taxAmount;
+            }
           }
+
+          if (field === 'quantity' || field === 'rate') {
+            const amount = (updated.quantity || 0) * (updated.rate || 0);
+            updated.amount = amount;
+            updated.taxAmount = (amount * (updated.tax || 0)) / 100;
+            updated.totalAmount = amount + updated.taxAmount;
+          }
+
           return updated;
         }
         return item;
@@ -645,23 +1100,11 @@ const NewDeliveryChallan: React.FC = () => {
     );
   };
 
-  // ===== GET PRODUCTS LIST =====
-  const getFilteredProducts = (): Product[] => {
-    return products.filter(p => p.type === (dcType === 'Products' ? 'product' : 'service'));
-  };
+  const getTotalQty = () => items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+  const getTotalAmount = () => items.reduce((sum, item) => sum + (item.amount || 0), 0);
+  const getTotalTax = () => items.reduce((sum, item) => sum + (item.taxAmount || 0), 0);
+  const getGrandTotal = () => items.reduce((sum, item) => sum + (item.totalAmount || 0), 0);
 
-  const filteredProducts = getFilteredProducts();
-
-  // ===== CALCULATIONS =====
-  const getTotalQty = (): number => {
-    return items.reduce((sum, item) => sum + (item.quantity || 0), 0);
-  };
-
-  const getTotalAmount = (): number => {
-    return items.reduce((sum, item) => sum + (item.amount || 0), 0);
-  };
-
-  // ===== BUILD PAYLOAD =====
   const buildPayload = (status: 'Draft' | 'Submitted'): DeliveryNotePayload => {
     return {
       name: dcNumber,
@@ -685,770 +1128,445 @@ const NewDeliveryChallan: React.FC = () => {
       items: items
         .filter(item => item.itemCode && item.quantity > 0)
         .map(item => ({
+          name: item.itemName || item.itemCode,
           item_code: item.itemCode,
-          description: item.description,
+          item_name: item.itemName || item.itemCode,
+          description: item.description || item.itemName || item.itemCode,
           qty: item.quantity,
           uom: item.unit,
           rate: item.rate,
           amount: item.amount,
+          tax: item.tax || 0,
+          tax_amount: item.taxAmount || 0,
+          total_amount: item.totalAmount || 0,
           warehouse: warehouse || '',
           type: item.type
         }))
     };
   };
 
-  // ===== VALIDATION =====
   const validateForm = (): boolean => {
     const newErrors: { [key: string]: string } = {};
-
     if (!selectedCustomer) newErrors.customer = 'Please select a customer';
     if (!dcDate) newErrors.dcDate = 'DC Date is required';
     if (!warehouse) newErrors.warehouse = 'Warehouse is required';
-    
     const hasItems = items.some(item => item.itemCode && item.quantity > 0);
     if (!hasItems) newErrors.items = 'At least one item is required';
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  // ===== SUBMIT HANDLERS =====
   const handleSubmit = async () => {
-    if (!validateForm()) {
-      const firstError = Object.keys(errors)[0];
-      if (firstError) {
-        const element = document.querySelector(`[name="${firstError}"]`) as HTMLElement;
-        if (element) element.focus();
-      }
-      return;
-    }
-
+    if (!validateForm()) return;
     setIsSubmitting(true);
     const toastId = toast.loading('Creating delivery challan...');
-
     try {
       const payload = buildPayload('Submitted');
-      console.log('📦 Submitting Delivery Challan Payload:', JSON.stringify(payload, null, 2));
-
       const createResponse = await deliveryChallanAPI.createDeliveryNote(payload);
-      
-      if (!createResponse.success || !createResponse.data) {
-        throw new Error(createResponse.message || 'Failed to create delivery challan');
-      }
-
+      if (!createResponse.success) throw new Error(createResponse.message || 'Failed to create');
       const createdDC = createResponse.data;
-      toast.success('Delivery challan created successfully!', { id: toastId });
-
-      const submitToastId = toast.loading('Submitting delivery challan...');
-      
+      toast.success('Created!', { id: toastId });
       if (createdDC.name) {
         const submitResponse = await deliveryChallanAPI.submitDeliveryNote(createdDC.name);
-        
-        if (!submitResponse.success) {
-          throw new Error(submitResponse.message || 'Failed to submit delivery challan');
-        }
-        
-        toast.success('Delivery challan submitted successfully!', { id: submitToastId });
-        toast.success(`DC ${createdDC.name} created and submitted!`);
-
-        setTimeout(() => {
-          navigate('/delivery-challans');
-        }, 1500);
-      } else {
-        throw new Error('Created delivery challan name not found');
+        if (!submitResponse.success) throw new Error(submitResponse.message || 'Failed to submit');
+        toast.success(`DC ${createdDC.name} submitted!`);
+        setTimeout(() => navigate('/delivery-challans'), 1500);
       }
-
     } catch (error: any) {
-      console.error('❌ Error creating delivery challan:', error);
-      toast.error(error.message || 'Failed to create delivery challan', { id: toastId });
+      toast.error(error.message || 'Failed to create', { id: toastId });
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleSaveDraft = async () => {
-    if (!validateForm()) {
-      const firstError = Object.keys(errors)[0];
-      if (firstError) {
-        const element = document.querySelector(`[name="${firstError}"]`) as HTMLElement;
-        if (element) element.focus();
-      }
-      return;
-    }
-
+    if (!validateForm()) return;
     setIsSubmitting(true);
     const toastId = toast.loading('Saving draft...');
-
     try {
       const payload = buildPayload('Draft');
-      console.log('📦 Saving Draft Payload:', JSON.stringify(payload, null, 2));
-
       const response = await deliveryChallanAPI.createDeliveryNote(payload);
-      
-      if (!response.success) {
-        throw new Error(response.message || 'Failed to save draft');
-      }
-
-      toast.success('Delivery challan saved as draft!', { id: toastId });
-      
-      setTimeout(() => {
-        navigate('/delivery-challans');
-      }, 1000);
-
+      if (!response.success) throw new Error(response.message || 'Failed to save');
+      toast.success('Saved as draft!', { id: toastId });
+      setTimeout(() => navigate('/delivery-challans'), 1000);
     } catch (error: any) {
-      console.error('❌ Error saving draft:', error);
-      toast.error(error.message || 'Failed to save draft', { id: toastId });
+      toast.error(error.message || 'Failed to save', { id: toastId });
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleCancel = () => {
-    if (window.confirm('Are you sure you want to cancel? Unsaved data will be lost.')) {
+    if (window.confirm('Are you sure? Unsaved data will be lost.')) {
       navigate('/delivery-challans');
     }
   };
 
-  const handlePrint = () => window.print();
-
-  const getDcTypeIcon = () => dcType === 'Products' ? <FaCogs /> : <FaHands />;
-
-  // ===== INITIALIZE WITH ONE DEFAULT ITEM =====
   useEffect(() => {
     if (items.length === 0) {
       setItems([{
         id: '1',
         itemCode: '',
+        itemName: '',
         description: '',
         quantity: 1,
         unit: 'pcs',
         rate: 0,
         amount: 0,
+        tax: 0,
+        taxAmount: 0,
+        totalAmount: 0,
         type: dcType === 'Products' ? 'product' : 'service'
       }]);
     }
   }, []);
 
+  const totalItems = items.filter(i => i.itemCode && i.quantity > 0).length;
+  const totalQuantity = getTotalQty();
+  const subTotal = getTotalAmount();
+  const totalTax = getTotalTax();
+  const grandTotal = getGrandTotal();
+  const grandTotalWithRound = grandTotal + roundOff;
+
   return (
-    <div className="new-dc-page">
+    <div className={`ndc-page ${theme}`}>
       <style>{`
-        .new-dc-page {
-          padding: 20px;
-          background: #f8fafc;
-          min-height: 100vh;
-          font-family: 'Inter', sans-serif;
+        .ndc-spinning { animation: ndcSpin 1s linear infinite; }
+        @keyframes ndcSpin { to { transform: rotate(360deg); } }
+
+        .ndc-custom-scroll::-webkit-scrollbar {
+          width: 4px;
+          height: 4px;
+        }
+        .ndc-custom-scroll::-webkit-scrollbar-track {
+          background: var(--border-color, #f1f5f9);
+          border-radius: 2px;
+        }
+        .ndc-custom-scroll::-webkit-scrollbar-thumb {
+          background: var(--text-secondary, #cbd5e1);
+          border-radius: 2px;
+        }
+        .ndc-custom-scroll::-webkit-scrollbar-thumb:hover {
+          background: var(--text-secondary, #94a3b8);
+        }
+        .ndc-custom-scroll {
+          scrollbar-width: thin;
+          scrollbar-color: var(--text-secondary, #cbd5e1) var(--border-color, #f1f5f9);
         }
 
-        .spinning { animation: spin 1s linear infinite; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-
-        .btn-primary {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          padding: 8px 16px;
-          background: #2563eb;
-          color: #fff;
-          border: none;
-          border-radius: 6px;
-          font-size: 13px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-        .btn-primary:hover:not(:disabled) {
-          background: #1d4ed8;
-          transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(37,99,235,0.3);
-        }
-        .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
-
-        .btn-secondary {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          padding: 8px 14px;
-          background: #fff;
-          color: #64748b;
-          border: 1px solid #e2e8f0;
-          border-radius: 6px;
-          font-size: 13px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-        .btn-secondary:hover {
-          background: #f8fafc;
-          border-color: #2563eb;
-          color: #2563eb;
-        }
-        .btn-secondary:disabled { opacity: 0.6; cursor: not-allowed; }
-
-        .page-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 20px;
-          padding: 14px 20px;
-          background: #fff;
-          border-radius: 10px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-        }
-        .page-header-left { display: flex; flex-direction: column; gap: 2px; }
-        .breadcrumb { display: flex; align-items: center; gap: 4px; font-size: 12px; color: #94a3b8; }
-        .breadcrumb .active { color: #1e293b; font-weight: 500; }
-        .page-title { font-size: 20px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 8px; margin: 0; }
-        .page-title .title-icon { color: #2c7a8a; }
-        .page-subtitle { font-size: 13px; color: #64748b; margin: 0; }
-
-        .form-body { display: flex; flex-direction: column; gap: 16px; }
-        .form-section {
-          background: #fff;
-          border-radius: 10px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-          padding: 16px 20px;
-        }
-        .form-section-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 12px;
-        }
-        .form-section-header h3 {
-          font-size: 15px;
-          font-weight: 600;
-          color: #1e293b;
-          margin: 0;
-          display: flex;
-          align-items: center;
-          gap: 6px;
-        }
-        .required-label { font-size: 11px; color: #94a3b8; }
-        .readonly-badge {
-          display: inline-flex;
-          align-items: center;
-          gap: 4px;
-          padding: 3px 10px;
-          background: #f3f4f6;
-          color: #6b7280;
-          border-radius: 10px;
-          font-size: 11px;
-          font-weight: 500;
-        }
-        .dc-type-badge {
-          display: inline-flex;
-          align-items: center;
-          gap: 4px;
-          padding: 3px 12px;
-          border-radius: 10px;
-          font-size: 11px;
-          font-weight: 500;
-          background: #eff6ff;
-          color: #2563eb;
-        }
-
-        .form-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-          gap: 12px;
-        }
-        .form-grid .full-width { grid-column: 1 / -1; }
-
-        .form-group {
-          display: flex;
-          flex-direction: column;
-          gap: 3px;
-        }
-        .form-group label {
-          font-size: 12px;
-          font-weight: 500;
-          color: #64748b;
-        }
-        .form-group label .required { color: #ef4444; }
-
-        .input-with-icon { position: relative; }
-        .input-with-icon .input-icon {
-          position: absolute;
-          left: 10px;
-          top: 50%;
-          transform: translateY(-50%);
-          color: #94a3b8;
-          font-size: 13px;
-        }
-        .input-with-icon .form-input,
-        .input-with-icon .form-select { padding-left: 32px; }
-
-        .form-input, .form-select, .form-textarea {
-          padding: 6px 10px;
-          border: 1px solid #e2e8f0;
-          border-radius: 6px;
-          font-size: 13px;
-          background: #f8fafc;
-          color: #1e293b;
-          transition: all 0.2s;
-          width: 100%;
-          font-family: inherit;
-          height: 34px;
-        }
-        .form-input:focus, .form-select:focus, .form-textarea:focus {
-          outline: none;
-          border-color: #2563eb;
-          box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
-          background: #fff;
-        }
-        .form-input:disabled {
-          background: #f3f4f6;
-          cursor: not-allowed;
-          opacity: 0.8;
-        }
-        .form-input.error, .form-select.error { border-color: #ef4444; }
-        .form-textarea { resize: vertical; min-height: 40px; height: auto; }
-        .form-select {
-          appearance: none;
-          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M6 8L1 3h10z' fill='%2364748b'/%3E%3C/svg%3E");
-          background-repeat: no-repeat;
-          background-position: right 10px center;
-          padding-right: 32px;
-        }
-
-        .error-text { font-size: 11px; color: #ef4444; margin-top: 2px; }
-        .error-banner {
-          padding: 8px 14px;
-          background: #fef2f2;
-          border: 1px solid #ef4444;
-          border-radius: 6px;
-          color: #ef4444;
-          font-size: 13px;
-          margin-bottom: 10px;
-        }
-
-        .customer-details {
-          background: #f8fafc;
-          border: 1px solid #e2e8f0;
-        }
-        .customer-info-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-          gap: 8px;
-        }
-        .info-group {
-          display: flex;
-          flex-direction: column;
-          gap: 1px;
-        }
-        .info-group label {
-          font-size: 10px;
-          color: #94a3b8;
-          text-transform: uppercase;
-          letter-spacing: 0.3px;
-        }
-        .info-group .info-value { font-size: 13px; color: #1e293b; }
-
-        .items-table-container { overflow-x: auto; }
-        .items-table {
-          width: 100%;
-          border-collapse: collapse;
-          font-size: 13px;
-          min-width: 600px;
-        }
-        .items-table th {
-          padding: 6px 8px;
-          text-align: left;
-          font-size: 10px;
-          font-weight: 600;
-          color: #94a3b8;
-          text-transform: uppercase;
-          letter-spacing: 0.3px;
-          border-bottom: 2px solid #e2e8f0;
-        }
-        .items-table td {
-          padding: 4px 6px;
-          border-bottom: 1px solid #f1f5f9;
-          vertical-align: middle;
-        }
-        .items-table .form-input, .items-table .form-select {
-          padding: 4px 6px;
-          font-size: 12px;
-          height: 30px;
-        }
-        .items-table .form-input[type="number"] { width: 55px; text-align: right; }
-        .item-amount { font-weight: 600; font-size: 13px; color: #1e293b; text-align: right; padding-right: 10px; }
-
-        .remove-item-btn {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          width: 26px;
-          height: 26px;
-          border: none;
-          border-radius: 4px;
-          background: transparent;
-          color: #94a3b8;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-        .remove-item-btn:hover { background: #fef2f2; color: #ef4444; }
-
-        .summary-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 24px;
-        }
-        .summary-left h4 {
-          font-size: 13px;
-          font-weight: 600;
-          color: #1e293b;
-          margin: 0 0 8px 0;
-        }
-        .summary-row {
-          display: flex;
-          justify-content: space-between;
-          padding: 4px 0;
-          font-size: 13px;
-          color: #1e293b;
-        }
-        .summary-row.grand-total {
-          font-size: 16px;
-          font-weight: 700;
-          border-top: 2px solid #e2e8f0;
-          padding-top: 8px;
-          margin-top: 4px;
-          color: #2563eb;
-        }
-
-        .status-card {
-          padding: 12px 16px;
-          background: #f8fafc;
-          border-radius: 8px;
-          border: 1px solid #e2e8f0;
-        }
-        .status-row {
-          display: flex;
-          justify-content: space-between;
-          padding: 4px 0;
-          border-bottom: 1px solid #e2e8f0;
-        }
-        .status-row:last-child { border-bottom: none; }
-        .status-label { font-size: 12px; color: #64748b; }
-        .status-value { font-size: 13px; font-weight: 500; color: #1e293b; }
-        .status-value.draft { color: #94a3b8; }
-
-        .form-footer {
-          display: flex;
-          justify-content: flex-end;
-          padding: 12px 0 0 0;
-          border-top: 1px solid #e2e8f0;
-          margin-top: 4px;
-          flex-wrap: wrap;
-          gap: 8px;
-        }
-        .form-footer-right { display: flex; gap: 8px; flex-wrap: wrap; }
-        .form-footer-right button { min-width: 90px; justify-content: center; }
-        .form-footer-right button:disabled { opacity: 0.6; cursor: not-allowed; }
-
-        .so-hint {
-          font-size: 10px;
-          color: #94a3b8;
-          margin-top: 2px;
-        }
-
-        @media (max-width: 992px) {
-          .form-grid { grid-template-columns: 1fr 1fr; }
-          .summary-grid { grid-template-columns: 1fr; }
-          .customer-info-grid { grid-template-columns: 1fr 1fr; }
+        @media print {
+          .ndc-form-footer, button { display: none !important; }
+          body { padding: 0; }
         }
         @media (max-width: 768px) {
-          .new-dc-page { padding: 12px; }
-          .form-grid { grid-template-columns: 1fr; }
-          .page-header { flex-direction: column; gap: 8px; align-items: flex-start; }
-          .customer-info-grid { grid-template-columns: 1fr; }
-          .form-footer { flex-direction: column; align-items: stretch; }
-          .form-footer-right { width: 100%; flex-direction: column; }
-          .form-footer-right button { width: 100%; min-width: unset; }
-          .items-table { font-size: 12px; min-width: 500px; }
-        }
-        @media (max-width: 480px) {
-          .page-title { font-size: 17px; }
-          .page-header { padding: 10px 14px; }
-          .form-section { padding: 12px 14px; }
-        }
-        @media print {
-          .form-footer, .btn-secondary, .btn-primary { display: none !important; }
-          .new-dc-page { padding: 0 !important; background: #fff !important; }
-          .form-section { box-shadow: none !important; border: 1px solid #e2e8f0 !important; break-inside: avoid; }
+          .ndc-two-column { grid-template-columns: 1fr !important; }
+          .ndc-summary-grid { grid-template-columns: 1fr !important; }
         }
       `}</style>
 
-      {/* ===== HEADER ===== */}
-      <div className="page-header">
-        <div className="page-header-left">
-          <div className="breadcrumb">
-            <span className="active">New Delivery Challan</span>
-          </div>
-          <h1 className="page-title">
-            <FaTruck className="title-icon" />
-            Create Delivery Challan
-          </h1>
-          <p className="page-subtitle">Create a new delivery challan for a customer</p>
-        </div>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          {isLoading && <FaSpinner className="spinning" style={{ color: '#94a3b8' }} />}
-          {useMockData && (
-            <span style={{ fontSize: '11px', color: '#f59e0b', background: '#fef3c7', padding: '3px 10px', borderRadius: '10px' }}>
-              Mock Mode
-            </span>
-          )}
-        </div>
+      {/* Header with Back Button */}
+      <div className="ndc-header">
+        <button onClick={handleCancel} className="ndc-back-btn">
+          <FaArrowLeft size={13} /> Back
+        </button>
+        <div className="ndc-header-divider" />
+        <h1 className="ndc-header-title">Create Delivery Challan</h1>
       </div>
 
-      {/* ===== FORM BODY ===== */}
-      <div className="form-body">
-        {/* Customer Information */}
-        <div className="form-section">
-          <div className="form-section-header">
-            <h3><FaUser style={{ color: '#2563eb', fontSize: '15px' }} /> Customer Information</h3>
-            <span className="required-label">* Required fields</span>
-          </div>
-          <div className="form-grid">
-            <div className="form-group">
-              <label>Customer <span className="required">*</span></label>
-              <div className="input-with-icon">
-                <FaUser className="input-icon" />
-                <select 
-                  className={`form-select ${errors.customer ? 'error' : ''}`}
-                  value={selectedCustomer}
-                  onChange={handleCustomerChange}
-                  disabled={isLoading}
-                >
-                  <option value="">Select Customer</option>
-                  {customers.map(c => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} ({c.code})
-                    </option>
-                  ))}
-                </select>
+      {/* SINGLE UNIFIED BOX */}
+      <div className="ndc-main-box">
+        {/* DC TYPE */}
+        <div className="ndc-type-section">
+          <span className="ndc-type-label">Challan Type:</span>
+          <button
+            onClick={() => setDcType('Products')}
+            className={`ndc-type-btn ${dcType === 'Products' ? 'ndc-type-btn-active' : 'ndc-type-btn-inactive'}`}
+          >
+            Products
+          </button>
+          <button
+            onClick={() => setDcType('Services')}
+            className={`ndc-type-btn ${dcType === 'Services' ? 'ndc-type-btn-active' : 'ndc-type-btn-inactive'}`}
+          >
+            Services
+          </button>
+        </div>
+
+        {/* Two Column Layout */}
+        <div className="ndc-two-column">
+          {/* LEFT COLUMN */}
+          <div>
+            <div className="ndc-field">
+              <label className="ndc-label">Customer *</label>
+              <select
+                value={selectedCustomer}
+                onChange={handleCustomerChange}
+                disabled={isLoading}
+                className={`ndc-select ${errors.customer ? 'ndc-select-error' : ''}`}
+              >
+                <option value="">Select Customer</option>
+                {customers.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              {errors.customer && <span className="ndc-error-text">{errors.customer}</span>}
+            </div>
+
+            <div className="ndc-field">
+              <label className="ndc-label">Sales Order</label>
+              <SalesOrderDropdown
+                value={selectedSalesOrder}
+                onChange={handleSalesOrderChange}
+                customerId={selectedCustomer}
+                placeholder="Search or select sales order..."
+                disabled={!selectedCustomer}
+                error={!!errors.salesOrder}
+              />
+            </div>
+
+            <div className="ndc-row">
+              <div className="ndc-field">
+                <label className="ndc-label">DC Number</label>
+                <input type="text" value={dcNumber} disabled className="ndc-input ndc-input-disabled" />
               </div>
-              {errors.customer && <span className="error-text">{errors.customer}</span>}
-            </div>
-
-            <div className="form-group">
-              <label>Sales Order</label>
-              <div className="input-with-icon">
-                <FaFileInvoice className="input-icon" />
-                <select 
-                  className="form-select"
-                  value={selectedSalesOrder}
-                  onChange={handleSalesOrderChange}
-                  disabled={!selectedCustomer || isLoading}
-                >
-                  <option value="">Select Sales Order</option>
-                  {salesOrders.map(so => (
-                    <option key={so.id} value={so.id}>
-                      {so.name} - ₹{so.total.toFixed(2)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              {!selectedCustomer && <span className="so-hint">Select customer first</span>}
-              {selectedCustomer && salesOrders.length === 0 && !isLoading && (
-                <span className="so-hint">No sales orders for this customer</span>
-              )}
-            </div>
-
-            <div className="form-group" style={{ maxWidth: '160px' }}>
-              <label>DC Number</label>
-              <input type="text" className="form-input" value={dcNumber} disabled />
-            </div>
-
-            <div className="form-group" style={{ maxWidth: '160px' }}>
-              <label>DC Date <span className="required">*</span></label>
-              <div className="input-with-icon">
-                <FaCalendarAlt className="input-icon" />
-                <input 
-                  type="date" 
-                  className={`form-input ${errors.dcDate ? 'error' : ''}`}
+              <div className="ndc-field">
+                <label className="ndc-label">DC Date *</label>
+                <input
+                  type="date"
                   value={dcDate}
                   onChange={(e) => setDcDate(e.target.value)}
-                />
-              </div>
-              {errors.dcDate && <span className="error-text">{errors.dcDate}</span>}
-            </div>
-
-            <div className="form-group" style={{ maxWidth: '180px' }}>
-              <label>Type of DC <span className="required">*</span></label>
-              <div className="input-with-icon" style={{ position: 'relative' }}>
-                <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '13px' }}>
-                  {getDcTypeIcon()}
-                </span>
-                <select 
-                  className="form-select"
-                  value={dcType}
-                  onChange={(e) => setDcType(e.target.value)}
-                  style={{ paddingLeft: '32px' }}
-                >
-                  <option value="Products">📦 Products</option>
-                  <option value="Services">🛠️ Services</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="form-group" style={{ maxWidth: '140px' }}>
-              <label>PO Number</label>
-              <div className="input-with-icon">
-                <FaFileContract className="input-icon" />
-                <input 
-                  type="text" 
-                  className="form-input"
-                  placeholder="PO-1001"
-                  value={poNumber}
-                  onChange={(e) => setPoNumber(e.target.value)}
+                  className={`ndc-input ${errors.dcDate ? 'ndc-input-error' : ''}`}
                 />
               </div>
             </div>
 
-            <div className="form-group" style={{ maxWidth: '140px' }}>
-              <label>PO Date</label>
-              <div className="input-with-icon">
-                <FaCalendarAlt className="input-icon" />
-                <input 
-                  type="date" 
-                  className="form-input"
-                  value={poDate}
-                  onChange={(e) => setPoDate(e.target.value)}
+            {/* Customer Details */}
+            {customerData && (
+              <div className="ndc-customer-details">
+                <div className="ndc-customer-detail">
+                  <span className="ndc-customer-detail-label">Code:</span>
+                  <span className="ndc-customer-detail-value">{customerData.code}</span>
+                </div>
+                <div className="ndc-customer-detail">
+                  <span className="ndc-customer-detail-label">Contact:</span>
+                  <span className="ndc-customer-detail-value">{customerData.contactPerson || 'N/A'}</span>
+                </div>
+                <div className="ndc-customer-detail">
+                  <span className="ndc-customer-detail-label">Phone:</span>
+                  <span className="ndc-customer-detail-value">{customerData.phone}</span>
+                </div>
+                <div className="ndc-customer-detail">
+                  <span className="ndc-customer-detail-label">GST:</span>
+                  <span className="ndc-customer-detail-value">{customerData.gstin}</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* RIGHT COLUMN */}
+          <div>
+            <div className="ndc-field">
+              <label className="ndc-label">Warehouse *</label>
+              <select
+                value={warehouse}
+                onChange={(e) => setWarehouse(e.target.value)}
+                className={`ndc-select ${errors.warehouse ? 'ndc-select-error' : ''}`}
+              >
+                <option value="">Select Warehouse</option>
+                <option value="Main Warehouse">Main Warehouse</option>
+                <option value="Secondary Warehouse">Secondary Warehouse</option>
+              </select>
+            </div>
+
+            <div className="ndc-field">
+              <label className="ndc-label">Transporter</label>
+              <input
+                type="text"
+                placeholder="Transporter name"
+                value={transporter}
+                onChange={(e) => setTransporter(e.target.value)}
+                className="ndc-input"
+              />
+            </div>
+
+            <div className="ndc-row">
+              <div className="ndc-field">
+                <label className="ndc-label">Vehicle Number</label>
+                <input
+                  type="text"
+                  placeholder="MH-01-AB-1234"
+                  value={vehicleNumber}
+                  onChange={(e) => setVehicleNumber(e.target.value)}
+                  className="ndc-input"
+                />
+              </div>
+              <div className="ndc-field">
+                <label className="ndc-label">Driver Name</label>
+                <input
+                  type="text"
+                  placeholder="Driver name"
+                  value={driverName}
+                  onChange={(e) => setDriverName(e.target.value)}
+                  className="ndc-input"
+                />
+              </div>
+            </div>
+
+            <div className="ndc-row">
+              <div className="ndc-field">
+                <label className="ndc-label">LR Number</label>
+                <input
+                  type="text"
+                  placeholder="LR-123456"
+                  value={lrNumber}
+                  onChange={(e) => setLrNumber(e.target.value)}
+                  className="ndc-input"
+                />
+              </div>
+              <div className="ndc-field">
+                <label className="ndc-label">LR Date</label>
+                <input
+                  type="date"
+                  value={lrDate}
+                  onChange={(e) => setLrDate(e.target.value)}
+                  className="ndc-input"
                 />
               </div>
             </div>
           </div>
         </div>
 
-        {/* Customer Details */}
-        {customerData && (
-          <div className="form-section customer-details">
-            <div className="form-section-header">
-              <h3><FaInfoCircle style={{ color: '#6b7280', fontSize: '13px' }} /> Customer Details</h3>
-              <span className="readonly-badge"><FaInfoCircle /> Auto-populated</span>
-            </div>
-            <div className="customer-info-grid">
-              <div className="info-group">
-                <label>Code</label>
-                <div className="info-value">{customerData.code}</div>
-              </div>
-              <div className="info-group">
-                <label>Contact Person</label>
-                <div className="info-value">{customerData.contactPerson || 'N/A'}</div>
-              </div>
-              <div className="info-group">
-                <label>Phone</label>
-                <div className="info-value">{customerData.phone}</div>
-              </div>
-              <div className="info-group">
-                <label>Email</label>
-                <div className="info-value">{customerData.email}</div>
-              </div>
-              <div className="info-group">
-                <label>GST</label>
-                <div className="info-value">{customerData.gstin}</div>
-              </div>
-              <div className="info-group">
-                <label>Address</label>
-                <div className="info-value">{customerData.address}</div>
-              </div>
-            </div>
-          </div>
-        )}
+        <hr className="ndc-divider" />
 
-        {/* Products/Services */}
-        <div className="form-section">
-          <div className="form-section-header">
-            <h3>
-              {dcType === 'Products' ? <FaBox style={{ color: '#2563eb', fontSize: '15px' }} /> : <FaHands style={{ color: '#2563eb', fontSize: '15px' }} />}
-              {dcType === 'Products' ? 'Products' : 'Services'}
-            </h3>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span className="dc-type-badge">{getDcTypeIcon()} {dcType}</span>
-              <button className="btn-secondary" onClick={addItem} style={{ padding: '4px 10px', fontSize: '12px' }}>
-                <FaPlus size={10} /> Add
-              </button>
-            </div>
+        {/* PO Details */}
+        <div className="ndc-row">
+          <div className="ndc-field">
+            <label className="ndc-label">PO Number</label>
+            <input
+              type="text"
+              placeholder="PO-1001"
+              value={poNumber}
+              onChange={(e) => setPoNumber(e.target.value)}
+              className="ndc-input"
+            />
           </div>
-          {errors.items && <div className="error-banner">{errors.items}</div>}
-          <div className="items-table-container">
-            <table className="items-table">
+          <div className="ndc-field">
+            <label className="ndc-label">PO Date</label>
+            <input
+              type="date"
+              value={poDate}
+              onChange={(e) => setPoDate(e.target.value)}
+              className="ndc-input"
+            />
+          </div>
+        </div>
+
+        <hr className="ndc-divider" />
+
+        {/* Items */}
+        <div>
+          <div className="ndc-items-header">
+            <span className="ndc-items-title">
+              <FaBox className="ndc-items-icon" /> {dcType === 'Products' ? 'Products' : 'Services'}
+            </span>
+            <button onClick={addItem} className="ndc-add-btn">
+              <FaPlus size={9} /> Add
+            </button>
+          </div>
+
+          {errors.items && <div className="ndc-items-error">{errors.items}</div>}
+
+          <div className="ndc-table-wrap">
+            <table className="ndc-items-table">
               <thead>
                 <tr>
-                  <th style={{ width: '18%' }}>Item</th>
-                  <th style={{ width: '24%' }}>Description</th>
-                  <th style={{ width: '10%', textAlign: 'right' }}>Qty</th>
-                  <th style={{ width: '10%', textAlign: 'right' }}>Unit</th>
-                  <th style={{ width: '14%', textAlign: 'right' }}>Rate</th>
-                  <th style={{ width: '16%', textAlign: 'right' }}>Amount</th>
-                  <th style={{ width: '8%' }}></th>
+                  <th className="ndc-col-code">Item Code</th>
+                  <th className="ndc-col-name">Item Name</th>
+                  <th className="ndc-col-qty">Qty</th>
+                  <th className="ndc-col-rate">Rate</th>
+                  <th className="ndc-col-amount">Amount</th>
+                  <th className="ndc-col-gst">GST%</th>
+                  <th className="ndc-col-tax">Tax</th>
+                  <th className="ndc-col-total">Total</th>
+                  <th className="ndc-col-action"></th>
                 </tr>
               </thead>
               <tbody>
                 {items.map(item => (
                   <tr key={item.id}>
-                    <td>
-                      <select 
-                        className="form-select"
+                    <td className="ndc-col-code">
+                      <SearchableSelect
                         value={item.itemCode}
-                        onChange={(e) => updateItem(item.id, 'itemCode', e.target.value)}
-                      >
-                        <option value="">Select</option>
-                        {filteredProducts.map(p => (
-                          <option key={p.id} value={p.itemCode}>
-                            {p.itemCode}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td>
-                      <input 
-                        type="text" 
-                        className="form-input"
-                        value={item.description}
-                        onChange={(e) => updateItem(item.id, 'description', e.target.value)}
-                        placeholder="Description"
+                        onChange={(value) => updateItem(item.id, 'itemCode', value)}
+                        options={products}
+                        placeholder="Search..."
+                        onSearch={handleItemSearch}
+                        loading={isLoadingItems}
                       />
                     </td>
-                    <td>
-                      <input 
-                        type="number" 
-                        className="form-input"
+                    <td className="ndc-col-name">
+                      <input
+                        type="text"
+                        value={item.itemName}
+                        disabled
+                        className="ndc-table-input ndc-table-input-text"
+                      />
+                    </td>
+                    <td className="ndc-col-qty">
+                      <input
+                        type="number"
                         value={item.quantity}
                         onChange={(e) => updateItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
-                        min="0"
-                        step="1"
-                        style={{ textAlign: 'right' }}
+                        className="ndc-table-input"
+                        style={{ maxWidth: '50px' }}
                       />
                     </td>
-                    <td>
-                      <input 
-                        type="text" 
-                        className="form-input"
-                        value={item.unit}
-                        onChange={(e) => updateItem(item.id, 'unit', e.target.value)}
-                        style={{ textAlign: 'right' }}
-                      />
-                    </td>
-                    <td>
-                      <input 
-                        type="number" 
-                        className="form-input"
+                    <td className="ndc-col-rate">
+                      <input
+                        type="number"
                         value={item.rate}
                         onChange={(e) => updateItem(item.id, 'rate', parseFloat(e.target.value) || 0)}
-                        min="0"
-                        step="0.01"
-                        style={{ textAlign: 'right' }}
+                        className="ndc-table-input"
+                        style={{ maxWidth: '60px' }}
                       />
                     </td>
-                    <td className="item-amount">₹{item.amount.toFixed(2)}</td>
-                    <td>
-                      <button 
-                        className="remove-item-btn"
-                        onClick={() => removeItem(item.id)}
-                        title="Remove item"
-                      >
+                    <td className="ndc-col-amount">
+                      <span className="ndc-table-value">₹{item.amount.toFixed(2)}</span>
+                    </td>
+                    <td className="ndc-col-gst">
+                      <input
+                        type="number"
+                        value={item.tax || 0}
+                        onChange={(e) => {
+                          const taxRate = parseFloat(e.target.value) || 0;
+                          const amount = (item.quantity || 0) * (item.rate || 0);
+                          const taxAmount = (amount * taxRate) / 100;
+                          setItems(prevItems =>
+                            prevItems.map(i => {
+                              if (i.id === item.id) {
+                                return {
+                                  ...i,
+                                  tax: taxRate,
+                                  taxAmount: taxAmount,
+                                  totalAmount: amount + taxAmount
+                                };
+                              }
+                              return i;
+                            })
+                          );
+                        }}
+                        className="ndc-table-input"
+                        style={{ maxWidth: '40px' }}
+                      />
+                    </td>
+                    <td className="ndc-col-tax">
+                      <span className="ndc-table-value">₹{item.taxAmount.toFixed(2)}</span>
+                    </td>
+                    <td className="ndc-col-total">
+                      <span className="ndc-table-value ndc-table-value-bold">₹{item.totalAmount.toFixed(2)}</span>
+                    </td>
+                    <td className="ndc-col-action">
+                      <button onClick={() => removeItem(item.id)} className="ndc-remove-btn">
                         <FaTrash />
                       </button>
                     </td>
@@ -1459,172 +1577,114 @@ const NewDeliveryChallan: React.FC = () => {
           </div>
         </div>
 
-        {/* Dispatch Information */}
-        <div className="form-section">
-          <div className="form-section-header">
-            <h3><FaTruck style={{ color: '#2563eb', fontSize: '15px' }} /> Dispatch Information</h3>
-          </div>
-          <div className="form-grid">
-            <div className="form-group" style={{ maxWidth: '220px' }}>
-              <label>Warehouse <span className="required">*</span></label>
-              <div className="input-with-icon">
-                <FaWarehouse className="input-icon" />
-                <select 
-                  className={`form-select ${errors.warehouse ? 'error' : ''}`}
-                  value={warehouse}
-                  onChange={(e) => setWarehouse(e.target.value)}
-                >
-                  <option value="">Select</option>
-                  <option value="Main Warehouse">Main Warehouse</option>
-                  <option value="Secondary Warehouse">Secondary Warehouse</option>
-                  <option value="Store Front">Store Front</option>
-                </select>
-              </div>
-              {errors.warehouse && <span className="error-text">{errors.warehouse}</span>}
-            </div>
+        <hr className="ndc-divider" />
 
-            <div className="form-group" style={{ maxWidth: '180px' }}>
-              <label>Transporter</label>
-              <div className="input-with-icon">
-                <FaTruck className="input-icon" />
-                <input 
-                  type="text" 
-                  className="form-input"
-                  placeholder="Transporter"
-                  value={transporter}
-                  onChange={(e) => setTransporter(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="form-group" style={{ maxWidth: '160px' }}>
-              <label>Vehicle No.</label>
-              <div className="input-with-icon">
-                <FaHashtag className="input-icon" />
-                <input 
-                  type="text" 
-                  className="form-input"
-                  placeholder="MH-01-AB-1234"
-                  value={vehicleNumber}
-                  onChange={(e) => setVehicleNumber(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="form-group" style={{ maxWidth: '160px' }}>
-              <label>Driver</label>
-              <div className="input-with-icon">
-                <FaUserTie className="input-icon" />
-                <input 
-                  type="text" 
-                  className="form-input"
-                  placeholder="Driver name"
-                  value={driverName}
-                  onChange={(e) => setDriverName(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="form-group" style={{ maxWidth: '160px' }}>
-              <label>LR Number</label>
-              <div className="input-with-icon">
-                <FaIdCard className="input-icon" />
-                <input 
-                  type="text" 
-                  className="form-input"
-                  placeholder="LR-123456"
-                  value={lrNumber}
-                  onChange={(e) => setLrNumber(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="form-group" style={{ maxWidth: '140px' }}>
-              <label>LR Date</label>
-              <div className="input-with-icon">
-                <FaCalendarAlt className="input-icon" />
-                <input 
-                  type="date" 
-                  className="form-input"
-                  value={lrDate}
-                  onChange={(e) => setLrDate(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="form-group full-width">
-              <label>Remarks</label>
-              <textarea 
-                className="form-textarea"
-                rows={1}
-                placeholder="Additional notes..."
-                value={remarks}
-                onChange={(e) => setRemarks(e.target.value)}
-              />
-            </div>
-          </div>
+        {/* Remarks */}
+        <div>
+          <label className="ndc-label">Remarks</label>
+          <textarea
+            placeholder="Add any additional notes..."
+            value={remarks}
+            onChange={(e) => setRemarks(e.target.value)}
+            className="ndc-textarea"
+          />
         </div>
 
-        {/* Summary */}
-        <div className="form-section">
-          <div className="summary-grid">
-            <div className="summary-left">
-              <h4>Summary</h4>
-              <div className="summary-row">
-                <span>Total Items</span>
-                <span>{items.filter(i => i.itemCode && i.quantity > 0).length}</span>
+        <hr className="ndc-divider" />
+
+        {/* Summary & Status */}
+        <div className="ndc-summary-grid">
+          {/* LEFT - Summary Values */}
+          <div className="ndc-summary-left">
+            <div className="ndc-summary-card">
+              <div className="ndc-summary-item">
+                <span className="ndc-summary-icon"><FaListUl /></span>
+                <span className="ndc-summary-label-text">Total Items</span>
+                <span className="ndc-summary-value-text">{totalItems}</span>
               </div>
-              <div className="summary-row">
-                <span>Total Quantity</span>
-                <span>{getTotalQty()}</span>
+              <div className="ndc-summary-item">
+                <span className="ndc-summary-icon"><FaBox /></span>
+                <span className="ndc-summary-label-text">Total Quantity</span>
+                <span className="ndc-summary-value-text">{totalQuantity}</span>
               </div>
-              <div className="summary-row grand-total">
-                <span>Grand Total</span>
-                <span>₹{getTotalAmount().toFixed(2)}</span>
+              <div className="ndc-summary-item">
+                <span className="ndc-summary-icon"><FaMoneyBillWave /></span>
+                <span className="ndc-summary-label-text">Sub Total</span>
+                <span className="ndc-summary-value-text">₹{subTotal.toFixed(2)}</span>
+              </div>
+              <div className="ndc-summary-item">
+                <span className="ndc-summary-icon"><FaTags /></span>
+                <span className="ndc-summary-label-text">Total Tax</span>
+                <span className="ndc-summary-value-text">₹{totalTax.toFixed(2)}</span>
+              </div>
+              <div className="ndc-summary-item">
+                <span className="ndc-summary-icon"><FaCalculator /></span>
+                <span className="ndc-summary-label-text">Round Off</span>
+                <span className="ndc-summary-value-text">
+                  <input
+                    type="number"
+                    value={roundOff.toFixed(2)}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value) || 0;
+                      setRoundOff(val);
+                    }}
+                    className="ndc-roundoff-input"
+                  />
+                </span>
+              </div>
+              <div className="ndc-summary-total">
+                <span className="ndc-summary-total-label">Grand Total</span>
+                <span className="ndc-summary-total-value">₹{grandTotalWithRound.toFixed(2)}</span>
               </div>
             </div>
-            <div className="summary-right">
-              <div className="status-card">
-                <div className="status-row">
-                  <span className="status-label">DC Status</span>
-                  <span className="status-value draft">Draft</span>
-                </div>
-                <div className="status-row">
-                  <span className="status-label">DC Type</span>
-                  <span className="status-value">{dcType}</span>
-                </div>
-                <div className="status-row">
-                  <span className="status-label">Sales Order</span>
-                  <span className="status-value">{selectedSalesOrder || 'N/A'}</span>
-                </div>
-                <div className="status-row">
-                  <span className="status-label">Customer</span>
-                  <span className="status-value">{customerData?.name || 'Not Selected'}</span>
-                </div>
+          </div>
+
+          {/* RIGHT - Status Information */}
+          <div className="ndc-summary-right">
+            <div className="ndc-status-card">
+              <div className="ndc-status-header">
+                <span className="ndc-status-icon"><FaInfoCircle /></span>
+                <span className="ndc-status-title">Document Status</span>
+              </div>
+              <div className="ndc-status-item">
+                <span className="ndc-status-label">DC Status</span>
+                <span className="ndc-status-value ndc-status-draft">Draft</span>
+              </div>
+              <div className="ndc-status-item">
+                <span className="ndc-status-label">DC Type</span>
+                <span className="ndc-status-value">{dcType}</span>
+              </div>
+              <div className="ndc-status-item">
+                <span className="ndc-status-label">Customer</span>
+                <span className="ndc-status-value">{customerData?.name || 'Not selected'}</span>
+              </div>
+              <div className="ndc-status-item">
+                <span className="ndc-status-label">DC Number</span>
+                <span className="ndc-status-value">{dcNumber}</span>
+              </div>
+              <div className="ndc-status-item">
+                <span className="ndc-status-label">Date</span>
+                <span className="ndc-status-value">{new Date(dcDate).toLocaleDateString()}</span>
               </div>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* ===== FOOTER ===== */}
-        <div className="form-footer">
-          <div className="form-footer-right">
-            <button className="btn-secondary" onClick={handlePrint}>
-              <FaPrint /> Print
-            </button>
-            <button className="btn-secondary" onClick={handleSaveDraft} disabled={isSubmitting}>
-              {isSubmitting ? <FaSpinner className="spinning" /> : <FaSave />}
-              {isSubmitting ? 'Saving...' : 'Save Draft'}
-            </button>
-            <button className="btn-primary" onClick={handleSubmit} disabled={isSubmitting}>
-              {isSubmitting ? <FaSpinner className="spinning" /> : <FaPaperPlane />}
-              {isSubmitting ? 'Submitting...' : 'Submit'}
-            </button>
-            <button className="btn-secondary" onClick={handleCancel}>
-              <FaTimes /> Cancel
-            </button>
-          </div>
-        </div>
+      {/* Action Buttons */}
+      <div className="ndc-form-footer">
+        <button onClick={() => window.print()} className="ndc-btn ndc-btn-print">
+          <FaPrint size={11} /> Print
+        </button>
+        <button onClick={handleSaveDraft} disabled={isSubmitting} className="ndc-btn ndc-btn-draft">
+          {isSubmitting ? <FaSpinner className="ndc-spinning" size={11} /> : <FaSave size={11} />} Draft
+        </button>
+        <button onClick={handleSubmit} disabled={isSubmitting} className="ndc-btn ndc-btn-submit">
+          {isSubmitting ? <FaSpinner className="ndc-spinning" size={11} /> : <FaPaperPlane size={11} />} Submit
+        </button>
+        <button onClick={handleCancel} className="ndc-btn ndc-btn-cancel">
+          <FaTimes size={11} /> Cancel
+        </button>
       </div>
     </div>
   );

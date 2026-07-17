@@ -3,7 +3,6 @@ import {
   FaPlus, 
   FaSearch, 
   FaFilter, 
-  FaDownload, 
   FaPrint,
   FaEye,
   FaEdit,
@@ -162,14 +161,6 @@ const DeliveryChallans: React.FC = () => {
     });
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(amount || 0);
-  };
 
   // ===== FILTER DATA =====
   const filteredData = challans.filter(item => {

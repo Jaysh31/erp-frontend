@@ -100,11 +100,11 @@ import RoleForm from "./pages/UserManagement/RoleForm";
 import RoleList from "./pages/UserManagement/RoleList";
 import ModulePermissions from "./pages/UserManagement/ModulePermissions";
 import InventoryList from "./pages/InventoryList";
-
-import SubModulePermissions from "./pages/UserManagement/SubModulePermissions";
-import QualityInspectionReport from "./pages/QualityInspectionForm";
 import QualityInspectionList from "./pages/QualityInspectionList";
 import QualityInspectionForm from "./pages/QualityInspectionForm";
+import SubModulePermissions from "./pages/UserManagement/SubModulePermissions";
+import ContactForm from "./pages/ContactForm";
+import CreateSalesBill from "./pages/CreateSalesInvoice";
 import BankDetailsForm from "./pages/BankDetailsForm";
 
 
@@ -135,8 +135,12 @@ function App() {
               <Route path="/coupon-codes" element={<CouponCode />} />
               <Route path="/supplier" element={<Supplier />} />
               <Route path="/supplier/new" element={<AddSupplier />} />
+              <Route path="/supplier/:id" element={<AddSupplier />} />
               <Route path="/supplier-group" element={<SupplierGroup />} />
               <Route path="/contacts" element={<Contacts />} />
+<Route path="/contacts/new" element={<ContactForm />} />
+<Route path="/contacts/edit/:id" element={<ContactForm />} />
+<Route path="/contacts/view/:id" element={<ContactForm />} />
               <Route path="/material-request" element={<MaterialRequest />} />
               <Route path="/purchase-order" element={<PurchaseOrder />} />
               <Route path="/request-for-quotation" element={<RequestForQuotation />} />
@@ -146,6 +150,14 @@ function App() {
               <Route path="/purchase-invoice/new" element={<PurchaseInvoiceForm />} />
               {/* <
               /* <Route path="/sales" element={<SalesPage />} /> */}
+          
+
+              {/* Sales Bill Routes - Added /edit and /view routes */}
+              <Route path="/sales-bill" element={<SalesInvoice />} />
+              <Route path="/sales-bill/new" element={<CreateSalesBill />} />
+              <Route path="/sales-bill/edit/:id" element={<CreateSalesBill />} />
+              <Route path="/sales-bill/view/:id" element={<CreateSalesBill />} />
+          
 
 
 
@@ -249,6 +261,7 @@ function App() {
               <Route path="/letter-head" element={<LetterHeadList />} />
               <Route path="/letter-head/new" element={<AddLetterHeadForm />} />
               <Route path="/letter-head/:id" element={<AddLetterHeadForm />} />
+              <Route path="/module/:moduleId/submodules" element={<SubModulePermissions />} />
 
               {/* GRN Routes */}
               <Route path="/grn" element={<GRNList />} />
