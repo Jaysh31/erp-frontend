@@ -104,7 +104,6 @@ import QualityInspectionList from "./pages/QualityInspectionList";
 import QualityInspectionForm from "./pages/QualityInspectionForm";
 import ContactForm from "./pages/ContactForm";
 import SubModulePermissions from "./pages/UserManagement/SubModulePermissions";
-import ContactForm from "./pages/ContactForm";
 import CreateSalesBill from "./pages/CreateSalesInvoice";
 import BankDetailsForm from "./pages/BankDetailsForm";
 
