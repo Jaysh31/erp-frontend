@@ -319,7 +319,7 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
         plant_floor: formData.plant_floor,
         // disabled: formData.disabled || 0,
         production_capacity: formData.production_capacity || 0,
-        warehouse: formData.warehouse || "Main Warehouse",
+        warehouse: formData.warehouse ,
         status: formData.status || "Active",
         hour_rate: formData.hour_rate || 0,
         description: formData.description || "",

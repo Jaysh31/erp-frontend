@@ -103,7 +103,7 @@ const allMenuCategories = [
             icon: <ReceiptIcon />,
             path: '/delivery-challan'
         },
-        { title: 'Sales Invoice', icon: <InvoiceIcon />, path: '/sales-invoice' }
+        { title: 'Tax Invoice/Sale Bill', icon: <InvoiceIcon />, path: '/sales-invoice' }
       ]
     },
     {
@@ -176,7 +176,7 @@ const allMenuCategories = [
       items: [
         { title: 'Purchase Order', icon: <PurchaseOrderIcon />, path: '/purchase-order' },
         { title: 'Goods Receipt Note', icon: <GRNIcon />, path: '/grn' },
-        { title: 'Purchase Invoice', icon: <PurchaseInvoiceIcon />, path: '/purchase-invoice' },
+        { title: 'Purchase Bill', icon: <PurchaseInvoiceIcon />, path: '/purchase-invoice' },
       ]
     },
     // ─── SUPPLIERS & CONTACTS ───
