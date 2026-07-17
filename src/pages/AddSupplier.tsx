@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, type FormEvent } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { 
-  FaArrowLeft, FaSave, FaSpinner, FaInfoCircle, 
-  FaBuilding, FaUser, FaMapMarkerAlt,FaTag,
+  FaArrowLeft, FaSave, FaSpinner, FaInfoCircle, FaExclamationCircle,
+  FaExclamationTriangle, FaTimesCircle,
+  FaBuilding, FaUser, FaMapMarkerAlt, FaTag, FaFolder, FaPhone, FaEnvelope,
 } from 'react-icons/fa';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import api from '../services/api';
@@ -10,71 +11,79 @@ import toast from 'react-hot-toast';
 import './AddSupplier.css';
 
 interface SupplierForm {
-  // Basic Info
   supplierName: string;
   supplierType: string;
   supplierGroup: string;
   country: string;
   defaultCurrency: string;
   language: string;
-  
-  // Contact
   firstName: string;
   lastName: string;
   emailId: string;
   mobileNo: string;
-  
-  // Address
   addressLine1: string;
   addressLine2: string;
   city: string;
   state: string;
   pincode: string;
-  
-  // Tax & Financial
   taxId: string;
   taxCategory: string;
   paymentTerms: string;
   defaultBankAccount: string;
   defaultPriceList: string;
-  
-  // Additional
   website: string;
   supplierDetails: string;
   isTransporter: boolean;
   isInternalSupplier: boolean;
   onHold: boolean;
+  status: 'Active' | 'Inactive';
 }
 
-interface SupplierResponse {
-  success: number;
+interface ValidationError {
+  field: string;
+  label: string;
   message: string;
-  data: {
-    fieldCount: number;
-    affectedRows: number;
-    insertId: number;
-    info: string;
-    serverStatus: number;
-    warningStatus: number;
-    changedRows: number;
-  };
+}
+
+// Helper icon component with proper sizing
+function FaGlobeIcon(props: any) {
+  return (
+    <svg 
+      {...props} 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      stroke="currentColor" 
+      strokeWidth="2" 
+      strokeLinecap="round" 
+      strokeLinejoin="round"
+      style={{ width: '12px', height: '12px', flexShrink: 0 }}
+    >
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="2" y1="12" x2="22" y2="12"/>
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+    </svg>
+  );
 }
 
 export default function AddSupplier() {
   const navigate = useNavigate();
-  
-  let theme = 'light';
-  try {
-    const context = useAdminTheme();
-    theme = context.theme;
-  } catch (error) {
-    console.log('Using default light theme');
-  }
+  const { id } = useParams<{ id: string }>();
+  const { theme } = useAdminTheme();
+
+  const isNew = id === 'new' || !id;
+  const isEditMode = !isNew && id;
 
   const [loading, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fetching, setFetching] = useState(false);
   const [pincodeSuggestions, setPincodeSuggestions] = useState<string[]>([]);
   const [showPincodeSuggestions, setShowPincodeSuggestions] = useState(false);
+  const [showValidationSummary, setShowValidationSummary] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [, setIsDirty] = useState(false);
+  // Store the numeric ID for edit mode
+  const [supplierId, setSupplierId] = useState<number | null>(null);
 
   const [formData, setFormData] = useState<SupplierForm>({
     supplierName: '',
@@ -101,7 +110,8 @@ export default function AddSupplier() {
     supplierDetails: '',
     isTransporter: false,
     isInternalSupplier: false,
-    onHold: false
+    onHold: false,
+    status: 'Active'
   });
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
@@ -110,12 +120,11 @@ export default function AddSupplier() {
   const supplierGroups = ['Raw Materials', 'Electronic Components', 'Packaging', 'Chemicals', 'Logistics', 'Office Supplies', 'Services', 'All Supplier Groups'];
   const countries = ['India', 'USA', 'UK', 'Germany', 'China', 'Japan', 'UAE', 'Singapore'];
   const currencies = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD'];
-  // const languages = ['en', 'hi', 'es', 'fr', 'de', 'zh', 'ar'];
   const taxCategories = ['Registered Regular', 'Registered Composition', 'Unregistered', 'SEZ', 'Export Oriented'];
   const paymentTerms = ['7 Days', '15 Days', '30 Days', '45 Days', '60 Days', 'Due on Receipt'];
   const priceLists = ['Standard Buying', 'Export Pricing', 'Wholesale', 'Distributor'];
+  const statusOptions = ['Active', 'Inactive'];
 
-  // Sample pincode data for autofill
   const pincodeData: { [key: string]: { city: string; state: string; country: string } } = {
     '400001': { city: 'Mumbai', state: 'Maharashtra', country: 'India' },
     '400002': { city: 'Mumbai', state: 'Maharashtra', country: 'India' },
@@ -135,10 +144,92 @@ export default function AddSupplier() {
     '122001': { city: 'Gurgaon', state: 'Haryana', country: 'India' }
   };
 
-  // Handle pincode change - autofill address
+  useEffect(() => {
+    if (isEditMode && id) {
+      fetchSupplier(id);
+    }
+  }, [id, isEditMode]);
+
+  const fetchSupplier = async (supplierId: string) => {
+    setFetching(true);
+    setApiError(null);
+    try {
+      const response = await api.get(`/supplier/${supplierId}`);
+      if (response.data && response.data.success === 1) {
+        const data = response.data.data;
+        // Store the numeric ID for edit
+        setSupplierId(data.id || null);
+        setFormData({
+          supplierName: data.supplier_name || data.name || '',
+          supplierType: data.supplier_type || 'Company',
+          supplierGroup: data.supplier_group || '',
+          country: data.country || 'India',
+          defaultCurrency: data.default_currency || 'INR',
+          language: data.language || 'en',
+          firstName: data.first_name || '',
+          lastName: data.last_name || '',
+          emailId: data.email_id || data.email || '',
+          mobileNo: data.mobile_no || data.phone || '',
+          addressLine1: data.address_line1 || data.address || '',
+          addressLine2: data.address_line2 || '',
+          city: data.city || '',
+          state: data.state || '',
+          pincode: data.pincode || '',
+          taxId: data.tax_id || '',
+          taxCategory: data.tax_category || 'Registered Regular',
+          paymentTerms: data.payment_terms || '30 Days',
+          defaultBankAccount: data.default_bank_account || '',
+          defaultPriceList: data.default_price_list || 'Standard Buying',
+          website: data.website || '',
+          supplierDetails: data.supplier_details || '',
+          isTransporter: data.is_transporter === 1 || data.is_transporter === true,
+          isInternalSupplier: data.is_internal_supplier === 1 || data.is_internal_supplier === true,
+          onHold: data.on_hold === 1 || data.on_hold === true,
+          status: data.disabled === 1 ? 'Inactive' : 'Active'
+        });
+      } else {
+        setApiError(response.data?.message || 'Failed to fetch supplier details');
+      }
+    } catch (err: any) {
+      console.error('Error fetching supplier:', err);
+      setApiError(err.response?.data?.message || 'Failed to fetch supplier details');
+    } finally {
+      setFetching(false);
+    }
+  };
+
+  const getAllValidationErrors = (): ValidationError[] => {
+    const allErrors: ValidationError[] = [];
+    if (!formData.supplierName.trim()) {
+      allErrors.push({ field: 'supplierName', label: 'Supplier Name', message: 'Supplier name is required' });
+    }
+    if (!formData.emailId.trim()) {
+      allErrors.push({ field: 'emailId', label: 'Email ID', message: 'Email ID is required' });
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.emailId)) {
+      allErrors.push({ field: 'emailId', label: 'Email ID', message: 'Please enter a valid email address' });
+    }
+    if (!formData.mobileNo.trim()) {
+      allErrors.push({ field: 'mobileNo', label: 'Mobile Number', message: 'Mobile number is required' });
+    }
+    if (!formData.addressLine1.trim()) {
+      allErrors.push({ field: 'addressLine1', label: 'Address Line 1', message: 'Address line 1 is required' });
+    }
+    if (!formData.city.trim()) {
+      allErrors.push({ field: 'city', label: 'City', message: 'City is required' });
+    }
+    if (!formData.state.trim()) {
+      allErrors.push({ field: 'state', label: 'State', message: 'State is required' });
+    }
+    if (!formData.pincode.trim()) {
+      allErrors.push({ field: 'pincode', label: 'Pincode', message: 'Pincode is required' });
+    }
+    return allErrors;
+  };
+
   const handlePincodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setFormData(prev => ({ ...prev, pincode: value }));
+    setIsDirty(true);
     
     const suggestions = Object.keys(pincodeData).filter(p => p.startsWith(value));
     setPincodeSuggestions(suggestions);
@@ -170,6 +261,7 @@ export default function AddSupplier() {
       }));
     }
     setShowPincodeSuggestions(false);
+    setIsDirty(true);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -180,61 +272,21 @@ export default function AddSupplier() {
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }));
+    setIsDirty(true);
     
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
   };
 
-  const validateForm = (): boolean => {
-    const newErrors: { [key: string]: string } = {};
-    
-    if (!formData.supplierName.trim()) {
-      newErrors.supplierName = 'Supplier name is required';
-    }
-    if (!formData.firstName.trim()) {
-      newErrors.firstName = 'First name is required';
-    }
-    if (!formData.emailId.trim()) {
-      newErrors.emailId = 'Email ID is required';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.emailId)) {
-      newErrors.emailId = 'Please enter a valid email address';
-    }
-    if (!formData.mobileNo.trim()) {
-      newErrors.mobileNo = 'Mobile number is required';
-    } else if (!/^[0-9+\-\s()]{8,20}$/.test(formData.mobileNo)) {
-      newErrors.mobileNo = 'Please enter a valid phone number';
-    }
-    if (!formData.addressLine1.trim()) {
-      newErrors.addressLine1 = 'Address line 1 is required';
-    }
-    if (!formData.city.trim()) {
-      newErrors.city = 'City is required';
-    }
-    if (!formData.state.trim()) {
-      newErrors.state = 'State is required';
-    }
-    if (!formData.pincode.trim()) {
-      newErrors.pincode = 'Pincode is required';
-    }
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    
-    if (!validateForm()) {
-      toast.error('Please fix the errors before submitting');
-      const firstError = Object.keys(errors)[0];
-      if (firstError) {
-        const element = document.querySelector(`[name="${firstError}"]`);
-        if (element) {
-          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          (element as HTMLElement).focus();
-        }
-      }
+    setApiError(null);
+
+    const validationErrorsList = getAllValidationErrors();
+    if (validationErrorsList.length > 0) {
+      setValidationErrors(validationErrorsList);
+      setShowValidationSummary(true);
       return;
     }
     
@@ -242,95 +294,94 @@ export default function AddSupplier() {
     setLoading(true);
     
     try {
-      // ✅ CORRECT: Match the exact API payload structure
-      const payload = {
+      // Build primary_address from individual address fields
+      const primaryAddress = [
+        formData.addressLine1,
+        formData.addressLine2,
+        formData.city,
+        formData.state,
+        formData.pincode,
+        formData.country
+      ].filter(Boolean).join(', ');
+
+      // Base payload object (fields in order, mirroring the response structure)
+      let payload: any = {
+        // For edit, we'll add 'id' as the first field
+        ...(isEditMode && supplierId !== null ? { id: supplierId } : {}),
         name: formData.supplierName,
-        supplier_name: formData.supplierName,
+        naming_series: 'SUP-.YYYY.-', // or 'SUPP-' depending on your setup
         supplier_type: formData.supplierType,
-        supplier_group: formData.supplierGroup,
-        country: formData.country,
+        supplier_name: formData.supplierName,
         gender: null,
+        supplier_group: formData.supplierGroup || '',
+        country: formData.country,
         is_transporter: formData.isTransporter ? 1 : 0,
-        image: null,
+        image: '',
         default_currency: formData.defaultCurrency,
-        default_bank_account: formData.defaultBankAccount || null,
+        default_bank_account: formData.defaultBankAccount || '',
         default_price_list: formData.defaultPriceList,
-        supplier_details: formData.supplierDetails || null,
-        website: formData.website || null,
-        language: formData.language || 'en',
+        supplier_details: formData.supplierDetails || '',
+        website: formData.website || '',
+        language: formData.language,
         supplier_primary_address: null,
-        primary_address: null,
+        primary_address: primaryAddress,
         supplier_primary_contact: null,
         mobile_no: formData.mobileNo,
         email_id: formData.emailId,
-        tax_id: formData.taxId || null,
-        tax_category: formData.taxCategory || null,
+        tax_id: formData.taxId || '',
+        tax_category: formData.taxCategory,
         tax_withholding_category: null,
         tax_withholding_group: null,
-        payment_terms: formData.paymentTerms || null,
+        payment_terms: formData.paymentTerms,
         is_internal_supplier: formData.isInternalSupplier ? 1 : 0,
         represents_company: null,
         allow_purchase_invoice_creation_without_purchase_order: 0,
         allow_purchase_invoice_creation_without_purchase_receipt: 0,
+        disabled: formData.status === 'Inactive' ? 1 : 0,
+        is_frozen: 0,
         warn_rfqs: 0,
         prevent_rfqs: 0,
         warn_pos: 0,
         prevent_pos: 0,
         on_hold: formData.onHold ? 1 : 0,
         hold_type: null,
-        release_date: null,
-        modified_by: "Administrator",
-        owner: "Administrator",
-        _user_tags: null,
-        _comments: null,
-        _assign: null,
-        _liked_by: null
+        release_date: null
       };
 
-      console.log('📤 Sending payload:', JSON.stringify(payload, null, 2));
+      // For new record, remove 'id' and let server generate it
+      if (isNew) {
+        delete payload.id;
+      }
 
-      const response = await api.post<SupplierResponse>('/supplier', payload);
-
-      console.log('📥 Response:', response.data);
+      let response;
+      if (isEditMode) {
+        response = await api.put('/supplier', payload);
+      } else {
+        response = await api.post('/supplier', payload);
+      }
 
       if (response.data && response.data.success === 1) {
-        toast.success(response.data.message || 'Supplier created successfully!');
-        setTimeout(() => {
-          navigate('/supplier');
-        }, 500);
+        toast.success(response.data.message || (isEditMode ? 'Supplier updated successfully!' : 'Supplier created successfully!'));
+        setTimeout(() => navigate('/supplier'), 500);
       } else {
-        toast.error(response.data?.message || 'Failed to create supplier');
+        setApiError(response.data?.message || (isEditMode ? 'Failed to update supplier' : 'Failed to create supplier'));
       }
     } catch (error: any) {
-      console.error('❌ Error creating supplier:', error);
-      
+      console.error('Error saving supplier:', error);
       if (error.response) {
-        console.error('Response status:', error.response.status);
-        console.error('Response data:', JSON.stringify(error.response.data, null, 2));
-        
-        if (error.response.status === 400) {
-          toast.error(error.response.data?.message || 'Bad request. Please check your input.');
-        } else if (error.response.status === 401) {
-          toast.error('Session expired. Please login again.');
-        } else if (error.response.status === 403) {
-          toast.error('You don\'t have permission to create suppliers.');
-        } else if (error.response.status === 409) {
-          toast.error(error.response.data?.message || 'Supplier already exists.');
+        if (error.response.status === 409) {
+          setApiError('Supplier already exists.');
         } else if (error.response.status === 422) {
-          const errors = error.response.data?.errors || {};
-          Object.keys(errors).forEach(key => {
-            setErrors(prev => ({ ...prev, [key]: errors[key] }));
-          });
-          toast.error('Please fix the validation errors.');
-        } else if (error.response.status === 500) {
-          toast.error(error.response.data?.message || 'Server error. Please try again later.');
+          const errs = error.response.data?.errors || {};
+          Object.keys(errs).forEach(key => setErrors(prev => ({ ...prev, [key]: errs[key] })));
+          setApiError('Please fix the validation errors.');
         } else {
-          toast.error(error.response.data?.message || 'Failed to create supplier');
+          setApiError(error.response.data?.message || 'Failed to save supplier');
         }
       } else if (error.request) {
-        toast.error('Network error - No response from server');
+        setApiError('Network error - No response from server');
       } else {
-        toast.error(error.message || 'Failed to create supplier');
+        setApiError(error.message || 'Failed to save supplier');
       }
     } finally {
       setLoading(false);
@@ -338,763 +389,526 @@ export default function AddSupplier() {
     }
   };
 
-  const handleCancel = () => {
-    if (window.confirm('Are you sure you want to cancel? All unsaved data will be lost.')) {
-      navigate('/supplier');
-    }
-  };
+  const handleCancel = () => navigate('/supplier');
 
-  return (
-    <div className={`add-supplier-page ${theme}-theme`}>
-      <style>{`
-        .add-supplier-page {
-          display: flex;
-          flex-direction: column;
-          height: 100%;
-          background: var(--layout-bg, #f5f7fb);
-          padding: 16px 24px;
-          gap: 16px;
-          overflow-y: auto;
-          font-family: -apple-system, "Inter", "Segoe UI", Roboto, sans-serif;
-          color: var(--text-primary, #1f2433);
-        }
+  const hasErrors = getAllValidationErrors().length > 0;
+  const title = isNew ? '' : `Edit: ${formData.supplierName || 'Supplier'}`;
 
-        .add-supplier-page::-webkit-scrollbar { width: 4px; }
-        .add-supplier-page::-webkit-scrollbar-track { background: transparent; }
-        .add-supplier-page::-webkit-scrollbar-thumb { background: var(--border-color, #e5e7eb); border-radius: 2px; }
-
-        .page-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          flex-wrap: wrap;
-          gap: 8px;
-          flex-shrink: 0;
-          padding-bottom: 12px;
-          border-bottom: 1px solid var(--border-color, #e5e7eb);
-        }
-
-        .header-left {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-        }
-
-        .back-btn {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          width: 34px;
-          height: 34px;
-          border-radius: 6px;
-          border: 1px solid var(--border-color, #e5e7eb);
-          background: var(--card-bg, #ffffff);
-          color: var(--text-secondary, #6b7280);
-          cursor: pointer;
-          transition: all 0.2s ease;
-        }
-
-        .back-btn:hover {
-          background: var(--nav-hover, #f3f4f6);
-          border-color: var(--primary-color, #6366f1);
-          color: var(--primary-color, #6366f1);
-        }
-
-        .page-title {
-          font-size: 20px;
-          font-weight: 600;
-          color: var(--text-primary, #1f2433);
-          margin: 0;
-        }
-
-        .header-actions {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-
-        .btn-primary {
-          display: inline-flex;
-          align-items: center;
-          gap: 5px;
-          padding: 6px 16px;
-          background: var(--primary-color, #6366f1);
-          color: white;
-          border: none;
-          border-radius: 6px;
-          font-size: 12px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.15s ease;
-        }
-
-        .btn-primary:hover {
-          background: var(--primary-hover, #4f46e5);
-          transform: translateY(-1px);
-        }
-
-        .btn-primary:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-          transform: none;
-        }
-
-        .btn-secondary {
-          display: inline-flex;
-          align-items: center;
-          gap: 5px;
-          padding: 6px 14px;
-          background: var(--card-bg, #ffffff);
-          color: var(--text-primary, #1f2433);
-          border: 1px solid var(--border-color, #e5e7eb);
-          border-radius: 6px;
-          font-size: 12px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.15s ease;
-        }
-
-        .btn-secondary:hover {
-          background: var(--layout-bg, #f3f4f6);
-        }
-
-        .form-section {
-          background: var(--card-bg, #ffffff);
-          border-radius: 10px;
-          padding: 16px 20px;
-          border: 1px solid var(--border-color, #e5e7eb);
-          margin-bottom: 12px;
-        }
-
-        .form-section:last-child {
-          margin-bottom: 0;
-        }
-
-        .section-title {
-          font-size: 13px;
-          font-weight: 600;
-          color: var(--text-primary, #1f2433);
-          margin: 0 0 12px 0;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-
-        .section-title .badge-info {
-          font-size: 10px;
-          font-weight: 400;
-          color: var(--text-secondary, #6b7280);
-          background: var(--layout-bg, #f3f4f6);
-          padding: 2px 10px;
-          border-radius: 10px;
-        }
-
-        .form-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 14px 20px;
-        }
-
-        .form-group {
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-        }
-
-        .form-group.full-width {
-          grid-column: 1 / -1;
-        }
-
-        .form-group label {
-          font-size: 12px;
-          font-weight: 500;
-          color: var(--text-secondary, #6b7280);
-          display: flex;
-          align-items: center;
-          gap: 4px;
-        }
-
-        .form-group label .required {
-          color: #ef4444;
-          font-weight: 600;
-        }
-
-        .form-group input,
-        .form-group select,
-        .form-group textarea {
-          width: 100%;
-          padding: 8px 12px;
-          border: 1px solid var(--border-color, #e5e7eb);
-          border-radius: 6px;
-          font-size: 13px;
-          color: var(--text-primary, #374151);
-          transition: all 0.2s ease;
-          background: var(--input-bg, #ffffff);
-          font-family: inherit;
-        }
-
-        .form-group input:focus,
-        .form-group select:focus,
-        .form-group textarea:focus {
-          outline: none;
-          border-color: var(--primary-color, #6366f1);
-          box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
-        }
-
-        .form-group input.error {
-          border-color: var(--danger-color, #ef4444);
-        }
-
-        .form-group input::placeholder,
-        .form-group textarea::placeholder {
-          color: var(--text-secondary, #9ca3af);
-        }
-
-        .error-text {
-          font-size: 10px;
-          color: var(--danger-color, #ef4444);
-          margin-top: 2px;
-          display: block;
-        }
-
-        .field-hint {
-          font-size: 10px;
-          color: var(--text-secondary, #6b7280);
-          margin-top: 3px;
-          display: flex;
-          align-items: center;
-          gap: 4px;
-        }
-
-        .checkbox-group {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 4px 0;
-        }
-
-        .checkbox-group input[type="checkbox"] {
-          width: 16px;
-          height: 16px;
-          border-radius: 4px;
-          cursor: pointer;
-          accent-color: var(--primary-color, #6366f1);
-        }
-
-        .checkbox-group label {
-          font-size: 13px;
-          color: var(--text-primary, #374151);
-          cursor: pointer;
-        }
-
-        .suggestions-container {
-          position: relative;
-        }
-
-        .suggestions-list {
-          position: absolute;
-          top: 100%;
-          left: 0;
-          right: 0;
-          background: var(--card-bg, #ffffff);
-          border: 1px solid var(--border-color, #e5e7eb);
-          border-radius: 6px;
-          max-height: 150px;
-          overflow-y: auto;
-          z-index: 10;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-          margin-top: 2px;
-        }
-
-        .suggestions-list::-webkit-scrollbar {
-          width: 4px;
-        }
-
-        .suggestions-list::-webkit-scrollbar-track {
-          background: var(--layout-bg, #f9fafb);
-        }
-
-        .suggestions-list::-webkit-scrollbar-thumb {
-          background: var(--border-color, #e5e7eb);
-          border-radius: 2px;
-        }
-
-        .suggestion-item {
-          padding: 6px 12px;
-          cursor: pointer;
-          font-size: 13px;
-          color: var(--text-primary, #374151);
-          transition: background 0.15s ease;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-
-        .suggestion-item:hover {
-          background: var(--nav-hover, #f3f4f6);
-        }
-
-        .suggestion-item .suggestion-detail {
-          font-size: 11px;
-          color: var(--text-secondary, #6b7280);
-        }
-
-        .address-checkboxes {
-          display: flex;
-          gap: 20px;
-          flex-wrap: wrap;
-          margin-top: 4px;
-        }
-
-        .form-actions {
-          display: flex;
-          justify-content: flex-end;
-          gap: 10px;
-          padding-top: 12px;
-          border-top: 1px solid var(--border-color, #e5e7eb);
-          margin-top: 4px;
-        }
-
-        .spinning {
-          animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-
-        @media (max-width: 768px) {
-          .add-supplier-page { padding: 12px 16px; }
-          .page-header { flex-direction: column; align-items: stretch; }
-          .header-actions { flex-wrap: wrap; }
-          .form-grid { grid-template-columns: 1fr; }
-          .form-section { padding: 14px 16px; }
-          .address-checkboxes { flex-direction: column; gap: 8px; }
-        }
-
-        @media (max-width: 480px) {
-          .add-supplier-page { padding: 8px 12px; }
-          .page-title { font-size: 18px; }
-          .form-section { padding: 12px; }
-          .form-group input, .form-group select { font-size: 14px; padding: 10px 12px; }
-        }
-
-        .dark-theme .add-supplier-page { background: var(--layout-bg, #0f172a); }
-        .dark-theme .page-header { border-bottom-color: var(--border-color, #334155); }
-        .dark-theme .page-title { color: var(--text-primary, #f8fafc); }
-        .dark-theme .back-btn { background: var(--card-bg, #1e293b); border-color: var(--border-color, #334155); color: var(--text-secondary, #94a3b8); }
-        .dark-theme .back-btn:hover { background: var(--nav-hover, rgba(255,255,255,0.05)); border-color: var(--primary-color, #818cf8); color: var(--primary-color, #818cf8); }
-        .dark-theme .form-section { background: var(--card-bg, #1e293b); border-color: var(--border-color, #334155); }
-        .dark-theme .section-title { color: var(--text-primary, #f8fafc); }
-        .dark-theme .form-group label { color: var(--text-primary, #e2e8f0); }
-        .dark-theme .form-group input, .dark-theme .form-group select, .dark-theme .form-group textarea { background: var(--input-bg, #0f172a); border-color: var(--border-color, #334155); color: var(--text-primary, #f8fafc); }
-        .dark-theme .form-group input:focus, .dark-theme .form-group select:focus, .dark-theme .form-group textarea:focus { border-color: var(--primary-color, #818cf8); }
-        .dark-theme .form-group input::placeholder, .dark-theme .form-group textarea::placeholder { color: var(--text-secondary, #64748b); }
-        .dark-theme .suggestions-list { background: var(--card-bg, #1e293b); border-color: var(--border-color, #334155); }
-        .dark-theme .suggestion-item { color: var(--text-primary, #f8fafc); }
-        .dark-theme .suggestion-item:hover { background: var(--nav-hover, rgba(255,255,255,0.05)); }
-        .dark-theme .checkbox-group label { color: var(--text-primary, #f8fafc); }
-        .dark-theme .field-hint { color: var(--text-secondary, #64748b); }
-        .dark-theme .error-text { color: #f87171; }
-        .dark-theme .form-group input.error { border-color: #f87171; }
-        .dark-theme .btn-secondary { background: var(--card-bg, #1e293b); border-color: var(--border-color, #334155); color: var(--text-primary, #f8fafc); }
-        .dark-theme .btn-secondary:hover { background: var(--layout-bg, #0f172a); }
-        .dark-theme .btn-primary { background: var(--primary-color, #3b82f6); }
-        .dark-theme .btn-primary:hover { background: var(--primary-hover, #2563eb); }
-      `}</style>
-
-      {/* Header */}
-      <div className="page-header">
-        <div className="header-left">
-          <button className="back-btn" onClick={handleCancel}>
-            <FaArrowLeft size={16} />
-          </button>
-          <h1 className="page-title">Add Supplier</h1>
-        </div>
-        <div className="header-actions">
-          <button className="btn-secondary" onClick={handleCancel}>
-            Cancel
-          </button>
-          <button className="btn-primary" onClick={handleSubmit} disabled={loading || isSubmitting}>
-            {(loading || isSubmitting) && <FaSpinner className="spinning" />}
-            <FaSave size={14} /> {isSubmitting ? 'Saving...' : 'Save Supplier'}
-          </button>
+  if (fetching) {
+    return (
+      <div className={`as-page ${theme}`}>
+        <div className="as-loading">
+          <FaSpinner className="spinning" size={32} />
+          <p>Loading supplier details...</p>
         </div>
       </div>
+    );
+  }
 
-      <form onSubmit={handleSubmit}>
-        {/* Basic Information */}
-        <div className="form-section">
-          <div className="section-title">
-            <FaBuilding size={14} /> Basic Information
-          </div>
-          <div className="form-grid">
-            <div className="form-group">
-              <label>Supplier Name <span className="required">*</span></label>
-              <input
-                type="text"
-                name="supplierName"
-                value={formData.supplierName}
-                onChange={handleInputChange}
-                placeholder="Enter supplier name"
-                className={errors.supplierName ? 'error' : ''}
-              />
-              {errors.supplierName && <span className="error-text">{errors.supplierName}</span>}
-            </div>
-            <div className="form-group">
-              <label>Supplier Type <span className="required">*</span></label>
-              <select
-                name="supplierType"
-                value={formData.supplierType}
-                onChange={handleInputChange}
-              >
-                {supplierTypes.map(type => (
-                  <option key={type} value={type}>{type}</option>
-                ))}
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Supplier Group</label>
-              <select
-                name="supplierGroup"
-                value={formData.supplierGroup}
-                onChange={handleInputChange}
-              >
-                <option value="">Select Group</option>
-                {supplierGroups.map(group => (
-                  <option key={group} value={group}>{group}</option>
-                ))}
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Country <span className="required">*</span></label>
-              <select
-                name="country"
-                value={formData.country}
-                onChange={handleInputChange}
-              >
-                {countries.map(c => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Default Currency</label>
-              <select
-                name="defaultCurrency"
-                value={formData.defaultCurrency}
-                onChange={handleInputChange}
-              >
-                {currencies.map(c => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Language</label>
-              <select
-                name="language"
-                value={formData.language}
-                onChange={handleInputChange}
-              >
-                <option value="en">English</option>
-                <option value="hi">Hindi</option>
-                <option value="es">Spanish</option>
-                <option value="fr">French</option>
-                <option value="de">German</option>
-                <option value="zh">Chinese</option>
-                <option value="ar">Arabic</option>
-              </select>
+  return (
+    <div className={`as-page ${theme}`}>
+      <div className="as-inner">
+
+        {/* Validation Summary Modal */}
+        {showValidationSummary && validationErrors.length > 0 && (
+          <div className="modal-overlay" onClick={() => setShowValidationSummary(false)}>
+            <div className="validation-summary-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h2><FaExclamationTriangle /> Missing Required Fields</h2>
+                <button className="modal-close" onClick={() => setShowValidationSummary(false)}>×</button>
+              </div>
+              <div className="modal-body">
+                <p className="modal-description">Please fill in the following required fields before submitting:</p>
+                <div className="validation-errors-list">
+                  {validationErrors.map((error, idx) => (
+                    <div key={idx} className="validation-error-item">
+                      <div className="error-header">
+                        <FaTimesCircle className="error-icon" />
+                        <strong>{error.label}</strong>
+                      </div>
+                      <div className="error-message">{error.message}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="validation-tip">
+                  <FaInfoCircle className="tip-icon" />
+                  Please fix the errors above before submitting
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button className="btn-cancel" onClick={() => setShowValidationSummary(false)}>Close</button>
+              </div>
             </div>
           </div>
+        )}
+
+        {/* API Error Display */}
+        {apiError && (
+          <div className="as-api-error">
+            <FaExclamationCircle className="error-icon" />
+            <span>{apiError}</span>
+            <button className="error-close" onClick={() => setApiError(null)}>×</button>
+          </div>
+        )}
+
+        {/* Header */}
+        <div className="as-header">
+          <button onClick={handleCancel} className="back-btn">
+            <FaArrowLeft size={9} /> Back
+          </button>
+          {!isNew && (
+            <div className="header-title">
+              <h1>{title}</h1>
+            </div>
+          )}
+          {hasErrors && (
+            <div className="error-badge">
+              <FaExclamationTriangle size={12} />
+              {getAllValidationErrors().length} missing field{getAllValidationErrors().length !== 1 ? 's' : ''}
+            </div>
+          )}
         </div>
 
-        {/* Contact Details */}
-        <div className="form-section">
-          <div className="section-title">
-            <FaUser size={14} /> Contact Details
-          </div>
-          <div className="form-grid">
-            <div className="form-group">
-              <label>First Name <span className="required">*</span></label>
-              <input
-                type="text"
-                name="firstName"
-                value={formData.firstName}
-                onChange={handleInputChange}
-                placeholder="Enter first name"
-                className={errors.firstName ? 'error' : ''}
-              />
-              {errors.firstName && <span className="error-text">{errors.firstName}</span>}
-            </div>
-            <div className="form-group">
-              <label>Last Name</label>
-              <input
-                type="text"
-                name="lastName"
-                value={formData.lastName}
-                onChange={handleInputChange}
-                placeholder="Enter last name"
-              />
-            </div>
-            <div className="form-group">
-              <label>Email ID <span className="required">*</span></label>
-              <input
-                type="email"
-                name="emailId"
-                value={formData.emailId}
-                onChange={handleInputChange}
-                placeholder="Enter email address"
-                className={errors.emailId ? 'error' : ''}
-              />
-              {errors.emailId && <span className="error-text">{errors.emailId}</span>}
-            </div>
-            <div className="form-group">
-              <label>Mobile Number <span className="required">*</span></label>
-              <input
-                type="tel"
-                name="mobileNo"
-                value={formData.mobileNo}
-                onChange={handleInputChange}
-                placeholder="Enter mobile number"
-                className={errors.mobileNo ? 'error' : ''}
-              />
-              {errors.mobileNo && <span className="error-text">{errors.mobileNo}</span>}
-            </div>
-          </div>
-        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="as-card">
 
-        {/* Address Details */}
-        <div className="form-section">
-          <div className="section-title">
-            <FaMapMarkerAlt size={14} /> Address Details
-          </div>
-          <div className="form-grid">
-            <div className="form-group full-width">
-              <label>Address Line 1 <span className="required">*</span></label>
-              <input
-                type="text"
-                name="addressLine1"
-                value={formData.addressLine1}
-                onChange={handleInputChange}
-                placeholder="Enter address line 1"
-                className={errors.addressLine1 ? 'error' : ''}
-              />
-              {errors.addressLine1 && <span className="error-text">{errors.addressLine1}</span>}
-            </div>
-            <div className="form-group full-width">
-              <label>Address Line 2</label>
-              <input
-                type="text"
-                name="addressLine2"
-                value={formData.addressLine2}
-                onChange={handleInputChange}
-                placeholder="Enter address line 2 (optional)"
-              />
-            </div>
-            <div className="form-group">
-              <label>City/Town <span className="required">*</span></label>
-              <input
-                type="text"
-                name="city"
-                value={formData.city}
-                onChange={handleInputChange}
-                placeholder="Enter city"
-                className={errors.city ? 'error' : ''}
-              />
-              {errors.city && <span className="error-text">{errors.city}</span>}
-            </div>
-            <div className="form-group">
-              <label>State/Province <span className="required">*</span></label>
-              <input
-                type="text"
-                name="state"
-                value={formData.state}
-                onChange={handleInputChange}
-                placeholder="Enter state"
-                className={errors.state ? 'error' : ''}
-              />
-              {errors.state && <span className="error-text">{errors.state}</span>}
-            </div>
-            <div className="form-group">
-              <label>Postal Code <span className="required">*</span></label>
-              <div className="suggestions-container">
+            {/* Basic Information */}
+            <span className="as-section-title">
+              <FaBuilding className="section-icon" /> Basic Information
+            </span>
+
+            <div className="as-grid-2">
+              <div className="as-field">
+                <label className="as-label">
+                  <FaBuilding className="label-icon" /> Supplier Name <span className="required">*</span>
+                </label>
                 <input
                   type="text"
-                  name="pincode"
-                  value={formData.pincode}
-                  onChange={handlePincodeChange}
-                  placeholder="Enter postal code"
-                  className={errors.pincode ? 'error' : ''}
+                  name="supplierName"
+                  value={formData.supplierName}
+                  onChange={handleInputChange}
+                  className={`form-field${errors.supplierName ? ' field-error' : ''}`}
+                  placeholder="Enter supplier name"
+                  disabled={isSubmitting}
                 />
-                {showPincodeSuggestions && (
-                  <div className="suggestions-list">
-                    {pincodeSuggestions.map(p => (
-                      <div 
-                        key={p} 
-                        className="suggestion-item"
-                        onClick={() => selectPincode(p)}
-                      >
-                        <span>{p}</span>
-                        {pincodeData[p] && (
-                          <span className="suggestion-detail">
-                            {pincodeData[p].city}, {pincodeData[p].state}
-                          </span>
-                        )}
-                      </div>
-                    ))}
+                {errors.supplierName && <span className="as-error-msg"><FaExclamationCircle size={10} />{errors.supplierName}</span>}
+              </div>
+
+              <div className="as-field">
+                <label className="as-label">Supplier Type</label>
+                <select
+                  name="supplierType"
+                  value={formData.supplierType}
+                  onChange={handleInputChange}
+                  className="form-field"
+                  disabled={isSubmitting}
+                >
+                  {supplierTypes.map(type => <option key={type} value={type}>{type}</option>)}
+                </select>
+              </div>
+
+              <div className="as-field">
+                <label className="as-label"><FaFolder className="label-icon" />Supplier Group</label>
+                <select
+                  name="supplierGroup"
+                  value={formData.supplierGroup}
+                  onChange={handleInputChange}
+                  className="form-field"
+                  disabled={isSubmitting}
+                >
+                  <option value="">Select Group</option>
+                  {supplierGroups.map(group => <option key={group} value={group}>{group}</option>)}
+                </select>
+              </div>
+
+              <div className="as-field">
+                <label className="as-label"><FaGlobeIcon className="label-icon" />Country</label>
+                <select
+                  name="country"
+                  value={formData.country}
+                  onChange={handleInputChange}
+                  className="form-field"
+                  disabled={isSubmitting}
+                >
+                  {countries.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+
+              {/* <div className="as-field">
+                <label className="as-label">Default Currency</label>
+                <select
+                  name="defaultCurrency"
+                  value={formData.defaultCurrency}
+                  onChange={handleInputChange}
+                  className="form-field"
+                  disabled={isSubmitting}
+                >
+                  {currencies.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div> */}
+
+              {/* <div className="as-field">
+                <label className="as-label">Language</label>
+                <select
+                  name="language"
+                  value={formData.language}
+                  onChange={handleInputChange}
+                  className="form-field"
+                  disabled={isSubmitting}
+                >
+                  <option value="en">English</option>
+                  <option value="hi">Hindi</option>
+                  <option value="es">Spanish</option>
+                  <option value="fr">French</option>
+                  <option value="de">German</option>
+                  <option value="zh">Chinese</option>
+                  <option value="ar">Arabic</option>
+                </select>
+              </div> */}
+            </div>
+
+            <div className="as-divider" />
+
+            {/* Contact Details */}
+            <span className="as-section-title">
+              <FaUser className="section-icon" /> Contact Details
+            </span>
+
+            <div className="as-grid-2">
+              <div className="as-field">
+                <label className="as-label"><FaUser className="label-icon" />First Name</label>
+                <input
+                  type="text"
+                  name="firstName"
+                  value={formData.firstName}
+                  onChange={handleInputChange}
+                  className="form-field"
+                  placeholder="Enter first name"
+                  disabled={isSubmitting}
+                />
+              </div>
+
+              <div className="as-field">
+                <label className="as-label">Last Name</label>
+                <input
+                  type="text"
+                  name="lastName"
+                  value={formData.lastName}
+                  onChange={handleInputChange}
+                  className="form-field"
+                  placeholder="Enter last name"
+                  disabled={isSubmitting}
+                />
+              </div>
+
+              <div className="as-field">
+                <label className="as-label"><FaEnvelope className="label-icon" />Email ID <span className="required">*</span></label>
+                <input
+                  type="email"
+                  name="emailId"
+                  value={formData.emailId}
+                  onChange={handleInputChange}
+                  className={`form-field${errors.emailId ? ' field-error' : ''}`}
+                  placeholder="Enter email address"
+                  disabled={isSubmitting}
+                />
+                {errors.emailId && <span className="as-error-msg"><FaExclamationCircle size={10} />{errors.emailId}</span>}
+              </div>
+
+              <div className="as-field">
+                <label className="as-label"><FaPhone className="label-icon" />Mobile Number <span className="required">*</span></label>
+                <input
+                  type="tel"
+                  name="mobileNo"
+                  value={formData.mobileNo}
+                  onChange={handleInputChange}
+                  className={`form-field${errors.mobileNo ? ' field-error' : ''}`}
+                  placeholder="Enter mobile number"
+                  disabled={isSubmitting}
+                />
+                {errors.mobileNo && <span className="as-error-msg"><FaExclamationCircle size={10} />{errors.mobileNo}</span>}
+              </div>
+            </div>
+
+            <div className="as-divider" />
+
+            {/* Address Details */}
+            <span className="as-section-title">
+              <FaMapMarkerAlt className="section-icon" /> Address Details
+            </span>
+
+            <div className="as-grid-2">
+              <div className="as-field as-full-width">
+                <label className="as-label">Address Line 1 <span className="required">*</span></label>
+                <input
+                  type="text"
+                  name="addressLine1"
+                  value={formData.addressLine1}
+                  onChange={handleInputChange}
+                  className={`form-field${errors.addressLine1 ? ' field-error' : ''}`}
+                  placeholder="Enter address line 1"
+                  disabled={isSubmitting}
+                />
+                {errors.addressLine1 && <span className="as-error-msg"><FaExclamationCircle size={10} />{errors.addressLine1}</span>}
+              </div>
+
+              <div className="as-field as-full-width">
+                <label className="as-label">Address Line 2</label>
+                <input
+                  type="text"
+                  name="addressLine2"
+                  value={formData.addressLine2}
+                  onChange={handleInputChange}
+                  className="form-field"
+                  placeholder="Enter address line 2 (optional)"
+                  disabled={isSubmitting}
+                />
+              </div>
+
+              <div className="as-field">
+                <label className="as-label">City/Town <span className="required">*</span></label>
+                <input
+                  type="text"
+                  name="city"
+                  value={formData.city}
+                  onChange={handleInputChange}
+                  className={`form-field${errors.city ? ' field-error' : ''}`}
+                  placeholder="Enter city"
+                  disabled={isSubmitting}
+                />
+                {errors.city && <span className="as-error-msg"><FaExclamationCircle size={10} />{errors.city}</span>}
+              </div>
+
+              <div className="as-field">
+                <label className="as-label">State/Province <span className="required">*</span></label>
+                <input
+                  type="text"
+                  name="state"
+                  value={formData.state}
+                  onChange={handleInputChange}
+                  className={`form-field${errors.state ? ' field-error' : ''}`}
+                  placeholder="Enter state"
+                  disabled={isSubmitting}
+                />
+                {errors.state && <span className="as-error-msg"><FaExclamationCircle size={10} />{errors.state}</span>}
+              </div>
+
+              <div className="as-field">
+                <label className="as-label">Postal Code <span className="required">*</span></label>
+                <div className="suggestions-container">
+                  <input
+                    type="text"
+                    name="pincode"
+                    value={formData.pincode}
+                    onChange={handlePincodeChange}
+                    className={`form-field${errors.pincode ? ' field-error' : ''}`}
+                    placeholder="Enter postal code"
+                    disabled={isSubmitting}
+                  />
+                  {showPincodeSuggestions && (
+                    <div className="suggestions-list">
+                      {pincodeSuggestions.map(p => (
+                        <div key={p} className="suggestion-item" onClick={() => selectPincode(p)}>
+                          <span>{p}</span>
+                          {pincodeData[p] && (
+                            <span className="suggestion-detail">{pincodeData[p].city}, {pincodeData[p].state}</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {errors.pincode && <span className="as-error-msg"><FaExclamationCircle size={10} />{errors.pincode}</span>}
+                <p className="as-field-hint">
+                  <FaInfoCircle className="hint-icon" />
+                  Change the Postal Code to autofill other addresses.
+                </p>
+              </div>
+            </div>
+
+            <div className="as-divider" />
+
+            {/* Tax & Financial Details */}
+            <span className="as-section-title">
+              <FaTag className="section-icon" /> Tax & Financial Details
+            </span>
+
+            <div className="as-grid-2">
+              <div className="as-field">
+                <label className="as-label">Tax ID / GSTIN</label>
+                <input
+                  type="text"
+                  name="taxId"
+                  value={formData.taxId}
+                  onChange={handleInputChange}
+                  className="form-field"
+                  placeholder="Enter tax ID"
+                  disabled={isSubmitting}
+                />
+              </div>
+
+              <div className="as-field">
+                <label className="as-label">Tax Category</label>
+                <select
+                  name="taxCategory"
+                  value={formData.taxCategory}
+                  onChange={handleInputChange}
+                  className="form-field"
+                  disabled={isSubmitting}
+                >
+                  {taxCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                </select>
+              </div>
+
+              {/* <div className="as-field">
+                <label className="as-label">Payment Terms</label>
+                <select
+                  name="paymentTerms"
+                  value={formData.paymentTerms}
+                  onChange={handleInputChange}
+                  className="form-field"
+                  disabled={isSubmitting}
+                >
+                  {paymentTerms.map(term => <option key={term} value={term}>{term}</option>)}
+                </select>
+              </div> */}
+
+              <div className="as-field">
+                <label className="as-label">Default Price List</label>
+                <select
+                  name="defaultPriceList"
+                  value={formData.defaultPriceList}
+                  onChange={handleInputChange}
+                  className="form-field"
+                  disabled={isSubmitting}
+                >
+                  {priceLists.map(pl => <option key={pl} value={pl}>{pl}</option>)}
+                </select>
+              </div>
+
+              <div className="as-field as-full-width">
+                <label className="as-label">Default Bank Account</label>
+                <input
+                  type="text"
+                  name="defaultBankAccount"
+                  value={formData.defaultBankAccount}
+                  onChange={handleInputChange}
+                  className="form-field"
+                  placeholder="Bank Name - Account Number"
+                  disabled={isSubmitting}
+                />
+              </div>
+            </div>
+
+            <div className="as-divider" />
+
+            {/* Additional Information */}
+            <span className="as-section-title">
+              <FaInfoCircle className="section-icon" /> Additional Information
+            </span>
+
+            <div className="as-grid-2">
+              <div className="as-field">
+                <label className="as-label">Website</label>
+                <input
+                  type="url"
+                  name="website"
+                  value={formData.website}
+                  onChange={handleInputChange}
+                  className="form-field"
+                  placeholder="https://www.example.com"
+                  disabled={isSubmitting}
+                />
+              </div>
+
+              {isEditMode && (
+                <div className="as-field">
+                  <label className="as-label">Status</label>
+                  <select
+                    name="status"
+                    value={formData.status}
+                    onChange={handleInputChange}
+                    className="form-field"
+                    disabled={isSubmitting}
+                  >
+                    {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+              )}
+
+              <div className="as-field as-full-width">
+                <label className="as-label">Supplier Details</label>
+                <textarea
+                  name="supplierDetails"
+                  value={formData.supplierDetails}
+                  onChange={handleInputChange}
+                  className="form-field as-textarea"
+                  placeholder="Additional notes about the supplier..."
+                  rows={3}
+                  disabled={isSubmitting}
+                />
+              </div>
+
+              {/* Checkboxes */}
+              <div className="as-checkboxes-row">
+                <div className="checkbox-field">
+                  <div className="checkbox-group">
+                    <input
+                      type="checkbox"
+                      name="isTransporter"
+                      checked={formData.isTransporter}
+                      onChange={handleInputChange}
+                      id="isTransporter"
+                      disabled={isSubmitting}
+                    />
+                    <label htmlFor="isTransporter">Is Transporter</label>
                   </div>
-                )}
-              </div>
-              {errors.pincode && <span className="error-text">{errors.pincode}</span>}
-              <div className="field-hint">
-                <FaInfoCircle size={12} />
-                Change the Postal Code to autofill other addresses.
-              </div>
-            </div>
-          </div>
-        </div>
+                </div>
 
-        {/* Tax & Financial Details */}
-        <div className="form-section">
-          <div className="section-title">
-            <FaTag size={14} /> Tax & Financial Details
-          </div>
-          <div className="form-grid">
-            <div className="form-group">
-              <label>Tax ID / GSTIN</label>
-              <input
-                type="text"
-                name="taxId"
-                value={formData.taxId}
-                onChange={handleInputChange}
-                placeholder="Enter tax ID"
-              />
-            </div>
-            <div className="form-group">
-              <label>Tax Category</label>
-              <select
-                name="taxCategory"
-                value={formData.taxCategory}
-                onChange={handleInputChange}
-              >
-                {taxCategories.map(cat => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Payment Terms</label>
-              <select
-                name="paymentTerms"
-                value={formData.paymentTerms}
-                onChange={handleInputChange}
-              >
-                {paymentTerms.map(term => (
-                  <option key={term} value={term}>{term}</option>
-                ))}
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Default Price List</label>
-              <select
-                name="defaultPriceList"
-                value={formData.defaultPriceList}
-                onChange={handleInputChange}
-              >
-                {priceLists.map(pl => (
-                  <option key={pl} value={pl}>{pl}</option>
-                ))}
-              </select>
-            </div>
-            <div className="form-group full-width">
-              <label>Default Bank Account</label>
-              <input
-                type="text"
-                name="defaultBankAccount"
-                value={formData.defaultBankAccount}
-                onChange={handleInputChange}
-                placeholder="Bank Name - Account Number"
-              />
-            </div>
-          </div>
-        </div>
+                <div className="checkbox-field">
+                  <div className="checkbox-group">
+                    <input
+                      type="checkbox"
+                      name="isInternalSupplier"
+                      checked={formData.isInternalSupplier}
+                      onChange={handleInputChange}
+                      id="isInternalSupplier"
+                      disabled={isSubmitting}
+                    />
+                    <label htmlFor="isInternalSupplier">Internal Supplier</label>
+                  </div>
+                </div>
 
-        {/* Additional Information */}
-        <div className="form-section">
-          <div className="section-title">
-            <FaInfoCircle size={14} /> Additional Information
-          </div>
-          <div className="form-grid">
-            <div className="form-group">
-              <label>Website</label>
-              <input
-                type="url"
-                name="website"
-                value={formData.website}
-                onChange={handleInputChange}
-                placeholder="https://www.example.com"
-              />
-            </div>
-            <div className="form-group full-width">
-              <label>Supplier Details</label>
-              <textarea
-                name="supplierDetails"
-                value={formData.supplierDetails}
-                onChange={handleInputChange}
-                placeholder="Additional notes about the supplier..."
-                rows={3}
-              />
-            </div>
-            <div className="form-group">
-              <div className="checkbox-group">
-                <input
-                  type="checkbox"
-                  name="isTransporter"
-                  checked={formData.isTransporter}
-                  onChange={handleInputChange}
-                  id="isTransporter"
-                />
-                <label htmlFor="isTransporter">Is Transporter</label>
-              </div>
-            </div>
-            <div className="form-group">
-              <div className="checkbox-group">
-                <input
-                  type="checkbox"
-                  name="isInternalSupplier"
-                  checked={formData.isInternalSupplier}
-                  onChange={handleInputChange}
-                  id="isInternalSupplier"
-                />
-                <label htmlFor="isInternalSupplier">Internal Supplier</label>
-              </div>
-            </div>
-            <div className="form-group">
-              <div className="checkbox-group">
-                <input
-                  type="checkbox"
-                  name="onHold"
-                  checked={formData.onHold}
-                  onChange={handleInputChange}
-                  id="onHold"
-                />
-                <label htmlFor="onHold">On Hold</label>
+                <div className="checkbox-field">
+                  <div className="checkbox-group">
+                    <input
+                      type="checkbox"
+                      name="onHold"
+                      checked={formData.onHold}
+                      onChange={handleInputChange}
+                      id="onHold"
+                      disabled={isSubmitting}
+                    />
+                    <label htmlFor="onHold">On Hold</label>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Form Actions */}
-        <div className="form-actions">
-          <button type="button" className="btn-secondary" onClick={handleCancel}>
-            Cancel
-          </button>
-          <button type="submit" className="btn-primary" disabled={loading || isSubmitting}>
-            {(loading || isSubmitting) && <FaSpinner className="spinning" />}
-            <FaSave size={14} /> {isSubmitting ? 'Saving...' : 'Save Supplier'}
-          </button>
-        </div>
-      </form>
+          {/* Footer */}
+          <div className="as-footer">
+            <button type="button" onClick={handleCancel} className="cancel-btn" disabled={isSubmitting}>
+              Cancel
+            </button>
+            <button type="submit" disabled={isSubmitting} className="submit-btn">
+              {isSubmitting && <FaSpinner className="spinning" />}
+              <FaSave size={12} />
+              {isEditMode ? 'Update' : 'Save'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

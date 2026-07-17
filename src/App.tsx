@@ -105,6 +105,7 @@ import SubModulePermissions from "./pages/UserManagement/SubModulePermissions";
 import QualityInspectionReport from "./pages/QualityInspectionForm";
 import QualityInspectionList from "./pages/QualityInspectionList";
 import QualityInspectionForm from "./pages/QualityInspectionForm";
+import ContactForm from "./pages/ContactForm";
 
 
 function App() {
@@ -133,9 +134,14 @@ function App() {
               <Route path="/pricing-rule" element={<PricingRule />} />
               <Route path="/coupon-codes" element={<CouponCode />} />
               <Route path="/supplier" element={<Supplier />} />
+              <Route path="/supplier/:id" element={<AddSupplier />} />
               <Route path="/supplier/new" element={<AddSupplier />} />
               <Route path="/supplier-group" element={<SupplierGroup />} />
               <Route path="/contacts" element={<Contacts />} />
+              <Route path="/contacts" element={<Contacts />} />
+<Route path="/contacts/new" element={<ContactForm />} />
+<Route path="/contacts/edit/:id" element={<ContactForm />} />
+<Route path="/contacts/view/:id" element={<ContactForm />} />
               <Route path="/material-request" element={<MaterialRequest />} />
               <Route path="/purchase-order" element={<PurchaseOrder />} />
               <Route path="/request-for-quotation" element={<RequestForQuotation />} />
