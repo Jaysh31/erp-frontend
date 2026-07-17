@@ -87,7 +87,7 @@ import StockDashboard from "./pages/DashboardPages/StockDashboard";
 import QualityDashboard from "./pages/DashboardPages/QualityDashboard";
 import GRNForm from "./pages/GRNForm";
 import GRNList from "./pages/GRNList";
-import PurchaseInvoiceForm from "./pages/PurchaseInvoiceForm";
+import PurchaseInvoiceForm from "./pages/PurchaseBillForm";
 import UserManagement from "./pages/UserManagement/UserManagement";
 import Employee from "./pages/Setup/Employee";
 import EmployeeForm from "./pages/Setup/EmployeeForm";
@@ -100,12 +100,13 @@ import RoleForm from "./pages/UserManagement/RoleForm";
 import RoleList from "./pages/UserManagement/RoleList";
 import ModulePermissions from "./pages/UserManagement/ModulePermissions";
 import InventoryList from "./pages/InventoryList";
-
-import SubModulePermissions from "./pages/UserManagement/SubModulePermissions";
-import QualityInspectionReport from "./pages/QualityInspectionForm";
 import QualityInspectionList from "./pages/QualityInspectionList";
 import QualityInspectionForm from "./pages/QualityInspectionForm";
 import ContactForm from "./pages/ContactForm";
+import SubModulePermissions from "./pages/UserManagement/SubModulePermissions";
+import ContactForm from "./pages/ContactForm";
+import CreateSalesBill from "./pages/CreateSalesInvoice";
+import BankDetailsForm from "./pages/BankDetailsForm";
 
 
 function App() {
@@ -136,9 +137,10 @@ function App() {
               <Route path="/supplier" element={<Supplier />} />
               <Route path="/supplier/:id" element={<AddSupplier />} />
               <Route path="/supplier/new" element={<AddSupplier />} />
+              <Route path="/supplier/:id" element={<AddSupplier />} />
               <Route path="/supplier-group" element={<SupplierGroup />} />
               <Route path="/contacts" element={<Contacts />} />
-              <Route path="/contacts" element={<Contacts />} />
+
 <Route path="/contacts/new" element={<ContactForm />} />
 <Route path="/contacts/edit/:id" element={<ContactForm />} />
 <Route path="/contacts/view/:id" element={<ContactForm />} />
@@ -152,9 +154,17 @@ function App() {
               {/* <
               /* <Route path="/sales" element={<SalesPage />} /> */}
           
+
+              {/* Sales Bill Routes - Added /edit and /view routes */}
+              <Route path="/sales-bill" element={<SalesInvoice />} />
+              <Route path="/sales-bill/new" element={<CreateSalesBill />} />
+              <Route path="/sales-bill/edit/:id" element={<CreateSalesBill />} />
+              <Route path="/sales-bill/view/:id" element={<CreateSalesBill />} />
           
 
-                  {/* Module Dashboards */}
+
+
+              {/* Module Dashboards */}
               <Route path="/dashboard/manufacturing" element={<DashboardPage />} />
               <Route path="/dashboard/sales" element={<SalesDashboard />} />
               <Route path="/dashboard/setup" element={<SetupDashboard />} />
@@ -254,6 +264,7 @@ function App() {
               <Route path="/letter-head" element={<LetterHeadList />} />
               <Route path="/letter-head/new" element={<AddLetterHeadForm />} />
               <Route path="/letter-head/:id" element={<AddLetterHeadForm />} />
+              <Route path="/module/:moduleId/submodules" element={<SubModulePermissions />} />
 
               {/* GRN Routes */}
               <Route path="/grn" element={<GRNList />} />
@@ -287,7 +298,7 @@ function App() {
               <Route path="/user-management" element={<UserManagement />} />
               <Route path="/users/new" element={<UserForm />} />
               <Route path="/users/:id" element={<UserForm />} />
-// Add routes
+              // Add routes
               {/* <Route path="/modules" element={<ModuleList />} />
               <Route path="/module/:moduleId/submodules" element={<SubModulePermissions />} /> */}
 
@@ -326,10 +337,10 @@ function App() {
               <Route path="/uom/:id" element={<UOMForm />} />
 
               {/* Quality Inspection */}
-               <Route path="/quality-inspection" element={<QualityInspectionList />} />
-                <Route path="/quality-inspection/new" element={<QualityInspectionForm />} />
+              <Route path="/quality-inspection" element={<QualityInspectionList />} />
+              <Route path="/quality-inspection/new" element={<QualityInspectionForm />} />
 
-
+              <Route path="/bank-details" element={<BankDetailsForm />} />
               <Route path="/bom" element={<BOMPage />} />
               <Route path="/bom/new" element={<NewBOMPage />} />
               <Route path="/Workstation" element={<Workstation />} />

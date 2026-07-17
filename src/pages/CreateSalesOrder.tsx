@@ -213,6 +213,13 @@ const getItemGrossAmount = (item: SalesOrderItem): number => {
   return item.amount + (item.amount * gstPercent) / 100;
 };
 
+
+const generateSalesOrderName = (): string => {
+  const year = new Date().getFullYear();
+  const suffix = Date.now().toString(36).toUpperCase().slice(-6);
+  return `SAL-ORD-${year}-${suffix}`;
+};
+
 /* ─────────────────────────── Component ─────────────────────────── */
 
 export default function CreateSalesOrder() {
@@ -1191,10 +1198,13 @@ export default function CreateSalesOrder() {
     return date.split('T')[0];
   };
 
+
   const buildApiPayload = () => {
     const validItems = formData.items.filter((item) => item.itemCode || item.itemName);
 
     const payload: any = {
+      name: isEditMode && recordName ? recordName : generateSalesOrderName(),
+      naming_series: formData.namingSeries,
       company: formData.company,
       customer: formData.customer,
       customer_name: formData.customerName,
@@ -1229,10 +1239,6 @@ export default function CreateSalesOrder() {
       })),
     };
 
-    if (isEditMode && recordName) {
-      payload.name = recordName;
-    }
-
     return payload;
   };
 
@@ -1255,13 +1261,12 @@ export default function CreateSalesOrder() {
         throw new Error(response.data?.message || 'Failed to save sales order');
       }
 
-      const savedName = response.data?.data?.name || payload.name || recordName;
-      if (savedName) {
-        cacheSalesOrderLineData(savedName, {
-          items: formData.items,
-          paymentSchedule: formData.paymentSchedule,
-        });
-      }
+   
+      const savedName = response.data?.data?.name || payload.name;
+      cacheSalesOrderLineData(savedName, {
+        items: formData.items,
+        paymentSchedule: formData.paymentSchedule,
+      });
 
       toast.success(isEditMode ? 'Sales order updated successfully!' : 'Sales order created successfully!');
       navigate('/sales-order');

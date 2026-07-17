@@ -248,16 +248,22 @@ export default function CreateQuotation() {
     el.focus();
   };
 
-  /* ─── load customers ─────────────────────────────────────────── */
+  /* ─── load customers (sourced from qualified leads) ────────────── */
+
+  /** Only leads with status "Qualified" should be selectable as a quotation customer. */
+  const isQualifiedCustomer = (c: any): boolean => {
+    const status = c?.status ?? '';
+    return String(status).trim().toLowerCase() === 'qualified';
+  };
 
   const fetchCustomers = async () => {
     setLoadingCustomers(true);
     try {
-      const response = await api.get('/customer');
+      const response = await api.get('/lead');
       const records = extractRecords(response.data);
-      setCustomers(records);
+      setCustomers(records.filter(isQualifiedCustomer));
     } catch (err) {
-      console.error('Error fetching customers:', err);
+      console.error('Error fetching qualified leads:', err);
     } finally {
       setLoadingCustomers(false);
     }
@@ -267,11 +273,14 @@ export default function CreateQuotation() {
     fetchCustomers();
   }, []);
 
-  const customerIdOf = (c: any) => c?.name ?? c?.id ?? c?.customer_code ?? '';
+  /** Leads don't have a stable "customer code" like /customer records do,
+   *  so fall back to company name, then lead id, then contact name. */
+  const customerIdOf = (c: any) => c?.company_name || (c?.id != null ? String(c.id) : '') || c?.lead_name || '';
   const customerLabelOf = (c: any) => {
-    const id = customerIdOf(c);
-    const label = c?.customer_name || c?.party_name || id;
-    return label && label !== id ? `${label} (${id})` : `${id}`;
+    const org = c?.company_name || '';
+    const contact = c?.lead_name || '';
+    if (org && contact && org !== contact) return `${org} (${contact})`;
+    return org || contact || customerIdOf(c);
   };
 
   const handleCustomerChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -281,7 +290,7 @@ export default function CreateQuotation() {
     setFormData((prev) => ({
       ...prev,
       customer: value,
-      customerName: match?.customer_name || match?.party_name || value,
+      customerName: match?.company_name || match?.lead_name || value,
     }));
     if (errors.customer) setErrors((prev) => ({ ...prev, customer: '' }));
   };
@@ -314,16 +323,13 @@ export default function CreateQuotation() {
   };
 
   const customerDetailFields: { label: string; key: string }[] = [
-    { label: 'Customer Name', key: 'customer_name' },
-    { label: 'Customer Group', key: 'customer_group' },
-    { label: 'Territory', key: 'territory' },
+    { label: 'Contact Name', key: 'lead_name' },
     { label: 'Mobile No', key: 'mobile_no' },
-    { label: 'Phone', key: 'phone' },
     { label: 'Email', key: 'email_id' },
-    { label: 'GSTIN', key: 'gstin' },
-    { label: 'PAN', key: 'pan' },
-    { label: 'Address', key: 'primary_address' },
-    { label: 'Credit Limit', key: 'credit_limit' },
+    { label: 'City', key: 'city' },
+    { label: 'State', key: 'state' },
+    { label: 'Country', key: 'country' },
+    { label: 'Lead Owner', key: 'lead_owner' },
   ];
 
   /* ─── load items (search) ────────────────────────────────────── */
@@ -1011,7 +1017,7 @@ export default function CreateQuotation() {
               <div className="form-group">
                 <label>Type *</label>
                 <div className="cq-type-select-wrapper">
-                  <span className="cq-type-icon">{getTypeIcon()}</span>
+                  {/* <span className="cq-type-icon">{getTypeIcon()}</span> */}
                   <select
                     name="type"
                     value={formData.type}
@@ -1094,7 +1100,13 @@ export default function CreateQuotation() {
                   ref={setRef('customer')}
                   disabled={loadingCustomers}
                 >
-                  <option value="">{loadingCustomers ? 'Loading customers...' : 'Select customer...'}</option>
+                  <option value="">
+                    {loadingCustomers
+                      ? 'Loading customers...'
+                      : customers.length === 0
+                        ? 'No qualified leads available'
+                        : 'Select qualified customer...'}
+                  </option>
                   {customers.map((c) => (
                     <option key={customerIdOf(c)} value={customerIdOf(c)}>
                       {customerLabelOf(c)}
@@ -1102,6 +1114,11 @@ export default function CreateQuotation() {
                   ))}
                 </select>
                 {errors.customer && <span className="error-text">{errors.customer}</span>}
+                {!loadingCustomers && customers.length === 0 && (
+                  <small className="cq-type-hint">
+                    Only leads with a "Qualified" status can be selected here.
+                  </small>
+                )}
               </div>
 
               {selectedCustomer && (

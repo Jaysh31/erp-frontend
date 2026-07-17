@@ -1,0 +1,1004 @@
+:root {
+  --bdf-bg: var(--layout-bg, #ffffff);
+  --bdf-surface: var(--card-bg, #ffffff);
+  --bdf-surface-2: var(--layout-bg, #f7f8fa);
+  --bdf-border: var(--border-color, #e2e6eb);
+  --bdf-border-focus: var(--primary-color, #3b7dd8);
+
+  --bdf-blue: var(--primary-color, #2563eb);
+  --bdf-blue-dark: color-mix(in srgb, var(--primary-color, #2563eb) 80%, #000);
+  --bdf-blue-light: color-mix(in srgb, var(--primary-color, #2563eb) 10%, var(--card-bg, #fff));
+  --bdf-blue-mid: color-mix(in srgb, var(--primary-color, #2563eb) 40%, var(--card-bg, #fff));
+
+  --bdf-amber: #d97706;
+  --bdf-amber-bg: #fffbeb;
+  --bdf-amber-border: #fcd34d;
+
+  --bdf-red: #dc2626;
+  --bdf-red-bg: #fef2f2;
+  --bdf-red-border: #fca5a5;
+  --bdf-red-light: #fee2e2;
+
+  --bdf-green: #16a34a;
+  --bdf-green-bg: #f0fdf4;
+  --bdf-green-border: #86efac;
+
+  --bdf-text-primary: var(--text-primary, #111827);
+  --bdf-text-secondary: var(--text-secondary, #4b5563);
+  --bdf-text-muted: color-mix(in srgb, var(--text-secondary, #4b5563) 60%, transparent);
+  --bdf-text-label: var(--text-primary, #374151);
+
+  --bdf-radius-sm: 4px;
+  --bdf-radius: 8px;
+  --bdf-radius-lg: 12px;
+
+  --bdf-shadow-sm: 0 1px 3px var(--shadow-color, rgba(0, 0, 0, .08)), 0 1px 2px var(--shadow-color, rgba(0, 0, 0, .05));
+  --bdf-shadow-lg: 0 16px 40px var(--shadow-color, rgba(0, 0, 0, .14));
+
+  --bdf-font: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  --bdf-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  --bdf-transition: 160ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Reset & base ────────────────────────────────────────────── */
+.bdf-page *,
+.bdf-page *::before,
+.bdf-page *::after {
+  box-sizing: border-box;
+}
+
+/*
+  IMPORTANT: this was previously `height: 100%`, which FORCED the whole page
+  to be exactly as tall as its parent container, no matter how much content
+  was actually inside it (e.g. after uploading a file and the chip / errors
+  appear). Once content exceeded that fixed height, everything below got
+  squeezed and the footer buttons appeared to "jump" mid-page, and scrolling
+  only scrolled inside that clipped box instead of the real page.
+
+  `min-height: 100%` lets the page be *at least* as tall as its container,
+  but grow naturally when content needs more room — so uploading a file (or
+  anything else that adds height) no longer breaks the layout.
+*/
+.bdf-page {
+  font-family: var(--bdf-font);
+  background: var(--bdf-bg);
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  color: var(--bdf-text-primary);
+  font-size: 14px;
+  line-height: 1.5;
+  border-radius: 8px;
+  overflow: visible;
+}
+
+/* ── Page Header ─────────────────────────────────────────────── */
+.bdf-header-wrap {
+  margin-bottom: 16px;
+}
+
+.bdf-header-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.bdf-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--bdf-text-secondary);
+  background: none;
+  border: 1px solid var(--bdf-border);
+  border-radius: var(--bdf-radius-sm);
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: all var(--bdf-transition);
+  white-space: nowrap;
+}
+
+.bdf-back-btn:hover {
+  color: var(--bdf-blue);
+  border-color: var(--bdf-blue-mid);
+  background: var(--bdf-blue-light);
+}
+
+.bdf-title {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  color: var(--bdf-text-primary);
+  margin: 0;
+  flex: 1;
+}
+
+.bdf-error-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--bdf-red-bg);
+  color: var(--bdf-red);
+  border: 1px solid var(--bdf-red-border);
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+
+.bdf-success-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--bdf-green-bg);
+  color: var(--bdf-green);
+  border: 1px solid var(--bdf-green-border);
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+
+/* ── Container ───────────────────────────────────────────────── */
+.bdf-container {
+  flex: 1;
+}
+
+/* ── Card ────────────────────────────────────────────────────── */
+.bdf-card {
+  background: var(--bdf-surface);
+  border: 1px solid var(--bdf-border);
+  border-radius: var(--bdf-radius-lg);
+  padding: 24px;
+  box-shadow: var(--bdf-shadow-sm);
+}
+
+/* ── Section headings ────────────────────────────────────────── */
+.bdf-section-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--bdf-text-secondary);
+  padding-top: 20px;
+  margin-top: 4px;
+  margin-bottom: 16px;
+  border-top: 1px solid var(--bdf-border);
+}
+
+.bdf-section-title-first {
+  border-top: none;
+  padding-top: 0;
+  margin-top: 0;
+}
+
+/* ── Grid helpers ────────────────────────────────────────────── */
+.bdf-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.bdf-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.bdf-grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.bdf-field-block {
+  margin-bottom: 16px;
+}
+
+@media (max-width: 900px) {
+  .bdf-grid-3,
+  .bdf-grid-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 680px) {
+  .bdf-grid-2,
+  .bdf-grid-3,
+  .bdf-grid-4 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Labels ──────────────────────────────────────────────────── */
+.bdf-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--bdf-text-label);
+  margin-bottom: 5px;
+  letter-spacing: 0.1px;
+}
+
+.bdf-label-optional {
+  font-weight: 500;
+  color: var(--bdf-text-muted);
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 11px;
+  margin-left: 4px;
+}
+
+/* ── Field control wrapper (input + status icon) ────────────────────── */
+.bdf-field-control {
+  position: relative;
+}
+
+/* ── Inputs ──────────────────────────────────────────────────── */
+.bdf-input {
+  width: 100%;
+  height: 36px;
+  padding: 0 11px;
+  font-family: var(--bdf-font);
+  font-size: 13.5px;
+  color: var(--bdf-text-primary);
+  background: var(--bdf-surface);
+  border: 1.5px solid var(--bdf-border);
+  border-radius: var(--bdf-radius-sm);
+  outline: none;
+  transition: border-color var(--bdf-transition), box-shadow var(--bdf-transition), background var(--bdf-transition);
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.bdf-input:focus {
+  border-color: var(--bdf-border-focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color, #3b7dd8) 14%, transparent);
+}
+
+.bdf-input:disabled {
+  background: var(--bdf-surface-2);
+  color: var(--bdf-text-muted);
+  cursor: not-allowed;
+}
+
+.bdf-input::placeholder {
+  color: var(--bdf-text-muted);
+}
+
+.bdf-input-has-icon {
+  padding-right: 34px;
+}
+
+/* Error state */
+.bdf-input-error {
+  border-color: var(--bdf-red) !important;
+  background: var(--bdf-red-bg);
+}
+
+.bdf-input-error:focus {
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, .14) !important;
+}
+
+/* Valid state */
+.bdf-input-valid {
+  border-color: var(--bdf-green) !important;
+  background: var(--bdf-green-bg);
+}
+
+.bdf-input-valid:focus {
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, .14) !important;
+}
+
+select.bdf-input {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%239ca3af'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 28px;
+  cursor: pointer;
+}
+
+.bdf-textarea {
+  height: auto !important;
+  padding: 9px 11px;
+  resize: vertical;
+  line-height: 1.55;
+}
+
+.bdf-uppercase-input {
+  text-transform: uppercase;
+}
+
+/* ── Status icon inside the input ────────────────────────────────────── */
+.bdf-status-icon {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 14px;
+  pointer-events: none;
+  animation: bdf-icon-pop 180ms cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+.bdf-status-icon-valid {
+  color: var(--bdf-green);
+}
+
+.bdf-status-icon-error {
+  color: var(--bdf-red);
+}
+
+@keyframes bdf-icon-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-50%) scale(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-50%) scale(1);
+  }
+}
+
+/* ── Inline feedback text (error / valid / hint) ─────────────────────── */
+.bdf-error-text,
+.bdf-valid-text,
+.bdf-hint-text {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  font-weight: 500;
+  margin-top: 5px;
+  line-height: 1.3;
+}
+
+.bdf-error-text {
+  color: var(--bdf-red);
+  animation: bdf-feedback-in 160ms ease;
+}
+
+.bdf-valid-text {
+  color: var(--bdf-green);
+  animation: bdf-feedback-in 160ms ease;
+}
+
+.bdf-hint-text {
+  color: var(--bdf-text-muted);
+  font-weight: 400;
+}
+
+.bdf-feedback-icon {
+  flex-shrink: 0;
+}
+
+/* Fallback link shown when the browser blocks the auto-opened preview tab */
+.bdf-preview-fallback-link {
+  color: var(--bdf-blue);
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.bdf-preview-fallback-link:hover {
+  color: var(--bdf-blue-dark);
+}
+
+@keyframes bdf-feedback-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Info / hint banner ──────────────────────────────────────── */
+.bdf-info-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bdf-blue-light);
+  border: 1px solid var(--bdf-blue-mid);
+  border-radius: var(--bdf-radius-sm);
+  color: var(--bdf-blue-dark);
+  font-size: 12.5px;
+  padding: 9px 13px;
+  font-weight: 500;
+  margin-bottom: 16px;
+}
+
+.bdf-hint-banner {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--bdf-text-muted);
+  background: var(--bdf-surface-2);
+  border: 1px solid var(--bdf-border);
+  border-radius: var(--bdf-radius-sm);
+  padding: 8px 12px;
+}
+
+.bdf-hint-icon {
+  color: var(--bdf-blue);
+  flex-shrink: 0;
+}
+
+/* ── Checkbox / toggle row ───────────────────────────────────── */
+.bdf-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--bdf-border);
+  border-radius: var(--bdf-radius);
+  padding: 12px 14px;
+  background: var(--bdf-surface-2);
+}
+
+.bdf-checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  color: var(--bdf-text-primary);
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+}
+
+.bdf-checkbox {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--bdf-blue);
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+/* ── Spacing helpers ─────────────────────────────────────────── */
+.bdf-mb-20 {
+  margin-bottom: 20px;
+}
+
+.bdf-mt-20 {
+  margin-top: 20px;
+}
+
+/* ── Footer / action row ─────────────────────────────────────────────
+   Flows normally after the card, at the end of the page — same as the
+   original design. (Sticky positioning was tried here but it stuck to
+   the parent app's own scroll container, which is shorter than the full
+   form, cutting the card off mid-page. Plain static flow avoids that
+   entirely and still scrolls correctly since .bdf-page is no longer
+   height-locked.) */
+.bdf-footer-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 18px 24px;
+  background: var(--bdf-surface);
+  border: 1px solid var(--bdf-border);
+  border-radius: var(--bdf-radius-lg);
+  margin-top: 16px;
+  box-shadow: var(--bdf-shadow-sm);
+}
+
+.bdf-btn-primary,
+.bdf-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 18px;
+  font-family: var(--bdf-font);
+  font-size: 13.5px;
+  font-weight: 600;
+  border-radius: var(--bdf-radius-sm);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all var(--bdf-transition);
+  letter-spacing: 0.1px;
+  outline: none;
+}
+
+.bdf-btn-primary {
+  background: var(--primary-gradient, linear-gradient(135deg, var(--bdf-blue), var(--bdf-blue-dark)));
+  color: #fff;
+  border-color: var(--bdf-blue-dark);
+  box-shadow: 0 1px 3px var(--shadow-color, rgba(37, 99, 235, .3));
+}
+
+.bdf-btn-primary:hover {
+  opacity: 0.9;
+  box-shadow: 0 3px 8px var(--shadow-color, rgba(37, 99, 235, .35));
+  transform: translateY(-1px);
+}
+
+.bdf-btn-primary:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+.bdf-btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.bdf-btn-submit {
+  min-width: 160px;
+  justify-content: center;
+}
+
+.bdf-btn-secondary {
+  background: var(--bdf-surface);
+  color: var(--bdf-text-secondary);
+  border-color: var(--bdf-border);
+}
+
+.bdf-btn-secondary:hover {
+  border-color: #c0c8d4;
+  color: var(--bdf-text-primary);
+  background: var(--bdf-surface-2);
+}
+
+/* ── Validation Modal ────────────────────────────────────────── */
+.bdf-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 24, 39, .45);
+  backdrop-filter: blur(3px);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: bdf-overlay-in 180ms ease;
+}
+
+@keyframes bdf-overlay-in {
+  from { opacity: 0 }
+  to { opacity: 1 }
+}
+
+.bdf-validation-modal {
+  background: var(--bdf-surface);
+  border-radius: var(--bdf-radius-lg);
+  width: 100%;
+  max-width: 480px;
+  box-shadow: var(--bdf-shadow-lg);
+  overflow: hidden;
+  animation: bdf-modal-in 220ms cubic-bezier(0.34, 1.28, 0.64, 1);
+}
+
+@keyframes bdf-modal-in {
+  from {
+    opacity: 0;
+    transform: scale(0.94) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.bdf-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px;
+  background: var(--bdf-amber-bg);
+  border-bottom: 1px solid var(--bdf-amber-border);
+}
+
+.bdf-modal-title-warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--bdf-amber);
+  margin: 0;
+}
+
+.bdf-modal-close {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: none;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--bdf-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--bdf-transition);
+  flex-shrink: 0;
+}
+
+.bdf-modal-close:hover {
+  background: rgba(0, 0, 0, .07);
+  color: var(--bdf-text-primary);
+}
+
+.bdf-modal-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.bdf-modal-intro {
+  font-size: 13px;
+  color: var(--bdf-text-secondary);
+  margin: 0;
+}
+
+.bdf-error-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bdf-validation-error-item {
+  border: 1px solid var(--bdf-red-border);
+  border-radius: var(--bdf-radius);
+  padding: 11px 14px;
+  background: var(--bdf-red-bg);
+  cursor: pointer;
+  transition: all var(--bdf-transition);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bdf-validation-error-item:hover {
+  border-color: var(--bdf-red);
+  background: var(--bdf-red-light);
+  transform: translateX(2px);
+}
+
+.bdf-error-header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.bdf-error-icon {
+  color: var(--bdf-red);
+  flex-shrink: 0;
+}
+
+.bdf-error-label {
+  font-size: 13px;
+  color: var(--bdf-text-primary);
+  font-weight: 600;
+}
+
+.bdf-error-message {
+  font-size: 12.5px;
+  color: var(--bdf-red);
+  padding-left: 20px;
+}
+
+.bdf-modal-footer {
+  padding: 14px 20px;
+  border-top: 1px solid var(--bdf-border);
+  display: flex;
+  justify-content: flex-end;
+  background: var(--bdf-surface-2);
+}
+
+.bdf-btn-cancel {
+  height: 34px;
+  padding: 0 16px;
+  font-family: var(--bdf-font);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--bdf-text-secondary);
+  background: var(--bdf-surface);
+  border: 1px solid var(--bdf-border);
+  border-radius: var(--bdf-radius-sm);
+  cursor: pointer;
+  transition: all var(--bdf-transition);
+}
+
+.bdf-btn-cancel:hover {
+  border-color: #c0c8d4;
+  color: var(--bdf-text-primary);
+}
+
+/* ── Spinner ─────────────────────────────────────────────────── */
+@keyframes bdf-spin {
+  to { transform: rotate(360deg); }
+}
+
+.bdf-spinning {
+  animation: bdf-spin 0.7s linear infinite;
+}
+
+/* ── Fade-in ─────────────────────────────────────────────────── */
+@keyframes bdf-fade-slide {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.bdf-fade-in {
+  animation: bdf-fade-slide 200ms ease;
+}
+
+/* ── Repeatable bank account card ───────────────────────────────────── */
+.bdf-account-card {
+  border: 1.5px solid var(--bdf-border);
+  border-radius: var(--bdf-radius);
+  padding: 18px 18px 4px;
+  margin-bottom: 20px;
+  background: var(--bdf-surface-2);
+  animation: bdf-fade-slide 200ms ease;
+}
+
+.bdf-account-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed var(--bdf-border);
+}
+
+.bdf-account-card-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--bdf-text-secondary);
+}
+
+.bdf-primary-badge {
+  display: inline-flex;
+  align-items: center;
+  background: var(--bdf-blue-light);
+  color: var(--bdf-blue-dark);
+  border: 1px solid var(--bdf-blue-mid);
+  border-radius: 20px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  padding: 2px 9px;
+  margin-left: 4px;
+}
+
+.bdf-account-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bdf-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--bdf-text-secondary);
+  background: var(--bdf-surface);
+  border: 1px solid var(--bdf-border);
+  border-radius: var(--bdf-radius-sm);
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: all var(--bdf-transition);
+}
+
+.bdf-icon-btn:hover {
+  color: var(--bdf-blue);
+  border-color: var(--bdf-blue-mid);
+  background: var(--bdf-blue-light);
+}
+
+.bdf-icon-btn-danger:hover {
+  color: var(--bdf-red);
+  border-color: var(--bdf-red-border);
+  background: var(--bdf-red-bg);
+}
+
+/* ── Add-account button ─────────────────────────────────────────────── */
+.bdf-btn-add-account {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 42px;
+  font-family: var(--bdf-font);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--bdf-blue-dark);
+  background: var(--bdf-blue-light);
+  border: 1.5px dashed var(--bdf-blue-mid);
+  border-radius: var(--bdf-radius);
+  cursor: pointer;
+  transition: all var(--bdf-transition);
+  margin-top: 4px;
+}
+
+.bdf-btn-add-account:hover {
+  background: color-mix(in srgb, var(--primary-color, #2563eb) 16%, var(--card-bg, #fff));
+  border-color: var(--bdf-blue);
+}
+
+/* ── PDF upload field ────────────────────────────────────────── */
+.bdf-file-input-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.bdf-file-dropzone {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 14px;
+  border: 1.5px dashed var(--bdf-border);
+  border-radius: var(--bdf-radius-sm);
+  background: var(--bdf-surface-2);
+  color: var(--bdf-text-secondary);
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: all var(--bdf-transition);
+}
+
+.bdf-file-dropzone:hover {
+  border-color: var(--bdf-blue-mid);
+  background: var(--bdf-blue-light);
+  color: var(--bdf-blue-dark);
+}
+
+.bdf-file-dropzone-icon {
+  font-size: 15px;
+  color: var(--bdf-blue);
+  flex-shrink: 0;
+}
+
+.bdf-file-dropzone-text strong {
+  font-weight: 600;
+  color: inherit;
+}
+
+.bdf-file-dropzone-uploading {
+  cursor: default;
+  color: var(--bdf-text-secondary);
+}
+
+.bdf-file-dropzone-uploading:hover {
+  border-color: var(--bdf-border);
+  background: var(--bdf-surface-2);
+  color: var(--bdf-text-secondary);
+}
+
+/* Chip shown once a PDF is attached */
+.bdf-file-chip {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 36px;
+  padding: 0 10px 0 12px;
+  border: 1.5px solid var(--bdf-green-border);
+  border-radius: var(--bdf-radius-sm);
+  background: var(--bdf-green-bg);
+  animation: bdf-feedback-in 160ms ease;
+}
+
+.bdf-file-chip-icon {
+  color: var(--bdf-red);
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.bdf-file-chip-name {
+  flex: 1;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--bdf-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bdf-file-chip-view,
+.bdf-file-chip-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--bdf-radius-sm);
+  color: var(--bdf-text-muted);
+  cursor: pointer;
+  border: none;
+  background: none;
+  flex-shrink: 0;
+  transition: all var(--bdf-transition);
+}
+
+.bdf-file-chip-view:hover {
+  color: var(--bdf-blue);
+  background: color-mix(in srgb, var(--bdf-blue) 12%, transparent);
+}
+
+.bdf-file-chip-view:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.bdf-file-chip-remove:hover {
+  color: var(--bdf-red);
+  background: rgba(220, 38, 38, .12);
+}
+
+/* ── Responsive ──────────────────────────────────────────────── */
+@media (max-width: 680px) {
+  .bdf-container {
+    padding: 0;
+  }
+
+  .bdf-card {
+    padding: 16px;
+  }
+
+  .bdf-title {
+    font-size: 15px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bdf-fade-in,
+  .bdf-validation-modal,
+  .bdf-modal-overlay,
+  .bdf-status-icon,
+  .bdf-error-text,
+  .bdf-valid-text {
+    animation: none;
+  }
+
+  .bdf-btn-primary:hover,
+  .bdf-validation-error-item:hover {
+    transform: none;
+  }
+}

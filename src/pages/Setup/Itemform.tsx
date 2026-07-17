@@ -611,6 +611,7 @@ export default function ItemForm() {
     inspectionRequiredBeforePurchase: false,
     inspectionRequiredBeforeDelivery: false,
     warehouseId: "",
+    hsn: "", // Added HSN field
   });
 
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -781,6 +782,7 @@ export default function ItemForm() {
           inspectionRequiredBeforePurchase: data.inspection_required_before_purchase === 1,
           inspectionRequiredBeforeDelivery: data.inspection_required_before_delivery === 1,
           warehouseId: "",
+          hsn: data.hsn || data.HSN || "", // Load HSN from API response
         });
 
         const openingQty = Number(data.opening_stock) || 0;
@@ -1063,6 +1065,7 @@ export default function ItemForm() {
         inspection_required_before_purchase: form.inspectionRequiredBeforePurchase ? 1 : 0,
         inspection_required_before_delivery: form.inspectionRequiredBeforeDelivery ? 1 : 0,
         quality_inspection_template: null,
+        HSN: form.hsn || "", // Add HSN to payload
       };
 
       let response;
@@ -1094,9 +1097,8 @@ export default function ItemForm() {
           console.warn("Could not resolve item id — skipping inventory sync", response.data);
           toast.error(`Item ${isNew ? "created" : "updated"}, but couldn't resolve its id — inventory was not saved.`);
         } else {
-          // FIXED: Include ID in payload for updates
           const inventoryPayload = {
-            id: inventoryRecord?.id || undefined, // Add this line
+            id: inventoryRecord?.id || undefined,
             name: inventoryRecord?.name || `INV-${savedItemCode}`,
             item_Id: savedItemId,
             item_code: savedItemCode,
@@ -1121,10 +1123,8 @@ export default function ItemForm() {
             let invResponse;
             
             if (inventoryRecord && inventoryRecord.id) {
-              // For existing inventory - pass ID in path AND payload
               invResponse = await api.put(`/inventory`, inventoryPayload);
             } else {
-              // For new inventory - POST without ID (remove id from payload if undefined)
               if (inventoryPayload.id === undefined) {
                 delete inventoryPayload.id;
               }
@@ -1234,6 +1234,15 @@ export default function ItemForm() {
                       />
                     </Field>
 
+                    <Field label="HSN Code" hint="Harmonized System of Nomenclature code for taxation">
+                      <TextInput 
+                        value={form.hsn} 
+                        onChange={(v) => s("hsn", v)} 
+                        placeholder="e.g. 87690" 
+                        type="text" 
+                      />
+                    </Field>
+
                     <Field label="Default unit of measure" required error={fieldError("defaultUOM")}>
                       <SelectInput
                         value={form.defaultUOM}
@@ -1275,12 +1284,6 @@ export default function ItemForm() {
                     checked={form.isPurchaseItem}
                     onChange={(v) => s("isPurchaseItem", v)}
                   />
-                  {/* <Checkbox
-                    label="Stock item"
-                    description="Tracked in inventory"
-                    checked={form.isStockItem}
-                    onChange={(v) => s("isStockItem", v)}
-                  /> */}
                 </div>
 
                 <div className="itf-checkbox-grid">
@@ -1367,14 +1370,14 @@ export default function ItemForm() {
                     hint="Opening stock will be added to this warehouse."
                     error={fieldError("warehouseId")}
                   >
-         <SelectInput
-  value={form.warehouseId}
-  onChange={(v) => s("warehouseId", v)}
-  options={warehouseOptions}
-  loading={loadingWarehouses}
-  placeholder="Select a warehouse…"
-/>
-      </Field>
+                    <SelectInput
+                      value={form.warehouseId}
+                      onChange={(v) => s("warehouseId", v)}
+                      options={warehouseOptions}
+                      loading={loadingWarehouses}
+                      placeholder="Select a warehouse…"
+                    />
+                  </Field>
                 </div>
 
                 {loadingInventory && (

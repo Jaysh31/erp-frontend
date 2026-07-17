@@ -73,7 +73,7 @@ export default function AddSupplier() {
   const isNew = id === 'new' || !id;
   const isEditMode = !isNew && id;
 
-  const [loading, setLoading] = useState(false);
+  const [, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [fetching, setFetching] = useState(false);
   const [pincodeSuggestions, setPincodeSuggestions] = useState<string[]>([]);

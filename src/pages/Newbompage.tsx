@@ -2520,7 +2520,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
   };
 
   // Helper: how many component rows currently have an item selected
-  const getSelectedItemsCount = () => compRows.filter(r => r.itemCode.trim() !== "").length;
+  // const getSelectedItemsCount = () => compRows.filter(r => r.itemCode.trim() !== "").length;
 
   const getAllErrors = (): ValidationError[] => {
     const errs: ValidationError[] = [];
@@ -2575,7 +2575,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
       const selectedItem = items.find(i => i.item_code === itemToManufacture);
 
       // Number of component rows that currently have an item selected
-      const selectedItemsCount = getSelectedItemsCount();
+      // const selectedItemsCount = getSelectedItemsCount();
       
       const totalComponentCost = compRows.reduce((sum, row) => {
         const rate = parseFloat(row.rate || "0") || 0;

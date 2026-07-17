@@ -1,5 +1,5 @@
 // InventoryList.tsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FaSearch,
@@ -16,10 +16,18 @@ import {
   FaWarehouse,
   FaClipboardList,
   FaDollarSign,
-  FaList,
   FaArrowUp,
   FaExclamationTriangle,
   FaCheckCircle,
+  FaIndustry,
+  FaTruck,
+  FaGlobe,
+  FaCogs,
+  FaRecycle,
+  FaArrowLeft,
+  FaMapMarkerAlt,
+  FaLock,
+  FaLockOpen,
 } from "react-icons/fa";
 import "./InventoryList.css";
 import { useAdminTheme } from "../admin-theme/AdminThemeContext";
@@ -48,6 +56,7 @@ interface InventoryItem {
   valuation_rate: number;
   stock_value: number;
   creation: string;
+  type: "Internal" | "External";
 }
 
 interface Warehouse {
@@ -61,9 +70,6 @@ interface Warehouse {
   email_id: string | null;
   phone_no: string | null;
   disabled: number;
-  itemCount?: number;
-  totalValue?: number;
-  lowStockItems?: number;
 }
 
 interface InventoryDisplay {
@@ -76,12 +82,14 @@ interface InventoryDisplay {
   plannedQty: number;
   orderedQty: number;
   reservedQty: number;
+  reservedStock: number;
   projectedQty: number;
   uom: string;
   valuationRate: number;
   stockValue: number;
   status: InventoryStatus;
   lastUpdated: string;
+  type: "Internal" | "External";
 }
 
 interface ApiResponse {
@@ -104,7 +112,7 @@ interface WarehouseApiResponse {
   };
 }
 
-type ViewMode = "warehouse" | "item" | "details";
+type ViewMode = "warehouses" | "detail";
 type InventoryStatus =
   | "In Stock"
   | "Low Stock"
@@ -112,6 +120,30 @@ type InventoryStatus =
   | "Over Stock";
 
 type StockStatus = "All" | InventoryStatus;
+type ActiveTab = "all" | "internal" | "external";
+
+// ─── Warehouse visual identity helpers ────────────────────────────────────
+// Maps common warehouse stage names (Raw Material, WIP, Finished Goods, Scrap)
+// to a distinct icon + color so the 4 cards read at a glance. Falls back to a
+// generic warehouse look for anything that doesn't match.
+
+const getWarehouseVisual = (name: string) => {
+  const n = (name || "").toLowerCase();
+  if (n.includes("raw material") || n.includes("raw material store")) {
+    return { icon: <FaBoxes />, tone: "blue", tag: "Raw Material" };
+  }
+  if (n.includes("work in progress") || n.includes("wip")) {
+    return { icon: <FaCogs />, tone: "amber", tag: "In Production" };
+  }
+  if (n.includes("finished")) {
+    return { icon: <FaCheckCircle />, tone: "green", tag: "Ready to Ship" };
+  }
+  if (n.includes("scrap")) {
+    return { icon: <FaRecycle />, tone: "gray", tag: "Scrap" };
+  }
+  return { icon: <FaWarehouse />, tone: "indigo", tag: "Warehouse" };
+};
+
 export default function InventoryList() {
   const navigate = useNavigate();
   const { theme } = useAdminTheme();
@@ -120,24 +152,28 @@ export default function InventoryList() {
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [viewMode, setViewMode] = useState<ViewMode>("warehouses");
+  const [detailWarehouseId, setDetailWarehouseId] = useState<number | null>(null);
+
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedWarehouse, setSelectedWarehouse] = useState<number | "all">("all");
   const [statusFilter, setStatusFilter] = useState<StockStatus>("All");
-  const [viewMode, setViewMode] = useState<ViewMode>("warehouse");
+  const [activeTab, setActiveTab] = useState<ActiveTab>("all");
+
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(12);
+
   const [selectedItem, setSelectedItem] = useState<InventoryDisplay | null>(null);
   const [showItemDetails, setShowItemDetails] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedItemForDelete, setSelectedItemForDelete] = useState<InventoryDisplay | null>(null);
 
-  // Stats
+  // Overall stats (shown on the warehouse-picker screen)
   const [stats, setStats] = useState({
     totalItems: 0,
     totalValue: 0,
     lowStockItems: 0,
     outOfStockItems: 0,
-    totalWarehouses: 0,
   });
 
   // ─── Fetch Warehouses ──────────────────────────────────────────────
@@ -161,38 +197,34 @@ export default function InventoryList() {
       const response = await api.get<ApiResponse>("/inventory");
       if (response.data.success === 1) {
         const records = response.data.data?.records || [];
-        
-        // Map warehouse names to inventory items
+
         const warehouseMap = new Map<number, string>();
-        warehouses.forEach(wh => warehouseMap.set(wh.id, wh.warehouse_name));
+        warehouses.forEach((wh) => warehouseMap.set(wh.id, wh.warehouse_name));
 
         const transformedData: InventoryDisplay[] = records.map((item) => {
-            const warehouseName =
-              warehouseMap.get(item.warehouse_Id) || "Unknown";
-          
-            const status = getStockStatus(
-              item.actual_qty || 0,
-              item.projected_qty || 0
-            );
-          
-            return {
-              id: item.id.toString(),
-              itemCode: item.item_code,
-              itemName: item.item_code,
-              warehouse: warehouseName,
-              warehouseId: item.warehouse_Id,
-              actualQty: item.actual_qty || 0,
-              plannedQty: item.planned_qty || 0,
-              orderedQty: item.ordered_qty || 0,
-              reservedQty: item.reserved_qty || 0,
-              projectedQty: item.projected_qty || 0,
-              uom: item.stock_uom || "Nos",
-              valuationRate: item.valuation_rate || 0,
-              stockValue: item.stock_value || 0,
-              status,
-              lastUpdated: item.creation || new Date().toISOString(),
-            };
-          });
+          const warehouseName = warehouseMap.get(item.warehouse_Id) || "Unknown";
+          const status = getStockStatus(item.actual_qty || 0);
+
+          return {
+            id: item.id.toString(),
+            itemCode: item.item_code,
+            itemName: item.item_code,
+            warehouse: warehouseName,
+            warehouseId: item.warehouse_Id,
+            actualQty: item.actual_qty || 0,
+            plannedQty: item.planned_qty || 0,
+            orderedQty: item.ordered_qty || 0,
+            reservedQty: item.reserved_qty || 0,
+            reservedStock: item.reserved_stock || 0,
+            projectedQty: item.projected_qty || 0,
+            uom: item.stock_uom || "Nos",
+            valuationRate: item.valuation_rate || 0,
+            stockValue: item.stock_value || 0,
+            status,
+            lastUpdated: item.creation || new Date().toISOString(),
+            type: item.type || "Internal",
+          };
+        });
 
         setInventoryItems(transformedData);
         updateStats(transformedData);
@@ -206,29 +238,32 @@ export default function InventoryList() {
       setLoading(false);
     }
   };
-  const getStockStatus = (
-    actualQty: number,
-    _projectedQty: number
-  ): InventoryStatus => {
+
+  const getStockStatus = (actualQty: number): InventoryStatus => {
     if (actualQty <= 0) return "Out of Stock";
     if (actualQty < 10) return "Low Stock";
     if (actualQty > 1000) return "Over Stock";
     return "In Stock";
   };
 
+  // Is more stock reserved than is actually sitting in the warehouse?
+  const getReservationState = (actualQty: number, reservedStock: number) => {
+    if (reservedStock <= 0) return { label: "Not Reserved", tone: "neutral" as const };
+    if (reservedStock > actualQty) return { label: "Less than reserved", tone: "danger" as const };
+    return { label: "Within Stock", tone: "ok" as const };
+  };
+
   // ─── Update Stats ─────────────────────────────────────────────────
   const updateStats = (items: InventoryDisplay[]) => {
     const totalValue = items.reduce((sum, item) => sum + item.stockValue, 0);
-    const lowStock = items.filter(item => item.status === "Low Stock").length;
-    const outOfStock = items.filter(item => item.status === "Out of Stock").length;
-    const totalWarehouses = new Set(items.map(item => item.warehouseId)).size;
+    const lowStock = items.filter((item) => item.status === "Low Stock").length;
+    const outOfStock = items.filter((item) => item.status === "Out of Stock").length;
 
     setStats({
       totalItems: items.length,
       totalValue,
       lowStockItems: lowStock,
       outOfStockItems: outOfStock,
-      totalWarehouses,
     });
   };
 
@@ -241,47 +276,84 @@ export default function InventoryList() {
     if (warehouses.length > 0) {
       fetchInventory();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [warehouses]);
 
-  // ─── Filter Items ─────────────────────────────────────────────────
-  const filteredItems = inventoryItems.filter(item => {
-    const matchesSearch = 
-      item.itemCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.warehouse.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.uom.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesWarehouse = selectedWarehouse === "all" || item.warehouseId === selectedWarehouse;
-    const matchesStatus = statusFilter === "All" || item.status === statusFilter;
-    
-    return matchesSearch && matchesWarehouse && matchesStatus;
-  });
+  // ─── Per-warehouse rollups for the picker cards ──────────────────
+  const warehouseCards = useMemo(() => {
+    return warehouses.map((wh) => {
+      const items = inventoryItems.filter((item) => item.warehouseId === wh.id);
+      const internalItems = items.filter((item) => item.type === "Internal");
+      const externalItems = items.filter((item) => item.type === "External");
+      const totalValue = items.reduce((sum, item) => sum + item.stockValue, 0);
+      const lowStock = items.filter((item) => item.status === "Low Stock" || item.status === "Out of Stock").length;
+      const overReserved = items.filter((item) => item.reservedStock > item.actualQty).length;
+      const visual = getWarehouseVisual(wh.warehouse_name);
+
+      return {
+        ...wh,
+        items,
+        itemCount: items.length,
+        internalCount: internalItems.length,
+        externalCount: externalItems.length,
+        totalValue,
+        lowStock,
+        overReserved,
+        visual,
+      };
+    });
+  }, [warehouses, inventoryItems]);
+
+  const activeWarehouse = warehouseCards.find((wh) => wh.id === detailWarehouseId) || null;
+
+  // ─── Items for the detail (drill-down) view ──────────────────────
+  const detailItems = useMemo(() => {
+    if (!activeWarehouse) return [];
+    return activeWarehouse.items.filter((item) => {
+      const matchesSearch =
+        item.itemCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.uom.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesStatus = statusFilter === "All" || item.status === statusFilter;
+      const matchesType = activeTab === "all" || item.type.toLowerCase() === activeTab;
+      return matchesSearch && matchesStatus && matchesType;
+    });
+  }, [activeWarehouse, searchTerm, statusFilter, activeTab]);
+
+  const detailTabCounts = useMemo(() => {
+    if (!activeWarehouse) return { all: 0, internal: 0, external: 0 };
+    return {
+      all: activeWarehouse.items.length,
+      internal: activeWarehouse.internalCount,
+      external: activeWarehouse.externalCount,
+    };
+  }, [activeWarehouse]);
+
+  // Reset pagination when filters/tab/warehouse change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, statusFilter, searchTerm, detailWarehouseId]);
 
   // ─── Pagination ──────────────────────────────────────────────────
-  const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
-  const paginatedItems = filteredItems.slice(
+  const totalPages = Math.ceil(detailItems.length / itemsPerPage) || 1;
+  const paginatedItems = detailItems.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
 
-  // ─── Group by Warehouse ──────────────────────────────────────────
-  const warehouseGroups = warehouses.map(wh => {
-    const items = inventoryItems.filter(item => item.warehouseId === wh.id);
-    const totalQty = items.reduce((sum, item) => sum + item.actualQty, 0);
-    const totalValue = items.reduce((sum, item) => sum + item.stockValue, 0);
-    const itemCount = items.length;
-    const lowStock = items.filter(item => item.status === "Low Stock").length;
-    
-    return {
-      ...wh,
-      items,
-      totalQty,
-      totalValue,
-      itemCount,
-      lowStock,
-    };
-  }).filter(wh => wh.itemCount > 0);
-
   // ─── Handlers ────────────────────────────────────────────────────
+  const openWarehouse = (id: number) => {
+    setDetailWarehouseId(id);
+    setViewMode("detail");
+    setActiveTab("all");
+    setStatusFilter("All");
+    setSearchTerm("");
+  };
+
+  const backToWarehouses = () => {
+    setViewMode("warehouses");
+    setDetailWarehouseId(null);
+  };
+
   const handleViewItem = (item: InventoryDisplay) => {
     setSelectedItem(item);
     setShowItemDetails(true);
@@ -312,23 +384,25 @@ export default function InventoryList() {
     }
   };
 
-  // const getStatusColor = (status: StockStatus) => {
-  //   switch (status) {
-  //     case "In Stock": return "#10b981";
-  //     case "Low Stock": return "#f59e0b";
-  //     case "Out of Stock": return "#ef4444";
-  //     case "Over Stock": return "#3b82f6";
-  //     default: return "#6b7280";
-  //   }
-  // };
+  const clearFilters = () => {
+    setSearchTerm("");
+    setStatusFilter("All");
+    setActiveTab("all");
+    setCurrentPage(1);
+  };
 
   const getStatusIcon = (status: StockStatus) => {
     switch (status) {
-      case "In Stock": return <FaCheckCircle style={{ color: "#10b981" }} />;
-      case "Low Stock": return <FaExclamationTriangle style={{ color: "#f59e0b" }} />;
-      case "Out of Stock": return <FaTimes style={{ color: "#ef4444" }} />;
-      case "Over Stock": return <FaArrowUp style={{ color: "#3b82f6" }} />;
-      default: return null;
+      case "In Stock":
+        return <FaCheckCircle style={{ color: "#10b981" }} />;
+      case "Low Stock":
+        return <FaExclamationTriangle style={{ color: "#f59e0b" }} />;
+      case "Out of Stock":
+        return <FaTimes style={{ color: "#ef4444" }} />;
+      case "Over Stock":
+        return <FaArrowUp style={{ color: "#3b82f6" }} />;
+      default:
+        return null;
     }
   };
 
@@ -338,281 +412,154 @@ export default function InventoryList() {
     const diff = now.getTime() - date.getTime();
     const hours = Math.floor(diff / 3600000);
     const days = Math.floor(diff / 86400000);
-    
+
     if (hours < 1) return "Just now";
     if (hours < 24) return `${hours}h ago`;
     if (days < 7) return `${days}d ago`;
     return date.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
   };
 
-  // ─── Render Functions ────────────────────────────────────────────
+  // ─── Render: warehouse picker ─────────────────────────────────────
 
-  const renderStatCard = (icon: React.ReactNode, label: string, value: string | number, color: string) => (
-    <div className={`inv-stat-card ${color}`}>
-      <div className="inv-stat-icon">{icon}</div>
-      <div className="inv-stat-content">
-        <div className="inv-stat-value">{value}</div>
-        <div className="inv-stat-label">{label}</div>
+  const renderWarehousePicker = () => (
+    <>
+      <div className="inv-stats-grid inv-stats-grid--compact">
+        {[
+          { icon: <FaBoxes />, label: "Total Items", value: stats.totalItems, color: "blue" },
+          { icon: <FaDollarSign />, label: "Total Value", value: `₹${stats.totalValue.toLocaleString()}`, color: "green" },
+          { icon: <FaExclamationTriangle />, label: "Low Stock", value: stats.lowStockItems, color: "yellow" },
+          { icon: <FaTimes />, label: "Out of Stock", value: stats.outOfStockItems, color: "red" },
+        ].map((s) => (
+          <div className={`inv-stat-card ${s.color}`} key={s.label}>
+            <div className="inv-stat-icon">{s.icon}</div>
+            <div className="inv-stat-content">
+              <div className="inv-stat-value">{s.value}</div>
+              <div className="inv-stat-label">{s.label}</div>
+            </div>
+          </div>
+        ))}
       </div>
-    </div>
-  );
 
-  const renderWarehouseView = () => (
-    <div className="inv-warehouse-grid">
-      {warehouseGroups.map((wh) => (
-        <div key={wh.id} className="inv-warehouse-card">
-          <div className="inv-wh-header">
-            <div className="inv-wh-header-left">
-              <FaWarehouse className="inv-wh-icon" />
-              <span className="inv-wh-name">{wh.warehouse_name}</span>
-            </div>
-            <div className="inv-wh-header-right">
-              <span className="inv-wh-status active">Active</span>
+      <div className="inv-picker-heading">
+        <h2>Select a warehouse</h2>
+        <span>Click a stage to see what's inside it</span>
+      </div>
+
+      <div className="inv-wh-picker-grid">
+        {warehouseCards.length === 0 ? (
+          <div className="inv-empty-state">
+            <div className="inv-empty-content">
+              <FaWarehouse size={48} />
+              <p>No warehouses found</p>
             </div>
           </div>
-          
-          <div className="inv-wh-stats">
-            <div className="inv-wh-stat">
-              <span className="inv-wh-stat-label">Items</span>
-              <span className="inv-wh-stat-value">{wh.itemCount}</span>
-            </div>
-            <div className="inv-wh-stat">
-              <span className="inv-wh-stat-label">Total Qty</span>
-              <span className="inv-wh-stat-value">{wh.totalQty.toLocaleString()}</span>
-            </div>
-            <div className="inv-wh-stat">
-              <span className="inv-wh-stat-label">Value</span>
-              <span className="inv-wh-stat-value">₹{wh.totalValue.toLocaleString()}</span>
-            </div>
-            <div className="inv-wh-stat">
-              <span className="inv-wh-stat-label">Low Stock</span>
-              <span className="inv-wh-stat-value" style={{ color: wh.lowStock > 0 ? "#f59e0b" : "#10b981" }}>
-                {wh.lowStock}
-              </span>
-            </div>
-          </div>
-
-          <div className="inv-wh-items-preview">
-            <div className="inv-wh-items-header">
-              <span>Recent Items</span>
-              <button 
-                className="inv-wh-view-all"
-                onClick={() => {
-                  setSelectedWarehouse(wh.id);
-                  setViewMode("item");
-                }}
-              >
-                View All
-              </button>
-            </div>
-            <div className="inv-wh-items-list">
-              {wh.items.slice(0, 5).map((item) => (
-                <div key={item.id} className="inv-wh-item">
-                  <span className="inv-wh-item-code">{item.itemCode}</span>
-                  <span className="inv-wh-item-qty">{item.actualQty} {item.uom}</span>
-                  <span className={`inv-wh-item-status ${item.status.toLowerCase().replace(" ", "-")}`}>
-                    {item.status}
-                  </span>
-                </div>
-              ))}
-              {wh.items.length > 5 && (
-                <div className="inv-wh-item-more">
-                  +{wh.items.length - 5} more items
+        ) : (
+          warehouseCards.map((wh) => (
+            <button
+              key={wh.id}
+              className={`inv-wh-tile inv-wh-tile--${wh.visual.tone}`}
+              onClick={() => openWarehouse(wh.id)}
+            >
+              <div className="inv-wh-tile-top">
+                <span className="inv-wh-tile-icon">{wh.visual.icon}</span>
+                {wh.disabled ? (
+                  <span className="inv-wh-tile-badge disabled"><FaLock size={9} /> Disabled</span>
+                ) : (
+                  <span className="inv-wh-tile-badge active"><FaLockOpen size={9} /> Active</span>
+                )}
+              </div>
+              <div className="inv-wh-tile-name">{wh.warehouse_name}</div>
+              <div className="inv-wh-tile-tag">{wh.visual.tag}</div>
+              {wh.city && (
+                <div className="inv-wh-tile-location">
+                  <FaMapMarkerAlt size={10} /> {wh.city}{wh.state ? `, ${wh.state}` : ""}
                 </div>
               )}
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
 
-  const renderItemView = () => (
-    <>
-      {/* Warehouse Filter */}
-      <div className="inv-warehouse-filter">
-        <label className="inv-filter-label">Filter by Warehouse:</label>
-        <select
-          value={selectedWarehouse}
-          onChange={(e) => setSelectedWarehouse(e.target.value === "all" ? "all" : Number(e.target.value))}
-          className="inv-filter-select"
-        >
-          <option value="all">All Warehouses</option>
-          {warehouses.map((wh) => (
-            <option key={wh.id} value={wh.id}>{wh.warehouse_name}</option>
-          ))}
-        </select>
-        <button 
-          className="inv-filter-back"
-          onClick={() => {
-            setSelectedWarehouse("all");
-            setViewMode("warehouse");
-          }}
-        >
-          ← Back to Warehouses
-        </button>
+              <div className="inv-wh-tile-stats">
+                <div className="inv-wh-tile-stat">
+                  <span className="inv-wh-tile-stat-value">{wh.itemCount}</span>
+                  <span className="inv-wh-tile-stat-label">Items</span>
+                </div>
+                <div className="inv-wh-tile-stat">
+                  <span className="inv-wh-tile-stat-value">₹{wh.totalValue.toLocaleString()}</span>
+                  <span className="inv-wh-tile-stat-label">Value</span>
+                </div>
+                <div className="inv-wh-tile-stat">
+                  <span className="inv-wh-tile-stat-value" style={{ color: wh.lowStock > 0 ? "#f59e0b" : undefined }}>
+                    {wh.lowStock}
+                  </span>
+                  <span className="inv-wh-tile-stat-label">Low/Out</span>
+                </div>
+              </div>
+
+              <div className="inv-wh-tile-split">
+                <span><FaIndustry size={10} /> {wh.internalCount} Internal</span>
+                <span><FaTruck size={10} /> {wh.externalCount} External</span>
+              </div>
+
+              {wh.overReserved > 0 && (
+                <div className="inv-wh-tile-warning">
+                  <FaExclamationTriangle size={10} /> {wh.overReserved} item{wh.overReserved > 1 ? "s" : ""} over-reserved
+                </div>
+              )}
+            </button>
+          ))
+        )}
       </div>
-
-      <div className="inv-table-wrap">
-        <table className="inv-table">
-          <thead>
-            <tr>
-              <th className="inv-th">Item Code</th>
-              <th className="inv-th">Warehouse</th>
-              <th className="inv-th">Actual Qty</th>
-              <th className="inv-th">Projected</th>
-              <th className="inv-th">Reserved</th>
-              <th className="inv-th">Status</th>
-              <th className="inv-th">Value</th>
-              <th className="inv-th inv-th-meta">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {paginatedItems.length === 0 ? (
-              <tr>
-                <td colSpan={8} className="inv-empty-state">
-                  <div className="inv-empty-content">
-                    <FaBoxes size={48} />
-                    <p>No inventory items found</p>
-                    <span>Try adjusting your search criteria</span>
-                  </div>
-                </td>
-              </tr>
-            ) : (
-              paginatedItems.map((item) => (
-                <tr key={item.id} className="inv-tr">
-                  <td className="inv-td inv-td-code">{item.itemCode}</td>
-                  <td className="inv-td">{item.warehouse}</td>
-                  <td className="inv-td inv-td-number">
-                    <span className="inv-qty">{item.actualQty}</span>
-                    <span className="inv-uom">{item.uom}</span>
-                  </td>
-                  <td className="inv-td inv-td-number">{item.projectedQty}</td>
-                  <td className="inv-td inv-td-number">{item.reservedQty}</td>
-                  <td className="inv-td">
-                    <span className={`inv-status-badge ${item.status.toLowerCase().replace(" ", "-")}`}>
-                      {getStatusIcon(item.status)} {item.status}
-                    </span>
-                  </td>
-                  <td className="inv-td inv-td-amount">₹{item.stockValue.toLocaleString()}</td>
-                  <td className="inv-td inv-td-meta">
-                    <span className="inv-ago">{formatDate(item.lastUpdated)}</span>
-                    <span className="inv-dot">·</span>
-                    <div className="inv-action-buttons">
-                      <button 
-                        className="inv-action-btn inv-action-view" 
-                        onClick={() => handleViewItem(item)}
-                        title="View"
-                      >
-                        <FaEye size={12} />
-                      </button>
-                      <button 
-                        className="inv-action-btn inv-action-edit" 
-                        onClick={() => navigate(`/inventory/edit/${item.id}`)}
-                        title="Edit"
-                      >
-                        <FaEdit size={12} />
-                      </button>
-                      <button 
-                        className="inv-action-btn inv-action-delete" 
-                        onClick={() => handleDeleteClick(item)}
-                        title="Delete"
-                      >
-                        <FaTrash size={12} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Pagination */}
-      {filteredItems.length > 0 && (
-        <div className="inv-pagination">
-          <div className="inv-pagination-left">
-            <span>
-              Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredItems.length)} of {filteredItems.length} items
-            </span>
-            <select 
-              value={itemsPerPage} 
-              onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
-              className="inv-page-size-select"
-            >
-              <option value={12}>12</option>
-              <option value={24}>24</option>
-              <option value={48}>48</option>
-            </select>
-          </div>
-          <div className="inv-pagination-center">
-            <button onClick={() => goToPage(1)} disabled={currentPage === 1} className="inv-page-btn">
-              <FaAngleDoubleLeft size={12} />
-            </button>
-            <button onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1} className="inv-page-btn">
-              <FaChevronLeft size={12} />
-            </button>
-            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-              let pageNum = currentPage;
-              if (totalPages > 5) {
-                if (currentPage <= 3) pageNum = i + 1;
-                else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
-                else pageNum = currentPage - 2 + i;
-              } else {
-                pageNum = i + 1;
-              }
-              return (
-                <button
-                  key={pageNum}
-                  className={`inv-page-btn ${currentPage === pageNum ? "active" : ""}`}
-                  onClick={() => goToPage(pageNum)}
-                >
-                  {pageNum}
-                </button>
-              );
-            })}
-            <button onClick={() => goToPage(currentPage + 1)} disabled={currentPage === totalPages} className="inv-page-btn">
-              <FaChevronRight size={12} />
-            </button>
-            <button onClick={() => goToPage(totalPages)} disabled={currentPage === totalPages} className="inv-page-btn">
-              <FaAngleDoubleRight size={12} />
-            </button>
-          </div>
-          <div className="inv-pagination-right">
-            <span>Page {currentPage} of {totalPages || 1}</span>
-          </div>
-        </div>
-      )}
     </>
   );
 
-  // ─── Main Render ──────────────────────────────────────────────────
+  // ─── Render: warehouse detail (drill-down) ────────────────────────
 
-  return (
-    <div className={`inv-page ${theme}`}>
-      <div className="inv-container">
-
-        {/* ─── Header ─── */}
-        <div className="inv-header">
-          <div className="inv-header-left">
-            <h1><FaClipboardList className="inv-header-icon" /> Inventory Management</h1>
-            <span className="inv-subtitle">Track stock across all warehouses</span>
-          </div>
-          <div className="inv-header-right">
-            <button className="inv-btn-primary" onClick={() => navigate("/inventory/new")}>
-              <FaPlus /> Add Item
-            </button>
+  const renderWarehouseDetail = () => {
+    if (!activeWarehouse) return null;
+    return (
+      <>
+        <div className="inv-detail-header">
+          <button className="inv-detail-back" onClick={backToWarehouses}>
+            <FaArrowLeft size={12} /> All Warehouses
+          </button>
+          <div className="inv-detail-title">
+            <span className={`inv-detail-title-icon inv-wh-tile--${activeWarehouse.visual.tone}`}>
+              {activeWarehouse.visual.icon}
+            </span>
+            <div>
+              <h2>{activeWarehouse.warehouse_name}</h2>
+              <span className="inv-subtitle">
+                {activeWarehouse.itemCount} items · ₹{activeWarehouse.totalValue.toLocaleString()} in stock
+                {activeWarehouse.city ? ` · ${activeWarehouse.city}${activeWarehouse.state ? `, ${activeWarehouse.state}` : ""}` : ""}
+              </span>
+            </div>
           </div>
         </div>
 
-        {/* ─── Stats Cards ─── */}
-        <div className="inv-stats-grid">
-          {renderStatCard(<FaBoxes />, "Total Items", stats.totalItems, "blue")}
-          {renderStatCard(<FaDollarSign />, "Total Value", `₹${stats.totalValue.toLocaleString()}`, "green")}
-          {renderStatCard(<FaExclamationTriangle />, "Low Stock", stats.lowStockItems, "yellow")}
-          {renderStatCard(<FaTimes />, "Out of Stock", stats.outOfStockItems, "red")}
-          {renderStatCard(<FaWarehouse />, "Warehouses", stats.totalWarehouses, "purple")}
+        {/* ─── Tabs ─── */}
+        <div className="inv-tabs">
+          <button
+            className={`inv-tab ${activeTab === "all" ? "inv-tab--active" : ""}`}
+            onClick={() => setActiveTab("all")}
+          >
+            <FaGlobe size={14} />
+            All
+            <span className="inv-tab-count">{detailTabCounts.all}</span>
+          </button>
+          <button
+            className={`inv-tab ${activeTab === "internal" ? "inv-tab--active" : ""}`}
+            onClick={() => setActiveTab("internal")}
+          >
+            <FaIndustry size={14} />
+            Internal <span className="inv-tab-hint">(Product)</span>
+            <span className="inv-tab-count">{detailTabCounts.internal}</span>
+          </button>
+          <button
+            className={`inv-tab ${activeTab === "external" ? "inv-tab--active" : ""}`}
+            onClick={() => setActiveTab("external")}
+          >
+            <FaTruck size={14} />
+            External <span className="inv-tab-hint">(Service)</span>
+            <span className="inv-tab-count">{detailTabCounts.external}</span>
+          </button>
         </div>
 
         {/* ─── Filters ─── */}
@@ -622,7 +569,7 @@ export default function InventoryList() {
               <FaSearch className="inv-search-icon" />
               <input
                 type="text"
-                placeholder="Search by item code, warehouse, or UOM..."
+                placeholder="Search by item code or UOM..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="inv-search-input"
@@ -635,8 +582,8 @@ export default function InventoryList() {
             </div>
           </div>
           <div className="inv-filters-right">
-            <select 
-              value={statusFilter} 
+            <select
+              value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as StockStatus)}
               className="inv-filter-select"
             >
@@ -646,22 +593,177 @@ export default function InventoryList() {
               <option value="Out of Stock">Out of Stock</option>
               <option value="Over Stock">Over Stock</option>
             </select>
-            <div className="inv-view-toggle">
-              <button 
-                className={`inv-view-btn ${viewMode === "warehouse" ? "active" : ""}`}
-                onClick={() => { setViewMode("warehouse"); setSelectedWarehouse("all"); }}
-                title="Warehouse View"
+          </div>
+        </div>
+
+        {(searchTerm || statusFilter !== "All") && (
+          <div className="inv-active-filters">
+            <span>Active filters:</span>
+            {searchTerm && <span><strong>Search:</strong> "{searchTerm}"</span>}
+            {statusFilter !== "All" && <span><strong>Status:</strong> {statusFilter}</span>}
+            <button onClick={clearFilters} className="inv-clear-filters">
+              <FaTimes size={10} /> Clear
+            </button>
+          </div>
+        )}
+
+        {/* ─── Table ─── */}
+        <div className="inv-table-wrap">
+          <table className="inv-table">
+            <thead>
+              <tr>
+                <th className="inv-th">Item Code</th>
+                {activeTab === "all" && <th className="inv-th">Type</th>}
+                <th className="inv-th">Actual Qty</th>
+                <th className="inv-th">Reserved Stock</th>
+                <th className="inv-th">Status</th>
+                <th className="inv-th">Valuation Rate</th>
+                <th className="inv-th">Stock Value</th>
+                <th className="inv-th inv-th-meta">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginatedItems.length === 0 ? (
+                <tr>
+                  <td colSpan={activeTab === "all" ? 8 : 7} className="inv-empty-state">
+                    <div className="inv-empty-content">
+                      <FaBoxes size={40} />
+                      <p>No items found in {activeWarehouse.warehouse_name}</p>
+                      <span>Try switching tabs or adjusting your search</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                paginatedItems.map((item) => {
+                  const reservation = getReservationState(item.actualQty, item.reservedStock);
+                  return (
+                    <tr key={item.id} className="inv-tr">
+                      <td className="inv-td inv-td-code">{item.itemCode}</td>
+                      {activeTab === "all" && (
+                        <td className="inv-td">
+                          <span className={`inv-type-badge ${item.type.toLowerCase()}`}>
+                            {item.type === "Internal" ? <FaIndustry size={10} /> : <FaTruck size={10} />}
+                            {item.type}
+                          </span>
+                        </td>
+                      )}
+                      <td className="inv-td inv-td-number">
+                        <span className="inv-qty">{item.actualQty}</span>
+                        <span className="inv-uom">{item.uom}</span>
+                      </td>
+                      <td className="inv-td">
+                        <div className="inv-reserved-cell">
+                          <span className="inv-reserved-value">
+                            {item.reservedStock} {item.uom}
+                          </span>
+                          <span className={`inv-reserved-badge inv-reserved-badge--${reservation.tone}`}>
+                            {reservation.tone === "danger" && <FaExclamationTriangle size={9} />}
+                            {reservation.tone === "ok" && <FaCheckCircle size={9} />}
+                            {reservation.label}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="inv-td">
+                        <span className={`inv-status-badge ${item.status.toLowerCase().replace(" ", "-")}`}>
+                          {getStatusIcon(item.status)} {item.status}
+                        </span>
+                      </td>
+                      <td className="inv-td inv-td-number">₹{item.valuationRate.toLocaleString()}</td>
+                      <td className="inv-td inv-td-amount">₹{item.stockValue.toLocaleString()}</td>
+                      <td className="inv-td inv-td-meta">
+                        <div className="inv-action-buttons">
+                          <button className="inv-action-btn inv-action-view" onClick={() => handleViewItem(item)} title="View">
+                            <FaEye size={12} />
+                          </button>
+                          <button className="inv-action-btn inv-action-edit" onClick={() => navigate(`/inventory/edit/${item.id}`)} title="Edit">
+                            <FaEdit size={12} />
+                          </button>
+                          <button className="inv-action-btn inv-action-delete" onClick={() => handleDeleteClick(item)} title="Delete">
+                            <FaTrash size={12} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {detailItems.length > 0 && (
+          <div className="inv-pagination">
+            <div className="inv-pagination-left">
+              <span>
+                Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, detailItems.length)} of {detailItems.length} items
+              </span>
+              <select
+                value={itemsPerPage}
+                onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
+                className="inv-page-size-select"
               >
-                <FaWarehouse size={14} />
+                <option value={12}>12</option>
+                <option value={24}>24</option>
+                <option value={48}>48</option>
+              </select>
+            </div>
+            <div className="inv-pagination-center">
+              <button onClick={() => goToPage(1)} disabled={currentPage === 1} className="inv-page-btn">
+                <FaAngleDoubleLeft size={12} />
               </button>
-              <button 
-                className={`inv-view-btn ${viewMode === "item" ? "active" : ""}`}
-                onClick={() => setViewMode("item")}
-                title="Item List View"
-              >
-                <FaList size={14} />
+              <button onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1} className="inv-page-btn">
+                <FaChevronLeft size={12} />
+              </button>
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum = currentPage;
+                if (totalPages > 5) {
+                  if (currentPage <= 3) pageNum = i + 1;
+                  else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
+                  else pageNum = currentPage - 2 + i;
+                } else {
+                  pageNum = i + 1;
+                }
+                return (
+                  <button
+                    key={pageNum}
+                    className={`inv-page-btn ${currentPage === pageNum ? "active" : ""}`}
+                    onClick={() => goToPage(pageNum)}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+              <button onClick={() => goToPage(currentPage + 1)} disabled={currentPage === totalPages} className="inv-page-btn">
+                <FaChevronRight size={12} />
+              </button>
+              <button onClick={() => goToPage(totalPages)} disabled={currentPage === totalPages} className="inv-page-btn">
+                <FaAngleDoubleRight size={12} />
               </button>
             </div>
+            <div className="inv-pagination-right">
+              <span>Page {currentPage} of {totalPages}</span>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  };
+
+  // ─── Main Render ──────────────────────────────────────────────────
+
+  return (
+    <div className={`inv-page ${theme}`}>
+      <div className="inv-container">
+        {/* ─── Header ─── */}
+        <div className="inv-header">
+          <div className="inv-header-left">
+            <h1><FaClipboardList className="inv-header-icon" /> Inventory Management</h1>
+            <span className="inv-subtitle">Track raw materials, work in progress, finished goods & scrap</span>
+          </div>
+          <div className="inv-header-right">
+            <button className="inv-btn-primary" onClick={() => navigate("/inventory/new")}>
+              <FaPlus /> Add Item
+            </button>
           </div>
         </div>
 
@@ -683,7 +785,7 @@ export default function InventoryList() {
         {/* ─── Content ─── */}
         {!loading && !error && (
           <div className="inv-content">
-            {viewMode === "warehouse" ? renderWarehouseView() : renderItemView()}
+            {viewMode === "warehouses" ? renderWarehousePicker() : renderWarehouseDetail()}
           </div>
         )}
 
@@ -692,7 +794,13 @@ export default function InventoryList() {
           <div className="inv-modal-overlay" onClick={() => setShowItemDetails(false)}>
             <div className="inv-modal inv-item-detail" onClick={(e) => e.stopPropagation()}>
               <div className="inv-modal-header">
-                <h2>{selectedItem.itemCode}</h2>
+                <h2>
+                  <span className={`inv-type-badge ${selectedItem.type.toLowerCase()}`}>
+                    {selectedItem.type === "Internal" ? <FaIndustry size={12} /> : <FaTruck size={12} />}
+                    {selectedItem.type}
+                  </span>
+                  {selectedItem.itemCode}
+                </h2>
                 <button className="inv-modal-close" onClick={() => setShowItemDetails(false)}>
                   <FaTimes size={16} />
                 </button>
@@ -702,6 +810,12 @@ export default function InventoryList() {
                   <div className="inv-detail-item">
                     <label>Item Code</label>
                     <span>{selectedItem.itemCode}</span>
+                  </div>
+                  <div className="inv-detail-item">
+                    <label>Type</label>
+                    <span className={`inv-type-badge ${selectedItem.type.toLowerCase()}`}>
+                      {selectedItem.type}
+                    </span>
                   </div>
                   <div className="inv-detail-item">
                     <label>Warehouse</label>
@@ -718,12 +832,24 @@ export default function InventoryList() {
                     <span>{selectedItem.actualQty} {selectedItem.uom}</span>
                   </div>
                   <div className="inv-detail-item">
-                    <label>Projected Quantity</label>
-                    <span>{selectedItem.projectedQty} {selectedItem.uom}</span>
+                    <label>Reserved Stock</label>
+                    <span>
+                      {selectedItem.reservedStock} {selectedItem.uom}
+                      {" "}
+                      {selectedItem.reservedStock > selectedItem.actualQty ? (
+                        <span className="inv-reserved-badge inv-reserved-badge--danger">
+                          <FaExclamationTriangle size={9} /> Over-reserved
+                        </span>
+                      ) : selectedItem.reservedStock > 0 ? (
+                        <span className="inv-reserved-badge inv-reserved-badge--ok">
+                          <FaCheckCircle size={9} /> Within Stock
+                        </span>
+                      ) : null}
+                    </span>
                   </div>
                   <div className="inv-detail-item">
-                    <label>Reserved Quantity</label>
-                    <span>{selectedItem.reservedQty} {selectedItem.uom}</span>
+                    <label>Projected Quantity</label>
+                    <span>{selectedItem.projectedQty} {selectedItem.uom}</span>
                   </div>
                   <div className="inv-detail-item">
                     <label>Valuation Rate</label>
