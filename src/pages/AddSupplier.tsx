@@ -82,6 +82,8 @@ export default function AddSupplier() {
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [apiError, setApiError] = useState<string | null>(null);
   const [, setIsDirty] = useState(false);
+  // Store the numeric ID for edit mode
+  const [supplierId, setSupplierId] = useState<number | null>(null);
 
   const [formData, setFormData] = useState<SupplierForm>({
     supplierName: '',
@@ -155,6 +157,8 @@ export default function AddSupplier() {
       const response = await api.get(`/supplier/${supplierId}`);
       if (response.data && response.data.success === 1) {
         const data = response.data.data;
+        // Store the numeric ID for edit
+        setSupplierId(data.id || null);
         setFormData({
           supplierName: data.supplier_name || data.name || '',
           supplierType: data.supplier_type || 'Company',
@@ -290,57 +294,69 @@ export default function AddSupplier() {
     setLoading(true);
     
     try {
-      const payload: any = {
+      // Build primary_address from individual address fields
+      const primaryAddress = [
+        formData.addressLine1,
+        formData.addressLine2,
+        formData.city,
+        formData.state,
+        formData.pincode,
+        formData.country
+      ].filter(Boolean).join(', ');
+
+      // Base payload object (fields in order, mirroring the response structure)
+      let payload: any = {
+        // For edit, we'll add 'id' as the first field
+        ...(isEditMode && supplierId !== null ? { id: supplierId } : {}),
         name: formData.supplierName,
-        supplier_name: formData.supplierName,
+        naming_series: 'SUP-.YYYY.-', // or 'SUPP-' depending on your setup
         supplier_type: formData.supplierType,
-        supplier_group: formData.supplierGroup || null,
-        country: formData.country,
+        supplier_name: formData.supplierName,
         gender: null,
+        supplier_group: formData.supplierGroup || '',
+        country: formData.country,
         is_transporter: formData.isTransporter ? 1 : 0,
-        image: null,
+        image: '',
         default_currency: formData.defaultCurrency,
-        default_bank_account: formData.defaultBankAccount || null,
+        default_bank_account: formData.defaultBankAccount || '',
         default_price_list: formData.defaultPriceList,
-        supplier_details: formData.supplierDetails || null,
-        website: formData.website || null,
-        language: formData.language || 'en',
+        supplier_details: formData.supplierDetails || '',
+        website: formData.website || '',
+        language: formData.language,
         supplier_primary_address: null,
-        primary_address: null,
+        primary_address: primaryAddress,
         supplier_primary_contact: null,
         mobile_no: formData.mobileNo,
         email_id: formData.emailId,
-        tax_id: formData.taxId || null,
-        tax_category: formData.taxCategory || null,
+        tax_id: formData.taxId || '',
+        tax_category: formData.taxCategory,
         tax_withholding_category: null,
         tax_withholding_group: null,
-        payment_terms: formData.paymentTerms || null,
+        payment_terms: formData.paymentTerms,
         is_internal_supplier: formData.isInternalSupplier ? 1 : 0,
         represents_company: null,
         allow_purchase_invoice_creation_without_purchase_order: 0,
         allow_purchase_invoice_creation_without_purchase_receipt: 0,
+        disabled: formData.status === 'Inactive' ? 1 : 0,
+        is_frozen: 0,
         warn_rfqs: 0,
         prevent_rfqs: 0,
         warn_pos: 0,
         prevent_pos: 0,
         on_hold: formData.onHold ? 1 : 0,
         hold_type: null,
-        release_date: null,
-        modified_by: "Administrator",
-        owner: "Administrator",
-        _user_tags: null,
-        _comments: null,
-        _assign: null,
-        _liked_by: null
+        release_date: null
       };
+
+      // For new record, remove 'id' and let server generate it
+      if (isNew) {
+        delete payload.id;
+      }
 
       let response;
       if (isEditMode) {
-        payload.id = parseInt(id!);
-        payload.disabled = formData.status === 'Inactive' ? 1 : 0;
         response = await api.put('/supplier', payload);
       } else {
-        payload.disabled = 0;
         response = await api.post('/supplier', payload);
       }
 
@@ -376,7 +392,7 @@ export default function AddSupplier() {
   const handleCancel = () => navigate('/supplier');
 
   const hasErrors = getAllValidationErrors().length > 0;
-  const title = isNew ? 'Add New Supplier' : `Edit: ${formData.supplierName || 'Supplier'}`;
+  const title = isNew ? '' : `Edit: ${formData.supplierName || 'Supplier'}`;
 
   if (fetching) {
     return (
@@ -440,9 +456,11 @@ export default function AddSupplier() {
           <button onClick={handleCancel} className="back-btn">
             <FaArrowLeft size={9} /> Back
           </button>
-          <div className="header-title">
-            <h1>{title}</h1>
-          </div>
+          {!isNew && (
+            <div className="header-title">
+              <h1>{title}</h1>
+            </div>
+          )}
           {hasErrors && (
             <div className="error-badge">
               <FaExclamationTriangle size={12} />
@@ -516,7 +534,7 @@ export default function AddSupplier() {
                 </select>
               </div>
 
-              <div className="as-field">
+              {/* <div className="as-field">
                 <label className="as-label">Default Currency</label>
                 <select
                   name="defaultCurrency"
@@ -527,9 +545,9 @@ export default function AddSupplier() {
                 >
                   {currencies.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
-              </div>
+              </div> */}
 
-              <div className="as-field">
+              {/* <div className="as-field">
                 <label className="as-label">Language</label>
                 <select
                   name="language"
@@ -546,7 +564,7 @@ export default function AddSupplier() {
                   <option value="zh">Chinese</option>
                   <option value="ar">Arabic</option>
                 </select>
-              </div>
+              </div> */}
             </div>
 
             <div className="as-divider" />
@@ -742,7 +760,7 @@ export default function AddSupplier() {
                 </select>
               </div>
 
-              <div className="as-field">
+              {/* <div className="as-field">
                 <label className="as-label">Payment Terms</label>
                 <select
                   name="paymentTerms"
@@ -753,7 +771,7 @@ export default function AddSupplier() {
                 >
                   {paymentTerms.map(term => <option key={term} value={term}>{term}</option>)}
                 </select>
-              </div>
+              </div> */}
 
               <div className="as-field">
                 <label className="as-label">Default Price List</label>
@@ -784,7 +802,7 @@ export default function AddSupplier() {
 
             <div className="as-divider" />
 
-            {/* Additional Information - FIXED LAYOUT */}
+            {/* Additional Information */}
             <span className="as-section-title">
               <FaInfoCircle className="section-icon" /> Additional Information
             </span>
@@ -831,7 +849,7 @@ export default function AddSupplier() {
                 />
               </div>
 
-              {/* Checkboxes - Now properly aligned in a single row */}
+              {/* Checkboxes */}
               <div className="as-checkboxes-row">
                 <div className="checkbox-field">
                   <div className="checkbox-group">

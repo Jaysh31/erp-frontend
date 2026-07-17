@@ -487,13 +487,13 @@ export default function Contact() {
                           >
                             <FaEdit size={12} />
                           </button>
-                          <button
+                          {/* <button
                             className="contact-action-btn contact-action-copy"
                             onClick={() => handleDuplicate(contact)}
                             title="Duplicate"
                           >
                             <FaCopy size={12} />
-                          </button>
+                          </button> */}
                           <button
                             className="contact-action-btn contact-action-delete"
                             onClick={() => handleDelete(contact)}

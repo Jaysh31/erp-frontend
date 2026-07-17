@@ -1,6 +1,6 @@
 /* ─── Container ───────────────────────────────────────────────────────── */
 .as-page {
-  padding: 0 20px 40px;
+  padding: 0 16px 24px;
   background: var(--layout-bg);
   min-height: 100vh;
 }
@@ -30,8 +30,8 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding-top: 4px;
-  padding-bottom: 18px;
+  padding-top: 2px;
+  padding-bottom: 12px;
 }
 
 .back-btn {
@@ -66,7 +66,7 @@
 }
 
 .header-title h1 {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 700;
   color: var(--text-primary);
   margin: 0;
@@ -116,7 +116,7 @@
 .as-card {
   background: var(--card-bg);
   border-radius: 14px;
-  padding: 28px 32px;
+  padding: 16px 20px;
   box-shadow: 0 1px 4px var(--shadow-color);
   border: 1px solid var(--border-color);
 }
@@ -131,8 +131,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 14px;
-  padding-bottom: 8px;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
   border-bottom: 1px solid var(--border-color);
 }
 
@@ -144,7 +144,7 @@
 
 /* ─── Form Fields ────────────────────────────────────────────────────── */
 .as-field {
-  margin-bottom: 18px;
+  margin-bottom: 12px;
 }
 
 .as-label {
@@ -154,7 +154,7 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  margin-bottom: 5px;
+  margin-bottom: 4px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -170,7 +170,7 @@
 
 .form-field {
   width: 100%;
-  padding: 9px 12px;
+  padding: 8px 12px;
   border: 1.5px solid var(--border-color);
   border-radius: 10px;
   font-size: 13px;
@@ -235,8 +235,8 @@
 .as-grid-2 {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 18px;
-  margin-bottom: 18px;
+  gap: 12px;
+  margin-bottom: 12px;
 }
 
 .as-full-width {
@@ -247,7 +247,7 @@
 .as-divider {
   height: 1px;
   background: var(--border-color);
-  margin: 18px 0;
+  margin: 12px 0;
 }
 
 /* ─── Checkboxes - FIXED ALIGNMENT ────────────────────────────────────── */
@@ -354,7 +354,7 @@
 
 /* ─── Footer ──────────────────────────────────────────────────────────── */
 .as-footer {
-  margin-top: 14px;
+  margin-top: 10px;
   display: flex;
   justify-content: flex-end;
   align-items: center;

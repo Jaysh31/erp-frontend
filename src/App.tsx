@@ -102,6 +102,7 @@ import ModulePermissions from "./pages/UserManagement/ModulePermissions";
 import InventoryList from "./pages/InventoryList";
 import QualityInspectionList from "./pages/QualityInspectionList";
 import QualityInspectionForm from "./pages/QualityInspectionForm";
+import ContactForm from "./pages/ContactForm";
 import SubModulePermissions from "./pages/UserManagement/SubModulePermissions";
 import ContactForm from "./pages/ContactForm";
 import CreateSalesBill from "./pages/CreateSalesInvoice";
@@ -134,10 +135,12 @@ function App() {
               <Route path="/pricing-rule" element={<PricingRule />} />
               <Route path="/coupon-codes" element={<CouponCode />} />
               <Route path="/supplier" element={<Supplier />} />
+              <Route path="/supplier/:id" element={<AddSupplier />} />
               <Route path="/supplier/new" element={<AddSupplier />} />
               <Route path="/supplier/:id" element={<AddSupplier />} />
               <Route path="/supplier-group" element={<SupplierGroup />} />
               <Route path="/contacts" element={<Contacts />} />
+
 <Route path="/contacts/new" element={<ContactForm />} />
 <Route path="/contacts/edit/:id" element={<ContactForm />} />
 <Route path="/contacts/view/:id" element={<ContactForm />} />
