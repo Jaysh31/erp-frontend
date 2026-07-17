@@ -1,5 +1,5 @@
 // GRNList.tsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, type JSX } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FaSearch,
@@ -19,6 +19,9 @@ import {
   FaExclamationTriangle,
   FaUser,
   FaCalendarAlt,
+  FaUsers,
+  FaFileInvoice,
+  FaList,
 } from 'react-icons/fa';
 import "./GRNList.css";
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
@@ -28,9 +31,12 @@ interface GRN {
   id: number;
   grn_number: string;
   grn_date: string;
-  supplier_id: number;
-  supplier_name: string;
-  purchase_order_id: number;
+  supplier_id: number | null;
+  supplier_name: string | null;
+  customer_id: number | null;
+  name: string | null;           // customer name if service
+  party_name: string | null;     // fallback party name
+  purchase_order_id: number | null;
   warehouse_id: number;
   received_by: string;
   vehicle_number: string | null;
@@ -43,13 +49,17 @@ interface GRN {
   total_rejected_qty: number;
   remarks: string | null;
   total_items: number;
+  type?: string;
 }
 
 interface GRNDisplay {
   id: string;
   grnNo: string;
-  supplier: string;
-  supplierId: number;
+  partyName: string;           // supplier_name or customer name
+  partyId: number | null;      // supplier_id or customer_id
+  supplierId: number | null;
+  customerId: number | null;
+  purchaseOrderId: number | null;
   poReference: string;
   date: string;
   status: 'draft' | 'submitted' | 'completed' | 'rejected';
@@ -60,6 +70,8 @@ interface GRNDisplay {
   acceptedQty: number;
   rejectedQty: number;
   createdAgo: string;
+  isService: boolean;
+  isManual: boolean;
 }
 
 interface ApiResponse {
@@ -75,11 +87,13 @@ interface ApiResponse {
   limit: number;
 }
 
+type TabId = 'all' | 'po' | 'manual' | 'service';
+
 export default function GRNList() {
   const navigate = useNavigate();
   const { theme } = useAdminTheme();
   
-  const [grns, setGrns] = useState<GRNDisplay[]>([]);
+  const [allGrns, setAllGrns] = useState<GRNDisplay[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -91,14 +105,24 @@ export default function GRNList() {
   const [totalRecords, setTotalRecords] = useState(0);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedItem, setSelectedItem] = useState<GRNDisplay | null>(null);
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [activeTab, setActiveTab] = useState<TabId>('all');
 
-  // Stats
-  const [stats, setStats] = useState([
-    { title: 'Total GRNs', value: 0, icon: <FaBoxes />, color: '#6366f1' },
-    { title: 'Pending GRNs', value: 0, icon: <FaClock />, color: '#f59e0b' },
-    { title: 'Completed', value: 0, icon: <FaClipboardCheck />, color: '#10b981' },
-    { title: 'Rejected', value: 0, icon: <FaExclamationTriangle />, color: '#ef4444' },
-  ]);
+  // Tabs configuration
+  const tabs: { id: TabId; label: string; icon: JSX.Element }[] = [
+    { id: 'all', label: 'All', icon: <FaList size={14} /> },
+    { id: 'po', label: 'By PO', icon: <FaFileInvoice size={14} /> },
+    { id: 'manual', label: 'Manual Entry', icon: <FaBoxes size={14} /> },
+    { id: 'service', label: 'Service', icon: <FaUsers size={14} /> },
+  ];
+
+  // Debounce search term
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   // Format date to "X h" or "X d" format
   const formatDate = (dateString: string) => {
@@ -125,12 +149,24 @@ export default function GRNList() {
     return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
   };
 
-  // Fetch GRNs from API
+  // Fetch GRNs from API with pagination and filters
   const fetchGRNs = async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await api.get<ApiResponse>(`/grn?page=${currentPage}&limit=${itemsPerPage}`);
+      const params = new URLSearchParams();
+      params.append('page', currentPage.toString());
+      params.append('limit', itemsPerPage.toString());
+      
+      if (debouncedSearchTerm) {
+        params.append('search', debouncedSearchTerm);
+      }
+      
+      if (statusFilter !== 'all') {
+        params.append('status', statusFilter);
+      }
+
+      const response = await api.get<ApiResponse>(`/grn?${params.toString()}`);
       
       if (response.data.success === 1) {
         const apiData = response.data.data;
@@ -140,37 +176,37 @@ export default function GRNList() {
         setTotalRecords(total);
         
         // Transform API data to display format
-        const transformedData: GRNDisplay[] = records.map((item: GRN) => ({
-          id: item.id.toString(),
-          grnNo: item.grn_number || `GRN-${String(item.id).padStart(5, '0')}`,
-          supplier: item.supplier_name || 'N/A',
-          supplierId: item.supplier_id || 0,
-          poReference: item.purchase_order_id ? `PO-${String(item.purchase_order_id).padStart(5, '0')}` : 'N/A',
-          date: formatDateDisplay(item.grn_date),
-          status: item.status || 'draft',
-          items: item.total_items || 0,
-          receivedBy: item.received_by || 'N/A',
-          orderedQty: item.total_ordered_qty || 0,
-          receivedQty: item.total_received_qty || 0,
-          acceptedQty: item.total_accepted_qty || 0,
-          rejectedQty: item.total_rejected_qty || 0,
-          createdAgo: formatDate(item.grn_date || new Date().toISOString()),
-        }));
+        const transformedData: GRNDisplay[] = records.map((item: GRN) => {
+          const isService = item.customer_id !== null && item.customer_id !== undefined;
+          const isManual = item.purchase_order_id === null && item.customer_id === null;
+          const partyName = isService 
+            ? (item.name || item.party_name || 'N/A')
+            : (item.supplier_name || item.party_name || 'N/A');
+          
+          return {
+            id: item.id.toString(),
+            grnNo: item.grn_number || `GRN-${String(item.id).padStart(5, '0')}`,
+            partyName: partyName,
+            partyId: isService ? item.customer_id : item.supplier_id,
+            supplierId: item.supplier_id,
+            customerId: item.customer_id,
+            purchaseOrderId: item.purchase_order_id,
+            poReference: item.purchase_order_id ? `PO-${String(item.purchase_order_id).padStart(5, '0')}` : 'N/A',
+            date: formatDateDisplay(item.grn_date),
+            status: item.status || 'draft',
+            items: item.total_items || 0,
+            receivedBy: item.received_by || 'N/A',
+            orderedQty: item.total_ordered_qty || 0,
+            receivedQty: item.total_received_qty || 0,
+            acceptedQty: item.total_accepted_qty || 0,
+            rejectedQty: item.total_rejected_qty || 0,
+            createdAgo: formatDate(item.grn_date || new Date().toISOString()),
+            isService: isService,
+            isManual: isManual,
+          };
+        });
         
-        setGrns(transformedData);
-
-        // Update stats
-        const totalGrns = transformedData.length;
-        const pending = transformedData.filter(g => g.status === 'draft' || g.status === 'submitted').length;
-        const completed = transformedData.filter(g => g.status === 'completed').length;
-        const rejected = transformedData.filter(g => g.status === 'rejected').length;
-
-        setStats([
-          { title: 'Total GRNs', value: totalGrns, icon: <FaBoxes />, color: '#6366f1' },
-          { title: 'Pending GRNs', value: pending, icon: <FaClock />, color: '#f59e0b' },
-          { title: 'Completed', value: completed, icon: <FaClipboardCheck />, color: '#10b981' },
-          { title: 'Rejected', value: rejected, icon: <FaExclamationTriangle />, color: '#ef4444' },
-        ]);
+        setAllGrns(transformedData);
       } else {
         setError('Failed to fetch GRNs');
       }
@@ -185,43 +221,61 @@ export default function GRNList() {
   // Fetch when dependencies change
   useEffect(() => {
     fetchGRNs();
-  }, [currentPage, itemsPerPage]);
+  }, [currentPage, itemsPerPage, debouncedSearchTerm, statusFilter]);
 
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, statusFilter]);
+  }, [debouncedSearchTerm, statusFilter, activeTab]);
 
-  // Filter data based on search and status
-  const filteredData = grns.filter(item => {
-    const matchesSearch = 
-      item.grnNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.supplier.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.poReference.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.receivedBy.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || item.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  // ─── Tab filtering logic ──────────────────────────────────────────────
+  const getFilteredGrns = (): GRNDisplay[] => {
+    let filtered = allGrns;
+    
+    // Tab filter
+    if (activeTab === 'po') {
+      filtered = filtered.filter(g => g.purchaseOrderId !== null && g.purchaseOrderId > 0);
+    } else if (activeTab === 'manual') {
+      filtered = filtered.filter(g => g.purchaseOrderId === null && g.customerId === null);
+    } else if (activeTab === 'service') {
+      filtered = filtered.filter(g => g.customerId !== null && g.customerId > 0);
+    }
+    // 'all' shows everything
+    
+    // Additional search & status filters are already applied on the server,
+    // but we also apply them client‑side for safety (since tabs are client‑side)
+    if (debouncedSearchTerm) {
+      const term = debouncedSearchTerm.toLowerCase();
+      filtered = filtered.filter(g =>
+        g.grnNo.toLowerCase().includes(term) ||
+        g.partyName.toLowerCase().includes(term) ||
+        g.poReference.toLowerCase().includes(term)
+      );
+    }
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(g => g.status === statusFilter);
+    }
+    
+    return filtered;
+  };
 
-  const totalFilteredItems = filteredData.length;
-  const totalPages = Math.ceil(totalFilteredItems / itemsPerPage);
-  
-  // Ensure current page is valid when data changes
-  const validCurrentPage = Math.min(currentPage, totalPages || 1);
-  if (validCurrentPage !== currentPage) {
-    setCurrentPage(validCurrentPage);
-  }
-  
-  const paginatedData = filteredData.slice(
-    (validCurrentPage - 1) * itemsPerPage,
-    validCurrentPage * itemsPerPage
-  );
+  const filteredGrns = getFilteredGrns();
+  const totalFiltered = filteredGrns.length;
+  const totalPages = Math.ceil(totalFiltered / itemsPerPage);
 
+  // Paginate the filtered list
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedGrns = filteredGrns.slice(startIndex, startIndex + itemsPerPage);
+
+  // ─── Stats (computed from filtered data) ──────────────────────────────
+
+
+  // ─── Handlers ──────────────────────────────────────────────────────────
   const toggleAll = () => {
     if (allChecked) {
       setSelected(new Set());
     } else {
-      setSelected(new Set(paginatedData.map((r) => r.id)));
+      setSelected(new Set(paginatedGrns.map((r) => r.id)));
     }
     setAllChecked(!allChecked);
   };
@@ -230,7 +284,7 @@ export default function GRNList() {
     const next = new Set(selected);
     next.has(id) ? next.delete(id) : next.add(id);
     setSelected(next);
-    setAllChecked(next.size === paginatedData.length);
+    setAllChecked(next.size === paginatedGrns.length);
   };
 
   const goToPage = (page: number) => {
@@ -291,14 +345,16 @@ export default function GRNList() {
   const clearFilters = () => {
     setSearchTerm('');
     setStatusFilter('all');
+    setDebouncedSearchTerm('');
+    setActiveTab('all');
   };
 
   const getStartIndex = () => {
-    return (validCurrentPage - 1) * itemsPerPage + 1;
+    return (currentPage - 1) * itemsPerPage + 1;
   };
 
   const getEndIndex = () => {
-    return Math.min(validCurrentPage * itemsPerPage, totalFilteredItems);
+    return Math.min(currentPage * itemsPerPage, totalFiltered);
   };
 
   const getStatusBadgeClass = (status: string) => {
@@ -323,27 +379,30 @@ export default function GRNList() {
 
   return (
     <div className={`grn-page ${theme}`}>
-      {/* Stats Cards */}
-      <div className="grn-stats-container">
-        {stats.map((stat, index) => (
-          <div key={index} className="grn-stat-card" style={{ background: `linear-gradient(135deg, ${stat.color} 0%, ${stat.color}cc 100%)` }}>
-            <div className="grn-stat-icon">{stat.icon}</div>
-            <div className="grn-stat-content">
-              <p className="grn-stat-title">{stat.title}</p>
-              <p className="grn-stat-value">{stat.value}</p>
-            </div>
-          </div>
+      {/* ─── Tabs ─────────────────────────────────────────────────────── */}
+      <div className="grn-tabs">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            className={`grn-tab-btn ${activeTab === tab.id ? 'grn-tab-btn-active' : ''}`}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            {tab.icon}
+            <span>{tab.label}</span>
+          </button>
         ))}
       </div>
 
-      {/* Search and Filter Bar */}
+        
+
+      {/* ─── Search and Filter Bar ───────────────────────────────────── */}
       <div className="grn-filter-bar">
         <div className="grn-filter-left">
           <div className="grn-search-wrapper">
             <FaSearch className="grn-search-icon" />
             <input
               type="text"
-              placeholder="Search GRNs by number, supplier, or PO..."
+              placeholder="Search GRNs by number, party, or PO..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="grn-search-input"
@@ -367,7 +426,7 @@ export default function GRNList() {
             <option value="completed">Completed</option>
             <option value="rejected">Rejected</option>
           </select>
-          <button className="grn-filter-btn">
+          <button className="grn-filter-btn" onClick={() => setCurrentPage(1)}>
             <FaFilter size={12} />
             Filter
           </button>
@@ -386,10 +445,15 @@ export default function GRNList() {
       </div>
 
       {/* Active filters indicator */}
-      {(searchTerm || statusFilter !== 'all') && (
+      {(searchTerm || statusFilter !== 'all' || activeTab !== 'all') && (
         <div className="grn-active-filters">
           <FaFilter size={12} style={{ color: 'var(--primary-color)' }} />
           <span style={{ color: 'var(--text-primary)' }}>Active filters:</span>
+          {activeTab !== 'all' && (
+            <span style={{ color: 'var(--text-primary)' }}>
+              <strong>Tab:</strong> {tabs.find(t => t.id === activeTab)?.label}
+            </span>
+          )}
           {searchTerm && (
             <span style={{ color: 'var(--text-primary)' }}>
               <strong>Search:</strong> "{searchTerm}"
@@ -412,6 +476,7 @@ export default function GRNList() {
       {/* Loading State */}
       {loading && (
         <div className="grn-loading">
+          <div className="grn-loading-spinner"></div>
           <p>Loading GRNs...</p>
         </div>
       )}
@@ -434,31 +499,31 @@ export default function GRNList() {
               <thead>
                 <tr>
                   <th className="grn-th-check">
-                    <input type="checkbox" checked={allChecked} onChange={toggleAll} className="grn-checkbox" />
+                    <input type="checkbox" checked={allChecked && paginatedGrns.length > 0} onChange={toggleAll} className="grn-checkbox" />
                   </th>
                   <th className="grn-th">GRN No.</th>
-                  <th className="grn-th">Supplier</th>
+                  <th className="grn-th">Party</th>
                   <th className="grn-th">PO</th>
                   <th className="grn-th">Received By</th>
                   <th className="grn-th">Date</th>
                   <th className="grn-th">Status</th>
-                  <th className="grn-th">Qty (Rcv/Acpt)</th>
+                  <th className="grn-th">Qty (Recived)</th>
                   <th className="grn-th grn-th-meta">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {paginatedData.length === 0 ? (
+                {paginatedGrns.length === 0 ? (
                   <tr>
                     <td colSpan={9} className="grn-empty-state">
                       <div className="grn-empty-content">
                         <FaBoxes size={48} style={{ color: 'var(--text-secondary)' }} />
                         <p>No GRNs found</p>
-                        <span>Try adjusting your search criteria</span>
+                        <span>Try adjusting your search or filter criteria</span>
                       </div>
                     </td>
                   </tr>
                 ) : (
-                  paginatedData.map((row) => (
+                  paginatedGrns.map((row) => (
                     <tr
                       key={row.id}
                       className={`grn-tr ${selected.has(row.id) ? "grn-tr-selected" : ""}`}
@@ -470,7 +535,10 @@ export default function GRNList() {
                         <span className="grn-id">{row.grnNo}</span>
                       </td>
                       <td className="grn-td grn-td-supplier">
-                        <span className="grn-supplier-name">{row.supplier}</span>
+                        <span className="grn-supplier-name">
+                          {row.isService && <FaUsers size={10} style={{ marginRight: 4, color: 'var(--primary-color)' }} />}
+                          {row.partyName}
+                        </span>
                       </td>
                       <td className="grn-td grn-td-po">
                         <span className="grn-po-ref">{row.poReference}</span>
@@ -495,8 +563,7 @@ export default function GRNList() {
                       <td className="grn-td grn-td-qty">
                         <div className="grn-qty-info">
                           <span className="grn-qty-received">{row.receivedQty}</span>
-                          <span className="grn-qty-sep">/</span>
-                          <span className="grn-qty-accepted">{row.acceptedQty}</span>
+                 
                         </div>
                       </td>
                       <td className="grn-td grn-td-meta" onClick={(e) => e.stopPropagation()}>
@@ -548,24 +615,24 @@ export default function GRNList() {
                 <option value={100}>100</option>
               </select>
               <span className="grn-pagination-label">entries</span>
-              <span className="grn-pagination-total">of {totalRecords}</span>
+              <span className="grn-pagination-total">of {totalFiltered}</span>
             </div>
             <div className="grn-pagination-center">
               <button 
                 onClick={goToFirstPage} 
-                disabled={currentPage === 1 || totalFilteredItems === 0} 
+                disabled={currentPage === 1 || totalFiltered === 0} 
                 className="grn-page-btn"
               >
                 <FaAngleDoubleLeft size={12} />
               </button>
               <button 
                 onClick={goToPrevPage} 
-                disabled={currentPage === 1 || totalFilteredItems === 0} 
+                disabled={currentPage === 1 || totalFiltered === 0} 
                 className="grn-page-btn"
               >
                 <FaChevronLeft size={12} />
               </button>
-              {totalFilteredItems > 0 && getPageNumbers().map(page => (
+              {totalFiltered > 0 && getPageNumbers().map(page => (
                 <button
                   key={page}
                   onClick={() => goToPage(page)}
@@ -576,14 +643,14 @@ export default function GRNList() {
               ))}
               <button 
                 onClick={goToNextPage} 
-                disabled={currentPage === totalPages || totalFilteredItems === 0} 
+                disabled={currentPage === totalPages || totalFiltered === 0} 
                 className="grn-page-btn"
               >
                 <FaChevronRight size={12} />
               </button>
               <button 
                 onClick={goToLastPage} 
-                disabled={currentPage === totalPages || totalFilteredItems === 0} 
+                disabled={currentPage === totalPages || totalFiltered === 0} 
                 className="grn-page-btn"
               >
                 <FaAngleDoubleRight size={12} />
@@ -591,8 +658,8 @@ export default function GRNList() {
             </div>
             <div className="grn-pagination-right">
               <span className="grn-pagination-info">
-                {totalFilteredItems > 0 ? (
-                  `Showing ${getStartIndex()} to ${getEndIndex()} of ${totalFilteredItems} entries`
+                {totalFiltered > 0 ? (
+                  `Showing ${getStartIndex()} to ${getEndIndex()} of ${totalFiltered} entries`
                 ) : (
                   'No entries to show'
                 )}
@@ -614,7 +681,7 @@ export default function GRNList() {
             </div>
             <div className="grn-modal-body">
               <p>Are you sure you want to delete this GRN?</p>
-              <p className="grn-modal-item-name"><strong>{selectedItem.grnNo}</strong> - {selectedItem.supplier}</p>
+              <p className="grn-modal-item-name"><strong>{selectedItem.grnNo}</strong> - {selectedItem.partyName}</p>
               <p className="grn-modal-warning">This action cannot be undone.</p>
             </div>
             <div className="grn-modal-footer">

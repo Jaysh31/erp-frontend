@@ -150,7 +150,7 @@ export default function Sidebar({
           icon: <ReceiptIcon />,
           path: '/delivery-challan'
         },
-        { title: 'Sales Bill', icon: <InvoiceIcon />, path: '/sales-bill' }
+        { title: 'Tax Invoice/Sale Bill', icon: <InvoiceIcon />, path: '/sales-invoice' }
       ]
     },
     {
@@ -223,7 +223,7 @@ export default function Sidebar({
       items: [
         { title: 'Purchase Order', icon: <PurchaseOrderIcon />, path: '/purchase-order' },
         { title: 'Goods Receipt Note', icon: <GRNIcon />, path: '/grn' },
-        { title: 'Purchase Invoice', icon: <PurchaseInvoiceIcon />, path: '/purchase-invoice' },
+        { title: 'Purchase Bill', icon: <PurchaseInvoiceIcon />, path: '/purchase-invoice' },
       ]
     },
     // ─── SUPPLIERS & CONTACTS ───

@@ -96,7 +96,7 @@ export default function NewSupplierQuotation() {
   const currencies = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD'];
   const priceLists = ['Standard Buying', 'Export Pricing', 'Wholesale', 'Distributor'];
   const uomOptions = ['NOS', 'KG', 'LTR', 'MTR', 'BOX', 'SET', 'DOZ', 'ROL', 'SQM', 'CBM'];
-  const warehouses = ['Main Warehouse', 'Raw Material Store', 'Packaging Store', 'Finished Goods Store'];
+  const warehouses = ['Raw Material Store', 'Packaging Store', 'Finished Goods Store'];
   const taxCategories = ['Standard', 'Export', 'SEZ', 'GST', 'VAT'];
   const shippingRules = ['Free Shipping', 'Flat Rate', 'Weight Based', 'Price Based'];
   const incoterms = ['EXW', 'FCA', 'FAS', 'FOB', 'CFR', 'CIF', 'CPT', 'CIP', 'DAP', 'DPU', 'DDP'];

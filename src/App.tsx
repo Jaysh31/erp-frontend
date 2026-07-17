@@ -87,7 +87,7 @@ import StockDashboard from "./pages/DashboardPages/StockDashboard";
 import QualityDashboard from "./pages/DashboardPages/QualityDashboard";
 import GRNForm from "./pages/GRNForm";
 import GRNList from "./pages/GRNList";
-import PurchaseInvoiceForm from "./pages/PurchaseInvoiceForm";
+import PurchaseInvoiceForm from "./pages/PurchaseBillForm";
 import UserManagement from "./pages/UserManagement/UserManagement";
 import Employee from "./pages/Setup/Employee";
 import EmployeeForm from "./pages/Setup/EmployeeForm";

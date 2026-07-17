@@ -354,12 +354,12 @@ export default function PurchaseInvoice() {
       {/* Header */}
       <div className="inv-header">
         <div className="inv-header-left">
-          <h1 className="inv-title">Purchase Invoices</h1>
+          <h1 className="inv-title">Purchase Bill</h1>
           <span className="inv-badge">{totalRecords}</span>
         </div>
         <div className="inv-header-actions">
           <button className="inv-btn-primary" onClick={handleCreate}>
-            <FaPlus size={12} /> New Invoice
+            <FaPlus size={12} /> New Purchase Bill
           </button>
         </div>
       </div>
@@ -542,7 +542,7 @@ export default function PurchaseInvoice() {
                     <p>No purchase invoices found</p>
                     <span>Create your first purchase invoice to get started</span>
                     <button className="inv-btn-primary" onClick={handleCreate} style={{ marginTop: '12px' }}>
-                      <FaPlus size={12} /> New Invoice
+                      <FaPlus size={12} /> New Purchase Bill
                     </button>
                   </div>
                 </td>
