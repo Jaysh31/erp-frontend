@@ -105,6 +105,7 @@ import SubModulePermissions from "./pages/UserManagement/SubModulePermissions";
 import QualityInspectionReport from "./pages/QualityInspectionForm";
 import QualityInspectionList from "./pages/QualityInspectionList";
 import QualityInspectionForm from "./pages/QualityInspectionForm";
+import BankDetailsForm from "./pages/BankDetailsForm";
 
 
 function App() {
@@ -145,10 +146,10 @@ function App() {
               <Route path="/purchase-invoice/new" element={<PurchaseInvoiceForm />} />
               {/* <
               /* <Route path="/sales" element={<SalesPage />} /> */}
-          
-          
 
-                  {/* Module Dashboards */}
+
+
+              {/* Module Dashboards */}
               <Route path="/dashboard/manufacturing" element={<DashboardPage />} />
               <Route path="/dashboard/sales" element={<SalesDashboard />} />
               <Route path="/dashboard/setup" element={<SetupDashboard />} />
@@ -281,7 +282,7 @@ function App() {
               <Route path="/user-management" element={<UserManagement />} />
               <Route path="/users/new" element={<UserForm />} />
               <Route path="/users/:id" element={<UserForm />} />
-// Add routes
+              // Add routes
               {/* <Route path="/modules" element={<ModuleList />} />
               <Route path="/module/:moduleId/submodules" element={<SubModulePermissions />} /> */}
 
@@ -320,10 +321,10 @@ function App() {
               <Route path="/uom/:id" element={<UOMForm />} />
 
               {/* Quality Inspection */}
-               <Route path="/quality-inspection" element={<QualityInspectionList />} />
-                <Route path="/quality-inspection/new" element={<QualityInspectionForm />} />
+              <Route path="/quality-inspection" element={<QualityInspectionList />} />
+              <Route path="/quality-inspection/new" element={<QualityInspectionForm />} />
 
-
+              <Route path="/bank-details" element={<BankDetailsForm />} />
               <Route path="/bom" element={<BOMPage />} />
               <Route path="/bom/new" element={<NewBOMPage />} />
               <Route path="/Workstation" element={<Workstation />} />

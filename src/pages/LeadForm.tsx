@@ -3,7 +3,7 @@ import type { ChangeEvent, FormEvent } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import {
   FaArrowLeft, FaSave, FaSpinner, FaInfoCircle, FaExclamationTriangle,
-  FaTimesCircle, FaUser, FaBuilding, FaAddressBook,
+  FaTimesCircle, FaUser, FaBuilding, FaAddressBook, FaPlus, FaUndo,
 } from "react-icons/fa";
 import "./LeadForm.css";
 import api from "../../src/services/api";
@@ -13,8 +13,7 @@ import api from "../../src/services/api";
 type LeadStatus = "Lead" | "Contacted" | "Qualified" | "Unqualified" | "Converted";
 
 interface LeadFormData {
-  firstName: string;
-  lastName: string;
+  name: string;
   organizationName: string;
   jobTitle: string;
   status: LeadStatus;
@@ -50,9 +49,10 @@ interface TabWarning {
   [key: number]: boolean;
 }
 
+const ADD_NEW_CUSTOMER_VALUE = "__add_new_customer__";
+
 const defaultFormData = (): LeadFormData => ({
-  firstName: "",
-  lastName: "",
+  name: "",
   organizationName: "",
   jobTitle: "",
 
@@ -80,15 +80,36 @@ const defaultFormData = (): LeadFormData => ({
 
 // ─── mapping: form <-> /lead API payload ───────────────────────────────
 
+/** Normalizes any date-ish value (ISO datetime, date, etc.) down to a plain
+ *  YYYY-MM-DD string. MySQL `date` columns reject full ISO datetimes like
+ *  '2026-07-05T00:00:00.000Z', so this must run before both displaying a
+ *  date in a <input type="date"> and before sending it back to the API. */
+function toDateOnly(value?: string | null): string {
+  if (!value) return "";
+  const isoMatch = String(value).match(/^\d{4}-\d{2}-\d{2}/);
+  if (isoMatch) return isoMatch[0];
+  const parsed = new Date(value);
+  if (isNaN(parsed.getTime())) return "";
+  return parsed.toISOString().split("T")[0];
+}
+
+function splitName(fullName: string): { firstName: string; lastName: string } {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  const firstName = parts[0] || "";
+  const lastName = parts.slice(1).join(" ") || "";
+  return { firstName, lastName };
+}
+
 function buildApiPayload(formData: LeadFormData) {
-  const fullName = [formData.firstName, formData.lastName].filter(Boolean).join(" ");
+  const { firstName, lastName } = splitName(formData.name);
+  const fullName = formData.name.trim();
 
   return {
     naming_series: "LEAD-.YYYY.-",
     salutation: "",
-    first_name: formData.firstName,
+    first_name: firstName,
     middle_name: "",
-    last_name: formData.lastName,
+    last_name: lastName,
     lead_name: fullName,
     job_title: formData.jobTitle,
     gender: "",
@@ -119,7 +140,7 @@ function buildApiPayload(formData: LeadFormData) {
     utm_content: "",
     qualification_status: formData.qualificationStatus,
     qualified_by: formData.qualifiedBy,
-    qualified_on: formData.qualifiedOn || null,
+    qualified_on: toDateOnly(formData.qualifiedOn) || null,
     company: "My Company",
     language: "en",
     image: "",
@@ -135,21 +156,16 @@ function buildApiPayload(formData: LeadFormData) {
 }
 
 function mapApiLeadToForm(jc: any): LeadFormData {
-  let firstName = jc.first_name || "";
-  let lastName = jc.last_name || "";
+  let fullName = jc.lead_name || "";
 
-  // Fallback: some responses (especially trimmed list-view records) only
-  // include the combined `lead_name` and omit first_name/last_name. Split
-  // it so the form isn't blank even when the detail fields are missing.
-  if (!firstName && !lastName && jc.lead_name) {
-    const parts = String(jc.lead_name).trim().split(/\s+/);
-    firstName = parts[0] || "";
-    lastName = parts.slice(1).join(" ") || "";
+  // Fallback: some responses only include first_name / last_name and omit
+  // the combined lead_name. Build the display name from those instead.
+  if (!fullName && (jc.first_name || jc.last_name)) {
+    fullName = [jc.first_name, jc.last_name].filter(Boolean).join(" ");
   }
 
   return {
-    firstName,
-    lastName,
+    name: fullName,
     organizationName: jc.company_name || "",
     jobTitle: jc.job_title || "",
     status: (jc.status as LeadStatus) || "Lead",
@@ -167,7 +183,7 @@ function mapApiLeadToForm(jc: any): LeadFormData {
     country: jc.country || "",
     qualificationStatus: jc.qualification_status || "Lead",
     qualifiedBy: jc.qualified_by || "",
-    qualifiedOn: jc.qualified_on || "",
+    qualifiedOn: toDateOnly(jc.qualified_on),
   };
 }
 
@@ -175,6 +191,23 @@ function extractList(raw: any): any[] {
   const list = raw?.data?.records ?? raw?.data ?? raw?.leads ?? raw?.results ?? raw;
   return Array.isArray(list) ? list : [];
 }
+
+// ─── customer helpers (mirrors CreateQuotation's /customer lookup) ─────
+
+function extractCustomerRecords(payload: any): any[] {
+  if (!payload) return [];
+  const data = payload.success === 1 || payload.success === 0 ? payload.data : payload;
+  if (Array.isArray(data?.records)) return data.records;
+  if (Array.isArray(data)) return data;
+  return [];
+}
+
+const customerIdOf = (c: any) => c?.name ?? c?.id ?? c?.customer_code ?? "";
+const customerLabelOf = (c: any) => {
+  const id = customerIdOf(c);
+  const label = c?.customer_name || c?.party_name || id;
+  return label && label !== id ? `${label} (${id})` : `${id}`;
+};
 
 const LeadForm: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -191,7 +224,7 @@ const LeadForm: React.FC = () => {
   const [apiError, setApiError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
 
- 
+
   const [recordId, setRecordId] = useState<number | null>(null);
 
   const [showValidationSummary, setShowValidationSummary] = useState(false);
@@ -199,13 +232,95 @@ const LeadForm: React.FC = () => {
 
   const [formData, setFormData] = useState<LeadFormData>(defaultFormData());
 
+  // ─── customer lookup state ──────────────────────────────────────────
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [loadingCustomers, setLoadingCustomers] = useState(false);
+  const [customersError, setCustomersError] = useState<string | null>(null);
+  const [isAddingNewCustomer, setIsAddingNewCustomer] = useState(false);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
+
   const tabs = [
     { id: 0, name: "Lead Details & Contact", icon: <FaUser size={14} /> },
     { id: 1, name: "Organization & Address", icon: <FaBuilding size={14} /> },
   ];
 
+  // ─── load customers for the Organization dropdown ─────────────────────
+
+  const fetchCustomers = async () => {
+    setLoadingCustomers(true);
+    setCustomersError(null);
+    try {
+      const response = await api.get("/customer");
+      const records = extractCustomerRecords(response.data);
+      setCustomers(records);
+    } catch (err) {
+      console.error("Error fetching customers:", err);
+      setCustomersError("Could not load customers");
+    } finally {
+      setLoadingCustomers(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCustomers();
+  }, []);
+
+  // Once customers are loaded (or when editing loads an org name), try to
+  // pre-select the matching customer in the dropdown.
+  useEffect(() => {
+    if (!formData.organizationName || customers.length === 0) return;
+    const match = customers.find(
+      (c) =>
+        String(customerIdOf(c)) === formData.organizationName ||
+        c?.customer_name === formData.organizationName ||
+        c?.party_name === formData.organizationName
+    );
+    if (match) {
+      setSelectedCustomerId(String(customerIdOf(match)));
+      setIsAddingNewCustomer(false);
+    } else {
+      // organizationName doesn't match any known customer — treat it as a
+      // manually-entered / new customer name.
+      setIsAddingNewCustomer(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customers, formData.organizationName]);
+
+  const handleOrganizationSelect = (e: ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value;
+
+    if (value === ADD_NEW_CUSTOMER_VALUE) {
+      setIsAddingNewCustomer(true);
+      setSelectedCustomerId("");
+      setFormData((prev) => ({ ...prev, organizationName: "" }));
+      return;
+    }
+
+    const match = customers.find((c) => String(customerIdOf(c)) === value);
+    setSelectedCustomerId(value);
+    setFormData((prev) => ({
+      ...prev,
+      organizationName: match ? (match.customer_name || match.party_name || value) : value,
+    }));
+    if (errors.organizationName) setErrors((prev) => ({ ...prev, organizationName: "" }));
+    checkTabWarnings(activeTab);
+  };
+
+  const handleNewOrganizationInput = (e: ChangeEvent<HTMLInputElement>) => {
+    const { value } = e.target;
+    setFormData((prev) => ({ ...prev, organizationName: value }));
+    if (errors.organizationName) setErrors((prev) => ({ ...prev, organizationName: "" }));
+    checkTabWarnings(activeTab);
+  };
+
+  const handleBackToCustomerList = () => {
+    setIsAddingNewCustomer(false);
+    setSelectedCustomerId("");
+    setFormData((prev) => ({ ...prev, organizationName: "" }));
+  };
+
   // ─── load existing lead when editing ──────────────────────────────────
- 
+
   useEffect(() => {
     if (!isEditMode || !id) return;
 
@@ -213,6 +328,8 @@ const LeadForm: React.FC = () => {
     setNotFound(false);
     setApiError(null);
     setRecordId(null);
+    setIsAddingNewCustomer(false);
+    setSelectedCustomerId("");
 
     const state = location.state as { lead?: any } | null;
     if (state?.lead) {
@@ -229,7 +346,7 @@ const LeadForm: React.FC = () => {
     try {
       let found: any = null;
 
-      
+
       try {
         const detailResp = await api.get(`/lead/${encodeURIComponent(leadId)}`);
         const detailData = detailResp.data?.data ?? detailResp.data;
@@ -276,7 +393,7 @@ const LeadForm: React.FC = () => {
   const getValidationErrors = (step: number): { [key: string]: string } => {
     const newErrors: { [key: string]: string } = {};
     if (step === 0) {
-      if (!formData.firstName.trim()) newErrors.firstName = "First Name is required";
+      if (!formData.name.trim()) newErrors.name = "Name is required";
       if (!formData.organizationName.trim()) newErrors.organizationName = "Organization Name is required";
     }
     return newErrors;
@@ -285,8 +402,8 @@ const LeadForm: React.FC = () => {
   const getAllValidationErrors = (): ValidationError[] => {
     const allErrors: ValidationError[] = [];
 
-    if (!formData.firstName.trim())
-      allErrors.push({ field: "firstName", label: "First Name", message: "First Name is required", tabIndex: 0 });
+    if (!formData.name.trim())
+      allErrors.push({ field: "name", label: "Name", message: "Name is required", tabIndex: 0 });
 
     if (!formData.organizationName.trim())
       allErrors.push({ field: "organizationName", label: "Organization Name", message: "Organization Name is required", tabIndex: 0 });
@@ -353,7 +470,7 @@ const LeadForm: React.FC = () => {
   };
 
   // ─── submit — POST on create, PUT on edit ──────────────────────────────
- 
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
@@ -543,27 +660,16 @@ const LeadForm: React.FC = () => {
 
                   <div className="jcf-grid-3">
                     <div>
-                      <label className="jcf-label">First Name *</label>
+                      <label className="jcf-label">Name *</label>
                       <input
                         type="text"
-                        name="firstName"
-                        value={formData.firstName}
+                        name="name"
+                        value={formData.name}
                         onChange={handleInputChange}
-                        placeholder="e.g. John"
-                        className={`jcf-input ${errors.firstName ? "jcf-input-error" : ""}`}
+                        placeholder="e.g. John Doe"
+                        className={`jcf-input ${errors.name ? "jcf-input-error" : ""}`}
                       />
-                      {errors.firstName && <span className="jcf-error-text">{errors.firstName}</span>}
-                    </div>
-                    <div>
-                      <label className="jcf-label">Last Name</label>
-                      <input
-                        type="text"
-                        name="lastName"
-                        value={formData.lastName}
-                        onChange={handleInputChange}
-                        placeholder="e.g. Doe"
-                        className="jcf-input"
-                      />
+                      {errors.name && <span className="jcf-error-text">{errors.name}</span>}
                     </div>
                     <div>
                       <label className="jcf-label">Job Title</label>
@@ -583,15 +689,59 @@ const LeadForm: React.FC = () => {
                   <div className="jcf-grid-3">
                     <div>
                       <label className="jcf-label">Organization Name *</label>
-                      <input
-                        type="text"
-                        name="organizationName"
-                        value={formData.organizationName}
-                        onChange={handleInputChange}
-                        placeholder="e.g. Acme Manufacturing"
-                        className={`jcf-input ${errors.organizationName ? "jcf-input-error" : ""}`}
-                      />
+
+                      {!isAddingNewCustomer ? (
+                        <>
+                          <select
+                            name="organizationName"
+                            value={selectedCustomerId}
+                            onChange={handleOrganizationSelect}
+                            className={`jcf-input ${errors.organizationName ? "jcf-input-error" : ""}`}
+                            disabled={loadingCustomers}
+                          >
+                            <option value="">
+                              {loadingCustomers ? "Loading customers..." : "Select customer..."}
+                            </option>
+                            {customers.map((c) => (
+                              <option key={customerIdOf(c)} value={customerIdOf(c)}>
+                                {customerLabelOf(c)}
+                              </option>
+                            ))}
+                            <option value={ADD_NEW_CUSTOMER_VALUE}>+ Add New Customer</option>
+                          </select>
+                          {customersError && (
+                            <span className="jcf-error-text">{customersError}</span>
+                          )}
+                        </>
+                      ) : (
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <input
+                            type="text"
+                            name="organizationName"
+                            value={formData.organizationName}
+                            onChange={handleNewOrganizationInput}
+                            placeholder="e.g. Acme Manufacturing"
+                            className={`jcf-input ${errors.organizationName ? "jcf-input-error" : ""}`}
+                            autoFocus
+                          />
+                          <button
+                            type="button"
+                            onClick={handleBackToCustomerList}
+                            className="jcf-btn-secondary"
+                            title="Choose from existing customers"
+                            style={{ padding: "0 10px", flexShrink: 0 }}
+                          >
+                            <FaUndo size={11} />
+                          </button>
+                        </div>
+                      )}
+
                       {errors.organizationName && <span className="jcf-error-text">{errors.organizationName}</span>}
+                      {isAddingNewCustomer && (
+                        <span className="jcf-helper-text" style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 4 }}>
+                          <FaPlus size={9} /> New customer name — will be saved with this lead
+                        </span>
+                      )}
                     </div>
                     <div>
                       <label className="jcf-label">Status *</label>
