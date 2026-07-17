@@ -705,9 +705,9 @@ export default function QualityInspectionForm() {
           )}
 
           <div className="qir-header-actions">
-            <button type="button" className="qir-btn-secondary" onClick={handleExportCsv}>
+            {/* <button type="button" className="qir-btn-secondary" onClick={handleExportCsv}>
               <FaFileCsv size={12} /> Export CSV
-            </button>
+            </button> */}
             <button type="button" className="qir-btn-secondary" onClick={handlePrint}>
               <FaPrint size={12} /> Print
             </button>

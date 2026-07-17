@@ -453,6 +453,14 @@
   background: rgba(99, 102, 241, 0.1);
 }
 
+.qt-action-print {
+  color: #0d9488;
+}
+
+.qt-action-print:hover {
+  background: rgba(13, 148, 136, 0.1);
+}
+
 .qt-action-edit {
   color: #f59e0b;
 }
@@ -648,6 +656,7 @@
   flex-shrink: 0;
   background: var(--layout-bg, #f9fafb);
   gap: 12px;
+  flex-wrap: wrap;
 }
 
 .qt-btn-cancel {
@@ -1031,6 +1040,14 @@
   background: rgba(99,102,241,0.2);
   color: #818cf8;
   border-color: rgba(99,102,241,0.3);
+}
+
+.dark-theme .qt-action-print {
+  color: #2dd4bf;
+}
+
+.dark-theme .qt-action-print:hover {
+  background: rgba(45, 212, 191, 0.15);
 }
 
 /* ── Responsive ──────────────────────────────────────────── */
