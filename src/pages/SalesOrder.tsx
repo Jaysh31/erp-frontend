@@ -259,7 +259,7 @@ export default function SalesOrder() {
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<SalesOrder | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [pdfModalLoading, setPdfModalLoading] = useState(false);
+  const [pdfModalLoading, ] = useState(false);
 
   // ─── load from GET /sales-order ───────────────────────────────────────
 
@@ -521,18 +521,7 @@ export default function SalesOrder() {
     }
   };
 
-  // PDF View for single sales order
-  const handlePdfView = async (order: SalesOrder) => {
-    setSelectedOrder(order);
-    setShowPdfModal(true);
-    setPdfModalLoading(true);
-    try {
-      const printable = await buildPrintableOrder(order);
-      setSelectedOrder(printable);
-    } finally {
-      setPdfModalLoading(false);
-    }
-  };
+
 
   const getCompanyDetails = () => companyDetails;
 

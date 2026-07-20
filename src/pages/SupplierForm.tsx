@@ -13,7 +13,6 @@ import {
   FaEnvelope,
   FaGlobe,
   FaTags,
-  FaFolder,
   FaList,
   FaUser,
   FaMapMarkerAlt,

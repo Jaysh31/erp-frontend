@@ -4,11 +4,10 @@ import { useState, useEffect, useRef } from 'react';
 import {
   FaSave, FaSpinner, FaArrowLeft,
   FaExclamationCircle, FaExclamationTriangle, FaInfoCircle,
-  FaTimesCircle, FaTag, FaBuilding, FaMoneyBillWave,
+  FaTimesCircle,  FaBuilding, FaMoneyBillWave,
   FaCalendarAlt, FaFileAlt, FaBoxes, FaClipboardList,
-  FaReceipt, FaClock, FaSearch, FaCheckCircle,
-  FaPrint, FaPlus, FaTrash, FaTruck, FaHandshake,
-  FaPercent, FaUser, FaUsers, FaWarehouse, FaPhone, FaEnvelope, FaGlobeAsia,
+   FaClock, FaSearch, FaCheckCircle,
+  FaPrint, FaPlus, FaTrash, FaTruck, FaUser, FaUsers, FaWarehouse, FaPhone, FaEnvelope, FaGlobeAsia,
 } from 'react-icons/fa';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
@@ -224,7 +223,7 @@ export default function PurchaseInvoiceForm() {
 
   // ── Item state ──────────────────────────────────────────────────────────────
   const [itemsList, setItemsList] = useState<Item[]>([]);
-  const [loadingItems, setLoadingItems] = useState(false);
+  const [, setLoadingItems] = useState(false);
   const [itemSearch, setItemSearch] = useState('');
   const [showItemDropdown, setShowItemDropdown] = useState(false);
   const [selectedItemIndex, setSelectedItemIndex] = useState<number | null>(null);
@@ -452,19 +451,19 @@ export default function PurchaseInvoiceForm() {
   };
 
   // ─── When the GRN entry sub-mode changes ───────────────────────────────────
-  const handleGrnEntryModeChange = (mode: GRNEntryMode) => {
-    setGrnEntryMode(mode);
-    setSelectedPO(null);
-    setGrnsForPO([]);
-    setSelectedGRNIds(new Set());
-    setSelectedGRNSummary(null);
-    setItems([]);
-    setGrnSearch('');
-    setPoSearch('');
-    if (mode === 'Direct' && selectedSupplier && allGRNs.length === 0) {
-      fetchGRNList();
-    }
-  };
+  // const handleGrnEntryModeChange = (mode: GRNEntryMode) => {
+  //   setGrnEntryMode(mode);
+  //   setSelectedPO(null);
+  //   setGrnsForPO([]);
+  //   setSelectedGRNIds(new Set());
+  //   setSelectedGRNSummary(null);
+  //   setItems([]);
+  //   setGrnSearch('');
+  //   setPoSearch('');
+  //   if (mode === 'Direct' && selectedSupplier && allGRNs.length === 0) {
+  //     fetchGRNList();
+  //   }
+  // };
 
   // ─── When a PO is selected ─────────────────────────────────────────────────
   const handleSelectPO = async (po: { id: number; name: string; supplier_name: string }) => {

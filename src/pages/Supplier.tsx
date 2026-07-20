@@ -17,46 +17,16 @@ import {
   FaBuilding,
   FaPhone,
   FaEnvelope,
-  FaGlobe,
-  FaTags,
+
   FaCheckCircle,
   FaTimesCircle,
-  FaCopy,
+  
 } from 'react-icons/fa';
 import "./Supplier.css";
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 
-interface Supplier {
-  id: string;
-  name: string;
-  supplierName: string;
-  supplierType: string;
-  supplierGroup: string;
-  country: string;
-  defaultCurrency: string;
-  language: string;
-  email: string;
-  phone: string;
-  address: string;
-  city: string;
-  state: string;
-  pincode: string;
-  taxId: string;
-  taxCategory: string;
-  paymentTerms: string;
-  defaultBankAccount: string;
-  defaultPriceList: string;
-  website: string;
-  supplierDetails: string;
-  isTransporter: boolean;
-  isInternalSupplier: boolean;
-  onHold: boolean;
-  status: 'Active' | 'Inactive';
-  createdAt: string;
-  updatedAt: string;
-}
 
 interface SupplierDisplay {
   id: string;
@@ -128,7 +98,7 @@ export default function SupplierList() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [totalSuppliers, setTotalSuppliers] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
+  const [, setTotalPages] = useState(1);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState<SupplierDisplay | null>(null);
   const [supplierGroups, setSupplierGroups] = useState<string[]>([]);
@@ -145,9 +115,7 @@ export default function SupplierList() {
 
   const supplierTypes = ['Company', 'Individual', 'Partnership', 'Proprietorship', 'LLP', 'Trust', 'Society'];
   const countries = ['India', 'USA', 'UK', 'Germany', 'China', 'Japan', 'UAE', 'Singapore'];
-  const currencies = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD'];
-  const languages = ['en', 'hi', 'es', 'fr', 'de', 'zh', 'ar'];
-  const taxCategories = ['Registered Regular', 'Registered Composition', 'Unregistered', 'SEZ', 'Export Oriented'];
+ const taxCategories = ['Registered Regular', 'Registered Composition', 'Unregistered', 'SEZ', 'Export Oriented'];
   const paymentTerms = ['7 Days', '15 Days', '30 Days', '45 Days', '60 Days', 'Due on Receipt'];
   const priceLists = ['Standard Buying', 'Export Pricing', 'Wholesale', 'Distributor'];
   const statusOptions = ['Active', 'Inactive'];
@@ -432,56 +400,6 @@ export default function SupplierList() {
     setShowViewModal(true);
   };
 
-  const handleDuplicate = async (supplier: SupplierDisplay) => {
-    setLoading(true);
-    try {
-      // Fetch full supplier details first
-      const response = await api.get(`/supplier/${supplier.id}`);
-      if (response.data && response.data.success === 1) {
-        const item = response.data.data;
-        const payload = {
-          supplier_name: `${supplier.supplierName} (Copy)`,
-          supplier_type: item.supplier_type || 'Company',
-          supplier_group: item.supplier_group || 'N/A',
-          country: item.country || 'India',
-          default_currency: item.default_currency || 'INR',
-          language: item.language || 'en',
-          email_id: item.email_id || '',
-          mobile_no: item.mobile_no || '',
-          address: item.address || null,
-          city: item.city || null,
-          state: item.state || null,
-          pincode: item.pincode || null,
-          tax_id: item.tax_id || null,
-          tax_category: item.tax_category || null,
-          payment_terms: item.payment_terms || null,
-          default_bank_account: item.default_bank_account || null,
-          default_price_list: item.default_price_list || 'Standard Buying',
-          website: item.website || null,
-          supplier_details: item.supplier_details || null,
-          is_transporter: item.is_transporter === 1 || item.is_transporter === true ? 1 : 0,
-          is_internal_supplier: item.is_internal_supplier === 1 || item.is_internal_supplier === true ? 1 : 0,
-          on_hold: item.on_hold === 1 || item.on_hold === true ? 1 : 0,
-          disabled: 0,
-          modified_by: "Administrator",
-          owner: "Administrator"
-        };
-
-        const duplicateResponse = await api.post('/supplier', payload);
-        if (duplicateResponse.data && duplicateResponse.data.success === 1) {
-          toast.success(duplicateResponse.data.message || 'Supplier duplicated successfully!');
-          fetchSuppliers();
-        } else {
-          toast.error(duplicateResponse.data?.message || 'Failed to duplicate supplier');
-        }
-      }
-    } catch (err: any) {
-      console.error('Error duplicating supplier:', err);
-      toast.error(err?.response?.data?.message || 'Failed to duplicate supplier');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const clearFilters = () => {
     setSearchTerm('');
@@ -497,11 +415,6 @@ export default function SupplierList() {
     return Math.min(validCurrentPage * itemsPerPage, totalFilteredItems);
   };
 
-  const getStatusColor = (status: string) => {
-    return status === 'Active' ? 'supplier-status-active' : 'supplier-status-inactive';
-  };
-
-  const activeCount = suppliers.filter(s => s.status === 'Active').length;
 
   return (
     <div className={`supplier-page ${theme}`}>
