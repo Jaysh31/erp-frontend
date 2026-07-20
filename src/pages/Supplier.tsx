@@ -17,46 +17,18 @@ import {
   FaBuilding,
   FaPhone,
   FaEnvelope,
-  FaGlobe,
-  FaTags,
+
   FaCheckCircle,
   FaTimesCircle,
-  FaCopy,
+
+  FaUniversity,
 } from 'react-icons/fa';
 import "./Supplier.css";
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 
-interface Supplier {
-  id: string;
-  name: string;
-  supplierName: string;
-  supplierType: string;
-  supplierGroup: string;
-  country: string;
-  defaultCurrency: string;
-  language: string;
-  email: string;
-  phone: string;
-  address: string;
-  city: string;
-  state: string;
-  pincode: string;
-  taxId: string;
-  taxCategory: string;
-  paymentTerms: string;
-  defaultBankAccount: string;
-  defaultPriceList: string;
-  website: string;
-  supplierDetails: string;
-  isTransporter: boolean;
-  isInternalSupplier: boolean;
-  onHold: boolean;
-  status: 'Active' | 'Inactive';
-  createdAt: string;
-  updatedAt: string;
-}
+
 
 interface SupplierDisplay {
   id: string;
@@ -113,6 +85,18 @@ interface EditFormState {
   status: 'Active' | 'Inactive';
 }
 
+interface SupplierBankAccount {
+  id: string | number;
+  bank_name?: string;
+  account_holder_name?: string;
+  account_number?: string;
+  ifsc_code?: string;
+  branch_name?: string;
+  account_type?: string;
+  verified?: number | boolean;
+  is_primary?: number | boolean;
+}
+
 export default function SupplierList() {
   const navigate = useNavigate();
   const { theme } = useAdminTheme();
@@ -143,10 +127,16 @@ export default function SupplierList() {
   const [showViewModal, setShowViewModal] = useState(false);
   const [viewSupplier, setViewSupplier] = useState<SupplierDisplay | null>(null);
 
+  // ─── Bank Accounts (per-supplier) ───────────────────────────────────────
+
+  const [bankAccountsMap, setBankAccountsMap] = useState<Record<string, SupplierBankAccount[]>>({});
+  const [showBankModal, setShowBankModal] = useState(false);
+  const [bankModalSupplier, setBankModalSupplier] = useState<SupplierDisplay | null>(null);
+
   const supplierTypes = ['Company', 'Individual', 'Partnership', 'Proprietorship', 'LLP', 'Trust', 'Society'];
   const countries = ['India', 'USA', 'UK', 'Germany', 'China', 'Japan', 'UAE', 'Singapore'];
-  const currencies = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD'];
-  const languages = ['en', 'hi', 'es', 'fr', 'de', 'zh', 'ar'];
+  // const currencies = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD'];
+  // const languages = ['en', 'hi', 'es', 'fr', 'de', 'zh', 'ar'];
   const taxCategories = ['Registered Regular', 'Registered Composition', 'Unregistered', 'SEZ', 'Export Oriented'];
   const paymentTerms = ['7 Days', '15 Days', '30 Days', '45 Days', '60 Days', 'Due on Receipt'];
   const priceLists = ['Standard Buying', 'Export Pricing', 'Wholesale', 'Distributor'];
@@ -176,7 +166,9 @@ export default function SupplierList() {
     setLoading(true);
     setError(null);
     try {
-      const response = await api.get<ApiResponse>(`/supplier?page=${currentPage}&limit=${itemsPerPage}`);
+      const response = await api.get<ApiResponse>(
+        `/supplier?page=${currentPage}&limit=${itemsPerPage}&_=${Date.now()}`
+      );
 
       if (response.data && response.data.success === 1) {
         const records = response.data.data?.records || [];
@@ -205,6 +197,16 @@ export default function SupplierList() {
 
         setSuppliers(transformedData);
 
+
+        const bankMap: Record<string, SupplierBankAccount[]> = {};
+        records.forEach((item: any) => {
+          const idStr = item.id?.toString() || '';
+          if (idStr) {
+            bankMap[idStr] = Array.isArray(item.bank_details) ? item.bank_details : [];
+          }
+        });
+        setBankAccountsMap(bankMap);
+
         // Extract unique supplier groups for filter
         const groups = Array.from(new Set(transformedData.map(s => s.supplierGroup).filter(g => g && g !== 'N/A')));
         setSupplierGroups(groups);
@@ -212,6 +214,7 @@ export default function SupplierList() {
         setSuppliers([]);
         setTotalSuppliers(0);
         setTotalPages(1);
+        setBankAccountsMap({});
         if (response.data?.message) {
           setError(response.data.message);
         }
@@ -221,6 +224,7 @@ export default function SupplierList() {
       setSuppliers([]);
       setTotalSuppliers(0);
       setTotalPages(1);
+      setBankAccountsMap({});
       if (err.message?.includes('Network Error') || err.code === 'ERR_NETWORK') {
         setError('Network error - Please check your connection');
       } else if (err.response?.status === 401) {
@@ -246,11 +250,11 @@ export default function SupplierList() {
   // Filter data based on search and status
   const filteredData = suppliers.filter(item => {
     const matchesSearch = item.supplierName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          item.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          item.phone.toLowerCase().includes(searchTerm.toLowerCase());
+      item.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.phone.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' ||
-                         (statusFilter === 'active' && item.status === 'Active') ||
-                         (statusFilter === 'inactive' && item.status === 'Inactive');
+      (statusFilter === 'active' && item.status === 'Active') ||
+      (statusFilter === 'inactive' && item.status === 'Inactive');
     const matchesGroup = groupFilter === 'all' || item.supplierGroup === groupFilter;
     return matchesSearch && matchesStatus && matchesGroup;
   });
@@ -346,6 +350,26 @@ export default function SupplierList() {
     setEditError(null);
   };
 
+  const DEFAULT_COMPANY_ID_KEY = 'default_company_id';
+const getDefaultCompanyId = (): number | null => {
+  const stored = localStorage.getItem(DEFAULT_COMPANY_ID_KEY);
+  return stored ? Number(stored) : null;
+};
+
+const handleQuickAddBankAccount = (supplier: SupplierDisplay) => {
+  navigate('/bank-details', {
+    state: {
+      embedContext: {
+        returnPath: `/supplier/${supplier.id}`,
+        partyType: 'Supplier',
+        partyId: String(supplier.id),
+        companyId: getDefaultCompanyId(),
+        supplierName: supplier.supplierName,
+      },
+    },
+  });
+};
+
   const handleEditSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!editForm) return;
@@ -395,15 +419,15 @@ export default function SupplierList() {
           prev.map((s) =>
             s.id === editForm.id
               ? {
-                  ...s,
-                  supplierName: payload.supplier_name,
-                  supplierType: payload.supplier_type,
-                  supplierGroup: payload.supplier_group,
-                  country: payload.country,
-                  email: payload.email_id,
-                  phone: payload.mobile_no,
-                  status: payload.disabled === 1 ? 'Inactive' : 'Active',
-                }
+                ...s,
+                supplierName: payload.supplier_name,
+                supplierType: payload.supplier_type,
+                supplierGroup: payload.supplier_group,
+                country: payload.country,
+                email: payload.email_id,
+                phone: payload.mobile_no,
+                status: payload.disabled === 1 ? 'Inactive' : 'Active',
+              }
               : s
           )
         );
@@ -432,56 +456,12 @@ export default function SupplierList() {
     setShowViewModal(true);
   };
 
-  const handleDuplicate = async (supplier: SupplierDisplay) => {
-    setLoading(true);
-    try {
-      // Fetch full supplier details first
-      const response = await api.get(`/supplier/${supplier.id}`);
-      if (response.data && response.data.success === 1) {
-        const item = response.data.data;
-        const payload = {
-          supplier_name: `${supplier.supplierName} (Copy)`,
-          supplier_type: item.supplier_type || 'Company',
-          supplier_group: item.supplier_group || 'N/A',
-          country: item.country || 'India',
-          default_currency: item.default_currency || 'INR',
-          language: item.language || 'en',
-          email_id: item.email_id || '',
-          mobile_no: item.mobile_no || '',
-          address: item.address || null,
-          city: item.city || null,
-          state: item.state || null,
-          pincode: item.pincode || null,
-          tax_id: item.tax_id || null,
-          tax_category: item.tax_category || null,
-          payment_terms: item.payment_terms || null,
-          default_bank_account: item.default_bank_account || null,
-          default_price_list: item.default_price_list || 'Standard Buying',
-          website: item.website || null,
-          supplier_details: item.supplier_details || null,
-          is_transporter: item.is_transporter === 1 || item.is_transporter === true ? 1 : 0,
-          is_internal_supplier: item.is_internal_supplier === 1 || item.is_internal_supplier === true ? 1 : 0,
-          on_hold: item.on_hold === 1 || item.on_hold === true ? 1 : 0,
-          disabled: 0,
-          modified_by: "Administrator",
-          owner: "Administrator"
-        };
+  const handleViewBankAccounts = (supplier: SupplierDisplay) => {
+    setBankModalSupplier(supplier);
+    setShowBankModal(true);
 
-        const duplicateResponse = await api.post('/supplier', payload);
-        if (duplicateResponse.data && duplicateResponse.data.success === 1) {
-          toast.success(duplicateResponse.data.message || 'Supplier duplicated successfully!');
-          fetchSuppliers();
-        } else {
-          toast.error(duplicateResponse.data?.message || 'Failed to duplicate supplier');
-        }
-      }
-    } catch (err: any) {
-      console.error('Error duplicating supplier:', err);
-      toast.error(err?.response?.data?.message || 'Failed to duplicate supplier');
-    } finally {
-      setLoading(false);
-    }
   };
+
 
   const clearFilters = () => {
     setSearchTerm('');
@@ -497,70 +477,9 @@ export default function SupplierList() {
     return Math.min(validCurrentPage * itemsPerPage, totalFilteredItems);
   };
 
-  const getStatusColor = (status: string) => {
-    return status === 'Active' ? 'supplier-status-active' : 'supplier-status-inactive';
-  };
-
-  const activeCount = suppliers.filter(s => s.status === 'Active').length;
 
   return (
     <div className={`supplier-page ${theme}`}>
-      {/* Stats Cards */}
-      {/* <div className="supplier-stats-container">
-        <div className="supplier-stat-card" style={{
-  background: "#adb6cd",
-  border: "2px solid #22c55e",
-  boxShadow: "0 2px 8px rgba(0,0,0,0.08)"
-}}>
-          <div className="supplier-stat-icon">
-            <FaBuilding size={20} />
-          </div>
-          <div className="supplier-stat-content">
-            <div className="supplier-stat-title">Total Suppliers</div>
-            <div className="supplier-stat-value">{totalSuppliers}</div>
-          </div>
-        </div>
-        <div className="supplier-stat-card" style={{
-  background: "#caa8d4",
-  border: "2px solid #22c55e",
-  boxShadow: "0 2px 8px rgba(0,0,0,0.08)"
-}}>
-          <div className="supplier-stat-icon">
-            <FaCheckCircle size={20} />
-          </div>
-          <div className="supplier-stat-content">
-            <div className="supplier-stat-title">Active</div>
-            <div className="supplier-stat-value">{activeCount}</div>
-          </div>
-        </div>
-        <div className="supplier-stat-card" style={{
-  background: "#b1d3a3",
-  border: "2px solid #22c55e",
-  boxShadow: "0 2px 8px rgba(0,0,0,0.08)"
-}}>
-          <div className="supplier-stat-icon">
-            <FaGlobe size={20} />
-          </div>
-          <div className="supplier-stat-content">
-            <div className="supplier-stat-title">Countries</div>
-            <div className="supplier-stat-value">{new Set(suppliers.map(s => s.country)).size}</div>
-          </div>
-        </div>
-        <div className="supplier-stat-card" style={{
-  background: "#bf7a97",
-  border: "2px solid #22c55e",
-  boxShadow: "0 2px 8px rgba(0,0,0,0.08)"
-}}>
-          <div className="supplier-stat-icon">
-            <FaTags size={20} />
-          </div>
-          <div className="supplier-stat-content">
-            <div className="supplier-stat-title">Groups</div>
-            <div className="supplier-stat-value">{supplierGroups.length}</div>
-          </div>
-        </div>
-      </div> */}
-
       {/* Search and Filter Bar */}
       <div className="supplier-filter-bar">
         <div className="supplier-filter-left">
@@ -671,10 +590,11 @@ export default function SupplierList() {
                   <th className="supplier-th">Contact</th>
                   <th className="supplier-th">Group</th>
                   <th className="supplier-th">Status</th>
+                  <th className="supplier-th">Bank Accounts</th>
                   <th className="supplier-th supplier-th-meta">
                     <span className="supplier-count-label">{totalFilteredItems} of {totalSuppliers}</span>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary, #9ca3af)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
                     </svg>
                   </th>
                 </tr>
@@ -682,7 +602,7 @@ export default function SupplierList() {
               <tbody>
                 {paginatedData.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="supplier-empty-state">
+                    <td colSpan={7} className="supplier-empty-state">
                       <div className="supplier-empty-content">
                         <FaBuilding size={48} />
                         <p>No suppliers found</p>
@@ -691,70 +611,88 @@ export default function SupplierList() {
                     </td>
                   </tr>
                 ) : (
-                  paginatedData.map((row) => (
-                    <tr
-                      key={row.id}
-                      className={`supplier-tr ${selected.has(row.id) ? "supplier-tr-selected" : ""}`}
-                    >
-                      <td className="supplier-td-check" onClick={(e) => { e.stopPropagation(); toggleRow(row.id); }}>
-                        <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleRow(row.id)} className="supplier-checkbox" />
-                      </td>
-                      <td className="supplier-td supplier-td-name">{row.supplierName}</td>
-                      <td className="supplier-td">
-                        <div className="supplier-contact">
-                          <span className="supplier-contact-item">
-                            <FaEnvelope size={10} /> {row.email || 'N/A'}
+                  paginatedData.map((row) => {
+                    const rowBankAccounts = bankAccountsMap[row.id] || [];
+                    return (
+                      <tr
+                        key={row.id}
+                        className={`supplier-tr ${selected.has(row.id) ? "supplier-tr-selected" : ""}`}
+                      >
+                        <td className="supplier-td-check" onClick={(e) => { e.stopPropagation(); toggleRow(row.id); }}>
+                          <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleRow(row.id)} className="supplier-checkbox" />
+                        </td>
+                        <td className="supplier-td supplier-td-name">{row.supplierName}</td>
+                        <td className="supplier-td">
+                          <div className="supplier-contact">
+                            <span className="supplier-contact-item">
+                              <FaEnvelope size={10} /> {row.email || 'N/A'}
+                            </span>
+                            <span className="supplier-contact-item">
+                              <FaPhone size={10} /> {row.phone || 'N/A'}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="supplier-td">
+                          <span className="supplier-group-badge">{row.supplierGroup}</span>
+                        </td>
+                        <td className="supplier-td">
+                          <span className={`supplier-status-badge ${row.status === 'Active' ? 'supplier-status-active' : 'supplier-status-inactive'}`}>
+                            {row.status === 'Active' ? <FaCheckCircle size={10} /> : <FaTimesCircle size={10} />}
+                            {row.status}
                           </span>
-                          <span className="supplier-contact-item">
-                            <FaPhone size={10} /> {row.phone || 'N/A'}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="supplier-td">
-                        <span className="supplier-group-badge">{row.supplierGroup}</span>
-                      </td>
-                      <td className="supplier-td">
-                        <span className={`supplier-status-badge ${row.status === 'Active' ? 'supplier-status-active' : 'supplier-status-inactive'}`}>
-                          {row.status === 'Active' ? <FaCheckCircle size={10} /> : <FaTimesCircle size={10} />}
-                          {row.status}
-                        </span>
-                      </td>
-                      <td className="supplier-td supplier-td-meta">
-                        {/* <span className="supplier-ago">{formatDate(row.createdAt)}</span> */}
-                        <span className="supplier-dot">·</span>
-                        <div className="supplier-action-buttons">
-                          <button
-                            className="supplier-action-btn supplier-action-view"
-                            onClick={(e) => { e.stopPropagation(); handleView(row); }}
-                            title="View"
-                          >
-                            <FaEye size={12} />
-                          </button>
-                          <button
-                            className="supplier-action-btn supplier-action-edit"
-                            onClick={(e) => { e.stopPropagation(); handleEdit(row); }}
-                            title="Edit"
-                          >
-                            <FaEdit size={12} />
-                          </button>
-                          {/* <button
-                            className="supplier-action-btn supplier-action-copy"
-                            onClick={(e) => { e.stopPropagation(); handleDuplicate(row); }}
-                            title="Duplicate"
-                          >
-                            <FaCopy size={12} />
-                          </button> */}
-                          <button
-                            className="supplier-action-btn supplier-action-delete"
-                            onClick={(e) => { e.stopPropagation(); handleDelete(row); }}
-                            title="Delete"
-                          >
-                            <FaTrash size={12} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                        </td>
+                        <td className="supplier-td">
+                          {rowBankAccounts.length === 0 ? (
+                            <button
+                              type="button"
+                              className="supplier-bank-add-btn"
+                              onClick={(e) => { e.stopPropagation(); handleQuickAddBankAccount(row); }}
+                              title="Add bank account"
+                            >
+                              <FaPlus size={10} />
+                              Add Bank Account
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              className="supplier-bank-count-btn"
+                              onClick={(e) => { e.stopPropagation(); handleViewBankAccounts(row); }}
+                              title="View bank accounts"
+                            >
+                              <FaUniversity size={11} />
+                              {rowBankAccounts.length} account{rowBankAccounts.length !== 1 ? 's' : ''}
+                            </button>
+                          )}
+                        </td>
+                        <td className="supplier-td supplier-td-meta">
+                          <span className="supplier-dot">·</span>
+                          <div className="supplier-action-buttons">
+                            <button
+                              className="supplier-action-btn supplier-action-view"
+                              onClick={(e) => { e.stopPropagation(); handleView(row); }}
+                              title="View"
+                            >
+                              <FaEye size={12} />
+                            </button>
+                            <button
+                              className="supplier-action-btn supplier-action-edit"
+                              onClick={(e) => { e.stopPropagation(); handleEdit(row); }}
+                              title="Edit"
+                            >
+                              <FaEdit size={12} />
+                            </button>
+                            <button
+                              className="supplier-action-btn supplier-action-delete"
+                              onClick={(e) => { e.stopPropagation(); handleDelete(row); }}
+                              title="Delete"
+                            >
+                              <FaTrash size={12} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -901,6 +839,67 @@ export default function SupplierList() {
               </button>
               <button className="supplier-btn-edit" onClick={() => { setShowViewModal(false); handleEdit(viewSupplier); }}>
                 <FaEdit size={12} /> Edit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showBankModal && bankModalSupplier && (
+        <div className="supplier-modal-overlay" onClick={() => setShowBankModal(false)}>
+          <div className="supplier-modal supplier-modal-bank" onClick={(e) => e.stopPropagation()}>
+            <div className="supplier-modal-header">
+              <div className="supplier-bank-modal-title-wrap">
+                <div className="supplier-bank-modal-icon"><FaUniversity size={14} /></div>
+                <div>
+                  <span className="supplier-modal-title">Bank Accounts</span>
+                  <span className="supplier-bank-modal-subtitle">{bankModalSupplier.supplierName}</span>
+                </div>
+              </div>
+              <button className="supplier-modal-close" onClick={() => setShowBankModal(false)}>
+                <FaTimes size={16} />
+              </button>
+            </div>
+            <div className="supplier-modal-body supplier-bank-modal-body">
+              {(bankAccountsMap[bankModalSupplier.id] || []).length === 0 ? (
+                <p>No bank accounts found for this supplier.</p>
+              ) : (
+                (bankAccountsMap[bankModalSupplier.id] || []).map((acc, idx) => {
+                  const isVerified = acc.verified === 1 || acc.verified === true;
+                  const isPrimary = acc.is_primary === 1 || acc.is_primary === true;
+                  return (
+                    <div key={acc.id || idx} className="supplier-bank-detail-card">
+                      <div className="supplier-bank-detail-header">
+                        <div className="supplier-bank-detail-header-left">
+                          <div className="supplier-bank-detail-icon"><FaUniversity size={13} /></div>
+                          <strong>{acc.bank_name || 'Bank account'}</strong>
+                        </div>
+                        <div className="supplier-bank-detail-badges">
+                          {isPrimary && <span className="supplier-bank-badge supplier-bank-badge-primary">Primary</span>}
+                          <span className={`supplier-bank-badge ${isVerified ? 'supplier-bank-badge-verified' : 'supplier-bank-badge-unverified'}`}>
+                            {isVerified ? <FaCheckCircle size={9} /> : <FaTimesCircle size={9} />}
+                            {isVerified ? 'Verified' : 'Unverified'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="supplier-bank-detail-grid">
+                        <div className="supplier-bank-detail-item"><label>Holder</label><span>{acc.account_holder_name || 'N/A'}</span></div>
+                        <div className="supplier-bank-detail-item"><label>Account No.</label><span>{acc.account_number ? `•••• ${String(acc.account_number).slice(-4)}` : 'N/A'}</span></div>
+                        <div className="supplier-bank-detail-item"><label>IFSC</label><span>{acc.ifsc_code || 'N/A'}</span></div>
+                        <div className="supplier-bank-detail-item"><label>Branch</label><span>{acc.branch_name || 'N/A'}</span></div>
+                        <div className="supplier-bank-detail-item"><label>Type</label><span>{acc.account_type || 'N/A'}</span></div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+            <div className="supplier-modal-footer">
+              <button className="supplier-btn-cancel" onClick={() => setShowBankModal(false)}>Close</button>
+              <button
+                className="supplier-btn-edit"
+                onClick={() => { setShowBankModal(false); handleEdit(bankModalSupplier); }}
+              >
+                <FaEdit size={12} /> Manage in Supplier Form
               </button>
             </div>
           </div>
