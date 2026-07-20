@@ -440,6 +440,10 @@
   background: var(--layout-bg);
 }
 
+.warehouse-dropdown-item--selected {
+  background: color-mix(in srgb, var(--primary-color) 10%, var(--card-bg));
+}
+
 .warehouse-item-name {
   display: flex;
   align-items: center;
@@ -462,7 +466,66 @@
   font-size: 12px;
 }
 
-/* ─── GRN badge strip (PO mode) ─────────────────────────────────────── */
+/* ─── Selected GRN chips (multi-select summary) ─────────────────────── */
+.pif-grn-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.pif-grn-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px 4px 12px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 500;
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.pif-grn-chip--completed {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.pif-grn-chip--submitted {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.pif-grn-chip--draft {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.pif-grn-chip--rejected {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.pif-grn-chip button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: rgba(0, 0, 0, 0.08);
+  color: inherit;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s;
+}
+
+.pif-grn-chip button:hover {
+  background: rgba(0, 0, 0, 0.18);
+}
+
+/* ─── GRN badge strip (PO-linked GRNs) ──────────────────────────────── */
 .pif-grn-strip {
   margin-top: 10px;
   padding: 10px 12px;
@@ -588,18 +651,11 @@
 }
 
 /* ─── Tables ──────────────────────────────────────────────────────────── */
-/* .pif-table-block {
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  overflow: hidden;
-  overflow-x: auto;
-} */
-
 .pif-inline-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 12px;
-  min-width: 1000px;
+  min-width: 1200px;
 }
 
 .pif-ith {
@@ -784,6 +840,70 @@
   text-align: center;
   color: var(--text-secondary);
   font-size: 11.5px;
+}
+
+/* ─── Per-item Note icon + popover ───────────────────────────────────── */
+.pif-itd-note {
+  text-align: center;
+  width: 40px;
+}
+
+.pif-note-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.pif-note-btn:hover {
+  border-color: color-mix(in srgb, var(--primary-color) 40%, var(--border-color));
+  color: var(--primary-color);
+}
+
+.pif-note-btn--filled {
+  background: color-mix(in srgb, var(--primary-color) 12%, var(--card-bg));
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.pif-note-popover {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 50;
+  width: 220px;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px var(--shadow-color);
+  padding: 8px;
+  margin-top: 4px;
+}
+
+.pif-note-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 11.5px;
+  color: var(--text-primary);
+  background: var(--layout-bg);
+  outline: none;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.pif-note-textarea:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 12%, transparent);
 }
 
 /* ─── GST rate inline section (below table, legacy) ─────────────────── */
@@ -1316,7 +1436,7 @@
   }
 
   .pif-inline-table {
-    min-width: 800px;
+    min-width: 900px;
   }
 
   .pif-table-header-row {
@@ -1333,7 +1453,8 @@
 /* ─── Dark theme support ─────────────────────────────────────────────── */
 .dark-theme .pif-party-detail-card,
 .dark-theme .pif-grn-strip,
-.dark-theme .pif-totals-block {
+.dark-theme .pif-totals-block,
+.dark-theme .pif-note-popover {
   background: #1e293b;
   border-color: #334155;
 }
@@ -1341,7 +1462,13 @@
 .dark-theme .pif-party-card-header {
   background: #0f172a;
   border-color: #334155;
-}.pif-fields-row {
+}
+
+.dark-theme .pif-note-textarea {
+  background: #0f172a;
+}
+
+.pif-fields-row {
   display: flex;
   gap: 16px;
   align-items: flex-start;

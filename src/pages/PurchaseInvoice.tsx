@@ -93,8 +93,6 @@ export default function PurchaseInvoice() {
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [allChecked, setAllChecked] = useState(false);
 
   const [invoices, setInvoices] = useState<PurchaseInvoice[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
@@ -129,7 +127,7 @@ export default function PurchaseInvoice() {
         // Transform API data to component format
         const transformedInvoices: PurchaseInvoice[] = records.map((item: ApiPurchaseInvoice) => ({
           id: String(item.id),
-          invoiceNumber: item.name || `PI-${String(item.id).padStart(5, '0')}`,
+          invoiceNumber: `PINV-${String(item.id).padStart(5, '0')}`,
           supplier: item.supplier_name || item.supplier || 'N/A',
           supplierCode: item.supplier || 'N/A',
           purchaseOrder: item.purchase_order || 'N/A',
@@ -194,23 +192,6 @@ export default function PurchaseInvoice() {
 
   const getStartIndex = () => (validCurrentPage - 1) * itemsPerPage + 1;
   const getEndIndex = () => Math.min(validCurrentPage * itemsPerPage, totalFilteredItems);
-
-  const toggleAll = () => {
-    if (allChecked) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(paginatedData.map((r) => r.id)));
-    }
-    setAllChecked(!allChecked);
-  };
-
-  const toggleRow = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const next = new Set(selected);
-    next.has(id) ? next.delete(id) : next.add(id);
-    setSelected(next);
-    setAllChecked(next.size === paginatedData.length);
-  };
 
   const goToPage = (page: number) => {
     if (page >= 1 && page <= totalPages) {
@@ -307,27 +288,7 @@ export default function PurchaseInvoice() {
     }
   };
 
-  const handleDuplicate = async (invoice: PurchaseInvoice, e: React.MouseEvent) => {
-    e.stopPropagation();
-    try {
-      const response = await api.post(`/purchase-invoice/${invoice.id}/duplicate`);
-      if (response.data.success === 1) {
-        toast.success('Purchase Invoice duplicated successfully!');
-        fetchPurchaseInvoices();
-      } else {
-        toast.error('Failed to duplicate purchase invoice');
-      }
-    } catch (err: any) {
-      console.error('Error duplicating purchase invoice:', err);
-      toast.error(err.response?.data?.message || 'An error occurred while duplicating');
-    }
-  };
-
-  const totalInvoices = invoices.length;
-  const paidInvoices = invoices.filter(inv => inv.status === 'Fully Paid').length;
-  const overdueInvoices = invoices.filter(inv => inv.status === 'Overdue').length;
-  const draftInvoices = invoices.filter(inv => inv.status === 'Draft').length;
-  const totalAmount = invoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
+  
 
   const clearFilters = () => {
     setFilterText('');
@@ -361,55 +322,6 @@ export default function PurchaseInvoice() {
           <button className="inv-btn-primary" onClick={handleCreate}>
             <FaPlus size={12} /> New Purchase Bill
           </button>
-        </div>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="inv-stats-container">
-        <div className="inv-stat-card" style={{ background: 'linear-gradient(135deg, #6366f1 0%, #818cf8cc 100%)' }}>
-          <div className="inv-stat-icon">
-            <FaReceipt size={20} />
-          </div>
-          <div className="inv-stat-content">
-            <p className="inv-stat-title">Total Invoices</p>
-            <p className="inv-stat-value">{totalInvoices}</p>
-          </div>
-        </div>
-        <div className="inv-stat-card" style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #fbbf24cc 100%)' }}>
-          <div className="inv-stat-icon">
-            <FaFileAlt size={20} />
-          </div>
-          <div className="inv-stat-content">
-            <p className="inv-stat-title">Draft</p>
-            <p className="inv-stat-value">{draftInvoices}</p>
-          </div>
-        </div>
-        <div className="inv-stat-card" style={{ background: 'linear-gradient(135deg, #10b981 0%, #34d399cc 100%)' }}>
-          <div className="inv-stat-icon">
-            <FaCheckCircle size={20} />
-          </div>
-          <div className="inv-stat-content">
-            <p className="inv-stat-title">Fully Paid</p>
-            <p className="inv-stat-value">{paidInvoices}</p>
-          </div>
-        </div>
-        <div className="inv-stat-card" style={{ background: 'linear-gradient(135deg, #ef4444 0%, #f87171cc 100%)' }}>
-          <div className="inv-stat-icon">
-            <FaExclamationTriangle size={20} />
-          </div>
-          <div className="inv-stat-content">
-            <p className="inv-stat-title">Overdue</p>
-            <p className="inv-stat-value">{overdueInvoices}</p>
-          </div>
-        </div>
-        <div className="inv-stat-card" style={{ background: 'linear-gradient(135deg, #8b5cf6 0%, #a78bfacc 100%)' }}>
-          <div className="inv-stat-icon">
-            <FaMoneyBillWave size={20} />
-          </div>
-          <div className="inv-stat-content">
-            <p className="inv-stat-title">Total Amount</p>
-            <p className="inv-stat-value">₹{totalAmount.toLocaleString()}</p>
-          </div>
         </div>
       </div>
 
@@ -518,12 +430,8 @@ export default function PurchaseInvoice() {
         <table className="inv-table">
           <thead>
             <tr>
-              <th className="inv-th-check">
-                <input type="checkbox" checked={allChecked} onChange={toggleAll} className="inv-checkbox" />
-              </th>
               <th className="inv-th">Invoice #</th>
               <th className="inv-th">Supplier</th>
-              <th className="inv-th">PO #</th>
               <th className="inv-th">Date</th>
               <th className="inv-th">Total</th>
               <th className="inv-th">Balance</th>
@@ -536,7 +444,7 @@ export default function PurchaseInvoice() {
           <tbody>
             {paginatedData.length === 0 ? (
               <tr>
-                <td colSpan={9} className="inv-empty-state">
+                <td colSpan={7} className="inv-empty-state">
                   <div className="inv-empty-content">
                     <FaReceipt size={48} />
                     <p>No purchase invoices found</p>
@@ -551,16 +459,17 @@ export default function PurchaseInvoice() {
               paginatedData.map((inv) => (
                 <tr
                   key={inv.id}
-                  className={`inv-tr ${selected.has(inv.id) ? "inv-tr-selected" : ""}`}
+                  className="inv-tr"
                   onClick={() => handleRowClick(inv)}
                   style={{ cursor: 'pointer' }}
                 >
-                  <td className="inv-td-check" onClick={(e) => toggleRow(inv.id, e)}>
-                    <input type="checkbox" checked={selected.has(inv.id)} onChange={() => {}} className="inv-checkbox" />
+                  <td className="inv-td inv-td-id">
+                    <div>
+                      <div style={{ fontWeight: 600 }}>{inv.invoiceNumber}</div>
+                      <div style={{ fontSize: '11px', opacity: 0.6 }}>PINV-{inv.id}</div>
+                    </div>
                   </td>
-                  <td className="inv-td inv-td-id">{inv.invoiceNumber}</td>
                   <td className="inv-td">{inv.supplier}</td>
-                  <td className="inv-td">{inv.purchaseOrder}</td>
                   <td className="inv-td">{new Date(inv.date).toLocaleDateString()}</td>
                   <td className="inv-td">{inv.currency} {inv.totalAmount.toLocaleString()}</td>
                   <td className={`inv-td ${inv.balanceAmount > 0 && new Date(inv.dueDate) < new Date() ? 'inv-balance-overdue' : ''}`}>
@@ -590,13 +499,7 @@ export default function PurchaseInvoice() {
                       >
                         <FaEdit size={12} />
                       </button>
-                      <button 
-                        className="inv-action-btn inv-action-copy" 
-                        onClick={(e) => handleDuplicate(inv, e)}
-                        title="Duplicate"
-                      >
-                        <FaCopy size={12} />
-                      </button>
+                    
                       <button 
                         className="inv-action-btn inv-action-delete" 
                         onClick={(e) => handleDelete(inv, e)}
@@ -702,7 +605,6 @@ export default function PurchaseInvoice() {
                   <h4>Supplier Details</h4>
                   <div className="inv-view-row"><label>Supplier:</label><span>{selectedInvoice.supplier}</span></div>
                   <div className="inv-view-row"><label>Code:</label><span>{selectedInvoice.supplierCode}</span></div>
-                  <div className="inv-view-row"><label>PO #:</label><span>{selectedInvoice.purchaseOrder}</span></div>
                 </div>
                 <div className="inv-view-section full-width">
                   <h4>Financial Summary</h4>

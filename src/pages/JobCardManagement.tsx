@@ -20,16 +20,18 @@ import api from "../../src/services/api";
 
 type Status = "Open" | "Work In Progress" | "Completed" | "On Hold" | "Cancelled";
 
-/** Shape returned by GET /job-card (matches the POST /job-card payload). */
+/** Shape returned by GET /job-card – now includes `process_loss_qty` and `sequence_id`. */
 interface JobCardApiRecord {
-  id: number; // real numeric primary key
-  name: string; // e.g. "JC-WO-00001-001" — the human-readable docname
+  id: number;
+  name: string;
   work_order: string;
   operation: string;
   workstation: string;
   for_quantity?: number;
   requested_qty?: number;
   total_completed_qty: number;
+  process_loss_qty: number;
+  sequence_id: number;        // <-- added for ordering operations
   company: string;
   status: Status;
   creation?: string;
@@ -41,14 +43,16 @@ interface JobCardApiRecord {
 }
 
 interface JobCardDisplay {
-  id: string; // name (docname) — used for routing/display
-  recordId: number; // real numeric primary key — used for update/delete API calls
+  id: string;
+  recordId: number;
   jobCardId: string;
   workOrder: string;
   operation: string;
   workstation: string;
   qty: number;
   completedQty: number;
+  lossQty: number;
+  sequenceId: number;         // <-- added
   company: string;
   status: Status;
   createdOn: string;
@@ -60,12 +64,13 @@ interface JobCardDisplay {
   actualEndDate: Date | null;
 }
 
-// Group by Work Order
+// Group by Work Order – now uses aggregated quantities
 interface WorkOrderGroup {
   workOrder: string;
   jobCards: JobCardDisplay[];
-  total: number;
-  completed: number;
+  totalQty: number;
+  completedQty: number;
+  lossQty: number;
   progress: number;
 }
 
@@ -85,7 +90,7 @@ const STATUS_LABELS: Record<Status, string> = {
   Cancelled: "Cancelled",
 };
 
-// ─── timer helpers ─────────────────────────────────────────────────────
+// ─── timer helpers (unchanged) ──────────────────────────────────────────
 
 const formatDuration = (ms: number): string => {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
@@ -107,7 +112,6 @@ interface TimerInfo {
 }
 
 const getTimerInfo = (row: JobCardDisplay, now: Date): TimerInfo => {
-  // Actively running — count down to the expected end date
   if (row.actualStartDate && !row.actualEndDate) {
     if (row.expectedEndDate) {
       const diff = row.expectedEndDate.getTime() - now.getTime();
@@ -116,18 +120,13 @@ const getTimerInfo = (row: JobCardDisplay, now: Date): TimerInfo => {
       }
       return { label: `Overdue by ${formatDuration(-diff)}`, colorVar: "var(--danger-color)", pulsing: true };
     }
-    // No expected end date to count down to — fall back to elapsed time
     const elapsed = now.getTime() - row.actualStartDate.getTime();
     return { label: formatDuration(elapsed), colorVar: "var(--primary-color)", pulsing: true };
   }
-
-  // Finished — show total time it took
   if (row.actualStartDate && row.actualEndDate) {
     const total = row.actualEndDate.getTime() - row.actualStartDate.getTime();
     return { label: `Done in ${formatDuration(total)}`, colorVar: "var(--text-secondary)", pulsing: false };
   }
-
-  // Not started yet — count down to scheduled start
   if (row.expectedStartDate) {
     const diff = row.expectedStartDate.getTime() - now.getTime();
     if (diff > 0) {
@@ -135,7 +134,6 @@ const getTimerInfo = (row: JobCardDisplay, now: Date): TimerInfo => {
     }
     return { label: `Overdue by ${formatDuration(-diff)}`, colorVar: "var(--danger-color)", pulsing: false };
   }
-
   return { label: "-", colorVar: "var(--text-secondary)", pulsing: false };
 };
 
@@ -150,14 +148,12 @@ export default function JobCardManagement() {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  // const [currentPage, setCurrentPage] = useState(1);
-  // const [itemsPerPage, setItemsPerPage] = useState(10);
   const [, setTotalItems] = useState(0);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedItem, setSelectedItem] = useState<JobCardDisplay | null>(null);
   const [now, setNow] = useState<Date>(() => new Date());
 
-  // Tick every second so the Timer column stays live without re-fetching data
+  // Tick every second
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(interval);
@@ -180,19 +176,19 @@ export default function JobCardManagement() {
     return `${Math.floor(diffDays / 365)} y`;
   };
 
-  const calculateProgress = (qty: number, completedQty: number): number => {
+  // ─── progress using completed + loss (both count as done) ──────────────
+  const calculateProgress = (qty: number, completed: number, loss: number): number => {
     if (qty === 0) return 0;
-    return Math.min(Math.round((completedQty / qty) * 100), 100);
+    const totalDone = completed + loss;
+    return Math.min(Math.round((totalDone / qty) * 100), 100);
   };
 
-  // ─── load from GET /job-card ───────────────────────────────────────────
-
+  // ─── fetch data ────────────────────────────────────────────────────────
   const fetchJobCards = async () => {
     setLoading(true);
     setError(null);
     try {
       const response = await api.get("/job-card");
-
       if (response.data.success !== 1) {
         throw new Error(response.data?.message || "Failed to fetch job cards");
       }
@@ -201,20 +197,24 @@ export default function JobCardManagement() {
 
       const transformedData: JobCardDisplay[] = all.map((item) => {
         const qty = item.for_quantity ?? item.requested_qty ?? 0;
+        const completed = item.total_completed_qty || 0;
+        const loss = item.process_loss_qty || 0;
         const createdOn = item.creation || item.posting_date || new Date().toISOString();
         return {
-          id: item.name,
+          id: item.name || `jc-${item.id}`,
           recordId: item.id,
-          jobCardId: item.name,
+          jobCardId: item.name || `JC-${item.id}`,
           workOrder: item.work_order,
           operation: item.operation || "N/A",
           workstation: item.workstation || "N/A",
           qty,
-          completedQty: item.total_completed_qty || 0,
+          completedQty: completed,
+          lossQty: loss,
+          sequenceId: item.sequence_id || 0,
           company: item.company,
           status: item.status,
           createdOn,
-          progress: calculateProgress(qty, item.total_completed_qty || 0),
+          progress: calculateProgress(qty, completed, loss),
           createdAgo: formatDate(createdOn),
           expectedStartDate: item.expected_start_date ? new Date(item.expected_start_date) : null,
           expectedEndDate: item.expected_end_date ? new Date(item.expected_end_date) : null,
@@ -223,15 +223,13 @@ export default function JobCardManagement() {
         };
       });
 
-      // Newest first
+      // Sort by creation date (latest first)
       transformedData.sort(
         (a, b) => new Date(b.createdOn).getTime() - new Date(a.createdOn).getTime()
       );
 
       setTotalItems(transformedData.length);
       setJobCards(transformedData);
-      
-      // Group by Work Order
       groupByWorkOrder(transformedData);
     } catch (err: any) {
       console.error("Error fetching job cards:", err);
@@ -241,11 +239,9 @@ export default function JobCardManagement() {
     }
   };
 
-  // ─── Group by Work Order ──────────────────────────────────────────────
-
+  // ─── Group by Work Order with operations sorted by sequence_id ──────────
   const groupByWorkOrder = (data: JobCardDisplay[]) => {
     const groupMap = new Map<string, JobCardDisplay[]>();
-    
     data.forEach(jc => {
       if (!groupMap.has(jc.workOrder)) {
         groupMap.set(jc.workOrder, []);
@@ -254,24 +250,33 @@ export default function JobCardManagement() {
     });
 
     const grouped: WorkOrderGroup[] = Array.from(groupMap.entries()).map(([workOrder, cards]) => {
-      const total = cards.length;
-      const completed = cards.filter(c => c.status === "Completed").length;
-      const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
+      // Sort job cards within the group by sequence_id (ascending)
+      const sortedCards = [...cards].sort((a, b) => a.sequenceId - b.sequenceId);
       
+      const totalQty = sortedCards.reduce((sum, c) => sum + c.qty, 0);
+      const completedQty = sortedCards.reduce((sum, c) => sum + c.completedQty, 0);
+      const lossQty = sortedCards.reduce((sum, c) => sum + c.lossQty, 0);
+      const progress = totalQty > 0 ? Math.round(((completedQty + lossQty) / totalQty) * 100) : 0;
+
       return {
         workOrder,
-        jobCards: cards,
-        total,
-        completed,
-        progress
+        jobCards: sortedCards,
+        totalQty,
+        completedQty,
+        lossQty,
+        progress,
       };
     });
 
-    // Sort by progress (ascending) or by work order name
-    grouped.sort((a, b) => a.workOrder.localeCompare(b.workOrder));
+    // Sort groups by the latest job card creation date within each group
+    grouped.sort((a, b) => {
+      const latestA = Math.max(...a.jobCards.map(jc => new Date(jc.createdOn).getTime()));
+      const latestB = Math.max(...b.jobCards.map(jc => new Date(jc.createdOn).getTime()));
+      return latestB - latestA;
+    });
+
     setGroups(grouped);
-    
-    // Auto-expand first group
+
     if (grouped.length > 0 && expandedGroups.size === 0) {
       setExpandedGroups(new Set([grouped[0].workOrder]));
     }
@@ -289,29 +294,26 @@ export default function JobCardManagement() {
     });
   };
 
-  // ─── Filtering ──────────────────────────────────────────────────────────
-
+  // ─── filtering ──────────────────────────────────────────────────────────
   const getFilteredGroups = () => {
     let filtered = groups;
-    
-    // Filter by search term
+
     if (searchTerm.trim()) {
-      filtered = filtered.filter(group => 
+      filtered = filtered.filter(group =>
         group.workOrder.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        group.jobCards.some(jc => 
+        group.jobCards.some(jc =>
           jc.jobCardId.toLowerCase().includes(searchTerm.toLowerCase()) ||
           jc.operation.toLowerCase().includes(searchTerm.toLowerCase())
         )
       );
     }
-    
-    // Filter by status
+
     if (statusFilter !== "all") {
-      filtered = filtered.filter(group => 
+      filtered = filtered.filter(group =>
         group.jobCards.some(jc => jc.status === statusFilter)
       );
     }
-    
+
     return filtered;
   };
 
@@ -357,14 +359,16 @@ export default function JobCardManagement() {
     setStatusFilter("all");
   };
 
-  // Calculate overall stats
+  // ─── Overall stats based on quantities ────────────────────────────────
+  const totalQty = jobCards.reduce((sum, jc) => sum + jc.qty, 0);
+  const totalCompleted = jobCards.reduce((sum, jc) => sum + jc.completedQty, 0);
+  const totalLoss = jobCards.reduce((sum, jc) => sum + jc.lossQty, 0);
+  const overallProgress = totalQty > 0 ? Math.round(((totalCompleted + totalLoss) / totalQty) * 100) : 0;
   const totalJobCards = jobCards.length;
-  const totalCompleted = jobCards.filter(jc => jc.status === "Completed").length;
-  const totalProgress = totalJobCards > 0 ? Math.round((totalCompleted / totalJobCards) * 100) : 0;
 
   return (
     <div className={`jc-page ${theme}`}>
-      {/* Stats Cards */}
+      {/* Stats Cards – updated to show completed, loss, and overall progress */}
       <div className="jc-stats-container">
         <div className="jc-stat-card" style={{ background: '#EFF6FF', borderLeft: '4px solid #3B82F6' }}>
           <div className="jc-stat-icon" style={{ color: '#3B82F6' }}>
@@ -380,7 +384,7 @@ export default function JobCardManagement() {
             <FaCheckCircle size={18} />
           </div>
           <div className="jc-stat-content">
-            <p className="jc-stat-title">Completed</p>
+            <p className="jc-stat-title">Completed Qty</p>
             <p className="jc-stat-value">{totalCompleted}</p>
           </div>
         </div>
@@ -389,8 +393,8 @@ export default function JobCardManagement() {
             <FaClock size={18} />
           </div>
           <div className="jc-stat-content">
-            <p className="jc-stat-title">In Progress</p>
-            <p className="jc-stat-value">{jobCards.filter(jc => jc.status === "Work In Progress").length}</p>
+            <p className="jc-stat-title">Loss / Scrap</p>
+            <p className="jc-stat-value">{totalLoss}</p>
           </div>
         </div>
         <div className="jc-stat-card" style={{ background: '#F5F3FF', borderLeft: '4px solid #8B5CF6' }}>
@@ -399,12 +403,12 @@ export default function JobCardManagement() {
           </div>
           <div className="jc-stat-content">
             <p className="jc-stat-title">Overall Progress</p>
-            <p className="jc-stat-value">{totalProgress}%</p>
+            <p className="jc-stat-value">{overallProgress}%</p>
           </div>
         </div>
       </div>
 
-      {/* Search and Filter Bar */}
+      {/* Search and Filter Bar (unchanged) */}
       <div className="jc-filter-bar">
         <div className="jc-filter-left">
           <div className="jc-search-wrapper">
@@ -443,7 +447,7 @@ export default function JobCardManagement() {
         </div>
       </div>
 
-      {/* Active filters indicator */}
+      {/* Active filters indicator (unchanged) */}
       {(searchTerm || statusFilter !== "all") && (
         <div className="jc-active-filters">
           <FaFilter size={12} style={{ color: "var(--primary-color)" }} />
@@ -464,14 +468,12 @@ export default function JobCardManagement() {
         </div>
       )}
 
-      {/* Loading State */}
+      {/* Loading / Error states (unchanged) */}
       {loading && (
         <div className="jc-loading">
           <p>Loading job cards...</p>
         </div>
       )}
-
-      {/* Error State */}
       {error && (
         <div className="jc-error">
           <p>{error}</p>
@@ -483,157 +485,157 @@ export default function JobCardManagement() {
 
       {/* Grouped Table */}
       {!loading && !error && (
-        <>
-          <div className="jc-table-wrap">
-            {getFilteredGroups().length === 0 ? (
-              <div className="jc-empty-state">
-                <div className="jc-empty-content">
-                  <FaClipboardList size={48} />
-                  <p>No job cards found</p>
-                  <span>Try adjusting your search criteria</span>
-                </div>
+        <div className="jc-table-wrap">
+          {getFilteredGroups().length === 0 ? (
+            <div className="jc-empty-state">
+              <div className="jc-empty-content">
+                <FaClipboardList size={48} />
+                <p>No job cards found</p>
+                <span>Try adjusting your search criteria</span>
               </div>
-            ) : (
-              <div className="jc-group-container">
-                {getFilteredGroups().map((group) => {
-                  const isExpanded = expandedGroups.has(group.workOrder);
-                  const filteredCards = group.jobCards.filter(jc => {
-                    if (statusFilter === "all") return true;
-                    return jc.status === statusFilter;
-                  });
-                  
-                  return (
-                    <div key={group.workOrder} className="jc-group">
-                      {/* Group Header */}
-                      <div 
-                        className="jc-group-header"
-                        onClick={() => toggleGroup(group.workOrder)}
-                      >
-                        <div className="jc-group-header-left">
-                          <span className="jc-group-toggle">
-                            {isExpanded ? '▼' : '▶'}
-                          </span>
-                          <span className="jc-group-title">
-                            <FaBuilding className="jc-group-icon" />
-                            {group.workOrder}
-                          </span>
-                        </div>
-                        <div className="jc-group-header-right">
-                          <span className="jc-group-stats">
-                            {group.completed} of {group.total} completed
-                          </span>
-                          <div className="jc-group-progress">
-                            <div className="jc-group-progress-bar">
-                              <div 
-                                className="jc-group-progress-fill" 
-                                style={{ width: `${group.progress}%` }}
-                              />
-                            </div>
-                            <span className="jc-group-progress-text">{group.progress}%</span>
+            </div>
+          ) : (
+            <div className="jc-group-container">
+              {getFilteredGroups().map((group) => {
+                const isExpanded = expandedGroups.has(group.workOrder);
+                const filteredCards = group.jobCards.filter(jc => {
+                  if (statusFilter === "all") return true;
+                  return jc.status === statusFilter;
+                });
+
+                return (
+                  <div key={group.workOrder} className="jc-group">
+                    {/* Group Header – updated stats */}
+                    <div
+                      className="jc-group-header"
+                      onClick={() => toggleGroup(group.workOrder)}
+                    >
+                      <div className="jc-group-header-left">
+                        <span className="jc-group-toggle">
+                          {isExpanded ? '▼' : '▶'}
+                        </span>
+                        <span className="jc-group-title">
+                          <FaBuilding className="jc-group-icon" />
+                          {group.workOrder}
+                        </span>
+                      </div>
+                      <div className="jc-group-header-right">
+                        <span className="jc-group-stats">
+                          {group.completedQty + group.lossQty} of {group.totalQty} qty done
+                        </span>
+                        <div className="jc-group-progress">
+                          <div className="jc-group-progress-bar">
+                            <div
+                              className="jc-group-progress-fill"
+                              style={{ width: `${group.progress}%` }}
+                            />
                           </div>
+                          <span className="jc-group-progress-text">{group.progress}%</span>
                         </div>
                       </div>
-
-                      {/* Group Body - Job Cards */}
-                      {isExpanded && (
-                        <table className="jc-table">
-                          <thead>
-                            <tr>
-                              <th className="jc-th">Job Card #</th>
-                              <th className="jc-th">Operation</th>
-                              <th className="jc-th">Workstation</th>
-                              <th className="jc-th">Qty</th>
-                              <th className="jc-th">Progress</th>
-                              <th className="jc-th">Status</th>
-                              <th className="jc-th">Timer</th>
-                              <th className="jc-th jc-th-meta">Actions</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {filteredCards.map((row) => {
-                              const timer = getTimerInfo(row, now);
-                              return (
-                                <tr
-                                  key={row.id}
-                                  className="jc-tr"
-                                  onClick={() => handleRowClick(row)}
-                                  style={{ cursor: "pointer" }}
-                                >
-                                  <td className="jc-td jc-td-id">{row.jobCardId}</td>
-                                  <td className="jc-td">{row.operation}</td>
-                                  <td className="jc-td">{row.workstation}</td>
-                                  <td className="jc-td jc-td-number">{row.qty.toLocaleString()}</td>
-                                  <td className="jc-td">
-                                    <div className="jc-progress-container">
-                                      <div className="jc-progress-bar">
-                                        <div className="jc-progress-fill" style={{ width: `${row.progress}%` }} />
-                                      </div>
-                                      <span className="jc-progress-text">{row.progress}%</span>
-                                    </div>
-                                  </td>
-                                  <td className="jc-td">
-                                    <span className={`jc-status-badge ${STATUS_CLASS[row.status]}`}>
-                                      {STATUS_LABELS[row.status]}
-                                    </span>
-                                  </td>
-                                  <td className="jc-td">
-                                    <span
-                                      style={{
-                                        display: "inline-flex",
-                                        alignItems: "center",
-                                        gap: 5,
-                                        fontSize: "0.82em",
-                                        fontWeight: 500,
-                                        color: timer.colorVar,
-                                        whiteSpace: "nowrap",
-                                      }}
-                                    >
-                                      {timer.pulsing && (
-                                        <span
-                                          style={{
-                                            width: 6,
-                                            height: 6,
-                                            borderRadius: "50%",
-                                            backgroundColor: "var(--primary-color)",
-                                            display: "inline-block",
-                                            animation: "jc-timer-pulse 1.2s ease-in-out infinite",
-                                          }}
-                                        />
-                                      )}
-                                      {timer.label}
-                                    </span>
-                                  </td>
-                                  <td className="jc-td jc-td-meta" onClick={(e) => e.stopPropagation()}>
-                                    <span className="jc-ago">{row.createdAgo}</span>
-                                    <span className="jc-dot">·</span>
-                                    <div className="jc-action-buttons">
-                                      <button className="jc-action-btn jc-action-view" onClick={(e) => { e.stopPropagation(); handleView(row); }} title="View">
-                                        <FaEye size={12} />
-                                      </button>
-                                      <button className="jc-action-btn jc-action-edit" onClick={(e) => { e.stopPropagation(); handleEdit(row); }} title="Edit">
-                                        <FaEdit size={12} />
-                                      </button>
-                                      <button className="jc-action-btn jc-action-delete" onClick={(e) => { e.stopPropagation(); handleDelete(row); }} title="Delete">
-                                        <FaTrash size={12} />
-                                      </button>
-                                    </div>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      )}
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </>
+
+                    {/* Group Body – Job Cards */}
+                    {isExpanded && (
+                      <table className="jc-table">
+                        <thead>
+                          <tr>
+                            <th className="jc-th">#</th>
+                            <th className="jc-th">Job Card #</th>
+                            <th className="jc-th">Operation</th>
+                            <th className="jc-th">Workstation</th>
+                            <th className="jc-th">Qty</th>
+                            <th className="jc-th">Progress</th>
+                            <th className="jc-th">Status</th>
+                            <th className="jc-th">Timer</th>
+                            <th className="jc-th jc-th-meta">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredCards.map((row, index) => {
+                            const timer = getTimerInfo(row, now);
+                            return (
+                              <tr
+                                key={row.id}
+                                className="jc-tr"
+                                onClick={() => handleRowClick(row)}
+                                style={{ cursor: "pointer" }}
+                              >
+                                <td className="jc-td jc-td-number">{index + 1}</td>
+                                <td className="jc-td jc-td-id">{row.jobCardId}</td>
+                                <td className="jc-td">{row.operation}</td>
+                                <td className="jc-td">{row.workstation}</td>
+                                <td className="jc-td jc-td-number">{row.qty.toLocaleString()}</td>
+                                <td className="jc-td">
+                                  <div className="jc-progress-container">
+                                    <div className="jc-progress-bar">
+                                      <div className="jc-progress-fill" style={{ width: `${row.progress}%` }} />
+                                    </div>
+                                    <span className="jc-progress-text">{row.progress}%</span>
+                                  </div>
+                                </td>
+                                <td className="jc-td">
+                                  <span className={`jc-status-badge ${STATUS_CLASS[row.status]}`}>
+                                    {STATUS_LABELS[row.status]}
+                                  </span>
+                                </td>
+                                <td className="jc-td">
+                                  <span
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: 5,
+                                      fontSize: "0.82em",
+                                      fontWeight: 500,
+                                      color: timer.colorVar,
+                                      whiteSpace: "nowrap",
+                                    }}
+                                  >
+                                    {timer.pulsing && (
+                                      <span
+                                        style={{
+                                          width: 6,
+                                          height: 6,
+                                          borderRadius: "50%",
+                                          backgroundColor: "var(--primary-color)",
+                                          display: "inline-block",
+                                          animation: "jc-timer-pulse 1.2s ease-in-out infinite",
+                                        }}
+                                      />
+                                    )}
+                                    {timer.label}
+                                  </span>
+                                </td>
+                                <td className="jc-td jc-td-meta" onClick={(e) => e.stopPropagation()}>
+                                  <span className="jc-ago">{row.createdAgo}</span>
+                                  <span className="jc-dot">·</span>
+                                  <div className="jc-action-buttons">
+                                    <button className="jc-action-btn jc-action-view" onClick={(e) => { e.stopPropagation(); handleView(row); }} title="View">
+                                      <FaEye size={12} />
+                                    </button>
+                                    <button className="jc-action-btn jc-action-edit" onClick={(e) => { e.stopPropagation(); handleEdit(row); }} title="Edit">
+                                      <FaEdit size={12} />
+                                    </button>
+                                    <button className="jc-action-btn jc-action-delete" onClick={(e) => { e.stopPropagation(); handleDelete(row); }} title="Delete">
+                                      <FaTrash size={12} />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       )}
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete Confirmation Modal (unchanged) */}
       {showDeleteConfirm && selectedItem && (
         <div className="jc-modal-overlay" onClick={() => setShowDeleteConfirm(false)}>
           <div className="jc-modal jc-modal-delete" onClick={(e) => e.stopPropagation()}>
@@ -660,7 +662,6 @@ export default function JobCardManagement() {
         </div>
       )}
 
-      {/* Pulse animation for the "running" timer dot */}
       <style>{`
         @keyframes jc-timer-pulse {
           0%, 100% { opacity: 1; transform: scale(1); }

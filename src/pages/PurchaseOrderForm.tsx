@@ -18,6 +18,7 @@ import './PurchaseOrderForm.css';
 
 interface PurchaseOrderItem {
   id: string;
+  itemId: number; // Actual item ID from the API
   itemCode: string;
   itemName: string;
   quantity: number;
@@ -216,7 +217,23 @@ export default function PurchaseOrderForm() {
     shippingAddress: '',
     billingAddress: '',
     notes: '',
-    items: [{ id: '1', itemCode: '', itemName: '', quantity: 1, uom: 'NOS', rate: 0, orderRate: 0, amount: 0, receivedQty: 0, balanceQty: 0, taxId: '', taxRate: 18 }],
+    items: [
+      {
+        id: "1",
+        itemId: 0,
+        itemCode: "",
+        itemName: "",
+        quantity: 1,
+        uom: "NOS",
+        rate: 0,
+        orderRate: 0,
+        amount: 0,
+        receivedQty: 0,
+        balanceQty: 0,
+        taxId: "",
+        taxRate: 18,
+      },
+    ],
     taxRate: 18,
     taxCategory: 'GST',
     taxId: '',
@@ -370,10 +387,8 @@ export default function PurchaseOrderForm() {
         const data = response.data.data;
         
         const items = data.items?.map((item: any, index: number) => {
-          // Get tax rate from the item_tax_rate field
           const itemTaxRate = item.item_tax_rate ? parseFloat(item.item_tax_rate) : 0;
           
-          // Try to find matching tax option by rate
           let matchedTax = null;
           if (taxOptions.length > 0 && itemTaxRate > 0) {
             matchedTax = taxOptions.find(t => {
@@ -382,7 +397,6 @@ export default function PurchaseOrderForm() {
             });
           }
           
-          // If no match found by rate, try to parse from item_tax_template
           if (!matchedTax && item.item_tax_template && taxOptions.length > 0) {
             const templateMatch = item.item_tax_template.match(/(\d+)/);
             if (templateMatch) {
@@ -396,6 +410,7 @@ export default function PurchaseOrderForm() {
           
           return {
             id: String(index + 1),
+            itemId: item.item_id || 0, // Store the actual item ID
             itemCode: item.item_code || '',
             itemName: item.item_name || '',
             quantity: item.qty || 0,
@@ -412,14 +427,26 @@ export default function PurchaseOrderForm() {
             taxRate: matchedTax ? itemTaxRate : 0,
             hsn: item.hsn || '',
           };
-        }) || [{ id: '1', itemCode: '', itemName: '', quantity: 1, uom: 'NOS', rate: 0, orderRate: 0, amount: 0, receivedQty: 0, balanceQty: 0, taxId: '', taxRate: 0 }];
+        }) || [{ 
+          id: '1', 
+          itemId: 0,
+          itemCode: '', 
+          itemName: '', 
+          quantity: 1, 
+          uom: 'NOS', 
+          rate: 0, 
+          orderRate: 0, 
+          amount: 0, 
+          receivedQty: 0, 
+          balanceQty: 0, 
+          taxId: '', 
+          taxRate: 0 
+        }];
 
-        // Determine overall tax rate from first item or data
         let taxRate = 18;
         let taxCategory = 'GST';
         let taxId = '';
         
-        // Try to get tax from first item
         if (items.length > 0 && items[0].taxRate && items[0].taxRate > 0) {
           taxRate = items[0].taxRate;
           const matchedTax = taxOptions.find(t => {
@@ -434,7 +461,6 @@ export default function PurchaseOrderForm() {
           }
         }
         
-        // If no tax found from items, try from taxes_and_charges
         if (!taxId && data.taxes_and_charges) {
           const taxString = data.taxes_and_charges;
           const percentMatch = taxString.match(/(\d+)%/);
@@ -468,7 +494,6 @@ export default function PurchaseOrderForm() {
           }
         }
         
-        // Fallback to first tax option
         if (!taxId && taxOptions.length > 0) {
           const firstTax = taxOptions[0];
           taxId = String(firstTax.tax_id);
@@ -477,7 +502,6 @@ export default function PurchaseOrderForm() {
           taxCategory = category;
         }
 
-        // Calculate grand total
         const totalAmount = items.reduce((sum: number, item: any) => sum + (item.amount || 0), 0);
         const taxAmount = items.reduce((sum: number, item: any) => {
           const lineAmount = (item.orderRate || item.rate || 0) * item.quantity;
@@ -486,7 +510,6 @@ export default function PurchaseOrderForm() {
         }, 0);
         const grandTotal = totalAmount + taxAmount;
 
-        // Set dates
         const orderDateStr = data.transaction_date ? data.transaction_date.split('T')[0] : new Date().toISOString().split('T')[0];
         const deliveryDateStr = data.schedule_date ? data.schedule_date.split('T')[0] : '';
 
@@ -511,7 +534,6 @@ export default function PurchaseOrderForm() {
           customerId: data.customer_id,
         });
 
-        // Set date picker states
         setStartDate(new Date(orderDateStr));
         setDeliveryDate(deliveryDateStr ? new Date(deliveryDateStr) : null);
 
@@ -633,6 +655,7 @@ export default function PurchaseOrderForm() {
 
     updatedItems[index] = {
       ...updatedItems[index],
+      itemId: item.id, // Store the actual item ID from the API
       itemCode: item.item_code,
       itemName: item.item_name,
       uom: item.stock_uom || 'NOS',
@@ -741,12 +764,10 @@ export default function PurchaseOrderForm() {
   useEffect(() => {
     if (masterDataLoaded) {
       if (isEdit && id) {
-        // Small delay to ensure taxOptions is fully populated
         setTimeout(() => {
           fetchPurchaseOrder(id);
         }, 100);
       } else {
-        // Generate a new PO number for new PO
         const today = new Date();
         const year = today.getFullYear();
         const nextNumber = Math.floor(Math.random() * 1000) + 1;
@@ -775,7 +796,6 @@ export default function PurchaseOrderForm() {
       return sum + lineAmount * rate;
     }, 0);
     
-    // Calculate adjustment with sign
     const adjustmentValue = grandTotalAdjustmentSign === 'positive' 
       ? grandTotalAdjustmentValue 
       : -grandTotalAdjustmentValue;
@@ -820,7 +840,21 @@ export default function PurchaseOrderForm() {
     const newId = String(formData.items.length + 1);
     setFormData(prev => ({
       ...prev,
-      items: [...prev.items, { id: newId, itemCode: '', itemName: '', quantity: 1, uom: 'NOS', rate: 0, orderRate: 0, amount: 0, receivedQty: 0, balanceQty: 0, taxId: prev.taxId, taxRate: prev.taxRate }]
+      items: [...prev.items, { 
+        id: newId, 
+        itemId: 0, // Initialize with 0
+        itemCode: '', 
+        itemName: '', 
+        quantity: 1, 
+        uom: 'NOS', 
+        rate: 0, 
+        orderRate: 0, 
+        amount: 0, 
+        receivedQty: 0, 
+        balanceQty: 0, 
+        taxId: prev.taxId, 
+        taxRate: prev.taxRate 
+      }]
     }));
     const filtered = allItems;
     if (itemGroupFilter !== 'all') {
@@ -944,9 +978,6 @@ export default function PurchaseOrderForm() {
       conversion_rate: 1,
       buying_price_list: "Standard Buying",
       price_list_currency: formData.currency,
-      plc_conversion_rate: 1,
-      ignore_pricing_rule: 0,
-      scan_barcode: "",
       set_from_warehouse: "",
       total_qty: totalQty,
       total_net_weight: 0,
@@ -957,9 +988,6 @@ export default function PurchaseOrderForm() {
       set_reserve_warehouse: "",
       tax_category: formData.taxCategory,
       taxes_and_charges: taxesAndChargesLabel,
-      shipping_rule: "",
-      incoterm: "",
-      named_place: "",
       base_taxes_and_charges_added: taxAmountCalc,
       base_taxes_and_charges_deducted: 0,
       base_total_taxes_and_charges: taxAmountCalc,
@@ -974,7 +1002,6 @@ export default function PurchaseOrderForm() {
       rounding_adjustment: adjustmentValue,
       base_rounding_adjustment: adjustmentValue,
       advance_paid: 0,
-      apply_discount_on: "Grand Total",
       base_discount_amount: 0,
       additional_discount_percentage: 0,
       discount_amount: 0,
@@ -982,33 +1009,12 @@ export default function PurchaseOrderForm() {
       supplier_address: selectedSupplier?.address || "",
       address_display: formData.shippingAddress || "",
       supplier_group: selectedSupplier?.supplier_group || "Local",
-      contact_person: "",
-      contact_display: "",
-      contact_mobile: "",
-      contact_email: "",
-      dispatch_address: "",
-      dispatch_address_display: "",
-      shipping_address: "",
-      shipping_address_display: formData.shippingAddress || "",
-      billing_address: "",
-      billing_address_display: formData.billingAddress || "",
-      customer: formData.customer || "",
-      customer_name: formData.customer || "",
-      customer_contact_person: "",
-      customer_contact_display: "",
-      customer_contact_mobile: "",
-      customer_contact_email: "",
       payment_terms_template: formData.paymentTerms,
-      tc_name: "Purchase Terms",
       terms: formData.notes || "",
       status: formData.status,
-      advance_payment_status: "Not Requested",
       per_billed: 0,
       per_received: 0,
-      letter_head: "Standard",
       group_same_items: 0,
-      select_print_heading: "Purchase Order",
-      language: "en",
       from_date: null,
       to_date: null,
       auto_repeat: "",
@@ -1022,11 +1028,9 @@ export default function PurchaseOrderForm() {
       inter_company_order_reference: "",
       is_old_subcontracting_flow: 0,
       modified_by: "Administrator",
-      owner: "Administrator",
-      docstatus: 0,
-      idx: 0,
+      
       items: formData.items.map((item, idx) => ({
-        fg_item: "FG-0001",
+        item_id: item.itemId || 0, // Use the actual item ID from the API, not hardcoded
         fg_item_qty: item.quantity || 0,
         item_code: item.itemCode,
         supplier_part_no: `SP-${String(idx + 1).padStart(3, '0')}`,

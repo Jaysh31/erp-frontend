@@ -90,6 +90,10 @@ interface InventoryDisplay {
   status: InventoryStatus;
   lastUpdated: string;
   type: "Internal" | "External";
+  // New fields for grouped internal items
+  isGrouped?: boolean;
+  groupItems?: InventoryDisplay[];
+  itemCount?: number;
 }
 
 interface ApiResponse {
@@ -123,10 +127,6 @@ type StockStatus = "All" | InventoryStatus;
 type ActiveTab = "all" | "internal" | "external";
 
 // ─── Warehouse visual identity helpers ────────────────────────────────────
-// Maps common warehouse stage names (Raw Material, WIP, Finished Goods, Scrap)
-// to a distinct icon + color so the 4 cards read at a glance. Falls back to a
-// generic warehouse look for anything that doesn't match.
-
 const getWarehouseVisual = (name: string) => {
   const n = (name || "").toLowerCase();
   if (n.includes("raw material") || n.includes("raw material store")) {
@@ -194,7 +194,7 @@ export default function InventoryList() {
     setLoading(true);
     setError(null);
     try {
-      const response = await api.get<ApiResponse>("/inventory");
+      const response = await api.get<ApiResponse>("/inventory?limit=10000");
       if (response.data.success === 1) {
         const records = response.data.data?.records || [];
 
@@ -246,21 +246,68 @@ export default function InventoryList() {
     return "In Stock";
   };
 
-  // Is more stock reserved than is actually sitting in the warehouse?
-  const getReservationState = (actualQty: number, reservedStock: number) => {
-    if (reservedStock <= 0) return { label: "Not Reserved", tone: "neutral" as const };
-    if (reservedStock > actualQty) return { label: "Less than reserved", tone: "danger" as const };
-    return { label: "Within Stock", tone: "ok" as const };
+  // ─── Group Internal Items by Item Code ──────────────────────────────
+  const groupInternalItems = (items: InventoryDisplay[]): InventoryDisplay[] => {
+    // Separate internal and external items
+    const internalItems = items.filter(item => item.type === "Internal");
+    const externalItems = items.filter(item => item.type === "External");
+
+    // Group internal items by itemCode
+    const groupedMap = new Map<string, InventoryDisplay[]>();
+    
+    internalItems.forEach(item => {
+      if (!groupedMap.has(item.itemCode)) {
+        groupedMap.set(item.itemCode, []);
+      }
+      groupedMap.get(item.itemCode)!.push(item);
+    });
+
+    // Create grouped items for internal
+    const groupedInternalItems: InventoryDisplay[] = [];
+    
+    groupedMap.forEach((group, itemCode) => {
+      // Calculate totals
+      const totalActualQty = group.reduce((sum, item) => sum + item.actualQty, 0);
+      const totalReservedStock = group.reduce((sum, item) => sum + item.reservedStock, 0);
+      const totalStockValue = group.reduce((sum, item) => sum + item.stockValue, 0);
+      const totalValuationRate = group.reduce((sum, item) => sum + item.valuationRate, 0);
+      const avgValuationRate = totalValuationRate / group.length;
+
+      // Use the first item as template
+      const firstItem = group[0];
+      
+      const groupedItem: InventoryDisplay = {
+        ...firstItem,
+        id: `grouped-${itemCode}`,
+        actualQty: totalActualQty,
+        reservedStock: totalReservedStock,
+        stockValue: totalStockValue,
+        valuationRate: avgValuationRate,
+        isGrouped: true,
+        groupItems: group,
+        itemCount: group.length,
+        // Update status based on total quantity
+        status: getStockStatus(totalActualQty),
+      };
+
+      groupedInternalItems.push(groupedItem);
+    });
+
+    // Return: grouped internal items + external items (unchanged)
+    return [...groupedInternalItems, ...externalItems];
   };
 
   // ─── Update Stats ─────────────────────────────────────────────────
   const updateStats = (items: InventoryDisplay[]) => {
-    const totalValue = items.reduce((sum, item) => sum + item.stockValue, 0);
-    const lowStock = items.filter((item) => item.status === "Low Stock").length;
-    const outOfStock = items.filter((item) => item.status === "Out of Stock").length;
+    // For stats, use grouped internal items to avoid double counting
+    const groupedItems = groupInternalItems(items);
+    
+    const totalValue = groupedItems.reduce((sum, item) => sum + item.stockValue, 0);
+    const lowStock = groupedItems.filter((item) => item.status === "Low Stock").length;
+    const outOfStock = groupedItems.filter((item) => item.status === "Out of Stock").length;
 
     setStats({
-      totalItems: items.length,
+      totalItems: groupedItems.length,
       totalValue,
       lowStockItems: lowStock,
       outOfStockItems: outOfStock,
@@ -279,21 +326,24 @@ export default function InventoryList() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [warehouses]);
 
-  // ─── Per-warehouse rollups for the picker cards ──────────────────
+  // ─── Per-warehouse rollups with grouping ──────────────────────────
   const warehouseCards = useMemo(() => {
     return warehouses.map((wh) => {
-      const items = inventoryItems.filter((item) => item.warehouseId === wh.id);
-      const internalItems = items.filter((item) => item.type === "Internal");
-      const externalItems = items.filter((item) => item.type === "External");
-      const totalValue = items.reduce((sum, item) => sum + item.stockValue, 0);
-      const lowStock = items.filter((item) => item.status === "Low Stock" || item.status === "Out of Stock").length;
-      const overReserved = items.filter((item) => item.reservedStock > item.actualQty).length;
+      const warehouseItems = inventoryItems.filter((item) => item.warehouseId === wh.id);
+      // Group internal items for this warehouse
+      const groupedWarehouseItems = groupInternalItems(warehouseItems);
+      
+      const internalItems = groupedWarehouseItems.filter((item) => item.type === "Internal");
+      const externalItems = groupedWarehouseItems.filter((item) => item.type === "External");
+      const totalValue = groupedWarehouseItems.reduce((sum, item) => sum + item.stockValue, 0);
+      const lowStock = groupedWarehouseItems.filter((item) => item.status === "Low Stock" || item.status === "Out of Stock").length;
+      const overReserved = groupedWarehouseItems.filter((item) => item.reservedStock > item.actualQty).length;
       const visual = getWarehouseVisual(wh.warehouse_name);
 
       return {
         ...wh,
-        items,
-        itemCount: items.length,
+        items: groupedWarehouseItems,
+        itemCount: groupedWarehouseItems.length,
         internalCount: internalItems.length,
         externalCount: externalItems.length,
         totalValue,
@@ -306,16 +356,26 @@ export default function InventoryList() {
 
   const activeWarehouse = warehouseCards.find((wh) => wh.id === detailWarehouseId) || null;
 
-  // ─── Items for the detail (drill-down) view ──────────────────────
+  // ─── Items for the detail view (with grouping) ────────────────────
   const detailItems = useMemo(() => {
     if (!activeWarehouse) return [];
-    return activeWarehouse.items.filter((item) => {
+    
+    // Get items based on active tab
+    let items = activeWarehouse.items;
+    
+    if (activeTab === "internal") {
+      items = items.filter(item => item.type === "Internal");
+    } else if (activeTab === "external") {
+      items = items.filter(item => item.type === "External");
+    }
+    
+    // Apply search and status filters
+    return items.filter((item) => {
       const matchesSearch =
         item.itemCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.uom.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesStatus = statusFilter === "All" || item.status === statusFilter;
-      const matchesType = activeTab === "all" || item.type.toLowerCase() === activeTab;
-      return matchesSearch && matchesStatus && matchesType;
+      return matchesSearch && matchesStatus;
     });
   }, [activeWarehouse, searchTerm, statusFilter, activeTab]);
 
@@ -323,8 +383,8 @@ export default function InventoryList() {
     if (!activeWarehouse) return { all: 0, internal: 0, external: 0 };
     return {
       all: activeWarehouse.items.length,
-      internal: activeWarehouse.internalCount,
-      external: activeWarehouse.externalCount,
+      internal: activeWarehouse.items.filter(i => i.type === "Internal").length,
+      external: activeWarehouse.items.filter(i => i.type === "External").length,
     };
   }, [activeWarehouse]);
 
@@ -367,13 +427,20 @@ export default function InventoryList() {
   const confirmDelete = async () => {
     if (selectedItemForDelete) {
       try {
-        await api.delete(`/inventory/${selectedItemForDelete.id}`);
+        // If it's a grouped item, delete all items in the group
+        if (selectedItemForDelete.isGrouped && selectedItemForDelete.groupItems) {
+          for (const item of selectedItemForDelete.groupItems) {
+            await api.delete(`/inventory/${item.id}`);
+          }
+        } else {
+          await api.delete(`/inventory/${selectedItemForDelete.id}`);
+        }
         setShowDeleteConfirm(false);
         setSelectedItemForDelete(null);
         fetchInventory();
       } catch (err) {
-        console.error("Error deleting inventory item:", err);
-        alert("Failed to delete inventory item");
+        console.error("Error deleting inventory item(s):", err);
+        alert("Failed to delete inventory item(s)");
       }
     }
   };
@@ -549,7 +616,7 @@ export default function InventoryList() {
             onClick={() => setActiveTab("internal")}
           >
             <FaIndustry size={14} />
-            Internal <span className="inv-tab-hint">(Product)</span>
+            Internal <span className="inv-tab-hint">(Grouped)</span>
             <span className="inv-tab-count">{detailTabCounts.internal}</span>
           </button>
           <button
@@ -557,7 +624,7 @@ export default function InventoryList() {
             onClick={() => setActiveTab("external")}
           >
             <FaTruck size={14} />
-            External <span className="inv-tab-hint">(Service)</span>
+            External <span className="inv-tab-hint">(Individual)</span>
             <span className="inv-tab-count">{detailTabCounts.external}</span>
           </button>
         </div>
@@ -637,8 +704,15 @@ export default function InventoryList() {
                 paginatedItems.map((item) => {
                   const reservation = getReservationState(item.actualQty, item.reservedStock);
                   return (
-                    <tr key={item.id} className="inv-tr">
-                      <td className="inv-td inv-td-code">{item.itemCode}</td>
+                    <tr key={item.id} className={`inv-tr ${item.isGrouped ? 'inv-tr-grouped' : ''}`}>
+                      <td className="inv-td inv-td-code">
+                        {item.isGrouped && (
+                          <span className="inv-group-badge" title={`${item.itemCount} items grouped`}>
+                            <FaBoxes size={10} /> {item.itemCount}x
+                          </span>
+                        )}
+                        {item.itemCode}
+                      </td>
                       {activeTab === "all" && (
                         <td className="inv-td">
                           <span className={`inv-type-badge ${item.type.toLowerCase()}`}>
@@ -749,6 +823,13 @@ export default function InventoryList() {
     );
   };
 
+  // ─── Helper: Reservation State ────────────────────────────────────
+  const getReservationState = (actualQty: number, reservedStock: number) => {
+    if (reservedStock <= 0) return { label: "Not Reserved", tone: "neutral" as const };
+    if (reservedStock > actualQty) return { label: "Less than reserved", tone: "danger" as const };
+    return { label: "Within Stock", tone: "ok" as const };
+  };
+
   // ─── Main Render ──────────────────────────────────────────────────
 
   return (
@@ -800,12 +881,30 @@ export default function InventoryList() {
                     {selectedItem.type}
                   </span>
                   {selectedItem.itemCode}
+                  {selectedItem.isGrouped && (
+                    <span className="inv-group-badge" style={{ marginLeft: '10px' }}>
+                      <FaBoxes size={12} /> {selectedItem.itemCount} items grouped
+                    </span>
+                  )}
                 </h2>
                 <button className="inv-modal-close" onClick={() => setShowItemDetails(false)}>
                   <FaTimes size={16} />
                 </button>
               </div>
               <div className="inv-modal-body">
+                {selectedItem.isGrouped && selectedItem.groupItems && (
+                  <div className="inv-grouped-items-list">
+                    <h4>Grouped Items:</h4>
+                    <ul>
+                      {selectedItem.groupItems.map((subItem) => (
+                        <li key={subItem.id}>
+                          {subItem.itemCode} - Qty: {subItem.actualQty} {subItem.uom} - 
+                          Reserved: {subItem.reservedStock} {subItem.uom}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 <div className="inv-detail-grid">
                   <div className="inv-detail-item">
                     <label>Item Code</label>
@@ -829,7 +928,12 @@ export default function InventoryList() {
                   </div>
                   <div className="inv-detail-item">
                     <label>Actual Quantity</label>
-                    <span>{selectedItem.actualQty} {selectedItem.uom}</span>
+                    <span>
+                      {selectedItem.actualQty} {selectedItem.uom}
+                      {selectedItem.isGrouped && selectedItem.groupItems && (
+                        <span className="inv-group-hint"> (total of {selectedItem.groupItems.length} items)</span>
+                      )}
+                    </span>
                   </div>
                   <div className="inv-detail-item">
                     <label>Reserved Stock</label>
@@ -889,6 +993,9 @@ export default function InventoryList() {
                 <p>Are you sure you want to delete this inventory item?</p>
                 <p className="inv-modal-item-name">
                   <strong>{selectedItemForDelete.itemCode}</strong> - {selectedItemForDelete.warehouse}
+                  {selectedItemForDelete.isGrouped && selectedItemForDelete.groupItems && (
+                    <span className="inv-group-hint"> ({selectedItemForDelete.groupItems.length} items will be deleted)</span>
+                  )}
                 </p>
                 <p className="inv-modal-warning">This action cannot be undone.</p>
               </div>
