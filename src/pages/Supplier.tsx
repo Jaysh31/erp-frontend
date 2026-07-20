@@ -112,7 +112,7 @@ export default function SupplierList() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [totalSuppliers, setTotalSuppliers] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
+  const [, setTotalPages] = useState(1);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState<SupplierDisplay | null>(null);
   const [supplierGroups, setSupplierGroups] = useState<string[]>([]);
@@ -135,9 +135,7 @@ export default function SupplierList() {
 
   const supplierTypes = ['Company', 'Individual', 'Partnership', 'Proprietorship', 'LLP', 'Trust', 'Society'];
   const countries = ['India', 'USA', 'UK', 'Germany', 'China', 'Japan', 'UAE', 'Singapore'];
-  // const currencies = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD'];
-  // const languages = ['en', 'hi', 'es', 'fr', 'de', 'zh', 'ar'];
-  const taxCategories = ['Registered Regular', 'Registered Composition', 'Unregistered', 'SEZ', 'Export Oriented'];
+ const taxCategories = ['Registered Regular', 'Registered Composition', 'Unregistered', 'SEZ', 'Export Oriented'];
   const paymentTerms = ['7 Days', '15 Days', '30 Days', '45 Days', '60 Days', 'Due on Receipt'];
   const priceLists = ['Standard Buying', 'Export Pricing', 'Wholesale', 'Distributor'];
   const statusOptions = ['Active', 'Inactive'];

@@ -1,17 +1,20 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef,  } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   FaArrowLeft, FaSave, FaSpinner, FaPlus,
   FaTrash, FaFileAlt,
-  FaBarcode, FaTag,
+ 
   FaTimes, FaExclamationTriangle, FaInfoCircle,
   FaUser, FaCreditCard, FaCalendarAlt,
-  FaFileImport, FaCheckCircle, FaExclamationCircle, FaQuestionCircle
+  FaFileImport, FaCheckCircle, FaExclamationCircle, FaQuestionCircle,
+  FaBuilding, FaPhone, FaEnvelope, FaBox, FaCalculator, FaClipboardList,
+
 } from 'react-icons/fa';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import './CreateSalesOrder.css';
 import toast from 'react-hot-toast';
 import api from '../../src/services/api';
+import ReactDOM from 'react-dom';
 
 /* ─────────────────────────── Types ─────────────────────────── */
 
@@ -24,8 +27,8 @@ interface SalesOrderItem {
   quantity: number;
   rate: number;
   stockUom: string;
-  cgst: number; // percentage
-  sgst: number; // percentage
+  cgst: number;
+  sgst: number;
   amount: number;
   stockStatus?: StockStatus;
   availableQty?: number;
@@ -42,12 +45,12 @@ interface PaymentScheduleRow {
 
 interface SalesOrderForm {
   namingSeries: string;
-  orderType: string;        
+  orderType: string;
   isSubcontracted: boolean;
   company: string;
   warehouse: string;
   date: string;
-  deliveryDate: string;     
+  deliveryDate: string;
   customer: string;
   customerName: string;
   status: string;
@@ -142,10 +145,39 @@ interface InventoryApiRecord {
   company?: string;
 }
 
-const withOption = (options: string[], value?: string | null): string[] => {
-  if (!value) return options;
-  return options.includes(value) ? options : [value, ...options];
-};
+// ===== SHARED: portal-based dropdown menu position hook =====
+// function useDropdownPosition(isOpen: boolean, triggerRef: React.RefObject<HTMLDivElement | null>) {
+//   const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
+
+//   const recalc = useCallback(() => {
+//     if (triggerRef.current) {
+//       const rect = triggerRef.current.getBoundingClientRect();
+//       setPos({
+//         top: rect.bottom + 4,
+//         left: rect.left,
+//         width: rect.width
+//       });
+//     }
+//   }, [triggerRef]);
+
+//   useEffect(() => {
+//     if (!isOpen) return;
+//     recalc();
+//     window.addEventListener('scroll', recalc, true);
+//     window.addEventListener('resize', recalc);
+//     return () => {
+//       window.removeEventListener('scroll', recalc, true);
+//       window.removeEventListener('resize', recalc);
+//     };
+//   }, [isOpen, recalc]);
+
+//   return pos;
+// }
+
+// const withOption = (options: string[], value?: string | null): string[] => {
+//   if (!value) return options;
+//   return options.includes(value) ? options : [value, ...options];
+// };
 
 const unwrapDate = (value?: string | null): string => {
   if (!value) return '';
@@ -200,19 +232,10 @@ const extractRecords = (payload: any): any[] => {
   return [];
 };
 
-// const extractRecord = (payload: any): any | null => {
-//   if (!payload) return null;
-//   const data = payload.success === 1 || payload.success === 0 ? payload.data : payload;
-//   if (data?.record) return data.record;
-//   if (data?.name) return data;
-//   return data ?? null;
-// };
-
 const getItemGrossAmount = (item: SalesOrderItem): number => {
   const gstPercent = (item.cgst || 0) + (item.sgst || 0);
   return item.amount + (item.amount * gstPercent) / 100;
 };
-
 
 const generateSalesOrderName = (): string => {
   const year = new Date().getFullYear();
@@ -220,7 +243,73 @@ const generateSalesOrderName = (): string => {
   return `SAL-ORD-${year}-${suffix}`;
 };
 
-/* ─────────────────────────── Component ─────────────────────────── */
+/* ═════ SUCCESS MODAL COMPONENT ═════ */
+interface SuccessModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  salesOrder: string;
+  totalItems: number;
+  message: string;
+  customerName?: string;
+  onViewDetails?: () => void;
+}
+
+const SuccessModal: React.FC<SuccessModalProps> = ({
+  isOpen,
+  onClose,
+  salesOrder,
+  totalItems,
+  message,
+  customerName,
+  onViewDetails
+}) => {
+  if (!isOpen) return null;
+
+  return ReactDOM.createPortal(
+    <div className="so-modal-overlay" onClick={onClose}>
+      <div className="so-modal-container" onClick={(e) => e.stopPropagation()}>
+        <div className="so-modal-success-icon">
+          <FaCheckCircle size={48} />
+        </div>
+        
+        <h2 className="so-modal-title">✓ Success!</h2>
+        
+        <p className="so-modal-message">{message}</p>
+        
+        <div className="so-modal-details">
+          <div className="so-modal-detail-item">
+            <span className="so-modal-detail-label">Sales Order</span>
+            <span className="so-modal-detail-value so-modal-so-number">{salesOrder}</span>
+          </div>
+          
+          {customerName && (
+            <div className="so-modal-detail-item">
+              <span className="so-modal-detail-label">Customer</span>
+              <span className="so-modal-detail-value">{customerName}</span>
+            </div>
+          )}
+          
+          <div className="so-modal-detail-item">
+            <span className="so-modal-detail-label">Total Items</span>
+            <span className="so-modal-detail-value">{totalItems}</span>
+          </div>
+        </div>
+        
+        <div className="so-modal-actions">
+          <button onClick={onViewDetails || onClose} className="so-modal-btn so-modal-btn-primary">
+            View Sales Order
+          </button>
+          <button onClick={onClose} className="so-modal-btn so-modal-btn-secondary">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+};
+
+/* ═════ MAIN COMPONENT ═════ */
 
 export default function CreateSalesOrder() {
   const navigate = useNavigate();
@@ -238,47 +327,56 @@ export default function CreateSalesOrder() {
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [saving, setSaving] = useState(false);
-  const [loadingRecord, setLoadingRecord] = useState(false);
-  const [focusedField, setFocusedField] = useState<string | null>(null);
+  const [, setLoadingRecord] = useState(false);
+  // const [focusedField, setFocusedField] = useState<string | null>(null);
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
-  const [scanBarcode, setScanBarcode] = useState('');
+  // const [scanBarcode, setScanBarcode] = useState('');
   const [showValidationSummary, setShowValidationSummary] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [apiError, setApiError] = useState<string | null>(null);
-
-  
   const [showStockWarningModal, setShowStockWarningModal] = useState(false);
   const [stockWarningItems, setStockWarningItems] = useState<SalesOrderItem[]>([]);
-
   const [recordName, setRecordName] = useState<string | null>(null);
 
-  // ─── Customer lookup ────────────────────────────────────────────
+  // Success Modal
+  const [showSuccessModal, setShowSuccessModal] = useState<boolean>(false);
+  const [successData, setSuccessData] = useState<{
+    salesOrder: string;
+    totalItems: number;
+    message: string;
+    customerName?: string;
+  }>({
+    salesOrder: '',
+    totalItems: 0,
+    message: ''
+  });
+
+  // Customer lookup
   const [customers, setCustomers] = useState<any[]>([]);
   const [loadingCustomers, setLoadingCustomers] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<any | null>(null);
 
-  // ─── Item lookup ────────────────────────────────────────────────
+  // Item lookup
   const [itemSuggestions, setItemSuggestions] = useState<{ [index: number]: any[] }>({});
   const [itemSuggestLoading, setItemSuggestLoading] = useState<{ [index: number]: boolean }>({});
   const [openItemDropdown, setOpenItemDropdown] = useState<number | null>(null);
   const itemSearchTimers = useRef<{ [index: number]: ReturnType<typeof setTimeout> }>({});
 
-  // ─── Quotation lookup / autofill ──────────────────────────────
+  // Quotation lookup
   const [quotations, setQuotations] = useState<QuotationApiRecord[]>([]);
   const [loadingQuotations, setLoadingQuotations] = useState(false);
   const [selectedQuotationName, setSelectedQuotationName] = useState('');
   const [applyingQuotation, setApplyingQuotation] = useState(false);
 
-  // ─── Inventory / stock check ───────────────────────────────────
+  // Inventory / stock check
   const [inventoryMap, setInventoryMap] = useState<{ [itemCode: string]: InventoryApiRecord }>({});
   const [loadingInventory, setLoadingInventory] = useState(false);
 
-  // ─── Item master catalog (for enriching quotation item lines) ──
+  // Item master catalog
   const [itemMasterMap, setItemMasterMap] = useState<{ [itemCode: string]: any }>({});
   const [loadingItemMaster, setLoadingItemMaster] = useState(false);
 
   const statusOptions = ['Draft', 'Confirmed', 'On Hold', 'Completed', 'Cancelled', 'Closed'];
-  // const orderTypeOptions = ['Sales', 'Return', 'Credit Note'];
 
   const defaultFormData = (): SalesOrderForm => ({
     namingSeries: 'SAL-ORD-.YYYY.-',
@@ -335,8 +433,7 @@ export default function CreateSalesOrder() {
     el.focus();
   };
 
-  /* ─── load customers ─────────────────────────────────────────── */
-
+  // ─── load customers ──────────────────────────
   const fetchCustomers = async () => {
     setLoadingCustomers(true);
     try {
@@ -373,21 +470,20 @@ export default function CreateSalesOrder() {
     if (errors.customer) setErrors((prev) => ({ ...prev, customer: '' }));
   };
 
-  const customerDetailFields: { label: string; key: string }[] = [
-    { label: 'Customer Name', key: 'customer_name' },
-    { label: 'Customer Group', key: 'customer_group' },
-    { label: 'Territory', key: 'territory' },
-    { label: 'Mobile No', key: 'mobile_no' },
-    { label: 'Phone', key: 'phone' },
-    { label: 'Email', key: 'email_id' },
-    { label: 'GSTIN', key: 'gstin' },
-    { label: 'PAN', key: 'pan' },
-    { label: 'Address', key: 'primary_address' },
-    { label: 'Credit Limit', key: 'credit_limit' },
-  ];
+  // const customerDetailFields: { label: string; key: string }[] = [
+  //   { label: 'Customer Name', key: 'customer_name' },
+  //   { label: 'Customer Group', key: 'customer_group' },
+  //   { label: 'Territory', key: 'territory' },
+  //   { label: 'Mobile No', key: 'mobile_no' },
+  //   { label: 'Phone', key: 'phone' },
+  //   { label: 'Email', key: 'email_id' },
+  //   { label: 'GSTIN', key: 'gstin' },
+  //   { label: 'PAN', key: 'pan' },
+  //   { label: 'Address', key: 'primary_address' },
+  //   { label: 'Credit Limit', key: 'credit_limit' },
+  // ];
 
-  /* ─── load quotations (for autofill) ───────────────────────────── */
-
+  // ─── load quotations ──────────────────────────
   const fetchQuotations = async () => {
     setLoadingQuotations(true);
     try {
@@ -413,8 +509,7 @@ export default function CreateSalesOrder() {
     return `${q.name} — ${customer} (INR ${amount})`;
   };
 
-  /* ─── load inventory (for stock check) ─────────────────────────── */
-
+  // ─── load inventory ──────────────────────────
   const fetchInventory = async () => {
     setLoadingInventory(true);
     try {
@@ -424,7 +519,6 @@ export default function CreateSalesOrder() {
       records.forEach((r) => {
         if (r.item_code) {
           const key = r.item_code.toUpperCase();
-          // If the same item exists in multiple warehouses, keep the one with the highest actual_qty.
           if (!map[key] || (r.actual_qty ?? 0) > (map[key].actual_qty ?? 0)) {
             map[key] = r;
           }
@@ -442,7 +536,6 @@ export default function CreateSalesOrder() {
     fetchInventory();
   }, []);
 
- 
   const fetchItemMaster = async () => {
     setLoadingItemMaster(true);
     try {
@@ -481,7 +574,6 @@ export default function CreateSalesOrder() {
     };
   };
 
-  
   useEffect(() => {
     if (Object.keys(inventoryMap).length === 0) return;
     setFormData((prev) => {
@@ -498,34 +590,33 @@ export default function CreateSalesOrder() {
     if (!item.itemCode) return null;
     if (loadingInventory) {
       return (
-        <span className="cq-stock-badge cq-stock-checking">
-          <FaSpinner className="spinning" size={9} /> Checking
+        <span className="so-stock-badge so-stock-checking">
+          <FaSpinner className="so-spinning" size={9} /> Checking
         </span>
       );
     }
     if (item.stockStatus === 'available') {
       return (
-        <span className="cq-stock-badge cq-stock-available" title={`${item.availableQty} in stock`}>
+        <span className="so-stock-badge so-stock-available" title={`${item.availableQty} in stock`}>
           <FaCheckCircle size={9} /> In Stock ({item.availableQty})
         </span>
       );
     }
     if (item.stockStatus === 'insufficient') {
       return (
-        <span className="cq-stock-badge cq-stock-insufficient" title={`Only ${item.availableQty} available`}>
+        <span className="so-stock-badge so-stock-insufficient" title={`Only ${item.availableQty} available`}>
           <FaExclamationCircle size={9} /> Only {item.availableQty ?? 0} left
         </span>
       );
     }
     return (
-      <span className="cq-stock-badge cq-stock-unknown">
+      <span className="so-stock-badge so-stock-unknown">
         <FaQuestionCircle size={9} /> Unknown
       </span>
     );
   };
 
-  /* ─── load items (search) ────────────────────────────────────── */
-
+  // ─── load items (search) ──────────────────────
   const fetchItemOptions = async (index: number, query: string) => {
     setItemSuggestLoading((prev) => ({ ...prev, [index]: true }));
     try {
@@ -597,8 +688,7 @@ export default function CreateSalesOrder() {
     return name ? `${code} — ${name}` : code;
   };
 
-  /* ─── load quotation into form ─────────────────────────────────── */
-
+  // ─── load quotation ──────────────────────────
   const handleQuotationChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const name = e.target.value;
     setSelectedQuotationName(name);
@@ -606,7 +696,6 @@ export default function CreateSalesOrder() {
 
     setApplyingQuotation(true);
     try {
-      
       const response = await api.get('/quotation');
       const payload = response.data;
       const data = payload && (payload.success === 1 || payload.success === 0) ? payload.data : payload;
@@ -633,11 +722,9 @@ export default function CreateSalesOrder() {
     }
   };
 
-  /** Looks up an item_code in the /item master catalog (case-insensitive). */
   const getItemMasterRecord = (itemCode: string): any | undefined =>
     itemCode ? itemMasterMap[itemCode.toUpperCase()] : undefined;
 
-  
   const findLikelyCatalogMatch = (rate: number, quantity: number): any | undefined => {
     const candidates = Object.values(itemMasterMap).filter((m: any) => {
       if (m.is_sales_item === 0) return false;
@@ -661,7 +748,6 @@ export default function CreateSalesOrder() {
     let itemsNeedManualPick = false;
 
     if (rawItems.length > 0) {
-      
       items = rawItems.map((it, idx) => {
         const itemCode = it.item_code || '';
         const master = getItemMasterRecord(itemCode);
@@ -685,7 +771,6 @@ export default function CreateSalesOrder() {
         };
       });
     } else {
-      
       const quantity = record.total_qty && record.total_qty > 0 ? record.total_qty : 0;
       const baseAmount = record.total ?? record.net_total ?? 0;
 
@@ -694,7 +779,6 @@ export default function CreateSalesOrder() {
         const grand = record.grand_total ?? record.rounded_total ?? baseAmount;
         const taxAmount = Math.max(0, grand - baseAmount);
         const taxPercent = baseAmount > 0 ? (taxAmount / baseAmount) * 100 : 0;
-       
         const halfTax = Number((taxPercent / 2).toFixed(2));
 
         const match = findLikelyCatalogMatch(rate, quantity);
@@ -735,7 +819,6 @@ export default function CreateSalesOrder() {
       }
     }
 
-    
     let paymentSchedule: PaymentScheduleRow[] = [];
     if (Array.isArray(record.payment_schedule) && record.payment_schedule.length > 0) {
       paymentSchedule = record.payment_schedule.map((p: any, idx: number) => ({
@@ -775,7 +858,6 @@ export default function CreateSalesOrder() {
       paymentSchedule: paymentSchedule.length > 0 ? paymentSchedule : prev.paymentSchedule,
     }));
 
-    
     if (record.party_name) {
       const match = customers.find((c) => String(customerIdOf(c)) === String(record.party_name));
       if (match) setSelectedCustomer(match);
@@ -798,8 +880,7 @@ export default function CreateSalesOrder() {
     }
   };
 
-  /* ─── load existing sales order when editing ──────────────────────── */
-
+  // ─── load existing sales order ───────────────────
   useEffect(() => {
     if (isEditMode && id) {
       fetchSalesOrderById(id);
@@ -935,11 +1016,9 @@ export default function CreateSalesOrder() {
       const match = customers.find((c) => String(customerIdOf(c)) === String(formData.customer));
       if (match) setSelectedCustomer(match);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customers, formData.customer]);
 
-  /* ─── validation ─────────────────────────────────────────────── */
-
+  // ─── validation ──────────────────────────────
   const getAllValidationErrors = (): ValidationError[] => {
     const allErrors: ValidationError[] = [];
 
@@ -1017,7 +1096,6 @@ export default function CreateSalesOrder() {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.items.length, showBarcodeScanner]);
 
   useEffect(() => {
@@ -1028,7 +1106,6 @@ export default function CreateSalesOrder() {
 
   useEffect(() => {
     calculateTotals();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.items]);
 
   const calculateTotals = () => {
@@ -1142,8 +1219,7 @@ export default function CreateSalesOrder() {
     }));
   };
 
-  /* ─── payment schedule ───────────────────────────────────────── */
-
+  // ─── payment schedule ─────────────────────────
   const addPaymentSchedule = () => {
     const newId = String(formData.paymentSchedule.length + 1);
     setFormData(prev => ({
@@ -1181,8 +1257,7 @@ export default function CreateSalesOrder() {
     updatePaymentRow(index, { durationDays, dueDate });
   };
 
-  /* ─── submit ─────────────────────────────────────────────────── */
-
+  // ─── submit ──────────────────────────────────
   const validateForm = (): boolean => {
     const allErrors = getAllValidationErrors();
     if (allErrors.length > 0) {
@@ -1197,7 +1272,6 @@ export default function CreateSalesOrder() {
     if (!date) return '';
     return date.split('T')[0];
   };
-
 
   const buildApiPayload = () => {
     const validItems = formData.items.filter((item) => item.itemCode || item.itemName);
@@ -1242,7 +1316,6 @@ export default function CreateSalesOrder() {
     return payload;
   };
 
-  
   const saveSalesOrder = async () => {
     setSaving(true);
     setApiError(null);
@@ -1261,15 +1334,23 @@ export default function CreateSalesOrder() {
         throw new Error(response.data?.message || 'Failed to save sales order');
       }
 
-   
       const savedName = response.data?.data?.name || payload.name;
       cacheSalesOrderLineData(savedName, {
         items: formData.items,
         paymentSchedule: formData.paymentSchedule,
       });
 
+      const totalItems = formData.items.filter(i => i.itemCode && i.quantity > 0).length;
+
+      setSuccessData({
+        salesOrder: savedName,
+        totalItems: totalItems,
+        message: isEditMode ? 'Sales order updated successfully!' : 'Sales order created successfully!',
+        customerName: formData.customerName
+      });
+      setShowSuccessModal(true);
+
       toast.success(isEditMode ? 'Sales order updated successfully!' : 'Sales order created successfully!');
-      navigate('/sales-order');
     } catch (error: any) {
       console.error('Error saving sales order:', error);
       let message = 'Failed to save sales order';
@@ -1297,7 +1378,6 @@ export default function CreateSalesOrder() {
 
     const insufficientItems = formData.items.filter((item) => item.itemCode && item.stockStatus === 'insufficient');
     if (insufficientItems.length > 0) {
-      
       setStockWarningItems(insufficientItems);
       setShowStockWarningModal(true);
       return;
@@ -1317,637 +1397,673 @@ export default function CreateSalesOrder() {
     }
   };
 
-  const allValidationErrors = getAllValidationErrors();
-  const hasAnyErrors = allValidationErrors.length > 0;
+  const handleViewSalesOrder = () => {
+    setShowSuccessModal(false);
+    navigate(`/sales-order/${successData.salesOrder}`);
+  };
 
-  return (
-    <div className={`create-sales-order-page ${theme}-theme`}>
-      {/* Validation Summary Modal */}
-      {showValidationSummary && validationErrors.length > 0 && (
-        <div className="jcf-modal-overlay" onClick={() => setShowValidationSummary(false)}>
-          <div className="jcf-validation-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="jcf-modal-header jcf-modal-header-warning">
-              <h2 className="jcf-modal-title-warning">
-                <FaExclamationTriangle /> Missing Required Fields
-              </h2>
-              <button className="jcf-modal-close" onClick={() => setShowValidationSummary(false)}>×</button>
-            </div>
-            <div className="jcf-modal-body">
-              <p className="jcf-modal-intro">
-                Please fill in the following required fields before submitting:
-              </p>
-              <div className="jcf-error-list">
-                {validationErrors.map((error, idx) => (
-                  <div key={idx} className="jcf-validation-error-item" onClick={() => jumpToField(error.field)}>
-                    <div className="jcf-error-header">
-                      <FaTimes className="jcf-error-icon" />
-                      <strong className="jcf-error-label">{error.label}</strong>
-                    </div>
-                    <div className="jcf-error-message">{error.message}</div>
+  const handleCloseModal = () => {
+    setShowSuccessModal(false);
+    navigate('/sales-order');
+  };
+
+  // const allValidationErrors = getAllValidationErrors();
+  // const hasAnyErrors = allValidationErrors.length > 0;
+
+  // In the return statement, replace the existing JSX with this structure:
+
+return (
+  <div className={`so-page ${theme}`}>
+    <style>{`
+      .so-spinning { animation: soSpin 1s linear infinite; }
+      @keyframes soSpin { to { transform: rotate(360deg); } }
+
+      .so-custom-scroll::-webkit-scrollbar {
+        width: 4px;
+        height: 4px;
+      }
+      .so-custom-scroll::-webkit-scrollbar-track {
+        background: var(--border-color, #f1f5f9);
+        border-radius: 2px;
+      }
+      .so-custom-scroll::-webkit-scrollbar-thumb {
+        background: var(--text-secondary, #cbd5e1);
+        border-radius: 2px;
+      }
+      .so-custom-scroll::-webkit-scrollbar-thumb:hover {
+        background: var(--text-secondary, #94a3b8);
+      }
+    `}</style>
+
+    {/* Success Modal */}
+    <SuccessModal
+      isOpen={showSuccessModal}
+      onClose={handleCloseModal}
+      salesOrder={successData.salesOrder}
+      totalItems={successData.totalItems}
+      message={successData.message}
+      customerName={successData.customerName}
+      onViewDetails={handleViewSalesOrder}
+    />
+
+    {/* Validation Summary Modal */}
+    {showValidationSummary && validationErrors.length > 0 && (
+      <div className="so-modal-overlay" onClick={() => setShowValidationSummary(false)}>
+        <div className="so-validation-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="so-modal-header so-modal-header-warning">
+            <h2 className="so-modal-title-warning">
+              <FaExclamationTriangle /> Missing Required Fields
+            </h2>
+            <button className="so-modal-close" onClick={() => setShowValidationSummary(false)}>×</button>
+          </div>
+          <div className="so-modal-body">
+            <p className="so-modal-intro">
+              Please fill in the following required fields before submitting:
+            </p>
+            <div className="so-error-list">
+              {validationErrors.map((error, idx) => (
+                <div key={idx} className="so-validation-error-item" onClick={() => jumpToField(error.field)}>
+                  <div className="so-error-header">
+                    <FaTimes className="so-error-icon" />
+                    <strong className="so-error-label">{error.label}</strong>
                   </div>
-                ))}
-              </div>
-              <div className="jcf-hint-banner">
-                <FaInfoCircle className="jcf-hint-icon" />
-                Click on any error to jump to that field
-              </div>
+                  <div className="so-error-message">{error.message}</div>
+                </div>
+              ))}
             </div>
-            <div className="jcf-modal-footer">
-              <button className="jcf-btn-cancel" onClick={() => setShowValidationSummary(false)}>Close</button>
+            <div className="so-hint-banner">
+              <FaInfoCircle className="so-hint-icon" />
+              Click on any error to jump to that field
+            </div>
+          </div>
+          <div className="so-modal-footer">
+            <button className="so-btn-cancel" onClick={() => setShowValidationSummary(false)}>Close</button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Stock Warning Modal */}
+    {showStockWarningModal && (
+      <div className="so-modal-overlay" onClick={() => setShowStockWarningModal(false)}>
+        <div className="so-validation-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="so-modal-header so-modal-header-warning">
+            <h2 className="so-modal-title-warning">
+              <FaExclamationTriangle /> Insufficient Stock
+            </h2>
+            <button className="so-modal-close" onClick={() => setShowStockWarningModal(false)}>×</button>
+          </div>
+          <div className="so-modal-body">
+            <p className="so-modal-intro">
+              The following item{stockWarningItems.length > 1 ? 's do' : ' does'} not have enough stock available.
+              You can still create this sales order, or go back and adjust the quantities.
+            </p>
+            <div className="so-error-list">
+              {stockWarningItems.map((item, idx) => (
+                <div key={idx} className="so-validation-error-item" style={{ cursor: 'default' }}>
+                  <div className="so-error-header">
+                    <FaExclamationCircle className="so-error-icon" />
+                    <strong className="so-error-label">
+                      {item.itemName || item.itemCode} ({item.itemCode})
+                    </strong>
+                  </div>
+                  <div className="so-error-message">
+                    Requested {item.quantity}, only {item.availableQty ?? 0} in stock
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="so-hint-banner">
+              <FaInfoCircle className="so-hint-icon" />
+              You can create the order anyway and adjust stock later, or go back to change quantities.
+            </div>
+          </div>
+          <div className="so-modal-footer" style={{ justifyContent: 'space-between' }}>
+            <button className="so-btn-cancel" onClick={() => setShowStockWarningModal(false)}>
+              Go Back
+            </button>
+            <button className="so-btn so-btn-submit" onClick={confirmSaveDespiteStock} disabled={saving}>
+              {saving && <FaSpinner className="so-spinning" />}
+              <FaSave /> Create Anyway
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Header */}
+    <div className="so-header">
+      <div className="so-header-left">
+        <button onClick={() => navigate('/sales-order')} className="so-back-btn">
+          <FaArrowLeft size={13} /> Back
+        </button>
+        <div className="so-header-divider" />
+        <h1 className="so-header-title">
+          {isEditMode ? 'Edit Sales Order' : 'Create Sales Order'}
+        </h1>
+      </div>
+      <div className="so-header-right">
+        <label className="so-checkbox-label">
+          <input
+            type="checkbox"
+            name="isSubcontracted"
+            checked={formData.isSubcontracted}
+            onChange={handleInputChange}
+            className="so-checkbox"
+          />
+          <span>Subcontracted</span>
+        </label>
+      </div>
+    </div>
+
+    {/* API Error Pill */}
+    {apiError && (
+      <div className="so-error-pill">
+        <FaExclamationTriangle size={11} />
+        {apiError}
+      </div>
+    )}
+
+    {/* Main Box */}
+    <div className="so-main-box">
+      {/* Two-Column Compact Layout */}
+      <div className="so-compact-layout">
+        {/* Left Column */}
+        <div className="so-left-column">
+          {/* Load from Quotation */}
+          {!isEditMode && (
+            <>
+              <div className="so-section-header">
+                <FaFileImport className="so-section-icon" />
+                <span>Load from Quotation</span>
+              </div>
+              <div className="so-field">
+                <label className="so-label">Select Quotation</label>
+                <select
+                  value={selectedQuotationName}
+                  onChange={handleQuotationChange}
+                  disabled={loadingQuotations || applyingQuotation || loadingItemMaster}
+                  className="so-select"
+                >
+                  <option value="">
+                    {loadingQuotations
+                      ? 'Loading quotations...'
+                      : loadingItemMaster
+                        ? 'Loading item catalog...'
+                        : 'Select a quotation to auto-fill...'}
+                  </option>
+                  {quotations.map((q) => (
+                    <option key={q.name} value={q.name}>
+                      {quotationLabelOf(q)}
+                    </option>
+                  ))}
+                </select>
+                {applyingQuotation && (
+                  <span className="so-loading-text">
+                    <FaSpinner className="so-spinning" size={10} /> Loading quotation details...
+                  </span>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* Basic Information */}
+          <div className="so-section-header" style={{ marginTop: !isEditMode ? '1rem' : '0' }}>
+            <FaBox className="so-section-icon" />
+            <span>Basic Information</span>
+          </div>
+
+          {/* Customer & Date in one row */}
+          <div className="so-field-row">
+            <div className="so-field-half">
+              <label className="so-label"><FaUser size={11} style={{ marginRight: 4 }} />Customer <span className="so-required">*</span></label>
+              <select
+                name="customer"
+                value={formData.customer}
+                onChange={handleCustomerChange}
+                className={`so-select ${errors.customer ? 'so-select-error' : ''}`}
+                ref={setRef('customer')}
+                disabled={loadingCustomers}
+              >
+                <option value="">{loadingCustomers ? 'Loading customers...' : 'Select customer...'}</option>
+                {customers.map((c) => (
+                  <option key={customerIdOf(c)} value={customerIdOf(c)}>
+                    {customerLabelOf(c)}
+                  </option>
+                ))}
+              </select>
+              {errors.customer && <span className="so-error-text">{errors.customer}</span>}
+            </div>
+
+            <div className="so-field-half">
+              <label className="so-label">Date <span className="so-required">*</span></label>
+              <div className="so-date-field">
+                <input
+                  type="date"
+                  name="date"
+                  value={formData.date}
+                  onChange={handleInputChange}
+                  className={`so-input ${errors.date ? 'so-input-error' : ''}`}
+                  ref={setRef('date')}
+                />
+                <button
+                  type="button"
+                  className="so-date-icon-btn"
+                  onClick={() => openDatePicker('date')}
+                  tabIndex={-1}
+                >
+                  <FaCalendarAlt size={13} />
+                </button>
+              </div>
+              {errors.date && <span className="so-error-text">{errors.date}</span>}
+            </div>
+          </div>
+
+          {/* Delivery Date and Status in grid-3 */}
+          <div className="so-grid-3">
+            <div className="so-field">
+              <label className="so-label">Delivery Date <span className="so-required">*</span></label>
+              <div className="so-date-field">
+                <input
+                  type="date"
+                  name="deliveryDate"
+                  value={formData.deliveryDate}
+                  onChange={handleInputChange}
+                  className={`so-input ${errors.deliveryDate ? 'so-input-error' : ''}`}
+                  ref={setRef('deliveryDate')}
+                />
+                <button
+                  type="button"
+                  className="so-date-icon-btn"
+                  onClick={() => openDatePicker('deliveryDate')}
+                  tabIndex={-1}
+                >
+                  <FaCalendarAlt size={13} />
+                </button>
+              </div>
+              {errors.deliveryDate && <span className="so-error-text">{errors.deliveryDate}</span>}
+            </div>
+
+            <div className="so-field">
+              <label className="so-label">Status</label>
+              <select
+                name="status"
+                value={formData.status}
+                onChange={handleInputChange}
+                className="so-select"
+              >
+                {statusOptions.map((opt) => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="so-field">
+              <label className="so-label">Order Type</label>
+              <select
+                name="orderType"
+                value={formData.orderType}
+                onChange={handleInputChange}
+                className="so-select"
+                ref={setRef('orderType')}
+              >
+                <option value="Sales">Sales</option>
+                <option value="Credit Note">Credit Note</option>
+                <option value="Debit Note">Debit Note</option>
+                <option value="Quotation">Quotation</option>
+              </select>
             </div>
           </div>
         </div>
-      )}
 
-      {/* Insufficient Stock Warning Modal (replaces window.confirm) */}
-      {showStockWarningModal && (
-        <div className="jcf-modal-overlay" onClick={() => setShowStockWarningModal(false)}>
-          <div className="jcf-validation-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="jcf-modal-header jcf-modal-header-warning">
-              <h2 className="jcf-modal-title-warning">
-                <FaExclamationTriangle /> Insufficient Stock
-              </h2>
-              <button className="jcf-modal-close" onClick={() => setShowStockWarningModal(false)}>×</button>
-            </div>
-            <div className="jcf-modal-body">
-              <p className="jcf-modal-intro">
-                The following item{stockWarningItems.length > 1 ? 's do' : ' does'} not have enough stock available.
-                You can still create this sales order, or go back and adjust the quantities.
-              </p>
-              <div className="jcf-error-list">
-                {stockWarningItems.map((item, idx) => (
-                  <div key={idx} className="jcf-validation-error-item" style={{ cursor: 'default' }}>
-                    <div className="jcf-error-header">
-                      <FaExclamationCircle className="jcf-error-icon" />
-                      <strong className="jcf-error-label">
-                        {item.itemName || item.itemCode} ({item.itemCode})
-                      </strong>
-                    </div>
-                    <div className="jcf-error-message">
-                      Requested {item.quantity}, only {item.availableQty ?? 0} in stock
-                    </div>
-                  </div>
-                ))}
+        {/* Right Column - Customer Detail Card */}
+        <div className="so-right-column">
+          {selectedCustomer ? (
+            <div className="so-detail-card">
+              <div className="so-card-header">
+                <FaBuilding size={14} />
+                <span>Customer Details</span>
               </div>
-              <div className="jcf-hint-banner">
-                <FaInfoCircle className="jcf-hint-icon" />
-                You can create the order anyway and adjust stock later, or go back to change quantities.
+              <div className="so-card-content">
+                <h3>{selectedCustomer.customer_name || selectedCustomer.name}</h3>
+                <div className="so-card-info">
+                  {selectedCustomer.mobile_no && (
+                    <div className="so-info-item">
+                      <span className="so-info-label"><FaPhone size={10} /> Phone</span>
+                      <span className="so-info-value">{selectedCustomer.mobile_no}</span>
+                    </div>
+                  )}
+                  {selectedCustomer.email_id && (
+                    <div className="so-info-item">
+                      <span className="so-info-label"><FaEnvelope size={10} /> Email</span>
+                      <span className="so-info-value">{selectedCustomer.email_id}</span>
+                    </div>
+                  )}
+                  {selectedCustomer.gstin && (
+                    <div className="so-info-item">
+                      <span className="so-info-label">GST</span>
+                      <span className="so-info-value">{selectedCustomer.gstin}</span>
+                    </div>
+                  )}
+                  {selectedCustomer.primary_address && (
+                    <div className="so-info-item">
+                      <span className="so-info-label">Address</span>
+                      <span className="so-info-value">{selectedCustomer.primary_address}</span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-            <div className="jcf-modal-footer" style={{ justifyContent: 'space-between' }}>
-              <button className="jcf-btn-cancel" onClick={() => setShowStockWarningModal(false)}>
-                Go Back
-              </button>
-              <button className="submit-btn" onClick={confirmSaveDespiteStock} disabled={saving}>
-                {saving && <FaSpinner className="spinning" />}
-                <FaSave /> Create Anyway
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="jcf-header-wrap">
-        <div className="jcf-header-row">
-          <button
-            type="button"
-            className="jcf-back-btn"
-            onClick={() => navigate('/sales-order')}
-          >
-            <FaArrowLeft size={12} />
-            Back
-          </button>
-
-          <h1 className="jcf-title">
-            {isEditMode ? 'Edit Sales Order' : 'Create Sales Order'}
-          </h1>
-
-          {apiError && (
-            <div className="jcf-error-pill">
-              <FaExclamationTriangle size={11} />
-              {apiError}
-            </div>
-          )}
-
-          {hasAnyErrors && (
-            <div className="jcf-error-pill">
-              <FaExclamationTriangle size={11} />
-              {allValidationErrors.length} issue
-              {allValidationErrors.length > 1 ? 's' : ''}
-            </div>
-          )}
-
-          {loadingRecord && (
-            <div className="jcf-error-pill">
-              <FaSpinner className="spinning" size={11} />
-              Loading sales order...
+          ) : (
+            <div className="so-detail-card so-empty-card">
+              <div className="so-card-header">
+                <FaBuilding size={14} />
+                <span>Customer Details</span>
+              </div>
+              <div className="so-card-content">
+                <div className="so-empty-state">
+                  <FaInfoCircle size={24} />
+                  <p>Select a customer to view details</p>
+                </div>
+              </div>
             </div>
           )}
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="salesorder-form">
-        <div className="form-scrollable">
+      {/* Full Width - Items Section */}
+      <div className="so-items-full">
+        <div className="so-items-header">
+          <span className="so-items-title">
+            <FaClipboardList className="so-items-icon" /> Products
+          </span>
+          <button type="button" className="so-add-btn" onClick={addItemRow}>
+            <FaPlus size={9} /> Add
+          </button>
+        </div>
 
-          {/* ── Load from Quotation ───────────────────────────── */}
-          {!isEditMode && (
-            <div className="form-section">
-              <div className="section-header">
-                <h3 className="section-title"><FaFileImport size={13} /> Load from Quotation</h3>
-              </div>
-              <div className="form-grid compact-grid">
-                <div className="form-group">
-                  <label>Select Quotation</label>
-                  <select
-                    value={selectedQuotationName}
-                    onChange={handleQuotationChange}
-                    disabled={loadingQuotations || applyingQuotation || loadingItemMaster}
-                  >
-                    <option value="">
-                      {loadingQuotations
-                        ? 'Loading quotations...'
-                        : loadingItemMaster
-                          ? 'Loading item catalog...'
-                          : 'Select a quotation to auto-fill this form...'}
-                    </option>
-                    {quotations.map((q) => (
-                      <option key={q.name} value={q.name}>
-                        {quotationLabelOf(q)}
-                      </option>
-                    ))}
-                  </select>
-                  {applyingQuotation && (
-                    <span className="error-text" style={{ color: 'var(--primary-color)' }}>
-                      <FaSpinner className="spinning" size={10} /> Loading quotation details...
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
+        {errors.items && <div className="so-items-error"><FaExclamationTriangle /> {errors.items}</div>}
 
-          {/* ── Basic Information ─────────────────────────────── */}
-          <div className="form-section">
-            <div className="section-header">
-              <h3 className="section-title">Basic Information</h3>
-            </div>
-            <div className="form-grid compact-grid">
-              {/* Company */}
-              {/* <div className="form-group">
-                <label>Company</label>
-                <input
-                  type="text"
-                  name="company"
-                  value={formData.company}
-                  onChange={handleInputChange}
-                  ref={setRef('company')}
-                />
-              </div> */}
-
-              {/* Warehouse */}
-              {/* <div className="form-group">
-                <label><FaBoxes size={11} style={{ marginRight: 4 }} />Warehouse</label>
-                <input
-                  type="text"
-                  name="warehouse"
-                  value={formData.warehouse}
-                  onChange={handleInputChange}
-                  ref={setRef('warehouse')}
-                />
-              </div> */}
-
-              {/* Date */}
-              <div className="form-group">
-                <label>Date *</label>
-                <div className="cq-date-field">
-                  <input
-                    type="date"
-                    name="date"
-                    value={formData.date}
-                    onChange={handleInputChange}
-                    className={errors.date ? 'error' : ''}
-                    ref={setRef('date')}
-                  />
-                  <button
-                    type="button"
-                    className="cq-date-icon-btn"
-                    onClick={() => openDatePicker('date')}
-                    tabIndex={-1}
-                    aria-label="Open calendar"
-                  >
-                    <FaCalendarAlt size={13} />
-                  </button>
-                </div>
-                {errors.date && <span className="error-text">{errors.date}</span>}
-              </div>
-
-              {/* Delivery Date */}
-              <div className="form-group">
-                <label>Delivery Date *</label>
-                <div className="cq-date-field">
-                  <input
-                    type="date"
-                    name="deliveryDate"
-                    value={formData.deliveryDate}
-                    onChange={handleInputChange}
-                    className={errors.deliveryDate ? 'error' : ''}
-                    ref={setRef('deliveryDate')}
-                  />
-                  <button
-                    type="button"
-                    className="cq-date-icon-btn"
-                    onClick={() => openDatePicker('deliveryDate')}
-                    tabIndex={-1}
-                    aria-label="Open calendar"
-                  >
-                    <FaCalendarAlt size={13} />
-                  </button>
-                </div>
-                {errors.deliveryDate && <span className="error-text">{errors.deliveryDate}</span>}
-              </div>
-            </div>
-
-            {/* Customer */}
-            <div className="form-grid compact-grid" style={{ marginTop: 2 }}>
-              <div className="form-group">
-                <label><FaUser size={11} style={{ marginRight: 4 }} />Customer *</label>
-                <select
-                  name="customer"
-                  value={formData.customer}
-                  onChange={handleCustomerChange}
-                  className={errors.customer ? 'error' : ''}
-                  ref={setRef('customer')}
-                  disabled={loadingCustomers}
-                >
-                  <option value="">{loadingCustomers ? 'Loading customers...' : 'Select customer...'}</option>
-                  {customers.map((c) => (
-                    <option key={customerIdOf(c)} value={customerIdOf(c)}>
-                      {customerLabelOf(c)}
-                    </option>
-                  ))}
-                </select>
-                {errors.customer && <span className="error-text">{errors.customer}</span>}
-              </div>
-
-              {selectedCustomer && (
-                <div className="form-group full-width">
-                  <div className="cq-customer-card">
-                    {customerDetailFields
-                      .filter(({ key }) => selectedCustomer[key])
-                      .map(({ label, key }) => (
-                        <div className="cq-customer-field" key={key}>
-                          <span className="cq-customer-label">{label}</span>
-                          <span className="cq-customer-value">{String(selectedCustomer[key])}</span>
-                        </div>
-                      ))}
-                    {customerDetailFields.filter(({ key }) => selectedCustomer[key]).length === 0 && (
-                      <div className="cq-customer-empty">No additional details available for this customer.</div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Status (fixed to default, not editable) */}
-              <div className="form-group">
-                <label>Status</label>
-                <select
-                  name="status"
-                  value={formData.status}
-                  disabled
-                  className="disabled-input"
-                  ref={setRef('status')}
-                >
-                  {withOption(statusOptions, formData.status).map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* ── Items ─────────────────────────────────────── */}
-          <div className="form-section">
-            <div className="section-header">
-              <h3 className="section-title"><FaTag size={13} /> Items</h3>
-              <div className="section-actions">
-                <button
-                  type="button"
-                  className="barcode-btn"
-                  onClick={() => setShowBarcodeScanner(!showBarcodeScanner)}
-                  title="Ctrl+B"
-                >
-                  <FaBarcode size={14} /> Scan Barcode
-                </button>
-                <button type="button" className="add-item-btn" onClick={addItemRow}>
-                  <FaPlus size={12} /> Add Item
-                </button>
-              </div>
-            </div>
-
-            {showBarcodeScanner && (
-              <div className="barcode-scanner">
-                <input
-                  type="text"
-                  placeholder="Scan or enter barcode..."
-                  value={scanBarcode}
-                  onChange={(e) => setScanBarcode(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && toast.success(`Item ${scanBarcode} added`)}
-                  autoFocus
-                />
-                <button onClick={() => setShowBarcodeScanner(false)}>
-                  <FaTimes size={14} />
-                </button>
-              </div>
-            )}
-
-            {errors.items && <div className="error-text">{errors.items}</div>}
-
-            <div className="items-table-wrapper">
-              <table className="items-table cq-items-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: '32px' }}>No.</th>
-                    <th className="cq-col-code">Item Code</th>
-                    <th style={{ minWidth: '110px' }}>Item Name</th>
-                    <th style={{ width: '64px' }}>Qty</th>
-                    <th style={{ width: '80px' }}>Rate</th>
-                    <th style={{ width: '58px' }}>CGST %</th>
-                    <th style={{ width: '58px' }}>SGST %</th>
-                    <th style={{ width: '100px' }}>Amount (incl. GST)</th>
-                    <th style={{ width: '110px' }}>Stock</th>
-                    <th style={{ width: '32px' }}></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {formData.items.map((item, index) => (
-                    <tr key={item.id} className={focusedField === `item_${index}` ? 'focused-row' : ''}>
-                      <td className="text-center">{index + 1}</td>
-                      <td className="cq-col-code" style={{ position: 'relative' }}>
-                        <input
-                          type="text"
-                          value={item.itemCode}
-                          onChange={(e) => handleItemChange(index, 'itemCode', e.target.value)}
-                          placeholder="Code"
-                          className={errors[`item_${index}_code`] ? 'error' : ''}
-                          ref={setItemRef(`item_${index}_itemCode`)}
-                          onFocus={() => { setFocusedField(`item_${index}`); handleItemCodeFocus(index); }}
-                          onBlur={handleItemCodeBlur}
-                          onKeyDown={(e) => handleItemKeyDown(e, index, 'itemCode')}
-                          autoComplete="off"
-                        />
-                        {errors[`item_${index}_code`] && <span className="error-text">{errors[`item_${index}_code`]}</span>}
-
-                        {openItemDropdown === index && (
-                          <div className="cq-item-suggest-dropdown">
-                            {itemSuggestLoading[index] && (
-                              <div className="cq-item-suggest-loading"><FaSpinner className="spinning" size={11} /> Searching...</div>
-                            )}
-                            {!itemSuggestLoading[index] && (itemSuggestions[index]?.length ?? 0) === 0 && (
-                              <div className="cq-item-suggest-empty">No items found</div>
-                            )}
-                            {!itemSuggestLoading[index] && itemSuggestions[index]?.map((rec, ri) => (
-                              <div
-                                key={ri}
-                                className="cq-item-suggest-row"
-                                onMouseDown={() => selectItemSuggestion(index, rec)}
-                              >
-                                {itemOptionLabel(rec)}
-                              </div>
-                            ))}
+        <div className="so-table-wrap">
+          <table className="so-items-table">
+            <thead>
+              <tr>
+                <th className="so-col-code">Item Code</th>
+                <th className="so-col-name">Item Name</th>
+                <th className="so-col-qty">Qty</th>
+                <th className="so-col-rate">Rate</th>
+                <th className="so-col-cgst">CGST %</th>
+                <th className="so-col-sgst">SGST %</th>
+                <th className="so-col-amount">Amount</th>
+                <th className="so-col-stock">Stock</th>
+                <th className="so-col-action"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {formData.items.map((item, index) => (
+                <tr key={item.id}>
+                  <td className="so-col-code">
+                    <input
+                      type="text"
+                      value={item.itemCode}
+                      onChange={(e) => handleItemChange(index, 'itemCode', e.target.value)}
+                      placeholder="Code"
+                      className={`so-table-input ${errors[`item_${index}_code`] ? 'so-input-error' : ''}`}
+                      ref={setItemRef(`item_${index}_itemCode`)}
+                      onFocus={() => handleItemCodeFocus(index)}
+                      onBlur={handleItemCodeBlur}
+                      onKeyDown={(e) => handleItemKeyDown(e, index, 'itemCode')}
+                      autoComplete="off"
+                    />
+                    {openItemDropdown === index && (
+                      <div className="so-item-dropdown">
+                        {itemSuggestLoading[index] && (
+                          <div className="so-item-loading"><FaSpinner className="so-spinning" size={11} /> Searching...</div>
+                        )}
+                        {!itemSuggestLoading[index] && (itemSuggestions[index]?.length ?? 0) === 0 && (
+                          <div className="so-item-empty">No items found</div>
+                        )}
+                        {!itemSuggestLoading[index] && itemSuggestions[index]?.map((rec, ri) => (
+                          <div
+                            key={ri}
+                            className="so-item-row"
+                            onMouseDown={() => selectItemSuggestion(index, rec)}
+                          >
+                            {itemOptionLabel(rec)}
                           </div>
-                        )}
-                      </td>
-                      <td>
-                        <input
-                          type="text"
-                          value={item.itemName}
-                          onChange={(e) => handleItemChange(index, 'itemName', e.target.value)}
-                          placeholder="Item name"
-                          ref={setItemRef(`item_${index}_itemName`)}
-                          onKeyDown={(e) => handleItemKeyDown(e, index, 'itemName')}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="number"
-                          value={item.quantity}
-                          onChange={(e) => handleItemChange(index, 'quantity', Number(e.target.value))}
-                          min="1"
-                          className={errors[`item_${index}_quantity`] ? 'error' : ''}
-                          ref={setItemRef(`item_${index}_quantity`)}
-                          onKeyDown={(e) => handleItemKeyDown(e, index, 'quantity')}
-                        />
-                        {errors[`item_${index}_quantity`] && <span className="error-text">{errors[`item_${index}_quantity`]}</span>}
-                      </td>
-                      <td>
-                        <input
-                          type="number"
-                          value={item.rate}
-                          onChange={(e) => handleItemChange(index, 'rate', Number(e.target.value))}
-                          min="0"
-                          step="0.01"
-                          className={errors[`item_${index}_rate`] ? 'error' : ''}
-                          ref={setItemRef(`item_${index}_rate`)}
-                          onKeyDown={(e) => handleItemKeyDown(e, index, 'rate')}
-                        />
-                        {errors[`item_${index}_rate`] && <span className="error-text">{errors[`item_${index}_rate`]}</span>}
-                      </td>
-                      <td>
-                        <input
-                          type="number"
-                          value={item.cgst}
-                          onChange={(e) => handleItemChange(index, 'cgst', Number(e.target.value))}
-                          min="0"
-                          step="0.01"
-                          ref={setItemRef(`item_${index}_cgst`)}
-                          onKeyDown={(e) => handleItemKeyDown(e, index, 'cgst')}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="number"
-                          value={item.sgst}
-                          onChange={(e) => handleItemChange(index, 'sgst', Number(e.target.value))}
-                          min="0"
-                          step="0.01"
-                          ref={setItemRef(`item_${index}_sgst`)}
-                          onKeyDown={(e) => handleItemKeyDown(e, index, 'sgst')}
-                        />
-                      </td>
-                      <td className="amount-cell">
-                        INR {getItemGrossAmount(item).toFixed(2)}
-                      </td>
-                      <td>
-                        <StockBadge item={item} />
-                      </td>
-                      <td>
-                        {formData.items.length > 1 && (
-                          <button
-                            type="button"
-                            className="remove-item-btn"
-                            onClick={() => removeItemRow(index)}
-                            title="Delete item"
-                          >
-                            <FaTrash size={11} />
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr>
-                    <td colSpan={3} className="total-label">Total Quantity</td>
-                    <td className="total-value">{formData.totalQuantity}</td>
-                    <td colSpan={2}></td>
-                    <td className="total-amount">INR {formData.grandTotal.toFixed(2)}</td>
-                    <td colSpan={2}></td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
+                        ))}
+                      </div>
+                    )}
+                  </td>
+                  <td className="so-col-name">
+                    <input
+                      type="text"
+                      value={item.itemName}
+                      disabled
+                      className="so-table-input so-table-input-disabled so-table-input-text"
+                    />
+                  </td>
+                  <td className="so-col-qty">
+                    <input
+                      type="number"
+                      value={item.quantity}
+                      onChange={(e) => handleItemChange(index, 'quantity', Number(e.target.value))}
+                      min="1"
+                      className={`so-table-input ${errors[`item_${index}_quantity`] ? 'so-input-error' : ''}`}
+                      ref={setItemRef(`item_${index}_quantity`)}
+                      onKeyDown={(e) => handleItemKeyDown(e, index, 'quantity')}
+                    />
+                  </td>
+                  <td className="so-col-rate">
+                    <input
+                      type="number"
+                      value={item.rate}
+                      onChange={(e) => handleItemChange(index, 'rate', Number(e.target.value))}
+                      min="0"
+                      step="0.01"
+                      className={`so-table-input ${errors[`item_${index}_rate`] ? 'so-input-error' : ''}`}
+                      ref={setItemRef(`item_${index}_rate`)}
+                      onKeyDown={(e) => handleItemKeyDown(e, index, 'rate')}
+                    />
+                  </td>
+                  <td className="so-col-cgst">
+                    <input
+                      type="number"
+                      value={item.cgst}
+                      onChange={(e) => handleItemChange(index, 'cgst', Number(e.target.value))}
+                      min="0"
+                      step="0.01"
+                      className="so-table-input"
+                      ref={setItemRef(`item_${index}_cgst`)}
+                      onKeyDown={(e) => handleItemKeyDown(e, index, 'cgst')}
+                    />
+                  </td>
+                  <td className="so-col-sgst">
+                    <input
+                      type="number"
+                      value={item.sgst}
+                      onChange={(e) => handleItemChange(index, 'sgst', Number(e.target.value))}
+                      min="0"
+                      step="0.01"
+                      className="so-table-input"
+                      ref={setItemRef(`item_${index}_sgst`)}
+                      onKeyDown={(e) => handleItemKeyDown(e, index, 'sgst')}
+                    />
+                  </td>
+                  <td className="so-col-amount">
+                    <span className="so-table-value">INR {getItemGrossAmount(item).toFixed(2)}</span>
+                  </td>
+                  <td className="so-col-stock">
+                    <StockBadge item={item} />
+                  </td>
+                  <td className="so-col-action">
+                    {formData.items.length > 1 && (
+                      <button
+                        type="button"
+                        className="so-remove-btn"
+                        onClick={() => removeItemRow(index)}
+                        title="Delete item"
+                      >
+                        <FaTrash size={11} />
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
-            <div className="items-summary">
-              <div className="summary-row">
-                <span>Total Quantity</span>
-                <strong>{formData.totalQuantity}</strong>
-              </div>
-              <div className="summary-row">
-                <span>CGST</span>
-                <strong>INR {formData.cgstTotal.toFixed(2)}</strong>
-              </div>
-              <div className="summary-row">
-                <span>SGST</span>
-                <strong>INR {formData.sgstTotal.toFixed(2)}</strong>
-              </div>
-              <div className="summary-row total">
-                <span>Grand Total</span>
-                <strong>INR {formData.roundedTotal.toFixed(2)}</strong>
-              </div>
-            </div>
-
-            <div className="keyboard-tips">
-              <span><kbd>Enter</kbd> Next field</span>
-              <span><kbd>Ctrl+Shift+A</kbd> Add item</span>
-              <span><kbd>Ctrl+B</kbd> Scan barcode</span>
-            </div>
+      {/* Bottom Section */}
+      <div className="so-bottom-section">
+        {/* Left Column - Payment Schedule & Terms */}
+        <div className="so-bottom-left">
+          {/* Payment Schedule */}
+          <div className="so-section-header">
+            <FaCreditCard className="so-section-icon" />
+            <span>Payment Schedule</span>
           </div>
 
-          {/* ── Payment Schedule ─────────────────────────────── */}
-          <div className="form-section">
-            <div className="section-header">
-              <h3 className="section-title"><FaCreditCard size={13} /> Payment Schedule</h3>
-            </div>
-
-            <div className="payment-schedule-wrapper">
-              <div className="payment-schedule-header">
-                <span><FaCalendarAlt size={11} style={{ marginRight: 4 }} />Payment Schedule</span>
-                <button type="button" className="add-payment-btn" onClick={addPaymentSchedule}>
-                  <FaPlus size={11} /> Add Schedule
-                </button>
-              </div>
-              <table className="payment-schedule-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: '32px' }}>No.</th>
-                    <th style={{ width: '150px' }}>Due Date</th>
-                    <th style={{ width: '130px' }}>Duration (Days)</th>
-                    <th style={{ width: '150px' }}>Payment Amount</th>
-                    <th style={{ width: '32px' }}></th>
+          <div className="so-payment-table-wrap">
+            <table className="so-payment-table">
+              <thead>
+                <tr>
+                  <th>No.</th>
+                  <th>Due Date</th>
+                  <th>Duration (Days)</th>
+                  <th>Amount</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {formData.paymentSchedule.map((schedule, index) => (
+                  <tr key={schedule.id}>
+                    <td className="so-col-no">{index + 1}</td>
+                    <td className="so-col-date">
+                      <div className="so-date-field">
+                        <input
+                          type="date"
+                          value={schedule.dueDate}
+                          onChange={(e) => handlePaymentDueDateChange(index, e.target.value)}
+                          className="so-table-input"
+                          ref={setRef(`payment_${index}_dueDate`)}
+                        />
+                        <button
+                          type="button"
+                          className="so-date-icon-btn"
+                          onClick={() => openDatePicker(`payment_${index}_dueDate`)}
+                          tabIndex={-1}
+                        >
+                          <FaCalendarAlt size={11} />
+                        </button>
+                      </div>
+                    </td>
+                    <td className="so-col-duration">
+                      <input
+                        type="number"
+                        value={schedule.durationDays}
+                        onChange={(e) => handlePaymentDurationChange(index, Number(e.target.value))}
+                        min="0"
+                        className="so-table-input"
+                      />
+                    </td>
+                    <td className="so-col-amount">
+                      <input
+                        type="number"
+                        value={schedule.paymentAmount}
+                        onChange={(e) => updatePaymentRow(index, { paymentAmount: Number(e.target.value) })}
+                        min="0"
+                        step="0.01"
+                        className="so-table-input"
+                      />
+                    </td>
+                    <td className="so-col-action">
+                      {formData.paymentSchedule.length > 1 && (
+                        <button
+                          type="button"
+                          className="so-remove-btn"
+                          onClick={() => removePaymentSchedule(index)}
+                        >
+                          <FaTrash size={10} />
+                        </button>
+                      )}
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {formData.paymentSchedule.map((schedule, index) => (
-                    <tr key={schedule.id}>
-                      <td className="text-center">{index + 1}</td>
-                      <td>
-                        <div className="cq-date-field">
-                          <input
-                            type="date"
-                            value={schedule.dueDate}
-                            onChange={(e) => handlePaymentDueDateChange(index, e.target.value)}
-                            ref={setRef(`payment_${index}_dueDate`)}
-                          />
-                          <button
-                            type="button"
-                            className="cq-date-icon-btn"
-                            onClick={() => openDatePicker(`payment_${index}_dueDate`)}
-                            tabIndex={-1}
-                            aria-label="Open calendar"
-                          >
-                            <FaCalendarAlt size={11} />
-                          </button>
-                        </div>
-                      </td>
-                      <td>
-                        <input
-                          type="number"
-                          value={schedule.durationDays}
-                          onChange={(e) => handlePaymentDurationChange(index, Number(e.target.value))}
-                          min="0"
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="number"
-                          value={schedule.paymentAmount}
-                          onChange={(e) => updatePaymentRow(index, { paymentAmount: Number(e.target.value) })}
-                          min="0"
-                          step="0.01"
-                        />
-                      </td>
-                      <td>
-                        {formData.paymentSchedule.length > 1 && (
-                          <button
-                            type="button"
-                            className="remove-payment-btn"
-                            onClick={() => removePaymentSchedule(index)}
-                          >
-                            <FaTrash size={10} />
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                ))}
+              </tbody>
+            </table>
           </div>
 
-          {/* ── Terms and Conditions ─────────────────────────── */}
-          <div className="form-section">
-            <div className="section-header">
-              <h3 className="section-title"><FaFileAlt size={13} /> Terms and Conditions</h3>
+          <button type="button" className="so-add-payment-btn" onClick={addPaymentSchedule}>
+            <FaPlus size={9} /> Add Schedule
+          </button>
+
+          {/* Terms and Conditions */}
+          <div className="so-section-header" style={{ marginTop: '1rem' }}>
+            <FaFileAlt className="so-section-icon" />
+            <span>Terms and Conditions</span>
+          </div>
+          <div className="so-field">
+            <label className="so-label">Term Details</label>
+            <textarea
+              name="termDetails"
+              value={formData.termDetails}
+              onChange={handleInputChange}
+              rows={3}
+              placeholder="Enter terms and conditions..."
+              className="so-textarea"
+              ref={setRef('termDetails')}
+            />
+          </div>
+        </div>
+
+        {/* Right Column - Summary Card */}
+        <div className="so-bottom-right">
+          <div className="so-detail-card so-summary-card">
+            <div className="so-card-header">
+              <FaCalculator size={14} />
+              <span>Financial Summary</span>
             </div>
-            <div className="form-grid">
-              <div className="form-group full-width">
-                <label>Term Details</label>
-                <textarea
-                  name="termDetails"
-                  value={formData.termDetails}
-                  onChange={handleInputChange}
-                  rows={4}
-                  placeholder="Enter terms and conditions..."
-                  ref={setRef('termDetails')}
-                />
+            <div className="so-card-content">
+              <div className="so-summary-grid">
+                <div className="so-summary-item">
+                  <span className="so-summary-label">Total Qty</span>
+                  <span className="so-summary-value">{formData.totalQuantity}</span>
+                </div>
+                <div className="so-summary-item">
+                  <span className="so-summary-label">Base Total</span>
+                  <span className="so-summary-value">INR {formData.baseTotal.toFixed(2)}</span>
+                </div>
+                <div className="so-summary-item">
+                  <span className="so-summary-label">CGST</span>
+                  <span className="so-summary-value">INR {formData.cgstTotal.toFixed(2)}</span>
+                </div>
+                <div className="so-summary-item">
+                  <span className="so-summary-label">SGST</span>
+                  <span className="so-summary-value">INR {formData.sgstTotal.toFixed(2)}</span>
+                </div>
+                <div className="so-summary-grand">
+                  <span className="so-summary-grand-label">Grand Total</span>
+                  <span className="so-summary-grand-value">INR {formData.roundedTotal.toFixed(2)}</span>
+                </div>
               </div>
             </div>
           </div>
         </div>
-
-        {/* Form Actions */}
-        <div className="form-actions">
-          <div className="action-left">
-            <button type="button" className="btn-secondary" onClick={handleCancel}>
-              Cancel
-            </button>
-          </div>
-          <div className="action-right">
-            <button type="submit" className="submit-btn" disabled={saving}>
-              {saving && <FaSpinner className="spinning" />}
-              <FaSave /> {isEditMode ? 'Update Sales Order' : 'Create Sales Order'}
-            </button>
-          </div>
-        </div>
-      </form>
+      </div>
     </div>
-  );
+
+    {/* Form Actions */}
+    <div className="so-form-footer">
+      <button type="button" className="so-btn so-btn-secondary" onClick={handleCancel}>
+        <FaTimes size={11} /> Cancel
+      </button>
+      <button type="button" className="so-btn so-btn-submit" onClick={handleSubmit} disabled={saving}>
+        {saving && <FaSpinner className="so-spinning" />}
+        <FaSave /> {isEditMode ? 'Update Sales Order' : 'Create Sales Order'}
+      </button>
+    </div>
+  </div>
+)
 }

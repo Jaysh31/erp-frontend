@@ -5,7 +5,6 @@ import {
   FaTimes,
   FaPrint,
   FaPaperPlane,
-  FaUser,
   FaBox,
   FaPlus,
   FaTrash,
@@ -13,15 +12,15 @@ import {
   FaChevronDown,
   FaArrowLeft,
   FaInfoCircle,
-  FaRupeeSign,
-  FaListUl,
+  FaCalculator,
+  FaBuilding,
+  FaUser,
+  FaPhone,
+  FaEnvelope,
+  FaExclamationTriangle,
   FaTruck,
-  FaCalendarAlt,
-  FaFileInvoice,
-  FaTags,
-  FaWarehouse,
-  FaMoneyBillWave,
-  FaCalculator
+  FaClipboardList,
+  FaCheckCircle,
 } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
@@ -114,6 +113,7 @@ interface DeliveryNotePayload {
   instructions: string;
   status: string;
   dc_type: string;
+  quality_inspection: boolean;
   items: Array<{
     name: string;
     item_code: string;
@@ -136,6 +136,19 @@ interface ApiResponse<T = any> {
   message?: string;
   status: number;
   success: boolean;
+}
+
+interface Warehouse {
+  id: number;
+  warehouse_name: string;
+  company: string;
+  parent_warehouse: string | null;
+  warehouse_type: string | null;
+  city: string | null;
+  state: string | null;
+  email_id: string | null;
+  phone_no: string | null;
+  disabled: number;
 }
 
 // ===== API SERVICE =====
@@ -282,8 +295,8 @@ class DeliveryChallanAPI {
     return this.apiService.delete(`/delivery-note/${id}`);
   }
 
-  async getCustomers(): Promise<ApiResponse<any>> {
-    return this.apiService.get('/customer');
+  async getCustomers(params?: { page?: number; limit?: number; search?: string }): Promise<ApiResponse<any>> {
+    return this.apiService.get('/customer', params);
   }
 
   async getSalesOrders(params?: { customer?: string; page?: number; limit?: number; search?: string }): Promise<ApiResponse<any>> {
@@ -296,6 +309,10 @@ class DeliveryChallanAPI {
 
   async getItems(params?: { page?: number; limit?: number; search?: string }): Promise<ApiResponse<any>> {
     return this.apiService.get('/item', params);
+  }
+
+  async getWarehouses(params?: { page?: number; limit?: number }): Promise<ApiResponse<any>> {
+    return this.apiService.get('/warehouse', params);
   }
 }
 
@@ -375,6 +392,72 @@ function useDropdownPosition(isOpen: boolean, triggerRef: React.RefObject<HTMLDi
 
   return pos;
 }
+
+// ===== SUCCESS MODAL COMPONENT =====
+interface SuccessModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  deliveryNote: string;
+  totalItems: number;
+  message: string;
+  customerName?: string;
+  onViewDetails?: () => void;
+}
+
+const SuccessModal: React.FC<SuccessModalProps> = ({
+  isOpen,
+  onClose,
+  deliveryNote,
+  totalItems,
+  message,
+  customerName,
+  onViewDetails
+}) => {
+  if (!isOpen) return null;
+
+  return ReactDOM.createPortal(
+    <div className="ndc-modal-overlay" onClick={onClose}>
+      <div className="ndc-modal-container" onClick={(e) => e.stopPropagation()}>
+        <div className="ndc-modal-success-icon">
+          <FaCheckCircle size={48} />
+        </div>
+        
+        <h2 className="ndc-modal-title">✓ Success!</h2>
+        
+        <p className="ndc-modal-message">{message}</p>
+        
+        <div className="ndc-modal-details">
+          <div className="ndc-modal-detail-item">
+            <span className="ndc-modal-detail-label">Delivery Note</span>
+            <span className="ndc-modal-detail-value ndc-modal-dn-number">{deliveryNote}</span>
+          </div>
+          
+          {customerName && (
+            <div className="ndc-modal-detail-item">
+              <span className="ndc-modal-detail-label">Customer</span>
+              <span className="ndc-modal-detail-value">{customerName}</span>
+            </div>
+          )}
+          
+          <div className="ndc-modal-detail-item">
+            <span className="ndc-modal-detail-label">Total Items</span>
+            <span className="ndc-modal-detail-value">{totalItems}</span>
+          </div>
+        </div>
+        
+        <div className="ndc-modal-actions">
+          <button onClick={onViewDetails || onClose} className="ndc-modal-btn ndc-modal-btn-primary">
+            View Delivery Note
+          </button>
+          <button onClick={onClose} className="ndc-modal-btn ndc-modal-btn-secondary">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+};
 
 // ===== SEARCHABLE PRODUCT SELECT COMPONENT =====
 interface SearchableSelectProps {
@@ -801,24 +884,294 @@ const SalesOrderDropdown: React.FC<SalesOrderDropdownProps> = ({
   );
 };
 
+// ===== SEARCHABLE CUSTOMER DROPDOWN =====
+interface CustomerDropdownProps {
+  value: string;
+  onChange: (value: string, customerData?: Customer) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  error?: boolean;
+  fullWidth?: boolean;
+}
+
+const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
+  value,
+  onChange,
+  placeholder = 'Search Customer...',
+  disabled = false,
+  error = false,
+  }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [filteredCustomers, setFilteredCustomers] = useState<Customer[]>([]);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const [loading, setLoading] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const deliveryChallanAPI = new DeliveryChallanAPI();
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const menuPos = useDropdownPosition(isOpen, wrapperRef);
+
+  useEffect(() => {
+    fetchCustomers('');
+  }, []);
+
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setFilteredCustomers(customers);
+      return;
+    }
+
+    const filtered = customers.filter(customer =>
+      customer.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      customer.code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      customer.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      customer.phone?.includes(searchTerm) ||
+      customer.gstin?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    setFilteredCustomers(filtered);
+  }, [searchTerm, customers]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      const clickedTrigger = wrapperRef.current?.contains(target);
+      const clickedMenu = menuRef.current?.contains(target);
+      if (!clickedTrigger && !clickedMenu) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const fetchCustomers = async (search: string) => {
+    setLoading(true);
+    try {
+      const response = await deliveryChallanAPI.getCustomers({
+        page: 1,
+        limit: 50,
+        search: search || undefined
+      });
+
+      if (response.success && response.data) {
+        let customerList: any[] = [];
+
+        if (response.data.data && Array.isArray(response.data.data.records)) {
+          customerList = response.data.data.records;
+        } else if (Array.isArray(response.data)) {
+          customerList = response.data;
+        } else if (response.data.data && Array.isArray(response.data.data)) {
+          customerList = response.data.data;
+        }
+
+        if (customerList.length > 0) {
+          const mappedCustomers: Customer[] = customerList.map((cust: any) => ({
+            id: cust.id?.toString() || '',
+            name: cust.customer_name || cust.name || '',
+            code: cust.customer_code || cust.code || `CUST${cust.id}`,
+            email: cust.email_id || cust.email || '',
+            phone: cust.mobile_no || cust.phone || '',
+            address: cust.address || '',
+            shippingAddress: cust.shipping_address || cust.address || '',
+            gstin: cust.gstin || '',
+            contactPerson: cust.contact_person || '',
+            contactMobile: cust.contact_mobile || cust.mobile_no || ''
+          }));
+          setCustomers(mappedCustomers);
+          setFilteredCustomers(mappedCustomers);
+        } else {
+          setCustomers(MOCK_CUSTOMERS);
+          setFilteredCustomers(MOCK_CUSTOMERS);
+        }
+      } else {
+        setCustomers(MOCK_CUSTOMERS);
+        setFilteredCustomers(MOCK_CUSTOMERS);
+      }
+    } catch (error) {
+      console.error('Error fetching customers:', error);
+      setCustomers(MOCK_CUSTOMERS);
+      setFilteredCustomers(MOCK_CUSTOMERS);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const term = e.target.value;
+    setSearchTerm(term);
+    setHighlightedIndex(-1);
+
+    if (!isOpen) {
+      setIsOpen(true);
+    }
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    debounceTimerRef.current = setTimeout(() => {
+      if (term.length > 0) {
+        fetchCustomers(term);
+      } else {
+        fetchCustomers('');
+      }
+    }, 500);
+  };
+
+  const handleSelect = (customer: Customer) => {
+    setSelectedCustomer(customer);
+    setSearchTerm('');
+    setIsOpen(false);
+    onChange(customer.id, customer);
+    if (inputRef.current) {
+      inputRef.current.blur();
+    }
+  };
+
+  const getDisplayValue = () => {
+    if (selectedCustomer) {
+      return `${selectedCustomer.code} - ${selectedCustomer.name}`;
+    }
+    return '';
+  };
+
+  const menu = isOpen ? (
+    <div
+      ref={menuRef}
+      className="ndc-custom-scroll"
+      style={{
+        position: 'fixed',
+        top: menuPos.top,
+        left: menuPos.left,
+        width: menuPos.width,
+        background: 'var(--card-bg, #ffffff)',
+        border: '0.5px solid var(--border-color, #e2e8f0)',
+        borderRadius: '6px',
+        boxShadow: '0 4px 16px var(--shadow-color, rgba(0,0,0,0.15))',
+        zIndex: 99999,
+        maxHeight: '280px',
+        overflowY: 'auto',
+        overflowX: 'hidden'
+      }}
+    >
+      {loading ? (
+        <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
+          <FaSpinner className="ndc-spinning" style={{ display: 'inline-block', marginRight: '8px' }} /> Loading...
+        </div>
+      ) : filteredCustomers.length > 0 ? (
+        filteredCustomers.map((customer, index) => (
+          <div
+            key={customer.id}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              handleSelect(customer);
+            }}
+            style={{
+              padding: '10px 14px',
+              cursor: 'pointer',
+              background: highlightedIndex === index ? 'var(--nav-hover, #eff6ff)' : 'transparent',
+              borderLeft: value === customer.id ? '3px solid var(--primary-color, #2563eb)' : '3px solid transparent',
+              transition: 'background 0.15s',
+              borderBottom: index < filteredCustomers.length - 1 ? '0.5px solid var(--border-color, #f1f5f9)' : 'none'
+            }}
+            onMouseEnter={() => setHighlightedIndex(index)}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary, #0f172a)' }}>{customer.code}</span>
+                <span style={{ fontSize: '12px', color: 'var(--text-secondary, #475569)', marginLeft: '8px' }}>{customer.name}</span>
+              </div>
+              {customer.gstin && (
+                <span style={{ fontSize: '10px', color: 'var(--text-secondary, #94a3b8)', background: 'var(--layout-bg, #f1f5f9)', padding: '2px 8px', borderRadius: '4px' }}>
+                  GST: {customer.gstin}
+                </span>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: '16px', marginTop: '4px', fontSize: '11px', color: 'var(--text-secondary, #64748b)' }}>
+              {customer.contactPerson && (
+                <span><FaUser size={10} style={{ marginRight: '4px' }} />{customer.contactPerson}</span>
+              )}
+              {customer.phone && (
+                <span><FaPhone size={10} style={{ marginRight: '4px' }} />{customer.phone}</span>
+              )}
+              {customer.email && (
+                <span><FaEnvelope size={10} style={{ marginRight: '4px' }} />{customer.email}</span>
+              )}
+            </div>
+          </div>
+        ))
+      ) : (
+        <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
+          {searchTerm ? 'No matching customers found' : 'No customers available'}
+        </div>
+      )}
+    </div>
+  ) : null;
+
+  return (
+    <div ref={wrapperRef} style={{ position: 'relative', width: '100%' }}>
+      <div style={{ position: 'relative' }}>
+        <input
+          ref={inputRef}
+          type="text"
+          placeholder={placeholder}
+          value={isOpen ? searchTerm : getDisplayValue()}
+          onChange={handleSearchChange}
+          onFocus={() => setIsOpen(true)}
+          disabled={disabled}
+          autoComplete="off"
+          style={{
+            width: '100%',
+            padding: '6px 10px',
+            paddingRight: '35px',
+            border: error ? '0.5px solid var(--danger-color, #ef4444)' : '0.5px solid var(--border-color, #e2e8f0)',
+            borderRadius: '6px',
+            background: disabled ? 'var(--input-bg, #f3f4f6)' : 'var(--input-bg, #f8fafc)',
+            color: 'var(--text-primary, #0f172a)',
+            fontSize: '13px',
+            fontFamily: 'inherit',
+            cursor: disabled ? 'not-allowed' : 'text',
+            minHeight: '32px'
+          }}
+        />
+        {loading ? (
+          <FaSpinner className="ndc-spinning" style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--primary-color, #2563eb)', fontSize: '12px' }} />
+        ) : (
+          <FaChevronDown style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary, #64748b)', fontSize: '12px', pointerEvents: 'none' }} />
+        )}
+      </div>
+
+      {menu && ReactDOM.createPortal(menu, document.body)}
+    </div>
+  );
+};
+
+// ===== MAIN COMPONENT =====
+
 const NewDeliveryChallan: React.FC = () => {
   const navigate = useNavigate();
   const { theme } = useAdminTheme();
 
+  // State for toggle
+  const [hasSalesOrder, setHasSalesOrder] = useState<boolean>(true);
+  
   const [selectedCustomer, setSelectedCustomer] = useState<string>('');
   const [selectedSalesOrder, setSelectedSalesOrder] = useState<string>('');
-  const [selectedOrderData, setSelectedOrderData] = useState<SalesOrder | null>(null);
-  const [dcType, setDcType] = useState<string>('Products');
+  const [, setSelectedOrderData] = useState<SalesOrder | null>(null);
+  const [isService, setIsService] = useState<boolean>(false);
   const [dcDate, setDcDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [warehouse, setWarehouse] = useState<string>('');
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [isLoadingWarehouses, setIsLoadingWarehouses] = useState<boolean>(false);
   const [transporter, setTransporter] = useState<string>('');
   const [vehicleNumber, setVehicleNumber] = useState<string>('');
-  const [driverName, setDriverName] = useState<string>('');
-  const [lrNumber, setLrNumber] = useState<string>('');
-  const [lrDate, setLrDate] = useState<string>('');
-  const [poNumber, setPoNumber] = useState<string>('');
-  const [poDate, setPoDate] = useState<string>('');
   const [remarks, setRemarks] = useState<string>('');
+  const [qualityInspection, setQualityInspection] = useState<boolean>(false);
   const [items, setItems] = useState<DeliveryChallanItem[]>([]);
   const [customerData, setCustomerData] = useState<Customer | null>(null);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
@@ -830,15 +1183,28 @@ const NewDeliveryChallan: React.FC = () => {
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [isLoadingItems, setIsLoadingItems] = useState<boolean>(false);
   const [roundOff, setRoundOff] = useState<number>(0);
+  
+  // Success Modal State
+  const [showSuccessModal, setShowSuccessModal] = useState<boolean>(false);
+  const [successData, setSuccessData] = useState<{
+    deliveryNote: string;
+    totalItems: number;
+    message: string;
+    customerName?: string;
+  }>({
+    deliveryNote: '',
+    totalItems: 0,
+    message: ''
+  });
 
   const deliveryChallanAPI = new DeliveryChallanAPI();
 
   useEffect(() => {
     fetchCustomers();
     fetchAllItems();
+    fetchWarehouses();
   }, []);
 
-  // Calculate round off whenever items change
   useEffect(() => {
     const total = getGrandTotal();
     const rounded = Math.round(total / 10) * 10;
@@ -846,10 +1212,66 @@ const NewDeliveryChallan: React.FC = () => {
     setRoundOff(diff);
   }, [items]);
 
+  const fetchWarehouses = async () => {
+    setIsLoadingWarehouses(true);
+    try {
+      const response = await deliveryChallanAPI.getWarehouses({ page: 1, limit: 10 });
+      if (response.success && response.data?.data?.records) {
+        const warehouseList: Warehouse[] = response.data.data.records;
+        setWarehouses(warehouseList);
+        
+        const finishedGoods = warehouseList.find(
+          w => w.warehouse_name.toLowerCase() === 'finished goods'
+        );
+        
+        if (finishedGoods) {
+          setWarehouse(finishedGoods.warehouse_name);
+        } else if (warehouseList.length > 0) {
+          setWarehouse(warehouseList[0].warehouse_name);
+        }
+      } else {
+        const mockWarehouses: Warehouse[] = [
+          { id: 9, warehouse_name: 'Raw Material Store', company: 'ChandraTara', parent_warehouse: null, warehouse_type: null, city: 'Pune', state: 'Mh', email_id: null, phone_no: '08668584275', disabled: 0 },
+          { id: 10, warehouse_name: 'Work In Progress', company: 'ChandraTara', parent_warehouse: null, warehouse_type: null, city: null, state: null, email_id: null, phone_no: null, disabled: 0 },
+          { id: 11, warehouse_name: 'Finished Goods', company: 'ChandraTara', parent_warehouse: null, warehouse_type: null, city: null, state: null, email_id: null, phone_no: '08668584275', disabled: 0 },
+          { id: 13, warehouse_name: 'Scrap Warehouse', company: 'ChandraTara', parent_warehouse: null, warehouse_type: null, city: null, state: null, email_id: null, phone_no: null, disabled: 0 }
+        ];
+        setWarehouses(mockWarehouses);
+        const finishedGoods = mockWarehouses.find(
+          w => w.warehouse_name.toLowerCase() === 'finished goods'
+        );
+        if (finishedGoods) {
+          setWarehouse(finishedGoods.warehouse_name);
+        } else if (mockWarehouses.length > 0) {
+          setWarehouse(mockWarehouses[0].warehouse_name);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching warehouses:', error);
+      const mockWarehouses: Warehouse[] = [
+        { id: 9, warehouse_name: 'Raw Material Store', company: 'ChandraTara', parent_warehouse: null, warehouse_type: null, city: 'Pune', state: 'Mh', email_id: null, phone_no: '08668584275', disabled: 0 },
+        { id: 10, warehouse_name: 'Work In Progress', company: 'ChandraTara', parent_warehouse: null, warehouse_type: null, city: null, state: null, email_id: null, phone_no: null, disabled: 0 },
+        { id: 11, warehouse_name: 'Finished Goods', company: 'ChandraTara', parent_warehouse: null, warehouse_type: null, city: null, state: null, email_id: null, phone_no: '08668584275', disabled: 0 },
+        { id: 13, warehouse_name: 'Scrap Warehouse', company: 'ChandraTara', parent_warehouse: null, warehouse_type: null, city: null, state: null, email_id: null, phone_no: null, disabled: 0 }
+      ];
+      setWarehouses(mockWarehouses);
+      const finishedGoods = mockWarehouses.find(
+        w => w.warehouse_name.toLowerCase() === 'finished goods'
+      );
+      if (finishedGoods) {
+        setWarehouse(finishedGoods.warehouse_name);
+      } else if (mockWarehouses.length > 0) {
+        setWarehouse(mockWarehouses[0].warehouse_name);
+      }
+    } finally {
+      setIsLoadingWarehouses(false);
+    }
+  };
+
   const fetchCustomers = async () => {
     setIsLoading(true);
     try {
-      const response = await deliveryChallanAPI.getCustomers();
+      const response = await deliveryChallanAPI.getCustomers({ page: 1, limit: 100 });
       if (response.success && response.data) {
         let customerList: any[] = [];
 
@@ -945,10 +1367,10 @@ const NewDeliveryChallan: React.FC = () => {
     }
   }, [allProducts]);
 
-  const loadCustomerData = (customerId: string) => {
-    const customer = customers.find(c => c.id === customerId);
-    if (customer) {
-      setCustomerData(customer);
+  const loadCustomerData = (customerId: string, customer?: Customer) => {
+    const customerData = customer || customers.find(c => c.id === customerId);
+    if (customerData) {
+      setCustomerData(customerData);
       setSelectedSalesOrder('');
       setSelectedOrderData(null);
       setItems([{
@@ -963,18 +1385,27 @@ const NewDeliveryChallan: React.FC = () => {
         tax: 0,
         taxAmount: 0,
         totalAmount: 0,
-        type: dcType === 'Products' ? 'product' : 'service'
+        type: isService ? 'service' : 'product'
       }]);
-      toast.success(`Selected ${customer.name}`);
+      toast.success(`Selected ${customerData.name}`);
     }
   };
 
-  const loadSalesOrder = (soId: string, orderData?: SalesOrder) => {
+  const handleCustomerChange = (customerId: string, customerData?: Customer) => {
+    setSelectedCustomer(customerId);
+    if (customerId && customerData) {
+      loadCustomerData(customerId, customerData);
+    } else {
+      setCustomerData(null);
+      setSelectedSalesOrder('');
+      setSelectedOrderData(null);
+    }
+  };
+
+  const loadSalesOrder = (_soId: string, orderData?: SalesOrder) => {
     if (!orderData) return;
 
     setSelectedOrderData(orderData);
-    setPoNumber(orderData.po_no || '');
-    setPoDate(orderData.po_date || '');
 
     if (orderData.items && orderData.items.length > 0) {
       const initialItems: DeliveryChallanItem[] = orderData.items.map((item, index) => {
@@ -995,7 +1426,7 @@ const NewDeliveryChallan: React.FC = () => {
           tax: taxRate,
           taxAmount: taxAmount,
           totalAmount: amount + taxAmount,
-          type: dcType === 'Products' ? 'product' : 'service'
+          type: isService ? 'service' : 'product'
         };
       });
       setItems(initialItems);
@@ -1012,24 +1443,12 @@ const NewDeliveryChallan: React.FC = () => {
         tax: 0,
         taxAmount: 0,
         totalAmount: 0,
-        type: dcType === 'Products' ? 'product' : 'service'
+        type: isService ? 'service' : 'product'
       }]);
     }
 
     setErrors({});
     toast.success(`Loaded order #${orderData.id}`);
-  };
-
-  const handleCustomerChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const customerId = e.target.value;
-    setSelectedCustomer(customerId);
-    if (customerId) {
-      loadCustomerData(customerId);
-    } else {
-      setCustomerData(null);
-      setSelectedSalesOrder('');
-      setSelectedOrderData(null);
-    }
   };
 
   const handleSalesOrderChange = (soId: string, orderData?: SalesOrder) => {
@@ -1054,7 +1473,7 @@ const NewDeliveryChallan: React.FC = () => {
       tax: 0,
       taxAmount: 0,
       totalAmount: 0,
-      type: dcType === 'Products' ? 'product' : 'service'
+      type: isService ? 'service' : 'product'
     }]);
   };
 
@@ -1106,6 +1525,8 @@ const NewDeliveryChallan: React.FC = () => {
   const getGrandTotal = () => items.reduce((sum, item) => sum + (item.totalAmount || 0), 0);
 
   const buildPayload = (status: 'Draft' | 'Submitted'): DeliveryNotePayload => {
+    const selectedWarehouse = warehouses.find(w => w.warehouse_name === warehouse);
+    
     return {
       name: dcNumber,
       naming_series: "DN-.YYYY.-",
@@ -1113,18 +1534,19 @@ const NewDeliveryChallan: React.FC = () => {
       customer_name: customerData?.name || '',
       posting_date: dcDate,
       company: 'SculptERP Pvt Ltd',
-      set_warehouse: warehouse || '',
+      set_warehouse: selectedWarehouse?.warehouse_name || warehouse || '',
       transporter: transporter || '',
       vehicle_no: vehicleNumber || '',
-      driver_name: driverName || '',
-      lr_no: lrNumber || '',
-      lr_date: lrDate || dcDate,
-      po_no: poNumber || '',
-      po_date: poDate || '',
-      sales_order: selectedSalesOrder || '',
+      driver_name: transporter || '',
+      lr_no: '',
+      lr_date: '',
+      po_no: '',
+      po_date: '',
+      sales_order: hasSalesOrder ? selectedSalesOrder : '',
       instructions: remarks || '',
       status: status,
-      dc_type: dcType,
+      dc_type: isService ? 'Services' : 'Products',
+      quality_inspection: qualityInspection,
       items: items
         .filter(item => item.itemCode && item.quantity > 0)
         .map(item => ({
@@ -1139,7 +1561,7 @@ const NewDeliveryChallan: React.FC = () => {
           tax: item.tax || 0,
           tax_amount: item.taxAmount || 0,
           total_amount: item.totalAmount || 0,
-          warehouse: warehouse || '',
+          warehouse: selectedWarehouse?.warehouse_name || warehouse || '',
           type: item.type
         }))
     };
@@ -1148,6 +1570,7 @@ const NewDeliveryChallan: React.FC = () => {
   const validateForm = (): boolean => {
     const newErrors: { [key: string]: string } = {};
     if (!selectedCustomer) newErrors.customer = 'Please select a customer';
+    if (hasSalesOrder && !selectedSalesOrder) newErrors.salesOrder = 'Please select a sales order';
     if (!dcDate) newErrors.dcDate = 'DC Date is required';
     if (!warehouse) newErrors.warehouse = 'Warehouse is required';
     const hasItems = items.some(item => item.itemCode && item.quantity > 0);
@@ -1165,12 +1588,26 @@ const NewDeliveryChallan: React.FC = () => {
       const createResponse = await deliveryChallanAPI.createDeliveryNote(payload);
       if (!createResponse.success) throw new Error(createResponse.message || 'Failed to create');
       const createdDC = createResponse.data;
+      
+      const deliveryNote = createdDC?.delivery_note || createdDC?.name || dcNumber;
+      const totalItems = createdDC?.total_items || items.filter(i => i.itemCode && i.quantity > 0).length;
+      const message = createdDC?.message || createResponse.message || 'Delivery Note created successfully.';
+      
       toast.success('Created!', { id: toastId });
+      
       if (createdDC.name) {
         const submitResponse = await deliveryChallanAPI.submitDeliveryNote(createdDC.name);
         if (!submitResponse.success) throw new Error(submitResponse.message || 'Failed to submit');
-        toast.success(`DC ${createdDC.name} submitted!`);
-        setTimeout(() => navigate('/delivery-challans'), 1500);
+        
+        setSuccessData({
+          deliveryNote: deliveryNote,
+          totalItems: totalItems,
+          message: message,
+          customerName: customerData?.name
+        });
+        setShowSuccessModal(true);
+        
+        toast.success(`DC ${deliveryNote} submitted!`);
       }
     } catch (error: any) {
       toast.error(error.message || 'Failed to create', { id: toastId });
@@ -1187,7 +1624,9 @@ const NewDeliveryChallan: React.FC = () => {
       const payload = buildPayload('Draft');
       const response = await deliveryChallanAPI.createDeliveryNote(payload);
       if (!response.success) throw new Error(response.message || 'Failed to save');
-      toast.success('Saved as draft!', { id: toastId });
+      
+      const deliveryNote = response.data?.delivery_note || response.data?.name || dcNumber;
+      toast.success(`Draft saved: ${deliveryNote}`, { id: toastId });
       setTimeout(() => navigate('/delivery-challans'), 1000);
     } catch (error: any) {
       toast.error(error.message || 'Failed to save', { id: toastId });
@@ -1200,6 +1639,16 @@ const NewDeliveryChallan: React.FC = () => {
     if (window.confirm('Are you sure? Unsaved data will be lost.')) {
       navigate('/delivery-challans');
     }
+  };
+
+  const handleViewDeliveryNote = () => {
+    setShowSuccessModal(false);
+    navigate(`/delivery-challans/${successData.deliveryNote}`);
+  };
+
+  const handleCloseModal = () => {
+    setShowSuccessModal(false);
+    navigate('/delivery-challans');
   };
 
   useEffect(() => {
@@ -1216,10 +1665,10 @@ const NewDeliveryChallan: React.FC = () => {
         tax: 0,
         taxAmount: 0,
         totalAmount: 0,
-        type: dcType === 'Products' ? 'product' : 'service'
+        type: isService ? 'service' : 'product'
       }]);
     }
-  }, []);
+  }, [isService]);
 
   const totalItems = items.filter(i => i.itemCode && i.quantity > 0).length;
   const totalQuantity = getTotalQty();
@@ -1258,79 +1707,154 @@ const NewDeliveryChallan: React.FC = () => {
           .ndc-form-footer, button { display: none !important; }
           body { padding: 0; }
         }
-        @media (max-width: 768px) {
-          .ndc-two-column { grid-template-columns: 1fr !important; }
-          .ndc-summary-grid { grid-template-columns: 1fr !important; }
-        }
       `}</style>
 
-      {/* Header with Back Button */}
+      {/* Success Modal */}
+      <SuccessModal
+        isOpen={showSuccessModal}
+        onClose={handleCloseModal}
+        deliveryNote={successData.deliveryNote}
+        totalItems={successData.totalItems}
+        message={successData.message}
+        customerName={successData.customerName}
+        onViewDetails={handleViewDeliveryNote}
+      />
+
+      {/* Header with IsService on right */}
       <div className="ndc-header">
-        <button onClick={handleCancel} className="ndc-back-btn">
-          <FaArrowLeft size={13} /> Back
-        </button>
-        <div className="ndc-header-divider" />
-        <h1 className="ndc-header-title">Create Delivery Challan</h1>
+        <div className="ndc-header-left">
+          <button onClick={handleCancel} className="ndc-back-btn">
+            <FaArrowLeft size={13} /> Back
+          </button>
+          <div className="ndc-header-divider" />
+          <h1 className="ndc-header-title">Create Delivery Challan</h1>
+        </div>
+        <div className="ndc-header-right">
+          <label className="ndc-checkbox-label">
+            <input
+              type="checkbox"
+              checked={isService}
+              onChange={(e) => {
+                setIsService(e.target.checked);
+                setItems(items.map(item => ({
+                  ...item,
+                  type: e.target.checked ? 'service' : 'product'
+                })));
+              }}
+              className="ndc-checkbox"
+            />
+            <span>IsService</span>
+          </label>
+        </div>
       </div>
 
-      {/* SINGLE UNIFIED BOX */}
+      {/* MAIN BOX */}
       <div className="ndc-main-box">
-        {/* DC TYPE */}
-        <div className="ndc-type-section">
-          <span className="ndc-type-label">Challan Type:</span>
-          <button
-            onClick={() => setDcType('Products')}
-            className={`ndc-type-btn ${dcType === 'Products' ? 'ndc-type-btn-active' : 'ndc-type-btn-inactive'}`}
-          >
-            Products
-          </button>
-          <button
-            onClick={() => setDcType('Services')}
-            className={`ndc-type-btn ${dcType === 'Services' ? 'ndc-type-btn-active' : 'ndc-type-btn-inactive'}`}
-          >
-            Services
-          </button>
+        {/* Sales Order Toggle - GRN-style radio toggle */}
+        <div className="ndc-invoice-type-section">
+          <label className="ndc-label" style={{ marginBottom: 8 }}>Create From</label>
+          <div className="ndc-radio-group">
+            <label className="ndc-radio-label">
+              <input
+                type="radio"
+                name="salesOrderSource"
+                value="with"
+                checked={hasSalesOrder === true}
+                onChange={() => setHasSalesOrder(true)}
+              />
+              With Sales Order
+            </label>
+            <label className="ndc-radio-label">
+              <input
+                type="radio"
+                name="salesOrderSource"
+                value="without"
+                checked={hasSalesOrder === false}
+                onChange={() => setHasSalesOrder(false)}
+              />
+              Without Sales Order
+            </label>
+          </div>
         </div>
 
-        {/* Two Column Layout */}
-        <div className="ndc-two-column">
+        {/* TWO COLUMN LAYOUT */}
+        <div className="ndc-compact-layout">
           {/* LEFT COLUMN */}
-          <div>
-            <div className="ndc-field">
-              <label className="ndc-label">Customer *</label>
-              <select
-                value={selectedCustomer}
-                onChange={handleCustomerChange}
-                disabled={isLoading}
-                className={`ndc-select ${errors.customer ? 'ndc-select-error' : ''}`}
-              >
-                <option value="">Select Customer</option>
-                {customers.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-              {errors.customer && <span className="ndc-error-text">{errors.customer}</span>}
+          <div className="ndc-left-column">
+            {/* Customer & Sales Order - Conditional Layout */}
+            <div className="ndc-section-header">
+              <FaBuilding className="ndc-section-icon" />
+              <span>Customer & Order</span>
             </div>
 
-            <div className="ndc-field">
-              <label className="ndc-label">Sales Order</label>
-              <SalesOrderDropdown
-                value={selectedSalesOrder}
-                onChange={handleSalesOrderChange}
-                customerId={selectedCustomer}
-                placeholder="Search or select sales order..."
-                disabled={!selectedCustomer}
-                error={!!errors.salesOrder}
-              />
+            {hasSalesOrder ? (
+              // With Sales Order - 2 columns
+              <div className="ndc-field-row">
+                <div className="ndc-field-half">
+                  <label className="ndc-label">
+                    Customer <span className="ndc-required">*</span>
+                  </label>
+                  <CustomerDropdown
+                    value={selectedCustomer}
+                    onChange={handleCustomerChange}
+                    placeholder="Search Customer..."
+                    disabled={isLoading}
+                    error={!!errors.customer}
+                  />
+                  {errors.customer && <span className="ndc-error-text">{errors.customer}</span>}
+                </div>
+
+                <div className="ndc-field-half">
+                  <label className="ndc-label">
+                    Sales Order <span className="ndc-required">*</span>
+                  </label>
+                  <SalesOrderDropdown
+                    value={selectedSalesOrder}
+                    onChange={handleSalesOrderChange}
+                    customerId={selectedCustomer}
+                    placeholder="Search or select sales order..."
+                    disabled={!selectedCustomer}
+                    error={!!errors.salesOrder}
+                  />
+                  {errors.salesOrder && <span className="ndc-error-text">{errors.salesOrder}</span>}
+                </div>
+              </div>
+            ) : (
+              // Without Sales Order - Customer full width
+              <div className="ndc-field-full">
+                <div className="ndc-field-full-width">
+                  <label className="ndc-label">
+                    Customer <span className="ndc-required">*</span>
+                  </label>
+                  <CustomerDropdown
+                    value={selectedCustomer}
+                    onChange={handleCustomerChange}
+                    placeholder="Search Customer..."
+                    disabled={isLoading}
+                    error={!!errors.customer}
+                    fullWidth={true}
+                  />
+                  {errors.customer && <span className="ndc-error-text">{errors.customer}</span>}
+                </div>
+              </div>
+            )}
+
+            {/* Delivery Challan Details - 3 columns in one row */}
+            <div className="ndc-section-header" style={{ marginTop: hasSalesOrder ? '0' : '0rem' }}>
+              <FaBox className="ndc-section-icon" />
+              <span>Challan Details</span>
             </div>
 
-            <div className="ndc-row">
+            <div className="ndc-grid-3">
               <div className="ndc-field">
                 <label className="ndc-label">DC Number</label>
-                <input type="text" value={dcNumber} disabled className="ndc-input ndc-input-disabled" />
+                <div className="ndc-dc-number-display">{dcNumber}</div>
               </div>
+
               <div className="ndc-field">
-                <label className="ndc-label">DC Date *</label>
+                <label className="ndc-label">
+                  DC Date <span className="ndc-required">*</span>
+                </label>
                 <input
                   type="date"
                   value={dcDate}
@@ -1338,151 +1862,114 @@ const NewDeliveryChallan: React.FC = () => {
                   className={`ndc-input ${errors.dcDate ? 'ndc-input-error' : ''}`}
                 />
               </div>
-            </div>
 
-            {/* Customer Details */}
-            {customerData && (
-              <div className="ndc-customer-details">
-                <div className="ndc-customer-detail">
-                  <span className="ndc-customer-detail-label">Code:</span>
-                  <span className="ndc-customer-detail-value">{customerData.code}</span>
+              <div className="ndc-field">
+                <label className="ndc-label">
+                  Warehouse <span className="ndc-required">*</span>
+                </label>
+                <select
+                  value={warehouse}
+                  onChange={(e) => setWarehouse(e.target.value)}
+                  className={`ndc-select ${errors.warehouse ? 'ndc-select-error' : ''}`}
+                  disabled={isLoadingWarehouses}
+                >
+                  <option value="">Select Warehouse</option>
+                  {warehouses.map(w => (
+                    <option key={w.id} value={w.warehouse_name}>
+                      {w.warehouse_name}
+                      {w.city && ` (${w.city})`}
+                    </option>
+                  ))}
+                </select>
+                {errors.warehouse && <span className="ndc-error-text">{errors.warehouse}</span>}
+                {isLoadingWarehouses && <span className="ndc-loading-text">Loading warehouses...</span>}
+              </div>
+            </div>
+          </div>
+
+          {/* RIGHT COLUMN */}
+          <div className="ndc-right-column">
+            {/* Customer Detail Card */}
+            {customerData ? (
+              <div className="ndc-detail-card">
+                <div className="ndc-card-header">
+                  <FaBuilding size={14} />
+                  <span>Customer Details</span>
                 </div>
-                <div className="ndc-customer-detail">
-                  <span className="ndc-customer-detail-label">Contact:</span>
-                  <span className="ndc-customer-detail-value">{customerData.contactPerson || 'N/A'}</span>
+                <div className="ndc-card-content">
+                  <h3>{customerData.name}</h3>
+                  <div className="ndc-card-info">
+                    {customerData.code && (
+                      <div className="ndc-info-item">
+                        <span className="ndc-info-label">Code</span>
+                        <span className="ndc-info-value">{customerData.code}</span>
+                      </div>
+                    )}
+                    {customerData.contactPerson && (
+                      <div className="ndc-info-item">
+                        <span className="ndc-info-label">Contact</span>
+                        <span className="ndc-info-value"><FaUser size={10} /> {customerData.contactPerson}</span>
+                      </div>
+                    )}
+                    {customerData.phone && (
+                      <div className="ndc-info-item">
+                        <span className="ndc-info-label">Phone</span>
+                        <span className="ndc-info-value"><FaPhone size={10} /> {customerData.phone}</span>
+                      </div>
+                    )}
+                    {customerData.email && (
+                      <div className="ndc-info-item">
+                        <span className="ndc-info-label">Email</span>
+                        <span className="ndc-info-value"><FaEnvelope size={10} /> {customerData.email}</span>
+                      </div>
+                    )}
+                    {customerData.gstin && (
+                      <div className="ndc-info-item">
+                        <span className="ndc-info-label">GST</span>
+                        <span className="ndc-info-value">{customerData.gstin}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className="ndc-customer-detail">
-                  <span className="ndc-customer-detail-label">Phone:</span>
-                  <span className="ndc-customer-detail-value">{customerData.phone}</span>
+              </div>
+            ) : (
+              <div className="ndc-detail-card ndc-empty-card">
+                <div className="ndc-card-header">
+                  <FaBuilding size={14} />
+                  <span>Customer Details</span>
                 </div>
-                <div className="ndc-customer-detail">
-                  <span className="ndc-customer-detail-label">GST:</span>
-                  <span className="ndc-customer-detail-value">{customerData.gstin}</span>
+                <div className="ndc-card-content">
+                  <div className="ndc-empty-state">
+                    <FaInfoCircle size={24} />
+                    <p>Select a customer to view details</p>
+                  </div>
                 </div>
               </div>
             )}
           </div>
-
-          {/* RIGHT COLUMN */}
-          <div>
-            <div className="ndc-field">
-              <label className="ndc-label">Warehouse *</label>
-              <select
-                value={warehouse}
-                onChange={(e) => setWarehouse(e.target.value)}
-                className={`ndc-select ${errors.warehouse ? 'ndc-select-error' : ''}`}
-              >
-                <option value="">Select Warehouse</option>
-                <option value="Main Warehouse">Main Warehouse</option>
-                <option value="Secondary Warehouse">Secondary Warehouse</option>
-              </select>
-            </div>
-
-            <div className="ndc-field">
-              <label className="ndc-label">Transporter</label>
-              <input
-                type="text"
-                placeholder="Transporter name"
-                value={transporter}
-                onChange={(e) => setTransporter(e.target.value)}
-                className="ndc-input"
-              />
-            </div>
-
-            <div className="ndc-row">
-              <div className="ndc-field">
-                <label className="ndc-label">Vehicle Number</label>
-                <input
-                  type="text"
-                  placeholder="MH-01-AB-1234"
-                  value={vehicleNumber}
-                  onChange={(e) => setVehicleNumber(e.target.value)}
-                  className="ndc-input"
-                />
-              </div>
-              <div className="ndc-field">
-                <label className="ndc-label">Driver Name</label>
-                <input
-                  type="text"
-                  placeholder="Driver name"
-                  value={driverName}
-                  onChange={(e) => setDriverName(e.target.value)}
-                  className="ndc-input"
-                />
-              </div>
-            </div>
-
-            <div className="ndc-row">
-              <div className="ndc-field">
-                <label className="ndc-label">LR Number</label>
-                <input
-                  type="text"
-                  placeholder="LR-123456"
-                  value={lrNumber}
-                  onChange={(e) => setLrNumber(e.target.value)}
-                  className="ndc-input"
-                />
-              </div>
-              <div className="ndc-field">
-                <label className="ndc-label">LR Date</label>
-                <input
-                  type="date"
-                  value={lrDate}
-                  onChange={(e) => setLrDate(e.target.value)}
-                  className="ndc-input"
-                />
-              </div>
-            </div>
-          </div>
         </div>
 
-        <hr className="ndc-divider" />
-
-        {/* PO Details */}
-        <div className="ndc-row">
-          <div className="ndc-field">
-            <label className="ndc-label">PO Number</label>
-            <input
-              type="text"
-              placeholder="PO-1001"
-              value={poNumber}
-              onChange={(e) => setPoNumber(e.target.value)}
-              className="ndc-input"
-            />
-          </div>
-          <div className="ndc-field">
-            <label className="ndc-label">PO Date</label>
-            <input
-              type="date"
-              value={poDate}
-              onChange={(e) => setPoDate(e.target.value)}
-              className="ndc-input"
-            />
-          </div>
-        </div>
-
-        <hr className="ndc-divider" />
-
-        {/* Items */}
-        <div>
+        {/* FULL WIDTH - ITEMS SECTION */}
+        <div className="ndc-items-full">
           <div className="ndc-items-header">
             <span className="ndc-items-title">
-              <FaBox className="ndc-items-icon" /> {dcType === 'Products' ? 'Products' : 'Services'}
+              <FaClipboardList className="ndc-items-icon" /> {isService ? 'Services' : 'Products'}
             </span>
             <button onClick={addItem} className="ndc-add-btn">
               <FaPlus size={9} /> Add
             </button>
           </div>
 
-          {errors.items && <div className="ndc-items-error">{errors.items}</div>}
+          {errors.items && <div className="ndc-items-error"><FaExclamationTriangle /> {errors.items}</div>}
 
           <div className="ndc-table-wrap">
             <table className="ndc-items-table">
               <thead>
                 <tr>
-                  <th className="ndc-col-code">Item Code</th>
-                  <th className="ndc-col-name">Item Name</th>
+                  <th className="ndc-col-code">Product Code</th>
+                  <th className="ndc-col-name">Product Name</th>
                   <th className="ndc-col-qty">Qty</th>
+                  <th className="ndc-col-unit">UOM</th>
                   <th className="ndc-col-rate">Rate</th>
                   <th className="ndc-col-amount">Amount</th>
                   <th className="ndc-col-gst">GST%</th>
@@ -1518,8 +2005,19 @@ const NewDeliveryChallan: React.FC = () => {
                         value={item.quantity}
                         onChange={(e) => updateItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
                         className="ndc-table-input"
-                        style={{ maxWidth: '50px' }}
                       />
+                    </td>
+                    <td className="ndc-col-unit">
+                      <select
+                        value={item.unit}
+                        onChange={(e) => updateItem(item.id, 'unit', e.target.value)}
+                        className="ndc-table-input"
+                      >
+                        <option value="pcs">Pcs</option>
+                        <option value="kg">Kg</option>
+                        <option value="ltr">Ltr</option>
+                        <option value="mtr">Mtr</option>
+                      </select>
                     </td>
                     <td className="ndc-col-rate">
                       <input
@@ -1527,7 +2025,6 @@ const NewDeliveryChallan: React.FC = () => {
                         value={item.rate}
                         onChange={(e) => updateItem(item.id, 'rate', parseFloat(e.target.value) || 0)}
                         className="ndc-table-input"
-                        style={{ maxWidth: '60px' }}
                       />
                     </td>
                     <td className="ndc-col-amount">
@@ -1539,24 +2036,9 @@ const NewDeliveryChallan: React.FC = () => {
                         value={item.tax || 0}
                         onChange={(e) => {
                           const taxRate = parseFloat(e.target.value) || 0;
-                          const amount = (item.quantity || 0) * (item.rate || 0);
-                          const taxAmount = (amount * taxRate) / 100;
-                          setItems(prevItems =>
-                            prevItems.map(i => {
-                              if (i.id === item.id) {
-                                return {
-                                  ...i,
-                                  tax: taxRate,
-                                  taxAmount: taxAmount,
-                                  totalAmount: amount + taxAmount
-                                };
-                              }
-                              return i;
-                            })
-                          );
+                          updateItem(item.id, 'tax', taxRate);
                         }}
                         className="ndc-table-input"
-                        style={{ maxWidth: '40px' }}
                       />
                     </td>
                     <td className="ndc-col-tax">
@@ -1577,94 +2059,111 @@ const NewDeliveryChallan: React.FC = () => {
           </div>
         </div>
 
-        <hr className="ndc-divider" />
+        {/* BOTTOM SECTION: Shipping + Remarks + Quality Inspection (Left) | Summary (Right) */}
+        <div className="ndc-bottom-section">
+          {/* LEFT COLUMN: Shipping Details + Remarks + Quality Inspection */}
+          <div className="ndc-bottom-left">
+            {/* Shipping Details */}
+            <div className="ndc-shipping-bottom">
+              <div className="ndc-section-header">
+                <FaTruck className="ndc-section-icon" />
+                <span>Shipping Details</span>
+              </div>
 
-        {/* Remarks */}
-        <div>
-          <label className="ndc-label">Remarks</label>
-          <textarea
-            placeholder="Add any additional notes..."
-            value={remarks}
-            onChange={(e) => setRemarks(e.target.value)}
-            className="ndc-textarea"
-          />
-        </div>
-
-        <hr className="ndc-divider" />
-
-        {/* Summary & Status */}
-        <div className="ndc-summary-grid">
-          {/* LEFT - Summary Values */}
-          <div className="ndc-summary-left">
-            <div className="ndc-summary-card">
-              <div className="ndc-summary-item">
-                <span className="ndc-summary-icon"><FaListUl /></span>
-                <span className="ndc-summary-label-text">Total Items</span>
-                <span className="ndc-summary-value-text">{totalItems}</span>
-              </div>
-              <div className="ndc-summary-item">
-                <span className="ndc-summary-icon"><FaBox /></span>
-                <span className="ndc-summary-label-text">Total Quantity</span>
-                <span className="ndc-summary-value-text">{totalQuantity}</span>
-              </div>
-              <div className="ndc-summary-item">
-                <span className="ndc-summary-icon"><FaMoneyBillWave /></span>
-                <span className="ndc-summary-label-text">Sub Total</span>
-                <span className="ndc-summary-value-text">₹{subTotal.toFixed(2)}</span>
-              </div>
-              <div className="ndc-summary-item">
-                <span className="ndc-summary-icon"><FaTags /></span>
-                <span className="ndc-summary-label-text">Total Tax</span>
-                <span className="ndc-summary-value-text">₹{totalTax.toFixed(2)}</span>
-              </div>
-              <div className="ndc-summary-item">
-                <span className="ndc-summary-icon"><FaCalculator /></span>
-                <span className="ndc-summary-label-text">Round Off</span>
-                <span className="ndc-summary-value-text">
+              <div className="ndc-shipping-bottom-row">
+                <div className="ndc-shipping-bottom-field">
+                  <label className="ndc-label">Transporter Name / Driver Name</label>
                   <input
-                    type="number"
-                    value={roundOff.toFixed(2)}
-                    onChange={(e) => {
-                      const val = parseFloat(e.target.value) || 0;
-                      setRoundOff(val);
-                    }}
-                    className="ndc-roundoff-input"
+                    type="text"
+                    placeholder="Transporter or driver name"
+                    value={transporter}
+                    onChange={(e) => setTransporter(e.target.value)}
+                    className="ndc-input"
                   />
+                </div>
+
+                <div className="ndc-shipping-bottom-field">
+                  <label className="ndc-label">Vehicle Number</label>
+                  <input
+                    type="text"
+                    placeholder="MH-01-AB-1234"
+                    value={vehicleNumber}
+                    onChange={(e) => setVehicleNumber(e.target.value)}
+                    className="ndc-input"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Remarks */}
+            <div className="ndc-field ndc-remarks-bottom">
+              <label className="ndc-label">Remarks</label>
+              <textarea
+                placeholder="Add any additional notes..."
+                value={remarks}
+                onChange={(e) => setRemarks(e.target.value)}
+                className="ndc-textarea ndc-textarea-large"
+                rows={2}
+              />
+            </div>
+
+            {/* Quality Inspection Checkbox */}
+            <div className="ndc-field ndc-quality-inspection-bottom">
+              <label className="ndc-label ndc-checkbox-label-inline">
+                <input
+                  type="checkbox"
+                  checked={qualityInspection}
+                  onChange={(e) => setQualityInspection(e.target.checked)}
+                  className="ndc-checkbox ndc-quality-checkbox"
+                />
+                <span className="ndc-checkbox-text">
+                  Quality Inspection Required
                 </span>
-              </div>
-              <div className="ndc-summary-total">
-                <span className="ndc-summary-total-label">Grand Total</span>
-                <span className="ndc-summary-total-value">₹{grandTotalWithRound.toFixed(2)}</span>
-              </div>
+              </label>
             </div>
           </div>
 
-          {/* RIGHT - Status Information */}
-          <div className="ndc-summary-right">
-            <div className="ndc-status-card">
-              <div className="ndc-status-header">
-                <span className="ndc-status-icon"><FaInfoCircle /></span>
-                <span className="ndc-status-title">Document Status</span>
+          {/* RIGHT COLUMN: Financial Summary */}
+          <div className="ndc-bottom-right">
+            <div className="ndc-detail-card ndc-summary-card">
+              <div className="ndc-card-header">
+                <FaCalculator size={14} />
+                <span>Financial Summary</span>
               </div>
-              <div className="ndc-status-item">
-                <span className="ndc-status-label">DC Status</span>
-                <span className="ndc-status-value ndc-status-draft">Draft</span>
-              </div>
-              <div className="ndc-status-item">
-                <span className="ndc-status-label">DC Type</span>
-                <span className="ndc-status-value">{dcType}</span>
-              </div>
-              <div className="ndc-status-item">
-                <span className="ndc-status-label">Customer</span>
-                <span className="ndc-status-value">{customerData?.name || 'Not selected'}</span>
-              </div>
-              <div className="ndc-status-item">
-                <span className="ndc-status-label">DC Number</span>
-                <span className="ndc-status-value">{dcNumber}</span>
-              </div>
-              <div className="ndc-status-item">
-                <span className="ndc-status-label">Date</span>
-                <span className="ndc-status-value">{new Date(dcDate).toLocaleDateString()}</span>
+              <div className="ndc-card-content">
+                <div className="ndc-summary-grid">
+                  <div className="ndc-summary-item">
+                    <span className="ndc-summary-label">Total Items</span>
+                    <span className="ndc-summary-value">{totalItems}</span>
+                  </div>
+                  <div className="ndc-summary-item">
+                    <span className="ndc-summary-label">Total Quantity</span>
+                    <span className="ndc-summary-value">{totalQuantity}</span>
+                  </div>
+                  <div className="ndc-summary-item">
+                    <span className="ndc-summary-label">Sub Total</span>
+                    <span className="ndc-summary-value">₹{subTotal.toFixed(2)}</span>
+                  </div>
+                  <div className="ndc-summary-item">
+                    <span className="ndc-summary-label">Total Tax</span>
+                    <span className="ndc-summary-value">₹{totalTax.toFixed(2)}</span>
+                  </div>
+                  <div className="ndc-summary-item">
+                    <span className="ndc-summary-label">Round Off</span>
+                    <div className="ndc-roundoff-wrap">
+                      <input
+                        type="number"
+                        value={roundOff.toFixed(2)}
+                        onChange={(e) => setRoundOff(parseFloat(e.target.value) || 0)}
+                        className="ndc-roundoff-input"
+                      />
+                    </div>
+                  </div>
+                  <div className="ndc-summary-grand">
+                    <span className="ndc-summary-grand-label">Grand Total</span>
+                    <span className="ndc-summary-grand-value">₹{grandTotalWithRound.toFixed(2)}</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

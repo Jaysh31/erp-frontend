@@ -1,0 +1,734 @@
+/* ─── Container ───────────────────────────────────────────────────────── */
+.cst-page {
+  padding: 0 20px 40px;
+  background: var(--layout-bg);
+  min-height: 100vh;
+}
+
+.cst-inner {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* ─── Loading ──────────────────────────────────────────────────────────── */
+.cst-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  gap: 16px;
+}
+
+.cst-spinner {
+  border: 3px solid var(--border-color);
+  border-top: 3px solid var(--primary-color);
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: cst-spin 0.8s linear infinite;
+}
+
+@keyframes cst-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.cst-loading p {
+  color: var(--text-secondary);
+  font-size: 14px;
+  margin: 0;
+}
+
+/* ─── API Error ────────────────────────────────────────────────────────── */
+.cst-api-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  color: #991b1b;
+  font-size: 13px;
+}
+
+.cst-api-error .error-icon {
+  flex-shrink: 0;
+}
+
+.cst-api-error .error-close {
+  margin-left: auto;
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: #991b1b;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.cst-error-message {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  color: #991b1b;
+  font-size: 13px;
+}
+
+.cst-warning-text {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+/* ─── Header ──────────────────────────────────────────────────────────── */
+.cst-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 4px;
+  padding-bottom: 18px;
+  flex-wrap: wrap;
+}
+
+.back-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 30px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  flex-shrink: 0;
+  transition: background 0.18s, border-color 0.18s, color 0.18s, box-shadow 0.18s;
+}
+
+.back-btn:hover {
+  background: color-mix(in srgb, var(--primary-color) 8%, var(--card-bg));
+  border-color: color-mix(in srgb, var(--primary-color) 40%, var(--border-color));
+  color: var(--primary-color);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--primary-color) 12%, transparent);
+}
+
+.header-title {
+  flex: 1;
+}
+
+.header-title h1 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.header-subtitle {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+  display: block;
+}
+
+.header-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.btn-add {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 20px;
+  background: var(--primary-gradient);
+  color: white;
+  border: none;
+  border-radius: 30px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s, box-shadow 0.18s, transform 0.1s;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--primary-color) 25%, transparent);
+}
+
+.btn-add:hover {
+  opacity: 0.9;
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--primary-color) 40%, transparent);
+  transform: translateY(-1px);
+}
+
+.btn-delete-bulk {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 20px;
+  background: #ef4444;
+  color: white;
+  border: none;
+  border-radius: 30px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, box-shadow 0.18s, transform 0.1s;
+  box-shadow: 0 2px 8px color-mix(in srgb, #ef4444 25%, transparent);
+}
+
+.btn-delete-bulk:hover {
+  background: #dc2626;
+  box-shadow: 0 4px 16px color-mix(in srgb, #ef4444 40%, transparent);
+  transform: translateY(-1px);
+}
+
+/* ─── Filters ──────────────────────────────────────────────────────────── */
+.cst-filters {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+  background: var(--card-bg);
+  padding: 12px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 1px 4px var(--shadow-color);
+}
+
+.search-box {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--layout-bg);
+  border-radius: 8px;
+  padding: 0 12px;
+  transition: background 0.2s;
+}
+
+.search-box:focus-within {
+  background: color-mix(in srgb, var(--primary-color) 3%, var(--layout-bg));
+}
+
+.search-icon {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.search-box input {
+  border: none;
+  background: transparent;
+  padding: 10px 0;
+  width: 100%;
+  font-size: 13px;
+  color: var(--text-primary);
+  outline: none;
+}
+
+.search-box input::placeholder {
+  color: var(--text-secondary);
+}
+
+.btn-refresh {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: var(--layout-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s;
+  white-space: nowrap;
+}
+
+.btn-refresh:hover {
+  background: color-mix(in srgb, var(--primary-color) 6%, var(--layout-bg));
+  border-color: color-mix(in srgb, var(--primary-color) 30%, var(--border-color));
+  color: var(--primary-color);
+}
+
+/* ─── Card ────────────────────────────────────────────────────────────── */
+.cst-card {
+  background: var(--card-bg);
+  border-radius: 14px;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 1px 4px var(--shadow-color);
+  overflow: hidden;
+}
+
+/* ─── Table ───────────────────────────────────────────────────────────── */
+.cst-table-wrapper {
+  overflow-x: auto;
+}
+
+.cst-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.cst-th {
+  padding: 10px 14px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--layout-bg);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+.cst-th-check {
+  width: 40px;
+  text-align: center;
+}
+
+.cst-th-actions {
+  width: 80px;
+  text-align: center;
+}
+
+.cst-td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-primary);
+  vertical-align: middle;
+}
+
+.cst-td-check {
+  text-align: center;
+}
+
+.cst-checkbox {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  cursor: pointer;
+  accent-color: var(--primary-color);
+}
+
+.cst-row-selected {
+  background: color-mix(in srgb, var(--primary-color) 6%, transparent);
+}
+
+.cst-row-selected:hover {
+  background: color-mix(in srgb, var(--primary-color) 10%, transparent) !important;
+}
+
+.cst-table tbody tr:hover {
+  background: var(--nav-hover);
+}
+
+/* ─── Customer Info ────────────────────────────────────────────────────── */
+.cst-customer-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cst-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--primary-gradient);
+  color: white;
+  font-weight: 600;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.cst-customer-name {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.cst-customer-website {
+  font-size: 11px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+/* ─── Email & Phone ────────────────────────────────────────────────────── */
+.cst-email-link {
+  color: var(--primary-color);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  transition: color 0.15s;
+}
+
+.cst-email-link:hover {
+  color: var(--primary-hover);
+  text-decoration: underline;
+}
+
+.cst-phone {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.cst-icon-small {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+/* ─── Badges ───────────────────────────────────────────────────────────── */
+.cst-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.cst-badge-active {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.cst-badge-disabled {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.cst-badge-frozen {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+/* ─── Action Buttons ──────────────────────────────────────────────────── */
+.cst-action-buttons {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+
+.cst-btn-edit,
+.cst-btn-delete {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.15s;
+}
+
+.cst-btn-edit {
+  background: color-mix(in srgb, var(--primary-color) 10%, transparent);
+  color: var(--primary-color);
+}
+
+.cst-btn-edit:hover {
+  background: color-mix(in srgb, var(--primary-color) 20%, transparent);
+  transform: scale(1.05);
+}
+
+.cst-btn-delete {
+  background: color-mix(in srgb, #ef4444 10%, transparent);
+  color: #ef4444;
+}
+
+.cst-btn-delete:hover {
+  background: color-mix(in srgb, #ef4444 20%, transparent);
+  transform: scale(1.05);
+}
+
+/* ─── Empty Row ────────────────────────────────────────────────────────── */
+.cst-empty-row {
+  padding: 40px 20px !important;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+/* ─── Footer ──────────────────────────────────────────────────────────── */
+.cst-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  border-top: 1px solid var(--border-color);
+  font-size: 12px;
+  color: var(--text-secondary);
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cst-footer-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cst-footer-divider {
+  color: var(--border-color);
+}
+
+.cst-footer-left strong {
+  color: var(--text-primary);
+}
+
+.cst-selected-count {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  background: color-mix(in srgb, var(--primary-color) 8%, transparent);
+  color: var(--primary-color);
+  border-radius: 12px;
+  font-weight: 500;
+}
+
+/* ─── Confirmation Modal ──────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.confirmation-modal {
+  background: var(--card-bg);
+  border-radius: 16px;
+  max-width: 480px;
+  width: 100%;
+  box-shadow: 0 20px 40px var(--shadow-color);
+  animation: cst-fadeIn 0.3s ease-out;
+}
+
+@keyframes cst-fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.confirmation-modal .modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.confirmation-modal .modal-header h2 {
+  font-size: 17px;
+  font-weight: 700;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #f59e0b;
+}
+
+.confirmation-modal .modal-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: none;
+  background: var(--layout-bg);
+  font-size: 20px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: background 0.15s;
+}
+
+.confirmation-modal .modal-close:hover {
+  background: color-mix(in srgb, var(--text-secondary) 15%, var(--layout-bg));
+}
+
+.confirmation-modal .modal-body {
+  padding: 24px;
+}
+
+.confirmation-modal .modal-body p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-primary);
+  line-height: 1.6;
+}
+
+.confirmation-modal .modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--border-color);
+}
+
+.confirmation-modal .btn-cancel {
+  padding: 8px 20px;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 13px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.confirmation-modal .btn-cancel:hover {
+  background: var(--layout-bg);
+  color: var(--text-primary);
+}
+
+.confirmation-modal .btn-danger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 20px;
+  background: #ef4444;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.15s, transform 0.1s;
+}
+
+.confirmation-modal .btn-danger:hover {
+  background: #dc2626;
+  transform: scale(1.02);
+}
+
+/* ─── Responsive ──────────────────────────────────────────────────────── */
+@media (max-width: 992px) {
+  .cst-table {
+    font-size: 12px;
+  }
+
+  .cst-th,
+  .cst-td {
+    padding: 8px 10px;
+  }
+
+  .cst-th-actions {
+    width: 60px;
+  }
+}
+
+@media (max-width: 768px) {
+  .cst-page {
+    padding: 0 12px 20px;
+  }
+
+  .cst-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .header-title {
+    text-align: center;
+  }
+
+  .header-actions {
+    justify-content: center;
+  }
+
+  .cst-filters {
+    flex-direction: column;
+  }
+
+  .btn-refresh {
+    justify-content: center;
+  }
+
+  .cst-table-wrapper {
+    overflow-x: auto;
+  }
+
+  .cst-table {
+    min-width: 800px;
+  }
+
+  .cst-footer {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .cst-footer-left {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .cst-page {
+    padding: 0 8px 16px;
+  }
+
+  .cst-header h1 {
+    font-size: 16px;
+  }
+
+  .header-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .header-actions button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .cst-card {
+    border-radius: 10px;
+  }
+
+  .cst-th,
+  .cst-td {
+    padding: 6px 8px;
+    font-size: 11px;
+  }
+
+  .cst-avatar {
+    width: 28px;
+    height: 28px;
+    font-size: 11px;
+  }
+
+  .cst-customer-name {
+    font-size: 12px;
+  }
+}

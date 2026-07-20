@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
-  FaArrowLeft, FaSave, FaPrint, FaFileCsv, FaPlus, FaTrash,
+  FaArrowLeft, FaSave, FaPrint,  FaPlus, FaTrash,
   FaExclamationTriangle, FaClipboardCheck, FaSpinner
 } from 'react-icons/fa';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
@@ -159,11 +159,11 @@ const defaultFormData = (): InspectionForm => ({
   reviewedBy: '',
 });
 
-const csvEscape = (value: string): string => {
-  if (value == null) return '';
-  const str = String(value);
-  return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
-};
+// const csvEscape = (value: string): string => {
+//   if (value == null) return '';
+//   const str = String(value);
+//   return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+// };
 
 const unwrapDate = (value?: string | null): string => {
   if (!value) return '';
@@ -552,25 +552,25 @@ export default function QualityInspectionForm() {
     doc.close();
   };
 
-  const handleExportCsv = () => {
-    const header = ['Sr No', 'Parameter', 'Specification', 'Inspection Method', ...(formData.parameters[0]?.observations.map((_, i) => `Sample ${i + 1}`) || [])];
-    const lines = [header.map(csvEscape).join(',')];
-    formData.parameters.forEach((row, idx) => {
-      const line = [String(idx + 1), row.parameter, row.specification, row.inspectionMethod, ...row.observations];
-      lines.push(line.map(csvEscape).join(','));
-    });
-    const csvContent = lines.join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${formData.reportNo || 'inspection-report'}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    toast.success('CSV exported');
-  };
+  // const handleExportCsv = () => {
+  //   const header = ['Sr No', 'Parameter', 'Specification', 'Inspection Method', ...(formData.parameters[0]?.observations.map((_, i) => `Sample ${i + 1}`) || [])];
+  //   const lines = [header.map(csvEscape).join(',')];
+  //   formData.parameters.forEach((row, idx) => {
+  //     const line = [String(idx + 1), row.parameter, row.specification, row.inspectionMethod, ...row.observations];
+  //     lines.push(line.map(csvEscape).join(','));
+  //   });
+  //   const csvContent = lines.join('\n');
+  //   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  //   const url = URL.createObjectURL(blob);
+  //   const link = document.createElement('a');
+  //   link.href = url;
+  //   link.download = `${formData.reportNo || 'inspection-report'}.csv`;
+  //   document.body.appendChild(link);
+  //   link.click();
+  //   document.body.removeChild(link);
+  //   URL.revokeObjectURL(url);
+  //   toast.success('CSV exported');
+  // };
 
   /* ─── validation ─────────────────────────────────────────────── */
 

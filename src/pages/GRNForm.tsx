@@ -14,28 +14,23 @@
     FaPlus,
     FaTrash,
     FaWarehouse,
-    FaTruck,
+    
     FaFileInvoice,
-    FaCalendar,
+    
     FaBuilding,
     FaBox,
-    FaChevronLeft,
-    FaChevronRight,
     FaPhone,
     FaEnvelope,
     FaMapMarkerAlt,
     FaUserCircle,
-    FaChevronDown,
     FaUsers,
     FaPercentage,
     FaClipboardList,
     FaReceipt,
     FaSearch,
-    FaHandshake,
     FaPrint,
     FaMoneyBillWave,
     FaGlobeAsia,
-    FaHashtag,
   } from 'react-icons/fa';
   import "./GRNForm.css";
   import { useAdminTheme } from '../admin-theme/AdminThemeContext';
@@ -442,7 +437,7 @@
     const [showPODropdown, setShowPODropdown] = useState(false);
     const [poCurrentPage, setPOCurrentPage] = useState(1);
     const [poItemsPerPage] = useState(10);
-    const [totalPOs, setTotalPOs] = useState(0);
+    const [, setTotalPOs] = useState(0);
     const [, setPODetailLoading] = useState(false);
     const poInputRef = useRef<HTMLInputElement>(null);
     const poDropdownRef = useRef<HTMLDivElement>(null);
@@ -625,11 +620,11 @@
     };
 
     // ─── Resolve tax type text from a tax_id ────────────────────────────
-    const resolveTaxType = (taxId?: number | null): string | undefined => {
-      if (taxId === undefined || taxId === null) return undefined;
-      const found = taxTypes.find(t => t.tax_id === taxId);
-      return found?.tax_type;
-    };
+    // const resolveTaxType = (taxId?: number | null): string | undefined => {
+    //   if (taxId === undefined || taxId === null) return undefined;
+    //   const found = taxTypes.find(t => t.tax_id === taxId);
+    //   return found?.tax_type;
+    // };
 
     // ─── Resolve tax info from various sources ──────────────────────────
     const resolveTaxInfo = (item: any): { taxId?: number; taxType?: string; taxRate?: number } => {
@@ -659,7 +654,7 @@
       
       // Try tax_type directly
       if (item.tax_type) {
-        const { rate, type } = extractTaxInfo(item.tax_type);
+        const { rate,  } = extractTaxInfo(item.tax_type);
         const matchingTax = taxTypes.find(t => {
           const { rate: tRate } = extractTaxInfo(t.tax_type);
           return tRate === rate;
@@ -949,7 +944,7 @@
             warehouse: data.warehouse_name || '',
             warehouseId: data.warehouse_id,
             customer: isService ? customerName : '',
-            customerId: isService ? customerId : undefined,
+            customerId: isService ? (customerId ?? undefined) : undefined,
             receivedBy: data.received_by || '',
             receivedById: data.received_by_id,
             vehicleNo: data.vehicle_number || '',
@@ -1275,7 +1270,7 @@ const postInventoryForItems = async (items: GRNItem[]) => {
         stock_uom: item.uom,
         company: company,
         valuation_rate: item.rate || 0,
-        modified_by: role.name,
+        modified_by: role?.name || '',
         type: inventoryType, // This now matches the GRN type
       };
       return api.post('/inventory', payload);
@@ -1313,7 +1308,7 @@ const postInventoryForItems = async (items: GRNItem[]) => {
         `;
 
       const itemRows = formData.items.map((item, idx) => {
-        const { amount, sgst, cgst, total, gstPercent } = computeItemAmounts(item);
+        const {  sgst, cgst, total, gstPercent } = computeItemAmounts(item);
         return `
           <tr>
             <td>${idx + 1}</td>
@@ -2299,7 +2294,7 @@ const handleSave = async (e: FormEvent<HTMLFormElement>) => {
                       <tbody>
                         {formData.items.map((item, index) => {
                           const useItemSearch = formData.isService || formData.entryMode !== 'supplier';
-                          const { sgst, cgst, total, gstPercent } = computeItemAmounts(item);
+                          const { sgst, cgst, total,  } = computeItemAmounts(item);
                           return (
                           <tr key={item.id} className="grnf-itr">
                             <td className="grnf-itd grnf-itd-no">{index + 1}</td>

@@ -14,9 +14,6 @@ import {
   FaTrash,
   FaPlus,
   FaBoxes,
-  FaClipboardCheck,
-  FaClock,
-  FaExclamationTriangle,
   FaUser,
   FaCalendarAlt,
   FaUsers,
@@ -102,7 +99,7 @@ export default function GRNList() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [totalRecords, setTotalRecords] = useState(0);
+  const [, setTotalRecords] = useState(0);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedItem, setSelectedItem] = useState<GRNDisplay | null>(null);
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
