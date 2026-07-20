@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   FaSave, FaSpinner, FaArrowLeft,
   FaExclamationCircle, FaExclamationTriangle, FaInfoCircle,
-  FaTimesCircle, FaTag, FaBuilding, FaMoneyBillWave,
+  FaTimesCircle,  FaBuilding, FaMoneyBillWave,
   FaCalendarAlt, FaFileAlt, FaBoxes, FaClipboardList,
   FaReceipt, FaClock, FaSearch, FaCheckCircle,
   FaPrint, FaPlus, FaTrash, FaTruck, FaHandshake,
@@ -221,7 +221,7 @@ export default function PurchaseInvoiceForm() {
 
   // ── Item state ──────────────────────────────────────────────────────────────
   const [itemsList, setItemsList] = useState<Item[]>([]);
-  const [loadingItems, setLoadingItems] = useState(false);
+  const [, setLoadingItems] = useState(false);
   const [itemSearch, setItemSearch] = useState('');
   const [showItemDropdown, setShowItemDropdown] = useState(false);
   const [selectedItemIndex, setSelectedItemIndex] = useState<number | null>(null);

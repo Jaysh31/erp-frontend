@@ -1,9 +1,10 @@
 import React, { useState, useEffect, type FormEvent } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { 
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import {
   FaArrowLeft, FaSave, FaSpinner, FaInfoCircle, FaExclamationCircle,
   FaExclamationTriangle, FaTimesCircle,
   FaBuilding, FaUser, FaMapMarkerAlt, FaTag, FaFolder, FaPhone, FaEnvelope,
+  FaUniversity, FaPlus, FaCheckCircle,
 } from 'react-icons/fa';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import api from '../services/api';
@@ -29,7 +30,6 @@ interface SupplierForm {
   taxId: string;
   taxCategory: string;
   paymentTerms: string;
-  defaultBankAccount: string;
   defaultPriceList: string;
   website: string;
   supplierDetails: string;
@@ -45,29 +45,100 @@ interface ValidationError {
   message: string;
 }
 
+interface SupplierBankAccount {
+  _key: string;
+  recordId: number | string | null;
+  docName: string | null;
+  account_holder_name: string;
+  account_type: string;
+  bank_name: string;
+  branch_name: string;
+  account_number: string;
+  ifsc_code: string;
+  micr_code: string;
+  swift_code: string;
+  iban: string;
+  upi_id: string;
+  currency: string;
+  cancelled_cheque: string;
+  passbook_copy: string;
+  verified: boolean;
+  verified_by: string;
+  verified_on: string;
+  is_primary: boolean;
+  remarks: string;
+}
+
 // Helper icon component with proper sizing
 function FaGlobeIcon(props: any) {
   return (
-    <svg 
-      {...props} 
-      viewBox="0 0 24 24" 
-      fill="none" 
-      stroke="currentColor" 
-      strokeWidth="2" 
-      strokeLinecap="round" 
+    <svg
+      {...props}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
       strokeLinejoin="round"
       style={{ width: '12px', height: '12px', flexShrink: 0 }}
     >
-      <circle cx="12" cy="12" r="10"/>
-      <line x1="2" y1="12" x2="22" y2="12"/>
-      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+      <circle cx="12" cy="12" r="10" />
+      <line x1="2" y1="12" x2="22" y2="12" />
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
     </svg>
   );
 }
 
+const parsePrimaryAddress = (addr: string) => {
+  const empty = { addressLine1: '', addressLine2: '', city: '', state: '', pincode: '', country: 'India' };
+  if (!addr || !addr.trim()) return empty;
+
+  const parts = addr.split(',').map(p => p.trim()).filter(Boolean);
+  if (parts.length === 0) return empty;
+
+  const country = parts.length > 0 ? parts.pop()! : 'India';
+  const pincode = parts.length > 0 ? parts.pop()! : '';
+  const state = parts.length > 0 ? parts.pop()! : '';
+  const city = parts.length > 0 ? parts.pop()! : '';
+  const addressLine1 = parts.join(', ');
+
+  return { addressLine1, addressLine2: '', city, state, pincode, country: country || 'India' };
+};
+
+const mapBankAccountRow = (row: any): SupplierBankAccount => ({
+  _key: row.recordId ? `saved-${row.recordId}` : row._key || `tmp-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  recordId: row.recordId ?? row.id ?? null,
+  docName: row.docName ?? row.name ?? null,
+  account_holder_name: row.account_holder_name || '',
+  account_type: row.account_type || 'Savings',
+  bank_name: row.bank_name || '',
+  branch_name: row.branch_name || '',
+  account_number: row.account_number || '',
+  ifsc_code: row.ifsc_code || '',
+  micr_code: row.micr_code || '',
+  swift_code: row.swift_code || '',
+  iban: row.iban || '',
+  upi_id: row.upi_id || '',
+  currency: row.currency || 'INR',
+  cancelled_cheque: row.cancelled_cheque || '',
+  passbook_copy: row.passbook_copy || '',
+  verified: row.verified === 1 || row.verified === true,
+  verified_by: row.verified_by || '',
+  verified_on: row.verified_on || '',
+  is_primary: row.is_primary === 1 || row.is_primary === true,
+  remarks: row.remarks || '',
+});
+
+const DEFAULT_COMPANY_ID_KEY = 'default_company_id';
+const getDefaultCompanyId = (): number | null => {
+  const stored = localStorage.getItem(DEFAULT_COMPANY_ID_KEY);
+  return stored ? Number(stored) : null;
+};
+
 export default function AddSupplier() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
   const { theme } = useAdminTheme();
 
   const isNew = id === 'new' || !id;
@@ -76,12 +147,20 @@ export default function AddSupplier() {
   const [, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [fetching, setFetching] = useState(false);
+  const [creatingSupplier, setCreatingSupplier] = useState(false);
   const [pincodeSuggestions, setPincodeSuggestions] = useState<string[]>([]);
   const [showPincodeSuggestions, setShowPincodeSuggestions] = useState(false);
   const [showValidationSummary, setShowValidationSummary] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [apiError, setApiError] = useState<string | null>(null);
   const [, setIsDirty] = useState(false);
+
+  const [supplierId, setSupplierId] = useState<number | null>(null);
+
+
+  const [bankAccounts, setBankAccounts] = useState<SupplierBankAccount[]>([]);
+
+  const [formDraftKey, setFormDraftKey] = useState<string>('');
 
   const [formData, setFormData] = useState<SupplierForm>({
     supplierName: '',
@@ -102,7 +181,6 @@ export default function AddSupplier() {
     taxId: '',
     taxCategory: 'Registered Regular',
     paymentTerms: '30 Days',
-    defaultBankAccount: '',
     defaultPriceList: 'Standard Buying',
     website: '',
     supplierDetails: '',
@@ -117,9 +195,9 @@ export default function AddSupplier() {
   const supplierTypes = ['Company', 'Individual', 'Partnership', 'Proprietorship', 'LLP', 'Trust', 'Society'];
   const supplierGroups = ['Raw Materials', 'Electronic Components', 'Packaging', 'Chemicals', 'Logistics', 'Office Supplies', 'Services', 'All Supplier Groups'];
   const countries = ['India', 'USA', 'UK', 'Germany', 'China', 'Japan', 'UAE', 'Singapore'];
-  const currencies = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD'];
+  // const currencies = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD'];
   const taxCategories = ['Registered Regular', 'Registered Composition', 'Unregistered', 'SEZ', 'Export Oriented'];
-  const paymentTerms = ['7 Days', '15 Days', '30 Days', '45 Days', '60 Days', 'Due on Receipt'];
+  // const paymentTerms = ['7 Days', '15 Days', '30 Days', '45 Days', '60 Days', 'Due on Receipt'];
   const priceLists = ['Standard Buying', 'Export Pricing', 'Wholesale', 'Distributor'];
   const statusOptions = ['Active', 'Inactive'];
 
@@ -142,39 +220,107 @@ export default function AddSupplier() {
     '122001': { city: 'Gurgaon', state: 'Haryana', country: 'India' }
   };
 
+  // ── Set up the form-draft cache key and load whatever's there ──────────
   useEffect(() => {
     if (isEditMode && id) {
-      fetchSupplier(id);
+      const formKey = `supplier_form_draft_edit_${id}`;
+      setFormDraftKey(formKey);
+      setSupplierId(Number(id));
+      fetchSupplier(id, formKey);
+    } else {
+      let draftId = sessionStorage.getItem('new_supplier_draft_id');
+      if (!draftId) {
+        draftId = `tmp-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+        sessionStorage.setItem('new_supplier_draft_id', draftId);
+      }
+      const formKey = `supplier_form_draft_new_${draftId}`;
+      setFormDraftKey(formKey);
+
+      try {
+        const storedForm = JSON.parse(localStorage.getItem(formKey) || 'null');
+        if (storedForm) setFormData(prev => ({ ...prev, ...storedForm }));
+      } catch {
+        /* ignore */
+      }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, isEditMode]);
 
-  const fetchSupplier = async (supplierId: string) => {
+  // ── Handle returning from the embedded bank-details form ───────────────
+  // BankDetailsForm now saves bank accounts itself (via /bank-detail) and
+  // hands back the list of accounts it just created/updated so we can merge
+  // them into local state for display — we don't re-save them here.
+  useEffect(() => {
+    const state = location.state as {
+      bankAccountsUpdated?: boolean;
+      updatedAccounts?: any[];
+    } | undefined;
+
+    if (state?.bankAccountsUpdated) {
+      if (Array.isArray(state.updatedAccounts) && state.updatedAccounts.length > 0) {
+        setBankAccounts(prev => {
+          const merged = [...prev];
+          state.updatedAccounts!.forEach(row => {
+            const mapped = mapBankAccountRow(row);
+            const existingIdx = mapped.recordId != null
+              ? merged.findIndex(a => a.recordId === mapped.recordId)
+              : -1;
+            if (existingIdx >= 0) {
+              merged[existingIdx] = mapped;
+            } else {
+              merged.push(mapped);
+            }
+          });
+          return merged;
+        });
+      }
+
+      const targetId = String(supplierId || id || '');
+      if (targetId && targetId !== 'undefined' && targetId !== 'new') {
+        refreshBankAccounts(targetId);
+      }
+
+      // Clear the flag so navigating away and back doesn't re-trigger it.
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
+
+  const fetchSupplier = async (supplierIdParam: string, formKey?: string) => {
     setFetching(true);
     setApiError(null);
     try {
-      const response = await api.get(`/supplier/${supplierId}`);
+      const response = await api.get(`/supplier/${supplierIdParam}?_=${Date.now()}`);
       if (response.data && response.data.success === 1) {
         const data = response.data.data;
+        setSupplierId(data.id || null);
+
+        const hasDedicatedAddressFields = !!(
+          data.address_line1 || data.city || data.state || data.pincode
+        );
+        const addressFallback = hasDedicatedAddressFields
+          ? null
+          : parsePrimaryAddress(data.primary_address || data.address || '');
+
         setFormData({
           supplierName: data.supplier_name || data.name || '',
           supplierType: data.supplier_type || 'Company',
           supplierGroup: data.supplier_group || '',
-          country: data.country || 'India',
+          country: data.country || addressFallback?.country || 'India',
           defaultCurrency: data.default_currency || 'INR',
           language: data.language || 'en',
           firstName: data.first_name || '',
           lastName: data.last_name || '',
           emailId: data.email_id || data.email || '',
           mobileNo: data.mobile_no || data.phone || '',
-          addressLine1: data.address_line1 || data.address || '',
-          addressLine2: data.address_line2 || '',
-          city: data.city || '',
-          state: data.state || '',
-          pincode: data.pincode || '',
+          addressLine1: data.address_line1 || addressFallback?.addressLine1 || '',
+          addressLine2: data.address_line2 || addressFallback?.addressLine2 || '',
+          city: data.city || addressFallback?.city || '',
+          state: data.state || addressFallback?.state || '',
+          pincode: data.pincode || addressFallback?.pincode || '',
           taxId: data.tax_id || '',
           taxCategory: data.tax_category || 'Registered Regular',
           paymentTerms: data.payment_terms || '30 Days',
-          defaultBankAccount: data.default_bank_account || '',
           defaultPriceList: data.default_price_list || 'Standard Buying',
           website: data.website || '',
           supplierDetails: data.supplier_details || '',
@@ -183,6 +329,18 @@ export default function AddSupplier() {
           onHold: data.on_hold === 1 || data.on_hold === true,
           status: data.disabled === 1 ? 'Inactive' : 'Active'
         });
+
+
+        if (formKey) {
+          try {
+            const storedForm = JSON.parse(localStorage.getItem(formKey) || 'null');
+            if (storedForm) setFormData(prev => ({ ...prev, ...storedForm }));
+          } catch {
+            /* ignore */
+          }
+        }
+
+        setBankAccountsFromApiRows(data.bank_details);
       } else {
         setApiError(response.data?.message || 'Failed to fetch supplier details');
       }
@@ -192,6 +350,23 @@ export default function AddSupplier() {
     } finally {
       setFetching(false);
     }
+  };
+
+
+  const refreshBankAccounts = async (supplierIdParam: string) => {
+    try {
+      const response = await api.get(`/supplier/${supplierIdParam}?_=${Date.now()}`);
+      if (response.data && response.data.success === 1) {
+        setBankAccountsFromApiRows(response.data.data.bank_details);
+      }
+    } catch (err) {
+      console.error('Error refreshing bank accounts:', err);
+    }
+  };
+
+  const setBankAccountsFromApiRows = (bankDetails: any) => {
+    const list = Array.isArray(bankDetails) ? bankDetails : [];
+    setBankAccounts(list.map(mapBankAccountRow));
   };
 
   const getAllValidationErrors = (): ValidationError[] => {
@@ -226,7 +401,7 @@ export default function AddSupplier() {
     const value = e.target.value;
     setFormData(prev => ({ ...prev, pincode: value }));
     setIsDirty(true);
-    
+
     const suggestions = Object.keys(pincodeData).filter(p => p.startsWith(value));
     setPincodeSuggestions(suggestions);
     setShowPincodeSuggestions(suggestions.length > 0 && value.length > 0);
@@ -263,15 +438,180 @@ export default function AddSupplier() {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
     const checked = (e.target as HTMLInputElement).checked;
-    
+
     setFormData(prev => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }));
     setIsDirty(true);
-    
+
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
+    }
+  };
+
+
+  const persistFormDraft = () => {
+    if (formDraftKey) {
+      try {
+        localStorage.setItem(formDraftKey, JSON.stringify(formData));
+      } catch {
+        /* ignore quota errors etc. */
+      }
+    }
+  };
+
+
+  const buildSupplierPayload = (includeId: boolean) => {
+    const primaryAddress = [
+      formData.addressLine1,
+      formData.addressLine2,
+      formData.city,
+      formData.state,
+      formData.pincode,
+      formData.country
+    ].filter(Boolean).join(', ');
+
+    const payload: any = {
+      ...(includeId && supplierId !== null ? { id: supplierId } : {}),
+      name: formData.supplierName,
+      naming_series: 'SUP-.YYYY.-',
+      supplier_type: formData.supplierType,
+      supplier_name: formData.supplierName,
+      gender: null,
+      supplier_group: formData.supplierGroup || '',
+      country: formData.country,
+      is_transporter: formData.isTransporter ? 1 : 0,
+      image: '',
+      default_currency: formData.defaultCurrency,
+      default_bank_account: '',
+      default_price_list: formData.defaultPriceList,
+      supplier_details: formData.supplierDetails || '',
+      website: formData.website || '',
+      language: formData.language,
+      supplier_primary_address: null,
+      primary_address: primaryAddress,
+      supplier_primary_contact: null,
+      mobile_no: formData.mobileNo,
+      email_id: formData.emailId,
+      tax_id: formData.taxId || '',
+      tax_category: formData.taxCategory,
+      tax_withholding_category: null,
+      tax_withholding_group: null,
+      payment_terms: formData.paymentTerms,
+      is_internal_supplier: formData.isInternalSupplier ? 1 : 0,
+      represents_company: null,
+      allow_purchase_invoice_creation_without_purchase_order: 0,
+      allow_purchase_invoice_creation_without_purchase_receipt: 0,
+      disabled: formData.status === 'Inactive' ? 1 : 0,
+      is_frozen: 0,
+      warn_rfqs: 0,
+      prevent_rfqs: 0,
+      warn_pos: 0,
+      prevent_pos: 0,
+      on_hold: formData.onHold ? 1 : 0,
+      hold_type: null,
+      release_date: null,
+    };
+
+    return payload;
+  };
+
+  const ensureSupplierIsSaved = async (): Promise<number | null> => {
+    if (supplierId) return supplierId;
+
+    const validationErrorsList = getAllValidationErrors();
+    if (validationErrorsList.length > 0) {
+      setValidationErrors(validationErrorsList);
+      setShowValidationSummary(true);
+      toast.error('Please fill in the required supplier fields before adding a bank account.');
+      return null;
+    }
+
+    setCreatingSupplier(true);
+    setApiError(null);
+    try {
+      const payload = buildSupplierPayload(false);
+      const response = await api.post('/supplier', payload);
+
+      if (response.data && response.data.success === 1) {
+
+        const newId: number | string | null =
+          response.data?.data?.insertId ??
+          response.data?.data?.id ??
+          response.data?.id ??
+          null;
+
+        if (!newId) {
+          console.error('Could not resolve new supplier id from response:', response.data);
+          toast.error('Supplier saved, but its id could not be resolved. Please refresh and try again.');
+          return null;
+        }
+
+        setSupplierId(Number(newId));
+        if (formDraftKey) localStorage.removeItem(formDraftKey);
+        if (!isEditMode) sessionStorage.removeItem('new_supplier_draft_id');
+
+
+        navigate(`/supplier/${newId}`, { replace: true });
+        toast.success('Supplier created. Now add the bank account.');
+        return Number(newId);
+      }
+
+      toast.error(response.data?.message || 'Failed to create supplier');
+      return null;
+    } catch (error: any) {
+      console.error('Error auto-creating supplier:', error);
+      if (error.response) {
+        toast.error(error.response.data?.message || 'Failed to create supplier');
+      } else if (error.request) {
+        toast.error('Network error - No response from server');
+      } else {
+        toast.error(error.message || 'Failed to create supplier');
+      }
+      return null;
+    } finally {
+      setCreatingSupplier(false);
+    }
+  };
+
+  const handleAddBankDetails = async (editIndex?: number) => {
+    persistFormDraft();
+
+    const sId = await ensureSupplierIsSaved();
+    if (!sId) return;
+
+    const account = typeof editIndex === 'number' ? bankAccounts[editIndex] : undefined;
+
+    navigate('/bank-details', {
+      state: {
+        embedContext: {
+          returnPath: `/supplier/${sId}`,
+          partyType: 'Supplier',
+          partyId: String(sId),
+          companyId: getDefaultCompanyId(),
+          supplierName: formData.supplierName,
+          editIndex,
+          prefill: account,
+        },
+      },
+    });
+  };
+
+  const handleRemoveBankAccount = async (idx: number) => {
+    const acc = bankAccounts[idx];
+    if (!acc?.recordId) return;
+
+    const confirmed = window.confirm('Remove this bank account? This cannot be undone.');
+    if (!confirmed) return;
+
+    try {
+      await api.delete(`/bank-detail/${acc.docName || acc.recordId}`);
+      toast.success('Bank account removed');
+      setBankAccounts(prev => prev.filter((_, i) => i !== idx));
+    } catch (err) {
+      console.error('Error removing bank account:', err);
+      toast.error('Failed to remove bank account');
     }
   };
 
@@ -285,70 +625,29 @@ export default function AddSupplier() {
       setShowValidationSummary(true);
       return;
     }
-    
+
     setIsSubmitting(true);
     setLoading(true);
-    
+
     try {
-      const payload: any = {
-        name: formData.supplierName,
-        supplier_name: formData.supplierName,
-        supplier_type: formData.supplierType,
-        supplier_group: formData.supplierGroup || null,
-        country: formData.country,
-        gender: null,
-        is_transporter: formData.isTransporter ? 1 : 0,
-        image: null,
-        default_currency: formData.defaultCurrency,
-        default_bank_account: formData.defaultBankAccount || null,
-        default_price_list: formData.defaultPriceList,
-        supplier_details: formData.supplierDetails || null,
-        website: formData.website || null,
-        language: formData.language || 'en',
-        supplier_primary_address: null,
-        primary_address: null,
-        supplier_primary_contact: null,
-        mobile_no: formData.mobileNo,
-        email_id: formData.emailId,
-        tax_id: formData.taxId || null,
-        tax_category: formData.taxCategory || null,
-        tax_withholding_category: null,
-        tax_withholding_group: null,
-        payment_terms: formData.paymentTerms || null,
-        is_internal_supplier: formData.isInternalSupplier ? 1 : 0,
-        represents_company: null,
-        allow_purchase_invoice_creation_without_purchase_order: 0,
-        allow_purchase_invoice_creation_without_purchase_receipt: 0,
-        warn_rfqs: 0,
-        prevent_rfqs: 0,
-        warn_pos: 0,
-        prevent_pos: 0,
-        on_hold: formData.onHold ? 1 : 0,
-        hold_type: null,
-        release_date: null,
-        modified_by: "Administrator",
-        owner: "Administrator",
-        _user_tags: null,
-        _comments: null,
-        _assign: null,
-        _liked_by: null
-      };
+      
+      const payload = buildSupplierPayload(!!supplierId);
 
       let response;
-      if (isEditMode) {
-        payload.id = parseInt(id!);
-        payload.disabled = formData.status === 'Inactive' ? 1 : 0;
+      if (supplierId) {
         response = await api.put('/supplier', payload);
       } else {
-        payload.disabled = 0;
         response = await api.post('/supplier', payload);
       }
 
       if (response.data && response.data.success === 1) {
-        toast.success(response.data.message || (isEditMode ? 'Supplier updated successfully!' : 'Supplier created successfully!'));
+        if (formDraftKey) localStorage.removeItem(formDraftKey);
+        if (!isEditMode) sessionStorage.removeItem('new_supplier_draft_id');
+
+        toast.success(response.data.message || (supplierId ? 'Supplier updated successfully!' : 'Supplier created successfully!'));
         setTimeout(() => navigate('/supplier'), 500);
       } else {
-        setApiError(response.data?.message || (isEditMode ? 'Failed to update supplier' : 'Failed to create supplier'));
+        setApiError(response.data?.message || (supplierId ? 'Failed to update supplier' : 'Failed to create supplier'));
       }
     } catch (error: any) {
       console.error('Error saving supplier:', error);
@@ -376,7 +675,7 @@ export default function AddSupplier() {
   const handleCancel = () => navigate('/supplier');
 
   const hasErrors = getAllValidationErrors().length > 0;
-  const title = isNew ? 'Add New Supplier' : `Edit: ${formData.supplierName || 'Supplier'}`;
+  const title = isNew ? '' : `Edit: ${formData.supplierName || 'Supplier'}`;
 
   if (fetching) {
     return (
@@ -440,9 +739,11 @@ export default function AddSupplier() {
           <button onClick={handleCancel} className="back-btn">
             <FaArrowLeft size={9} /> Back
           </button>
-          <div className="header-title">
-            <h1>{title}</h1>
-          </div>
+          {!isNew && (
+            <div className="header-title">
+              <h1>{title}</h1>
+            </div>
+          )}
           {hasErrors && (
             <div className="error-badge">
               <FaExclamationTriangle size={12} />
@@ -513,38 +814,6 @@ export default function AddSupplier() {
                   disabled={isSubmitting}
                 >
                   {countries.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-
-              <div className="as-field">
-                <label className="as-label">Default Currency</label>
-                <select
-                  name="defaultCurrency"
-                  value={formData.defaultCurrency}
-                  onChange={handleInputChange}
-                  className="form-field"
-                  disabled={isSubmitting}
-                >
-                  {currencies.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-
-              <div className="as-field">
-                <label className="as-label">Language</label>
-                <select
-                  name="language"
-                  value={formData.language}
-                  onChange={handleInputChange}
-                  className="form-field"
-                  disabled={isSubmitting}
-                >
-                  <option value="en">English</option>
-                  <option value="hi">Hindi</option>
-                  <option value="es">Spanish</option>
-                  <option value="fr">French</option>
-                  <option value="de">German</option>
-                  <option value="zh">Chinese</option>
-                  <option value="ar">Arabic</option>
                 </select>
               </div>
             </div>
@@ -743,19 +1012,6 @@ export default function AddSupplier() {
               </div>
 
               <div className="as-field">
-                <label className="as-label">Payment Terms</label>
-                <select
-                  name="paymentTerms"
-                  value={formData.paymentTerms}
-                  onChange={handleInputChange}
-                  className="form-field"
-                  disabled={isSubmitting}
-                >
-                  {paymentTerms.map(term => <option key={term} value={term}>{term}</option>)}
-                </select>
-              </div>
-
-              <div className="as-field">
                 <label className="as-label">Default Price List</label>
                 <select
                   name="defaultPriceList"
@@ -768,23 +1024,87 @@ export default function AddSupplier() {
                 </select>
               </div>
 
+              {/* ── Bank Accounts ── */}
               <div className="as-field as-full-width">
-                <label className="as-label">Default Bank Account</label>
-                <input
-                  type="text"
-                  name="defaultBankAccount"
-                  value={formData.defaultBankAccount}
-                  onChange={handleInputChange}
-                  className="form-field"
-                  placeholder="Bank Name - Account Number"
-                  disabled={isSubmitting}
-                />
+                <label className="as-label"><FaUniversity className="label-icon" />Bank Accounts</label>
+
+                {bankAccounts.length === 0 ? (
+                  <p className="as-field-hint">
+                    <FaInfoCircle className="hint-icon" />
+                    No bank accounts added yet.
+                  </p>
+                ) : (
+                  <div className="as-bank-accounts-list">
+                    {bankAccounts.map((acc, idx) => (
+                      <div
+                        key={acc._key || idx}
+                        className="as-bank-account-card"
+                        onClick={() => handleAddBankDetails(idx)}
+                      >
+                        <div className="as-bank-account-icon">
+                          <FaUniversity size={15} />
+                        </div>
+                        <div className="as-bank-account-info">
+                          <div className="as-bank-account-top">
+                            <strong className="as-bank-account-name">{acc.bank_name || 'Bank account'}</strong>
+                            <div className="as-bank-account-badges">
+                              {acc.is_primary && (
+                                <span className="as-bank-badge as-bank-badge-primary">Primary</span>
+                              )}
+                              {acc.verified && (
+                                <span className="as-bank-badge as-bank-badge-verified">
+                                  <FaCheckCircle size={9} /> Verified
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="as-bank-account-details">
+                            {acc.account_holder_name && <span>{acc.account_holder_name}</span>}
+                            {acc.account_number && (
+                              <span>•••• {String(acc.account_number).slice(-4)}</span>
+                            )}
+                            {acc.branch_name && <span>{acc.branch_name}</span>}
+                            {acc.ifsc_code && <span>{acc.ifsc_code}</span>}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          className="as-bank-remove-btn"
+                          onClick={(e) => { e.stopPropagation(); handleRemoveBankAccount(idx); }}
+                          title="Remove"
+                        >
+                          <FaTimesCircle size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  className="as-add-bank-btn"
+                  onClick={() => handleAddBankDetails()}
+                  disabled={isSubmitting || creatingSupplier}
+                >
+                  {creatingSupplier ? <FaSpinner className="spinning" size={11} /> : <FaPlus size={11} />}
+                  {creatingSupplier
+                    ? 'Saving supplier…'
+                    : bankAccounts.length > 0
+                    ? 'Add Another Bank Account'
+                    : 'Add Bank Details'}
+                </button>
+                <p className="as-field-hint">
+                  <FaInfoCircle className="hint-icon" />
+                  {supplierId
+                    ? 'Bank accounts are saved immediately as you add them.'
+                    : 'The supplier will be saved first (so the bank account can be linked to it), then the bank details form will open.'}
+                </p>
               </div>
             </div>
 
             <div className="as-divider" />
 
-            {/* Additional Information - FIXED LAYOUT */}
+            {/* Additional Information */}
             <span className="as-section-title">
               <FaInfoCircle className="section-icon" /> Additional Information
             </span>
@@ -831,7 +1151,7 @@ export default function AddSupplier() {
                 />
               </div>
 
-              {/* Checkboxes - Now properly aligned in a single row */}
+              {/* Checkboxes */}
               <div className="as-checkboxes-row">
                 <div className="checkbox-field">
                   <div className="checkbox-group">
@@ -886,7 +1206,7 @@ export default function AddSupplier() {
             <button type="submit" disabled={isSubmitting} className="submit-btn">
               {isSubmitting && <FaSpinner className="spinning" />}
               <FaSave size={12} />
-              {isEditMode ? 'Update' : 'Save'}
+              {supplierId ? 'Update' : 'Save'}
             </button>
           </div>
         </form>

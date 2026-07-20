@@ -4,11 +4,9 @@ import { createPortal } from 'react-dom';
 import { 
   FaPlus, FaSave, FaSpinner, FaArrowLeft,
   FaExclamationCircle, FaExclamationTriangle, FaInfoCircle,
-  FaTimesCircle, FaTag, FaBuilding,
+  FaTimesCircle,  FaBuilding,
   FaCalendarAlt, FaFileAlt, FaBoxes, FaClipboardList,
-  FaSearch, FaFilter, FaPhone, FaEnvelope, FaMapMarkerAlt,
-  FaUserCircle, FaChevronDown, FaWarehouse, FaTruck,
-  FaReceipt, FaPercentage, FaGlobeAsia
+  FaSearch, FaFilter, FaPhone, FaEnvelope,  FaGlobeAsia
 } from 'react-icons/fa';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
@@ -113,7 +111,7 @@ interface Customer {
 }
 
 const statusOptions = ['Draft', 'Submitted', 'Partially Received', 'Fully Received', 'Cancelled', 'Closed'];
-const currencies = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD'];
+// const currencies = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD'];
 const paymentTerms = ['Net 7', 'Net 15', 'Net 30', 'Net 45', 'Net 60', 'Due on Receipt', 'Cash on Delivery'];
 const uomOptions = ['NOS', 'KG', 'LTR', 'MTR', 'BOX', 'SET', 'DOZ', 'ROL', 'SQM', 'CBM'];
 
@@ -146,10 +144,10 @@ export default function PurchaseOrderForm() {
   const supplierDropdownRef = useRef<HTMLDivElement>(null);
 
   // State for customers
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [loadingCustomers, setLoadingCustomers] = useState(false);
-  const [customerSearchTerm, setCustomerSearchTerm] = useState('');
-  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [, setCustomers] = useState<Customer[]>([]);
+  const [, setLoadingCustomers] = useState(false);
+  // const [customerSearchTerm, setCustomerSearchTerm] = useState('');
+  const [, setShowCustomerDropdown] = useState(false);
   const customerInputRef = useRef<HTMLInputElement>(null);
   const customerDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -178,10 +176,10 @@ export default function PurchaseOrderForm() {
   const [dropdownPositions, setDropdownPositions] = useState<{ [key: number]: { top: number; left: number; width: number } }>({});
 
   // State for editable grand total
-  const [editableGrandTotal, setEditableGrandTotal] = useState<number>(0);
+  const [, setEditableGrandTotal] = useState<number>(0);
   const [grandTotalAdjustmentSign, setGrandTotalAdjustmentSign] = useState<string>('positive');
   const [grandTotalAdjustmentValue, setGrandTotalAdjustmentValue] = useState<number>(0);
-  const [showAdjustment, setShowAdjustment] = useState<boolean>(false);
+  const [, setShowAdjustment] = useState<boolean>(false);
 
   // Date picker states
   const [startDate, setStartDate] = useState<Date | null>(new Date());
@@ -366,19 +364,19 @@ export default function PurchaseOrderForm() {
     (s.mobile_no && s.mobile_no.includes(supplierSearchTerm))
   );
 
-  const filteredCustomers = customers.filter(c =>
-    c.customer_name.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
-    (c.email_id && c.email_id.toLowerCase().includes(customerSearchTerm.toLowerCase())) ||
-    (c.mobile_no && c.mobile_no.includes(customerSearchTerm))
-  );
+  // const filteredCustomers = customers.filter(c =>
+  //   c.customer_name.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
+  //   (c.email_id && c.email_id.toLowerCase().includes(customerSearchTerm.toLowerCase())) ||
+  //   (c.mobile_no && c.mobile_no.includes(customerSearchTerm))
+  // );
 
   const selectedSupplier = formData.supplier
     ? suppliers.find(s => s.supplier_name === formData.supplier)
     : undefined;
 
-  const selectedCustomer = formData.customerId
-    ? customers.find(c => c.id === formData.customerId)
-    : undefined;
+  // const selectedCustomer = formData.customerId
+  //   ? customers.find(c => c.id === formData.customerId)
+  //   : undefined;
 
   // ─── Fetch single purchase order ──────────────────────────────────
   const fetchPurchaseOrder = async (poId: string) => {
@@ -606,19 +604,19 @@ export default function PurchaseOrderForm() {
   };
 
   // ─── Handle tax selection ──────────────────────────────────────────
-  const handleTaxChange = (taxId: string) => {
-    const selectedTax = taxOptions.find(t => t.tax_id.toString() === taxId);
-    if (selectedTax) {
-      const { rate, category } = extractTaxInfo(selectedTax.tax_type);
+  // const handleTaxChange = (taxId: string) => {
+  //   const selectedTax = taxOptions.find(t => t.tax_id.toString() === taxId);
+  //   if (selectedTax) {
+  //     const { rate, category } = extractTaxInfo(selectedTax.tax_type);
       
-      setFormData(prev => ({
-        ...prev,
-        taxId: taxId,
-        taxRate: rate || 0,
-        taxCategory: category,
-      }));
-    }
-  };
+  //     setFormData(prev => ({
+  //       ...prev,
+  //       taxId: taxId,
+  //       taxRate: rate || 0,
+  //       taxCategory: category,
+  //     }));
+  //   }
+  // };
 
   // ─── Handle per-row tax selection ──────────────────────────────────
   const handleItemTaxChange = (index: number, taxId: string) => {
@@ -905,15 +903,15 @@ export default function PurchaseOrderForm() {
   };
 
   // ─── Handle customer selection ─────────────────────────────────────
-  const handleCustomerSelect = (customer: Customer) => {
-    setFormData(prev => ({
-      ...prev,
-      customer: customer.customer_name,
-      customerId: customer.id,
-    }));
-    setCustomerSearchTerm(customer.customer_name);
-    setShowCustomerDropdown(false);
-  };
+  // const handleCustomerSelect = (customer: Customer) => {
+  //   setFormData(prev => ({
+  //     ...prev,
+  //     customer: customer.customer_name,
+  //     customerId: customer.id,
+  //   }));
+  //   setCustomerSearchTerm(customer.customer_name);
+  //   setShowCustomerDropdown(false);
+  // };
 
   const getAllValidationErrors = (): ValidationError[] => {
     const errors: ValidationError[] = [];
