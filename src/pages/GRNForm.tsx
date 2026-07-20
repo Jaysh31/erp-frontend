@@ -923,7 +923,7 @@
 
           // Get customer name from the response or find it from customers list
           let customerName = data.customer_name || '';
-          let customerId = data.customer_id;
+          let customerId = data.customer_id || undefined;
           
           // If customer_id exists but no name, try to find it from the customers list
           if (customerId && !customerName) {
@@ -935,7 +935,7 @@
 
           // Supplier name
           let supplierName = data.supplier_name || '';
-          let supplierId = data.supplier_id;
+          let supplierId = data.supplier_id || undefined;
 
           setFormData({
             id: data.id?.toString(),
@@ -948,7 +948,7 @@
             purchaseOrder: data.purchase_order_id ? `PO-${String(data.purchase_order_id).padStart(5, '0')}` : '',
             purchaseOrderId: data.purchase_order_id || undefined,
             warehouse: data.warehouse_name || '',
-            warehouseId: data.warehouse_id,
+            warehouseId: data.warehouse_id || undefined,
             customer: isService ? customerName : '',
             customerId: isService ? customerId : undefined,
             receivedBy: data.received_by || '',
@@ -1276,7 +1276,7 @@ const postInventoryForItems = async (items: GRNItem[]) => {
         stock_uom: item.uom,
         company: company,
         valuation_rate: item.rate || 0,
-        modified_by: role.name,
+        modified_by: role?.name,
         type: inventoryType, // This now matches the GRN type
       };
       return api.post('/inventory', payload);
