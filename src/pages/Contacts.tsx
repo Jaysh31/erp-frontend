@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   FaSearch, FaPlus, FaEdit, FaTrash, FaFilter,
-  FaTimes, FaCopy, FaEye,
+  FaTimes,  FaEye,
   FaUser, FaEnvelope, FaPhone, FaCheckCircle,
   FaTimesCircle, FaChevronLeft, FaChevronRight,
   FaAngleDoubleLeft, FaAngleDoubleRight,
@@ -274,18 +274,18 @@ export default function Contact() {
     }
   };
 
-  const handleDuplicate = (contact: Contact) => {
-    const newContact: Contact = {
-      ...contact,
-      id: String(contacts.length + 1),
-      contactCode: `CONT-${String(contacts.length + 1).padStart(3, '0')}`,
-      fullName: `${contact.fullName} (Copy)`,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-    setContacts(prev => [...prev, newContact]);
-    toast.success('Contact duplicated successfully!');
-  };
+  // const handleDuplicate = (contact: Contact) => {
+  //   const newContact: Contact = {
+  //     ...contact,
+  //     id: String(contacts.length + 1),
+  //     contactCode: `CONT-${String(contacts.length + 1).padStart(3, '0')}`,
+  //     fullName: `${contact.fullName} (Copy)`,
+  //     createdAt: new Date().toISOString(),
+  //     updatedAt: new Date().toISOString()
+  //   };
+  //   setContacts(prev => [...prev, newContact]);
+  //   toast.success('Contact duplicated successfully!');
+  // };
 
   const clearFilters = () => {
     setSearchTerm('');

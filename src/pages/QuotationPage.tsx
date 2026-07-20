@@ -278,7 +278,7 @@ export default function QuotationPage() {
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [selectedQuote, setSelectedQuote] = useState<Quotation | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [pdfModalLoading, setPdfModalLoading] = useState(false);
+  const [pdfModalLoading, ] = useState(false);
 
   // ─── load from GET /quotation ───────────────────────────────────────
 
@@ -513,18 +513,18 @@ export default function QuotationPage() {
     }
   };
 
-  // PDF View for single quotation
-  const handlePdfView = async (quote: Quotation) => {
-    setSelectedQuote(quote);
-    setShowPdfModal(true);
-    setPdfModalLoading(true);
-    try {
-      const printable = await buildPrintableQuote(quote);
-      setSelectedQuote(printable);
-    } finally {
-      setPdfModalLoading(false);
-    }
-  };
+  // // PDF View for single quotation
+  // const handlePdfView = async (quote: Quotation) => {
+  //   setSelectedQuote(quote);
+  //   setShowPdfModal(true);
+  //   setPdfModalLoading(true);
+  //   try {
+  //     const printable = await buildPrintableQuote(quote);
+  //     setSelectedQuote(printable);
+  //   } finally {
+  //     setPdfModalLoading(false);
+  //   }
+  // };
 
   const getCompanyDetails = () => companyDetails;
 

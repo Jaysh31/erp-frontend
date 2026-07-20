@@ -1,5 +1,4 @@
-// CreateSalesBill.tsx - Updated with Delivery Challan and Bill Type in same row
-
+// CreateSalesBill.tsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import {
@@ -7,7 +6,6 @@ import {
   FaTimes,
   FaPrint,
   FaPaperPlane,
-  FaUser,
   FaBox,
   FaPlus,
   FaTrash,
@@ -15,16 +13,15 @@ import {
   FaChevronDown,
   FaArrowLeft,
   FaInfoCircle,
-  FaRupeeSign,
-  FaListUl,
-  FaTruck,
-  FaCalendarAlt,
-  FaFileInvoice,
-  FaTags,
-  FaWarehouse,
-  FaMoneyBillWave,
   FaCalculator,
-  FaFileAlt
+  FaFileAlt,
+  FaBuilding,
+  FaUser,
+  FaPhone,
+  FaEnvelope,
+  FaExclamationTriangle,
+  FaCheck,
+  FaCheckCircle,
 } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
@@ -96,6 +93,7 @@ interface SalesBillItem {
   taxAmount: number;
   totalAmount: number;
   type: 'product' | 'service';
+  deliveryChallanId?: string; // Track which DC this item came from
 }
 
 interface SalesBillPayload {
@@ -115,7 +113,7 @@ interface SalesBillPayload {
   po_no: string;
   po_date: string;
   sales_order: string;
-  delivery_challan: string;
+  delivery_challan: string; // Comma-separated list of DC IDs
   instructions: string;
   status: string;
   bill_type: string;
@@ -133,6 +131,7 @@ interface SalesBillPayload {
     total_amount: number;
     warehouse: string;
     type: string;
+    delivery_challan?: string; // Optional: reference to source DC
   }>;
 }
 
@@ -158,6 +157,19 @@ interface DeliveryChallanData {
   po_date?: string;
   warehouse?: string;
   remarks?: string;
+}
+
+interface Warehouse {
+  id: number;
+  warehouse_name: string;
+  company: string;
+  parent_warehouse: string | null;
+  warehouse_type: string | null;
+  city: string | null;
+  state: string | null;
+  email_id: string | null;
+  phone_no: string | null;
+  disabled: number;
 }
 
 interface ApiResponse<T = any> {
@@ -328,11 +340,19 @@ class SalesBillAPI {
   }
 
   async getDeliveryChallans(params?: { customer?: string; page?: number; limit?: number; search?: string }): Promise<ApiResponse<any>> {
-    return this.apiService.get('/delivery-notes', params);
+    return this.apiService.get('/delivery-note', params);
   }
 
   async getDeliveryChallanById(id: string): Promise<ApiResponse<any>> {
     return this.apiService.get(`/delivery-note/${id}`);
+  }
+
+  async getWarehouses(params?: { page?: number; limit?: number; search?: string }): Promise<ApiResponse<any>> {
+    return this.apiService.get('/warehouse', params);
+  }
+
+  async getWarehouseById(id: number): Promise<ApiResponse<any>> {
+    return this.apiService.get(`/warehouse/${id}`);
   }
 }
 
@@ -384,6 +404,14 @@ const MOCK_PRODUCTS: Product[] = [
   { id: 'p5', itemCode: 'PRD-G001', itemName: 'Gear Box - 10:1 Ratio', description: 'Gear Box - 10:1 Ratio', unit: 'pcs', rate: 3000, tax: 12, type: 'product' },
 ];
 
+const MOCK_WAREHOUSES: Warehouse[] = [
+  { id: 13, warehouse_name: 'Scrap Warehouse', company: 'ChandraTara', parent_warehouse: null, warehouse_type: null, city: null, state: null, email_id: null, phone_no: null, disabled: 0 },
+  { id: 12, warehouse_name: 'Rejected Material', company: 'ChandraTara', parent_warehouse: null, warehouse_type: null, city: 'AURANGABAD', state: 'MAHARASHTRA', email_id: 'tejasvitthaltarte@gmail.com', phone_no: '08669082516', disabled: 0 },
+  { id: 11, warehouse_name: 'Finished Goods', company: 'ChandraTara', parent_warehouse: null, warehouse_type: null, city: null, state: null, email_id: null, phone_no: '08668584275', disabled: 0 },
+  { id: 10, warehouse_name: 'Work In Progress', company: 'ChandraTara', parent_warehouse: null, warehouse_type: null, city: null, state: null, email_id: null, phone_no: null, disabled: 0 },
+  { id: 9, warehouse_name: 'Raw Material Store', company: 'ChandraTara', parent_warehouse: null, warehouse_type: null, city: 'Pune', state: 'Mh', email_id: null, phone_no: '08668584275', disabled: 0 }
+];
+
 const MOCK_DELIVERY_CHALLANS: DeliveryChallanData[] = [
   {
     id: 'DC-2024-001',
@@ -393,52 +421,51 @@ const MOCK_DELIVERY_CHALLANS: DeliveryChallanData[] = [
     sales_order_id: '101',
     sales_order_number: 'SO-2024-001',
     posting_date: '2024-01-15',
-    total_qty: 25,
-    grand_total: 45000,
+    total_qty: 10,
+    grand_total: 15000,
     po_no: 'PO-1001',
     po_date: '2024-01-10',
     warehouse: 'Main Warehouse',
     items: [
-      { item_code: 'PRD-P001', description: 'Industrial Pump - 5 HP', qty: 10, uom: 'pcs', rate: 1500, amount: 15000 },
-      { item_code: 'PRD-S001', description: 'Submersible Pump - 2 HP', qty: 15, uom: 'pcs', rate: 2000, amount: 30000 }
+      { item_code: 'PRD-P001', description: 'Industrial Pump - 5 HP', qty: 10, uom: 'pcs', rate: 1500, amount: 15000 }
     ],
     remarks: 'Delivered on time'
   },
   {
     id: 'DC-2024-002',
+    customer_id: '1',
+    customer_name: 'ABC Traders Pvt Ltd',
+    customer_code: 'CUST001',
+    sales_order_id: '101',
+    sales_order_number: 'SO-2024-001',
+    posting_date: '2024-01-20',
+    total_qty: 15,
+    grand_total: 30000,
+    po_no: 'PO-1001',
+    po_date: '2024-01-10',
+    warehouse: 'Main Warehouse',
+    items: [
+      { item_code: 'PRD-S001', description: 'Submersible Pump - 2 HP', qty: 15, uom: 'pcs', rate: 2000, amount: 30000 }
+    ],
+    remarks: 'Second delivery'
+  },
+  {
+    id: 'DC-2024-003',
     customer_id: '2',
     customer_name: 'XYZ Enterprises',
     customer_code: 'CUST002',
     sales_order_id: '102',
     sales_order_number: 'SO-2024-002',
-    posting_date: '2024-01-18',
-    total_qty: 12,
-    grand_total: 32000,
+    posting_date: '2024-02-01',
+    total_qty: 20,
+    grand_total: 50000,
     po_no: 'PO-1002',
-    po_date: '2024-01-12',
-    warehouse: 'Secondary Warehouse',
-    items: [
-      { item_code: 'PRD-C001', description: 'Centrifugal Pump - 3 HP', qty: 12, uom: 'pcs', rate: 2500, amount: 30000 }
-    ],
-    remarks: 'Urgent delivery'
-  },
-  {
-    id: 'DC-2024-003',
-    customer_id: '3',
-    customer_name: 'PQR Solutions Ltd',
-    customer_code: 'CUST003',
-    sales_order_id: '103',
-    sales_order_number: 'SO-2024-003',
-    posting_date: '2024-01-20',
-    total_qty: 8,
-    grand_total: 28000,
-    po_no: 'PO-1003',
-    po_date: '2024-01-15',
+    po_date: '2024-01-25',
     warehouse: 'Main Warehouse',
     items: [
-      { item_code: 'PRD-M001', description: 'Motor Assembly - 7.5 HP', qty: 8, uom: 'pcs', rate: 3500, amount: 28000 }
+      { item_code: 'PRD-M001', description: 'Motor Assembly - 7.5 HP', qty: 10, uom: 'pcs', rate: 5000, amount: 50000 }
     ],
-    remarks: 'Express shipping'
+    remarks: 'Delivered'
   }
 ];
 
@@ -470,6 +497,631 @@ function useDropdownPosition(isOpen: boolean, triggerRef: React.RefObject<HTMLDi
 
   return pos;
 }
+
+// ===== MULTI-SELECT DELIVERY CHALLAN COMPONENT =====
+interface MultiDeliveryChallanSelectProps {
+  selectedDCs: DeliveryChallanData[];
+  onSelect: (dcs: DeliveryChallanData[]) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  error?: boolean;
+  customerFilter?: string; // Filter by customer
+}
+
+const MultiDeliveryChallanSelect: React.FC<MultiDeliveryChallanSelectProps> = ({
+  selectedDCs,
+  onSelect,
+  placeholder = 'Search and select Delivery Challans...',
+  disabled = false,
+  error = false,
+  customerFilter
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [deliveryChallans, setDeliveryChallans] = useState<DeliveryChallanData[]>([]);
+  const [filteredDCs, setFilteredDCs] = useState<DeliveryChallanData[]>([]);
+  const [loading, setLoading] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const salesBillAPI = new SalesBillAPI();
+
+  const menuPos = useDropdownPosition(isOpen, wrapperRef);
+
+  useEffect(() => {
+    fetchDeliveryChallans();
+  }, [customerFilter]);
+
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      let filtered = deliveryChallans;
+      if (customerFilter) {
+        filtered = filtered.filter(dc => dc.customer_id === customerFilter);
+      }
+      setFilteredDCs(filtered);
+      return;
+    }
+
+    let filtered = deliveryChallans.filter(dc =>
+      dc.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      dc.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      dc.customer_code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      dc.sales_order_number?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    if (customerFilter) {
+      filtered = filtered.filter(dc => dc.customer_id === customerFilter);
+    }
+
+    setFilteredDCs(filtered);
+  }, [searchTerm, deliveryChallans, customerFilter]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      const clickedTrigger = wrapperRef.current?.contains(target);
+      const clickedMenu = menuRef.current?.contains(target);
+      if (!clickedTrigger && !clickedMenu) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const fetchDeliveryChallans = async () => {
+    setLoading(true);
+    try {
+      const params: any = { page: 1, limit: 100 };
+      if (customerFilter) {
+        params.customer = customerFilter;
+      }
+
+      const response = await salesBillAPI.getDeliveryChallans(params);
+
+      if (response.success && response.data) {
+        let dcList: any[] = [];
+        if (response.data.data?.records) {
+          dcList = response.data.data.records;
+        } else if (Array.isArray(response.data)) {
+          dcList = response.data;
+        } else if (response.data.data && Array.isArray(response.data.data)) {
+          dcList = response.data.data;
+        }
+        if (dcList.length > 0) {
+          const mappedDCs: DeliveryChallanData[] = dcList.map((dc: any) => ({
+            id: dc.name || dc.id || '',
+            customer_id: dc.customer || '',
+            customer_name: dc.customer_name || '',
+            customer_code: dc.customer_code || '',
+            sales_order_id: dc.sales_order || '',
+            sales_order_number: dc.sales_order_number || '',
+            posting_date: dc.posting_date || dc.date || '',
+            total_qty: dc.total_qty || 0,
+            grand_total: dc.grand_total || 0,
+            po_no: dc.po_no || '',
+            po_date: dc.po_date || '',
+            warehouse: dc.set_warehouse || dc.warehouse || '',
+            items: dc.items || [],
+            remarks: dc.instructions || dc.remarks || ''
+          }));
+          setDeliveryChallans(mappedDCs);
+          setFilteredDCs(mappedDCs);
+        } else {
+          // Filter mock data by customer if needed
+          let mockData = MOCK_DELIVERY_CHALLANS;
+          if (customerFilter) {
+            mockData = mockData.filter(dc => dc.customer_id === customerFilter);
+          }
+          setDeliveryChallans(mockData);
+          setFilteredDCs(mockData);
+        }
+      } else {
+        let mockData = MOCK_DELIVERY_CHALLANS;
+        if (customerFilter) {
+          mockData = mockData.filter(dc => dc.customer_id === customerFilter);
+        }
+        setDeliveryChallans(mockData);
+        setFilteredDCs(mockData);
+      }
+    } catch (error) {
+      console.error('Error fetching delivery challans:', error);
+      let mockData = MOCK_DELIVERY_CHALLANS;
+      if (customerFilter) {
+        mockData = mockData.filter(dc => dc.customer_id === customerFilter);
+      }
+      setDeliveryChallans(mockData);
+      setFilteredDCs(mockData);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const term = e.target.value;
+    setSearchTerm(term);
+
+    if (!isOpen) {
+      setIsOpen(true);
+    }
+  };
+
+  const handleToggleDC = (dc: DeliveryChallanData) => {
+    const isSelected = selectedDCs.some(s => s.id === dc.id);
+    let newSelected: DeliveryChallanData[];
+
+    if (isSelected) {
+      newSelected = selectedDCs.filter(s => s.id !== dc.id);
+    } else {
+      // Check if same customer
+      if (selectedDCs.length > 0 && selectedDCs[0].customer_id !== dc.customer_id) {
+        toast.error('All delivery challans must belong to the same customer');
+        return;
+      }
+      newSelected = [...selectedDCs, dc];
+    }
+
+    onSelect(newSelected);
+    setIsOpen(false);
+    setSearchTerm('');
+    if (inputRef.current) {
+      inputRef.current.blur();
+    }
+  };
+
+  const handleRemoveDC = (dcId: string) => {
+    onSelect(selectedDCs.filter(s => s.id !== dcId));
+  };
+
+  const getDisplayValue = () => {
+    if (selectedDCs.length === 0) return '';
+    if (selectedDCs.length === 1) return `${selectedDCs[0].id} - ${selectedDCs[0].customer_name}`;
+    return `${selectedDCs.length} Delivery Challans selected`;
+  };
+
+  const isDCSelected = (dcId: string) => {
+    return selectedDCs.some(s => s.id === dcId);
+  };
+
+  const menu = (isOpen && !disabled) ? (
+    <div
+      ref={menuRef}
+      className="nsb-custom-scroll"
+      style={{
+        position: 'fixed',
+        top: menuPos.top,
+        left: menuPos.left,
+        width: menuPos.width,
+        background: 'var(--card-bg, #ffffff)',
+        border: '0.5px solid var(--border-color, #e2e8f0)',
+        borderRadius: '6px',
+        boxShadow: '0 4px 16px var(--shadow-color, rgba(0,0,0,0.15))',
+        zIndex: 99999,
+        maxHeight: '300px',
+        overflowY: 'auto',
+        overflowX: 'hidden'
+      }}
+    >
+      {loading ? (
+        <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
+          <FaSpinner className="nsb-spinning" style={{ display: 'inline-block', marginRight: '8px' }} /> Loading...
+        </div>
+      ) : filteredDCs.length > 0 ? (
+        filteredDCs.map((dc) => {
+          const selected = isDCSelected(dc.id);
+          return (
+            <div
+              key={dc.id}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                handleToggleDC(dc);
+              }}
+              style={{
+                padding: '10px 14px',
+                cursor: 'pointer',
+                background: selected ? 'color-mix(in srgb, var(--primary-color, #2563eb) 10%, transparent)' : 'transparent',
+                borderLeft: selected ? '3px solid var(--primary-color, #2563eb)' : '3px solid transparent',
+                transition: 'background 0.15s',
+                borderBottom: '0.5px solid var(--border-color, #f1f5f9)'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {selected && <FaCheck style={{ color: 'var(--primary-color, #2563eb)', fontSize: '12px' }} />}
+                  <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary, #0f172a)' }}>
+                    {dc.id}
+                  </span>
+                  <span style={{ fontSize: '12px', color: 'var(--text-secondary, #475569)' }}>
+                    {dc.customer_name}
+                  </span>
+                </div>
+                <span style={{
+                  fontSize: '11px',
+                  padding: '2px 10px',
+                  borderRadius: '12px',
+                  background: selected ? 'var(--primary-color, #2563eb)' : '#dbeafe',
+                  color: selected ? '#fff' : '#1e40af',
+                  fontWeight: 500
+                }}>
+                  {selected ? 'Selected' : (dc.sales_order_number || 'No SO')}
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: '16px', marginTop: '4px', fontSize: '11px', color: 'var(--text-secondary, #64748b)' }}>
+                <span>Qty: {dc.total_qty}</span>
+                <span>Total: ₹{dc.grand_total}</span>
+                <span>Date: {new Date(dc.posting_date).toLocaleDateString()}</span>
+              </div>
+              {dc.items && dc.items.length > 0 && (
+                <div style={{ fontSize: '10px', color: 'var(--text-secondary, #94a3b8)', marginTop: '4px' }}>
+                  Items: {dc.items.map(i => `${i.item_code}(${i.qty})`).join(', ')}
+                </div>
+              )}
+            </div>
+          );
+        })
+      ) : (
+        <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
+          {searchTerm ? 'No matching delivery challans found' : 'No delivery challans available'}
+          {customerFilter && ' for this customer'}
+        </div>
+      )}
+    </div>
+  ) : null;
+
+  return (
+    <div ref={wrapperRef} style={{ position: 'relative', width: '100%' }}>
+      <div style={{ position: 'relative' }}>
+        <input
+          ref={inputRef}
+          type="text"
+          placeholder={placeholder}
+          value={isOpen ? searchTerm : getDisplayValue()}
+          onChange={handleSearchChange}
+          onFocus={() => !disabled && setIsOpen(true)}
+          disabled={disabled}
+          autoComplete="off"
+          className="nsb-input"
+          style={{
+            width: '100%',
+            padding: '6px 10px',
+            paddingRight: '35px',
+            border: error ? '0.5px solid var(--danger-color, #ef4444)' : '0.5px solid var(--border-color, #e2e8f0)',
+            borderRadius: '6px',
+            background: disabled ? 'var(--input-bg, #f3f4f6)' : 'var(--input-bg, #f8fafc)',
+            color: 'var(--text-primary, #0f172a)',
+            fontSize: '13px',
+            fontFamily: 'inherit',
+            cursor: disabled ? 'not-allowed' : 'text',
+            minHeight: '32px'
+          }}
+        />
+        {loading ? (
+          <FaSpinner className="nsb-spinning" style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--primary-color, #2563eb)', fontSize: '12px' }} />
+        ) : (
+          <FaChevronDown style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: disabled ? 'var(--text-secondary, #94a3b8)' : 'var(--text-secondary, #64748b)', fontSize: '12px', pointerEvents: 'none' }} />
+        )}
+      </div>
+
+      {/* Selected DCs Tags */}
+      {selectedDCs.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
+          {selectedDCs.map(dc => (
+            <span
+              key={dc.id}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '2px 8px',
+                borderRadius: '12px',
+                fontSize: '10px',
+                background: 'color-mix(in srgb, var(--primary-color, #2563eb) 12%, transparent)',
+                color: 'var(--primary-color, #2563eb)',
+                border: '1px solid color-mix(in srgb, var(--primary-color, #2563eb) 25%, transparent)'
+              }}
+            >
+              <FaCheckCircle size={8} />
+              {dc.id}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleRemoveDC(dc.id);
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-secondary, #94a3b8)',
+                  cursor: 'pointer',
+                  padding: '0 2px',
+                  fontSize: '10px'
+                }}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {menu && ReactDOM.createPortal(menu, document.body)}
+    </div>
+  );
+};
+
+// ===== SEARCHABLE WAREHOUSE SELECT COMPONENT =====
+interface WarehouseSelectProps {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  error?: boolean;
+  required?: boolean;
+}
+
+const WarehouseSelect: React.FC<WarehouseSelectProps> = ({
+  value,
+  onChange,
+  placeholder = 'Select Warehouse...',
+  disabled = false,
+  error = false,
+  required = false
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [filteredWarehouses, setFilteredWarehouses] = useState<Warehouse[]>([]);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const [loading, setLoading] = useState(false);
+  const [selectedWarehouse, setSelectedWarehouse] = useState<Warehouse | null>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const salesBillAPI = new SalesBillAPI();
+
+  const menuPos = useDropdownPosition(isOpen, wrapperRef);
+
+  useEffect(() => {
+    fetchWarehouses();
+  }, []);
+
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setFilteredWarehouses(warehouses);
+      return;
+    }
+
+    const filtered = warehouses.filter(wh =>
+      wh.warehouse_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      wh.id?.toString().includes(searchTerm) ||
+      wh.city?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      wh.state?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    setFilteredWarehouses(filtered);
+  }, [searchTerm, warehouses]);
+
+  useEffect(() => {
+    if (value) {
+      const found = warehouses.find(wh => wh.id.toString() === value);
+      setSelectedWarehouse(found || null);
+    } else {
+      setSelectedWarehouse(null);
+    }
+  }, [value, warehouses]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      const clickedTrigger = wrapperRef.current?.contains(target);
+      const clickedMenu = menuRef.current?.contains(target);
+      if (!clickedTrigger && !clickedMenu) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const fetchWarehouses = async (search?: string) => {
+    setLoading(true);
+    try {
+      const params: { page: number; limit: number; search?: string } = {
+        page: 1,
+        limit: 100
+      };
+      if (search) {
+        params.search = search;
+      }
+
+      const response = await salesBillAPI.getWarehouses(params);
+
+      if (response.success && response.data) {
+        let whList: any[] = [];
+
+        if (response.data.data?.records) {
+          whList = response.data.data.records;
+        } else if (Array.isArray(response.data.data)) {
+          whList = response.data.data;
+        } else if (Array.isArray(response.data)) {
+          whList = response.data;
+        } else if (response.data.records) {
+          whList = response.data.records;
+        }
+
+        if (whList.length > 0) {
+          const mappedWarehouses: Warehouse[] = whList.map((wh: any) => ({
+            id: wh.id || 0,
+            warehouse_name: wh.warehouse_name || wh.name || '',
+            company: wh.company || '',
+            parent_warehouse: wh.parent_warehouse || null,
+            warehouse_type: wh.warehouse_type || null,
+            city: wh.city || null,
+            state: wh.state || null,
+            email_id: wh.email_id || null,
+            phone_no: wh.phone_no || null,
+            disabled: wh.disabled || 0
+          }));
+          setWarehouses(mappedWarehouses);
+          setFilteredWarehouses(mappedWarehouses);
+        } else {
+          setWarehouses(MOCK_WAREHOUSES);
+          setFilteredWarehouses(MOCK_WAREHOUSES);
+        }
+      } else {
+        setWarehouses(MOCK_WAREHOUSES);
+        setFilteredWarehouses(MOCK_WAREHOUSES);
+      }
+    } catch (error) {
+      console.error('Error fetching warehouses:', error);
+      setWarehouses(MOCK_WAREHOUSES);
+      setFilteredWarehouses(MOCK_WAREHOUSES);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const term = e.target.value;
+    setSearchTerm(term);
+    setHighlightedIndex(-1);
+
+    if (!isOpen) {
+      setIsOpen(true);
+    }
+
+    if (term.length > 2) {
+      const timer = setTimeout(() => {
+        fetchWarehouses(term);
+      }, 300);
+      return () => clearTimeout(timer);
+    } else if (term.length === 0) {
+      fetchWarehouses();
+    }
+  };
+
+  const handleSelect = (warehouse: Warehouse) => {
+    setSelectedWarehouse(warehouse);
+    setSearchTerm('');
+    setIsOpen(false);
+    onChange(warehouse.id.toString());
+    if (inputRef.current) {
+      inputRef.current.blur();
+    }
+  };
+
+  const getDisplayValue = () => {
+    if (selectedWarehouse) {
+      return `${selectedWarehouse.warehouse_name}`;
+    }
+    return '';
+  };
+
+  const menu = (isOpen && !disabled) ? (
+    <div
+      ref={menuRef}
+      className="nsb-custom-scroll"
+      style={{
+        position: 'fixed',
+        top: menuPos.top,
+        left: menuPos.left,
+        width: menuPos.width,
+        background: 'var(--card-bg, #ffffff)',
+        border: '0.5px solid var(--border-color, #e2e8f0)',
+        borderRadius: '6px',
+        boxShadow: '0 4px 16px var(--shadow-color, rgba(0,0,0,0.15))',
+        zIndex: 99999,
+        maxHeight: '260px',
+        overflowY: 'auto',
+        overflowX: 'hidden'
+      }}
+    >
+      {loading ? (
+        <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
+          <FaSpinner className="nsb-spinning" style={{ display: 'inline-block', marginRight: '8px' }} /> Loading warehouses...
+        </div>
+      ) : filteredWarehouses.length > 0 ? (
+        filteredWarehouses.map((wh, index) => (
+          <div
+            key={wh.id}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              handleSelect(wh);
+            }}
+            style={{
+              padding: '10px 14px',
+              cursor: 'pointer',
+              background: highlightedIndex === index ? 'var(--nav-hover, #eff6ff)' : 'transparent',
+              borderLeft: value === wh.id.toString() ? '3px solid var(--primary-color, #2563eb)' : '3px solid transparent',
+              transition: 'background 0.15s',
+              borderBottom: index < filteredWarehouses.length - 1 ? '0.5px solid var(--border-color, #f1f5f9)' : 'none'
+            }}
+            onMouseEnter={() => setHighlightedIndex(index)}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary, #0f172a)' }}>
+                {wh.warehouse_name}
+              </span>
+              {wh.city && (
+                <span style={{ fontSize: '11px', color: 'var(--text-secondary, #64748b)' }}>
+                  {wh.city}{wh.state ? `, ${wh.state}` : ''}
+                </span>
+              )}
+            </div>
+            {wh.id && (
+              <div style={{ fontSize: '11px', color: 'var(--text-secondary, #94a3b8)', marginTop: '2px' }}>
+                ID: {wh.id} {wh.company ? `| ${wh.company}` : ''}
+              </div>
+            )}
+          </div>
+        ))
+      ) : (
+        <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
+          {searchTerm ? 'No matching warehouses found' : 'No warehouses available'}
+        </div>
+      )}
+    </div>
+  ) : null;
+
+  return (
+    <div ref={wrapperRef} style={{ position: 'relative', width: '100%' }}>
+      <div style={{ position: 'relative' }}>
+        <input
+          ref={inputRef}
+          type="text"
+          placeholder={placeholder}
+          value={isOpen ? searchTerm : getDisplayValue()}
+          onChange={handleSearchChange}
+          onFocus={() => !disabled && setIsOpen(true)}
+          disabled={disabled}
+          autoComplete="off"
+          className="nsb-input"
+          style={{
+            width: '100%',
+            padding: '6px 10px',
+            paddingRight: '35px',
+            border: error ? '0.5px solid var(--danger-color, #ef4444)' : '0.5px solid var(--border-color, #e2e8f0)',
+            borderRadius: '6px',
+            background: disabled ? 'var(--input-bg, #f3f4f6)' : 'var(--input-bg, #f8fafc)',
+            color: 'var(--text-primary, #0f172a)',
+            fontSize: '13px',
+            fontFamily: 'inherit',
+            cursor: disabled ? 'not-allowed' : 'text',
+            minHeight: '32px'
+          }}
+        />
+        {loading ? (
+          <FaSpinner className="nsb-spinning" style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--primary-color, #2563eb)', fontSize: '12px' }} />
+        ) : (
+          <FaChevronDown style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: disabled ? 'var(--text-secondary, #94a3b8)' : 'var(--text-secondary, #64748b)', fontSize: '12px', pointerEvents: 'none' }} />
+        )}
+        {required && !value && !disabled && (
+          <span style={{ position: 'absolute', right: '35px', top: '50%', transform: 'translateY(-50%)', color: 'var(--danger-color, #ef4444)', fontSize: '12px' }}>*</span>
+        )}
+      </div>
+
+      {menu && ReactDOM.createPortal(menu, document.body)}
+    </div>
+  );
+};
 
 // ===== SEARCHABLE PRODUCT SELECT COMPONENT =====
 interface SearchableSelectProps {
@@ -659,268 +1311,18 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
   );
 };
 
-// ===== SEARCHABLE DELIVERY CHALLAN DROPDOWN =====
-interface DeliveryChallanDropdownProps {
-  value: string;
-  onChange: (value: string, dcData?: DeliveryChallanData) => void;
-  placeholder?: string;
-  disabled?: boolean;
-  error?: boolean;
-}
-
-const DeliveryChallanDropdown: React.FC<DeliveryChallanDropdownProps> = ({
-  value,
-  onChange,
-  placeholder = 'Search Delivery Challan...',
-  disabled = false,
-  error = false
-}) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [deliveryChallans, setDeliveryChallans] = useState<DeliveryChallanData[]>([]);
-  const [filteredDCs, setFilteredDCs] = useState<DeliveryChallanData[]>([]);
-  const [highlightedIndex, setHighlightedIndex] = useState(-1);
-  const [loading, setLoading] = useState(false);
-  const [selectedDC, setSelectedDC] = useState<DeliveryChallanData | null>(null);
-  const wrapperRef = useRef<HTMLDivElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const salesBillAPI = new SalesBillAPI();
-
-  const menuPos = useDropdownPosition(isOpen, wrapperRef);
-
-  useEffect(() => {
-    fetchDeliveryChallans();
-  }, []);
-
-  useEffect(() => {
-    if (!searchTerm.trim()) {
-      setFilteredDCs(deliveryChallans);
-      return;
-    }
-
-    const filtered = deliveryChallans.filter(dc =>
-      dc.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      dc.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      dc.customer_code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      dc.sales_order_number?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-    setFilteredDCs(filtered);
-  }, [searchTerm, deliveryChallans]);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node;
-      const clickedTrigger = wrapperRef.current?.contains(target);
-      const clickedMenu = menuRef.current?.contains(target);
-      if (!clickedTrigger && !clickedMenu) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const fetchDeliveryChallans = async () => {
-    setLoading(true);
-    try {
-      const response = await salesBillAPI.getDeliveryChallans({
-        page: 1,
-        limit: 100
-      });
-
-      if (response.success && response.data) {
-        let dcList: any[] = [];
-        if (response.data.data?.records) {
-          dcList = response.data.data.records;
-        } else if (Array.isArray(response.data)) {
-          dcList = response.data;
-        } else if (response.data.data && Array.isArray(response.data.data)) {
-          dcList = response.data.data;
-        }
-        if (dcList.length > 0) {
-          const mappedDCs: DeliveryChallanData[] = dcList.map((dc: any) => ({
-            id: dc.name || dc.id || '',
-            customer_id: dc.customer || '',
-            customer_name: dc.customer_name || '',
-            customer_code: dc.customer_code || '',
-            sales_order_id: dc.sales_order || '',
-            sales_order_number: dc.sales_order_number || '',
-            posting_date: dc.posting_date || dc.date || '',
-            total_qty: dc.total_qty || 0,
-            grand_total: dc.grand_total || 0,
-            po_no: dc.po_no || '',
-            po_date: dc.po_date || '',
-            warehouse: dc.set_warehouse || dc.warehouse || '',
-            items: dc.items || [],
-            remarks: dc.instructions || dc.remarks || ''
-          }));
-          setDeliveryChallans(mappedDCs);
-          setFilteredDCs(mappedDCs);
-        } else {
-          setDeliveryChallans(MOCK_DELIVERY_CHALLANS);
-          setFilteredDCs(MOCK_DELIVERY_CHALLANS);
-        }
-      } else {
-        setDeliveryChallans(MOCK_DELIVERY_CHALLANS);
-        setFilteredDCs(MOCK_DELIVERY_CHALLANS);
-      }
-    } catch (error) {
-      console.error('Error fetching delivery challans:', error);
-      setDeliveryChallans(MOCK_DELIVERY_CHALLANS);
-      setFilteredDCs(MOCK_DELIVERY_CHALLANS);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const term = e.target.value;
-    setSearchTerm(term);
-    setHighlightedIndex(-1);
-
-    if (!isOpen) {
-      setIsOpen(true);
-    }
-  };
-
-  const handleSelect = (dc: DeliveryChallanData) => {
-    setSelectedDC(dc);
-    setSearchTerm('');
-    setIsOpen(false);
-    onChange(dc.id, dc);
-    if (inputRef.current) {
-      inputRef.current.blur();
-    }
-  };
-
-  const getDisplayValue = () => {
-    if (selectedDC) {
-      return `${selectedDC.id} - ${selectedDC.customer_name}`;
-    }
-    return '';
-  };
-
-  const menu = (isOpen && !disabled) ? (
-    <div
-      ref={menuRef}
-      className="nsb-custom-scroll"
-      style={{
-        position: 'fixed',
-        top: menuPos.top,
-        left: menuPos.left,
-        width: menuPos.width,
-        background: 'var(--card-bg, #ffffff)',
-        border: '0.5px solid var(--border-color, #e2e8f0)',
-        borderRadius: '6px',
-        boxShadow: '0 4px 16px var(--shadow-color, rgba(0,0,0,0.15))',
-        zIndex: 99999,
-        maxHeight: '260px',
-        overflowY: 'auto',
-        overflowX: 'hidden'
-      }}
-    >
-      {loading ? (
-        <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
-          <FaSpinner className="nsb-spinning" style={{ display: 'inline-block', marginRight: '8px' }} /> Loading...
-        </div>
-      ) : filteredDCs.length > 0 ? (
-        filteredDCs.map((dc, index) => (
-          <div
-            key={dc.id}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              handleSelect(dc);
-            }}
-            style={{
-              padding: '10px 14px',
-              cursor: 'pointer',
-              background: highlightedIndex === index ? 'var(--nav-hover, #eff6ff)' : 'transparent',
-              borderLeft: String(value) === String(dc.id) ? '3px solid var(--primary-color, #2563eb)' : '3px solid transparent',
-              transition: 'background 0.15s',
-              borderBottom: index < filteredDCs.length - 1 ? '0.5px solid var(--border-color, #f1f5f9)' : 'none'
-            }}
-            onMouseEnter={() => setHighlightedIndex(index)}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary, #0f172a)' }}>{dc.id}</span>
-                <span style={{ fontSize: '12px', color: 'var(--text-secondary, #475569)', marginLeft: '8px' }}>{dc.customer_name}</span>
-              </div>
-              <span style={{
-                fontSize: '11px',
-                padding: '2px 10px',
-                borderRadius: '12px',
-                background: '#dbeafe',
-                color: '#1e40af',
-                fontWeight: 500
-              }}>
-                {dc.sales_order_number || 'No SO'}
-              </span>
-            </div>
-            <div style={{ display: 'flex', gap: '16px', marginTop: '4px', fontSize: '11px', color: 'var(--text-secondary, #64748b)' }}>
-              <span>Qty: {dc.total_qty}</span>
-              <span>Total: ₹{dc.grand_total}</span>
-              <span>Date: {new Date(dc.posting_date).toLocaleDateString()}</span>
-            </div>
-          </div>
-        ))
-      ) : (
-        <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
-          {searchTerm ? 'No matching delivery challans found' : 'No delivery challans available'}
-        </div>
-      )}
-    </div>
-  ) : null;
-
-  return (
-    <div ref={wrapperRef} style={{ position: 'relative', width: '100%' }}>
-      <div style={{ position: 'relative' }}>
-        <input
-          ref={inputRef}
-          type="text"
-          placeholder={placeholder}
-          value={isOpen ? searchTerm : getDisplayValue()}
-          onChange={handleSearchChange}
-          onFocus={() => !disabled && setIsOpen(true)}
-          disabled={disabled}
-          autoComplete="off"
-          className="nsb-input"
-          style={{
-            width: '100%',
-            padding: '6px 10px',
-            paddingRight: '35px',
-            border: error ? '0.5px solid var(--danger-color, #ef4444)' : '0.5px solid var(--border-color, #e2e8f0)',
-            borderRadius: '6px',
-            background: disabled ? 'var(--input-bg, #f3f4f6)' : 'var(--input-bg, #f8fafc)',
-            color: 'var(--text-primary, #0f172a)',
-            fontSize: '13px',
-            fontFamily: 'inherit',
-            cursor: disabled ? 'not-allowed' : 'text',
-            minHeight: '32px'
-          }}
-        />
-        {loading ? (
-          <FaSpinner className="nsb-spinning" style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--primary-color, #2563eb)', fontSize: '12px' }} />
-        ) : (
-          <FaChevronDown style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: disabled ? 'var(--text-secondary, #94a3b8)' : 'var(--text-secondary, #64748b)', fontSize: '12px', pointerEvents: 'none' }} />
-        )}
-      </div>
-
-      {menu && ReactDOM.createPortal(menu, document.body)}
-    </div>
-  );
-};
+// ===== MAIN COMPONENT =====
 
 const CreateSalesBill: React.FC = () => {
   const navigate = useNavigate();
   const { theme } = useAdminTheme();
 
-  const [selectedDeliveryChallan, setSelectedDeliveryChallan] = useState<string>('');
+  const [selectedDeliveryChallans, setSelectedDeliveryChallans] = useState<DeliveryChallanData[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<string>('');
   const [selectedSalesOrder, setSelectedSalesOrder] = useState<string>('');
-  const [selectedOrderData, setSelectedOrderData] = useState<SalesOrder | null>(null);
-  const [billType, setBillType] = useState<string>('Products');
+  const [, setSelectedOrderData] = useState<SalesOrder | null>(null);
+  const [isService, setIsService] = useState<boolean>(false);
+  const [hasDeliveryChallan, setHasDeliveryChallan] = useState<boolean>(true);
   const [billDate, setBillDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [dueDate, setDueDate] = useState<string>(new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
   const [warehouse, setWarehouse] = useState<string>('');
@@ -929,8 +1331,6 @@ const CreateSalesBill: React.FC = () => {
   const [paymentTerms, setPaymentTerms] = useState<string>('');
   const [paymentMode, setPaymentMode] = useState<string>('');
   const [invoiceStatus, setInvoiceStatus] = useState<string>('Draft');
-  const [poNumber, setPoNumber] = useState<string>('');
-  const [poDate, setPoDate] = useState<string>('');
   const [remarks, setRemarks] = useState<string>('');
   const [items, setItems] = useState<SalesBillItem[]>([]);
   const [customerData, setCustomerData] = useState<Customer | null>(null);
@@ -952,7 +1352,6 @@ const CreateSalesBill: React.FC = () => {
     fetchAllItems();
   }, []);
 
-  // Calculate round off whenever items change
   useEffect(() => {
     const total = getGrandTotal();
     const rounded = Math.round(total / 10) * 10;
@@ -1059,92 +1458,16 @@ const CreateSalesBill: React.FC = () => {
     }
   }, [allProducts]);
 
-  const loadDeliveryChallanData = (dcData: DeliveryChallanData) => {
-    // Find customer
-    const customer = customers.find(c => c.id === dcData.customer_id || c.code === dcData.customer_code);
-    if (customer) {
-      setCustomerData(customer);
-      setSelectedCustomer(customer.id);
-      setIsCustomerDisabled(true);
-    }
-
-    // Set warehouse
-    if (dcData.warehouse) {
-      setWarehouse(dcData.warehouse);
-    }
-
-    // Set PO details
-    if (dcData.po_no) {
-      setPoNumber(dcData.po_no);
-    }
-    if (dcData.po_date) {
-      setPoDate(dcData.po_date);
-    }
-
-    // Set remarks
-    if (dcData.remarks) {
-      setRemarks(dcData.remarks);
-    }
-
-    // Set items
-    if (dcData.items && dcData.items.length > 0) {
-      const initialItems: SalesBillItem[] = dcData.items.map((item, index) => {
-        const product = allProducts.find(p => p.itemCode === item.item_code);
-        const taxRate = product?.tax || 0;
-        const amount = (item.qty || 0) * (item.rate || 0);
-        const taxAmount = (amount * taxRate) / 100;
-        
-        return {
-          id: `dc-${index}`,
-          itemCode: item.item_code || '',
-          itemName: item.description || '',
-          description: item.description || '',
-          quantity: item.qty || 1,
-          unit: item.uom || 'pcs',
-          rate: item.rate || 0,
-          amount: amount,
-          tax: taxRate,
-          taxAmount: taxAmount,
-          totalAmount: amount + taxAmount,
-          type: billType === 'Products' ? 'product' : 'service'
-        };
-      });
-      setItems(initialItems);
-    } else {
-      setItems([{
-        id: '1',
-        itemCode: '',
-        itemName: '',
-        description: '',
-        quantity: 1,
-        unit: 'pcs',
-        rate: 0,
-        amount: 0,
-        tax: 0,
-        taxAmount: 0,
-        totalAmount: 0,
-        type: billType === 'Products' ? 'product' : 'service'
-      }]);
-    }
-
-    setErrors({});
-    toast.success(`Loaded Delivery Challan: ${dcData.id}`);
-  };
-
-  const handleDeliveryChallanChange = (dcId: string, dcData?: DeliveryChallanData) => {
-    setSelectedDeliveryChallan(dcId);
-    if (dcId && dcData) {
-      loadDeliveryChallanData(dcData);
-    } else {
-      // Reset if cleared
+  // Load items from multiple delivery challans
+  const loadDeliveryChallansData = useCallback((dcs: DeliveryChallanData[]) => {
+    if (dcs.length === 0) {
+      // Reset everything
       setSelectedCustomer('');
       setCustomerData(null);
       setIsCustomerDisabled(false);
       setSelectedSalesOrder('');
       setSelectedOrderData(null);
       setWarehouse('');
-      setPoNumber('');
-      setPoDate('');
       setRemarks('');
       setItems([{
         id: '1',
@@ -1158,9 +1481,98 @@ const CreateSalesBill: React.FC = () => {
         tax: 0,
         taxAmount: 0,
         totalAmount: 0,
-        type: billType === 'Products' ? 'product' : 'service'
+        type: isService ? 'service' : 'product'
       }]);
+      return;
     }
+
+    // Check if all DCs belong to same customer
+    const firstCustomer = dcs[0];
+    const allSameCustomer = dcs.every(dc => dc.customer_id === firstCustomer.customer_id);
+    if (!allSameCustomer) {
+      toast.error('All delivery challans must belong to the same customer');
+      return;
+    }
+
+    // Set customer data (from first DC)
+    const customer = customers.find(c => c.id === firstCustomer.customer_id || c.code === firstCustomer.customer_code);
+    if (customer) {
+      setCustomerData(customer);
+      setSelectedCustomer(customer.id);
+      setIsCustomerDisabled(true);
+    }
+
+    // Use warehouse from first DC if available
+    if (firstCustomer.warehouse) {
+      setWarehouse(firstCustomer.warehouse);
+    }
+
+    // Combine remarks
+    const allRemarks = dcs.map(dc => dc.remarks || '').filter(r => r);
+    if (allRemarks.length > 0) {
+      setRemarks(allRemarks.join(' | '));
+    }
+
+    // Combine items from all DCs
+    const allItems: SalesBillItem[] = [];
+    let itemCounter = 0;
+
+    dcs.forEach(dc => {
+      if (dc.items && dc.items.length > 0) {
+        dc.items.forEach((item, index) => {
+          const product = allProducts.find(p => p.itemCode === item.item_code);
+          const taxRate = product?.tax || 0;
+          const amount = (item.qty || 0) * (item.rate || 0);
+          const taxAmount = (amount * taxRate) / 100;
+          
+          allItems.push({
+            id: `dc-${dc.id}-${index}`,
+            itemCode: item.item_code || '',
+            itemName: item.description || '',
+            description: item.description || '',
+            quantity: item.qty || 1,
+            unit: item.uom || 'pcs',
+            rate: item.rate || 0,
+            amount: amount,
+            tax: taxRate,
+            taxAmount: taxAmount,
+            totalAmount: amount + taxAmount,
+            type: isService ? 'service' : 'product',
+            deliveryChallanId: dc.id
+          });
+          itemCounter++;
+        });
+      }
+    });
+
+    if (allItems.length > 0) {
+      setItems(allItems);
+      toast.success(`Loaded ${allItems.length} items from ${dcs.length} delivery challans`);
+    } else {
+      // Add one empty item row if no items
+      setItems([{
+        id: '1',
+        itemCode: '',
+        itemName: '',
+        description: '',
+        quantity: 1,
+        unit: 'pcs',
+        rate: 0,
+        amount: 0,
+        tax: 0,
+        taxAmount: 0,
+        totalAmount: 0,
+        type: isService ? 'service' : 'product'
+      }]);
+      toast('No items found in selected delivery challans');
+    }
+
+    setErrors({});
+  }, [customers, allProducts, isService]);
+
+  const handleDeliveryChallansChange = (dcs: DeliveryChallanData[]) => {
+    setSelectedDeliveryChallans(dcs);
+    loadDeliveryChallansData(dcs);
   };
 
   const handleCustomerChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -1191,7 +1603,7 @@ const CreateSalesBill: React.FC = () => {
       tax: 0,
       taxAmount: 0,
       totalAmount: 0,
-      type: billType === 'Products' ? 'product' : 'service'
+      type: isService ? 'service' : 'product'
     }]);
   };
 
@@ -1243,6 +1655,9 @@ const CreateSalesBill: React.FC = () => {
   const getGrandTotal = () => items.reduce((sum, item) => sum + (item.totalAmount || 0), 0);
 
   const buildPayload = (status: 'Draft' | 'Submitted'): SalesBillPayload => {
+    // Build comma-separated list of DC IDs
+    const dcIds = selectedDeliveryChallans.map(dc => dc.id).join(',');
+
     return {
       name: billNumber,
       naming_series: "SB-.YYYY.-",
@@ -1257,13 +1672,13 @@ const CreateSalesBill: React.FC = () => {
       payment_terms: paymentTerms || '',
       payment_mode: paymentMode || '',
       invoice_status: invoiceStatus || 'Draft',
-      po_no: poNumber || '',
-      po_date: poDate || '',
+      po_no: '',
+      po_date: '',
       sales_order: selectedSalesOrder || '',
-      delivery_challan: selectedDeliveryChallan || '',
+      delivery_challan: dcIds,
       instructions: remarks || '',
       status: status,
-      bill_type: billType,
+      bill_type: isService ? 'Services' : 'Products',
       items: items
         .filter(item => item.itemCode && item.quantity > 0)
         .map(item => ({
@@ -1279,19 +1694,23 @@ const CreateSalesBill: React.FC = () => {
           tax_amount: item.taxAmount || 0,
           total_amount: item.totalAmount || 0,
           warehouse: warehouse || '',
-          type: item.type
+          type: item.type,
+          delivery_challan: item.deliveryChallanId || ''
         }))
     };
   };
 
   const validateForm = (): boolean => {
     const newErrors: { [key: string]: string } = {};
-    if (!selectedDeliveryChallan && !selectedCustomer) {
-      newErrors.customer = 'Please select a Delivery Challan or Customer';
+    if (hasDeliveryChallan && selectedDeliveryChallans.length === 0) {
+      newErrors.deliveryChallan = 'Please select at least one Delivery Challan';
+    }
+    if (!hasDeliveryChallan && !selectedCustomer) {
+      newErrors.customer = 'Please select a Customer';
     }
     if (!billDate) newErrors.billDate = 'Bill Date is required';
     if (!dueDate) newErrors.dueDate = 'Due Date is required';
-    if (!warehouse) newErrors.warehouse = 'Warehouse is required';
+    if (!warehouse) newErrors.warehouse = 'Please select a Warehouse';
     const hasItems = items.some(item => item.itemCode && item.quantity > 0);
     if (!hasItems) newErrors.items = 'At least one item is required';
     setErrors(newErrors);
@@ -1312,7 +1731,7 @@ const CreateSalesBill: React.FC = () => {
         const submitResponse = await salesBillAPI.submitSalesBill(createdSB.name);
         if (!submitResponse.success) throw new Error(submitResponse.message || 'Failed to submit');
         toast.success(`Bill ${createdSB.name} submitted!`);
-        setTimeout(() => navigate('/sales-bills'), 1500);
+        setTimeout(() => navigate('/sales-bill'), 1500);
       }
     } catch (error: any) {
       toast.error(error.message || 'Failed to create', { id: toastId });
@@ -1330,7 +1749,7 @@ const CreateSalesBill: React.FC = () => {
       const response = await salesBillAPI.createSalesBill(payload);
       if (!response.success) throw new Error(response.message || 'Failed to save');
       toast.success('Saved as draft!', { id: toastId });
-      setTimeout(() => navigate('/sales-bills'), 1000);
+      setTimeout(() => navigate('/sales-bill'), 1000);
     } catch (error: any) {
       toast.error(error.message || 'Failed to save', { id: toastId });
     } finally {
@@ -1340,7 +1759,7 @@ const CreateSalesBill: React.FC = () => {
 
   const handleCancel = () => {
     if (window.confirm('Are you sure? Unsaved data will be lost.')) {
-      navigate('/sales-bills');
+      navigate('/sales-bill');
     }
   };
 
@@ -1358,10 +1777,10 @@ const CreateSalesBill: React.FC = () => {
         tax: 0,
         taxAmount: 0,
         totalAmount: 0,
-        type: billType === 'Products' ? 'product' : 'service'
+        type: isService ? 'service' : 'product'
       }]);
     }
-  }, []);
+  }, [isService]);
 
   const totalItems = items.filter(i => i.itemCode && i.quantity > 0).length;
   const totalQuantity = getTotalQty();
@@ -1400,103 +1819,160 @@ const CreateSalesBill: React.FC = () => {
           .nsb-form-footer, button { display: none !important; }
           body { padding: 0; }
         }
-        @media (max-width: 768px) {
-          .nsb-two-column { grid-template-columns: 1fr !important; }
-          .nsb-summary-grid { grid-template-columns: 1fr !important; }
-        }
       `}</style>
 
-      {/* Header with Back Button */}
+      {/* Header */}
       <div className="nsb-header">
-        <button onClick={handleCancel} className="nsb-back-btn">
-          <FaArrowLeft size={13} /> Back
-        </button>
-        <div className="nsb-header-divider" />
-        <h1 className="nsb-header-title">Create Sales Bill</h1>
+        <div className="nsb-header-left">
+          <button onClick={handleCancel} className="nsb-back-btn">
+            <FaArrowLeft size={13} /> Back
+          </button>
+          <div className="nsb-header-divider" />
+          <h1 className="nsb-header-title">Create Sales Bill</h1>
+          {selectedDeliveryChallans.length > 0 && (
+            <span className="nsb-dc-count">
+              ({selectedDeliveryChallans.length} DCs selected)
+            </span>
+          )}
+        </div>
+        <div className="nsb-header-right">
+          <label className="nsb-checkbox-label">
+            <input
+              type="checkbox"
+              checked={isService}
+              onChange={(e) => {
+                setIsService(e.target.checked);
+                setItems(items.map(item => ({
+                  ...item,
+                  type: e.target.checked ? 'service' : 'product'
+                })));
+              }}
+              className="nsb-checkbox"
+            />
+            <span>IsService</span>
+          </label>
+        </div>
       </div>
 
-      {/* SINGLE UNIFIED BOX */}
+      {/* MAIN BOX */}
       <div className="nsb-main-box">
-        {/* Delivery Challan and Bill Type in same row */}
-        <div className="nsb-row">
-          <div className="nsb-field" style={{ flex: 1 }}>
-            <label className="nsb-label">
-              <FaFileAlt style={{ marginRight: '4px', color: 'var(--primary-color, #2563eb)' }} />
-              Delivery Challan
+        {/* Delivery Challan Toggle */}
+        <div className="nsb-invoice-type-section">
+          <label className="nsb-label" style={{ marginBottom: 8 }}>Create Bill From</label>
+          <div className="nsb-radio-group">
+            <label className="nsb-radio-label">
+              <input
+                type="radio"
+                name="deliveryChallanSource"
+                value="with"
+                checked={hasDeliveryChallan === true}
+                onChange={() => setHasDeliveryChallan(true)}
+              />
+              With Delivery Challan(s)
             </label>
-            <DeliveryChallanDropdown
-              value={selectedDeliveryChallan}
-              onChange={handleDeliveryChallanChange}
-              placeholder="Search and select Delivery Challan..."
-              error={!!errors.deliveryChallan}
-            />
-            {errors.deliveryChallan && <span className="nsb-error-text">{errors.deliveryChallan}</span>}
-            {selectedDeliveryChallan && (
-              <span className="nsb-field-hint">✓ Auto-populated Customer, Items, and details</span>
-            )}
-          </div>
-          <div className="nsb-field" style={{ flex: '0 0 auto', minWidth: '300px' }}>
-            <label className="nsb-label">Bill Type</label>
-            <div className="nsb-type-buttons">
-              <button
-                onClick={() => setBillType('Products')}
-                className={`nsb-type-btn ${billType === 'Products' ? 'nsb-type-btn-active' : 'nsb-type-btn-inactive'}`}
-              >
-                Products
-              </button>
-              <button
-                onClick={() => setBillType('Services')}
-                className={`nsb-type-btn ${billType === 'Services' ? 'nsb-type-btn-active' : 'nsb-type-btn-inactive'}`}
-              >
-                Services
-              </button>
-            </div>
+            <label className="nsb-radio-label">
+              <input
+                type="radio"
+                name="deliveryChallanSource"
+                value="without"
+                checked={hasDeliveryChallan === false}
+                onChange={() => setHasDeliveryChallan(false)}
+              />
+              Without Delivery Challan
+            </label>
           </div>
         </div>
 
-        <hr className="nsb-divider" />
-
-        {/* Two Column Layout */}
-        <div className="nsb-two-column">
+        {/* TWO COLUMN LAYOUT */}
+        <div className="nsb-compact-layout">
           {/* LEFT COLUMN */}
-          <div>
-            <div className="nsb-field">
-              <label className="nsb-label">Customer *</label>
-              <select
-                value={selectedCustomer}
-                onChange={handleCustomerChange}
-                disabled={isLoading || isCustomerDisabled}
-                className={`nsb-select ${errors.customer ? 'nsb-select-error' : ''}`}
-              >
-                <option value="">Select Customer</option>
-                {customers.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-              {errors.customer && <span className="nsb-error-text">{errors.customer}</span>}
-              {isCustomerDisabled && (
-                <span className="nsb-field-hint">Auto-selected from Delivery Challan</span>
-              )}
+          <div className="nsb-left-column">
+            {/* Delivery Challan - Only show when toggle is ON */}
+            {hasDeliveryChallan && (
+              <div className="nsb-dc-field-wrapper">
+                <div className="nsb-section-header">
+                  <FaFileAlt className="nsb-section-icon" />
+                  <span>Select Delivery Challans</span>
+                  {selectedDeliveryChallans.length > 0 && (
+                    <span style={{ fontSize: '10px', fontWeight: 'normal', color: 'var(--text-secondary, #64748b)', marginLeft: '8px' }}>
+                      {selectedDeliveryChallans.length} selected
+                    </span>
+                  )}
+                </div>
+                <div className="nsb-field">
+                  <MultiDeliveryChallanSelect
+                    selectedDCs={selectedDeliveryChallans}
+                    onSelect={handleDeliveryChallansChange}
+                    placeholder="Search and select multiple Delivery Challans..."
+                    error={!!errors.deliveryChallan}
+                    customerFilter={selectedCustomer || undefined}
+                  />
+                  {errors.deliveryChallan && <span className="nsb-error-text">{errors.deliveryChallan}</span>}
+                  {selectedDeliveryChallans.length > 0 && (
+                    <span className="nsb-field-hint">
+                      ✓ {selectedDeliveryChallans.length} Delivery Challans selected. Items will be combined.
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Customer & Sales Order */}
+            <div className="nsb-section-header">
+              <FaBuilding className="nsb-section-icon" />
+              <span>Customer & Order</span>
             </div>
 
-            <div className="nsb-field">
-              <label className="nsb-label">Sales Order</label>
-              <input
-                type="text"
-                value={selectedSalesOrder || (selectedDeliveryChallan ? 'Auto-loaded from DC' : '')}
-                disabled
-                className="nsb-input nsb-input-disabled"
-                placeholder="Sales Order will be auto-loaded"
-              />
+            <div className="nsb-field-row">
+              <div className="nsb-field-half">
+                <label className="nsb-label">
+                  Customer <span className="nsb-required">*</span>
+                </label>
+                <select
+                  value={selectedCustomer}
+                  onChange={handleCustomerChange}
+                  disabled={isLoading || (hasDeliveryChallan && isCustomerDisabled)}
+                  className={`nsb-select ${errors.customer ? 'nsb-select-error' : ''}`}
+                >
+                  <option value="">Select Customer</option>
+                  {customers.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+                {errors.customer && <span className="nsb-error-text">{errors.customer}</span>}
+                {hasDeliveryChallan && isCustomerDisabled && (
+                  <span className="nsb-field-hint">Auto-selected from Delivery Challans</span>
+                )}
+              </div>
+
+              <div className="nsb-field-half">
+                <label className="nsb-label">Sales Order</label>
+                <input
+                  type="text"
+                  value={selectedSalesOrder || (hasDeliveryChallan && selectedDeliveryChallans.length > 0 ? 'Auto-loaded from DCs' : '')}
+                  disabled
+                  className="nsb-input nsb-input-disabled"
+                  placeholder="Sales Order will be auto-loaded"
+                />
+              </div>
             </div>
 
-            <div className="nsb-row">
+            {/* Bill Details */}
+            <div className="nsb-section-header">
+              <FaFileAlt className="nsb-section-icon" />
+              <span>Bill Details</span>
+            </div>
+
+            <div className="nsb-grid-3">
               <div className="nsb-field">
                 <label className="nsb-label">Bill Number</label>
-                <input type="text" value={billNumber} disabled className="nsb-input nsb-input-disabled" />
+                <div className="nsb-bill-number-display">{billNumber}</div>
               </div>
+
               <div className="nsb-field">
-                <label className="nsb-label">Bill Date *</label>
+                <label className="nsb-label">
+                  Bill Date <span className="nsb-required">*</span>
+                </label>
                 <input
                   type="date"
                   value={billDate}
@@ -1504,11 +1980,11 @@ const CreateSalesBill: React.FC = () => {
                   className={`nsb-input ${errors.billDate ? 'nsb-input-error' : ''}`}
                 />
               </div>
-            </div>
 
-            <div className="nsb-row">
               <div className="nsb-field">
-                <label className="nsb-label">Due Date *</label>
+                <label className="nsb-label">
+                  Due Date <span className="nsb-required">*</span>
+                </label>
                 <input
                   type="date"
                   value={dueDate}
@@ -1516,71 +1992,34 @@ const CreateSalesBill: React.FC = () => {
                   className={`nsb-input ${errors.dueDate ? 'nsb-input-error' : ''}`}
                 />
               </div>
+            </div>
+
+            <div className="nsb-grid-3">
               <div className="nsb-field">
-                <label className="nsb-label">Invoice Status</label>
-                <select
-                  value={invoiceStatus}
-                  onChange={(e) => setInvoiceStatus(e.target.value)}
-                  className="nsb-select"
-                >
-                  <option value="Draft">Draft</option>
-                  <option value="Submitted">Submitted</option>
-                  <option value="Paid">Paid</option>
-                  <option value="Overdue">Overdue</option>
-                </select>
+                <label className="nsb-label">
+                  Warehouse <span className="nsb-required">*</span>
+                </label>
+                <WarehouseSelect
+                  value={warehouse}
+                  onChange={setWarehouse}
+                  placeholder="Search and select Warehouse..."
+                  error={!!errors.warehouse}
+                  required={true}
+                />
+                {errors.warehouse && <span className="nsb-error-text">{errors.warehouse}</span>}
               </div>
-            </div>
 
-            {/* Customer Details */}
-            {customerData && (
-              <div className="nsb-customer-details">
-                <div className="nsb-customer-detail">
-                  <span className="nsb-customer-detail-label">Code:</span>
-                  <span className="nsb-customer-detail-value">{customerData.code}</span>
-                </div>
-                <div className="nsb-customer-detail">
-                  <span className="nsb-customer-detail-label">Contact:</span>
-                  <span className="nsb-customer-detail-value">{customerData.contactPerson || 'N/A'}</span>
-                </div>
-                <div className="nsb-customer-detail">
-                  <span className="nsb-customer-detail-label">Phone:</span>
-                  <span className="nsb-customer-detail-value">{customerData.phone}</span>
-                </div>
-                <div className="nsb-customer-detail">
-                  <span className="nsb-customer-detail-label">GST:</span>
-                  <span className="nsb-customer-detail-value">{customerData.gstin}</span>
-                </div>
+              <div className="nsb-field">
+                <label className="nsb-label">Invoice Number</label>
+                <input
+                  type="text"
+                  placeholder="INV-2024-001"
+                  value={invoiceNumber}
+                  onChange={(e) => setInvoiceNumber(e.target.value)}
+                  className="nsb-input"
+                />
               </div>
-            )}
-          </div>
 
-          {/* RIGHT COLUMN */}
-          <div>
-            <div className="nsb-field">
-              <label className="nsb-label">Warehouse *</label>
-              <select
-                value={warehouse}
-                onChange={(e) => setWarehouse(e.target.value)}
-                className={`nsb-select ${errors.warehouse ? 'nsb-select-error' : ''}`}
-              >
-                <option value="">Select Warehouse</option>
-                <option value="Main Warehouse">Main Warehouse</option>
-                <option value="Secondary Warehouse">Secondary Warehouse</option>
-              </select>
-            </div>
-
-            <div className="nsb-field">
-              <label className="nsb-label">Invoice Number</label>
-              <input
-                type="text"
-                placeholder="INV-2024-001"
-                value={invoiceNumber}
-                onChange={(e) => setInvoiceNumber(e.target.value)}
-                className="nsb-input"
-              />
-            </div>
-
-            <div className="nsb-row">
               <div className="nsb-field">
                 <label className="nsb-label">Invoice Date</label>
                 <input
@@ -1590,6 +2029,9 @@ const CreateSalesBill: React.FC = () => {
                   className="nsb-input"
                 />
               </div>
+            </div>
+
+            <div className="nsb-grid-2">
               <div className="nsb-field">
                 <label className="nsb-label">Payment Terms</label>
                 <select
@@ -1605,78 +2047,139 @@ const CreateSalesBill: React.FC = () => {
                   <option value="Due on Receipt">Due on Receipt</option>
                 </select>
               </div>
-            </div>
 
-            <div className="nsb-field">
-              <label className="nsb-label">Payment Mode</label>
-              <select
-                value={paymentMode}
-                onChange={(e) => setPaymentMode(e.target.value)}
-                className="nsb-select"
-              >
-                <option value="">Select Payment Mode</option>
-                <option value="Cash">Cash</option>
-                <option value="Bank Transfer">Bank Transfer</option>
-                <option value="Cheque">Cheque</option>
-                <option value="Credit Card">Credit Card</option>
-                <option value="UPI">UPI</option>
-              </select>
+              <div className="nsb-field">
+                <label className="nsb-label">Payment Mode</label>
+                <select
+                  value={paymentMode}
+                  onChange={(e) => setPaymentMode(e.target.value)}
+                  className="nsb-select"
+                >
+                  <option value="">Select Payment Mode</option>
+                  <option value="Cash">Cash</option>
+                  <option value="Bank Transfer">Bank Transfer</option>
+                  <option value="Cheque">Cheque</option>
+                  <option value="Credit Card">Credit Card</option>
+                  <option value="UPI">UPI</option>
+                </select>
+              </div>
             </div>
+          </div>
+
+          {/* RIGHT COLUMN - CUSTOMER DETAIL CARD */}
+          <div className="nsb-right-column">
+            {customerData ? (
+              <div className="nsb-detail-card">
+                <div className="nsb-card-header">
+                  <FaBuilding size={14} />
+                  <span>Customer Details</span>
+                </div>
+                <div className="nsb-card-content">
+                  <h3>{customerData.name}</h3>
+                  <div className="nsb-card-info">
+                    {customerData.code && (
+                      <div className="nsb-info-item">
+                        <span className="nsb-info-label">Code</span>
+                        <span className="nsb-info-value">{customerData.code}</span>
+                      </div>
+                    )}
+                    {customerData.contactPerson && (
+                      <div className="nsb-info-item">
+                        <span className="nsb-info-label">Contact</span>
+                        <span className="nsb-info-value"><FaUser size={10} /> {customerData.contactPerson}</span>
+                      </div>
+                    )}
+                    {customerData.phone && (
+                      <div className="nsb-info-item">
+                        <span className="nsb-info-label">Phone</span>
+                        <span className="nsb-info-value"><FaPhone size={10} /> {customerData.phone}</span>
+                      </div>
+                    )}
+                    {customerData.email && (
+                      <div className="nsb-info-item">
+                        <span className="nsb-info-label">Email</span>
+                        <span className="nsb-info-value"><FaEnvelope size={10} /> {customerData.email}</span>
+                      </div>
+                    )}
+                    {customerData.gstin && (
+                      <div className="nsb-info-item">
+                        <span className="nsb-info-label">GST</span>
+                        <span className="nsb-info-value">{customerData.gstin}</span>
+                      </div>
+                    )}
+                  </div>
+                  {selectedDeliveryChallans.length > 0 && (
+                    <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px solid var(--border-color, #e2e8f0)' }}>
+                      <div style={{ fontSize: '10px', color: 'var(--text-secondary, #64748b)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        Associated DCs
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
+                        {selectedDeliveryChallans.map(dc => (
+                          <span key={dc.id} style={{
+                            fontSize: '10px',
+                            padding: '1px 6px',
+                            borderRadius: '10px',
+                            background: 'color-mix(in srgb, var(--primary-color) 10%, transparent)',
+                            color: 'var(--primary-color, #2563eb)',
+                            border: '1px solid color-mix(in srgb, var(--primary-color) 20%, transparent)'
+                          }}>
+                            {dc.id}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="nsb-detail-card nsb-empty-card">
+                <div className="nsb-card-header">
+                  <FaBuilding size={14} />
+                  <span>Customer Details</span>
+                </div>
+                <div className="nsb-card-content">
+                  <div className="nsb-empty-state">
+                    <FaInfoCircle size={24} />
+                    <p>Select a customer to view details</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
-        <hr className="nsb-divider" />
-
-        {/* PO Details */}
-        <div className="nsb-row">
-          <div className="nsb-field">
-            <label className="nsb-label">PO Number</label>
-            <input
-              type="text"
-              placeholder="PO-1001"
-              value={poNumber}
-              onChange={(e) => setPoNumber(e.target.value)}
-              className="nsb-input"
-            />
-          </div>
-          <div className="nsb-field">
-            <label className="nsb-label">PO Date</label>
-            <input
-              type="date"
-              value={poDate}
-              onChange={(e) => setPoDate(e.target.value)}
-              className="nsb-input"
-            />
-          </div>
-        </div>
-
-        <hr className="nsb-divider" />
-
-        {/* Items */}
-        <div>
+        {/* FULL WIDTH - ITEMS SECTION */}
+        <div className="nsb-items-full">
           <div className="nsb-items-header">
             <span className="nsb-items-title">
-              <FaBox className="nsb-items-icon" /> {billType === 'Products' ? 'Products' : 'Services'}
+              <FaBox className="nsb-items-icon" /> {isService ? 'Services' : 'Products'}
+              {selectedDeliveryChallans.length > 0 && (
+                <span style={{ fontSize: '10px', fontWeight: 'normal', color: 'var(--text-secondary, #64748b)' }}>
+                  (from {selectedDeliveryChallans.length} DCs)
+                </span>
+              )}
             </span>
             <button onClick={addItem} className="nsb-add-btn">
-              <FaPlus size={9} /> Add
+              <FaPlus size={9} /> Add Item
             </button>
           </div>
 
-          {errors.items && <div className="nsb-items-error">{errors.items}</div>}
+          {errors.items && <div className="nsb-items-error"><FaExclamationTriangle /> {errors.items}</div>}
 
           <div className="nsb-table-wrap">
             <table className="nsb-items-table">
               <thead>
                 <tr>
-                  <th className="nsb-col-code">Item Code</th>
-                  <th className="nsb-col-name">Item Name</th>
+                  <th className="nsb-col-code">Product Code</th>
+                  <th className="nsb-col-name">Product Name</th>
                   <th className="nsb-col-qty">Qty</th>
+                  <th className="nsb-col-unit">UOM</th>
                   <th className="nsb-col-rate">Rate</th>
                   <th className="nsb-col-amount">Amount</th>
                   <th className="nsb-col-gst">GST%</th>
                   <th className="nsb-col-tax">Tax</th>
                   <th className="nsb-col-total">Total</th>
+                  <th className="nsb-col-dc">DC Ref</th>
                   <th className="nsb-col-action"></th>
                 </tr>
               </thead>
@@ -1707,8 +2210,19 @@ const CreateSalesBill: React.FC = () => {
                         value={item.quantity}
                         onChange={(e) => updateItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
                         className="nsb-table-input"
-                        style={{ maxWidth: '50px' }}
                       />
+                    </td>
+                    <td className="nsb-col-unit">
+                      <select
+                        value={item.unit}
+                        onChange={(e) => updateItem(item.id, 'unit', e.target.value)}
+                        className="nsb-table-input"
+                      >
+                        <option value="pcs">Pcs</option>
+                        <option value="kg">Kg</option>
+                        <option value="ltr">Ltr</option>
+                        <option value="mtr">Mtr</option>
+                      </select>
                     </td>
                     <td className="nsb-col-rate">
                       <input
@@ -1716,7 +2230,6 @@ const CreateSalesBill: React.FC = () => {
                         value={item.rate}
                         onChange={(e) => updateItem(item.id, 'rate', parseFloat(e.target.value) || 0)}
                         className="nsb-table-input"
-                        style={{ maxWidth: '60px' }}
                       />
                     </td>
                     <td className="nsb-col-amount">
@@ -1728,24 +2241,9 @@ const CreateSalesBill: React.FC = () => {
                         value={item.tax || 0}
                         onChange={(e) => {
                           const taxRate = parseFloat(e.target.value) || 0;
-                          const amount = (item.quantity || 0) * (item.rate || 0);
-                          const taxAmount = (amount * taxRate) / 100;
-                          setItems(prevItems =>
-                            prevItems.map(i => {
-                              if (i.id === item.id) {
-                                return {
-                                  ...i,
-                                  tax: taxRate,
-                                  taxAmount: taxAmount,
-                                  totalAmount: amount + taxAmount
-                                };
-                              }
-                              return i;
-                            })
-                          );
+                          updateItem(item.id, 'tax', taxRate);
                         }}
                         className="nsb-table-input"
-                        style={{ maxWidth: '40px' }}
                       />
                     </td>
                     <td className="nsb-col-tax">
@@ -1753,6 +2251,20 @@ const CreateSalesBill: React.FC = () => {
                     </td>
                     <td className="nsb-col-total">
                       <span className="nsb-table-value nsb-table-value-bold">₹{item.totalAmount.toFixed(2)}</span>
+                    </td>
+                    <td className="nsb-col-dc">
+                      {item.deliveryChallanId && (
+                        <span style={{
+                          fontSize: '9px',
+                          padding: '1px 4px',
+                          borderRadius: '8px',
+                          background: 'color-mix(in srgb, var(--primary-color) 10%, transparent)',
+                          color: 'var(--primary-color, #2563eb)',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {item.deliveryChallanId}
+                        </span>
+                      )}
                     </td>
                     <td className="nsb-col-action">
                       <button onClick={() => removeItem(item.id)} className="nsb-remove-btn">
@@ -1766,102 +2278,78 @@ const CreateSalesBill: React.FC = () => {
           </div>
         </div>
 
-        <hr className="nsb-divider" />
-
-        {/* Remarks */}
-        <div>
-          <label className="nsb-label">Remarks</label>
-          <textarea
-            placeholder="Add any additional notes..."
-            value={remarks}
-            onChange={(e) => setRemarks(e.target.value)}
-            className="nsb-textarea"
-          />
-        </div>
-
-        <hr className="nsb-divider" />
-
-        {/* Summary & Status */}
-        <div className="nsb-summary-grid">
-          {/* LEFT - Summary Values */}
-          <div className="nsb-summary-left">
-            <div className="nsb-summary-card">
-              <div className="nsb-summary-item">
-                <span className="nsb-summary-icon"><FaListUl /></span>
-                <span className="nsb-summary-label-text">Total Items</span>
-                <span className="nsb-summary-value-text">{totalItems}</span>
+        {/* BOTTOM SECTION */}
+        <div className="nsb-bottom-section">
+          {/* LEFT COLUMN: Invoice Status + Remarks */}
+          <div className="nsb-bottom-left">
+            <div className="nsb-grid-2">
+              <div className="nsb-field">
+                <label className="nsb-label">Invoice Status</label>
+                <select
+                  value={invoiceStatus}
+                  onChange={(e) => setInvoiceStatus(e.target.value)}
+                  className="nsb-select"
+                >
+                  <option value="Draft">Draft</option>
+                  <option value="Submitted">Submitted</option>
+                  <option value="Paid">Paid</option>
+                  <option value="Overdue">Overdue</option>
+                </select>
               </div>
-              <div className="nsb-summary-item">
-                <span className="nsb-summary-icon"><FaBox /></span>
-                <span className="nsb-summary-label-text">Total Quantity</span>
-                <span className="nsb-summary-value-text">{totalQuantity}</span>
-              </div>
-              <div className="nsb-summary-item">
-                <span className="nsb-summary-icon"><FaMoneyBillWave /></span>
-                <span className="nsb-summary-label-text">Sub Total</span>
-                <span className="nsb-summary-value-text">₹{subTotal.toFixed(2)}</span>
-              </div>
-              <div className="nsb-summary-item">
-                <span className="nsb-summary-icon"><FaTags /></span>
-                <span className="nsb-summary-label-text">Total Tax</span>
-                <span className="nsb-summary-value-text">₹{totalTax.toFixed(2)}</span>
-              </div>
-              <div className="nsb-summary-item">
-                <span className="nsb-summary-icon"><FaCalculator /></span>
-                <span className="nsb-summary-label-text">Round Off</span>
-                <span className="nsb-summary-value-text">
-                  <input
-                    type="number"
-                    value={roundOff.toFixed(2)}
-                    onChange={(e) => {
-                      const val = parseFloat(e.target.value) || 0;
-                      setRoundOff(val);
-                    }}
-                    className="nsb-roundoff-input"
-                  />
-                </span>
-              </div>
-              <div className="nsb-summary-total">
-                <span className="nsb-summary-total-label">Grand Total</span>
-                <span className="nsb-summary-total-value">₹{grandTotalWithRound.toFixed(2)}</span>
+              <div className="nsb-field">
+                <label className="nsb-label">Remarks</label>
+                <textarea
+                  placeholder="Add any additional notes..."
+                  value={remarks}
+                  onChange={(e) => setRemarks(e.target.value)}
+                  className="nsb-textarea nsb-textarea-large"
+                  rows={2}
+                />
               </div>
             </div>
           </div>
 
-          {/* RIGHT - Status Information */}
-          <div className="nsb-summary-right">
-            <div className="nsb-status-card">
-              <div className="nsb-status-header">
-                <span className="nsb-status-icon"><FaInfoCircle /></span>
-                <span className="nsb-status-title">Document Status</span>
+          {/* RIGHT COLUMN: Financial Summary */}
+          <div className="nsb-bottom-right">
+            <div className="nsb-detail-card nsb-summary-card">
+              <div className="nsb-card-header">
+                <FaCalculator size={14} />
+                <span>Financial Summary</span>
               </div>
-              <div className="nsb-status-item">
-                <span className="nsb-status-label">Bill Status</span>
-                <span className="nsb-status-value nsb-status-draft">{invoiceStatus}</span>
-              </div>
-              <div className="nsb-status-item">
-                <span className="nsb-status-label">Bill Type</span>
-                <span className="nsb-status-value">{billType}</span>
-              </div>
-              <div className="nsb-status-item">
-                <span className="nsb-status-label">Delivery Challan</span>
-                <span className="nsb-status-value">{selectedDeliveryChallan || 'Not selected'}</span>
-              </div>
-              <div className="nsb-status-item">
-                <span className="nsb-status-label">Customer</span>
-                <span className="nsb-status-value">{customerData?.name || 'Not selected'}</span>
-              </div>
-              <div className="nsb-status-item">
-                <span className="nsb-status-label">Bill Number</span>
-                <span className="nsb-status-value">{billNumber}</span>
-              </div>
-              <div className="nsb-status-item">
-                <span className="nsb-status-label">Due Date</span>
-                <span className="nsb-status-value">{new Date(dueDate).toLocaleDateString()}</span>
-              </div>
-              <div className="nsb-status-item">
-                <span className="nsb-status-label">Payment Mode</span>
-                <span className="nsb-status-value">{paymentMode || 'Not set'}</span>
+              <div className="nsb-card-content">
+                <div className="nsb-summary-grid">
+                  <div className="nsb-summary-item">
+                    <span className="nsb-summary-label">Total Items</span>
+                    <span className="nsb-summary-value">{totalItems}</span>
+                  </div>
+                  <div className="nsb-summary-item">
+                    <span className="nsb-summary-label">Total Quantity</span>
+                    <span className="nsb-summary-value">{totalQuantity}</span>
+                  </div>
+                  <div className="nsb-summary-item">
+                    <span className="nsb-summary-label">Sub Total</span>
+                    <span className="nsb-summary-value">₹{subTotal.toFixed(2)}</span>
+                  </div>
+                  <div className="nsb-summary-item">
+                    <span className="nsb-summary-label">Total Tax</span>
+                    <span className="nsb-summary-value">₹{totalTax.toFixed(2)}</span>
+                  </div>
+                  <div className="nsb-summary-item">
+                    <span className="nsb-summary-label">Round Off</span>
+                    <div className="nsb-roundoff-wrap">
+                      <input
+                        type="number"
+                        value={roundOff.toFixed(2)}
+                        onChange={(e) => setRoundOff(parseFloat(e.target.value) || 0)}
+                        className="nsb-roundoff-input"
+                      />
+                    </div>
+                  </div>
+                  <div className="nsb-summary-grand">
+                    <span className="nsb-summary-grand-label">Grand Total</span>
+                    <span className="nsb-summary-grand-value">₹{grandTotalWithRound.toFixed(2)}</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
