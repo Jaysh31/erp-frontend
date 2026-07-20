@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
-import { 
-  FaSearch, FaPlus, FaEdit, FaTrash, FaFilter, 
-  FaTimes,  FaEye,
+import { useState, useEffect, useCallback } from 'react';
+import {
+  FaSearch, FaPlus, FaEdit, FaTrash, FaFilter,
+  FaTimes, FaEye,
   FaFileAlt, FaCheckCircle,
   FaTimesCircle, FaClock, FaExclamationTriangle,
-  FaTruck, FaSpinner,
+  FaSpinner,
   FaChevronLeft, FaChevronRight,
   FaAngleDoubleLeft, FaAngleDoubleRight,
 } from 'react-icons/fa';
@@ -13,6 +13,8 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../services/api';
 import './PurchaseOrder.css';
+
+// ─── Types ──────────────────────────────────────────────────
 
 interface PurchaseOrderItem {
   id: string;
@@ -49,7 +51,6 @@ interface PurchaseOrder {
   updatedAt: string;
 }
 
-// API Response interface
 interface ApiPurchaseOrder {
   id: number;
   name: string;
@@ -79,67 +80,90 @@ interface ApiResponse {
   };
 }
 
+// ─── Main Component ────────────────────────────────────────
+
 export default function PurchaseOrder() {
   const navigate = useNavigate();
-  
-  let theme = 'light';
-  try {
-    const context = useAdminTheme();
-    theme = context.theme;
-  } catch (error) {
-    console.log('Using default light theme');
-  }
+  const { theme } = useAdminTheme();
 
+  // Filters
   const [filterText, setFilterText] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('All');
   const [selectedSupplier, setSelectedSupplier] = useState('All');
   const [showFilters, setShowFilters] = useState(false);
-  
+
+  // Modals
   const [showViewModal, setShowViewModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedPO, setSelectedPO] = useState<PurchaseOrder | null>(null);
   const [loading, setLoading] = useState(false);
-  const [fetching, setFetching] = useState(true);
 
-  // Pagination states
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [allChecked, setAllChecked] = useState(false);
-
+  // Data & loading
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
+  const [fetching, setFetching] = useState(true);
   const [apiError, setApiError] = useState<string | null>(null);
 
-  // Fetch purchase orders from API
-  useEffect(() => {
-    fetchPurchaseOrders();
-  }, [currentPage, itemsPerPage]);
+  // Pagination (server‑side)
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  const fetchPurchaseOrders = async () => {
+  // ─── API Helpers ──────────────────────────────────────────
+
+  const mapStatus = (apiStatus: string): PurchaseOrder['status'] => {
+    switch (apiStatus?.toLowerCase()) {
+      case 'draft': return 'Draft';
+      case 'submitted': return 'Submitted';
+      case 'partially received':
+      case 'partial': return 'Partially Received';
+      case 'fully received':
+      case 'received': return 'Fully Received';
+      case 'cancelled': return 'Cancelled';
+      case 'closed': return 'Closed';
+      default: return 'Draft';
+    }
+  };
+
+  // Fetch current page from the server
+  const fetchPurchaseOrders = useCallback(async () => {
     setFetching(true);
     setApiError(null);
     try {
-      const response = await api.get<ApiResponse>(`/purchase-order?page=${currentPage}&limit=${itemsPerPage}`);
-      
+      const params = new URLSearchParams();
+      params.append('page', String(currentPage));
+      params.append('limit', String(itemsPerPage));
+
+      // Optional: send filters if your API supports them
+      // if (filterText.trim()) params.append('search', filterText.trim());
+      // if (selectedStatus !== 'All') params.append('status', selectedStatus);
+      // if (selectedSupplier !== 'All') params.append('supplier', selectedSupplier);
+
+      const response = await api.get<ApiResponse>(`/purchase-order?${params.toString()}`);
       if (response.data.success === 1) {
         const records = response.data.data.records;
         setTotalRecords(response.data.data.total);
-        
-        // Transform API data to component format
-        const transformedOrders: PurchaseOrder[] = records.map((item: ApiPurchaseOrder) => ({
+
+        const transformedOrders: PurchaseOrder[] = records.map((item) => ({
           id: String(item.id),
           poNumber: item.name || `PO-${String(item.id).padStart(5, '0')}`,
           title: `PO-${item.name || item.id}`,
           supplier: item.supplier_name || item.supplier || 'N/A',
           supplierCode: item.supplier || 'N/A',
           status: mapStatus(item.status),
-          orderDate: item.transaction_date ? new Date(item.transaction_date).toLocaleDateString() : new Date().toLocaleDateString(),
-          deliveryDate: item.schedule_date ? new Date(item.schedule_date).toLocaleDateString() : 'N/A',
+          orderDate: item.transaction_date
+            ? new Date(item.transaction_date).toLocaleDateString()
+            : new Date().toLocaleDateString(),
+          deliveryDate: item.schedule_date
+            ? new Date(item.schedule_date).toLocaleDateString()
+            : 'N/A',
           currency: item.currency || 'INR',
           totalAmount: item.grand_total || item.total || 0,
-          receivedAmount: item.total ? (item.total * (item.per_received || 0) / 100) : 0,
-          balanceAmount: item.total ? (item.total * (1 - (item.per_received || 0) / 100)) : 0,
+          receivedAmount: item.total
+            ? (item.total * (item.per_received || 0)) / 100
+            : 0,
+          balanceAmount: item.total
+            ? (item.total * (1 - (item.per_received || 0) / 100))
+            : 0,
           paymentTerms: 'Net 30',
           shippingAddress: '',
           billingAddress: '',
@@ -147,9 +171,8 @@ export default function PurchaseOrder() {
           createdBy: 'System',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-          items: []
+          items: [],
         }));
-        
         setPurchaseOrders(transformedOrders);
       } else {
         setApiError('Failed to fetch purchase orders');
@@ -160,68 +183,42 @@ export default function PurchaseOrder() {
     } finally {
       setFetching(false);
     }
-  };
+  }, [currentPage, itemsPerPage]);
 
-  const mapStatus = (apiStatus: string): PurchaseOrder['status'] => {
-    switch (apiStatus?.toLowerCase()) {
-      case 'draft': return 'Draft';
-      case 'submitted': return 'Submitted';
-      case 'partially received': 
-      case 'partial': return 'Partially Received';
-      case 'fully received':
-      case 'received': return 'Fully Received';
-      case 'cancelled': return 'Cancelled';
-      case 'closed': return 'Closed';
-      default: return 'Draft';
-    }
-  };
+  // ─── Effects ──────────────────────────────────────────────
 
-  // Reset page when filters change
+  useEffect(() => {
+    fetchPurchaseOrders();
+  }, [fetchPurchaseOrders]);
+
+  // Reset page when filters change (client‑side filtering)
   useEffect(() => {
     setCurrentPage(1);
   }, [filterText, selectedStatus, selectedSupplier]);
 
-  // Filter data based on search and status
-  const filteredOrders = purchaseOrders.filter(po => {
-    const matchesSearch = po.poNumber.toLowerCase().includes(filterText.toLowerCase()) ||
-                         po.title.toLowerCase().includes(filterText.toLowerCase()) ||
-                         po.supplier.toLowerCase().includes(filterText.toLowerCase());
+  // ─── Filtering (client‑side on the current page) ─────────
+
+  const filteredOrders = purchaseOrders.filter((po) => {
+    const matchesSearch =
+      po.poNumber.toLowerCase().includes(filterText.toLowerCase()) ||
+      po.title.toLowerCase().includes(filterText.toLowerCase()) ||
+      po.supplier.toLowerCase().includes(filterText.toLowerCase());
     const matchesStatus = selectedStatus === 'All' || po.status === selectedStatus;
     const matchesSupplier = selectedSupplier === 'All' || po.supplier === selectedSupplier;
     return matchesSearch && matchesStatus && matchesSupplier;
   });
 
-  // Pagination calculations
-  const totalFilteredItems = filteredOrders.length;
-  const totalPages = Math.ceil(totalFilteredItems / itemsPerPage);
-  const validCurrentPage = Math.min(currentPage, totalPages || 1);
-  
-  const paginatedData = filteredOrders.slice(
-    (validCurrentPage - 1) * itemsPerPage,
-    validCurrentPage * itemsPerPage
-  );
+  const totalPages = Math.ceil(totalRecords / itemsPerPage) || 1;
+  const validCurrentPage = Math.min(currentPage, totalPages);
 
   const getStartIndex = () => (validCurrentPage - 1) * itemsPerPage + 1;
-  const getEndIndex = () => Math.min(validCurrentPage * itemsPerPage, totalFilteredItems);
+  const getEndIndex = () => Math.min(validCurrentPage * itemsPerPage, totalRecords);
 
-  const toggleAll = () => {
-    if (allChecked) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(paginatedData.map((r) => r.id)));
-    }
-    setAllChecked(!allChecked);
-  };
-
-  const toggleRow = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const next = new Set(selected);
-    next.has(id) ? next.delete(id) : next.add(id);
-    setSelected(next);
-    setAllChecked(next.size === paginatedData.length);
-  };
+  // ─── Pagination handlers with LOOP (wrap around) ─────────
 
   const goToPage = (page: number) => {
+    if (page < 1) page = totalPages;
+    if (page > totalPages) page = 1;
     if (page >= 1 && page <= totalPages) {
       setCurrentPage(page);
     }
@@ -229,8 +226,8 @@ export default function PurchaseOrder() {
 
   const goToFirstPage = () => goToPage(1);
   const goToLastPage = () => goToPage(totalPages);
-  const goToNextPage = () => goToPage(currentPage + 1);
-  const goToPrevPage = () => goToPage(currentPage - 1);
+  const goToNextPage = () => goToPage(validCurrentPage + 1);
+  const goToPrevPage = () => goToPage(validCurrentPage - 1);
 
   const handlePageSizeChange = (newSize: number) => {
     setItemsPerPage(newSize);
@@ -240,12 +237,14 @@ export default function PurchaseOrder() {
   const getPageNumbers = () => {
     const pages = [];
     const maxVisible = 5;
-    let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+    let startPage = Math.max(1, validCurrentPage - Math.floor(maxVisible / 2));
     let endPage = Math.min(totalPages, startPage + maxVisible - 1);
     if (endPage - startPage + 1 < maxVisible) startPage = Math.max(1, endPage - maxVisible + 1);
     for (let i = startPage; i <= endPage; i++) pages.push(i);
     return pages;
   };
+
+  // ─── Helpers for UI ──────────────────────────────────────
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -271,14 +270,10 @@ export default function PurchaseOrder() {
     }
   };
 
-  const handleCreate = () => {
-    navigate('/purchase-order/new');
-  };
+  // ─── Action Handlers ──────────────────────────────────────
 
-
-  const handleRowClick = (po: PurchaseOrder) => {
-    navigate(`/purchase-order/edit/${po.id}`);
-  };
+  const handleCreate = () => navigate('/purchase-order/new');
+  const handleRowClick = (po: PurchaseOrder) => navigate(`/purchase-order/edit/${po.id}`);
 
   const handleView = (po: PurchaseOrder, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -295,7 +290,6 @@ export default function PurchaseOrder() {
   const handleDeleteConfirm = async () => {
     if (!selectedPO) return;
     setLoading(true);
-    
     try {
       const response = await api.delete(`/purchase-order/${selectedPO.id}`);
       if (response.data.success === 1) {
@@ -306,18 +300,11 @@ export default function PurchaseOrder() {
         toast.error('Failed to delete purchase order');
       }
     } catch (err) {
-      console.error('Error deleting purchase order:', err);
       toast.error('An error occurred while deleting');
     } finally {
       setLoading(false);
     }
   };
-
-
-  const totalOrders = purchaseOrders.length;
-  const totalAmount = purchaseOrders.reduce((sum, po) => sum + po.totalAmount, 0);
-  const pendingOrders = purchaseOrders.filter(po => po.status === 'Draft' || po.status === 'Submitted').length;
-  const partiallyReceived = purchaseOrders.filter(po => po.status === 'Partially Received').length;
 
   const clearFilters = () => {
     setFilterText('');
@@ -325,11 +312,14 @@ export default function PurchaseOrder() {
     setSelectedSupplier('All');
   };
 
-  // Get unique suppliers from data
-  const suppliers = [...new Set(purchaseOrders.map(po => po.supplier))];
+  // ─── Data for filters ────────────────────────────────────
+
+  const suppliers = [...new Set(purchaseOrders.map((po) => po.supplier))];
   const statusOptions = ['Draft', 'Submitted', 'Partially Received', 'Fully Received', 'Cancelled', 'Closed'];
   const currencies = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD'];
   const paymentTerms = ['Net 7', 'Net 15', 'Net 30', 'Net 45', 'Net 60', 'Due on Receipt', 'Cash on Delivery'];
+
+  // ─── Render ──────────────────────────────────────────────
 
   if (fetching) {
     return (
@@ -344,60 +334,10 @@ export default function PurchaseOrder() {
 
   return (
     <div className={`po-page ${theme}`}>
-      {/* Header */}
-      <div className="po-header">
-        <div className="po-header-left">
-          <h1 className="po-title">Purchase Orders</h1>
-          <span className="po-badge">{totalRecords}</span>
-        </div>
-        <div className="po-header-actions">
-          <button className="po-btn-primary" onClick={handleCreate}>
-            <FaPlus size={12} /> Add PO
-          </button>
-        </div>
-      </div>
+      {/* ─── Header with breadcrumb ──────────────────────── */}
+    
 
-      {/* Stats Cards */}
-      <div className="po-stats-container">
-        <div className="po-stat-card" style={{ background: 'linear-gradient(135deg, #6366f1 0%, #818cf8cc 100%)' }}>
-          <div className="po-stat-icon">
-            <FaFileAlt size={20} />
-          </div>
-          <div className="po-stat-content">
-            <p className="po-stat-title">Total Orders</p>
-            <p className="po-stat-value">{totalOrders}</p>
-          </div>
-        </div>
-        <div className="po-stat-card" style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #fbbf24cc 100%)' }}>
-          <div className="po-stat-icon">
-            <FaClock size={20} />
-          </div>
-          <div className="po-stat-content">
-            <p className="po-stat-title">Pending</p>
-            <p className="po-stat-value">{pendingOrders}</p>
-          </div>
-        </div>
-        <div className="po-stat-card" style={{ background: 'linear-gradient(135deg, #8b5cf6 0%, #a78bfacc 100%)' }}>
-          <div className="po-stat-icon">
-            <FaExclamationTriangle size={20} />
-          </div>
-          <div className="po-stat-content">
-            <p className="po-stat-title">Partially Received</p>
-            <p className="po-stat-value">{partiallyReceived}</p>
-          </div>
-        </div>
-        <div className="po-stat-card" style={{ background: 'linear-gradient(135deg, #10b981 0%, #34d399cc 100%)' }}>
-          <div className="po-stat-icon">
-            <FaTruck size={20} />
-          </div>
-          <div className="po-stat-content">
-            <p className="po-stat-title">Total Amount</p>
-            <p className="po-stat-value">₹{totalAmount.toLocaleString()}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Search and Filter Bar */}
+      {/* ─── Filter Bar ────────────────────────────────────── */}
       <div className="po-filter-bar">
         <div className="po-filter-left">
           <div className="po-search-wrapper">
@@ -417,20 +357,19 @@ export default function PurchaseOrder() {
           </div>
         </div>
         <div className="po-filter-right">
-          <select 
-            value={selectedStatus} 
+          <select
+            value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
             className="po-filter-select"
           >
             <option value="All">All Status</option>
-            {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
+            {statusOptions.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
-          <button 
+          <button
             className={`po-filter-btn ${showFilters ? 'active' : ''}`}
             onClick={() => setShowFilters(!showFilters)}
           >
-            <FaFilter size={12} />
-            Filter
+            <FaFilter size={12} /> Filter
           </button>
           <button className="po-sort-btn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -439,39 +378,27 @@ export default function PurchaseOrder() {
             Order Date
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </button>
+          <button className="po-btn-primary" onClick={handleCreate}>
+            <FaPlus size={12} /> Add PO
+          </button>
         </div>
       </div>
 
-      {/* Active filters indicator */}
+      {/* ─── Active filters ────────────────────────────────── */}
       {(filterText || selectedStatus !== 'All' || selectedSupplier !== 'All') && (
         <div className="po-active-filters">
           <FaFilter size={12} style={{ color: 'var(--primary-color)' }} />
-          <span style={{ color: 'var(--text-primary)' }}>Active filters:</span>
-          {filterText && (
-            <span style={{ color: 'var(--text-primary)' }}>
-              <strong>Search:</strong> "{filterText}"
-            </span>
-          )}
-          {selectedStatus !== 'All' && (
-            <span style={{ color: 'var(--text-primary)' }}>
-              <strong>Status:</strong> {selectedStatus}
-            </span>
-          )}
-          {selectedSupplier !== 'All' && (
-            <span style={{ color: 'var(--text-primary)' }}>
-              <strong>Supplier:</strong> {selectedSupplier}
-            </span>
-          )}
-          <button 
-            onClick={clearFilters}
-            className="po-clear-filters"
-          >
+          <span>Active filters:</span>
+          {filterText && <span><strong>Search:</strong> "{filterText}"</span>}
+          {selectedStatus !== 'All' && <span><strong>Status:</strong> {selectedStatus}</span>}
+          {selectedSupplier !== 'All' && <span><strong>Supplier:</strong> {selectedSupplier}</span>}
+          <button onClick={clearFilters} className="po-clear-filters">
             <FaTimes size={10} /> Clear All
           </button>
         </div>
       )}
 
-      {/* API Error */}
+      {/* ─── API Error ──────────────────────────────────────── */}
       {apiError && (
         <div className="po-api-error">
           <FaExclamationTriangle size={16} />
@@ -480,7 +407,7 @@ export default function PurchaseOrder() {
         </div>
       )}
 
-      {/* Expandable Filters */}
+      {/* ─── Expandable Filters ────────────────────────────── */}
       {showFilters && (
         <div className="po-expandable-filters">
           <div className="po-filter-group">
@@ -490,35 +417,32 @@ export default function PurchaseOrder() {
               onChange={(e) => setSelectedSupplier(e.target.value)}
             >
               <option value="All">All Suppliers</option>
-              {suppliers.map(s => <option key={s} value={s}>{s}</option>)}
+              {suppliers.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
           <div className="po-filter-group">
             <label>Currency</label>
             <select>
               <option value="all">All Currencies</option>
-              {currencies.map(c => <option key={c} value={c}>{c}</option>)}
+              {currencies.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
           <div className="po-filter-group">
             <label>Payment Terms</label>
             <select>
               <option value="all">All Terms</option>
-              {paymentTerms.map(p => <option key={p} value={p}>{p}</option>)}
+              {paymentTerms.map((p) => <option key={p} value={p}>{p}</option>)}
             </select>
           </div>
           <button className="po-apply-filters">Apply</button>
         </div>
       )}
 
-      {/* Table */}
+      {/* ─── Table ──────────────────────────────────────────── */}
       <div className="po-table-wrap">
         <table className="po-table">
           <thead>
             <tr>
-              <th className="po-th-check">
-                <input type="checkbox" checked={allChecked} onChange={toggleAll} className="po-checkbox" />
-              </th>
               <th className="po-th">PO #</th>
               <th className="po-th">Title</th>
               <th className="po-th">Supplier</th>
@@ -526,7 +450,11 @@ export default function PurchaseOrder() {
               <th className="po-th">Amount</th>
               <th className="po-th">Status</th>
               <th className="po-th po-th-meta">
-                <span className="po-count-label">{totalFilteredItems} of {totalRecords}</span>
+                <span className="po-count-label">
+                  {totalRecords > 0
+                    ? `${(validCurrentPage - 1) * itemsPerPage + 1}–${Math.min(validCurrentPage * itemsPerPage, totalRecords)}`
+                    : '0'} of {totalRecords}
+                </span>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary, #9ca3af)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
                 </svg>
@@ -534,9 +462,9 @@ export default function PurchaseOrder() {
             </tr>
           </thead>
           <tbody>
-            {paginatedData.length === 0 ? (
+            {filteredOrders.length === 0 ? (
               <tr>
-                <td colSpan={8} className="po-empty-state">
+                <td colSpan={7} className="po-empty-state">
                   <div className="po-empty-content">
                     <FaFileAlt size={48} />
                     <p>No purchase orders found</p>
@@ -548,16 +476,8 @@ export default function PurchaseOrder() {
                 </td>
               </tr>
             ) : (
-              paginatedData.map((po) => (
-                <tr
-                  key={po.id}
-                  className={`po-tr ${selected.has(po.id) ? "po-tr-selected" : ""}`}
-                  onClick={() => handleRowClick(po)}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <td className="po-td-check" onClick={(e) => toggleRow(po.id, e)}>
-                    <input type="checkbox" checked={selected.has(po.id)} onChange={() => {}} className="po-checkbox" />
-                  </td>
+              filteredOrders.map((po) => (
+                <tr key={po.id} className="po-tr" onClick={() => handleRowClick(po)} style={{ cursor: 'pointer' }}>
                   <td className="po-td po-td-id">{po.poNumber}</td>
                   <td className="po-td">{po.title}</td>
                   <td className="po-td">{po.supplier}</td>
@@ -573,26 +493,13 @@ export default function PurchaseOrder() {
                     <span className="po-ago">{new Date(po.createdAt).toLocaleDateString()}</span>
                     <span className="po-dot">·</span>
                     <div className="po-action-buttons">
-                      <button 
-                        className="po-action-btn po-action-view" 
-                        onClick={(e) => handleView(po, e)}
-                        title="View"
-                      >
+                      <button className="po-action-btn po-action-view" onClick={(e) => handleView(po, e)} title="View">
                         <FaEye size={12} />
                       </button>
-                      <button 
-                        className="po-action-btn po-action-edit" 
-                        onClick={(e) => { e.stopPropagation(); handleRowClick(po); }}
-                        title="Edit"
-                      >
+                      <button className="po-action-btn po-action-edit" onClick={(e) => { e.stopPropagation(); handleRowClick(po); }} title="Edit">
                         <FaEdit size={12} />
                       </button>
-                     
-                      <button 
-                        className="po-action-btn po-action-delete" 
-                        onClick={(e) => handleDelete(po, e)}
-                        title="Delete"
-                      >
+                      <button className="po-action-btn po-action-delete" onClick={(e) => handleDelete(po, e)} title="Delete">
                         <FaTrash size={12} />
                       </button>
                     </div>
@@ -604,12 +511,12 @@ export default function PurchaseOrder() {
         </table>
       </div>
 
-      {/* Pagination */}
+      {/* ─── Pagination ────────────────────────────────────── */}
       <div className="po-pagination">
         <div className="po-pagination-left">
           <span className="po-pagination-label">Show:</span>
-          <select 
-            value={itemsPerPage} 
+          <select
+            value={itemsPerPage}
             onChange={(e) => handlePageSizeChange(Number(e.target.value))}
             className="po-page-size-select"
           >
@@ -621,56 +528,39 @@ export default function PurchaseOrder() {
           <span className="po-pagination-label">entries</span>
         </div>
         <div className="po-pagination-center">
-          <button 
-            onClick={goToFirstPage} 
-            disabled={currentPage === 1 || totalFilteredItems === 0} 
-            className="po-page-btn"
-          >
+          <button onClick={goToFirstPage} className="po-page-btn">
             <FaAngleDoubleLeft size={12} />
           </button>
-          <button 
-            onClick={goToPrevPage} 
-            disabled={currentPage === 1 || totalFilteredItems === 0} 
-            className="po-page-btn"
-          >
+          <button onClick={goToPrevPage} className="po-page-btn">
             <FaChevronLeft size={12} />
           </button>
-          {totalFilteredItems > 0 && getPageNumbers().map(page => (
-            <button
-              key={page}
-              onClick={() => goToPage(page)}
-              className={`po-page-btn ${currentPage === page ? 'po-page-btn-active' : ''}`}
-            >
-              {page}
-            </button>
-          ))}
-          <button 
-            onClick={goToNextPage} 
-            disabled={currentPage === totalPages || totalFilteredItems === 0} 
-            className="po-page-btn"
-          >
+          {totalRecords > 0 &&
+            getPageNumbers().map((page) => (
+              <button
+                key={page}
+                onClick={() => goToPage(page)}
+                className={`po-page-btn ${validCurrentPage === page ? 'po-page-btn-active' : ''}`}
+              >
+                {page}
+              </button>
+            ))}
+          <button onClick={goToNextPage} className="po-page-btn">
             <FaChevronRight size={12} />
           </button>
-          <button 
-            onClick={goToLastPage} 
-            disabled={currentPage === totalPages || totalFilteredItems === 0} 
-            className="po-page-btn"
-          >
+          <button onClick={goToLastPage} className="po-page-btn">
             <FaAngleDoubleRight size={12} />
           </button>
         </div>
         <div className="po-pagination-right">
           <span className="po-pagination-info">
-            {totalFilteredItems > 0 ? (
-              `Showing ${getStartIndex()} to ${getEndIndex()} of ${totalFilteredItems} entries`
-            ) : (
-              'No entries to show'
-            )}
+            {totalRecords > 0
+              ? `Showing ${getStartIndex()} to ${getEndIndex()} of ${totalRecords} entries`
+              : 'No entries to show'}
           </span>
         </div>
       </div>
 
-      {/* ====== VIEW MODAL ====== */}
+      {/* ─── View Modal ────────────────────────────────────── */}
       {showViewModal && selectedPO && (
         <div className="po-modal-overlay" onClick={() => setShowViewModal(false)}>
           <div className="po-modal po-modal-view" onClick={(e) => e.stopPropagation()}>
@@ -725,7 +615,7 @@ export default function PurchaseOrder() {
         </div>
       )}
 
-      {/* ====== DELETE MODAL ====== */}
+      {/* ─── Delete Modal ──────────────────────────────────── */}
       {showDeleteModal && selectedPO && (
         <div className="po-modal-overlay" onClick={() => setShowDeleteModal(false)}>
           <div className="po-modal po-modal-delete" onClick={(e) => e.stopPropagation()}>

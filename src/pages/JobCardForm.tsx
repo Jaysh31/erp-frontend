@@ -5,7 +5,7 @@ import {
   FaArrowLeft, FaSave, FaSpinner, FaInfoCircle, FaExclamationTriangle,
   FaTimesCircle, FaClock, FaListUl, FaFileAlt, FaPlus, FaTrash,
   FaCalendarAlt, FaPlay, FaPause, FaCheck, FaUserPlus, FaTimes,
-  FaBuilding,
+  FaBuilding, FaUser, FaUserCheck,
 } from "react-icons/fa";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -62,6 +62,8 @@ interface EmployeeOption {
   employee_number?: string | null;
   designation?: string | null;
   department?: string | null;
+  first_name?: string;
+  last_name?: string;
   [key: string]: any;
 }
 
@@ -333,6 +335,7 @@ const JobCardForm: React.FC = () => {
   // ─── job timer ───────────────────────────────────────────────────────
   const [timerRunning, setTimerRunning] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [isStartingJob, setIsStartingJob] = useState(false);
 
   // ─── Work Order details ─────────────────────────────────────────────
   const [woDetails, setWoDetails] = useState<any>(null);
@@ -644,8 +647,19 @@ const JobCardForm: React.FC = () => {
   // ─── employee assignment ────────────────────────────────────────────
 
   /** Resolve the employee "code" (docname) used as the employee/name field in payloads. */
-  const getEmployeeCode = (emp: EmployeeOption) =>
-    emp.employee || emp.employee_number || `EMP-${String(emp.id).padStart(5, "0")}`;
+  const getEmployeeCode = (emp: EmployeeOption): string => {
+    if (emp.employee) return emp.employee;
+    if (emp.employee_number) return emp.employee_number;
+    return `EMP-${String(emp.id).padStart(5, "0")}`;
+  };
+
+  const getEmployeeName = (emp: EmployeeOption): string => {
+    return emp.employee_name || `${emp.first_name || ''} ${emp.last_name || ''}`.trim() || getEmployeeCode(emp);
+  };
+
+  const getEmployeeDisplayId = (emp: EmployeeOption): string => {
+    return emp.employee_number || emp.employee || getEmployeeCode(emp);
+  };
 
   const openEmployeeModal = async () => {
     setSelectedEmployeeIds(new Set(formData.assigned_employees));
@@ -656,20 +670,20 @@ const JobCardForm: React.FC = () => {
         const response = await api.get("/employee");
         console.log("GET /employee raw response:", response.data);
 
-        // Response is paginated: { success, data: { total, page, limit, records: [...] } }
         const raw = response.data;
-        let list: any =
-          raw?.data?.records ??
-          raw?.data ??
-          raw?.employees ??
-          raw?.results ??
-          raw;
-
-        if (!Array.isArray(list)) {
-          console.warn("Unexpected /employee response shape, defaulting to empty list:", raw);
-          list = [];
+        let list: any[] = [];
+        
+        if (raw?.data?.records && Array.isArray(raw.data.records)) {
+          list = raw.data.records;
+        } else if (raw?.data && Array.isArray(raw.data)) {
+          list = raw.data;
+        } else if (raw?.records && Array.isArray(raw.records)) {
+          list = raw.records;
+        } else if (Array.isArray(raw)) {
+          list = raw;
         }
 
+        console.log("Processed employee list:", list);
         setEmployees(list);
       } catch (err) {
         console.error("Error fetching employees:", err);
@@ -702,14 +716,17 @@ const JobCardForm: React.FC = () => {
       return;
     }
 
-    // The time log's "parent" field needs the Job Card's own docname,
-    // which only exists once the Job Card has actually been saved.
+    // If we're creating a new job card, just store the employees locally
     if (!isEditMode || !jobCardDocName) {
-      setApiError("Please save the Job Card first, then assign employees.");
+      setFormData((prev) => ({
+        ...prev,
+        assigned_employees: selected.map((emp) => getEmployeeCode(emp)),
+      }));
       setShowEmployeeModal(false);
       return;
     }
 
+    // For existing job cards, create time log records
     setAssigningEmployees(true);
     setApiError(null);
     try {
@@ -721,7 +738,6 @@ const JobCardForm: React.FC = () => {
           const payload = {
             name: empCode,
             modified_by: "Administrator",
-            owner: "Administrator",
             docstatus: 0,
             idx: index + 1,
             employee: empCode,
@@ -767,18 +783,94 @@ const JobCardForm: React.FC = () => {
   const jobCompleted = formData.status === "Completed";
   const hasAssignedEmployees = formData.assigned_employees.length > 0;
 
-  const handleStartJob = () => {
-    setFormData((prev) => ({
-      ...prev,
-      actual_start_date: prev.actual_start_date ?? new Date(),
-      status: "Work In Progress",
-    }));
-    setTimerRunning(true);
+  // ─── Updated handleStartJob function with API call ─────────────────────
+  const handleStartJob = async () => {
+    // If no employees assigned, open the assignment modal first
+    if (!hasAssignedEmployees) {
+      openEmployeeModal();
+      return;
+    }
+    
+    setIsStartingJob(true);
+    setApiError(null);
+
+    try {
+      // Update the job card status via API
+      const payload = buildApiPayload();
+      payload.status = "Work In Progress";
+      payload.actual_start_date = formatDateTime(new Date());
+
+      let response;
+      if (isEditMode && recordId) {
+        // Update existing job card
+        payload.id = Number(recordId);
+        response = await api.put("/job-card", payload);
+      } else {
+        // Create new job card first
+        response = await api.post("/job-card", payload);
+        if (response.data.success === 1) {
+          const newJobCard = response.data.data;
+          setRecordId(newJobCard.id);
+          setJobCardDocName(newJobCard.name);
+          navigate(`/job-cards/${newJobCard.id}`, { 
+            replace: true,
+            state: { jobCard: newJobCard }
+          });
+        }
+      }
+
+      if (response.data.success !== 1) {
+        throw new Error(response.data?.message || "Failed to start job");
+      }
+
+      // Update local state
+      setFormData((prev) => ({
+        ...prev,
+        actual_start_date: new Date(),
+        status: "Work In Progress",
+      }));
+      setTimerRunning(true);
+      
+      if (isEditMode && recordId) {
+        fetchJobCardById(String(recordId));
+      }
+    } catch (err: any) {
+      console.error("Error starting job:", err);
+      setApiError(err.response?.data?.message || "Failed to start job");
+    } finally {
+      setIsStartingJob(false);
+    }
   };
 
-  const handlePauseJob = () => {
-    setTimerRunning(false);
-    setFormData((prev) => ({ ...prev, status: "On Hold" }));
+  const handlePauseJob = async () => {
+    setIsStartingJob(true);
+    setApiError(null);
+
+    try {
+      const payload = buildApiPayload();
+      payload.status = "On Hold";
+      payload.is_paused = 1;
+
+      if (isEditMode && recordId) {
+        payload.id = Number(recordId);
+        const response = await api.put("/job-card", payload);
+        if (response.data.success !== 1) {
+          throw new Error(response.data?.message || "Failed to pause job");
+        }
+      }
+
+      setTimerRunning(false);
+      setFormData((prev) => ({ ...prev, status: "On Hold" }));
+      
+      if (isEditMode && recordId) {
+        fetchJobCardById(String(recordId));
+      }
+    } catch (err: any) {
+      console.error("Error pausing job:", err);
+      setApiError(err.response?.data?.message || "Failed to pause job");
+    } finally {
+      setIsStartingJob(false);
+    }
   };
 
   // ─── Handle Complete Job with Modal ──────────────────────────────────
@@ -787,17 +879,102 @@ const JobCardForm: React.FC = () => {
     setShowCompletionModal(true);
   };
 
-  const handleCompletionConfirm = (completedQty: number, lossQty: number) => {
-    setTimerRunning(false);
-    setFormData((prev) => ({
-      ...prev,
-      actual_end_date: new Date(),
-      status: "Completed",
-      total_completed_qty: completedQty,
-      process_loss_qty: lossQty,
-      pending_qty: Math.max(0, prev.qty_to_manufacture - completedQty - lossQty),
-    }));
-    setShowCompletionModal(false);
+  const handleCompletionConfirm = async (completedQty: number, lossQty: number) => {
+    setIsStartingJob(true);
+    setApiError(null);
+
+    try {
+      const payload = buildApiPayload();
+      payload.status = "Completed";
+      payload.actual_end_date = formatDateTime(new Date());
+      payload.total_completed_qty = completedQty;
+      payload.process_loss_qty = lossQty;
+      payload.pending_qty = Math.max(0, formData.qty_to_manufacture - completedQty - lossQty);
+      
+      // CRITICAL FIX: Update produced_qty and process_loss_qty for the Work Order
+      // These fields need to be updated in the work order when job card is completed
+      const workOrderPayload = {
+        produced_qty: completedQty,
+        process_loss_qty: lossQty,
+        status: "Completed"
+      };
+
+      if (isEditMode && recordId) {
+        // Update job card
+        payload.id = Number(recordId);
+        const response = await api.put("/job-card", payload);
+        if (response.data.success !== 1) {
+          throw new Error(response.data?.message || "Failed to complete job");
+        }
+        
+        // Update the associated work order with produced quantity and process loss
+        if (formData.work_order) {
+          try {
+            await api.put(`/work-order/${formData.work_order}`, workOrderPayload);
+          } catch (woErr) {
+            console.warn("Failed to update work order quantities:", woErr);
+            // Don't throw here - job card completion is more important
+          }
+        }
+      }
+
+      setTimerRunning(false);
+      setFormData((prev) => ({
+        ...prev,
+        actual_end_date: new Date(),
+        status: "Completed",
+        total_completed_qty: completedQty,
+        process_loss_qty: lossQty,
+        pending_qty: Math.max(0, prev.qty_to_manufacture - completedQty - lossQty),
+      }));
+      setShowCompletionModal(false);
+      
+      if (isEditMode && recordId) {
+        fetchJobCardById(String(recordId));
+      }
+    } catch (err: any) {
+      console.error("Error completing job:", err);
+      setApiError(err.response?.data?.message || "Failed to complete job");
+    } finally {
+      setIsStartingJob(false);
+    }
+  };
+
+  // ─── Add handleUpdate function ──────────────────────────────────────────
+  const handleUpdate = async () => {
+    const allErrors = getAllValidationErrors();
+    if (allErrors.length > 0) {
+      setValidationErrors(allErrors);
+      setShowValidationSummary(true);
+      return;
+    }
+
+    setSaving(true);
+    setApiError(null);
+
+    try {
+      const payload = buildApiPayload();
+      console.log("Updating job card with payload:", payload);
+
+      if (!isEditMode || !recordId) {
+        throw new Error("No job card to update");
+      }
+
+      payload.id = Number(recordId);
+      const response = await api.put("/job-card", payload);
+
+      if (response.data.success !== 1) {
+        throw new Error(response.data?.message || "Failed to update job card");
+      }
+
+      fetchJobCardById(String(recordId));
+      console.log("Job card updated successfully");
+    } catch (err: any) {
+      console.error("Error updating job card:", err);
+      setApiError(err.response?.data?.message || "Failed to update job card");
+    } finally {
+      setSaving(false);
+    }
   };
 
   // ─── build API payload ─────────────────────────────────────────────────
@@ -872,12 +1049,8 @@ const JobCardForm: React.FC = () => {
       barcode: "",
       batch_no: "",
       modified_by: "Administrator",
-      owner: "Administrator",
-      docstatus: 0,
-      idx: 0,
     };
 
-    // Edit mode: id goes in the payload body, never in the URL.
     if (isEditMode && recordId) {
       payload.id = Number(recordId);
     }
@@ -906,7 +1079,6 @@ const JobCardForm: React.FC = () => {
 
       let response;
       if (isEditMode && recordId) {
-        // Update: PUT to the collection endpoint, id lives in the payload (not the URL).
         response = await api.put("/job-card", payload);
       } else {
         response = await api.post("/job-card", payload);
@@ -935,6 +1107,18 @@ const JobCardForm: React.FC = () => {
 
   const allValidationErrors = getAllValidationErrors();
   const hasAnyErrors = allValidationErrors.length > 0;
+
+  // Get selected employee details for display
+  const getSelectedEmployeeDetails = () => {
+    return formData.assigned_employees.map(code => {
+      const emp = employees.find(e => 
+        getEmployeeCode(e) === code || 
+        e.employee === code || 
+        e.employee_number === code
+      );
+      return emp ? { code, name: getEmployeeName(emp), id: getEmployeeDisplayId(emp) } : { code, name: code, id: code };
+    });
+  };
 
   return (
     <div className="jcf-page">
@@ -1000,32 +1184,46 @@ const JobCardForm: React.FC = () => {
               </button>
             </div>
             <div className="jcf-modal-body">
-              {!isEditMode || !jobCardDocName ? (
-                <div className="jcf-hint-banner">
-                  <FaInfoCircle className="jcf-hint-icon" />
-                  Please save the Job Card first, then assign employees.
-                </div>
-              ) : loadingEmployees ? (
+              {loadingEmployees ? (
                 <p className="jcf-modal-intro">Loading employees...</p>
               ) : employees.length === 0 ? (
                 <p className="jcf-modal-intro">No employees found.</p>
               ) : (
-                <div className="jcf-employee-list">
-                  {employees.map((emp) => (
-                    <label key={emp.id} className="jcf-employee-item">
-                      <input
-                        type="checkbox"
-                        checked={selectedEmployeeIds.has(String(emp.id))}
-                        onChange={() => toggleEmployeeSelect(String(emp.id))}
-                        className="jcf-checkbox"
-                      />
-                      <div>
-                        <div className="jcf-employee-id">{getEmployeeCode(emp)}</div>
-                        <div className="jcf-employee-name">{emp.employee_name}</div>
-                      </div>
-                    </label>
-                  ))}
-                </div>
+                <>
+                  {!isEditMode && (
+                    <div className="jcf-hint-banner" style={{ marginBottom: "12px" }}>
+                      <FaInfoCircle className="jcf-hint-icon" />
+                      <span>Employees will be assigned when you save this job card.</span>
+                    </div>
+                  )}
+                  <div className="jcf-employee-list">
+                    {employees.map((emp) => {
+                      const empCode = getEmployeeCode(emp);
+                      const displayName = getEmployeeName(emp);
+                      const displayId = getEmployeeDisplayId(emp);
+                      
+                      return (
+                        <label key={emp.id} className="jcf-employee-item">
+                          <input
+                            type="checkbox"
+                            checked={selectedEmployeeIds.has(String(emp.id))}
+                            onChange={() => toggleEmployeeSelect(String(emp.id))}
+                            className="jcf-checkbox"
+                          />
+                          <div>
+                            <div className="jcf-employee-id">{displayId}</div>
+                            <div className="jcf-employee-name">{displayName}</div>
+                            {emp.designation && (
+                              <div className="jcf-employee-designation">
+                                {emp.designation}
+                              </div>
+                            )}
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </>
               )}
             </div>
             <div className="jcf-modal-footer">
@@ -1035,7 +1233,7 @@ const JobCardForm: React.FC = () => {
               <button
                 className="jcf-btn-primary"
                 onClick={confirmEmployeeAssignment}
-                disabled={assigningEmployees || !isEditMode || !jobCardDocName}
+                disabled={assigningEmployees || loadingEmployees}
               >
                 {assigningEmployees ? <FaSpinner className="jcf-spinning" /> : null} Assign
               </button>
@@ -1085,24 +1283,49 @@ const JobCardForm: React.FC = () => {
                 {formData.assigned_employees.length > 0 ? ` (${formData.assigned_employees.length})` : ""}
               </button>
 
+              {/* Show Update button in edit mode */}
+              {isEditMode && !jobStarted && !jobCompleted && (
+                <button
+                  type="button"
+                  className="jcf-btn-primary"
+                  onClick={handleUpdate}
+                  disabled={saving}
+                >
+                  {saving ? <FaSpinner className="jcf-spinning" /> : <FaSave size={11} />}
+                  Update Job Card
+                </button>
+              )}
+
               {!jobStarted && !jobCompleted && (
                 <button
                   type="button"
                   className="jcf-btn-start"
                   onClick={handleStartJob}
-                  disabled={!hasAssignedEmployees}
+                  disabled={!hasAssignedEmployees || isStartingJob}
                   title={!hasAssignedEmployees ? "Assign at least one employee before starting the job" : ""}
                 >
-                  <FaPlay size={11} /> Start Job
+                  {isStartingJob ? <FaSpinner className="jcf-spinning" /> : <FaPlay size={11} />}
+                  {isStartingJob ? "Starting..." : "Start Job"}
                 </button>
               )}
 
               {jobStarted && !jobCompleted && timerRunning && (
                 <>
-                  <button type="button" className="jcf-btn-secondary" onClick={handlePauseJob}>
-                    <FaPause size={11} /> Pause Job
+                  <button 
+                    type="button" 
+                    className="jcf-btn-secondary" 
+                    onClick={handlePauseJob}
+                    disabled={isStartingJob}
+                  >
+                    {isStartingJob ? <FaSpinner className="jcf-spinning" /> : <FaPause size={11} />}
+                    {isStartingJob ? "Pausing..." : "Pause Job"}
                   </button>
-                  <button type="button" className="jcf-btn-complete" onClick={handleCompleteJobClick}>
+                  <button 
+                    type="button" 
+                    className="jcf-btn-complete" 
+                    onClick={handleCompleteJobClick}
+                    disabled={isStartingJob}
+                  >
                     <FaCheck size={11} /> Complete Job
                   </button>
                 </>
@@ -1113,13 +1336,25 @@ const JobCardForm: React.FC = () => {
                   <button
                     type="button"
                     className="jcf-btn-start"
-                    onClick={handleStartJob}
-                    disabled={!hasAssignedEmployees}
+                    onClick={() => {
+                      if (!hasAssignedEmployees) {
+                        openEmployeeModal();
+                      } else {
+                        handleStartJob();
+                      }
+                    }}
+                    disabled={!hasAssignedEmployees || isStartingJob}
                     title={!hasAssignedEmployees ? "Assign at least one employee before resuming the job" : ""}
                   >
-                    <FaPlay size={11} /> Resume Job
+                    {isStartingJob ? <FaSpinner className="jcf-spinning" /> : <FaPlay size={11} />}
+                    {isStartingJob ? "Resuming..." : "Resume Job"}
                   </button>
-                  <button type="button" className="jcf-btn-complete" onClick={handleCompleteJobClick}>
+                  <button 
+                    type="button" 
+                    className="jcf-btn-complete" 
+                    onClick={handleCompleteJobClick}
+                    disabled={isStartingJob}
+                  >
                     <FaCheck size={11} /> Complete Job
                   </button>
                 </>
@@ -1128,6 +1363,24 @@ const JobCardForm: React.FC = () => {
               {jobCompleted && <span className="jcf-status-done"><FaCheck size={11} /> Completed</span>}
             </div>
           </div>
+
+          {/* Show assigned employees */}
+          {hasAssignedEmployees && (
+            <div className="jcf-assigned-employees">
+              <div className="jcf-assigned-header">
+                <FaUserCheck size={14} style={{ color: "var(--success-color)" }} />
+                <span style={{ fontWeight: 500, fontSize: "0.85rem" }}>Assigned Employees:</span>
+              </div>
+              <div className="jcf-assigned-list">
+                {getSelectedEmployeeDetails().map((emp, index) => (
+                  <span key={index} className="jcf-assigned-employee-tag">
+                    <FaUser size={10} />
+                    {emp.name} ({emp.id})
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
 
           {!hasAssignedEmployees && !jobStarted && !jobCompleted && (
             <div className="jcf-tab-warning-banner">
@@ -1546,10 +1799,29 @@ const JobCardForm: React.FC = () => {
               </button>
             )}
             {activeTab === 1 && (
-              <button type="submit" disabled={saving} className="jcf-btn-primary jcf-btn-submit" style={{ opacity: saving ? 0.6 : 1 }}>
-                {saving && <FaSpinner className="jcf-spinning" />}
-                <FaSave /> {isEditMode ? "Update Job Card" : "Create Job Card"}
-              </button>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                {isEditMode && (
+                  <button 
+                    type="button" 
+                    onClick={handleUpdate} 
+                    disabled={saving} 
+                    className="jcf-btn-primary jcf-btn-submit"
+                    style={{ opacity: saving ? 0.6 : 1 }}
+                  >
+                    {saving && <FaSpinner className="jcf-spinning" />}
+                    <FaSave /> Update Job Card
+                  </button>
+                )}
+                <button 
+                  type="submit" 
+                  disabled={saving} 
+                  className="jcf-btn-primary jcf-btn-submit"
+                  style={{ opacity: saving ? 0.6 : 1 }}
+                >
+                  {saving && <FaSpinner className="jcf-spinning" />}
+                  <FaSave /> {isEditMode ? "Save Changes" : "Create Job Card"}
+                </button>
+              </div>
             )}
           </div>
         </form>
