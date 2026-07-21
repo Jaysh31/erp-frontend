@@ -552,28 +552,7 @@ const BOMPage: React.FC = () => {
 
       {!showNewBOM && !showViewBOM && (
         <div className={`bom-page ${theme}`} ref={rootRef}>
-          {/* ── Header ─────────────────────────────────────────────────────── */}
-          <div className="bom-header">
-            <div className="bom-breadcrumb">
-              <button className="bom-breadcrumb__home" onClick={() => console.log('Home')}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                </svg>
-              </button>
-              <span className="bom-breadcrumb__sep">/</span>
-              <span className="bom-breadcrumb__crumb">Manufacturing</span>
-              <span className="bom-breadcrumb__sep">/</span>
-              <span className="bom-breadcrumb__crumb--active">Bill of Materials</span>
-            </div>
-            <div className="bom-actions">
-              <button className="bom-icon-btn bom-icon-btn--teal" title="Refresh" onClick={fetchAllBOMs}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="23 4 23 10 17 10"/>
-                  <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
-                </svg>
-              </button>
-            </div>
-          </div>
+          
 
           {/* ── Tabs ──────────────────────────────────────────────────────── */}
           <div className="bom-tabs">

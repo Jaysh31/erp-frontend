@@ -156,7 +156,7 @@ export default function Sidebar({
           icon: <ReceiptIcon />,
           path: '/delivery-challan'
         },
-        { title: 'Tax Invoice/Sale Bill', icon: <InvoiceIcon />, path: '/sales-invoice' }
+        { title: 'Tax Invoice/Sale Bill', icon: <InvoiceIcon />, path: '/sales-bill' }
       ]
     },
     // ===== CUSTOMERS SECTION - MOVED HERE =====
@@ -317,6 +317,17 @@ export default function Sidebar({
         { title: 'Outstanding Payables', icon: <OutstandingIcon />, path: '/payables/outstanding-payables' }
       ]
     },
+
+    {
+      title: 'Customers',
+      module: 'sales',
+      icon: <CustomerIcon />,
+      items: [
+        { title: 'Customer List', icon: <CustomerIcon />, path: '/customer' },
+        { title: 'Add Customer', icon: <CustomerIcon />, path: '/customer/new' },
+      ]
+    },
+
     {
       title: 'Banking',
       module: 'accounting',

@@ -739,31 +739,32 @@
     };
 
     // ─── Filtered lists ──────────────────────────────────────────────────
-    const filteredWarehouses = warehouses
-      .filter(w => 
-        w.warehouse_name !== "Main Warehouse" &&
-        (w.warehouse_name.toLowerCase().includes(warehouseSearchTerm.toLowerCase()) ||
-        (w.city && w.city.toLowerCase().includes(warehouseSearchTerm.toLowerCase())))
-      );
-
-    const filteredEmployees = employees.filter(e => 
-      e.employee_name.toLowerCase().includes(employeeSearchTerm.toLowerCase()) ||
-      (e.designation && e.designation.toLowerCase().includes(employeeSearchTerm.toLowerCase())) ||
-      (e.department && e.department.toLowerCase().includes(employeeSearchTerm.toLowerCase()))
+    const filteredWarehouses = warehouses.filter(w =>
+      w.warehouse_name?.toLowerCase().includes(warehouseSearchTerm.toLowerCase()) ?? false
     );
 
-    const filteredCustomers = customers.filter(c =>
-      c.customer_name.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
-      (c.email_id && c.email_id.toLowerCase().includes(customerSearchTerm.toLowerCase())) ||
-      (c.mobile_no && c.mobile_no.includes(customerSearchTerm))
-    );
+    const filteredEmployees = employees.filter(e => {
+      const name = e.employee_name?.toLowerCase() || '';
+      const designation = e.designation?.toLowerCase() || '';
+      const department = e.department?.toLowerCase() || '';
+      const search = employeeSearchTerm.toLowerCase();
+      return name.includes(search) || designation.includes(search) || department.includes(search);
+    });
+    const filteredCustomers = customers.filter(c => {
+      const name = c.customer_name?.toLowerCase() || '';
+      const email = c.email_id?.toLowerCase() || '';
+      const mobile = c.mobile_no || '';
+      const search = customerSearchTerm.toLowerCase();
+      return name.includes(search) || email.includes(search) || mobile.includes(search);
+    });
 
-    const filteredSuppliers = suppliers.filter(s =>
-      s.supplier_name.toLowerCase().includes(supplierSearchTerm.toLowerCase()) ||
-      (s.email_id && s.email_id.toLowerCase().includes(supplierSearchTerm.toLowerCase())) ||
-      (s.mobile_no && s.mobile_no.includes(supplierSearchTerm))
-    );
-
+    const filteredSuppliers = suppliers.filter(s => {
+      const name = s.supplier_name?.toLowerCase() || '';
+      const email = s.email_id?.toLowerCase() || '';
+      const mobile = s.mobile_no || '';
+      const search = supplierSearchTerm.toLowerCase();
+      return name.includes(search) || email.includes(search) || mobile.includes(search);
+    });
     const selectedSupplier = formData.supplierId
       ? suppliers.find(s => s.id === formData.supplierId)
       : undefined;
@@ -772,28 +773,28 @@
       ? customers.find(c => c.id === formData.customerId)
       : undefined;
 
-    const filteredPOs = purchaseOrders.filter(po => {
-      const searchLower = poSearchTerm.toLowerCase();
-      const matchesSearch =
-        po.name.toLowerCase().includes(searchLower) ||
-        po.supplier_name.toLowerCase().includes(searchLower) ||
-        po.id.toString().includes(searchLower);
-      const matchesSupplier = !formData.supplierId ||
-        po.supplier_name.toLowerCase() === formData.supplier.toLowerCase() ||
-        po.supplier === String(formData.supplierId);
-      return matchesSearch && matchesSupplier;
-    });
+      const filteredPOs = purchaseOrders.filter(po => {
+        const searchLower = poSearchTerm.toLowerCase();
+        const poName = po.name?.toLowerCase() || '';
+        const supplierName = po.supplier_name?.toLowerCase() || '';
+        const matchesSearch = poName.includes(searchLower) || supplierName.includes(searchLower) || po.id?.toString().includes(searchLower);
+        const matchesSupplier = !formData.supplierId ||
+          supplierName === formData.supplier.toLowerCase() ||
+          po.supplier === String(formData.supplierId);
+        return matchesSearch && matchesSupplier;
+      });
 
     const activeItemSearchTerm = activeItemSearchIndex !== null
       ? (formData.items[activeItemSearchIndex]?.itemName || '')
       : '';
-    const filteredItemsMaster = itemsMaster.filter(im => {
-      if (im.disabled) return false;
-      const searchLower = activeItemSearchTerm.toLowerCase();
-      if (!searchLower) return true;
-      return im.item_name.toLowerCase().includes(searchLower) ||
-            im.item_code.toLowerCase().includes(searchLower);
-    });
+      const filteredItemsMaster = itemsMaster.filter(im => {
+        if (im.disabled) return false;
+        const searchLower = activeItemSearchTerm.toLowerCase();
+        if (!searchLower) return true;
+        const itemName = im.item_name?.toLowerCase() || '';
+        const itemCode = im.item_code?.toLowerCase() || '';
+        return itemName.includes(searchLower) || itemCode.includes(searchLower);
+      });
 
     // ─── Click outside handlers ──────────────────────────────────────────
     useEffect(() => {
@@ -922,7 +923,7 @@
 
           // Get customer name from the response or find it from customers list
           let customerName = data.customer_name || '';
-          let customerId = data.customer_id;
+          let customerId = data.customer_id || undefined;
           
           // If customer_id exists but no name, try to find it from the customers list
           if (customerId && !customerName) {
@@ -934,7 +935,7 @@
 
           // Supplier name
           let supplierName = data.supplier_name || '';
-          let supplierId = data.supplier_id;
+          let supplierId = data.supplier_id || undefined;
 
           setFormData({
             id: data.id?.toString(),
@@ -947,7 +948,7 @@
             purchaseOrder: data.purchase_order_id ? `PO-${String(data.purchase_order_id).padStart(5, '0')}` : '',
             purchaseOrderId: data.purchase_order_id || undefined,
             warehouse: data.warehouse_name || '',
-            warehouseId: data.warehouse_id,
+            warehouseId: data.warehouse_id || undefined,
             customer: isService ? customerName : '',
             customerId: isService ? customerId : undefined,
             receivedBy: data.received_by || '',
@@ -1275,7 +1276,7 @@ const postInventoryForItems = async (items: GRNItem[]) => {
         stock_uom: item.uom,
         company: company,
         valuation_rate: item.rate || 0,
-        modified_by: role.name,
+        modified_by: role?.name,
         type: inventoryType, // This now matches the GRN type
       };
       return api.post('/inventory', payload);

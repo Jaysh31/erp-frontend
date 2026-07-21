@@ -7,16 +7,10 @@ import {
   FaExclamationCircle,
   FaExclamationTriangle,
   FaInfoCircle,
-  FaTimesCircle,
   FaUser,
   FaEnvelope,
-  FaPhone,
-  FaBuilding,
-  FaUsers,
-  FaTag,
   FaCheckCircle,
   FaPlus,
-  FaTrash,
   FaUserTie,
   FaTimes,
 } from 'react-icons/fa';
@@ -92,7 +86,6 @@ const AddCustomer: React.FC = () => {
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string>('');
-  const [showValidationSummary, setShowValidationSummary] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [showContactModal, setShowContactModal] = useState<boolean>(false);
   const [editingContactIndex, setEditingContactIndex] = useState<number | null>(null);
@@ -144,6 +137,8 @@ const AddCustomer: React.FC = () => {
       ...prev,
       [name]: value
     }));
+    // Clear validation error for this field
+    setValidationErrors(prev => prev.filter(err => err.field !== name));
   };
 
   const getInitials = (firstName: string, lastName: string): string => {
@@ -328,6 +323,11 @@ const AddCustomer: React.FC = () => {
     return errors;
   };
 
+  const getFieldError = (fieldName: string): string | null => {
+    const error = validationErrors.find(err => err.field === fieldName);
+    return error ? error.message : null;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setApiError(null);
@@ -336,7 +336,6 @@ const AddCustomer: React.FC = () => {
     const validationErrorsList = getAllValidationErrors();
     if (validationErrorsList.length > 0) {
       setValidationErrors(validationErrorsList);
-      setShowValidationSummary(true);
       return;
     }
 
@@ -398,7 +397,7 @@ const AddCustomer: React.FC = () => {
     );
   }
 
-  const hasErrors = getAllValidationErrors().length > 0;
+  const hasErrors = validationErrors.length > 0;
 
   // Filter out empty contact persons (those with no first_name and no last_name)
   const hasValidContacts = formData.contact_persons.some(
@@ -408,45 +407,6 @@ const AddCustomer: React.FC = () => {
   return (
     <div className={`acf-page ${theme}`}>
       <div className="acf-inner">
-
-        {/* Validation Summary Modal */}
-        {showValidationSummary && validationErrors.length > 0 && (
-          <div className="modal-overlay" onClick={() => setShowValidationSummary(false)}>
-            <div className="validation-summary-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="modal-header">
-                <h2>
-                  <FaExclamationTriangle /> Missing Required Fields
-                </h2>
-                <button className="modal-close" onClick={() => setShowValidationSummary(false)}>×</button>
-              </div>
-              <div className="modal-body">
-                <p className="modal-description">
-                  Please fill in the following required fields before submitting:
-                </p>
-                <div className="validation-errors-list">
-                  {validationErrors.map((error, idx) => (
-                    <div key={idx} className="validation-error-item">
-                      <div className="error-header">
-                        <FaTimesCircle className="error-icon" />
-                        <strong>{error.label}</strong>
-                      </div>
-                      <div className="error-message">{error.message}</div>
-                    </div>
-                  ))}
-                </div>
-                <div className="validation-tip">
-                  <FaInfoCircle className="tip-icon" />
-                  Please fix the errors above before submitting
-                </div>
-              </div>
-              <div className="modal-footer">
-                <button className="btn-cancel" onClick={() => setShowValidationSummary(false)}>
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Contact Person Modal */}
         {showContactModal && (
@@ -569,7 +529,7 @@ const AddCustomer: React.FC = () => {
           {hasErrors && (
             <div className="error-badge">
               <FaExclamationTriangle />
-              {getAllValidationErrors().length} missing field{getAllValidationErrors().length !== 1 ? 's' : ''}
+              {validationErrors.length} missing field{validationErrors.length !== 1 ? 's' : ''}
             </div>
           )}
         </div>
@@ -593,10 +553,13 @@ const AddCustomer: React.FC = () => {
                   name="customer_name"
                   value={formData.customer_name}
                   onChange={handleChange}
-                  className="form-field"
+                  className={`form-field ${getFieldError('customer_name') ? 'field-error' : ''}`}
                   placeholder="Enter customer name"
                   disabled={submitting}
                 />
+                {getFieldError('customer_name') && (
+                  <div className="field-error-message">{getFieldError('customer_name')}</div>
+                )}
               </div>
 
               <div className="acf-field">
@@ -633,12 +596,15 @@ const AddCustomer: React.FC = () => {
                   name="customer_type"
                   value={formData.customer_type}
                   onChange={handleChange}
-                  className="form-field"
+                  className={`form-field ${getFieldError('customer_type') ? 'field-error' : ''}`}
                   disabled={submitting}
                 >
                   <option value="Company">Company</option>
                   <option value="Individual">Individual</option>
                 </select>
+                {getFieldError('customer_type') && (
+                  <div className="field-error-message">{getFieldError('customer_type')}</div>
+                )}
               </div>
 
               <div className="acf-field">
@@ -647,7 +613,7 @@ const AddCustomer: React.FC = () => {
                   name="customer_group"
                   value={formData.customer_group}
                   onChange={handleChange}
-                  className="form-field"
+                  className={`form-field ${getFieldError('customer_group') ? 'field-error' : ''}`}
                   disabled={submitting}
                 >
                   <option value="Commercial">Commercial</option>
@@ -655,6 +621,9 @@ const AddCustomer: React.FC = () => {
                   <option value="Wholesale">Wholesale</option>
                   <option value="Government">Government</option>
                 </select>
+                {getFieldError('customer_group') && (
+                  <div className="field-error-message">{getFieldError('customer_group')}</div>
+                )}
               </div>
 
               <div className="acf-field">
@@ -766,7 +735,7 @@ const AddCustomer: React.FC = () => {
               </div>
             </div>
 
-            {/* Contact Persons - NEW Avatar Style */}
+            {/* Contact Persons - Avatar Style */}
             <div className="acf-section-header" style={{ marginTop: '15px' }}>
               <span className="acf-section-title">
                 <FaUserTie className="acf-section-icon" /> Contact Persons

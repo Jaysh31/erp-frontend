@@ -6,7 +6,7 @@ import {
   FaBarcode, FaTag,
   FaTimes, FaExclamationTriangle, FaInfoCircle,
   FaUser, FaCreditCard, FaCalendarAlt,
-  FaBox, FaHands // Added icons for Items/Services
+   FaHands // Added icons for Items/Services
 } from 'react-icons/fa';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import './CreateQuotation.css';
@@ -919,9 +919,9 @@ export default function CreateQuotation() {
   };
 
   // Helper to get type icon
-  const getTypeIcon = () => {
-    return formData.type === 'Items' ? <FaBox size={14} /> : <FaHands size={14} />;
-  };
+  // const getTypeIcon = () => {
+  //   return formData.type === 'Items' ? <FaBox size={14} /> : <FaHands size={14} />;
+  // };
 
   const allValidationErrors = getAllValidationErrors();
   const hasAnyErrors = allValidationErrors.length > 0;

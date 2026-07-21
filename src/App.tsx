@@ -31,7 +31,6 @@ import HomePage from "./pages/HomePage";
 import SalesOrder from "./pages/SalesOrder";
 import CreateSalesOrder from './pages/CreateSalesOrder';
 import SalesInvoice from "./pages/SalesInvoice";
-import CreateSalesInvoice from './pages/CreateSalesInvoice';
 
 
 import CompanyList from "./pages/CompanyList";
@@ -104,12 +103,11 @@ import QualityInspectionList from "./pages/QualityInspectionList";
 import QualityInspectionForm from "./pages/QualityInspectionForm";
 import ContactForm from "./pages/ContactForm";
 import SubModulePermissions from "./pages/UserManagement/SubModulePermissions";
-
 import CreateSalesBill from "./pages/CreateSalesInvoice";
 import BankDetailsForm from "./pages/BankDetailsForm";
-// Customer Management Imports
-import Customer from "./pages/Customer";
 import AddCustomer from "./pages/AddCustomer";
+import Customer from "./pages/Customer";
+
 
 function App() {
   return (
@@ -123,9 +121,7 @@ function App() {
             <Route element={<MainLayout />}>
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/sales-order" element={<SalesOrder />} />
-              <Route path="/sales-invoice" element={<SalesInvoice />} />
               <Route path="/sales-order/new" element={<CreateSalesOrder />} />
-              <Route path="/sales-invoice/new" element={<CreateSalesInvoice />} />
               <Route path="/lead" element={<LeadManagement />} />
               <Route path="/leads/new" element={<LeadForm />} />
               <Route path="/leads/:id" element={<LeadForm />} />
@@ -166,6 +162,13 @@ function App() {
               <Route path="/sales-bill/new" element={<CreateSalesBill />} />
               <Route path="/sales-bill/edit/:id" element={<CreateSalesBill />} />
               <Route path="/sales-bill/view/:id" element={<CreateSalesBill />} />
+
+
+              {/* Customer Routes */}
+<Route path="/customer" element={<Customer />} />
+<Route path="/customer/add" element={<AddCustomer />} />
+<Route path="/customer/edit/:id" element={<AddCustomer />} />
+<Route path="/customer/view/:id" element={<AddCustomer />} />
           
 
 
@@ -184,10 +187,8 @@ function App() {
 
 
               <Route path="/sales-order" element={<SalesOrder />} />
-              <Route path="/sales-invoice" element={<SalesInvoice />} />
               <Route path="/sales-order/new" element={<CreateSalesOrder />} />
               <Route path="/sales-order/:id" element={<CreateSalesOrder />} />
-              <Route path="/sales-invoice/new" element={<CreateSalesInvoice />} />
               <Route path="/quotation" element={<QuotationPage />} />
               <Route path="/quotation/new" element={<CreateQuotationPage />} />
               <Route path="/quotation/:id" element={<CreateQuotationPage />} />
