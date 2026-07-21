@@ -104,10 +104,12 @@ import QualityInspectionList from "./pages/QualityInspectionList";
 import QualityInspectionForm from "./pages/QualityInspectionForm";
 import ContactForm from "./pages/ContactForm";
 import SubModulePermissions from "./pages/UserManagement/SubModulePermissions";
-import ContactForm from "./pages/ContactForm";
+
 import CreateSalesBill from "./pages/CreateSalesInvoice";
 import BankDetailsForm from "./pages/BankDetailsForm";
-
+// Customer Management Imports
+import Customer from "./pages/Customer";
+import AddCustomer from "./pages/AddCustomer";
 
 function App() {
   return (
@@ -153,7 +155,11 @@ function App() {
               <Route path="/purchase-invoice/new" element={<PurchaseInvoiceForm />} />
               {/* <
               /* <Route path="/sales" element={<SalesPage />} /> */}
-          
+          {/* Customer Routes */}
+<Route path="/customer" element={<Customer />} />
+<Route path="/customer/add" element={<AddCustomer />} />
+<Route path="/customer/edit/:id" element={<AddCustomer />} />
+<Route path="/customer/view/:id" element={<AddCustomer />} />
 
               {/* Sales Bill Routes - Added /edit and /view routes */}
               <Route path="/sales-bill" element={<SalesInvoice />} />

@@ -1,0 +1,952 @@
+/* Compact Grid Layout */
+.acf-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.acf-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+/* Compact Section Headers */
+.acf-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+
+  border-bottom: 1px solid var(--border-color, #e0e0e0);
+}
+
+.acf-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #333);
+}
+
+.acf-section-icon {
+  font-size: 14px;
+  color: var(--primary-color, #2196F3);
+}
+
+/* Compact Form Fields */
+.acf-field {
+  margin-bottom: 6px;
+}
+
+.acf-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary, #666);
+  margin-bottom: 3px;
+}
+
+.acf-required {
+  color: #ef4444;
+}
+
+.form-field {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid var(--border-color, #ddd);
+  border-radius: 4px;
+  font-size: 13px;
+  transition: border-color 0.2s;
+  background: var(--bg-input, white);
+  color: var(--text-primary, #333);
+  box-sizing: border-box;
+}
+
+.form-field:focus {
+  outline: none;
+  border-color: var(--primary-color, #2196F3);
+  box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.1);
+}
+
+.form-field:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Footer */
+.acf-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px 0;
+  margin-top: 10px;
+  border-top: 1px solid var(--border-color, #e0e0e0);
+}
+
+.cancel-btn {
+  padding: 6px 20px;
+  background: var(--bg-secondary, #f5f5f5);
+  border: 1px solid var(--border-color, #ddd);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-primary, #333);
+  transition: all 0.2s;
+}
+
+.cancel-btn:hover:not(:disabled) {
+  background: var(--bg-hover, #e0e0e0);
+}
+
+.cancel-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.submit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 20px;
+  background: var(--primary-color, #2196F3);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.submit-btn:hover:not(:disabled) {
+  background: var(--primary-color-dark, #1976D2);
+}
+
+.submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ─── Validation Modal ──────────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.validation-summary-modal {
+  background: var(--card-bg, white);
+  border-radius: 12px;
+  max-width: 550px;
+  width: 100%;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-color, #e0e0e0);
+  position: sticky;
+  top: 0;
+  background: var(--card-bg, white);
+  z-index: 10;
+}
+
+.modal-header h2 {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #f59e0b;
+}
+
+.modal-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: none;
+  background: var(--bg-secondary, #f5f5f5);
+  font-size: 20px;
+  cursor: pointer;
+  color: var(--text-secondary, #666);
+  transition: background 0.15s;
+}
+
+.modal-close:hover {
+  background: var(--bg-hover, #e0e0e0);
+}
+
+.modal-body {
+  padding: 20px;
+}
+
+.modal-description {
+  font-size: 13px;
+  color: var(--text-secondary, #666);
+  margin: 0 0 16px 0;
+}
+
+.validation-errors-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.validation-error-item {
+  padding: 10px 12px;
+  background: var(--bg-secondary, #f8f9fa);
+  border-radius: 6px;
+  border-left: 3px solid #ef4444;
+}
+
+.error-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+}
+
+.error-header strong {
+  color: var(--text-primary, #333);
+  font-size: 13px;
+}
+
+.error-icon {
+  color: #ef4444;
+  flex-shrink: 0;
+}
+
+.error-message {
+  font-size: 11px;
+  color: #ef4444;
+  margin-left: 24px;
+}
+
+.validation-tip {
+  margin-top: 16px;
+  padding: 10px 12px;
+  background: #fef3c7;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #92400e;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tip-icon {
+  flex-shrink: 0;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--border-color, #e0e0e0);
+}
+
+.btn-cancel {
+  padding: 6px 16px;
+  border: 1px solid var(--border-color, #ddd);
+  background: var(--bg-secondary, #f5f5f5);
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  color: var(--text-secondary, #666);
+  font-size: 13px;
+  transition: background 0.15s;
+}
+
+.btn-cancel:hover {
+  background: var(--bg-hover, #e0e0e0);
+}
+
+/* ─── API Error ──────────────────────────────────────────────────────────── */
+.acf-api-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fee2e2;
+  border: 1px solid #fca5a5;
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  color: #dc2626;
+  font-size: 13px;
+}
+
+.acf-api-error .error-icon {
+  color: #dc2626;
+  flex-shrink: 0;
+}
+
+.acf-api-error span {
+  flex: 1;
+}
+
+.error-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #dc2626;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+/* ─── Success Message ───────────────────────────────────────────────────── */
+.acf-success-message {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #d1fae5;
+  border: 1px solid #6ee7b7;
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  color: #065f46;
+  font-size: 13px;
+}
+
+.success-icon {
+  color: #065f46;
+  flex-shrink: 0;
+}
+
+/* ─── Loading ────────────────────────────────────────────────────────────── */
+.acf-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  gap: 16px;
+  color: var(--text-secondary, #666);
+}
+
+.acf-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--border-color, #e0e0e0);
+  border-top-color: var(--primary-color, #2196F3);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* ─── Header ─────────────────────────────────────────────────────────────── */
+.acf-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.back-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: var(--bg-secondary, #f5f5f5);
+  border: 1px solid var(--border-color, #ddd);
+  border-radius: 30px;
+  color: var(--text-secondary, #666);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.back-btn:hover {
+  background: var(--bg-hover, #e0e0e0);
+}
+
+.header-title {
+  flex: 1;
+}
+
+.header-title h1 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary, #333);
+  margin: 0;
+}
+
+.error-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #fef3c7;
+  padding: 4px 12px;
+  border-radius: 30px;
+  font-size: 11px;
+  color: #92400e;
+}
+
+.acf-page {
+  padding: 0;
+  background: var(--bg-page, #f8f9fa);
+  min-height: 100vh;
+}
+
+.acf-inner {
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+.acf-card {
+  background: var(--card-bg, white);
+  border-radius: 12px;
+  padding: 24px 28px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  border: 1px solid var(--border-color, #e0e0e0);
+  margin: 0;
+  width: 100%;
+}
+
+/* ─── Empty Contacts ────────────────────────────────────────────────────── */
+.acf-empty-contacts {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 30px 20px;
+  background: var(--bg-secondary, #f8f9fa);
+  border-radius: 6px;
+  border: 2px dashed var(--border-color, #e0e0e0);
+  color: var(--text-secondary, #666);
+}
+
+.acf-empty-contacts p {
+  margin: 0;
+  font-size: 13px;
+}
+
+/* ─── Table Hint ────────────────────────────────────────────────────────── */
+.acf-table-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-secondary, #666);
+  background: var(--bg-secondary, #f8f9fa);
+  border-radius: 4px;
+}
+
+/* ─── Contact Persons - Avatar UI ──────────────────────────────────────── */
+
+.acf-contact-avatars {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 12px 0;
+}
+
+/* Add Contact Card - Same size as contact cards, no border */
+.contact-add-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 80px;
+  width: 80px;
+  padding: 8px;
+  background: transparent;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: var(--text-secondary, #666);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.contact-add-card:hover:not(:disabled) {
+  background: var(--bg-hover, #f0f0f0);
+}
+
+.contact-add-card:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.contact-add-icon {
+  font-size: 28px;
+  color: var(--primary-color, #2196F3);
+  background: var(--bg-secondary, #f8f9fa);
+  padding: 10px;
+  border-radius: 50%;
+  transition: all 0.2s;
+}
+
+.contact-add-card:hover:not(:disabled) .contact-add-icon {
+  background: var(--bg-hover, #e0e0e0);
+  transform: scale(1.05);
+}
+
+/* Contact Avatar Item - No border */
+.contact-avatar-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  background: transparent;
+  border: none;
+  border-radius: 12px;
+  transition: all 0.2s;
+  min-width: 80px;
+  width: 80px;
+  position: relative;
+}
+
+.contact-avatar-item:hover {
+  background: var(--bg-hover, #f0f0f0);
+}
+
+.contact-avatar-circle {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 700;
+  color: white;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  transition: transform 0.2s;
+  text-transform: uppercase;
+  user-select: none;
+}
+
+.contact-avatar-circle:hover {
+  transform: scale(1.05);
+}
+
+.contact-primary-badge {
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  background: white;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.contact-primary-badge svg {
+  color: #4CAF50;
+}
+
+.contact-avatar-name-only {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary, #333);
+  text-align: center;
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.contact-remove-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary, #999);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 50%;
+  transition: all 0.15s;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: white;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.contact-remove-btn:hover:not(:disabled) {
+  background: #fee2e2;
+  color: #ef4444;
+}
+
+.contact-remove-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ─── Contact Modal ────────────────────────────────────────────────────── */
+
+.contact-modal {
+  background: var(--card-bg, white);
+  border-radius: 12px;
+  max-width: 500px;
+  width: 100%;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+}
+
+.contact-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.contact-form-field {
+  margin-bottom: 4px;
+}
+
+.contact-form-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary, #666);
+  margin-bottom: 3px;
+}
+
+.checkbox-field {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  padding-top: 6px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-primary, #333);
+  cursor: pointer;
+}
+
+.contact-checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--primary-color, #2196F3);
+}
+
+.btn-save-contact {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 20px;
+  background: var(--primary-color, #2196F3);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.btn-save-contact:hover {
+  background: var(--primary-color-dark, #1976D2);
+}
+
+/* ─── Responsive ──────────────────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .acf-grid-3 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .acf-grid-3,
+  .acf-grid-2 {
+    grid-template-columns: 1fr;
+  }
+  
+  .acf-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  
+  .header-title h1 {
+    font-size: 18px;
+  }
+
+  .acf-card {
+    padding: 16px;
+  }
+
+  .acf-footer {
+    flex-direction: column;
+  }
+
+  .acf-footer button {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .contact-avatar-item,
+  .contact-add-card {
+    min-width: 70px;
+    width: 70px;
+    padding: 6px;
+  }
+  
+  .contact-avatar-circle {
+    width: 40px;
+    height: 40px;
+    font-size: 14px;
+  }
+  
+  .contact-avatar-name-only {
+    font-size: 10px;
+    max-width: 60px;
+  }
+  
+  .contact-add-icon {
+    font-size: 24px;
+    padding: 8px;
+  }
+  
+  .contact-form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .acf-page {
+    padding: 0;
+  }
+
+  .acf-card {
+    padding: 12px;
+    border-radius: 8px;
+  }
+  
+  .contact-avatar-item,
+  .contact-add-card {
+    min-width: 60px;
+    width: 60px;
+    padding: 4px;
+  }
+  
+  .contact-avatar-circle {
+    width: 36px;
+    height: 36px;
+    font-size: 12px;
+  }
+  
+  .contact-avatar-name-only {
+    font-size: 9px;
+    max-width: 50px;
+  }
+  
+  .contact-add-icon {
+    font-size: 20px;
+    padding: 6px;
+  }
+  
+  .contact-modal {
+    max-width: 100%;
+    margin: 10px;
+  }
+}
+
+/* ─── Dark Theme ──────────────────────────────────────────────────────────── */
+.dark-theme .acf-page {
+  background: var(--bg-page, #0f172a);
+}
+
+.dark-theme .acf-card {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+}
+
+.dark-theme .form-field {
+  background: var(--bg-input, #1e293b);
+  border-color: var(--border-color, #334155);
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .form-field:focus {
+  border-color: var(--primary-color, #3b82f6);
+}
+
+.dark-theme .acf-label {
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .acf-section-title {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .acf-empty-contacts {
+  background: var(--bg-secondary, #0f172a);
+  border-color: var(--border-color, #334155);
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .acf-table-hint {
+  background: var(--bg-secondary, #0f172a);
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .validation-summary-modal {
+  background: var(--card-bg, #1e293b);
+}
+
+.dark-theme .modal-header {
+  border-color: var(--border-color, #334155);
+  background: var(--card-bg, #1e293b);
+}
+
+.dark-theme .validation-error-item {
+  background: var(--bg-secondary, #0f172a);
+}
+
+.dark-theme .modal-close {
+  background: var(--bg-secondary, #0f172a);
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .modal-close:hover {
+  background: var(--bg-hover, #334155);
+}
+
+.dark-theme .header-title h1 {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .back-btn {
+  background: var(--bg-secondary, #1e293b);
+  border-color: var(--border-color, #334155);
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .back-btn:hover {
+  background: var(--bg-hover, #334155);
+}
+
+.dark-theme .cancel-btn {
+  background: var(--bg-secondary, #1e293b);
+  border-color: var(--border-color, #334155);
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .cancel-btn:hover {
+  background: var(--bg-hover, #334155);
+}
+
+.dark-theme .acf-api-error {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #f87171;
+}
+
+.dark-theme .acf-success-message {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.3);
+  color: #6ee7b7;
+}
+
+.dark-theme .contact-add-card {
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .contact-add-card:hover:not(:disabled) {
+  background: var(--bg-hover, #1e293b);
+}
+
+.dark-theme .contact-add-icon {
+  background: var(--bg-secondary, #0f172a);
+  color: var(--primary-color, #3b82f6);
+}
+
+.dark-theme .contact-add-card:hover:not(:disabled) .contact-add-icon {
+  background: var(--bg-hover, #1e293b);
+}
+
+.dark-theme .contact-avatar-item {
+  background: transparent;
+}
+
+.dark-theme .contact-avatar-item:hover {
+  background: var(--bg-hover, #1e293b);
+}
+
+.dark-theme .contact-avatar-name-only {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .contact-remove-btn {
+  background: var(--card-bg, #1e293b);
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .contact-remove-btn:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+}
+
+.dark-theme .contact-primary-badge {
+  background: var(--card-bg, #1e293b);
+}
+
+.dark-theme .contact-modal {
+  background: var(--card-bg, #1e293b);
+}
+
+.dark-theme .contact-form-label {
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .checkbox-label {
+  color: var(--text-primary, #f8fafc);
+}
