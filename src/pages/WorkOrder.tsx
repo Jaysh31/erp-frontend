@@ -13,6 +13,7 @@ import {
   FaTrash,
   FaPlus,
   FaBuilding,
+  FaFilter,
 } from 'react-icons/fa';
 import "./WorkOrder.css";
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
