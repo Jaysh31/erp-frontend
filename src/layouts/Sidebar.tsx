@@ -321,10 +321,10 @@ export default function Sidebar({
     {
       title: 'Customers',
       module: 'sales',
-      icon: <CustomerIcon />,
+      icon: <CustomersIcon />,
       items: [
-        { title: 'Customer List', icon: <CustomerIcon />, path: '/customer' },
-        { title: 'Add Customer', icon: <CustomerIcon />, path: '/customer/new' },
+        { title: 'Customer List', icon: <CustomersIcon />, path: '/customer' },
+        { title: 'Add Customer', icon: <CustomersIcon />, path: '/customer/new' },
       ]
     },
 
