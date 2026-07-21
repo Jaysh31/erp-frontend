@@ -151,7 +151,11 @@ function App() {
               <Route path="/purchase-invoice/new" element={<PurchaseInvoiceForm />} />
               {/* <
               /* <Route path="/sales" element={<SalesPage />} /> */}
-          
+          {/* Customer Routes */}
+<Route path="/customer" element={<Customer />} />
+<Route path="/customer/add" element={<AddCustomer />} />
+<Route path="/customer/edit/:id" element={<AddCustomer />} />
+<Route path="/customer/view/:id" element={<AddCustomer />} />
 
               {/* Sales Bill Routes - Added /edit and /view routes */}
               <Route path="/sales-bill" element={<SalesInvoice />} />

@@ -29,16 +29,22 @@ export default function Sidebar({
     return saved ? JSON.parse(saved) : {
       'Manufacturing': true,
       'Sales': true,
+      'Customers': true, // Added Customers - expanded by default
       'Items & Pricing': false,
       'Organization': false,
       'Setup': false,
       'Tools': false,
       'Reports': false,
       'System': false,
-      'Buying': false,
+      'Purchase Documents': false,
       'Suppliers & Contacts': false,
       'Pricing & Lists': false,
-      'Accounting': true
+      'Accounting': true,
+      'Accounts': false,
+      'Receivables': false,
+      'Payables': false,
+      'Banking': false,
+      'Expenses': false
     };
   });
 
@@ -151,6 +157,16 @@ export default function Sidebar({
           path: '/delivery-challan'
         },
         { title: 'Tax Invoice/Sale Bill', icon: <InvoiceIcon />, path: '/sales-bill' }
+      ]
+    },
+    // ===== CUSTOMERS SECTION - MOVED HERE =====
+    {
+      title: 'Customers',
+      module: 'sales',
+      icon: <CustomersIcon />,
+      items: [
+        { title: 'Customer List', icon: <CustomersIcon />, path: '/customer' },
+        { title: 'Add Customer', icon: <CustomersIcon />, path: '/customer/new' },
       ]
     },
     {
@@ -286,21 +302,9 @@ export default function Sidebar({
         },
         {
           title: 'Outstanding Receivables',
-          icon: <CustomerIcon />,
+          icon: <CustomersIcon />,
           path: '/outstanding-receivables'
         }
-      ]
-    },
-    {
-      title: 'Receivables',
-      module: 'accounting',
-      icon: <ReceivablesIcon />,
-      items: [
-        { title: 'Delivery Challans', icon: <ReceiptIcon />, path: '/sales-receipts' },
-        { title: 'Customer Payments', icon: <PaymentIcon />, path: '/Customer-payments' },
-        { title: 'Customer Invoices', icon: <InvoiceIcon />, path: '/customer-invoices' },
-        { title: 'Credit Notes', icon: <CreditNoteIcon />, path: '/receivables/credit-notes' },
-        { title: 'Outstanding Receivables', icon: <CustomerIcon />, path: '/outstanding-receivables' }
       ]
     },
     {
@@ -546,6 +550,17 @@ const SalesIcon = () => (
   </svg>
 );
 
+// Customers Icon - Single definition
+const CustomersIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+    <circle cx="12" cy="7" r="4"/>
+    <path d="M16 11l2 2 4-4"/>
+    <path d="M18 13v4"/>
+    <path d="M14 13h6"/>
+  </svg>
+);
+
 const QuotationIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -718,7 +733,6 @@ const WarehouseIcon = () => (
 );
 
 // ===== RECEIVABLES ICONS =====
-
 const ReceivablesIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M12 2L2 7l10 5 10-5-10-5z" />
@@ -727,15 +741,6 @@ const ReceivablesIcon = () => (
     <path d="M12 7v10" />
     <circle cx="8" cy="14" r="1.5" />
     <circle cx="16" cy="14" r="1.5" />
-  </svg>
-);
-
-const CustomerIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-    <circle cx="12" cy="7" r="4" />
-    <path d="M16 11l2 2 4-4" />
-    <path d="M18 13v4" />
   </svg>
 );
 
@@ -751,7 +756,6 @@ const PaymentIcon = () => (
 );
 
 // ===== PAYABLES ICONS =====
-
 const PayablesIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M12 2L2 7l10 5 10-5-10-5z" />
@@ -783,8 +787,6 @@ const ToolIcon = () => (
 );
 
 // ─── BUYING ICONS ───
-
-// Purchase Documents Icon
 const PurchaseDocumentsIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -795,7 +797,6 @@ const PurchaseDocumentsIcon = () => (
   </svg>
 );
 
-// GRN Icon
 const GRNIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M12 2L2 7l10 5 10-5-10-5z"/>
@@ -807,7 +808,6 @@ const GRNIcon = () => (
   </svg>
 );
 
-// Purchase Order Icon
 const PurchaseOrderIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -818,7 +818,6 @@ const PurchaseOrderIcon = () => (
   </svg>
 );
 
-// Purchase Invoice Icon
 const PurchaseInvoiceIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -831,8 +830,6 @@ const PurchaseInvoiceIcon = () => (
 );
 
 // ─── SUPPLIERS & CONTACTS ICONS ───
-
-// Supplier Contacts Icon
 const SupplierContactsIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
@@ -844,7 +841,6 @@ const SupplierContactsIcon = () => (
   </svg>
 );
 
-// Supplier Icon
 const SupplierIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
@@ -855,7 +851,6 @@ const SupplierIcon = () => (
   </svg>
 );
 
-// Contacts Icon
 const ContactsIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
@@ -868,8 +863,6 @@ const ContactsIcon = () => (
 );
 
 // ─── PRICING & LISTS ICONS ───
-
-// Pricing List Icon
 const PricingListIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M12 2H2v10l9.17 9.17a2 2 0 0 0 2.83 0l7-7a2 2 0 0 0 0-2.83L12 2z"/>
@@ -880,7 +873,6 @@ const PricingListIcon = () => (
   </svg>
 );
 
-// Price List Icon (used in items)
 const PriceListIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M12 2H2v10l9.17 9.17a2 2 0 0 0 2.83 0l7-7a2 2 0 0 0 0-2.83L12 2z"/>
@@ -890,7 +882,6 @@ const PriceListIcon = () => (
 );
 
 // ─── ACCOUNTING ICONS ───
-
 const AccountingIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <rect x="2" y="6" width="20" height="14" rx="2" ry="2" />
