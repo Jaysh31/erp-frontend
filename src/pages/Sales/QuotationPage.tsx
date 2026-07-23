@@ -4,20 +4,19 @@ import {
   FaSearch, FaPlus, FaEye, FaEdit, FaTrash, FaFilePdf, FaPrint,
   FaFilter, FaCheckCircle, FaClock, FaTimesCircle,
   FaFileAlt, FaExternalLinkAlt,
-  FaChartLine, FaTimes, FaSpinner,
-  FaClipboardList, FaDollarSign, FaBoxOpen, FaEnvelope
+  FaChartLine, FaTimes,  FaSpinner,
+  FaEnvelope, FaClipboardList, FaDollarSign
 } from 'react-icons/fa';
-import { useAdminTheme } from '../admin-theme/AdminThemeContext';
+import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
-import './SalesOrder.css';
-import api from '../../src/services/api';
+import './QuotationPage.css';
+import api from '../../services/api';
 
-interface SalesOrderItem {
+interface QuotationItem {
   id: string;
   itemCode: string;
   itemName: string;
   hsnCode?: string;
-  stockUom?: string;
   quantity: number;
   rate: number;
   amount: number;
@@ -25,9 +24,10 @@ interface SalesOrderItem {
   sgst?: number;
 }
 
-export interface SalesOrder {
+
+export interface Quotation {
   id: string;
-  salesOrderNumber: string;
+  quotationNumber: string;
   customer: string;
   customerName: string;
   customerEmail: string;
@@ -37,17 +37,28 @@ export interface SalesOrder {
   customerState?: string;
   customerStateCode?: string;
   date: string;
-  deliveryDate: string;
+  validTill: string;
   totalAmount: number;
-  status: 'Draft' | 'Confirmed' | 'On Hold' | 'Completed' | 'Cancelled' | 'Closed';
-  orderType: string;
-  isSubcontracted: boolean;
+  status: 'Draft' | 'Sent' | 'Accepted' | 'Rejected' | 'Expired' | 'Converted';
   currency: string;
-  items: SalesOrderItem[];
+  items: QuotationItem[];
   notes: string;
   termsConditions: string;
   namingSeries?: string;
+  quotationTo?: string;
+  orderType?: string;
+  company?: string;
+  priceList?: string;
+  taxCategory?: string;
+  taxesAndCharges?: string;
+  shippingRule?: string;
+  incoterm?: string;
+  placeOfSupply?: string;
+  contactPerson?: string;
   paymentTermsTemplate?: string;
+  tcName?: string;
+  taxes?: TaxRow[];
+  paymentSchedule?: PaymentSchedule[];
   deliveryNote?: string;
   referenceNo?: string;
   referenceDate?: string;
@@ -58,16 +69,33 @@ export interface SalesOrder {
   dispatchedThrough?: string;
   destination?: string;
 }
+  
+interface TaxRow {
+  id: string;
+  type: string;
+  accountHead: string;
+  taxRate: number;
+  netAmount: number;
+  amount: number;
+  total: number;
+}
 
-interface SalesOrderApiRecord {
+interface PaymentSchedule {
+  id: string;
+  paymentTerm: string;
+  description: string;
+  dueDate: string;
+  invoicePortion: number;
+  paymentAmount: number;
+}
+
+
+interface QuotationApiRecord {
   name: string;
-  id?: string | number;
   party_name?: string;
   customer_name?: string;
   transaction_date?: string;
-  delivery_date?: string;
-  order_type?: string;
-  is_subcontracted?: number | boolean;
+  valid_till?: string;
   grand_total?: number;
   total?: number;
   status?: string;
@@ -98,7 +126,6 @@ interface SalesOrderApiRecord {
     item_name?: string;
     hsn_code?: string;
     gst_hsn_code?: string;
-    stock_uom?: string;
     qty?: number;
     rate?: number;
     amount?: number;
@@ -108,28 +135,22 @@ interface SalesOrderApiRecord {
 }
 
 const companyDetails = {
-  name: 'Sculptor Tech Pvt Ltd',
-  address: 'c-1006, gc, Pune, Maharashtra 411028, India',
-  website: 'sculptortechpvtltd@gmail.com',
-  email: 'jayeshwakle@sculptortechpvtltd.com',
-  contact: '8668584275',
+  name: 'Chandratara Industries',
+  address: '20/1,Hadapsar Industrial Estate, hadapsar, Pune-411013, Maharashtra',
+  contact: '8888861441',
+
 };
 
 
 const companyPrintDetails = {
-  gstin: '',
+  gstin: '27AFFPC0269R1Z4',
   stateName: 'Maharashtra',
   stateCode: '27',
-  panNo: '',
-  bankName: '',
-  bankAccountNo: '',
-  bankBranchIfsc: '',
+  panNo: 'AFFPC0269R',
+  bankName: 'STATE BANK OF INDIA (NEW)',
+  bankAccountNo: '40159796829',
+  bankBranchIfsc: 'PULGATE & SBIN0008044',
   jurisdiction: 'PUNE',
-};
-
-const generateFallbackOrderNumber = (index: number): string => {
-  const year = new Date().getFullYear();
-  return `SAL-ORD-${year}-${String(index + 1).padStart(5, '0')}`;
 };
 
 /* ─────────────────────── Amount-in-words helper ─────────────────────── */
@@ -187,17 +208,16 @@ const escapeHtml = (val: unknown): string => {
     .replace(/"/g, '&quot;');
 };
 
+const QUOTATION_LINE_CACHE_PREFIX = 'quotation_line_data:';
 
-const SALES_ORDER_LINE_CACHE_PREFIX = 'sales_order_line_data:';
-
-interface CachedSalesOrderLineData {
-  items?: SalesOrderItem[];
+interface CachedQuotationLineData {
+  items?: QuotationItem[];
   paymentSchedule?: any[];
 }
 
-const readCachedSalesOrderLineData = (name: string): CachedSalesOrderLineData | null => {
+const readCachedQuotationLineData = (name: string): CachedQuotationLineData | null => {
   try {
-    const raw = localStorage.getItem(SALES_ORDER_LINE_CACHE_PREFIX + name);
+    const raw = localStorage.getItem(QUOTATION_LINE_CACHE_PREFIX + name);
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
@@ -213,8 +233,8 @@ const extractRecords = (payload: any): any[] => {
   return [];
 };
 
-/** Maps a raw /sales-order API record's `items` child table into UI-shaped SalesOrderItem[]. */
-const mapApiItemsToSalesOrderItems = (record: SalesOrderApiRecord | null | undefined): SalesOrderItem[] => {
+/** Maps a raw /quotation API record's `items` child table into UI-shaped QuotationItem[]. */
+const mapApiItemsToQuotationItems = (record: QuotationApiRecord | null | undefined): QuotationItem[] => {
   if (!record || !Array.isArray(record.items)) return [];
   return record.items.map((it, idx) => {
     const quantity = it.qty ?? 0;
@@ -224,7 +244,6 @@ const mapApiItemsToSalesOrderItems = (record: SalesOrderApiRecord | null | undef
       itemCode: it.item_code || '',
       itemName: it.item_name || '',
       hsnCode: it.hsn_code || it.gst_hsn_code || '',
-      stockUom: it.stock_uom || 'Nos',
       quantity,
       rate,
       amount: it.amount ?? quantity * rate,
@@ -234,7 +253,7 @@ const mapApiItemsToSalesOrderItems = (record: SalesOrderApiRecord | null | undef
   });
 };
 
-export default function SalesOrder() {
+export default function QuotationPage() {
   const navigate = useNavigate();
 
   let theme = 'light';
@@ -247,129 +266,116 @@ export default function SalesOrder() {
 
   const [filterText, setFilterText] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('All');
-  const [selectedOrderType, setSelectedOrderType] = useState('All');
+  const [selectedCurrency, setSelectedCurrency] = useState('All');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [printLoadingId, setPrintLoadingId] = useState<string | null>(null);
 
-  const [salesOrders, setSalesOrders] = useState<SalesOrder[]>([]);
+  const [quotations, setQuotations] = useState<Quotation[]>([]);
 
   // Modal states
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showPdfModal, setShowPdfModal] = useState(false);
-  const [selectedOrder, setSelectedOrder] = useState<SalesOrder | null>(null);
+  const [selectedQuote, setSelectedQuote] = useState<Quotation | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pdfModalLoading, ] = useState(false);
 
-  // ─── load from GET /sales-order ───────────────────────────────────────
+  // ─── load from GET /quotation ───────────────────────────────────────
 
-  const fetchSalesOrders = async () => {
+  const fetchQuotations = async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await api.get('/sales-order');
+      const response = await api.get('/quotation');
 
       if (response.data.success !== 1) {
-        throw new Error(response.data?.message || 'Failed to fetch sales orders');
+        throw new Error(response.data?.message || 'Failed to fetch quotations');
       }
 
       const raw = response.data.data;
-      let all: SalesOrderApiRecord[] =
+      let all: QuotationApiRecord[] =
         raw?.records ??
         (Array.isArray(raw) ? raw : raw?.data) ??
         [];
 
       if (!Array.isArray(all)) {
-        console.warn('Unexpected /sales-order response shape, defaulting to empty list:', raw);
+        console.warn('Unexpected /quotation response shape, defaulting to empty list:', raw);
         all = [];
       }
 
-      const transformedData: SalesOrder[] = all.map((o, idx) => {
-        // Prefer a real numeric/string id from the API for delete/navigate.
-        // Fall back to `name` if no id field is present at all.
-        const resolvedId =
-          o.id !== undefined && o.id !== null && String(o.id).trim() !== ''
-            ? String(o.id)
-            : (o.name || '');
+      const transformedData: Quotation[] = all.map((q) => ({
+        id: q.name,
+        quotationNumber: q.name,
+        customer: q.party_name || '',
+        customerName: q.customer_name || '',
+        customerEmail: q.contact_email || '',
+        customerPhone: q.contact_mobile || '',
+        customerAddress: q.address_display || q.customer_address || '',
+        customerGstin: q.customer_gstin || q.gstin || '',
+        customerState: q.customer_state || q.state || '',
+        customerStateCode: q.state_code || '',
+        date: q.transaction_date || '',
+        validTill: q.valid_till || '',
+        totalAmount: q.grand_total ?? q.total ?? 0,
+        status: (q.status as Quotation['status']) || 'Draft',
+        currency: q.currency || 'INR',
+        notes: q.notes || '',
+        termsConditions: q.terms || '',
+        paymentTermsTemplate: q.payment_terms_template || '',
+        deliveryNote: q.delivery_note || '',
+        referenceNo: q.reference_no || '',
+        referenceDate: q.reference_date || '',
+        buyersOrderNo: q.po_no || '',
+        buyersOrderDate: q.po_date || '',
+        dispatchDocNo: q.dispatch_document_no || '',
+        deliveryNoteDate: q.lr_date || '',
+        dispatchedThrough: q.dispatched_through || '',
+        destination: q.destination || '',
+        items: mapApiItemsToQuotationItems(q),
+      }));
 
-        return {
-          id: resolvedId,
-          salesOrderNumber: o.name || generateFallbackOrderNumber(idx),
-          customer: o.party_name || '',
-          customerName: o.customer_name || '',
-          customerEmail: o.contact_email || '',
-          customerPhone: o.contact_mobile || '',
-          customerAddress: o.address_display || o.customer_address || '',
-          customerGstin: o.customer_gstin || o.gstin || '',
-          customerState: o.customer_state || o.state || '',
-          customerStateCode: o.state_code || '',
-          date: o.transaction_date || '',
-          deliveryDate: o.delivery_date || '',
-          totalAmount: o.grand_total ?? o.total ?? 0,
-          status: (o.status as SalesOrder['status']) || 'Draft',
-          orderType: o.order_type || 'Sales',
-          isSubcontracted: Boolean(o.is_subcontracted),
-          currency: o.currency || 'INR',
-          notes: o.notes || '',
-          termsConditions: o.terms || '',
-          paymentTermsTemplate: o.payment_terms_template || '',
-          deliveryNote: o.delivery_note || '',
-          referenceNo: o.reference_no || '',
-          referenceDate: o.reference_date || '',
-          buyersOrderNo: o.po_no || '',
-          buyersOrderDate: o.po_date || '',
-          dispatchDocNo: o.dispatch_document_no || '',
-          deliveryNoteDate: o.lr_date || '',
-          dispatchedThrough: o.dispatched_through || '',
-          destination: o.destination || '',
-          items: mapApiItemsToSalesOrderItems(o),
-        };
-      });
-
-      setSalesOrders(transformedData);
+      setQuotations(transformedData);
     } catch (err: any) {
-      console.error('Error fetching sales orders:', err);
-      setError(err.response?.data?.message || 'An error occurred while loading sales orders');
+      console.error('Error fetching quotations:', err);
+      setError(err.response?.data?.message || 'An error occurred while loading quotations');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchSalesOrders();
+    fetchQuotations();
   }, []);
 
-  
-  const fetchFullSalesOrderRecord = async (orderId: string): Promise<SalesOrderApiRecord | null> => {
+
+  const fetchFullQuotationRecord = async (quotationId: string): Promise<QuotationApiRecord | null> => {
     try {
-      const response = await api.get(`/sales-order/${orderId}`);
+      const response = await api.get(`/quotation/${quotationId}`);
       if (response.data && response.data.success !== 0) {
         const data = response.data.success === 1 ? response.data.data : response.data;
         const record = Array.isArray(data) ? data[0] : (data?.record ?? data);
         if (record && (record.name || record.id)) {
-          return record as SalesOrderApiRecord;
+          return record as QuotationApiRecord;
         }
       }
     } catch (err) {
-      console.warn('Direct /sales-order/:id fetch failed, falling back to list scan:', err);
+      console.warn('Direct /quotation/:id fetch failed, falling back to list scan:', err);
     }
 
     try {
-      const response = await api.get('/sales-order');
+      const response = await api.get('/quotation');
       const records = extractRecords(response.data);
       const found = records.find(
-        (r: any) => r && (r.name === orderId || String(r.id) === String(orderId))
+        (r: any) => r && (r.name === quotationId || String(r.id) === String(quotationId))
       );
-      return (found as SalesOrderApiRecord) || null;
+      return (found as QuotationApiRecord) || null;
     } catch (err) {
-      console.error('Error fetching sales order detail:', err);
+      console.error('Error fetching quotation detail:', err);
       return null;
     }
   };
 
- 
-  
-  const enrichItemsFromCatalog = async (items: SalesOrderItem[]): Promise<SalesOrderItem[]> => {
+  const enrichItemsFromCatalog = async (items: QuotationItem[]): Promise<QuotationItem[]> => {
     return Promise.all(items.map(async (item) => {
       const needsLookup = !item.itemName || !item.rate;
       if (!needsLookup || !item.itemCode) return item;
@@ -385,7 +391,6 @@ export default function SalesOrder() {
           ...item,
           itemName: item.itemName || match.item_name || '',
           hsnCode: item.hsnCode || match.hsn_code || match.gst_hsn_code || '',
-          stockUom: item.stockUom || match.stock_uom || match.uom || 'Nos',
           rate: item.rate || Number(match.standard_rate ?? match.rate ?? 0) || 0,
           cgst: item.cgst || Number(match.cgst_rate ?? match.cgst ?? 0) || 0,
           sgst: item.sgst || Number(match.sgst_rate ?? match.sgst ?? 0) || 0,
@@ -397,27 +402,27 @@ export default function SalesOrder() {
     }));
   };
 
-  const buildPrintableOrder = async (order: SalesOrder): Promise<SalesOrder> => {
-    let items: SalesOrderItem[] = [];
+  const buildPrintableQuote = async (quote: Quotation): Promise<Quotation> => {
+    let items: QuotationItem[] = [];
     let latestTotal: number | undefined;
 
     try {
-      const detail = await fetchFullSalesOrderRecord(order.id);
-      items = mapApiItemsToSalesOrderItems(detail);
+      const detail = await fetchFullQuotationRecord(quote.id);
+      items = mapApiItemsToQuotationItems(detail);
       latestTotal = detail?.grand_total ?? detail?.total ?? undefined;
     } catch (err) {
-      console.error('Error fetching full sales order record for print:', err);
+      console.error('Error fetching full quotation record for print:', err);
     }
 
     if (items.length === 0) {
-      const cached = readCachedSalesOrderLineData(order.salesOrderNumber);
+      const cached = readCachedQuotationLineData(quote.id);
       if (cached?.items && cached.items.length > 0) {
         items = cached.items;
       }
     }
 
-    if (items.length === 0 && order.items && order.items.length > 0) {
-      items = order.items;
+    if (items.length === 0 && quote.items && quote.items.length > 0) {
+      items = quote.items;
     }
 
     try {
@@ -427,20 +432,20 @@ export default function SalesOrder() {
     }
 
     return {
-      ...order,
+      ...quote,
       items,
-      totalAmount: latestTotal ?? order.totalAmount,
+      totalAmount: latestTotal ?? quote.totalAmount,
     };
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Draft': return 'status-draft';
-      case 'Confirmed': return 'status-sent';
-      case 'On Hold': return 'status-expired';
-      case 'Completed': return 'status-accepted';
-      case 'Cancelled': return 'status-rejected';
-      case 'Closed': return 'status-converted';
+      case 'Sent': return 'status-sent';
+      case 'Accepted': return 'status-accepted';
+      case 'Rejected': return 'status-rejected';
+      case 'Expired': return 'status-expired';
+      case 'Converted': return 'status-converted';
       default: return '';
     }
   };
@@ -448,99 +453,98 @@ export default function SalesOrder() {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'Draft': return <FaFileAlt size={10} />;
-      case 'Confirmed': return <FaCheckCircle size={10} />;
-      case 'On Hold': return <FaClock size={10} />;
-      case 'Completed': return <FaCheckCircle size={10} />;
-      case 'Cancelled': return <FaTimesCircle size={10} />;
-      case 'Closed': return <FaExternalLinkAlt size={10} />;
+      case 'Sent': return <FaEnvelope size={10} />;
+      case 'Accepted': return <FaCheckCircle size={10} />;
+      case 'Rejected': return <FaTimesCircle size={10} />;
+      case 'Expired': return <FaClock size={10} />;
+      case 'Converted': return <FaExternalLinkAlt size={10} />;
       default: return null;
     }
   };
 
-  const filteredOrders = salesOrders.filter(o => {
-    const matchesSearch = (o.salesOrderNumber || '').toLowerCase().includes(filterText.toLowerCase()) ||
-      (o.customerName || '').toLowerCase().includes(filterText.toLowerCase());
-    const matchesStatus = selectedStatus === 'All' || o.status === selectedStatus;
-    const matchesOrderType = selectedOrderType === 'All' || o.orderType === selectedOrderType;
-    return matchesSearch && matchesStatus && matchesOrderType;
+  const filteredQuotations = quotations.filter(q => {
+    const matchesSearch = q.quotationNumber.toLowerCase().includes(filterText.toLowerCase()) ||
+                         q.customerName.toLowerCase().includes(filterText.toLowerCase());
+    const matchesStatus = selectedStatus === 'All' || q.status === selectedStatus;
+    const matchesCurrency = selectedCurrency === 'All' || q.currency === selectedCurrency;
+    return matchesSearch && matchesStatus && matchesCurrency;
   });
 
   const getStatusCount = (status: string) => {
-    return salesOrders.filter(o => o.status === status).length;
+    return quotations.filter(q => q.status === status).length;
   };
 
-  const totalAmount = salesOrders.reduce((sum, o) => sum + o.totalAmount, 0);
-  const completedAmount = salesOrders.filter(o => o.status === 'Completed').reduce((sum, o) => sum + o.totalAmount, 0);
-  const fulfillmentRate = totalAmount > 0 ? Math.round((completedAmount / totalAmount) * 100) : 0;
-  const totalOrders = salesOrders.length;
+  const totalAmount = quotations.reduce((sum, q) => sum + q.totalAmount, 0);
+  const acceptedAmount = quotations.filter(q => q.status === 'Accepted').reduce((sum, q) => sum + q.totalAmount, 0);
+  const conversionRate = totalAmount > 0 ? Math.round((acceptedAmount / totalAmount) * 100) : 0;
+  const totalQuotes = quotations.length;
 
-  // View / Edit — both route to the CreateSalesOrder form (edit mode).
-  const handleView = (order: SalesOrder) => {
-    if (!order.id) {
-      toast.error('Unable to open this sales order — missing order ID');
-      return;
-    }
-    navigate(`/sales-order/${order.id}`, { state: { salesOrder: order } });
+  const handleView = (quote: Quotation) => {
+    navigate(`/quotation/${quote.id}`, { state: { quotation: quote } });
   };
 
-  const handleEdit = (order: SalesOrder) => {
-    if (!order.id) {
-      toast.error('Unable to open this sales order — missing order ID');
-      return;
-    }
-    navigate(`/sales-order/${order.id}`, { state: { salesOrder: order } });
+  const handleEdit = (quote: Quotation) => {
+    navigate(`/quotation/${quote.id}`, { state: { quotation: quote } });
   };
 
-  // Delete Sales Order — DELETE /sales-order/:id
-  const handleDeleteClick = (order: SalesOrder) => {
-    setSelectedOrder(order);
+  // Delete Quotation — DELETE /quotation/:id
+  const handleDeleteClick = (quote: Quotation) => {
+    setSelectedQuote(quote);
     setShowDeleteModal(true);
   };
 
   const confirmDelete = async () => {
-    if (!selectedOrder) return;
-    if (!selectedOrder.id) {
-      toast.error('Cannot delete — missing order ID');
-      return;
-    }
+    if (!selectedQuote) return;
     setIsSubmitting(true);
     try {
-      const response = await api.delete(`/sales-order/${selectedOrder.id}`);
+      const response = await api.delete(`/quotation/${selectedQuote.id}`);
       if (response.data.success !== 1) {
-        throw new Error(response.data?.message || 'Failed to delete sales order');
+        throw new Error(response.data?.message || 'Failed to delete quotation');
       }
       setShowDeleteModal(false);
-      setSelectedOrder(null);
-      toast.success('Sales order deleted successfully!');
-      fetchSalesOrders();
+      setSelectedQuote(null);
+      toast.success('Quotation deleted successfully!');
+      fetchQuotations();
     } catch (err: any) {
-      console.error('Error deleting sales order:', err);
-      toast.error(err.response?.data?.message || 'Failed to delete sales order');
+      console.error('Error deleting quotation:', err);
+      toast.error(err.response?.data?.message || 'Failed to delete quotation');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-
+  // // PDF View for single quotation
+  // const handlePdfView = async (quote: Quotation) => {
+  //   setSelectedQuote(quote);
+  //   setShowPdfModal(true);
+  //   setPdfModalLoading(true);
+  //   try {
+  //     const printable = await buildPrintableQuote(quote);
+  //     setSelectedQuote(printable);
+  //   } finally {
+  //     setPdfModalLoading(false);
+  //   }
+  // };
 
   const getCompanyDetails = () => companyDetails;
 
   const clearFilters = () => {
     setFilterText('');
     setSelectedStatus('All');
-    setSelectedOrderType('All');
+    setSelectedCurrency('All');
   };
 
   /* ─────────────────────── Print (Tax-Invoice format) ─────────────────────── */
 
-  const buildSalesOrderPrintHtml = (order: SalesOrder): string => {
-    const validItems = order.items || [];
+
+  const buildQuotationPrintHtml = (quote: Quotation): string => {
+    const validItems = quote.items || [];
 
     const baseTotal = validItems.reduce((sum, it) => sum + (it.amount || 0), 0);
     const cgstAmount = validItems.reduce((sum, it) => sum + ((it.amount || 0) * (it.cgst || 0)) / 100, 0);
     const sgstAmount = validItems.reduce((sum, it) => sum + ((it.amount || 0) * (it.sgst || 0)) / 100, 0);
     const totalQty = validItems.reduce((sum, it) => sum + (it.quantity || 0), 0);
-    const grandTotal = order.totalAmount || (baseTotal + cgstAmount + sgstAmount);
+    const grandTotal = quote.totalAmount || (baseTotal + cgstAmount + sgstAmount);
 
     const itemRows = validItems.map((item, idx) => `
       <tr>
@@ -550,15 +554,17 @@ export default function SalesOrder() {
           ${item.itemCode ? `<div class="pq-item-sub">${escapeHtml(item.itemCode)}</div>` : ''}
         </td>
         <td class="pq-col-hsn">${escapeHtml(item.hsnCode || '')}</td>
-        <td class="pq-col-qty">${item.quantity} ${escapeHtml(item.stockUom || 'Nos')}</td>
+        <td class="pq-col-qty">${item.quantity} Nos.</td>
         <td class="pq-col-rate">${item.rate.toFixed(2)}</td>
-        <td class="pq-col-per">${escapeHtml(item.stockUom || 'Nos')}</td>
+        <td class="pq-col-per">Nos.</td>
         <td class="pq-col-cgst">${item.cgst ? item.cgst + '%' : ''}</td>
         <td class="pq-col-sgst">${item.sgst ? item.sgst + '%' : ''}</td>
         <td class="pq-col-amt">${item.amount.toFixed(2)}</td>
       </tr>
     `).join('');
 
+    // Representative rates for the tax lines below the item table (meaningful
+    // when items share one rate, which is the common case).
     const cgstRate = validItems.find(it => (it.cgst || 0) > 0)?.cgst || 0;
     const sgstRate = validItems.find(it => (it.sgst || 0) > 0)?.sgst || 0;
 
@@ -580,6 +586,8 @@ export default function SalesOrder() {
       `);
     }
 
+    // HSN/SAC-wise tax summary — one row per distinct HSN code present on the items,
+    // mirroring the "HSN/SAC | Taxable Value | Rate | Amount | Total Tax Amount" table.
     const hsnGroups = new Map<string, { taxable: number; cgstRate: number; sgstRate: number; cgstAmt: number; sgstAmt: number }>();
     validItems.forEach((it) => {
       const key = it.hsnCode || '—';
@@ -613,13 +621,13 @@ export default function SalesOrder() {
       </tr>
     `).join('');
 
-    const paymentTerms = order.paymentTermsTemplate || '';
+    const paymentTerms = quote.paymentTermsTemplate || '';
 
     return `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8" />
-<title>${escapeHtml(order.salesOrderNumber)}</title>
+<title>${escapeHtml(quote.quotationNumber)}</title>
 <style>
   * { box-sizing: border-box; }
   body { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #1a1a1a; margin: 0; padding: 24px; }
@@ -681,7 +689,7 @@ export default function SalesOrder() {
   <div class="pq-outer">
 
     <div class="pq-title-row">
-      <div class="pq-title">SALES ORDER</div>
+      <div class="pq-title">QUOTATION</div>
     </div>
 
     <div class="pq-top">
@@ -689,25 +697,24 @@ export default function SalesOrder() {
         <div class="pq-company-name">${escapeHtml(companyDetails.name)}</div>
         <div>${escapeHtml(companyDetails.address)}</div>
         <div>Phone: ${escapeHtml(companyDetails.contact)}</div>
-        ${companyDetails.email ? `<div>Email: ${escapeHtml(companyDetails.email)}</div>` : ''}
         ${companyPrintDetails.gstin ? `<div>GSTIN/UIN: ${escapeHtml(companyPrintDetails.gstin)}</div>` : ''}
         <div>State Name : ${escapeHtml(companyPrintDetails.stateName)}, Code : ${escapeHtml(companyPrintDetails.stateCode)}</div>
       </div>
       <div class="pq-meta-box">
         <div class="pq-meta-row">
           <div class="pq-meta-cell">
-            <div class="pq-meta-label">Sales Order No.</div>
-            <div class="pq-meta-value">${escapeHtml(order.salesOrderNumber)}</div>
+            <div class="pq-meta-label">Quotation No.</div>
+            <div class="pq-meta-value">${escapeHtml(quote.quotationNumber)}</div>
           </div>
           <div class="pq-meta-cell" style="border-right:none;">
             <div class="pq-meta-label">Dated</div>
-            <div class="pq-meta-value">${escapeHtml(formatPrintDate(order.date))}</div>
+            <div class="pq-meta-value">${escapeHtml(formatPrintDate(quote.date))}</div>
           </div>
         </div>
         <div class="pq-meta-row">
           <div class="pq-meta-cell">
             <div class="pq-meta-label">Delivery Note</div>
-            <div class="pq-meta-value">${escapeHtml(order.deliveryNote || '')}</div>
+            <div class="pq-meta-value">${escapeHtml(quote.deliveryNote || '')}</div>
           </div>
           <div class="pq-meta-cell" style="border-right:none;">
             <div class="pq-meta-label">Mode/Terms of Payment</div>
@@ -717,60 +724,50 @@ export default function SalesOrder() {
         <div class="pq-meta-row">
           <div class="pq-meta-cell" style="border-right:none;">
             <div class="pq-meta-label">Reference No. &amp; Date.</div>
-            <div class="pq-meta-value">${escapeHtml(order.referenceNo || '')}${order.referenceDate ? ` dt. ${escapeHtml(formatPrintDate(order.referenceDate))}` : ''}</div>
+            <div class="pq-meta-value">${escapeHtml(quote.referenceNo || '')}${quote.referenceDate ? ` dt. ${escapeHtml(formatPrintDate(quote.referenceDate))}` : ''}</div>
           </div>
         </div>
         <div class="pq-meta-row">
           <div class="pq-meta-cell">
             <div class="pq-meta-label">Buyer's Order No.</div>
-            <div class="pq-meta-value">${escapeHtml(order.buyersOrderNo || '')}</div>
+            <div class="pq-meta-value">${escapeHtml(quote.buyersOrderNo || '')}</div>
           </div>
           <div class="pq-meta-cell" style="border-right:none;">
             <div class="pq-meta-label">Dated</div>
-            <div class="pq-meta-value">${escapeHtml(formatPrintDate(order.buyersOrderDate || ''))}</div>
+            <div class="pq-meta-value">${escapeHtml(formatPrintDate(quote.buyersOrderDate || ''))}</div>
           </div>
         </div>
         <div class="pq-meta-row">
           <div class="pq-meta-cell">
             <div class="pq-meta-label">Dispatch Doc No.</div>
-            <div class="pq-meta-value">${escapeHtml(order.dispatchDocNo || '')}</div>
+            <div class="pq-meta-value">${escapeHtml(quote.dispatchDocNo || '')}</div>
           </div>
           <div class="pq-meta-cell" style="border-right:none;">
             <div class="pq-meta-label">Delivery Note Date</div>
-            <div class="pq-meta-value">${escapeHtml(formatPrintDate(order.deliveryNoteDate || ''))}</div>
+            <div class="pq-meta-value">${escapeHtml(formatPrintDate(quote.deliveryNoteDate || ''))}</div>
           </div>
         </div>
         <div class="pq-meta-row">
           <div class="pq-meta-cell">
             <div class="pq-meta-label">Dispatched through</div>
-            <div class="pq-meta-value">${escapeHtml(order.dispatchedThrough || '')}</div>
+            <div class="pq-meta-value">${escapeHtml(quote.dispatchedThrough || '')}</div>
           </div>
           <div class="pq-meta-cell" style="border-right:none;">
             <div class="pq-meta-label">Destination</div>
-            <div class="pq-meta-value">${escapeHtml(order.destination || '')}</div>
+            <div class="pq-meta-value">${escapeHtml(quote.destination || '')}</div>
           </div>
         </div>
         <div class="pq-meta-row">
           <div class="pq-meta-cell" style="border-right:none;">
             <div class="pq-meta-label">Terms of Delivery</div>
-            <div class="pq-meta-value">${escapeHtml(order.termsConditions || '')}</div>
+            <div class="pq-meta-value">${escapeHtml(quote.termsConditions || '')}</div>
           </div>
         </div>
-        <div class="pq-meta-row">
-          <div class="pq-meta-cell">
-            <div class="pq-meta-label">Order Type</div>
-            <div class="pq-meta-value">${escapeHtml(order.orderType || '')}</div>
-          </div>
-          <div class="pq-meta-cell" style="border-right:none;">
-            <div class="pq-meta-label">Delivery Date</div>
-            <div class="pq-meta-value">${escapeHtml(formatPrintDate(order.deliveryDate || ''))}</div>
-          </div>
-        </div>
-        ${order.status ? `
+        ${quote.status ? `
         <div class="pq-meta-row">
           <div class="pq-meta-cell" style="border-right:none;">
             <div class="pq-meta-label">Status</div>
-            <div class="pq-meta-value">${escapeHtml(order.status)}</div>
+            <div class="pq-meta-value">${escapeHtml(quote.status)} ${quote.validTill ? `&nbsp;•&nbsp; Valid Till: ${escapeHtml(formatPrintDate(quote.validTill))}` : ''}</div>
           </div>
         </div>` : ''}
       </div>
@@ -779,19 +776,19 @@ export default function SalesOrder() {
     <div class="pq-parties">
       <div class="pq-party-box">
         <div class="pq-party-label">Consignee (Ship to)</div>
-        <div><strong>${escapeHtml(order.customerName)}</strong></div>
-        ${order.customerAddress ? `<div>${escapeHtml(order.customerAddress)}</div>` : ''}
-        ${order.customerGstin ? `<div>GSTIN/UIN : ${escapeHtml(order.customerGstin)}</div>` : ''}
-        ${order.customerState ? `<div>State Name : ${escapeHtml(order.customerState)}${order.customerStateCode ? `, Code : ${escapeHtml(order.customerStateCode)}` : ''}</div>` : ''}
+        <div><strong>${escapeHtml(quote.customerName)}</strong></div>
+        ${quote.customerAddress ? `<div>${escapeHtml(quote.customerAddress)}</div>` : ''}
+        ${quote.customerGstin ? `<div>GSTIN/UIN : ${escapeHtml(quote.customerGstin)}</div>` : ''}
+        ${quote.customerState ? `<div>State Name : ${escapeHtml(quote.customerState)}${quote.customerStateCode ? `, Code : ${escapeHtml(quote.customerStateCode)}` : ''}</div>` : ''}
       </div>
       <div class="pq-party-box">
         <div class="pq-party-label">Buyer (Bill to)</div>
-        <div><strong>${escapeHtml(order.customerName)}</strong></div>
-        ${order.customerAddress ? `<div>${escapeHtml(order.customerAddress)}</div>` : ''}
-        ${order.customerGstin ? `<div>GSTIN/UIN : ${escapeHtml(order.customerGstin)}</div>` : ''}
-        ${order.customerState ? `<div>State Name : ${escapeHtml(order.customerState)}${order.customerStateCode ? `, Code : ${escapeHtml(order.customerStateCode)}` : ''}</div>` : ''}
-        ${order.customerEmail ? `<div>Email : ${escapeHtml(order.customerEmail)}</div>` : ''}
-        ${order.customerPhone ? `<div>Phone : ${escapeHtml(order.customerPhone)}</div>` : ''}
+        <div><strong>${escapeHtml(quote.customerName)}</strong></div>
+        ${quote.customerAddress ? `<div>${escapeHtml(quote.customerAddress)}</div>` : ''}
+        ${quote.customerGstin ? `<div>GSTIN/UIN : ${escapeHtml(quote.customerGstin)}</div>` : ''}
+        ${quote.customerState ? `<div>State Name : ${escapeHtml(quote.customerState)}${quote.customerStateCode ? `, Code : ${escapeHtml(quote.customerStateCode)}` : ''}</div>` : ''}
+        ${quote.customerEmail ? `<div>Email : ${escapeHtml(quote.customerEmail)}</div>` : ''}
+        ${quote.customerPhone ? `<div>Phone : ${escapeHtml(quote.customerPhone)}</div>` : ''}
       </div>
     </div>
 
@@ -824,7 +821,7 @@ export default function SalesOrder() {
     <div class="pq-words">
       <div>
         <div class="pq-words-label">Amount Chargeable (in words)</div>
-        <div><strong>${order.currency || 'INR'} ${numberToIndianWords(grandTotal)} Only</strong></div>
+        <div><strong>${quote.currency || 'INR'} ${numberToIndianWords(grandTotal)} Only</strong></div>
       </div>
       <div class="pq-eoe">E.&amp;O.E</div>
     </div>
@@ -852,14 +849,14 @@ export default function SalesOrder() {
       </tbody>
     </table>
     <div class="pq-tax-words">
-      Tax Amount (in words) : <strong>${order.currency || 'INR'} ${numberToIndianWords(cgstAmount + sgstAmount)} Only</strong>
+      Tax Amount (in words) : <strong>${quote.currency || 'INR'} ${numberToIndianWords(cgstAmount + sgstAmount)} Only</strong>
     </div>` : ''}
 
     <div class="pq-bottom">
       <div class="pq-pan-decl-box">
         <div>
           <strong>Declaration</strong>
-          <div>We declare that this sales order shows the actual price of the goods described and that all particulars are true and correct.</div>
+          <div>We declare that this quotation shows the actual price of the goods described and that all particulars are true and correct.</div>
         </div>
         ${companyPrintDetails.panNo ? `<div style="margin-top:8px;">Company's PAN : ${escapeHtml(companyPrintDetails.panNo)}</div>` : ''}
       </div>
@@ -879,7 +876,7 @@ export default function SalesOrder() {
 
     <div class="pq-footer">
       ${companyPrintDetails.jurisdiction ? `<div>SUBJECT TO ${escapeHtml(companyPrintDetails.jurisdiction)} JURISDICTION</div>` : ''}
-      <div>This is a computer generated sales order.</div>
+      <div>This is a computer generated quotation.</div>
     </div>
   </div>
 
@@ -890,24 +887,24 @@ export default function SalesOrder() {
 </html>`;
   };
 
-  const handlePrintOrder = async (order: SalesOrder) => {
+  const handlePrintQuotation = async (quote: Quotation) => {
     const printWindow = window.open('', '_blank', 'width=900,height=1000');
     if (!printWindow) {
-      toast.error('Please allow pop-ups to print this sales order');
+      toast.error('Please allow pop-ups to print this quotation');
       return;
     }
-    printWindow.document.write('<p style="font-family:sans-serif;padding:24px;color:#374151;">Loading sales order…</p>');
+    printWindow.document.write('<p style="font-family:sans-serif;padding:24px;color:#374151;">Loading quotation…</p>');
 
-    setPrintLoadingId(order.id);
+    setPrintLoadingId(quote.id);
     try {
-      const printable = await buildPrintableOrder(order);
+      const printable = await buildPrintableQuote(quote);
       printWindow.document.open();
-      printWindow.document.write(buildSalesOrderPrintHtml(printable));
+      printWindow.document.write(buildQuotationPrintHtml(printable));
       printWindow.document.close();
     } catch (err) {
-      console.error('Error printing sales order:', err);
+      console.error('Error printing quotation:', err);
       printWindow.document.open();
-      printWindow.document.write(buildSalesOrderPrintHtml(order));
+      printWindow.document.write(buildQuotationPrintHtml(quote));
       printWindow.document.close();
     } finally {
       setPrintLoadingId(null);
@@ -915,7 +912,7 @@ export default function SalesOrder() {
   };
 
   return (
-    <div className={`sales-order-page ${theme}-theme`}>
+    <div className={`quotation-page ${theme}`}>
       {/* Stats Cards */}
       <div className="qt-stats-container">
         <div className="qt-stat-card" style={{ background: '#EFF6FF', borderLeft: '4px solid #3B82F6' }}>
@@ -923,8 +920,8 @@ export default function SalesOrder() {
             <FaClipboardList size={18} />
           </div>
           <div className="qt-stat-content">
-            <p className="qt-stat-title">Total Orders</p>
-            <p className="qt-stat-value">{totalOrders}</p>
+            <p className="qt-stat-title">Total Quotes</p>
+            <p className="qt-stat-value">{totalQuotes}</p>
           </div>
         </div>
         <div className="qt-stat-card" style={{ background: '#ECFDF5', borderLeft: '4px solid #10B981' }}>
@@ -932,8 +929,8 @@ export default function SalesOrder() {
             <FaCheckCircle size={18} />
           </div>
           <div className="qt-stat-content">
-            <p className="qt-stat-title">Completed</p>
-            <p className="qt-stat-value">{getStatusCount('Completed')}</p>
+            <p className="qt-stat-title">Accepted</p>
+            <p className="qt-stat-value">{getStatusCount('Accepted')}</p>
           </div>
         </div>
         <div className="qt-stat-card" style={{ background: '#FEF3C7', borderLeft: '4px solid #F59E0B' }}>
@@ -942,7 +939,7 @@ export default function SalesOrder() {
           </div>
           <div className="qt-stat-content">
             <p className="qt-stat-title">Pending</p>
-            <p className="qt-stat-value">{getStatusCount('Draft') + getStatusCount('Confirmed') + getStatusCount('On Hold')}</p>
+            <p className="qt-stat-value">{getStatusCount('Sent') + getStatusCount('Draft')}</p>
           </div>
         </div>
         <div className="qt-stat-card" style={{ background: '#F5F3FF', borderLeft: '4px solid #8B5CF6' }}>
@@ -950,8 +947,8 @@ export default function SalesOrder() {
             <FaDollarSign size={18} />
           </div>
           <div className="qt-stat-content">
-            <p className="qt-stat-title">Fulfillment Rate</p>
-            <p className="qt-stat-value">{fulfillmentRate}%</p>
+            <p className="qt-stat-title">Conversion Rate</p>
+            <p className="qt-stat-value">{conversionRate}%</p>
           </div>
         </div>
       </div>
@@ -963,13 +960,13 @@ export default function SalesOrder() {
             <FaSearch className="qt-search-icon" />
             <input
               type="text"
-              placeholder="Search by Order # or Customer..."
+              placeholder="Search by Quote # or Customer..."
               value={filterText}
               onChange={(e) => setFilterText(e.target.value)}
               className="qt-search-input"
             />
             {filterText && (
-              <button className="qt-search-clear" onClick={() => setFilterText('')}>
+              <button className="qt-search-clear" onClick={() => setFilterText("")}>
                 <FaTimes size={12} />
               </button>
             )}
@@ -977,52 +974,42 @@ export default function SalesOrder() {
         </div>
         <div className="qt-filter-right">
           <select
-            value={selectedOrderType}
-            onChange={(e) => setSelectedOrderType(e.target.value)}
-            className="qt-filter-select"
-          >
-            <option value="All">All Types</option>
-            <option value="Sales">Sales</option>
-            <option value="Return">Return</option>
-            <option value="Credit Note">Credit Note</option>
-          </select>
-          <select
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
             className="qt-filter-select"
           >
             <option value="All">All Status</option>
             <option value="Draft">Draft</option>
-            <option value="Confirmed">Confirmed</option>
-            <option value="On Hold">On Hold</option>
-            <option value="Completed">Completed</option>
-            <option value="Cancelled">Cancelled</option>
-            <option value="Closed">Closed</option>
+            <option value="Sent">Sent</option>
+            <option value="Accepted">Accepted</option>
+            <option value="Rejected">Rejected</option>
+            <option value="Expired">Expired</option>
+            <option value="Converted">Converted</option>
           </select>
-          <button className="qt-btn-new" onClick={() => navigate('/sales-order/new')}>
-            <FaPlus size={12} /> Add Sales Order
+          <button className="qt-btn-new" onClick={() => navigate('/quotation/new')}>
+            <FaPlus size={12} /> New Quotation
           </button>
         </div>
       </div>
 
       {/* Active filters indicator */}
-      {(filterText || selectedStatus !== 'All' || selectedOrderType !== 'All') && (
+      {(filterText || selectedStatus !== "All" || selectedCurrency !== "All") && (
         <div className="qt-active-filters">
-          <FaFilter size={12} style={{ color: 'var(--primary-color)' }} />
-          <span style={{ color: 'var(--text-primary)' }}>Active filters:</span>
+          <FaFilter size={12} style={{ color: "var(--primary-color)" }} />
+          <span style={{ color: "var(--text-primary)" }}>Active filters:</span>
           {filterText && (
-            <span style={{ color: 'var(--text-primary)' }}>
+            <span style={{ color: "var(--text-primary)" }}>
               <strong>Search:</strong> "{filterText}"
             </span>
           )}
-          {selectedStatus !== 'All' && (
-            <span style={{ color: 'var(--text-primary)' }}>
+          {selectedStatus !== "All" && (
+            <span style={{ color: "var(--text-primary)" }}>
               <strong>Status:</strong> {selectedStatus}
             </span>
           )}
-          {selectedOrderType !== 'All' && (
-            <span style={{ color: 'var(--text-primary)' }}>
-              <strong>Order Type:</strong> {selectedOrderType}
+          {selectedCurrency !== "All" && (
+            <span style={{ color: "var(--text-primary)" }}>
+              <strong>Currency:</strong> {selectedCurrency}
             </span>
           )}
           <button onClick={clearFilters} className="qt-clear-filters">
@@ -1034,7 +1021,7 @@ export default function SalesOrder() {
       {/* Loading State */}
       {loading && (
         <div className="qt-loading">
-          <p>Loading sales orders...</p>
+          <p>Loading quotations...</p>
         </div>
       )}
 
@@ -1042,7 +1029,7 @@ export default function SalesOrder() {
       {error && (
         <div className="qt-error">
           <p>{error}</p>
-          <button onClick={fetchSalesOrders} className="qt-retry-btn">
+          <button onClick={fetchQuotations} className="qt-retry-btn">
             Retry
           </button>
         </div>
@@ -1051,74 +1038,72 @@ export default function SalesOrder() {
       {/* Table */}
       {!loading && !error && (
         <div className="qt-table-wrap">
-          {filteredOrders.length === 0 ? (
+          {filteredQuotations.length === 0 ? (
             <div className="qt-empty-state">
               <div className="qt-empty-content">
-                <FaBoxOpen size={48} />
-                <p>No sales orders found</p>
-                <span>Try adjusting your search criteria, or create your first sales order</span>
+                <FaFileAlt size={48} />
+                <p>No quotations found</p>
+                <span>Try adjusting your search criteria</span>
               </div>
             </div>
           ) : (
             <table className="qt-table">
               <thead>
                 <tr>
-                  <th className="qt-th">Order #</th>
+                  <th className="qt-th">Quote #</th>
                   <th className="qt-th">Customer</th>
                   <th className="qt-th">Date</th>
-                  <th className="qt-th">Order Type</th>
                   <th className="qt-th">Status</th>
                   <th className="qt-th qt-text-right">Amount</th>
                   <th className="qt-th qt-th-meta">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredOrders.map((order, index) => (
-                  <tr key={order.id || `so-${index}`} className="qt-tr">
-                    <td className="qt-td qt-td-id">{order.salesOrderNumber}</td>
+                {filteredQuotations.map((quote) => (
+                  <tr key={quote.id} className="qt-tr">
+                    <td className="qt-td qt-td-id">{quote.quotationNumber}</td>
                     <td className="qt-td">
                       <div>
-                        <div className="qt-td-link">{order.customerName}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{order.customer}</div>
+                        <div className="qt-td-link">{quote.customerName}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{quote.customer}</div>
                       </div>
                     </td>
                     <td className="qt-td">
-                      <div>{order.date ? new Date(order.date).toLocaleDateString() : '-'}</div>
+                      <div>{quote.date ? new Date(quote.date).toLocaleDateString() : '-'}</div>
                       <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                        Delivery: {order.deliveryDate ? new Date(order.deliveryDate).toLocaleDateString() : '-'}
+                        Valid: {quote.validTill ? new Date(quote.validTill).toLocaleDateString() : '-'}
                       </div>
                     </td>
-                    <td className="qt-td">{order.orderType}</td>
                     <td className="qt-td">
-                      <span className={`qt-status-badge ${getStatusColor(order.status)}`}>
-                        {getStatusIcon(order.status)}
-                        {order.status}
+                      <span className={`qt-status-badge ${getStatusColor(quote.status)}`}>
+                        {getStatusIcon(quote.status)}
+                        {quote.status}
                       </span>
                     </td>
                     <td className="qt-td qt-text-right qt-amount-cell">
-                      <span className="qt-currency">{order.currency}</span>
-                      {order.totalAmount.toLocaleString()}
+                      <span className="qt-currency">{quote.currency}</span>
+                      {quote.totalAmount.toLocaleString()}
                     </td>
                     <td className="qt-td qt-td-meta">
                       <div className="qt-action-buttons">
-                        <button className="qt-action-btn qt-action-view" onClick={() => handleView(order)} title="View / Edit">
+                        <button className="qt-action-btn qt-action-view" onClick={() => handleView(quote)} title="View / Edit">
                           <FaEye size={12} />
                         </button>
                         <button
                           className="qt-action-btn qt-action-print"
-                          onClick={() => handlePrintOrder(order)}
+                          onClick={() => handlePrintQuotation(quote)}
                           title="Print"
-                          disabled={printLoadingId === order.id}
+                          disabled={printLoadingId === quote.id}
                         >
-                          {printLoadingId === order.id ? <FaSpinner className="spinning" size={12} /> : <FaPrint size={12} />}
+                          {printLoadingId === quote.id ? <FaSpinner className="spinning" size={12} /> : <FaPrint size={12} />}
                         </button>
-                        {/* <button className="qt-action-btn qt-action-pdf" onClick={() => handlePdfView(order)} title="PDF">
+                        {/* <button className="qt-action-btn qt-action-pdf" onClick={() => handlePdfView(quote)} title="PDF">
                           <FaFilePdf size={12} />
                         </button> */}
-                        <button className="qt-action-btn qt-action-edit" onClick={() => handleEdit(order)} title="Edit">
+                        <button className="qt-action-btn qt-action-edit" onClick={() => handleEdit(quote)} title="Edit">
                           <FaEdit size={12} />
                         </button>
-                        <button className="qt-action-btn qt-action-delete" onClick={() => handleDeleteClick(order)} title="Delete">
+                        <button className="qt-action-btn qt-action-delete" onClick={() => handleDeleteClick(quote)} title="Delete">
                           <FaTrash size={12} />
                         </button>
                       </div>
@@ -1135,19 +1120,19 @@ export default function SalesOrder() {
       <div className="qt-pagination">
         <div className="qt-pagination-left">
           <span className="qt-pagination-info">
-            {filteredOrders.length} of {salesOrders.length} orders
+            {filteredQuotations.length} of {quotations.length} quotes
           </span>
         </div>
         <div className="qt-pagination-right">
           <span className="qt-pagination-info" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <FaChartLine size={14} style={{ color: 'var(--primary-color)' }} />
-            {fulfillmentRate}% fulfillment rate
+            {conversionRate}% conversion rate
           </span>
         </div>
       </div>
 
       {/* ====== DELETE MODAL ====== */}
-      {showDeleteModal && selectedOrder && (
+      {showDeleteModal && selectedQuote && (
         <div className="qt-modal-overlay" onClick={() => setShowDeleteModal(false)}>
           <div className="qt-modal qt-modal-delete" onClick={(e) => e.stopPropagation()}>
             <div className="qt-modal-header">
@@ -1157,9 +1142,9 @@ export default function SalesOrder() {
               </button>
             </div>
             <div className="qt-modal-body">
-              <p>Are you sure you want to delete this sales order?</p>
+              <p>Are you sure you want to delete this quotation?</p>
               <p className="qt-modal-item-name">
-                <strong>{selectedOrder.salesOrderNumber}</strong> - {selectedOrder.customerName}
+                <strong>{selectedQuote.quotationNumber}</strong> - {selectedQuote.customerName}
               </p>
               <p className="qt-modal-warning">This action cannot be undone.</p>
             </div>
@@ -1175,11 +1160,11 @@ export default function SalesOrder() {
       )}
 
       {/* ====== PDF MODAL ====== */}
-      {showPdfModal && selectedOrder && (
+      {showPdfModal && selectedQuote && (
         <div className="qt-modal-overlay" onClick={() => setShowPdfModal(false)}>
           <div className="qt-modal qt-modal-lg" onClick={(e) => e.stopPropagation()}>
             <div className="qt-modal-header">
-              <span className="qt-modal-title">{selectedOrder.salesOrderNumber} - PDF Preview</span>
+              <span className="qt-modal-title">{selectedQuote.quotationNumber} - PDF Preview</span>
               <button className="qt-modal-close" onClick={() => setShowPdfModal(false)}>
                 <FaTimes size={16} />
               </button>
@@ -1192,34 +1177,27 @@ export default function SalesOrder() {
               )}
               <div style={{ background: 'white', padding: '32px', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', fontFamily: "'Times New Roman', serif" }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #1f2433', paddingBottom: '12px', marginBottom: '20px' }}>
-                  <div style={{ fontSize: '24px', fontWeight: 700, color: '#1f2433', letterSpacing: '2px' }}>SALES ORDER</div>
-                  <div style={{ fontSize: '14px', color: '#6b7280' }}>{selectedOrder.salesOrderNumber}</div>
+                  <div style={{ fontSize: '24px', fontWeight: 700, color: '#1f2433', letterSpacing: '2px' }}>QUOTATION</div>
+                  <div style={{ fontSize: '14px', color: '#6b7280' }}>{selectedQuote.quotationNumber}</div>
                 </div>
                 <div style={{ textAlign: 'center', marginBottom: '24px' }}>
                   <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#1f2433', margin: 0 }}>{getCompanyDetails().name}</h2>
                   <p style={{ fontSize: '12px', color: '#6b7280', margin: '2px 0' }}>{getCompanyDetails().address}</p>
-                  <p style={{ fontSize: '12px', color: '#6b7280', margin: '2px 0' }}>Phone: {getCompanyDetails().contact} | Email: {getCompanyDetails().email}</p>
+                  <p style={{ fontSize: '12px', color: '#6b7280', margin: '2px 0' }}>Phone: {getCompanyDetails().contact}</p>
                 </div>
                 <div style={{ fontSize: '13px', marginBottom: '16px' }}>
                   <div style={{ fontSize: '14px', fontWeight: 600, color: '#1f2433', margin: '16px 0 8px 0', borderBottom: '1px solid #e5e7eb', paddingBottom: '4px' }}>Customer Details</div>
-                  <div style={{ padding: '2px 0' }}><strong>Name:</strong> {selectedOrder.customerName}</div>
-                  <div style={{ padding: '2px 0' }}><strong>Code:</strong> {selectedOrder.customer}</div>
-                  <div style={{ padding: '2px 0' }}><strong>Email:</strong> {selectedOrder.customerEmail || 'N/A'}</div>
-                  <div style={{ padding: '2px 0' }}><strong>Phone:</strong> {selectedOrder.customerPhone || 'N/A'}</div>
-                  <div style={{ padding: '2px 0' }}><strong>Address:</strong> {selectedOrder.customerAddress || 'N/A'}</div>
-                  <div style={{ padding: '2px 0' }}><strong>GSTIN:</strong> {selectedOrder.customerGstin || 'N/A'}</div>
-                  <div style={{ padding: '2px 0' }}><strong>State:</strong> {selectedOrder.customerState || 'N/A'}{selectedOrder.customerStateCode ? ` (Code: ${selectedOrder.customerStateCode})` : ''}</div>
+                  <div style={{ padding: '2px 0' }}><strong>Name:</strong> {selectedQuote.customerName}</div>
+                  <div style={{ padding: '2px 0' }}><strong>Code:</strong> {selectedQuote.customer}</div>
+                  <div style={{ padding: '2px 0' }}><strong>Email:</strong> {selectedQuote.customerEmail || 'N/A'}</div>
+                  <div style={{ padding: '2px 0' }}><strong>Phone:</strong> {selectedQuote.customerPhone || 'N/A'}</div>
+                  <div style={{ padding: '2px 0' }}><strong>Address:</strong> {selectedQuote.customerAddress || 'N/A'}</div>
                 </div>
                 <div style={{ fontSize: '13px', marginBottom: '16px' }}>
-                  <div style={{ padding: '2px 0' }}><strong>Date:</strong> {selectedOrder.date ? new Date(selectedOrder.date).toLocaleDateString() : 'N/A'}</div>
-                  <div style={{ padding: '2px 0' }}><strong>Delivery Date:</strong> {selectedOrder.deliveryDate ? new Date(selectedOrder.deliveryDate).toLocaleDateString() : 'N/A'}</div>
-                  <div style={{ padding: '2px 0' }}><strong>Order Type:</strong> {selectedOrder.orderType}</div>
-                  <div style={{ padding: '2px 0' }}><strong>Status:</strong> {selectedOrder.status}</div>
-                  <div style={{ padding: '2px 0' }}><strong>Currency:</strong> {selectedOrder.currency}</div>
-                  <div style={{ padding: '2px 0' }}><strong>Reference No:</strong> {selectedOrder.referenceNo || 'N/A'}</div>
-                  <div style={{ padding: '2px 0' }}><strong>Buyer's Order No:</strong> {selectedOrder.buyersOrderNo || 'N/A'}</div>
-                  <div style={{ padding: '2px 0' }}><strong>Dispatched Through:</strong> {selectedOrder.dispatchedThrough || 'N/A'}</div>
-                  <div style={{ padding: '2px 0' }}><strong>Destination:</strong> {selectedOrder.destination || 'N/A'}</div>
+                  <div style={{ padding: '2px 0' }}><strong>Date:</strong> {selectedQuote.date ? new Date(selectedQuote.date).toLocaleDateString() : 'N/A'}</div>
+                  <div style={{ padding: '2px 0' }}><strong>Valid Till:</strong> {selectedQuote.validTill ? new Date(selectedQuote.validTill).toLocaleDateString() : 'N/A'}</div>
+                  <div style={{ padding: '2px 0' }}><strong>Status:</strong> {selectedQuote.status}</div>
+                  <div style={{ padding: '2px 0' }}><strong>Currency:</strong> {selectedQuote.currency}</div>
                 </div>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', margin: '16px 0' }}>
                   <thead style={{ background: '#f8f9fa' }}>
@@ -1234,39 +1212,39 @@ export default function SalesOrder() {
                     </tr>
                   </thead>
                   <tbody>
-                    {selectedOrder.items.map((item) => (
+                    {selectedQuote.items.map((item) => (
                       <tr key={item.id}>
                         <td style={{ padding: '6px 12px', borderBottom: '1px solid #f3f4f6' }}>{item.itemCode}</td>
                         <td style={{ padding: '6px 12px', borderBottom: '1px solid #f3f4f6' }}>{item.itemName}</td>
                         <td style={{ padding: '6px 12px', borderBottom: '1px solid #f3f4f6', textAlign: 'right' }}>{item.quantity}</td>
-                        <td style={{ padding: '6px 12px', borderBottom: '1px solid #f3f4f6', textAlign: 'right' }}>{selectedOrder.currency} {item.rate}</td>
+                        <td style={{ padding: '6px 12px', borderBottom: '1px solid #f3f4f6', textAlign: 'right' }}>{selectedQuote.currency} {item.rate}</td>
                         <td style={{ padding: '6px 12px', borderBottom: '1px solid #f3f4f6', textAlign: 'right' }}>{item.cgst ? `${item.cgst}%` : ''}</td>
                         <td style={{ padding: '6px 12px', borderBottom: '1px solid #f3f4f6', textAlign: 'right' }}>{item.sgst ? `${item.sgst}%` : ''}</td>
-                        <td style={{ padding: '6px 12px', borderBottom: '1px solid #f3f4f6', textAlign: 'right' }}>{selectedOrder.currency} {item.amount}</td>
+                        <td style={{ padding: '6px 12px', borderBottom: '1px solid #f3f4f6', textAlign: 'right' }}>{selectedQuote.currency} {item.amount}</td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot style={{ background: '#f8f9fa' }}>
                     <tr>
                       <td colSpan={6} style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600 }}>Total Amount</td>
-                      <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, fontSize: '16px' }}>{selectedOrder.currency} {selectedOrder.totalAmount}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, fontSize: '16px' }}>{selectedQuote.currency} {selectedQuote.totalAmount}</td>
                     </tr>
                   </tfoot>
                 </table>
-                {selectedOrder.notes && (
+                {selectedQuote.notes && (
                   <div style={{ margin: '16px 0', fontSize: '13px' }}>
                     <div style={{ fontSize: '14px', fontWeight: 600, color: '#1f2433', margin: '16px 0 8px 0', borderBottom: '1px solid #e5e7eb', paddingBottom: '4px' }}>Notes</div>
-                    <p>{selectedOrder.notes}</p>
+                    <p>{selectedQuote.notes}</p>
                   </div>
                 )}
-                {selectedOrder.termsConditions && (
+                {selectedQuote.termsConditions && (
                   <div style={{ margin: '16px 0', fontSize: '13px' }}>
                     <div style={{ fontSize: '14px', fontWeight: 600, color: '#1f2433', margin: '16px 0 8px 0', borderBottom: '1px solid #e5e7eb', paddingBottom: '4px' }}>Terms & Conditions</div>
-                    <p>{selectedOrder.termsConditions}</p>
+                    <p>{selectedQuote.termsConditions}</p>
                   </div>
                 )}
                 <div style={{ textAlign: 'center', marginTop: '24px', paddingTop: '16px', borderTop: '1px solid #e5e7eb', fontSize: '12px', color: '#6b7280' }}>
-                  <p>This is a computer-generated sales order. No signature required.</p>
+                  <p>This is a computer-generated quotation. No signature required.</p>
                   <p>Thank you for your business!</p>
                 </div>
               </div>
@@ -1274,7 +1252,7 @@ export default function SalesOrder() {
             <div className="qt-modal-footer">
               <button className="qt-btn-cancel" onClick={() => setShowPdfModal(false)}>Close</button>
               <button className="qt-btn-primary" onClick={() => {
-                handlePrintOrder(selectedOrder);
+                handlePrintQuotation(selectedQuote);
               }}>
                 <FaPrint size={12} /> Print
               </button>

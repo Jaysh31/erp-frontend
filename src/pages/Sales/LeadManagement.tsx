@@ -15,8 +15,8 @@ import {
   FaBuilding,
 } from "react-icons/fa";
 import "./LeadManagement.css";
-import { useAdminTheme } from "../admin-theme/AdminThemeContext";
-import api from "../../src/services/api";
+import { useAdminTheme } from "../../admin-theme/AdminThemeContext";
+import api from "../../services/api";
 
 // ─── types ──────────────────────────────────────────────────────────────
 

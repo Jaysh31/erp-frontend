@@ -28,17 +28,17 @@ import Stockentry from "./pages/Stockentry";
 
 import HomePage from "./pages/HomePage";
 
-import SalesOrder from "./pages/SalesOrder";
-import CreateSalesOrder from './pages/CreateSalesOrder';
-import SalesInvoice from "./pages/SalesInvoice";
+import SalesOrder from "./pages/Sales/SalesOrder";
+import CreateSalesOrder from './pages/Sales/CreateSalesOrder';
+import SalesInvoice from "./pages/Sales/SalesInvoice";
 
 
 import CompanyList from "./pages/CompanyList";
 import AddCompanyForm from "./pages/AddCompanyForm";
 import LetterHeadList from "./pages/LetterHeadList";
 import AddLetterHeadForm from "./pages/AddLetterHeadForm";
-import QuotationPage from "./pages/QuotationPage";
-import CreateQuotationPage from "./pages/CreateQuotation";
+import QuotationPage from "./pages/Sales/QuotationPage";
+import CreateQuotationPage from "./pages/Sales/CreateQuotation";
 
 
 import PriceList from "./pages/PriceList";
@@ -59,8 +59,8 @@ import PurchaseInvoice from "./pages/PurchaseInvoice";
 import Accounts from "./pages/Accounts";
 import ChartOfAccounts from "./pages/ChartOfAccounts";
 import LedgerAccounts from "./pages/LedgerAccounts";
-import DeliveryChallan from "./pages/Delivery_Challan";
-import DeliveryChallanForm from "./pages/CreateDeliveryChallan";
+import DeliveryChallan from "./pages/Sales/Delivery_Challan";
+import DeliveryChallanForm from "./pages/Sales/CreateDeliveryChallan";
 // import { StatusBadge } from "./components/StatusBadge";
 // import { SummaryCards } from "./pages/components/SummaryCards";
 import OutstandingDashboard from "./pages/OutstandingDashboard";
@@ -71,8 +71,8 @@ import Workstation from "./pages/Workstation";
 import NewWorkstation from "./pages/NewWorkstation";
 import OperationListing from "./pages/Setup/OperationListing";
 import OperationQuickAdd from "./pages/Setup/OperationQuickAdd";
-import LeadManagement from "./pages/LeadManagement";
-import LeadForm from "./pages/LeadForm";
+import LeadManagement from "./pages/Sales/LeadManagement";
+import LeadForm from "./pages/Sales/LeadForm";
 import StockentryForm2 from "./pages/StockentryForm2";
 import PurchaseOrderForm from "./pages/PurchaseOrderForm";
 import SalesDashboard from "./pages/DashboardPages/SalesDashboard";
@@ -103,7 +103,7 @@ import QualityInspectionList from "./pages/QualityInspectionList";
 import QualityInspectionForm from "./pages/QualityInspectionForm";
 import ContactForm from "./pages/ContactForm";
 import SubModulePermissions from "./pages/UserManagement/SubModulePermissions";
-import CreateSalesBill from "./pages/CreateSalesInvoice";
+import CreateSalesBill from "./pages/Sales/CreateSalesInvoice";
 import BankDetailsForm from "./pages/BankDetailsForm";
 import AddCustomer from "./pages/AddCustomer";
 import Customer from "./pages/Customer";

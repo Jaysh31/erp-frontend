@@ -6,7 +6,7 @@ import {
   FaTimesCircle, FaUser, FaBuilding, FaAddressBook, FaPlus, FaUndo,
 } from "react-icons/fa";
 import "./LeadForm.css";
-import api from "../../src/services/api";
+import api from "../../services/api";
 
 // ─── types ──────────────────────────────────────────────────────────────
 
