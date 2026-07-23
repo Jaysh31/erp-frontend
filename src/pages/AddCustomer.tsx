@@ -13,6 +13,9 @@ import {
   FaPlus,
   FaUserTie,
   FaTimes,
+  // FaPhone,
+  FaBriefcase,
+  FaMapMarkerAlt,
 } from 'react-icons/fa';
 import './AddCustomer.css';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
@@ -22,32 +25,126 @@ interface ContactPerson {
   id?: string;
   first_name: string;
   last_name: string;
-  email: string;
-  phone: string;
-  designation: string;
-  is_primary: boolean;
+  contact_name: string;
+  mobile_no: string;
+  alternate_mobile: string;
+  email_id: string;
+  telephone: string;
+  extension: string;
+  is_primary: number; // 1 or 0
+  is_billing_contact: number; // 1 or 0
+  is_saler_contact: number; // 1 or 0
+  remarks: string;
 }
 
 interface CustomerFormData {
   customer_name: string;
-  customer_type: string;
   customer_group: string;
-  gender: string;
-  language: string;
-  email_id: string;
+  territory: string;
+  customer_type: string;
   mobile_no: string;
-  website: string;
-  industry: string;
-  market_segment: string;
-  first_name: string;
-  last_name: string;
-  contact_persons: ContactPerson[];
+  email_id: string;
+  customer_primary_address: string;
+  primary_address: string;
+  contacts: ContactPerson[];
 }
 
 interface ValidationError {
   field: string;
   label: string;
   message: string;
+}
+
+interface CustomerApiResponse {
+  success: number;
+  data: {
+    id: number;
+    name: string;
+    creation: string;
+    modified: string;
+    modified_by: string;
+    owner: string;
+    docstatus: number;
+    idx: number;
+    naming_series: string | null;
+    customer_type: string;
+    customer_name: string;
+    gender: string;
+    customer_group: string;
+    territory: string | null;
+    image: string | null;
+    default_currency: string | null;
+    default_bank_account: string | null;
+    default_price_list: string | null;
+    customer_primary_address: string | null;
+    primary_address: string | null;
+    customer_primary_contact: string | null;
+    mobile_no: string;
+    email_id: string;
+    first_name: string;
+    last_name: string;
+    tax_id: string | null;
+    tax_category: string | null;
+    tax_withholding_category: string | null;
+    tax_withholding_group: string | null;
+    payment_terms: string | null;
+    is_internal_customer: number;
+    represents_company: string | null;
+    loyalty_program: string | null;
+    loyalty_program_tier: string | null;
+    account_manager: string | null;
+    default_sales_partner: string | null;
+    default_commission_rate: number;
+    so_required: number;
+    dn_required: number;
+    disabled: number;
+    is_frozen: number;
+    lead_name: string | null;
+    opportunity_name: string | null;
+    prospect_name: string | null;
+    market_segment: string;
+    industry: string;
+    website: string;
+    language: string;
+    customer_pos_id: string | null;
+    customer_details: string | null;
+    _user_tags: string | null;
+    _comments: string | null;
+    _assign: string | null;
+    _liked_by: string | null;
+    contacts?: ContactPerson[];
+  };
+}
+
+// API Payload interface
+interface ApiPayload {
+  customer_name: string;
+  customer_group: string;
+  territory: string;
+  customer_type: string;
+  mobile_no: string;
+  email_id: string;
+  customer_primary_address: string;
+  primary_address: string;
+  contacts: {
+    first_name: string;
+    last_name: string;
+    contact_name: string;
+    mobile_no: string;
+    alternate_mobile: string;
+    email_id: string;
+    telephone: string;
+    extension: string;
+    is_primary: number;
+    is_billing_contact: number;
+    is_saler_contact: number;
+    remarks: string;
+  }[];
+}
+
+// Update payload interface with id
+interface UpdateApiPayload extends ApiPayload {
+  id: number;
 }
 
 const AddCustomer: React.FC = () => {
@@ -57,46 +154,63 @@ const AddCustomer: React.FC = () => {
   const isEditMode = !!id && id !== 'new';
   const isNew = !id || id === 'new';
 
+  // Main form state
   const [formData, setFormData] = useState<CustomerFormData>({
     customer_name: '',
-    customer_type: 'Company',
     customer_group: 'Commercial',
-    gender: '',
-    language: 'English',
-    email_id: '',
+    territory: '',
+    customer_type: 'Company',
     mobile_no: '',
-    website: '',
-    industry: '',
-    market_segment: '',
-    first_name: '',
-    last_name: '',
-    contact_persons: [
+    email_id: '',
+    customer_primary_address: '',
+    primary_address: '',
+    contacts: [
       {
         first_name: '',
         last_name: '',
-        email: '',
-        phone: '',
-        designation: '',
-        is_primary: true,
+        contact_name: '',
+        mobile_no: '',
+        alternate_mobile: '',
+        email_id: '',
+        telephone: '',
+        extension: '',
+        is_primary: 1,
+        is_billing_contact: 0,
+        is_saler_contact: 1,
+        remarks: '',
       }
     ],
   });
 
-  const [loading, setLoading] = useState<boolean>(false);
-  const [submitting, setSubmitting] = useState<boolean>(false);
-  const [apiError, setApiError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string>('');
+  // Main form validation state
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
+  
+  // Modal state - separate and independent
   const [showContactModal, setShowContactModal] = useState<boolean>(false);
   const [editingContactIndex, setEditingContactIndex] = useState<number | null>(null);
   const [tempContact, setTempContact] = useState<ContactPerson>({
     first_name: '',
     last_name: '',
-    email: '',
-    phone: '',
-    designation: '',
-    is_primary: false,
+    contact_name: '',
+    mobile_no: '',
+    alternate_mobile: '',
+    email_id: '',
+    telephone: '',
+    extension: '',
+    is_primary: 0,
+    is_billing_contact: 0,
+    is_saler_contact: 1,
+    remarks: '',
   });
+  
+  // Modal-specific validation errors
+  const [modalErrors, setModalErrors] = useState<Record<string, string>>({});
+
+  // Other states
+  const [loading, setLoading] = useState<boolean>(false);
+  const [submitting, setSubmitting] = useState<boolean>(false);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string>('');
 
   useEffect(() => {
     if (isEditMode && id) {
@@ -107,21 +221,40 @@ const AddCustomer: React.FC = () => {
   const fetchCustomerData = async (customerId: string) => {
     try {
       setLoading(true);
-      const response = await api.get(`/customer/${customerId}`);
-      const data = response.data;
-      if (!data.contact_persons || data.contact_persons.length === 0) {
-        data.contact_persons = [
-          {
-            first_name: '',
-            last_name: '',
-            email: '',
-            phone: '',
-            designation: '',
-            is_primary: true,
-          }
-        ];
+      const response = await api.get<CustomerApiResponse>(`/customer/${customerId}`);
+      const data = response.data.data;
+      
+      // If there are contacts in the response, use them, otherwise create a default contact
+      let contacts = data.contacts || [];
+      if (contacts.length === 0) {
+        contacts = [{
+          first_name: data.first_name || '',
+          last_name: data.last_name || '',
+          contact_name: `${data.first_name || ''} ${data.last_name || ''}`.trim(),
+          mobile_no: data.mobile_no || '',
+          alternate_mobile: '',
+          email_id: data.email_id || '',
+          telephone: '',
+          extension: '',
+          is_primary: 1,
+          is_billing_contact: 0,
+          is_saler_contact: 1,
+          remarks: '',
+        }];
       }
-      setFormData(data);
+      
+      setFormData({
+        customer_name: data.customer_name || '',
+        customer_group: data.customer_group || 'Commercial',
+        territory: data.territory || '',
+        customer_type: data.customer_type || 'Company',
+        mobile_no: data.mobile_no || '',
+        email_id: data.email_id || '',
+        customer_primary_address: data.customer_primary_address || '',
+        primary_address: data.primary_address || '',
+        contacts: contacts,
+      });
+      
       setApiError(null);
     } catch (err) {
       setApiError('Failed to fetch customer data');
@@ -131,68 +264,106 @@ const AddCustomer: React.FC = () => {
     }
   };
 
+  // ===== MAIN FORM HANDLERS =====
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
       [name]: value
     }));
-    // Clear validation error for this field
+    // Clear validation error for this field immediately
     setValidationErrors(prev => prev.filter(err => err.field !== name));
   };
 
-  const getInitials = (firstName: string, lastName: string): string => {
-    if (!firstName && !lastName) return '?';
-    const first = firstName?.charAt(0) || '';
-    const last = lastName?.charAt(0) || '';
-    return (first + last).toUpperCase();
+  const getInitial = (firstName: string): string => {
+    if (!firstName) return '?';
+    return firstName.charAt(0).toUpperCase();
   };
 
-  const getColorFromName = (name: string): string => {
-    const colors = [
-      '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
-      '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9',
-      '#F8C471', '#82E0AA', '#F1948A', '#85929E', '#73C6B6'
-    ];
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) {
-      hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    return colors[Math.abs(hash) % colors.length];
-  };
-
+  // ===== MODAL HANDLERS - COMPLETELY SEPARATE =====
   const openAddContactModal = () => {
     setEditingContactIndex(null);
     setTempContact({
       first_name: '',
       last_name: '',
-      email: '',
-      phone: '',
-      designation: '',
-      is_primary: false,
+      contact_name: '',
+      mobile_no: '',
+      alternate_mobile: '',
+      email_id: '',
+      telephone: '',
+      extension: '',
+      is_primary: 0,
+      is_billing_contact: 0,
+      is_saler_contact: 1,
+      remarks: '',
     });
+    setModalErrors({}); // Clear modal errors only
     setShowContactModal(true);
   };
 
   const openEditContactModal = (index: number) => {
     setEditingContactIndex(index);
-    setTempContact({ ...formData.contact_persons[index] });
+    setTempContact({ ...formData.contacts[index] });
+    setModalErrors({}); // Clear modal errors only
     setShowContactModal(true);
   };
 
-  const handleTempContactChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleTempContactChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
     const checked = (e.target as HTMLInputElement).checked;
     
-    setTempContact(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }));
+    // Update temp contact
+    setTempContact(prev => {
+      const updated = {
+        ...prev,
+        [name]: type === 'checkbox' ? (checked ? 1 : 0) : value
+      };
+      
+      // Auto-generate contact_name from first_name and last_name
+      if (name === 'first_name' || name === 'last_name') {
+        const firstName = name === 'first_name' ? value : prev.first_name;
+        const lastName = name === 'last_name' ? value : prev.last_name;
+        updated.contact_name = `${firstName} ${lastName}`.trim();
+      }
+      
+      return updated;
+    });
+    
+    // Clear error for this specific field in MODAL ERRORS ONLY
+    if (name === 'first_name' || name === 'last_name' || name === 'email_id' || name === 'mobile_no') {
+      setModalErrors(prev => {
+        const updated = { ...prev };
+        delete updated[name];
+        return updated;
+      });
+    }
+  };
+
+  const validateContactModal = (): boolean => {
+    const errors: Record<string, string> = {};
+
+    if (!tempContact.first_name.trim()) {
+      errors.first_name = 'First name is required';
+    }
+    if (!tempContact.last_name.trim()) {
+      errors.last_name = 'Last name is required';
+    }
+    if (!tempContact.email_id.trim()) {
+      errors.email_id = 'Email is required';
+    } else if (!/\S+@\S+\.\S+/.test(tempContact.email_id)) {
+      errors.email_id = 'Please enter a valid email address';
+    }
+    if (!tempContact.mobile_no.trim()) {
+      errors.mobile_no = 'Mobile number is required';
+    }
+
+    setModalErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
   const saveContact = () => {
-    if (!tempContact.first_name || !tempContact.last_name || !tempContact.email || !tempContact.phone) {
-      setApiError('Please fill in all required fields for the contact');
+    // Validate only the modal fields
+    if (!validateContactModal()) {
       return;
     }
 
@@ -200,79 +371,102 @@ const AddCustomer: React.FC = () => {
       let updatedContacts: ContactPerson[];
       
       if (editingContactIndex !== null) {
-        updatedContacts = [...prev.contact_persons];
+        updatedContacts = [...prev.contacts];
         
-        if (tempContact.is_primary) {
+        // If this contact is being set as primary, unset others
+        if (tempContact.is_primary === 1) {
           updatedContacts = updatedContacts.map((contact, i) => ({
             ...contact,
-            is_primary: i === editingContactIndex
+            is_primary: i === editingContactIndex ? 1 : 0
           }));
         }
         
-        updatedContacts[editingContactIndex] = tempContact;
+        updatedContacts[editingContactIndex] = { ...tempContact };
       } else {
-        updatedContacts = [...prev.contact_persons];
+        updatedContacts = [...prev.contacts];
         
-        if (tempContact.is_primary) {
+        // If this contact is being set as primary, unset others
+        if (tempContact.is_primary === 1) {
           updatedContacts = updatedContacts.map(contact => ({
             ...contact,
-            is_primary: false
+            is_primary: 0
           }));
         }
         
-        updatedContacts.push(tempContact);
+        updatedContacts.push({ ...tempContact });
       }
       
       return {
         ...prev,
-        contact_persons: updatedContacts
+        contacts: updatedContacts
       };
     });
 
+    // Close modal and reset
     setShowContactModal(false);
     setTempContact({
       first_name: '',
       last_name: '',
-      email: '',
-      phone: '',
-      designation: '',
-      is_primary: false,
+      contact_name: '',
+      mobile_no: '',
+      alternate_mobile: '',
+      email_id: '',
+      telephone: '',
+      extension: '',
+      is_primary: 0,
+      is_billing_contact: 0,
+      is_saler_contact: 1,
+      remarks: '',
     });
     setEditingContactIndex(null);
+    setModalErrors({});
     setApiError(null);
   };
 
   const removeContactPerson = (index: number) => {
-    if (formData.contact_persons.length <= 1) {
+    const validContacts = formData.contacts.filter(
+      c => c.first_name.trim() || c.last_name.trim()
+    );
+
+    if (validContacts.length <= 1) {
       setApiError('You must have at least one contact person');
       return;
     }
 
     setFormData(prev => {
-      const updatedContacts = prev.contact_persons.filter((_, i) => i !== index);
+      const updatedContacts = prev.contacts.filter((_, i) => i !== index);
       
-      if (prev.contact_persons[index].is_primary && updatedContacts.length > 0) {
-        updatedContacts[0].is_primary = true;
+      // If we removed the primary contact, set the first remaining as primary
+      if (prev.contacts[index].is_primary === 1 && updatedContacts.length > 0) {
+        const validContact = updatedContacts.find(c => c.first_name.trim() || c.last_name.trim());
+        if (validContact) {
+          validContact.is_primary = 1;
+        }
       }
       
       return {
         ...prev,
-        contact_persons: updatedContacts
+        contacts: updatedContacts
       };
     });
+
+    setApiError(null);
   };
 
+  // ===== MAIN FORM VALIDATION =====
   const getAllValidationErrors = (): ValidationError[] => {
     const errors: ValidationError[] = [];
 
-    if (!formData.customer_name && !formData.first_name) {
+    // Check if customer has a name
+    if (!formData.customer_name.trim()) {
       errors.push({ 
         field: 'customer_name', 
         label: 'Customer Name', 
-        message: 'Please provide at least customer name or first name' 
+        message: 'Customer name is required' 
       });
     }
 
+    // Validate customer type
     if (!formData.customer_type) {
       errors.push({
         field: 'customer_type',
@@ -281,6 +475,7 @@ const AddCustomer: React.FC = () => {
       });
     }
 
+    // Validate customer group
     if (!formData.customer_group) {
       errors.push({
         field: 'customer_group',
@@ -289,36 +484,58 @@ const AddCustomer: React.FC = () => {
       });
     }
 
-    formData.contact_persons.forEach((contact, index) => {
-      if (!contact.first_name) {
-        errors.push({
-          field: `contact_persons[${index}].first_name`,
-          label: `Contact ${index + 1} - First Name`,
-          message: 'First name is required'
-        });
-      }
-      if (!contact.last_name) {
-        errors.push({
-          field: `contact_persons[${index}].last_name`,
-          label: `Contact ${index + 1} - Last Name`,
-          message: 'Last name is required'
-        });
-      }
-      if (!contact.email) {
-        errors.push({
-          field: `contact_persons[${index}].email`,
-          label: `Contact ${index + 1} - Email`,
-          message: 'Email is required'
-        });
-      }
-      if (!contact.phone) {
-        errors.push({
-          field: `contact_persons[${index}].phone`,
-          label: `Contact ${index + 1} - Phone`,
-          message: 'Phone number is required'
-        });
-      }
-    });
+    // Validate contact persons - only count actual contacts
+    const validContacts = formData.contacts.filter(
+      contact => contact.first_name.trim() || contact.last_name.trim() || contact.email_id.trim() || contact.mobile_no.trim()
+    );
+
+    if (validContacts.length === 0) {
+      errors.push({
+        field: 'contacts',
+        label: 'Contact Persons',
+        message: 'At least one contact person is required'
+      });
+    } else {
+      // Validate each contact with data
+      validContacts.forEach((contact, validIndex) => {
+        const originalIndex = formData.contacts.findIndex(c => c === contact);
+        
+        if (!contact.first_name.trim()) {
+          errors.push({
+            field: `contact_${originalIndex}_first_name`,
+            label: `Contact ${validIndex + 1} - First Name`,
+            message: 'First name is required'
+          });
+        }
+        if (!contact.last_name.trim()) {
+          errors.push({
+            field: `contact_${originalIndex}_last_name`,
+            label: `Contact ${validIndex + 1} - Last Name`,
+            message: 'Last name is required'
+          });
+        }
+        if (!contact.email_id.trim()) {
+          errors.push({
+            field: `contact_${originalIndex}_email_id`,
+            label: `Contact ${validIndex + 1} - Email`,
+            message: 'Email is required'
+          });
+        } else if (!/\S+@\S+\.\S+/.test(contact.email_id)) {
+          errors.push({
+            field: `contact_${originalIndex}_email_id`,
+            label: `Contact ${validIndex + 1} - Email`,
+            message: 'Please enter a valid email address'
+          });
+        }
+        if (!contact.mobile_no.trim()) {
+          errors.push({
+            field: `contact_${originalIndex}_mobile_no`,
+            label: `Contact ${validIndex + 1} - Mobile`,
+            message: 'Mobile number is required'
+          });
+        }
+      });
+    }
 
     return errors;
   };
@@ -336,22 +553,76 @@ const AddCustomer: React.FC = () => {
     const validationErrorsList = getAllValidationErrors();
     if (validationErrorsList.length > 0) {
       setValidationErrors(validationErrorsList);
+      
+      // Find the first field with error and scroll to it
+      const firstError = validationErrorsList[0];
+      
+      // Handle contacts fields specially
+      if (firstError.field.includes('contact_')) {
+        const contactElements = document.querySelectorAll('.contact-avatar-item');
+        if (contactElements.length > 0) {
+          contactElements[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+          const avatar = contactElements[0].querySelector('.contact-avatar-circle');
+          if (avatar) {
+            avatar.classList.add('contact-avatar-error');
+            setTimeout(() => avatar.classList.remove('contact-avatar-error'), 3000);
+          }
+          return;
+        }
+      }
+      
+      const fieldSelector = `[name="${firstError.field}"]`;
+      const fieldElement = document.querySelector(fieldSelector);
+      if (fieldElement) {
+        fieldElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        (fieldElement as HTMLElement).focus();
+      }
       return;
     }
 
     try {
       setSubmitting(true);
       
-      const payload = {
-        ...formData,
-        customer_name: formData.customer_name || `${formData.first_name} ${formData.last_name}`.trim(),
+      // Prepare the payload according to the required structure
+      const payload: ApiPayload = {
+        customer_name: formData.customer_name.trim(),
+        customer_group: formData.customer_group,
+        territory: formData.territory,
+        customer_type: formData.customer_type,
+        mobile_no: formData.mobile_no,
+        email_id: formData.email_id,
+        customer_primary_address: formData.customer_primary_address,
+        primary_address: formData.primary_address,
+        contacts: formData.contacts.map(contact => ({
+          first_name: contact.first_name,
+          last_name: contact.last_name,
+          contact_name: contact.contact_name || `${contact.first_name} ${contact.last_name}`.trim(),
+          mobile_no: contact.mobile_no,
+          alternate_mobile: contact.alternate_mobile || '',
+          email_id: contact.email_id,
+          telephone: contact.telephone || '',
+          extension: contact.extension || '',
+          is_primary: contact.is_primary,
+          is_billing_contact: contact.is_billing_contact || 0,
+          is_saler_contact: contact.is_saler_contact || 1,
+          remarks: contact.remarks || '',
+        }))
       };
       
       if (isEditMode && id) {
-        await api.put(`/customer/${id}`, payload);
+        // For update, include id in the payload and use PUT
+        const updatePayload: UpdateApiPayload = {
+          id: Number(id),
+          ...payload,
+        };
+        
+        // Use PUT with the ID in the payload
+        await api.put('/customer', updatePayload);
+        
         setSuccess('Customer updated successfully!');
         setTimeout(() => navigate('/customer'), 1500);
       } else {
+        // For create, use POST without ID
         await api.post('/customer', payload);
         setSuccess('Customer created successfully!');
         setTimeout(() => navigate('/customer'), 1500);
@@ -365,6 +636,8 @@ const AddCustomer: React.FC = () => {
           setApiError('A customer with this name already exists');
         } else if (err.response.status === 400) {
           setApiError(err.response.data?.message || 'Invalid data provided');
+        } else if (err.response.status === 404) {
+          setApiError('Customer not found. Please refresh and try again.');
         } else {
           setApiError(err.response.data?.message || 'Failed to save customer');
         }
@@ -398,10 +671,8 @@ const AddCustomer: React.FC = () => {
   }
 
   const hasErrors = validationErrors.length > 0;
-
-  // Filter out empty contact persons (those with no first_name and no last_name)
-  const hasValidContacts = formData.contact_persons.some(
-    contact => contact.first_name || contact.last_name
+  const hasValidContacts = formData.contacts.some(
+    contact => contact.first_name.trim() || contact.last_name.trim()
   );
 
   return (
@@ -428,9 +699,12 @@ const AddCustomer: React.FC = () => {
                       name="first_name"
                       value={tempContact.first_name}
                       onChange={handleTempContactChange}
-                      className="form-field"
+                      className={`form-field ${modalErrors.first_name ? 'field-error' : ''}`}
                       placeholder="Enter first name"
                     />
+                    {modalErrors.first_name && (
+                      <div className="field-error-message">{modalErrors.first_name}</div>
+                    )}
                   </div>
                   <div className="contact-form-field">
                     <label className="contact-form-label">Last Name <span className="acf-required">*</span></label>
@@ -439,41 +713,84 @@ const AddCustomer: React.FC = () => {
                       name="last_name"
                       value={tempContact.last_name}
                       onChange={handleTempContactChange}
-                      className="form-field"
+                      className={`form-field ${modalErrors.last_name ? 'field-error' : ''}`}
                       placeholder="Enter last name"
+                    />
+                    {modalErrors.last_name && (
+                      <div className="field-error-message">{modalErrors.last_name}</div>
+                    )}
+                  </div>
+                  <div className="contact-form-field">
+                    <label className="contact-form-label">Contact Name</label>
+                    <input
+                      type="text"
+                      name="contact_name"
+                      value={tempContact.contact_name}
+                      onChange={handleTempContactChange}
+                      className="form-field"
+                      placeholder="Auto-generated from first and last name"
+                      disabled
                     />
                   </div>
                   <div className="contact-form-field">
                     <label className="contact-form-label">Email <span className="acf-required">*</span></label>
                     <input
                       type="email"
-                      name="email"
-                      value={tempContact.email}
+                      name="email_id"
+                      value={tempContact.email_id}
                       onChange={handleTempContactChange}
-                      className="form-field"
+                      className={`form-field ${modalErrors.email_id ? 'field-error' : ''}`}
                       placeholder="Enter email"
                     />
+                    {modalErrors.email_id && (
+                      <div className="field-error-message">{modalErrors.email_id}</div>
+                    )}
                   </div>
                   <div className="contact-form-field">
-                    <label className="contact-form-label">Phone <span className="acf-required">*</span></label>
+                    <label className="contact-form-label">Mobile <span className="acf-required">*</span></label>
                     <input
                       type="tel"
-                      name="phone"
-                      value={tempContact.phone}
+                      name="mobile_no"
+                      value={tempContact.mobile_no}
+                      onChange={handleTempContactChange}
+                      className={`form-field ${modalErrors.mobile_no ? 'field-error' : ''}`}
+                      placeholder="Enter mobile number"
+                    />
+                    {modalErrors.mobile_no && (
+                      <div className="field-error-message">{modalErrors.mobile_no}</div>
+                    )}
+                  </div>
+                  <div className="contact-form-field">
+                    <label className="contact-form-label">Alternate Mobile</label>
+                    <input
+                      type="tel"
+                      name="alternate_mobile"
+                      value={tempContact.alternate_mobile}
                       onChange={handleTempContactChange}
                       className="form-field"
-                      placeholder="Enter phone number"
+                      placeholder="Enter alternate mobile"
                     />
                   </div>
                   <div className="contact-form-field">
-                    <label className="contact-form-label">Designation</label>
+                    <label className="contact-form-label">Telephone</label>
                     <input
-                      type="text"
-                      name="designation"
-                      value={tempContact.designation}
+                      type="tel"
+                      name="telephone"
+                      value={tempContact.telephone}
                       onChange={handleTempContactChange}
                       className="form-field"
-                      placeholder="Enter designation"
+                      placeholder="Enter telephone"
+                    />
+                  </div>
+                  <div className="contact-form-field">
+                    <label className="contact-form-label">Extension</label>
+                    <input
+                      type="text"
+                      name="extension"
+                      value={tempContact.extension}
+                      onChange={handleTempContactChange}
+                      className="form-field"
+                      placeholder="Enter extension"
                     />
                   </div>
                   <div className="contact-form-field checkbox-field">
@@ -481,12 +798,47 @@ const AddCustomer: React.FC = () => {
                       <input
                         type="checkbox"
                         name="is_primary"
-                        checked={tempContact.is_primary}
+                        checked={tempContact.is_primary === 1}
                         onChange={handleTempContactChange}
                         className="contact-checkbox"
                       />
                       Set as Primary Contact
                     </label>
+                  </div>
+                  <div className="contact-form-field checkbox-field">
+                    <label className="contact-form-label checkbox-label">
+                      <input
+                        type="checkbox"
+                        name="is_billing_contact"
+                        checked={tempContact.is_billing_contact === 1}
+                        onChange={handleTempContactChange}
+                        className="contact-checkbox"
+                      />
+                      Billing Contact
+                    </label>
+                  </div>
+                  <div className="contact-form-field checkbox-field">
+                    <label className="contact-form-label checkbox-label">
+                      <input
+                        type="checkbox"
+                        name="is_saler_contact"
+                        checked={tempContact.is_saler_contact === 1}
+                        onChange={handleTempContactChange}
+                        className="contact-checkbox"
+                      />
+                      Sales Contact
+                    </label>
+                  </div>
+                  <div className="contact-form-field full-width">
+                    <label className="contact-form-label">Remarks</label>
+                    <textarea
+                      name="remarks"
+                      value={tempContact.remarks}
+                      onChange={handleTempContactChange}
+                      className="form-field"
+                      placeholder="Enter remarks"
+                      rows={2}
+                    />
                   </div>
                 </div>
               </div>
@@ -494,7 +846,11 @@ const AddCustomer: React.FC = () => {
                 <button className="btn-cancel" onClick={() => setShowContactModal(false)}>
                   Cancel
                 </button>
-                <button className="btn-save-contact" onClick={saveContact}>
+                <button 
+                  className="btn-save-contact" 
+                  onClick={saveContact}
+                  type="button"
+                >
                   <FaSave /> {editingContactIndex !== null ? 'Update' : 'Add'} Contact
                 </button>
               </div>
@@ -538,16 +894,16 @@ const AddCustomer: React.FC = () => {
 
           <div className="acf-card">
 
-            {/* Basic Information - Compact Grid */}
+            {/* Basic Information - 3 Column Grid */}
             <div className="acf-section-header">
               <span className="acf-section-title">
-                <FaUser className="acf-section-icon" /> Basic Information
+                <FaUser className="acf-section-icon" /> Customer Information
               </span>
             </div>
 
             <div className="acf-grid-3">
               <div className="acf-field">
-                <label className="acf-label">Customer Name</label>
+                <label className="acf-label">Customer Name <span className="acf-required">*</span></label>
                 <input
                   type="text"
                   name="customer_name"
@@ -563,35 +919,7 @@ const AddCustomer: React.FC = () => {
               </div>
 
               <div className="acf-field">
-                <label className="acf-label">First Name</label>
-                <input
-                  type="text"
-                  name="first_name"
-                  value={formData.first_name}
-                  onChange={handleChange}
-                  className="form-field"
-                  placeholder="Enter first name"
-                  disabled={submitting}
-                />
-              </div>
-
-              <div className="acf-field">
-                <label className="acf-label">Last Name</label>
-                <input
-                  type="text"
-                  name="last_name"
-                  value={formData.last_name}
-                  onChange={handleChange}
-                  className="form-field"
-                  placeholder="Enter last name"
-                  disabled={submitting}
-                />
-              </div>
-            </div>
-
-            <div className="acf-grid-3">
-              <div className="acf-field">
-                <label className="acf-label">Type <span className="acf-required">*</span></label>
+                <label className="acf-label">Customer Type <span className="acf-required">*</span></label>
                 <select
                   name="customer_type"
                   value={formData.customer_type}
@@ -608,7 +936,7 @@ const AddCustomer: React.FC = () => {
               </div>
 
               <div className="acf-field">
-                <label className="acf-label">Group <span className="acf-required">*</span></label>
+                <label className="acf-label">Customer Group <span className="acf-required">*</span></label>
                 <select
                   name="customer_group"
                   value={formData.customer_group}
@@ -625,76 +953,22 @@ const AddCustomer: React.FC = () => {
                   <div className="field-error-message">{getFieldError('customer_group')}</div>
                 )}
               </div>
-
-              <div className="acf-field">
-                <label className="acf-label">Gender</label>
-                <select
-                  name="gender"
-                  value={formData.gender}
-                  onChange={handleChange}
-                  className="form-field"
-                  disabled={submitting}
-                >
-                  <option value="">Select</option>
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
             </div>
 
             <div className="acf-grid-3">
               <div className="acf-field">
-                <label className="acf-label">Language</label>
-                <select
-                  name="language"
-                  value={formData.language}
-                  onChange={handleChange}
-                  className="form-field"
-                  disabled={submitting}
-                >
-                  <option value="English">English</option>
-                  <option value="Hindi">Hindi</option>
-                  <option value="Spanish">Spanish</option>
-                  <option value="French">French</option>
-                </select>
-              </div>
-
-              <div className="acf-field">
-                <label className="acf-label">Industry</label>
+                <label className="acf-label">Territory</label>
                 <input
                   type="text"
-                  name="industry"
-                  value={formData.industry}
+                  name="territory"
+                  value={formData.territory}
                   onChange={handleChange}
                   className="form-field"
-                  placeholder="Enter industry"
+                  placeholder="Enter territory"
                   disabled={submitting}
                 />
               </div>
 
-              <div className="acf-field">
-                <label className="acf-label">Market Segment</label>
-                <input
-                  type="text"
-                  name="market_segment"
-                  value={formData.market_segment}
-                  onChange={handleChange}
-                  className="form-field"
-                  placeholder="Enter market segment"
-                  disabled={submitting}
-                />
-              </div>
-            </div>
-
-            {/* Contact Information - Compact */}
-            <div className="acf-section-header" style={{ marginTop: '15px' }}>
-              <span className="acf-section-title">
-                <FaEnvelope className="acf-section-icon" /> Contact Information
-              </span>
-            </div>
-
-            <div className="acf-grid-3">
               <div className="acf-field">
                 <label className="acf-label">Email</label>
                 <input
@@ -720,16 +994,38 @@ const AddCustomer: React.FC = () => {
                   disabled={submitting}
                 />
               </div>
+            </div>
 
+            {/* Address Information - 2 Column Grid */}
+            <div className="acf-section-header" style={{ marginTop: '15px' }}>
+              <span className="acf-section-title">
+                <FaMapMarkerAlt className="acf-section-icon" /> Address Information
+              </span>
+            </div>
+
+            <div className="acf-grid-2">
               <div className="acf-field">
-                <label className="acf-label">Website</label>
+                <label className="acf-label">Customer Primary Address</label>
                 <input
-                  type="url"
-                  name="website"
-                  value={formData.website}
+                  type="text"
+                  name="customer_primary_address"
+                  value={formData.customer_primary_address}
                   onChange={handleChange}
                   className="form-field"
-                  placeholder="Enter website"
+                  placeholder="Enter customer primary address"
+                  disabled={submitting}
+                />
+              </div>
+
+              <div className="acf-field">
+                <label className="acf-label">Primary Address</label>
+                <input
+                  type="text"
+                  name="primary_address"
+                  value={formData.primary_address}
+                  onChange={handleChange}
+                  className="form-field"
+                  placeholder="Enter primary address"
                   disabled={submitting}
                 />
               </div>
@@ -756,35 +1052,59 @@ const AddCustomer: React.FC = () => {
               </button>
 
               {/* Existing Contacts */}
-              {formData.contact_persons.map((contact, index) => {
-                // Only render if contact has at least first_name or last_name
-                if (!contact.first_name && !contact.last_name) return null;
+              {formData.contacts.map((contact, index) => {
+                // Only render if contact has first_name or last_name
+                if (!contact.first_name.trim() && !contact.last_name.trim()) return null;
                 
-                const initials = getInitials(contact.first_name, contact.last_name);
-                const color = getColorFromName(`${contact.first_name} ${contact.last_name}`);
-                const fullName = `${contact.first_name} ${contact.last_name}`.trim();
+                const initial = getInitial(contact.first_name);
+                const fullName = contact.contact_name || `${contact.first_name} ${contact.last_name}`.trim();
+                
+                // Generate a consistent color based on the name
+                const colors = [
+                  '#6366f1', '#8b5cf6', '#a855f7', '#d946ef',
+                  '#ec4899', '#f43f5e', '#ef4444', '#f59e0b',
+                  '#eab308', '#84cc16', '#22c55e', '#10b981',
+                  '#14b8a6', '#06b6d4', '#3b82f6', '#6366f1'
+                ];
+                const colorIndex = fullName.length % colors.length;
+                const avatarColor = colors[colorIndex];
+                
+                // Check if this contact has validation errors
+                const hasContactError = validationErrors.some(err => 
+                  err.field === `contact_${index}_first_name` ||
+                  err.field === `contact_${index}_last_name` ||
+                  err.field === `contact_${index}_email_id` ||
+                  err.field === `contact_${index}_mobile_no`
+                );
                 
                 return (
                   <div key={index} className="contact-avatar-item">
                     <div 
-                      className="contact-avatar-circle"
-                      style={{ backgroundColor: color }}
+                      className={`contact-avatar-circle ${hasContactError ? 'contact-avatar-error' : ''}`}
                       onClick={() => openEditContactModal(index)}
                       title={fullName}
+                      style={{ backgroundColor: avatarColor }}
                     >
-                      {initials}
-                      {contact.is_primary && (
+                      {initial}
+                      {contact.is_primary === 1 && (
                         <div className="contact-primary-badge">
                           <FaCheckCircle size={14} />
                         </div>
                       )}
                     </div>
-                    <div className="contact-avatar-name-only">{fullName}</div>
+                    <div className="contact-avatar-details">
+  <div className="contact-avatar-name">{fullName}</div>
+
+  <div className="contact-avatar-mobile">
+    {/* <FaPhone size={11} /> */}
+    <span>{contact.mobile_no || "-"}</span>
+  </div>
+</div>
                     <button
                       type="button"
                       onClick={() => removeContactPerson(index)}
                       className="contact-remove-btn"
-                      disabled={submitting || formData.contact_persons.length <= 1}
+                      disabled={submitting}
                       title="Remove contact"
                     >
                       <FaTimes />

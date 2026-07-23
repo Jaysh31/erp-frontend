@@ -1014,7 +1014,7 @@ export default function PurchaseInvoiceForm() {
         await api.put(`/grn/grn-status`, {
           id: grnId,
           is_completed: 1,
-          modified_by: role.id,
+          modified_by: role?.id,
         });
       } catch (error) {
         console.error(error);
