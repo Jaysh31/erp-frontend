@@ -2,12 +2,13 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   FaSave, FaSpinner, FaArrowLeft,
   FaExclamationCircle, FaExclamationTriangle, FaInfoCircle,
-  FaTimesCircle,  FaBuilding, FaMoneyBillWave,
+  FaTimesCircle, FaBuilding, FaMoneyBillWave,
   FaCalendarAlt, FaFileAlt, FaBoxes, FaClipboardList,
-  FaReceipt, FaClock, FaSearch, FaCheckCircle,
-  FaPrint, FaPlus, FaTrash, FaTruck, FaHandshake,
-  FaPercent, FaUser, FaUsers, FaWarehouse, FaPhone, FaEnvelope, FaGlobeAsia,
+  FaCheckCircle,
+  FaPrint, FaPlus, FaTrash, FaTruck,
+  FaUser, FaUsers, FaWarehouse, FaPhone, FaEnvelope, FaGlobeAsia,
   FaStickyNote,
+  FaSearch,
 } from 'react-icons/fa';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
@@ -330,7 +331,8 @@ export default function PurchaseInvoiceForm() {
     try {
       const res = await api.get('/purchase-order?limit=200');
       if (res.data?.success === 1) {
-        setPoList(res.data.data?.records || []);
+        const records = res.data.data?.records || res.data.data || [];
+        setPoList(records);
       }
     } catch (err) {
       console.error('Error fetching PO list:', err);
@@ -477,7 +479,7 @@ export default function PurchaseInvoiceForm() {
   // ─── When supplier is selected ─────────────────────────────────────────────
   const handleSelectSupplier = (supplier: Supplier) => {
     setSelectedSupplier(supplier);
-    setSupplierSearch(supplier.supplier_name);
+    setSupplierSearch(supplier.supplier_name || '');
     setShowSupplierDropdown(false);
     resetSelections();
 
@@ -506,7 +508,7 @@ export default function PurchaseInvoiceForm() {
 
   // ─── When a PO is selected (GRN mode) — auto-loads its linked GRNs ────────
   const handleSelectPO = async (po: { id: number; name: string; supplier_name: string }) => {
-    setPoSearch(po.name);
+    setPoSearch(po.name || '');
     setShowPoDropdown(false);
     setLoadingPODetail(true);
     try {
@@ -519,9 +521,9 @@ export default function PurchaseInvoiceForm() {
       } else {
         toast.error('Failed to load PO details');
       }
-      setLinkedGRNsForPO(grnSummaries);
+      setLinkedGRNsForPO(grnSummaries || []);
       // auto-include every GRN linked to this PO; user can uncheck any of them
-      setSelectedGRNIds(new Set(grnSummaries.map(g => g.id)));
+      setSelectedGRNIds(new Set((grnSummaries || []).map(g => g.id)));
     } catch (err) {
       console.error('Error loading PO/GRN:', err);
       toast.error('Error loading PO data');
@@ -532,7 +534,7 @@ export default function PurchaseInvoiceForm() {
 
   // ─── When a PO with NO GRN is selected (Without GRN mode) ─────────────────
   const handleSelectPOWithoutGRN = async (po: { id: number; name: string; supplier_name: string }) => {
-    setPoSearch(po.name);
+    setPoSearch(po.name || '');
     setShowPoDropdown(false);
     setLoadingPODetail(true);
     try {
@@ -565,9 +567,9 @@ export default function PurchaseInvoiceForm() {
         ]);
         if (poDetail) {
           setSelectedPO(poDetail);
-          setPoSearch(poDetail.name);
+          setPoSearch(poDetail.name || '');
         }
-        setLinkedGRNsForPO(grnSummaries);
+        setLinkedGRNsForPO(grnSummaries || []);
       } catch (err) {
         console.error('Error auto-loading PO for GRN:', err);
       } finally {
@@ -580,43 +582,43 @@ export default function PurchaseInvoiceForm() {
   const buildInvoiceItemsCombined = (poDetail: PODetail | null, grns: GRNRecord[]) => {
     if (poDetail?.items?.length) {
       const receivedMap: Record<number, { qty: number; grnNums: string[] }> = {};
-      grns.forEach(grn => {
-        grn.items?.forEach(gi => {
+      (grns || []).forEach(grn => {
+        (grn.items || []).forEach(gi => {
           if (!receivedMap[gi.item_id]) {
             receivedMap[gi.item_id] = { qty: 0, grnNums: [] };
           }
-          receivedMap[gi.item_id].qty += gi.received_qty;
-          if (!receivedMap[gi.item_id].grnNums.includes(grn.grn_number)) {
+          receivedMap[gi.item_id].qty += gi.received_qty || 0;
+          if (grn.grn_number && !receivedMap[gi.item_id].grnNums.includes(grn.grn_number)) {
             receivedMap[gi.item_id].grnNums.push(grn.grn_number);
           }
         });
       });
 
-      const invoiceRows: InvoiceItem[] = poDetail.items.map(pi => {
+      const invoiceRows: InvoiceItem[] = (poDetail.items || []).map(pi => {
         const rec = receivedMap[pi.id] || { qty: 0, grnNums: [] };
         const totalReceived = rec.qty;
         const alreadyBilledQty = pi.rate > 0 ? (pi.billed_amt || 0) / pi.rate : 0;
         const unbilledQty = Math.max(0, totalReceived - alreadyBilledQty);
         const taxRate = parseFloat(pi.item_tax_rate || '0') || 0;
 
-        const tax = taxes.find(t => {
-          const rate = parseInt(t.tax_type.replace('GST', ''));
+        const tax = (taxes || []).find(t => {
+          const rate = parseInt((t.tax_type || '').replace('GST', ''));
           return rate === taxRate;
         });
 
         return {
           po_item_id: pi.id,
-          item_code: pi.item_code,
-          item_name: pi.item_name,
-          uom: pi.uom,
-          rate: pi.rate,
-          ordered_rate: pi.rate,
-          ordered_qty: pi.qty,
+          item_code: pi.item_code || '',
+          item_name: pi.item_name || '',
+          uom: pi.uom || 'Nos',
+          rate: pi.rate || 0,
+          ordered_rate: pi.rate || 0,
+          ordered_qty: pi.qty || 0,
           total_received_qty: totalReceived,
           unbilled_qty: Math.round(unbilledQty * 1000) / 1000,
           bill_qty: Math.round(unbilledQty * 1000) / 1000,
-          amount: Math.round(unbilledQty * pi.rate * 100) / 100,
-          grn_refs: rec.grnNums,
+          amount: Math.round(unbilledQty * (pi.rate || 0) * 100) / 100,
+          grn_refs: rec.grnNums || [],
           tax_rate: taxRate,
           tax_id: tax?.tax_id || 1,
           note: '',
@@ -630,35 +632,37 @@ export default function PurchaseInvoiceForm() {
     // No PO on record for these GRNs — build directly from GRN items, merging
     // duplicate items across multiple selected GRNs.
     const merged: Record<string, InvoiceItem> = {};
-    grns.forEach(grn => {
-      grn.items?.forEach(gi => {
-        const billableQty = gi.accepted_qty || gi.received_qty;
-        const key = gi.item_code;
+    (grns || []).forEach(grn => {
+      (grn.items || []).forEach(gi => {
+        const billableQty = gi.accepted_qty || gi.received_qty || 0;
+        const key = gi.item_code || `item-${gi.item_id}`;
         if (!merged[key]) {
-          const tax = taxes.find(t => t.tax_id === 1);
+          const tax = (taxes || []).find(t => t.tax_id === 1);
           merged[key] = {
-            item_code: gi.item_code,
-            item_name: gi.item_name,
-            uom: gi.uom,
-            rate: gi.rate,
-            ordered_rate: gi.rate,
-            ordered_qty: gi.ordered_qty,
-            total_received_qty: gi.received_qty,
+            item_code: gi.item_code || '',
+            item_name: gi.item_name || '',
+            uom: gi.uom || 'Nos',
+            rate: gi.rate || 0,
+            ordered_rate: gi.rate || 0,
+            ordered_qty: gi.ordered_qty || 0,
+            total_received_qty: gi.received_qty || 0,
             unbilled_qty: billableQty,
             bill_qty: billableQty,
-            amount: Math.round(billableQty * gi.rate * 100) / 100,
-            grn_refs: [grn.grn_number],
+            amount: Math.round(billableQty * (gi.rate || 0) * 100) / 100,
+            grn_refs: grn.grn_number ? [grn.grn_number] : [],
             tax_rate: 0,
             tax_id: tax?.tax_id || 1,
             note: '',
           };
         } else {
-          merged[key].ordered_qty += gi.ordered_qty;
-          merged[key].total_received_qty += gi.received_qty;
+          merged[key].ordered_qty += gi.ordered_qty || 0;
+          merged[key].total_received_qty += gi.received_qty || 0;
           merged[key].unbilled_qty += billableQty;
           merged[key].bill_qty += billableQty;
           merged[key].amount = Math.round(merged[key].bill_qty * merged[key].rate * 100) / 100;
-          if (!merged[key].grn_refs.includes(grn.grn_number)) merged[key].grn_refs.push(grn.grn_number);
+          if (grn.grn_number && !merged[key].grn_refs.includes(grn.grn_number)) {
+            merged[key].grn_refs.push(grn.grn_number);
+          }
         }
       });
     });
@@ -667,21 +671,21 @@ export default function PurchaseInvoiceForm() {
 
   // ─── Build invoice items straight from a PO that has no GRN yet ───────────
   const buildInvoiceItemsFromPOOnly = (poDetail: PODetail) => {
-    const invoiceRows: InvoiceItem[] = poDetail.items.map(pi => {
+    const invoiceRows: InvoiceItem[] = (poDetail.items || []).map(pi => {
       const taxRate = parseFloat(pi.item_tax_rate || '0') || 0;
-      const tax = taxes.find(t => parseInt(t.tax_type.replace('GST', '')) === taxRate);
+      const tax = (taxes || []).find(t => parseInt((t.tax_type || '').replace('GST', '')) === taxRate);
       return {
         po_item_id: pi.id,
-        item_code: pi.item_code,
-        item_name: pi.item_name,
-        uom: pi.uom,
-        rate: pi.rate,
-        ordered_rate: pi.rate,
-        ordered_qty: pi.qty,
+        item_code: pi.item_code || '',
+        item_name: pi.item_name || '',
+        uom: pi.uom || 'Nos',
+        rate: pi.rate || 0,
+        ordered_rate: pi.rate || 0,
+        ordered_qty: pi.qty || 0,
         total_received_qty: 0,
-        unbilled_qty: pi.qty,
-        bill_qty: pi.qty,
-        amount: Math.round(pi.qty * pi.rate * 100) / 100,
+        unbilled_qty: pi.qty || 0,
+        bill_qty: pi.qty || 0,
+        amount: Math.round((pi.qty || 0) * (pi.rate || 0) * 100) / 100,
         grn_refs: [],
         tax_rate: taxRate,
         tax_id: tax?.tax_id || 1,
@@ -728,30 +732,30 @@ export default function PurchaseInvoiceForm() {
       if (i !== index) return item;
       const updated = { ...item, [field]: value };
       if (field === 'bill_qty' || field === 'rate') {
-        updated.amount = updated.bill_qty * updated.rate;
+        updated.amount = (updated.bill_qty || 0) * (updated.rate || 0);
       }
       return updated;
     }));
   };
 
   const handleSelectItem = (item: Item, index: number) => {
-    const tax = taxes.find(t => t.tax_id === item.tax_id);
-    const taxRate = tax ? parseInt(tax.tax_type.replace('GST', '')) : 0;
+    const tax = (taxes || []).find(t => t.tax_id === item.tax_id);
+    const taxRate = tax ? parseInt((tax.tax_type || '').replace('GST', '')) : 0;
 
     setItems(prev => prev.map((row, i) => {
       if (i !== index) return row;
       return {
         ...row,
         item_id: item.id,
-        item_code: item.item_code,
-        item_name: item.item_name,
-        HSN: item.HSN,
+        item_code: item.item_code || '',
+        item_name: item.item_name || '',
+        HSN: item.HSN || '',
         uom: item.stock_uom || 'Nos',
         rate: item.standard_rate || 0,
         ordered_rate: item.standard_rate || 0,
         tax_rate: taxRate,
         tax_id: item.tax_id,
-        amount: row.bill_qty * (item.standard_rate || 0),
+        amount: (row.bill_qty || 0) * (item.standard_rate || 0),
       };
     }));
     setShowItemDropdown(false);
@@ -762,11 +766,11 @@ export default function PurchaseInvoiceForm() {
   const handleBillQtyChange = (index: number, val: number) => {
     setItems(prev => prev.map((row, i) => {
       if (i !== index) return row;
-      const safeQty = Math.min(Math.max(0, val), row.unbilled_qty);
+      const safeQty = Math.min(Math.max(0, val), row.unbilled_qty || 0);
       return {
         ...row,
         bill_qty: safeQty,
-        amount: Math.round(safeQty * row.rate * 100) / 100,
+        amount: Math.round(safeQty * (row.rate || 0) * 100) / 100,
       };
     }));
   };
@@ -799,10 +803,10 @@ export default function PurchaseInvoiceForm() {
         });
 
         if (inv.supplier_name) {
-          const supplier = suppliers.find(s => s.supplier_name === inv.supplier_name);
+          const supplier = (suppliers || []).find(s => s.supplier_name === inv.supplier_name);
           if (supplier) {
             setSelectedSupplier(supplier);
-            setSupplierSearch(supplier.supplier_name);
+            setSupplierSearch(supplier.supplier_name || '');
           }
         }
 
@@ -811,16 +815,16 @@ export default function PurchaseInvoiceForm() {
             id: it.id || Date.now().toString(),
             po_item_id: it.po_detail || 0,
             item_id: it.item_id || undefined,
-            item_code: it.item_code,
-            item_name: it.item_name,
-            uom: it.uom,
-            rate: it.rate,
-            ordered_rate: it.ordered_rate ?? it.rate,
-            ordered_qty: it.qty,
-            total_received_qty: it.qty,
-            unbilled_qty: it.qty,
-            bill_qty: it.qty,
-            amount: it.amount,
+            item_code: it.item_code || '',
+            item_name: it.item_name || '',
+            uom: it.uom || 'Nos',
+            rate: it.rate || 0,
+            ordered_rate: it.ordered_rate ?? (it.rate || 0),
+            ordered_qty: it.qty || 0,
+            total_received_qty: it.qty || 0,
+            unbilled_qty: it.qty || 0,
+            bill_qty: it.qty || 0,
+            amount: it.amount || 0,
             grn_refs: it.grn_refs || [],
             tax_rate: it.tax_rate || 0,
             tax_id: it.tax_id || 1,
@@ -839,53 +843,66 @@ export default function PurchaseInvoiceForm() {
   };
 
   // ─── Computed totals ────────────────────────────────────────────────────────
-  const subTotal = items.reduce((s, r) => s + r.amount, 0);
+  const subTotal = items.reduce((s, r) => s + (r.amount || 0), 0);
   const cgstAmount = (subTotal * formData.cgst) / 100;
   const sgstAmount = (subTotal * formData.sgst) / 100;
   const totalTax = cgstAmount + sgstAmount;
   const grandTotal = subTotal + totalTax + formData.deliveryCharges;
 
-  // ─── Filtered lists ────────────────────────────────────────────────────────
-  const filteredSuppliers = suppliers.filter(s =>
-    s.supplier_name.toLowerCase().includes(supplierSearch.toLowerCase()) ||
-    s.mobile_no?.includes(supplierSearch)
-  );
+  // ─── Filtered lists with null-safety ────────────────────────────────────────
+  const filteredSuppliers = (suppliers || []).filter(s => {
+    const search = (supplierSearch || '').toLowerCase();
+    if (!search) return true;
+    const name = (s.supplier_name || '').toLowerCase();
+    const mobile = (s.mobile_no || '');
+    return name.includes(search) || mobile.includes(search);
+  });
 
   const posForSelectedSupplier = selectedSupplier
-    ? poList.filter(po => po.supplier_name === selectedSupplier.supplier_name)
+    ? (poList || []).filter(po => (po.supplier_name || '') === selectedSupplier.supplier_name)
     : [];
 
   const grnsForSelectedSupplier = selectedSupplier
-    ? allGRNs.filter(g => g.supplier_id === selectedSupplier.id)
+    ? (allGRNs || []).filter(g => g.supplier_id === selectedSupplier.id)
     : [];
 
   // POs (for this supplier) that don't have any GRN linked to them at all —
   // these are the ones eligible to be billed "Without GRN".
   const poIdsWithGRN = useMemo(
-    () => new Set(allGRNs.filter(g => g.purchase_order_id).map(g => g.purchase_order_id as number)),
+    () => new Set((allGRNs || []).filter(g => g.purchase_order_id).map(g => g.purchase_order_id as number)),
     [allGRNs]
   );
-  const posWithoutGRNForSupplier = posForSelectedSupplier.filter(po => !poIdsWithGRN.has(po.id));
+  const posWithoutGRNForSupplier = (posForSelectedSupplier || []).filter(po => !poIdsWithGRN.has(po.id));
 
   const filteredPOs = (formData.billSource === 'Without GRN' ? posWithoutGRNForSupplier : posForSelectedSupplier)
-    .filter(po => po.name.toLowerCase().includes(poSearch.toLowerCase()));
+    .filter(po => {
+      const search = (poSearch || '').toLowerCase();
+      if (!search) return true;
+      return (po.name || '').toLowerCase().includes(search);
+    });
 
-  const filteredGRNs = grnsForSelectedSupplier.filter(g =>
-    g.grn_number.toLowerCase().includes(grnSearch.toLowerCase()) ||
-    (g.purchase_order_number && g.purchase_order_number.toLowerCase().includes(grnSearch.toLowerCase()))
-  );
+  const filteredGRNs = (grnsForSelectedSupplier || []).filter(g => {
+    const search = (grnSearch || '').toLowerCase();
+    if (!search) return true;
+    const grnNumber = (g.grn_number || '').toLowerCase();
+    const poNumber = (g.purchase_order_number || '').toLowerCase();
+    return grnNumber.includes(search) || poNumber.includes(search);
+  });
 
-  const filteredItems = itemsList.filter(item =>
-    item.item_code.toLowerCase().includes(itemSearch.toLowerCase()) ||
-    item.item_name.toLowerCase().includes(itemSearch.toLowerCase())
-  );
+  const filteredItems = (itemsList || []).filter(item => {
+    const search = (itemSearch || '').toLowerCase();
+    if (!search) return true;
+    const code = (item.item_code || '').toLowerCase();
+    const name = (item.item_name || '').toLowerCase();
+    return code.includes(search) || name.includes(search);
+  });
 
   const isManual = formData.billSource === 'Without GRN';
   const isGRNMode = formData.billSource === 'GRN';
 
-  // GRNs shown as removable chips — linked-to-PO list first, else supplier-wide list
+  // GRNs shown as removable chips — linked-to-PO list first, then supplier-wide list
   const selectedGRNSummaries: GRNSummary[] = Array.from(selectedGRNIds).map(gid =>
-    linkedGRNsForPO.find(g => g.id === gid) || grnsForSelectedSupplier.find(g => g.id === gid)
+    (linkedGRNsForPO || []).find(g => g.id === gid) || (grnsForSelectedSupplier || []).find(g => g.id === gid)
   ).filter((g): g is GRNSummary => Boolean(g));
 
   // ─── Validation ────────────────────────────────────────────────────────────
@@ -906,14 +923,14 @@ export default function PurchaseInvoiceForm() {
 
     if (!formData.date) errs.push({ field: 'date', label: 'Invoice Date', message: 'Invoice date is required' });
 
-    const billableItems = items.filter(r => r.bill_qty > 0);
+    const billableItems = items.filter(r => (r.bill_qty || 0) > 0);
     if (billableItems.length === 0) errs.push({ field: 'items', label: 'Items', message: 'At least one item must have quantity > 0' });
 
     if (isManual) {
       items.forEach((item, index) => {
-        if (!item.item_code) errs.push({ field: `item_code_${index}`, label: `Item ${index + 1} Code`, message: 'Item code is required' });
-        if (!item.item_name) errs.push({ field: `item_name_${index}`, label: `Item ${index + 1} Name`, message: 'Item name is required' });
-        if (item.rate <= 0) errs.push({ field: `rate_${index}`, label: `Item ${index + 1} Rate`, message: 'Rate must be greater than 0' });
+        if (!(item.item_code || '').trim()) errs.push({ field: `item_code_${index}`, label: `Item ${index + 1} Code`, message: 'Item code is required' });
+        if (!(item.item_name || '').trim()) errs.push({ field: `item_name_${index}`, label: `Item ${index + 1} Name`, message: 'Item name is required' });
+        if ((item.rate || 0) <= 0) errs.push({ field: `rate_${index}`, label: `Item ${index + 1} Rate`, message: 'Rate must be greater than 0' });
       });
     }
     return errs;
@@ -975,23 +992,23 @@ export default function PurchaseInvoiceForm() {
   // ─── Sync manual / Without-GRN inventory ───────────────────────────────────
   const syncManualInventory = async (billableItems: InvoiceItem[]) => {
     const warehouseId = selectedWarehouseId === '' ? 0 : selectedWarehouseId;
-    await Promise.all(billableItems.map(async (item) => {
+    await Promise.all((billableItems || []).map(async (item) => {
       const invPayload = {
         item_Id: item.item_id || 0,
-        item_code: item.item_code,
+        item_code: item.item_code || '',
         warehouse_Id: warehouseId,
-        actual_qty: item.bill_qty,
+        actual_qty: item.bill_qty || 0,
         planned_qty: 0,
         indented_qty: 0,
-        ordered_qty: item.bill_qty,
+        ordered_qty: item.bill_qty || 0,
         reserved_qty: 0,
         reserved_qty_for_production: 0,
         reserved_qty_for_sub_contract: 0,
         reserved_qty_for_production_plan: 0,
         reserved_stock: 0,
-        stock_uom: item.uom,
+        stock_uom: item.uom || 'Nos',
         company: selectedPO?.company || 'SculptorTech Pvt Ltd',
-        valuation_rate: item.rate,
+        valuation_rate: item.rate || 0,
         modified_by: 'Administrator',
         type: 'Internal',
       };
@@ -1005,16 +1022,14 @@ export default function PurchaseInvoiceForm() {
   };
 
   // ─── Mark included GRNs as completed once the invoice is saved ────────────
-  // NOTE: endpoint/payload assumed as PUT /grn/:id { isdeleted: 1, status: 'Completed' }.
-  // Adjust here if your backend expects a different route or field name.
   const role = getUserRole();
   const markGRNsCompleted = async (grnIds: number[]) => {
-    await Promise.all(grnIds.map(async (grnId) => {
+    await Promise.all((grnIds || []).map(async (grnId) => {
       try {
         await api.put(`/grn/grn-status`, {
           id: grnId,
           is_completed: 1,
-          modified_by: role?.id,
+          modified_by: role?.id ?? null,
         });
       } catch (error) {
         console.error(error);
@@ -1036,11 +1051,10 @@ export default function PurchaseInvoiceForm() {
 
     setLoading(true);
 
-    const billableItems = items.filter(r => r.bill_qty > 0);
+    const billableItems = items.filter(r => (r.bill_qty || 0) > 0);
 
     const resolvedWarehouseId: number | undefined =
       selectedWarehouseId !== '' ? selectedWarehouseId : undefined;
-      console.log(billableItems)
 
     const now = new Date();
     const postingTime = now.toTimeString().slice(0, 8);
@@ -1048,7 +1062,7 @@ export default function PurchaseInvoiceForm() {
       ...(isEdit && id ? { name: formData.invoiceNumber } : {}),
       name: 'PINV-',
       modified_by: 'Administrator',
-      owner: 'Administrator',
+      // owner: 'Administrator',
       naming_series: 'PINV-',
       supplier: selectedSupplier?.id,
       supplier_name: selectedSupplier?.supplier_name || '',
@@ -1061,7 +1075,7 @@ export default function PurchaseInvoiceForm() {
       conversion_rate: 1,
       update_stock: 1,
       set_warehouse: resolvedWarehouseId,
-      total_qty: billableItems.reduce((s, r) => s + r.bill_qty, 0),
+      total_qty: billableItems.reduce((s, r) => s + (r.bill_qty || 0), 0),
       base_total: subTotal,
       base_net_total: subTotal,
       total: subTotal,
@@ -1074,17 +1088,16 @@ export default function PurchaseInvoiceForm() {
       remarks: formData.notes || '',
 
       items: billableItems.map((r, idx) => ({
-        
         name: `item-${idx + 1}`,
         item_id: r.id,
-        item_code: r.item_code,
-        item_name: r.item_name,
+        item_code: r.item_code || '',
+        item_name: r.item_name || '',
         warehouse: resolvedWarehouseId,
-        qty: r.bill_qty,
-        uom: r.uom,
-        rate: r.rate,
-        ordered_rate: r.ordered_rate,
-        amount: r.amount,
+        qty: r.bill_qty || 0,
+        uom: r.uom || 'Nos',
+        rate: r.rate || 0,
+        ordered_rate: r.ordered_rate || 0,
+        amount: r.amount || 0,
         note: r.note || undefined,
       })),
     };
@@ -1226,7 +1239,7 @@ export default function PurchaseInvoiceForm() {
             <div>Date: {formData.date}</div>
             <div>
               Source: {formData.billSource}
-              {selectedPO ? ` via PO ${selectedPO.name}` : ''}
+              {selectedPO ? ` via PO ${selectedPO.name || ''}` : ''}
               {selectedGRNSummaries.length ? ` (${selectedGRNSummaries.map(g => g.grn_number).join(', ')})` : ''}
             </div>
           </div>
@@ -1272,17 +1285,17 @@ export default function PurchaseInvoiceForm() {
               {items.map((item, i) => (
                 <tr key={i}>
                   <td>{i + 1}</td>
-                  <td>{item.item_code}</td>
-                  <td>{item.item_name}</td>
+                  <td>{item.item_code || ''}</td>
+                  <td>{item.item_name || ''}</td>
                   <td>{item.HSN || '-'}</td>
-                  <td className="text-right">{item.ordered_qty}</td>
-                  <td className="text-right">{item.total_received_qty}</td>
-                  <td className="text-right">{item.bill_qty}</td>
-                  <td>{item.uom}</td>
+                  <td className="text-right">{item.ordered_qty || 0}</td>
+                  <td className="text-right">{item.total_received_qty || 0}</td>
+                  <td className="text-right">{item.bill_qty || 0}</td>
+                  <td>{item.uom || ''}</td>
                   <td className="text-right">{item.ordered_rate ? item.ordered_rate.toFixed(2) : '-'}</td>
-                  <td className="text-right">{item.rate.toFixed(2)}</td>
-                  <td className="text-right">{item.amount.toFixed(2)}</td>
-                  <td className="text-right">{item.tax_rate}%</td>
+                  <td className="text-right">{item.rate ? item.rate.toFixed(2) : '0.00'}</td>
+                  <td className="text-right">{item.amount ? item.amount.toFixed(2) : '0.00'}</td>
+                  <td className="text-right">{item.tax_rate || 0}%</td>
                   <td>{item.note || '-'}</td>
                 </tr>
               ))}
@@ -1327,9 +1340,6 @@ export default function PurchaseInvoiceForm() {
             </div>
 
             <div className="pif-divider" />
-
-          
-      
 
             {/* ── Invoice Info + Side Cards ─────────────────────────────── */}
             <div className="pif-compact-layout">
@@ -1402,10 +1412,10 @@ export default function PurchaseInvoiceForm() {
                                 onClick={() => handleSelectSupplier(s)}
                               >
                                 <div className="warehouse-item-name">
-                                  {s.supplier_name}
+                                  {s.supplier_name || ''}
                                 </div>
                                 <div className="warehouse-item-company">
-                                  {s.mobile_no} · {s.supplier_group}
+                                  {s.mobile_no || ''} · {s.supplier_group || ''}
                                 </div>
                               </li>
                             ))}
@@ -1425,63 +1435,65 @@ export default function PurchaseInvoiceForm() {
                     </div>
                   </div>
                 </div>
-      {/* ── PO Selection Section (Without GRN mode — POs with no GRN) ── */}
-      {selectedSupplier && isManual && (
-              <>
-                <div className="pif-grn-po-section">
-                  <div className="pif-field" ref={poSearchRef} style={{ position: 'relative', maxWidth: 500 }}>
-                    <label className="pif-label">
-                      <FaFileAlt className="pif-label-icon" />
-                      Select Purchase Order (not yet received)
-                    </label>
-                    <div className="warehouse-search-input-wrap">
-                      <FaSearch className="warehouse-search-icon" />
-                      <input
-                        type="text"
-                        className="form-field warehouse-search-input"
-                        value={poSearch}
-                        onChange={e => { setPoSearch(e.target.value); setShowPoDropdown(true); }}
-                        onFocus={() => setShowPoDropdown(true)}
-                        placeholder={loadingPOList ? 'Loading…' : 'Search Purchase Order without a GRN…'}
-                        disabled={loadingPOList}
-                      />
-                      {selectedPO && (
-                        <FaCheckCircle style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: '#22c55e', fontSize: 14 }} />
-                      )}
-                    </div>
-                    {showPoDropdown && (
-                      <div className="warehouse-dropdown">
-                        {filteredPOs.length > 0 ? (
-                          <ul className="warehouse-dropdown-list">
-                            {filteredPOs.map(po => (
-                              <li
-                                key={po.id}
-                                className={`warehouse-dropdown-item ${selectedPO?.id === po.id ? 'warehouse-dropdown-item--selected' : ''}`}
-                                onClick={() => handleSelectPOWithoutGRN(po)}
-                              >
-                                <div className="warehouse-item-name">
-                                  {po.name}
-                                  {selectedPO?.id === po.id && <FaCheckCircle style={{ color: '#22c55e', marginLeft: 6 }} />}
-                                </div>
-                                <div className="warehouse-item-company">{po.status}</div>
-                              </li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <div className="warehouse-dropdown-empty">
-                            {poSearch ? 'No matching POs' : 'This supplier has no POs pending a GRN'}
+
+                {/* ── PO Selection Section (Without GRN mode — POs with no GRN) ── */}
+                {selectedSupplier && isManual && (
+                  <>
+                    <div className="pif-grn-po-section">
+                      <div className="pif-field" ref={poSearchRef} style={{ position: 'relative', maxWidth: 500 }}>
+                        <label className="pif-label">
+                          <FaFileAlt className="pif-label-icon" />
+                          Select Purchase Order (not yet received)
+                        </label>
+                        <div className="warehouse-search-input-wrap">
+                          <FaSearch className="warehouse-search-icon" />
+                          <input
+                            type="text"
+                            className="form-field warehouse-search-input"
+                            value={poSearch}
+                            onChange={e => { setPoSearch(e.target.value); setShowPoDropdown(true); }}
+                            onFocus={() => setShowPoDropdown(true)}
+                            placeholder={loadingPOList ? 'Loading…' : 'Search Purchase Order without a GRN…'}
+                            disabled={loadingPOList}
+                          />
+                          {selectedPO && (
+                            <FaCheckCircle style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: '#22c55e', fontSize: 14 }} />
+                          )}
+                        </div>
+                        {showPoDropdown && (
+                          <div className="warehouse-dropdown">
+                            {filteredPOs.length > 0 ? (
+                              <ul className="warehouse-dropdown-list">
+                                {filteredPOs.map(po => (
+                                  <li
+                                    key={po.id}
+                                    className={`warehouse-dropdown-item ${selectedPO?.id === po.id ? 'warehouse-dropdown-item--selected' : ''}`}
+                                    onClick={() => handleSelectPOWithoutGRN(po)}
+                                  >
+                                    <div className="warehouse-item-name">
+                                      {po.name || ''}
+                                      {selectedPO?.id === po.id && <FaCheckCircle style={{ color: '#22c55e', marginLeft: 6 }} />}
+                                    </div>
+                                    <div className="warehouse-item-company">{po.status || ''}</div>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <div className="warehouse-dropdown-empty">
+                                {poSearch ? 'No matching POs' : 'This supplier has no POs pending a GRN'}
+                              </div>
+                            )}
                           </div>
                         )}
+                        <small style={{ color: 'var(--text-secondary)', fontSize: 11, marginTop: 4, display: 'block' }}>
+                          Optional — pick this to pull in a PO's items directly (no GRN exists for it yet), or skip and add items manually below.
+                        </small>
                       </div>
-                    )}
-                    <small style={{ color: 'var(--text-secondary)', fontSize: 11, marginTop: 4, display: 'block' }}>
-                      Optional — pick this to pull in a PO's items directly (no GRN exists for it yet), or skip and add items manually below.
-                    </small>
-                  </div>
-                </div>
-                <div className="pif-divider" />
-              </>
-            )}
+                    </div>
+                    <div className="pif-divider" />
+                  </>
+                )}
+
                 <div className="pif-grid-2">
                   <div className="pif-field">
                     <label className="pif-label">
@@ -1554,176 +1566,177 @@ export default function PurchaseInvoiceForm() {
                       placeholder="Optional"
                     />
                   </div>
-  {/* ── PO + GRN Selection Section (GRN mode) ─────────────────── */}
-  {selectedSupplier && isGRNMode && (
-              <>
-                <div className="pif-grn-po-section">
-                  <div className="pif-fields-row">
-                    {/* Purchase Order */}
-                    <div className="pif-field" ref={poSearchRef} style={{ position: 'relative' }}>
-                      <label className="pif-label">
-                        <FaFileAlt className="pif-label-icon" />
-                        Select Purchase Order
-                      </label>
-                      <div className="warehouse-search-input-wrap">
-                        <FaSearch className="warehouse-search-icon" />
-                        <input
-                          type="text"
-                          className={`form-field warehouse-search-input ${validationErrors.some(e => e.field === 'grn') ? 'field-error' : ''}`}
-                          value={poSearch}
-                          onChange={e => { setPoSearch(e.target.value); setShowPoDropdown(true); }}
-                          onFocus={() => setShowPoDropdown(true)}
-                          placeholder={loadingPOList ? 'Loading…' : 'Search Purchase Order…'}
-                          disabled={loadingPOList}
-                        />
-                        {selectedPO && (
-                          <FaCheckCircle style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: '#22c55e', fontSize: 14 }} />
-                        )}
-                      </div>
-                      {showPoDropdown && (
-                        <div className="warehouse-dropdown">
-                          {filteredPOs.length > 0 ? (
-                            <ul className="warehouse-dropdown-list">
-                              {filteredPOs.map(po => (
-                                <li
-                                  key={po.id}
-                                  className={`warehouse-dropdown-item ${selectedPO?.id === po.id ? 'warehouse-dropdown-item--selected' : ''}`}
-                                  onClick={() => handleSelectPO(po)}
-                                >
-                                  <div className="warehouse-item-name">
-                                    {po.name}
-                                    {selectedPO?.id === po.id && <FaCheckCircle style={{ color: '#22c55e', marginLeft: 6 }} />}
-                                  </div>
-                                  <div className="warehouse-item-company">{po.status}</div>
-                                </li>
-                              ))}
-                            </ul>
-                          ) : (
-                            <div className="warehouse-dropdown-empty">
-                              {poSearch ? 'No POs found' : 'No Purchase Orders available for this supplier'}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                </div>
 
-                    {/* GRN (multi-select) */}
-                    <div className="pif-field" ref={grnSearchRef} style={{ position: 'relative' }}>
-                      <label className="pif-label">
-                        <FaClipboardList className="pif-label-icon" />
-                        Select GRN(s) <span className="pif-required">*</span>
-                      </label>
-                      <div className="warehouse-search-input-wrap">
-                        <FaSearch className="warehouse-search-icon" />
-                        <input
-                          type="text"
-                          className={`form-field warehouse-search-input ${validationErrors.some(e => e.field === 'grn') ? 'field-error' : ''}`}
-                          value={grnSearch}
-                          onChange={e => { setGrnSearch(e.target.value); setShowGrnDropdown(true); }}
-                          onFocus={() => setShowGrnDropdown(true)}
-                          placeholder={loadingGRNList ? 'Loading…' : `Search GRN by number or PO… (${selectedGRNIds.size} selected)`}
-                          disabled={loadingGRNList}
-                        />
-                      </div>
-                      {showGrnDropdown && (
-                        <div className="warehouse-dropdown">
-                          {filteredGRNs.length > 0 ? (
-                            <ul className="warehouse-dropdown-list">
-                              {filteredGRNs.map(g => (
-                                <li
-                                  key={g.id}
-                                  className={`warehouse-dropdown-item ${selectedGRNIds.has(g.id) ? 'warehouse-dropdown-item--selected' : ''}`}
-                                  onMouseDown={(e) => { e.preventDefault(); handleSelectGRN(g); }}
-                                >
-                                  <div className="warehouse-item-name">
-                                    {g.grn_number}
-                                    {selectedGRNIds.has(g.id) && <FaCheckCircle style={{ color: '#22c55e', marginLeft: 6 }} />}
-                                  </div>
-                                  <div className="warehouse-item-company">
-                                    {g.purchase_order_number || 'No PO'} · {g.total_received_qty} received · {g.status}
-                                  </div>
-                                </li>
-                              ))}
-                            </ul>
-                          ) : (
-                            <div className="warehouse-dropdown-empty">
-                              {grnSearch ? 'No GRNs found' : 'No GRNs available for this supplier'}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Selected GRN chips */}
-                  {selectedGRNSummaries.length > 0 && (
-                    <div className="pif-grn-chip-row">
-                      {selectedGRNSummaries.map(g => (
-                        <span key={g.id} className={`pif-grn-chip pif-grn-chip--${g.status.toLowerCase()}`}>
-                          {g.grn_number}
-                          <span className="pif-grn-badge-qty"> · {g.total_received_qty} rcvd</span>
-                          <button type="button" onClick={() => toggleGRNSelection(g.id)} title="Remove">
-                            <FaTimesCircle size={11} />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Badge strip of GRNs linked to the selected PO, for quick toggling */}
-                  {linkedGRNsForPO.length > 0 && (
-                    <div className="pif-grn-strip">
-                      <span className="pif-grn-label">
-                        GRNs linked to {selectedPO?.name} ({selectedGRNIds.size}/{linkedGRNsForPO.length} selected):
-                      </span>
-                      <div className="pif-grn-badges">
-                        {linkedGRNsForPO.map(g => (
-                          <label
-                            key={g.id}
-                            className={`pif-grn-badge pif-grn-badge--${g.status.toLowerCase()}`}
-                            style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selectedGRNIds.has(g.id)}
-                              onChange={() => toggleGRNSelection(g.id)}
-                            />
-                            {g.grn_number}
-                            <span className="pif-grn-badge-qty"> · {g.total_received_qty} rcvd</span>
+                {/* ── PO + GRN Selection Section (GRN mode) ─────────────────── */}
+                {selectedSupplier && isGRNMode && (
+                  <>
+                    <div className="pif-grn-po-section">
+                      <div className="pif-fields-row">
+                        {/* Purchase Order */}
+                        <div className="pif-field" ref={poSearchRef} style={{ position: 'relative' }}>
+                          <label className="pif-label">
+                            <FaFileAlt className="pif-label-icon" />
+                            Select Purchase Order
                           </label>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div className="pif-divider" />
-              </>
-            )}
+                          <div className="warehouse-search-input-wrap">
+                            <FaSearch className="warehouse-search-icon" />
+                            <input
+                              type="text"
+                              className={`form-field warehouse-search-input ${validationErrors.some(e => e.field === 'grn') ? 'field-error' : ''}`}
+                              value={poSearch}
+                              onChange={e => { setPoSearch(e.target.value); setShowPoDropdown(true); }}
+                              onFocus={() => setShowPoDropdown(true)}
+                              placeholder={loadingPOList ? 'Loading…' : 'Search Purchase Order…'}
+                              disabled={loadingPOList}
+                            />
+                            {selectedPO && (
+                              <FaCheckCircle style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: '#22c55e', fontSize: 14 }} />
+                            )}
+                          </div>
+                          {showPoDropdown && (
+                            <div className="warehouse-dropdown">
+                              {filteredPOs.length > 0 ? (
+                                <ul className="warehouse-dropdown-list">
+                                  {filteredPOs.map(po => (
+                                    <li
+                                      key={po.id}
+                                      className={`warehouse-dropdown-item ${selectedPO?.id === po.id ? 'warehouse-dropdown-item--selected' : ''}`}
+                                      onClick={() => handleSelectPO(po)}
+                                    >
+                                      <div className="warehouse-item-name">
+                                        {po.name || ''}
+                                        {selectedPO?.id === po.id && <FaCheckCircle style={{ color: '#22c55e', marginLeft: 6 }} />}
+                                      </div>
+                                      <div className="warehouse-item-company">{po.status || ''}</div>
+                                    </li>
+                                  ))}
+                                </ul>
+                              ) : (
+                                <div className="warehouse-dropdown-empty">
+                                  {poSearch ? 'No POs found' : 'No Purchase Orders available for this supplier'}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
 
-                  {/* ── Warehouse picker (Manual / Without-GRN mode) ─────────── */}
-                  {selectedSupplier && isManual && (
-                    <>
-                      <div className="pif-divider" />
-                      <div className="pif-field" style={{ maxWidth: '500px' }}>
-                        <label className="pif-label">
-                          <FaWarehouse className="pif-label-icon" />
-                          Warehouse <span className="pif-required">*</span>
-                        </label>
-                        <select
-                          value={selectedWarehouseId}
-                          onChange={e => setSelectedWarehouseId(e.target.value ? Number(e.target.value) : '')}
-                          className={`form-field ${validationErrors.some(e => e.field === 'warehouse') ? 'field-error' : ''}`}
-                          disabled={loadingWarehouses}
-                        >
-                          <option value="">{loadingWarehouses ? 'Loading…' : 'Select warehouse'}</option>
-                          {warehouses.map(w => (
-                            <option key={w.id} value={w.id}>{w.warehouse_name}</option>
-                          ))}
-                        </select>
+                        {/* GRN (multi-select) */}
+                        <div className="pif-field" ref={grnSearchRef} style={{ position: 'relative' }}>
+                          <label className="pif-label">
+                            <FaClipboardList className="pif-label-icon" />
+                            Select GRN(s) <span className="pif-required">*</span>
+                          </label>
+                          <div className="warehouse-search-input-wrap">
+                            <FaSearch className="warehouse-search-icon" />
+                            <input
+                              type="text"
+                              className={`form-field warehouse-search-input ${validationErrors.some(e => e.field === 'grn') ? 'field-error' : ''}`}
+                              value={grnSearch}
+                              onChange={e => { setGrnSearch(e.target.value); setShowGrnDropdown(true); }}
+                              onFocus={() => setShowGrnDropdown(true)}
+                              placeholder={loadingGRNList ? 'Loading…' : `Search GRN by number or PO… (${selectedGRNIds.size} selected)`}
+                              disabled={loadingGRNList}
+                            />
+                          </div>
+                          {showGrnDropdown && (
+                            <div className="warehouse-dropdown">
+                              {filteredGRNs.length > 0 ? (
+                                <ul className="warehouse-dropdown-list">
+                                  {filteredGRNs.map(g => (
+                                    <li
+                                      key={g.id}
+                                      className={`warehouse-dropdown-item ${selectedGRNIds.has(g.id) ? 'warehouse-dropdown-item--selected' : ''}`}
+                                      onMouseDown={(e) => { e.preventDefault(); handleSelectGRN(g); }}
+                                    >
+                                      <div className="warehouse-item-name">
+                                        {g.grn_number || ''}
+                                        {selectedGRNIds.has(g.id) && <FaCheckCircle style={{ color: '#22c55e', marginLeft: 6 }} />}
+                                      </div>
+                                      <div className="warehouse-item-company">
+                                        {g.purchase_order_number || 'No PO'} · {g.total_received_qty || 0} received · {g.status || ''}
+                                      </div>
+                                    </li>
+                                  ))}
+                                </ul>
+                              ) : (
+                                <div className="warehouse-dropdown-empty">
+                                  {grnSearch ? 'No GRNs found' : 'No GRNs available for this supplier'}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </>
-                  )}
-                </div>
+
+                      {/* Selected GRN chips */}
+                      {selectedGRNSummaries.length > 0 && (
+                        <div className="pif-grn-chip-row">
+                          {selectedGRNSummaries.map(g => (
+                            <span key={g.id} className={`pif-grn-chip pif-grn-chip--${(g.status || 'draft').toLowerCase()}`}>
+                              {g.grn_number || ''}
+                              <span className="pif-grn-badge-qty"> · {g.total_received_qty || 0} rcvd</span>
+                              <button type="button" onClick={() => toggleGRNSelection(g.id)} title="Remove">
+                                <FaTimesCircle size={11} />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Badge strip of GRNs linked to the selected PO, for quick toggling */}
+                      {linkedGRNsForPO.length > 0 && (
+                        <div className="pif-grn-strip">
+                          <span className="pif-grn-label">
+                            GRNs linked to {selectedPO?.name || ''} ({selectedGRNIds.size}/{linkedGRNsForPO.length} selected):
+                          </span>
+                          <div className="pif-grn-badges">
+                            {linkedGRNsForPO.map(g => (
+                              <label
+                                key={g.id}
+                                className={`pif-grn-badge pif-grn-badge--${(g.status || 'draft').toLowerCase()}`}
+                                style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={selectedGRNIds.has(g.id)}
+                                  onChange={() => toggleGRNSelection(g.id)}
+                                />
+                                {g.grn_number || ''}
+                                <span className="pif-grn-badge-qty"> · {g.total_received_qty || 0} rcvd</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <div className="pif-divider" />
+                  </>
+                )}
+
+                {/* ── Warehouse picker (Manual / Without-GRN mode) ─────────── */}
+                {selectedSupplier && isManual && (
+                  <>
+                    <div className="pif-divider" />
+                    <div className="pif-field" style={{ maxWidth: '500px' }}>
+                      <label className="pif-label">
+                        <FaWarehouse className="pif-label-icon" />
+                        Warehouse <span className="pif-required">*</span>
+                      </label>
+                      <select
+                        value={selectedWarehouseId}
+                        onChange={e => setSelectedWarehouseId(e.target.value ? Number(e.target.value) : '')}
+                        className={`form-field ${validationErrors.some(e => e.field === 'warehouse') ? 'field-error' : ''}`}
+                        disabled={loadingWarehouses}
+                      >
+                        <option value="">{loadingWarehouses ? 'Loading…' : 'Select warehouse'}</option>
+                        {(warehouses || []).map(w => (
+                          <option key={w.id} value={w.id}>{w.warehouse_name || ''}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Right Column */}
@@ -1736,7 +1749,7 @@ export default function PurchaseInvoiceForm() {
                       <span>Supplier Details</span>
                     </div>
                     <div className="pif-party-card-content">
-                      <h3>{selectedSupplier.supplier_name}</h3>
+                      <h3>{selectedSupplier.supplier_name || ''}</h3>
                       <div className="pif-party-card-info">
                         {selectedSupplier.supplier_type && (
                           <div className="pif-party-info-item">
@@ -1846,7 +1859,7 @@ export default function PurchaseInvoiceForm() {
                   <div className="pif-party-card-content">
                     <select
                       value={formData.status}
-                      onChange={e => setFormData(p => ({ ...p, status: e.target.value }))}
+                      onChange={e => setFormData(p => ({ ...p, status: e.target.value as any }))}
                       className="form-field"
                     >
                       {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
@@ -1900,14 +1913,14 @@ export default function PurchaseInvoiceForm() {
                     </thead>
                     <tbody>
                       {items.map((row, i) => (
-                        <tr key={row.id || i} className={`pif-itr ${row.unbilled_qty === 0 ? 'pif-itr--zero' : ''}`}>
+                        <tr key={row.id || i} className={`pif-itr ${(row.unbilled_qty || 0) === 0 ? 'pif-itr--zero' : ''}`}>
                           <td className="pif-itd pif-itd-no">{i + 1}</td>
                           <td className="pif-itd" style={{ position: 'relative', overflow: 'visible' }}>
                             {isManual ? (
                               <div style={{ position: 'relative', width: '100%' }}>
                                 <input
                                   type="text"
-                                  value={row.item_code}
+                                  value={row.item_code || ''}
                                   onChange={e => {
                                     setItemSearch(e.target.value);
                                     setSelectedItemIndex(i);
@@ -1917,7 +1930,7 @@ export default function PurchaseInvoiceForm() {
                                   onFocus={() => {
                                     setSelectedItemIndex(i);
                                     setShowItemDropdown(true);
-                                    setItemSearch(row.item_code);
+                                    setItemSearch(row.item_code || '');
                                   }}
                                   onBlur={() => {
                                     setTimeout(() => {
@@ -1943,13 +1956,13 @@ export default function PurchaseInvoiceForm() {
                                               }}
                                             >
                                               <div className="pif-dropdown-item-code">
-                                                <span className="pif-item-code-highlight">{item.item_code}</span>
+                                                <span className="pif-item-code-highlight">{item.item_code || ''}</span>
                                               </div>
-                                              <div className="pif-dropdown-item-name">{item.item_name}</div>
+                                              <div className="pif-dropdown-item-name">{item.item_name || ''}</div>
                                               <div className="pif-dropdown-item-details">
-                                                <span className="pif-item-rate">₹{item.standard_rate}</span>
-                                                <span className="pif-item-uom">{item.stock_uom}</span>
-                                                <span className="pif-item-group">{item.item_group}</span>
+                                                <span className="pif-item-rate">₹{item.standard_rate || 0}</span>
+                                                <span className="pif-item-uom">{item.stock_uom || ''}</span>
+                                                <span className="pif-item-group">{item.item_group || ''}</span>
                                               </div>
                                             </li>
                                           ))}
@@ -1966,7 +1979,7 @@ export default function PurchaseInvoiceForm() {
                             ) : (
                               <input
                                 type="text"
-                                value={row.item_code}
+                                value={row.item_code || ''}
                                 onChange={e => handleItemFieldChange(i, 'item_code', e.target.value)}
                                 className="pif-cell-input"
                                 placeholder="Item code"
@@ -1976,7 +1989,7 @@ export default function PurchaseInvoiceForm() {
                           <td className="pif-itd">
                             <input
                               type="text"
-                              value={row.item_name}
+                              value={row.item_name || ''}
                               onChange={e => handleItemFieldChange(i, 'item_name', e.target.value)}
                               className="pif-cell-input"
                               placeholder="Item name"
@@ -1992,16 +2005,16 @@ export default function PurchaseInvoiceForm() {
                             />
                           </td>
                           <td className="pif-itd pif-itd-num">
-                            <span className="pif-cell-readonly">{row.ordered_qty}</span>
+                            <span className="pif-cell-readonly">{row.ordered_qty || 0}</span>
                           </td>
                           <td className="pif-itd pif-itd-num">
-                            <span className="pif-cell-readonly">{row.total_received_qty}</span>
+                            <span className="pif-cell-readonly">{row.total_received_qty || 0}</span>
                           </td>
                           <td className="pif-itd pif-itd-num">
                             {isManual ? (
                               <input
                                 type="number"
-                                value={row.bill_qty}
+                                value={row.bill_qty || 0}
                                 onChange={e => handleItemFieldChange(i, 'bill_qty', parseFloat(e.target.value) || 0)}
                                 className="pif-cell-input pif-cell-number"
                                 min="0"
@@ -2011,19 +2024,19 @@ export default function PurchaseInvoiceForm() {
                               <input
                                 type="number"
                                 className="pif-cell-input pif-cell-number"
-                                value={row.bill_qty}
+                                value={row.bill_qty || 0}
                                 min={0}
-                                max={row.unbilled_qty}
+                                max={row.unbilled_qty || 0}
                                 step="any"
                                 onChange={e => handleBillQtyChange(i, Number(e.target.value))}
-                                disabled={row.unbilled_qty === 0}
-                                title={row.unbilled_qty === 0 ? 'Already fully billed' : `Max: ${row.unbilled_qty}`}
+                                disabled={(row.unbilled_qty || 0) === 0}
+                                title={(row.unbilled_qty || 0) === 0 ? 'Already fully billed' : `Max: ${row.unbilled_qty || 0}`}
                               />
                             )}
                           </td>
                           <td className="pif-itd">
                             <select
-                              value={row.uom}
+                              value={row.uom || 'Nos'}
                               onChange={e => handleItemFieldChange(i, 'uom', e.target.value)}
                               className="pif-cell-input"
                             >
@@ -2044,7 +2057,7 @@ export default function PurchaseInvoiceForm() {
                           <td className="pif-itd pif-itd-num">
                             <input
                               type="number"
-                              value={row.rate}
+                              value={row.rate || 0}
                               onChange={e => handleItemFieldChange(i, 'rate', parseFloat(e.target.value) || 0)}
                               className="pif-cell-input pif-cell-number"
                               min="0"
@@ -2052,19 +2065,19 @@ export default function PurchaseInvoiceForm() {
                             />
                           </td>
                           <td className="pif-itd pif-itd-num pif-amount">
-                            ₹ {row.amount.toFixed(2)}
+                            ₹ {(row.amount || 0).toFixed(2)}
                           </td>
                           <td className="pif-itd pif-itd-num">
                             <select
-                              value={row.tax_rate}
+                              value={row.tax_rate || 0}
                               onChange={e => handleItemFieldChange(i, 'tax_rate', parseFloat(e.target.value) || 0)}
                               className="pif-cell-input"
                             >
-                              {taxes.map(tax => {
-                                const rate = parseInt(tax.tax_type.replace('GST', ''));
+                              {(taxes || []).map(tax => {
+                                const rate = parseInt((tax.tax_type || '').replace('GST', ''));
                                 return (
                                   <option key={tax.tax_id} value={rate}>
-                                    {tax.tax_type}
+                                    {tax.tax_type || ''}
                                   </option>
                                 );
                               })}
@@ -2170,7 +2183,7 @@ export default function PurchaseInvoiceForm() {
             <div className="pif-field" style={{ marginTop: 4 }}>
               <label className="pif-label"><FaFileAlt className="pif-label-icon" />Notes</label>
               <textarea
-                value={formData.notes}
+                value={formData.notes || ''}
                 onChange={e => setFormData(p => ({ ...p, notes: e.target.value }))}
                 className="form-field pif-textarea"
                 placeholder="Additional notes…"

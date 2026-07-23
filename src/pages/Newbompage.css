@@ -648,3 +648,238 @@ select.nbom-input {
     padding: 8px 12px;
   }
 }
+/* Add this to your Newbompage.css */
+
+/* ─── Digit Input Component ──────────────────────────────────────────────────── */
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.input-group-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary, #6b7280);
+}
+
+.digit-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--border-color, #e3e5ea);
+  border-radius: 6px;
+  background: var(--bg-input, #ffffff);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  min-height: 34px;
+}
+
+.digit-input-wrapper:focus-within {
+  border-color: var(--primary-color, #4f46e5);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+.digit-input-wrapper.digit-input-readonly {
+  background: var(--bg-muted, #f4f5f7);
+}
+
+.digit-input-prefix {
+  padding-left: 10px;
+  color: var(--text-muted, #9aa0ab);
+  font-size: 13px;
+  font-weight: 500;
+  user-select: none;
+}
+
+.digit-input-suffix {
+  padding-right: 10px;
+  color: var(--text-muted, #9aa0ab);
+  font-size: 13px;
+  font-weight: 500;
+  user-select: none;
+}
+
+.digit-input {
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  outline: none;
+  border-radius: 6px;
+  font-size: 13px;
+  background: transparent;
+  color: var(--text-primary, #1a1d29);
+}
+
+.digit-input-with-prefix {
+  padding-left: 4px;
+}
+
+.digit-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.digit-input[readonly] {
+  color: var(--text-secondary, #6b7280);
+  cursor: default;
+}
+
+.digit-input::placeholder {
+  color: var(--text-muted, #9aa0ab);
+}
+
+/* Hide spinner for number inputs */
+.digit-input-wrapper input[type="text"] {
+  -moz-appearance: textfield;
+}
+
+.digit-input-wrapper input[type="text"]::-webkit-outer-spin-button,
+.digit-input-wrapper input[type="text"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.input-group .hint {
+  font-size: 10.5px;
+  color: var(--text-muted, #9aa0ab);
+  margin: 0;
+  line-height: 1.3;
+}
+
+
+/* ─── Attractive Radio Buttons ────────────────────────────────────────────── */
+
+.nbom-bom-type-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nbom-radio-options {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.nbom-radio-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 8px 16px;
+  border: 1.5px solid var(--c-border);
+  border-radius: 8px;
+  background: var(--c-bg);
+  transition: all 0.2s ease;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--c-text-muted);
+  user-select: none;
+}
+
+.nbom-radio-option:hover {
+  border-color: var(--c-primary);
+  background: var(--c-bg-hover);
+}
+
+.nbom-radio-option input[type="radio"] {
+  display: none;
+}
+
+.nbom-radio-option .nbom-radio-option-label {
+  transition: color 0.2s ease;
+}
+
+.nbom-radio-option input[type="radio"]:checked + .nbom-radio-option-label {
+  color: var(--c-primary);
+}
+
+.nbom-radio-option:has(input[type="radio"]:checked) {
+  border-color: var(--c-primary);
+  background: rgba(59, 130, 246, 0.06);
+  box-shadow: 0 0 0 1px var(--c-primary);
+}
+
+/* Optional: Add a subtle dot indicator for checked state */
+.nbom-radio-option:has(input[type="radio"]:checked)::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background: var(--c-primary);
+  border-radius: 50%;
+  margin-right: 0px;
+  flex-shrink: 0;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .nbom-radio-option:has(input[type="radio"]:checked) {
+    background: rgba(59, 130, 246, 0.12);
+  }
+}
+
+.nbom-two-column {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.nbom-flex-item {
+  flex: 1;
+}
+
+.nbom-qty-field {
+  width: 180px;
+  flex-shrink: 0;
+}
+
+.nbom-qty-field .nbom-digit-input {
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  .nbom-two-column {
+    flex-direction: column;
+  }
+
+  .nbom-qty-field {
+    width: 100%;
+  }
+}
+.nbom-bom-type-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.nbom-bom-type-title {
+  font-weight: 600;
+  color: var(--c-text);
+  white-space: nowrap;
+  margin: 0;
+}
+
+.nbom-radio-options {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.nbom-radio-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  margin: 0;
+}
+
+.nbom-radio-option input[type="radio"] {
+  margin: 0;
+}
+
+.nbom-radio-option-label {
+  white-space: nowrap;
+}

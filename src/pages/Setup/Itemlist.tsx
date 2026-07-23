@@ -12,7 +12,6 @@ import {
   FaEdit,
   FaTrash,
 } from 'react-icons/fa';
-// import ItemQuickAdd from "./Itemquickadd";
 import "./ItemList.css";
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
@@ -47,12 +46,9 @@ export default function ItemList() {
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<Set<number>>(new Set());
-  const [allChecked, setAllChecked] = useState(false);
-  const [showModal, setShowModal] = useState(false);
-  const [hasVariants, setHasVariants] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [groupFilter, setGroupFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [totalItems, setTotalItems] = useState(0);
@@ -89,7 +85,7 @@ export default function ItemList() {
 
   // Delete item
   const handleDeleteItem = async (id: number, e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent row click from triggering
+    e.stopPropagation();
     
     if (!window.confirm('Are you sure you want to delete this item?')) {
       return;
@@ -99,15 +95,7 @@ export default function ItemList() {
     try {
       const response = await api.delete(`/item/${id}`);
       if (response.data.success === 1) {
-        // Remove the item from the list
         setItems(prevItems => prevItems.filter(item => item.id !== id));
-        // Remove from selection if selected
-        setSelected(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(id);
-          return newSet;
-        });
-        // Show success message or toast notification
         console.log('Item deleted successfully');
       } else {
         setError('Failed to delete item');
@@ -122,7 +110,7 @@ export default function ItemList() {
 
   // Handle edit
   const handleEditItem = (item: Item, e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent row click from triggering
+    e.stopPropagation();
     navigate(`/item/${item.id}`, { 
       state: { itemData: item, editMode: true } 
     });
@@ -136,14 +124,18 @@ export default function ItemList() {
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, itemsPerPage]);
+  }, [searchTerm, itemsPerPage, statusFilter, groupFilter]);
 
-  // Filter data based on status
+  // Get unique item groups for filter
+  const itemGroups = Array.from(new Set(items.map(item => item.item_group))).filter(Boolean);
+
+  // Filter data based on status and group
   const filteredItems = items.filter(item => {
     const matchesStatus = statusFilter === 'all' || 
                          (statusFilter === 'enabled' && item.disabled === 0) ||
                          (statusFilter === 'disabled' && item.disabled === 1);
-    return matchesStatus;
+    const matchesGroup = groupFilter === 'all' || item.item_group === groupFilter;
+    return matchesStatus && matchesGroup;
   });
 
   const paginatedData = filteredItems.slice(
@@ -152,22 +144,6 @@ export default function ItemList() {
   );
 
   const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
-
-  const toggleAll = () => {
-    if (allChecked) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(paginatedData.map((r) => r.id)));
-    }
-    setAllChecked(!allChecked);
-  };
-
-  const toggleRow = (id: number) => {
-    const next = new Set(selected);
-    next.has(id) ? next.delete(id) : next.add(id);
-    setSelected(next);
-    setAllChecked(next.size === paginatedData.length);
-  };
 
   const goToPage = (page: number) => {
     if (page >= 1 && page <= totalPages) setCurrentPage(page);
@@ -196,20 +172,8 @@ export default function ItemList() {
   const clearFilters = () => {
     setSearchTerm('');
     setStatusFilter('all');
+    setGroupFilter('all');
   };
-
-  // const formatDate = (dateString: string) => {
-  //   const date = new Date(dateString);
-  //   const now = new Date();
-  //   const diffTime = Math.abs(now.getTime() - date.getTime());
-  //   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-  //   if (diffDays === 1) return '1d';
-  //   if (diffDays < 7) return `${diffDays}d`;
-  //   if (diffDays < 30) return `${Math.floor(diffDays / 7)}w`;
-  //   if (diffDays < 365) return `${Math.floor(diffDays / 30)}mo`;
-  //   return date.toLocaleDateString();
-  // };
 
   const handleRowClick = (item: Item) => {
     navigate(`/item/${item.id}`, { 
@@ -218,7 +182,7 @@ export default function ItemList() {
   };
 
   const handleAddItem = () => {
-    setShowModal(true);
+    navigate("/item/new");
   };
 
   return (
@@ -252,6 +216,16 @@ export default function ItemList() {
             <option value="enabled">Enabled</option>
             <option value="disabled">Disabled</option>
           </select>
+          <select 
+            value={groupFilter} 
+            onChange={(e) => setGroupFilter(e.target.value)}
+            className="itl-filter-select"
+          >
+            <option value="all">All Groups</option>
+            {itemGroups.map(group => (
+              <option key={group} value={group}>{group}</option>
+            ))}
+          </select>
           <button className="itl-filter-btn">
             <FaFilter size={12} />
             Filter
@@ -273,7 +247,7 @@ export default function ItemList() {
       </div>
 
       {/* Active filters indicator */}
-      {(searchTerm || statusFilter !== 'all') && (
+      {(searchTerm || statusFilter !== 'all' || groupFilter !== 'all') && (
         <div className="itl-active-filters">
           <FaFilter size={12} style={{ color: 'var(--primary-color)' }} />
           <span style={{ color: 'var(--text-primary)' }}>Active filters:</span>
@@ -287,6 +261,11 @@ export default function ItemList() {
               <strong>Status:</strong> {statusFilter}
             </span>
           )}
+          {groupFilter !== 'all' && (
+            <span style={{ color: 'var(--text-primary)' }}>
+              <strong>Group:</strong> {groupFilter}
+            </span>
+          )}
           <button 
             onClick={clearFilters}
             className="itl-clear-filters"
@@ -295,12 +274,6 @@ export default function ItemList() {
           </button>
         </div>
       )}
-
-      {/* Has Variants */}
-      <div className="itl-has-variants-bar">
-        <input type="checkbox" id="hasVariants" checked={hasVariants} onChange={(e) => setHasVariants(e.target.checked)} className="itl-checkbox" />
-        <label htmlFor="hasVariants" className="itl-has-variants-label">Has Variants</label>
-      </div>
 
       {/* Loading State */}
       {loading && (
@@ -325,9 +298,6 @@ export default function ItemList() {
             <table className="itl-table">
               <thead>
                 <tr>
-                  <th className="itl-th-check">
-                    <input type="checkbox" checked={allChecked} onChange={toggleAll} className="itl-checkbox" />
-                  </th>
                   <th className="itl-th">Item Code</th>
                   <th className="itl-th">Item Name</th>
                   <th className="itl-th">Status</th>
@@ -343,7 +313,7 @@ export default function ItemList() {
               <tbody>
                 {paginatedData.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="itl-empty-state">
+                    <td colSpan={7} className="itl-empty-state">
                       <div className="itl-empty-content">
                         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
@@ -357,12 +327,9 @@ export default function ItemList() {
                   paginatedData.map((row) => (
                     <tr
                       key={row.id}
-                      className={`itl-tr ${selected.has(row.id) ? "itl-tr-selected" : ""}`}
+                      className="itl-tr"
                       onClick={() => handleRowClick(row)}
                     >
-                      <td className="itl-td-check" onClick={(e) => { e.stopPropagation(); toggleRow(row.id); }}>
-                        <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleRow(row.id)} className="itl-checkbox" />
-                      </td>
                       <td className="itl-td itl-td-code">{row.item_code}</td>
                       <td className="itl-td itl-td-name">{row.item_name}</td>
                       <td className="itl-td">
@@ -470,12 +437,6 @@ export default function ItemList() {
           )}
         </>
       )}
-
-    {showModal && (
-  <>
-    {navigate("/item/new")}
-  </>
-)}
     </div>
   );
 }

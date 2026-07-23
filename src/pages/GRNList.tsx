@@ -48,7 +48,7 @@ interface GRN {
   total_rejected_qty: number;
   remarks: string | null;
   total_items: number;
-  type?: string;
+  type?: string;   // "External" or "Internal"
 }
 
 interface GRNDisplay {
@@ -69,8 +69,9 @@ interface GRNDisplay {
   acceptedQty: number;
   rejectedQty: number;
   createdAgo: string;
-  isService: boolean;
+  isService: boolean;   // true if type === 'External'
   isManual: boolean;
+  type: string;         // add type to display
 }
 
 interface ApiResponse {
@@ -149,14 +150,13 @@ export default function GRNList() {
       const params = new URLSearchParams();
       params.append('limit', '10000');
 
-      // If your API supports search/status, you could pass them here,
-      // but we'll filter client‑side to keep tabs consistent.
       const response = await api.get<ApiResponse>(`/grn?${params.toString()}`);
 
       if (response.data.success === 1) {
         const records = response.data.data.data || [];
         const transformed: GRNDisplay[] = records.map((item: GRN) => {
-          const isService = item.customer_id !== null && item.customer_id !== undefined;
+          // Determine service based on type
+          const isService = item.type === 'External';
           const isManual = item.purchase_order_id === null && item.customer_id === null;
           const partyName = isService
             ? (item.name || item.party_name || 'N/A')
@@ -182,6 +182,7 @@ export default function GRNList() {
             createdAgo: formatDateAgo(item.grn_date || new Date().toISOString()),
             isService,
             isManual,
+            type: item.type || '',   // store the raw type
           };
         });
 
@@ -235,7 +236,8 @@ export default function GRNList() {
     } else if (activeTab === 'manual') {
       filtered = filtered.filter(g => g.purchaseOrderId === null && g.customerId === null);
     } else if (activeTab === 'service') {
-      filtered = filtered.filter(g => g.customerId !== null && g.customerId > 0);
+      // Filter by type === 'External' instead of customer_id
+      filtered = filtered.filter(g => g.type === 'External');
     }
 
     return filtered;
@@ -254,7 +256,7 @@ export default function GRNList() {
     all: allGrns.length,
     po: allGrns.filter(g => g.purchaseOrderId !== null && g.purchaseOrderId > 0).length,
     manual: allGrns.filter(g => g.purchaseOrderId === null && g.customerId === null).length,
-    service: allGrns.filter(g => g.customerId !== null && g.customerId > 0).length,
+    service: allGrns.filter(g => g.type === 'External').length,   // updated
   };
 
   // ─── Pagination handlers (with loop) ──────────────────────────
@@ -355,7 +357,6 @@ export default function GRNList() {
 
   return (
     <div className={`grn-page ${theme}`}>
-
 
       {/* ─── Tabs (BOM style) ───────────────────────────────────── */}
       <div className="grn-tabs">

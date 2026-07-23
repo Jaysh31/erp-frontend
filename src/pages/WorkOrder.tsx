@@ -79,7 +79,7 @@ export default function WorkOrderList() {
   const navigate = useNavigate();
   const { theme } = useAdminTheme();
 
-  const [workOrders, setWorkOrders] = useState<WorkOrderDisplay[]>([]);
+  const [, setWorkOrders] = useState<WorkOrderDisplay[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -89,7 +89,7 @@ export default function WorkOrderList() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [totalItems, setTotalItems] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
+  const [, setTotalPages] = useState(1);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedItem, setSelectedItem] = useState<WorkOrderDisplay | null>(null);
   const [allWorkOrders, setAllWorkOrders] = useState<WorkOrderDisplay[]>([]);

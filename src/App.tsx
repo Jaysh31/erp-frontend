@@ -107,6 +107,8 @@ import CreateSalesBill from "./pages/CreateSalesInvoice";
 import BankDetailsForm from "./pages/BankDetailsForm";
 import AddCustomer from "./pages/AddCustomer";
 import Customer from "./pages/Customer";
+import SupplierBillForm from "./pages/accounts/SupplierBillForm";
+import InputShowcase from "./pages/accounts/InputShowcase";
 
 
 function App() {
@@ -333,6 +335,13 @@ function App() {
               <Route path="/uom" element={<UOMList />} />
               <Route path="/uom/new" element={<UOMForm />} />
               <Route path="/uom/:id" element={<UOMForm />} />
+
+
+              {/* New Account setup */}
+              SupplierBillForm
+              <Route path="/CompanyAccountingSetup" element={<InputShowcase />} />
+              <Route path="/payables/supplier-bills" element={<SupplierBillForm />} />
+
 
               {/* Quality Inspection */}
               <Route path="/quality-inspection" element={<QualityInspectionList />} />

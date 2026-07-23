@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import {
   FaArrowLeft, FaSave, FaSpinner, FaInfoCircle, FaExclamationTriangle,
-  FaTimesCircle, FaClock, FaListUl, FaFileAlt, FaPlus, FaTrash,
+  FaTimesCircle, FaClock,
   FaCalendarAlt, FaPlay, FaPause, FaCheck, FaUserPlus, FaTimes,
   FaBuilding, FaUser, FaUserCheck,
 } from "react-icons/fa";
@@ -11,6 +11,109 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import "./JobCardForm.css";
 import api from "../../src/services/api";
+
+// ─── DigitInput Component ─────────────────────────────────────────────
+
+interface DigitInputProps {
+  label?: string;
+  value: string | number;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  maxLength?: number;
+  disabled?: boolean;
+  required?: boolean;
+  className?: string;
+  min?: number;
+  max?: number;
+  allowDecimal?: boolean;
+}
+
+const DigitInput: React.FC<DigitInputProps> = ({
+  label,
+  value,
+  onChange,
+  placeholder = '',
+  maxLength = 20,
+  disabled = false,
+  required = false,
+  className = '',
+  min,
+  max,
+  allowDecimal = false,
+}) => {
+  const [focused, setFocused] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let rawValue = e.target.value;
+    
+    // Remove any non-digit characters (allow decimal if enabled)
+    let filtered = allowDecimal 
+      ? rawValue.replace(/[^0-9.]/g, '') 
+      : rawValue.replace(/\D/g, '');
+    
+    // Ensure only one decimal point
+    if (allowDecimal) {
+      const parts = filtered.split('.');
+      if (parts.length > 2) {
+        filtered = parts[0] + '.' + parts.slice(1).join('');
+      }
+    }
+    
+    // Apply max length
+    if (filtered.length > maxLength) {
+      filtered = filtered.slice(0, maxLength);
+    }
+    
+    // Apply min/max constraints
+    if (filtered !== '') {
+      const numValue = parseFloat(filtered);
+      if (min !== undefined && numValue < min) {
+        filtered = String(min);
+      }
+      if (max !== undefined && numValue > max) {
+        filtered = String(max);
+      }
+    }
+    
+    onChange(filtered);
+  };
+
+  const handleWheel = (e: React.WheelEvent<HTMLInputElement>) => {
+    e.preventDefault();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Prevent 'e', 'E', '+', '-' characters
+    if (['e', 'E', '+', '-'].includes(e.key)) {
+      e.preventDefault();
+    }
+  };
+
+  const displayValue = value !== undefined && value !== null ? String(value) : '';
+
+  return (
+    <div className={`digit-input-wrapper ${className}`}>
+      {label && <label className="digit-input-label">{label}</label>}
+      <input
+        ref={inputRef}
+        type="text"
+        inputMode="numeric"
+        value={displayValue}
+        onChange={handleChange}
+        onWheel={handleWheel}
+        onKeyDown={handleKeyDown}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        placeholder={placeholder}
+        disabled={disabled}
+        required={required}
+        className={`digit-input ${focused ? 'digit-input-focused' : ''} ${disabled ? 'digit-input-disabled' : ''}`}
+        autoComplete="off"
+      />
+    </div>
+  );
+};
 
 // ─── date helpers ───────────────────────────────────────────────────────
 
@@ -35,15 +138,6 @@ const formatElapsed = (totalSeconds: number): string => {
   return `${pad2(h)}:${pad2(m)}:${pad2(s)}`;
 };
 
-// ─── interfaces ───────────────────────────────────────────────────────────
-
-interface TimeLog {
-  id: string;
-  employee: string;
-  from_time: Date | null;
-  to_time: Date | null;
-  completed_qty?: number;
-}
 
 interface WorkOrderOption {
   name: string;
@@ -68,7 +162,7 @@ interface EmployeeOption {
 }
 
 interface JobCardFormData {
-  // Tab 0 — Details
+  // Core fields
   work_order: string;
   qty_to_manufacture: number;
   posting_date: Date | null;
@@ -83,10 +177,9 @@ interface JobCardFormData {
   for_quantity: number;
   hour_rate: number;
 
-  // Tab 1 — Actual Time
+  // Actual fields
   actual_start_date: Date | null;
   actual_end_date: Date | null;
-  time_logs: TimeLog[];
   remarks: string;
 
   // Internal / not directly editable in UI
@@ -121,11 +214,6 @@ interface ValidationError {
   field: string;
   label: string;
   message: string;
-  tabIndex: number;
-}
-
-interface TabWarning {
-  [key: number]: boolean;
 }
 
 // ─── Completion Modal Props ─────────────────────────────────────────────
@@ -147,27 +235,29 @@ const CompletionModal: React.FC<CompletionModalProps> = ({
   currentCompletedQty,
   currentLossQty,
 }) => {
-  const [completedQty, setCompletedQty] = useState<number>(currentCompletedQty || 0);
-  const [lossQty, setLossQty] = useState<number>(currentLossQty || 0);
+  const [completedQty, setCompletedQty] = useState<string>(String(currentCompletedQty || 0));
+  const [lossQty, setLossQty] = useState<string>(String(currentLossQty || 0));
   const [error, setError] = useState<string>("");
 
   useEffect(() => {
-    setCompletedQty(currentCompletedQty || 0);
-    setLossQty(currentLossQty || 0);
+    setCompletedQty(String(currentCompletedQty || 0));
+    setLossQty(String(currentLossQty || 0));
     setError("");
   }, [currentCompletedQty, currentLossQty, isOpen]);
 
   const handleConfirm = () => {
-    const total = completedQty + lossQty;
+    const completed = parseFloat(completedQty) || 0;
+    const loss = parseFloat(lossQty) || 0;
+    const total = completed + loss;
     if (total > totalQty) {
       setError(`Total (${total}) cannot exceed ${totalQty}`);
       return;
     }
-    if (completedQty < 0 || lossQty < 0) {
+    if (completed < 0 || loss < 0) {
       setError("Quantities cannot be negative");
       return;
     }
-    onConfirm(completedQty, lossQty);
+    onConfirm(completed, loss);
     onClose();
   };
 
@@ -191,38 +281,34 @@ const CompletionModal: React.FC<CompletionModalProps> = ({
             </div>
             <div className="jcf-summary-row" style={{ borderTop: "1px solid var(--border-color)", paddingTop: "12px" }}>
               <span className="jcf-summary-label">Completed Quantity:</span>
-              <input
-                type="number"
-                value={completedQty}
-                onChange={(e) => {
-                  setCompletedQty(Number(e.target.value));
-                  setError("");
-                }}
-                min="0"
-                max={totalQty}
-                className="jcf-input jcf-summary-input"
-                style={{ width: "120px" }}
-              />
+              <div className="input-group">
+                <DigitInput
+                  value={completedQty}
+                  onChange={setCompletedQty}
+                  placeholder="0"
+                  maxLength={10}
+                  allowDecimal={false}
+                />
+                <span className="hint">Only numbers allowed</span>
+              </div>
             </div>
             <div className="jcf-summary-row">
               <span className="jcf-summary-label">Loss / Scrap Quantity:</span>
-              <input
-                type="number"
-                value={lossQty}
-                onChange={(e) => {
-                  setLossQty(Number(e.target.value));
-                  setError("");
-                }}
-                min="0"
-                max={totalQty}
-                className="jcf-input jcf-summary-input"
-                style={{ width: "120px" }}
-              />
+              <div className="input-group">
+                <DigitInput
+                  value={lossQty}
+                  onChange={setLossQty}
+                  placeholder="0"
+                  maxLength={10}
+                  allowDecimal={false}
+                />
+                <span className="hint">Only numbers allowed</span>
+              </div>
             </div>
             <div className="jcf-summary-row" style={{ borderTop: "1px solid var(--border-color)", paddingTop: "12px", fontWeight: "bold" }}>
               <span className="jcf-summary-label">Total (Completed + Loss):</span>
-              <span className="jcf-summary-value" style={{ color: (completedQty + lossQty) > totalQty ? "var(--danger-color)" : "var(--success-color)" }}>
-                {completedQty + lossQty}
+              <span className="jcf-summary-value" style={{ color: (parseFloat(completedQty) + parseFloat(lossQty)) > totalQty ? "var(--danger-color)" : "var(--success-color)" }}>
+                {parseFloat(completedQty) + parseFloat(lossQty)}
               </span>
             </div>
             {error && (
@@ -237,7 +323,7 @@ const CompletionModal: React.FC<CompletionModalProps> = ({
           <button 
             className="jcf-btn-primary" 
             onClick={handleConfirm}
-            disabled={completedQty + lossQty > totalQty || completedQty < 0 || lossQty < 0}
+            disabled={(parseFloat(completedQty) + parseFloat(lossQty)) > totalQty || parseFloat(completedQty) < 0 || parseFloat(lossQty) < 0}
           >
             <FaCheck size={12} /> Complete Job
           </button>
@@ -247,12 +333,60 @@ const CompletionModal: React.FC<CompletionModalProps> = ({
   );
 };
 
-const emptyTimeLog = (): TimeLog => ({
-  id: Math.random().toString(36).slice(2),
-  employee: "",
-  from_time: null,
-  to_time: null,
-});
+// ─── Success Modal Props ─────────────────────────────────────────────
+
+interface SuccessModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  message: string;
+  title?: string;
+}
+
+const SuccessModal: React.FC<SuccessModalProps> = ({
+  isOpen,
+  onClose,
+  message,
+  title = "Success",
+}) => {
+  useEffect(() => {
+    if (isOpen) {
+      // Auto-close after 3 seconds
+      const timer = setTimeout(() => {
+        onClose();
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="jcf-modal-overlay" onClick={onClose}>
+      <div className="jcf-validation-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "450px" }}>
+        <div className="jcf-modal-header jcf-modal-header-success">
+          <h2 className="jcf-modal-title-plain">
+            <FaCheck style={{ color: "#28a745", marginRight: "8px" }} />
+            {title}
+          </h2>
+          <button className="jcf-modal-close" onClick={onClose}>×</button>
+        </div>
+        <div className="jcf-modal-body" style={{ textAlign: "center", padding: "30px 20px" }}>
+          <div style={{ fontSize: "48px", marginBottom: "16px" }}>
+            <FaCheck style={{ color: "#28a745" }} />
+          </div>
+          <p style={{ fontSize: "16px", margin: 0, color: "#333" }}>
+            {message}
+          </p>
+        </div>
+        <div className="jcf-modal-footer" style={{ justifyContent: "center" }}>
+          <button className="jcf-btn-primary" onClick={onClose}>
+            <FaCheck size={12} /> OK
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const defaultFormData = (): JobCardFormData => ({
   work_order: "",
@@ -270,7 +404,6 @@ const defaultFormData = (): JobCardFormData => ({
 
   actual_start_date: null,
   actual_end_date: null,
-  time_logs: [],
   remarks: "",
 
   company: "",
@@ -305,21 +438,22 @@ const JobCardForm: React.FC = () => {
 
   const isEditMode = !!id && id !== "new";
 
-  const [activeTab, setActiveTab] = useState(0);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
-  const [warnings, setWarnings] = useState<TabWarning>({});
   const [saving, setSaving] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
 
   const [showValidationSummary, setShowValidationSummary] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
 
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
+
   const [formData, setFormData] = useState<JobCardFormData>(defaultFormData());
 
   // The real numeric primary key from the backend
   const [recordId, setRecordId] = useState<number | string | null>(null);
-  // The Job Card's own docname (e.g. "JC-00001") — needed as the "parent" for time logs
-  const [jobCardDocName, setJobCardDocName] = useState<string>("");
+  // The Job Card's own docname (e.g. "JC-00001")
+  const [, setJobCardDocName] = useState<string>("");
 
   // ─── work order dropdown ────────────────────────────────────────────
   const [workOrders, setWorkOrders] = useState<WorkOrderOption[]>([]);
@@ -330,7 +464,7 @@ const JobCardForm: React.FC = () => {
   const [loadingEmployees, setLoadingEmployees] = useState(false);
   const [showEmployeeModal, setShowEmployeeModal] = useState(false);
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<Set<string>>(new Set());
-  const [assigningEmployees, setAssigningEmployees] = useState(false);
+  const [assigningEmployees] = useState(false);
 
   // ─── job timer ───────────────────────────────────────────────────────
   const [timerRunning, setTimerRunning] = useState(false);
@@ -343,11 +477,6 @@ const JobCardForm: React.FC = () => {
 
   // ─── Completion Modal ──────────────────────────────────────────────
   const [showCompletionModal, setShowCompletionModal] = useState(false);
-
-  const tabs = [
-    { id: 0, name: "Details", icon: <FaFileAlt size={14} /> },
-    { id: 1, name: "Actual Time", icon: <FaClock size={14} /> },
-  ];
 
   // ─── load work orders for dropdown ─────────────────────────────────
   useEffect(() => {
@@ -504,77 +633,19 @@ const JobCardForm: React.FC = () => {
 
   // ─── validation ────────────────────────────────────────────────────────
 
-  const getValidationErrors = (step: number): { [key: string]: string } => {
-    const newErrors: { [key: string]: string } = {};
-    if (step === 0) {
-      if (!formData.work_order.trim()) newErrors.work_order = "Work Order is required";
-    }
-    return newErrors;
-  };
-
   const getAllValidationErrors = (): ValidationError[] => {
     const allErrors: ValidationError[] = [];
 
     if (!formData.work_order.trim())
-      allErrors.push({ field: "work_order", label: "Work Order", message: "Work Order is required", tabIndex: 0 });
+      allErrors.push({ field: "work_order", label: "Work Order", message: "Work Order is required" });
 
     if (formData.expected_start_date && formData.expected_end_date) {
       if (formData.expected_end_date < formData.expected_start_date) {
-        allErrors.push({ field: "expected_end_date", label: "Expected End Date", message: "End date cannot be before start date", tabIndex: 0 });
+        allErrors.push({ field: "expected_end_date", label: "Expected End Date", message: "End date cannot be before start date" });
       }
     }
-
-    formData.time_logs.forEach((log, i) => {
-      if (log.from_time && log.to_time && log.to_time < log.from_time) {
-        allErrors.push({ field: `time_log_${i}`, label: `Time Log ${i + 1}`, message: "To time cannot be before From time", tabIndex: 1 });
-      }
-    });
 
     return allErrors;
-  };
-
-  const getTabErrorCount = (tabId: number): number => {
-    return getAllValidationErrors().filter((e) => e.tabIndex === tabId).length;
-  };
-
-  const jumpToTab = (tabIndex: number) => {
-    setActiveTab(tabIndex);
-    setShowValidationSummary(false);
-    setErrors({});
-  };
-
-  const checkTabWarnings = (step: number): boolean => {
-    const stepErrors = getValidationErrors(step);
-    const hasWarnings = Object.keys(stepErrors).length > 0;
-    setWarnings((prev) => ({ ...prev, [step]: hasWarnings }));
-    return hasWarnings;
-  };
-
-  const getTabStatus = (tabId: number) => {
-    return warnings[tabId] ? "warning" : "ok";
-  };
-
-  const handleTabChange = (tabId: number) => {
-    checkTabWarnings(tabId);
-    setActiveTab(tabId);
-    setErrors({});
-    setShowValidationSummary(false);
-  };
-
-  const handleNext = () => {
-    const nextTab = activeTab + 1;
-    if (nextTab <= 1) {
-      checkTabWarnings(nextTab);
-      setActiveTab(nextTab);
-      setErrors({});
-      setShowValidationSummary(false);
-    }
-  };
-
-  const handlePrevious = () => {
-    setActiveTab(activeTab - 1);
-    setErrors({});
-    setShowValidationSummary(false);
   };
 
   // ─── field handlers ────────────────────────────────────────────────────
@@ -589,7 +660,12 @@ const JobCardForm: React.FC = () => {
     }
     setFormData((prev) => ({ ...prev, [name]: processedValue }));
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
-    checkTabWarnings(activeTab);
+  };
+
+  const handleNumberChange = (field: keyof JobCardFormData, value: string) => {
+    const numValue = value === '' ? 0 : parseFloat(value) || 0;
+    setFormData((prev) => ({ ...prev, [field]: numValue }));
+    if (errors[field]) setErrors((prev) => ({ ...prev, [field]: "" }));
   };
 
   const handleDateChange = (
@@ -598,7 +674,6 @@ const JobCardForm: React.FC = () => {
   ) => {
     const value = Array.isArray(date) ? date[0] : date;
     setFormData((prev) => ({ ...prev, [field]: value }));
-    checkTabWarnings(activeTab);
   };
 
   // ─── work order select ──────────────────────────────────────────────
@@ -620,28 +695,10 @@ const JobCardForm: React.FC = () => {
     }));
     
     if (errors.work_order) setErrors((prev) => ({ ...prev, work_order: "" }));
-    checkTabWarnings(activeTab);
     
     if (value) {
       fetchWorkOrderDetails(value);
     }
-  };
-
-  // ─── time logs (Tab 1) ────────────────────────────────────────────────
-
-  const addTimeLog = () => {
-    setFormData((prev) => ({ ...prev, time_logs: [...prev.time_logs, emptyTimeLog()] }));
-  };
-
-  const removeTimeLog = (logId: string) => {
-    setFormData((prev) => ({ ...prev, time_logs: prev.time_logs.filter((l) => l.id !== logId) }));
-  };
-
-  const updateTimeLog = (logId: string, field: keyof TimeLog, value: TimeLog[keyof TimeLog]) => {
-    setFormData((prev) => ({
-      ...prev,
-      time_logs: prev.time_logs.map((l) => (l.id === logId ? { ...l, [field]: value } : l)),
-    }));
   };
 
   // ─── employee assignment ────────────────────────────────────────────
@@ -702,69 +759,22 @@ const JobCardForm: React.FC = () => {
     });
   };
 
-  /**
-   * Confirms employee selection. For each selected employee, POSTs a
-   * /job-card-time-log record built from the employee's own record plus
-   * job-card context. Does NOT touch /job-card create/update/delete.
-   */
-  const confirmEmployeeAssignment = async () => {
+  const confirmEmployeeAssignment = () => {
     const selected = employees.filter((emp) => selectedEmployeeIds.has(String(emp.id)));
 
-    if (selected.length === 0) {
-      setFormData((prev) => ({ ...prev, assigned_employees: [] }));
-      setShowEmployeeModal(false);
-      return;
-    }
+    setFormData((prev) => ({
+      ...prev,
+      assigned_employees: selected.map((emp) => getEmployeeCode(emp)),
+    }));
+    setShowEmployeeModal(false);
+  };
 
-    // If we're creating a new job card, just store the employees locally
-    if (!isEditMode || !jobCardDocName) {
-      setFormData((prev) => ({
-        ...prev,
-        assigned_employees: selected.map((emp) => getEmployeeCode(emp)),
-      }));
-      setShowEmployeeModal(false);
-      return;
-    }
-
-    // For existing job cards, create time log records
-    setAssigningEmployees(true);
-    setApiError(null);
-    try {
-      const startTime = new Date();
-
-      await Promise.all(
-        selected.map((emp, index) => {
-          const empCode = getEmployeeCode(emp);
-          const payload = {
-            name: empCode,
-            modified_by: "Administrator",
-            docstatus: 0,
-            idx: index + 1,
-            employee: empCode,
-            from_time: formatDateTime(startTime),
-            to_time: null,
-            time_in_mins: 0,
-            completed_qty: 0,
-            operation: formData.operation || "",
-            parent: jobCardDocName,
-            parentfield: "time_logs",
-            parenttype: "Job Card",
-          };
-          return api.post("/job-card-time-log", payload);
-        })
-      );
-
-      setFormData((prev) => ({
-        ...prev,
-        assigned_employees: selected.map((emp) => getEmployeeCode(emp)),
-      }));
-      setShowEmployeeModal(false);
-    } catch (err: any) {
-      console.error("Error creating job card time log:", err);
-      setApiError(err.response?.data?.message || "Failed to assign employee(s) to job card");
-    } finally {
-      setAssigningEmployees(false);
-    }
+  // ─── Remove employee ────────────────────────────────────────────────
+  const removeEmployee = (employeeCode: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      assigned_employees: prev.assigned_employees.filter(code => code !== employeeCode),
+    }));
   };
 
   // ─── job timer controls ─────────────────────────────────────────────
@@ -783,7 +793,7 @@ const JobCardForm: React.FC = () => {
   const jobCompleted = formData.status === "Completed";
   const hasAssignedEmployees = formData.assigned_employees.length > 0;
 
-  // ─── Updated handleStartJob function with API call ─────────────────────
+  // ─── handleStartJob function ─────────────────────────────────────
   const handleStartJob = async () => {
     // If no employees assigned, open the assignment modal first
     if (!hasAssignedEmployees) {
@@ -892,7 +902,6 @@ const JobCardForm: React.FC = () => {
       payload.pending_qty = Math.max(0, formData.qty_to_manufacture - completedQty - lossQty);
       
       // CRITICAL FIX: Update produced_qty and process_loss_qty for the Work Order
-      // These fields need to be updated in the work order when job card is completed
       const workOrderPayload = {
         produced_qty: completedQty,
         process_loss_qty: lossQty,
@@ -913,7 +922,6 @@ const JobCardForm: React.FC = () => {
             await api.put(`/work-order/${formData.work_order}`, workOrderPayload);
           } catch (woErr) {
             console.warn("Failed to update work order quantities:", woErr);
-            // Don't throw here - job card completion is more important
           }
         }
       }
@@ -929,6 +937,10 @@ const JobCardForm: React.FC = () => {
       }));
       setShowCompletionModal(false);
       
+      // Show success message for job completion
+      setSuccessMessage("Job Card completed successfully!");
+      setShowSuccessModal(true);
+      
       if (isEditMode && recordId) {
         fetchJobCardById(String(recordId));
       }
@@ -940,7 +952,7 @@ const JobCardForm: React.FC = () => {
     }
   };
 
-  // ─── Add handleUpdate function ──────────────────────────────────────────
+  // ─── handleUpdate function ──────────────────────────────────────────
   const handleUpdate = async () => {
     const allErrors = getAllValidationErrors();
     if (allErrors.length > 0) {
@@ -967,6 +979,10 @@ const JobCardForm: React.FC = () => {
         throw new Error(response.data?.message || "Failed to update job card");
       }
 
+      // Show success modal
+      setSuccessMessage("Job Card updated successfully!");
+      setShowSuccessModal(true);
+
       fetchJobCardById(String(recordId));
       console.log("Job card updated successfully");
     } catch (err: any) {
@@ -989,13 +1005,6 @@ const JobCardForm: React.FC = () => {
           )
         )
         : 0;
-
-    const totalTimeInMins = formData.time_logs.reduce((sum, log) => {
-      if (log.from_time && log.to_time) {
-        return sum + Math.max(0, Math.round((log.to_time.getTime() - log.from_time.getTime()) / 60000));
-      }
-      return sum;
-    }, 0);
 
     const payload: any = {
       work_order: formData.work_order,
@@ -1026,7 +1035,7 @@ const JobCardForm: React.FC = () => {
       time_required: timeRequired,
       expected_end_date: formatDateTime(formData.expected_end_date),
       actual_start_date: formatDateTime(formData.actual_start_date),
-      total_time_in_mins: totalTimeInMins,
+      total_time_in_mins: 0,
       actual_end_date: formatDateTime(formData.actual_end_date),
       for_job_card: "",
       is_corrective_job_card: 0,
@@ -1058,10 +1067,15 @@ const JobCardForm: React.FC = () => {
     return payload;
   };
 
-  // ─── submit — POST/PUT /job-card ───────────────────────────────────────
+  // ─── submit — POST /job-card (only for new) ─────────────────────────
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+
+    // Only allow submit for new job cards
+    if (isEditMode) {
+      return;
+    }
 
     const allErrors = getAllValidationErrors();
     if (allErrors.length > 0) {
@@ -1075,15 +1089,9 @@ const JobCardForm: React.FC = () => {
 
     try {
       const payload = buildApiPayload();
-      console.log("Saving job card with payload:", payload);
+      console.log("Creating job card with payload:", payload);
 
-      let response;
-      if (isEditMode && recordId) {
-        response = await api.put("/job-card", payload);
-      } else {
-        response = await api.post("/job-card", payload);
-      }
-
+      const response = await api.post("/job-card", payload);
       console.log("Job card save response:", response.data);
 
       if (response.data.success !== 1) {
@@ -1123,6 +1131,14 @@ const JobCardForm: React.FC = () => {
   return (
     <div className="jcf-page">
 
+      {/* Success Modal */}
+      <SuccessModal
+        isOpen={showSuccessModal}
+        onClose={() => setShowSuccessModal(false)}
+        message={successMessage}
+        title="Success"
+      />
+
       {/* Completion Modal */}
       <CompletionModal
         isOpen={showCompletionModal}
@@ -1149,13 +1165,10 @@ const JobCardForm: React.FC = () => {
               </p>
               <div className="jcf-error-list">
                 {validationErrors.map((error, idx) => (
-                  <div key={idx} className="jcf-validation-error-item" onClick={() => jumpToTab(error.tabIndex)}>
+                  <div key={idx} className="jcf-validation-error-item">
                     <div className="jcf-error-header">
                       <FaTimesCircle className="jcf-error-icon" />
                       <strong className="jcf-error-label">{error.label}</strong>
-                      <span className="jcf-error-tab">
-                        Tab {error.tabIndex + 1}: {tabs[error.tabIndex].name}
-                      </span>
                     </div>
                     <div className="jcf-error-message">{error.message}</div>
                   </div>
@@ -1163,7 +1176,7 @@ const JobCardForm: React.FC = () => {
               </div>
               <div className="jcf-hint-banner">
                 <FaInfoCircle className="jcf-hint-icon" />
-                Click on any error to jump to that section
+                Please fix the errors above before submitting
               </div>
             </div>
             <div className="jcf-modal-footer">
@@ -1198,7 +1211,6 @@ const JobCardForm: React.FC = () => {
                   )}
                   <div className="jcf-employee-list">
                     {employees.map((emp) => {
-                      const empCode = getEmployeeCode(emp);
                       const displayName = getEmployeeName(emp);
                       const displayId = getEmployeeDisplayId(emp);
                       
@@ -1271,559 +1283,466 @@ const JobCardForm: React.FC = () => {
       <div className="jcf-container">
         <form onSubmit={handleSubmit}>
 
-          {/* Timer / Job actions bar */}
-          <div className="jcf-timer-bar">
-            <div className="jcf-timer-display">
-              <span className="jcf-timer-label"><FaClock size={11} /> ELAPSED TIME</span>
-              <span className="jcf-timer-value">{formatElapsed(elapsedSeconds)}</span>
-            </div>
-            <div className="jcf-timer-actions">
-              <button type="button" className="jcf-btn-secondary" onClick={openEmployeeModal}>
-                <FaUserPlus size={12} /> Assign Employee
-                {formData.assigned_employees.length > 0 ? ` (${formData.assigned_employees.length})` : ""}
-              </button>
+          {/* Two-column layout: main fields + sidebar */}
+          <div className="jcf-form-layout">
 
-              {/* Show Update button in edit mode */}
-              {isEditMode && !jobStarted && !jobCompleted && (
-                <button
-                  type="button"
-                  className="jcf-btn-primary"
-                  onClick={handleUpdate}
-                  disabled={saving}
-                >
-                  {saving ? <FaSpinner className="jcf-spinning" /> : <FaSave size={11} />}
-                  Update Job Card
-                </button>
-              )}
+            {/* ── LEFT COLUMN: all form fields ── */}
+            <div className="jcf-main-col">
+              <div className="jcf-card">
 
-              {!jobStarted && !jobCompleted && (
-                <button
-                  type="button"
-                  className="jcf-btn-start"
-                  onClick={handleStartJob}
-                  disabled={!hasAssignedEmployees || isStartingJob}
-                  title={!hasAssignedEmployees ? "Assign at least one employee before starting the job" : ""}
-                >
-                  {isStartingJob ? <FaSpinner className="jcf-spinning" /> : <FaPlay size={11} />}
-                  {isStartingJob ? "Starting..." : "Start Job"}
-                </button>
-              )}
+                {/* Row 1: Work Order, Qty, Posting Date */}
+                <div className="jcf-grid-3">
+                <div>
+  <label className="jcf-label">Work Order *</label>
 
-              {jobStarted && !jobCompleted && timerRunning && (
-                <>
-                  <button 
-                    type="button" 
-                    className="jcf-btn-secondary" 
-                    onClick={handlePauseJob}
-                    disabled={isStartingJob}
-                  >
-                    {isStartingJob ? <FaSpinner className="jcf-spinning" /> : <FaPause size={11} />}
-                    {isStartingJob ? "Pausing..." : "Pause Job"}
-                  </button>
-                  <button 
-                    type="button" 
-                    className="jcf-btn-complete" 
-                    onClick={handleCompleteJobClick}
-                    disabled={isStartingJob}
-                  >
-                    <FaCheck size={11} /> Complete Job
-                  </button>
-                </>
-              )}
+  {isEditMode ? (
+    <div
+      className="jcf-input"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        minHeight: "42px",
+        background: "#f8f9fa",
+        cursor: "not-allowed",
+      }}
+    >
+      {formData.work_order}
+      {woDetails?.item_name && ` - ${woDetails.item_name}`}
+      {` (Qty: ${woDetails?.qty ?? formData.qty_to_manufacture ?? 0})`}
+    </div>
+  ) : (
+    <>
+      <select
+        name="work_order"
+        value={formData.work_order || ""}
+        onChange={handleWorkOrderSelect}
+        className={`jcf-input ${errors.work_order ? "jcf-input-error" : ""}`}
+      >
+        <option value="">
+          {loadingWorkOrders ? "Loading..." : "Select Work Order"}
+        </option>
 
-              {jobStarted && !jobCompleted && !timerRunning && (
-                <>
-                  <button
-                    type="button"
-                    className="jcf-btn-start"
-                    onClick={() => {
-                      if (!hasAssignedEmployees) {
-                        openEmployeeModal();
-                      } else {
-                        handleStartJob();
-                      }
-                    }}
-                    disabled={!hasAssignedEmployees || isStartingJob}
-                    title={!hasAssignedEmployees ? "Assign at least one employee before resuming the job" : ""}
-                  >
-                    {isStartingJob ? <FaSpinner className="jcf-spinning" /> : <FaPlay size={11} />}
-                    {isStartingJob ? "Resuming..." : "Resume Job"}
-                  </button>
-                  <button 
-                    type="button" 
-                    className="jcf-btn-complete" 
-                    onClick={handleCompleteJobClick}
-                    disabled={isStartingJob}
-                  >
-                    <FaCheck size={11} /> Complete Job
-                  </button>
-                </>
-              )}
+        {workOrders.map((wo) => (
+          <option key={wo.name} value={wo.name}>
+            {wo.name} - {wo.item_name || wo.production_item || ""}
+            {wo.qty ? ` (Qty: ${wo.qty})` : ""}
+          </option>
+        ))}
 
-              {jobCompleted && <span className="jcf-status-done"><FaCheck size={11} /> Completed</span>}
-            </div>
-          </div>
+        <option value="__create_new__">+ Create New Work Order</option>
+      </select>
 
-          {/* Show assigned employees */}
-          {hasAssignedEmployees && (
-            <div className="jcf-assigned-employees">
-              <div className="jcf-assigned-header">
-                <FaUserCheck size={14} style={{ color: "var(--success-color)" }} />
-                <span style={{ fontWeight: 500, fontSize: "0.85rem" }}>Assigned Employees:</span>
-              </div>
-              <div className="jcf-assigned-list">
-                {getSelectedEmployeeDetails().map((emp, index) => (
-                  <span key={index} className="jcf-assigned-employee-tag">
-                    <FaUser size={10} />
-                    {emp.name} ({emp.id})
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
+      {errors.work_order && (
+        <span className="jcf-error-text">{errors.work_order}</span>
+      )}
 
-          {!hasAssignedEmployees && !jobStarted && !jobCompleted && (
-            <div className="jcf-tab-warning-banner">
-              <FaExclamationTriangle size={12} />
-              <span>Assign at least one employee before you can start this job.</span>
-            </div>
-          )}
+      {loadingWoDetails && (
+        <span className="jcf-hint-text">Loading...</span>
+      )}
 
-          {/* Tabs */}
-          <div className="jcf-tabs-wrap">
-            <div className="jcf-tabs-row">
-              {tabs.map((tab) => {
-                const isActive = activeTab === tab.id;
-                const tabStatus = getTabStatus(tab.id);
-                const errorCount = getTabErrorCount(tab.id);
-
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => handleTabChange(tab.id)}
-                    className={`jcf-tab-btn ${isActive ? "jcf-tab-btn-active" : ""}`}
-                  >
-                    <div
-                      className={`jcf-tab-circle ${isActive ? "jcf-tab-circle-active" : ""} ${tabStatus === "warning" && !isActive ? "jcf-tab-circle-warning" : ""
-                        }`}
-                    >
-                      {tabStatus === "warning" && !isActive ? <FaExclamationTriangle size={14} /> : tab.id + 1}
-
-                      {errorCount > 0 && !isActive && (
-                        <div className="jcf-tab-error-badge">{errorCount}</div>
-                      )}
-                    </div>
-
-                    <div className="jcf-tab-label-wrap">
-                      <div className={`jcf-tab-step ${isActive ? "jcf-tab-step-active" : ""} ${tabStatus === "warning" && !isActive ? "jcf-tab-step-warning" : ""
-                        }`}>
-                        Step {tab.id + 1}
-                      </div>
-                      <div className={`jcf-tab-name ${isActive ? "jcf-tab-name-active" : ""}`}>
-                        {tab.name}
-                      </div>
-                    </div>
-
-                    {isActive && <div className="jcf-tab-underline" />}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {warnings[activeTab] && (
-            <div className="jcf-tab-warning-banner">
-              <FaExclamationTriangle size={12} />
-              <span>This tab has incomplete or missing information. You can proceed but please review before submitting.</span>
-            </div>
-          )}
-
-          <div>
-
-            {/* Tab 0 — Details */}
-            {activeTab === 0 && (
-              <div className="jcf-fade-in">
-                <div className="jcf-card">
-                  <div className="jcf-grid-3">
-                    <div>
-                      <label className="jcf-label">Work Order *</label>
-                      <select
-                        name="work_order"
-                        value={formData.work_order}
-                        onChange={handleWorkOrderSelect}
-                        className={`jcf-input ${errors.work_order ? "jcf-input-error" : ""}`}
-                        disabled={isEditMode}
-                      >
-                        <option value="">{loadingWorkOrders ? "Loading..." : "Select Work Order"}</option>
-                        {workOrders.map((wo) => (
-                          <option key={wo.name} value={wo.name}>
-                            {wo.name} {wo.item_name ? `- ${wo.item_name}` : ""}
-                          </option>
-                        ))}
-                        <option value="__create_new__">+ Create New Work Order</option>
-                      </select>
-                      {errors.work_order && <span className="jcf-error-text">{errors.work_order}</span>}
-                      {loadingWoDetails && <span className="jcf-hint-text">Loading...</span>}
-                      {woDetails && !loadingWoDetails && formData.work_order && (
-                        <span className="jcf-hint-text" style={{ color: "var(--text-secondary)", fontSize: "0.75rem" }}>
-                          {woDetails.item_name || formData.item_name} · Qty: {woDetails.qty || formData.qty_to_manufacture}
-                        </span>
-                      )}
-                    </div>
-                    <div>
-                      <label className="jcf-label">Qty To Manufacture</label>
-                      <input
-                        type="number"
-                        name="qty_to_manufacture"
-                        value={formData.qty_to_manufacture || ""}
-                        onChange={handleInputChange}
+      {woDetails && !loadingWoDetails && formData.work_order && (
+        <span
+          className="jcf-hint-text"
+          style={{
+            color: "var(--text-secondary)",
+            fontSize: "0.75rem",
+          }}
+        >
+          {woDetails.item_name || formData.item_name} · Qty:{" "}
+          {woDetails.qty || formData.qty_to_manufacture}
+        </span>
+      )}
+    </>
+  )}
+</div>
+                  <div>
+                    <label className="jcf-label">Qty To Manufacture</label>
+                    <div className="input-group">
+                      <DigitInput
+                        value={String(formData.qty_to_manufacture)}
+                        onChange={(val) => handleNumberChange('qty_to_manufacture', val)}
                         placeholder="0"
-                        className="jcf-input"
+                        maxLength={10}
                         disabled={isEditMode}
-                      />
-                    </div>
-                    <div>
-                      <label className="jcf-label">Posting Date</label>
-                      <DatePicker
-                        selected={formData.posting_date}
-                        onChange={(date: Date | null) => handleDateChange("posting_date", date)}
-                        dateFormat="dd-MM-yyyy"
-                        className="jcf-date-input"
                       />
                     </div>
                   </div>
+                  <div>
+                    <label className="jcf-label">Posting Date</label>
+                    <DatePicker
+                      selected={formData.posting_date}
+                      onChange={(date: Date | null) => handleDateChange("posting_date", date)}
+                      dateFormat="dd-MM-yyyy"
+                      className="jcf-date-input"
+                    />
+                  </div>
+                </div>
 
-                  <div className="jcf-grid-3 jcf-mb-20">
-                    <div>
-                      <label className="jcf-label">Pending Qty</label>
-                      <input
-                        type="number"
-                        name="pending_qty"
-                        value={formData.pending_qty || ""}
-                        onChange={handleInputChange}
+                {/* Row 2: Pending Qty, Total Completed, Loss */}
+                <div className="jcf-grid-3 jcf-mb-20">
+                  <div>
+                    <label className="jcf-label">Pending Qty</label>
+                    <div className="input-group">
+                      <DigitInput
+                        value={String(formData.pending_qty)}
+                        onChange={(val) => handleNumberChange('pending_qty', val)}
                         placeholder="0"
-                        className="jcf-input"
-                        disabled={!(formData.status === "On Hold" || formData.status === "Completed")}
-                      />
-                    </div>
-                    <div>
-                      <label className="jcf-label">Total Completed Qty</label>
-                      <input
-                        type="number"
-                        name="total_completed_qty"
-                        value={formData.total_completed_qty || 0}
-                        onChange={handleInputChange}
-                        placeholder="0"
-                        className="jcf-input"
-                        disabled={!(formData.status === "On Hold" || formData.status === "Completed")}
-                      />
-                    </div>
-                    <div>
-                      <label className="jcf-label">Loss</label>
-                      <input
-                        type="number"
-                        name="process_loss_qty"
-                        value={formData.process_loss_qty || ""}
-                        onChange={handleInputChange}
-                        placeholder="0"
-                        className="jcf-input"
+                        maxLength={10}
                         disabled={!(formData.status === "On Hold" || formData.status === "Completed")}
                       />
                     </div>
                   </div>
+                  <div>
+                    <label className="jcf-label">Total Completed Qty</label>
+                    <div className="input-group">
+                      <DigitInput
+                        value={String(formData.total_completed_qty)}
+                        onChange={(val) => handleNumberChange('total_completed_qty', val)}
+                        placeholder="0"
+                        maxLength={10}
+                        disabled={!(formData.status === "On Hold" || formData.status === "Completed")}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="jcf-label">Loss</label>
+                    <div className="input-group">
+                      <DigitInput
+                        value={String(formData.process_loss_qty)}
+                        onChange={(val) => handleNumberChange('process_loss_qty', val)}
+                        placeholder="0"
+                        maxLength={10}
+                        disabled={!(formData.status === "On Hold" || formData.status === "Completed")}
+                      />
+                    </div>
+                  </div>
+                </div>
 
-                  <div className="jcf-field-block">
-                    <label className="jcf-label">Quality Inspection Template</label>
+                {/* Quality Inspection Template */}
+                <div className="jcf-field-block">
+                  <label className="jcf-label">Quality Inspection Template</label>
+                  <input
+                    type="text"
+                    name="quality_inspection_template"
+                    value={formData.quality_inspection_template}
+                    onChange={handleInputChange}
+                    placeholder="Optional"
+                    className="jcf-input"
+                  />
+                </div>
+
+                <div className="jcf-section-title"><FaCalendarAlt size={12} /> Scheduled Time</div>
+
+                <div className="jcf-grid-4">
+                  <div>
+                    <label className="jcf-label">Expected Start Date</label>
+                    <DatePicker
+                      selected={formData.expected_start_date}
+                      onChange={(date: Date | null) => handleDateChange("expected_start_date", date)}
+                      showTimeSelect
+                      dateFormat="dd-MM-yyyy HH:mm"
+                      placeholderText="Select start"
+                      className="jcf-date-input"
+                    />
+                  </div>
+                  <div>
+                    <label className="jcf-label">Expected End Date</label>
+                    <DatePicker
+                      selected={formData.expected_end_date}
+                      onChange={(date: Date | null) => handleDateChange("expected_end_date", date)}
+                      showTimeSelect
+                      dateFormat="dd-MM-yyyy HH:mm"
+                      placeholderText="Select end"
+                      className="jcf-date-input"
+                    />
+                    {errors.expected_end_date && <span className="jcf-error-text">{errors.expected_end_date}</span>}
+                  </div>
+                  <div>
+                    <label className="jcf-label">For Quantity</label>
+                    <div className="input-group">
+                      <DigitInput
+                        value={String(formData.for_quantity)}
+                        onChange={(val) => handleNumberChange('for_quantity', val)}
+                        placeholder="0"
+                        maxLength={10}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="jcf-label">Hour Rate</label>
+                    <div className="input-group">
+                      <DigitInput
+                        value={String(formData.hour_rate)}
+                        onChange={(val) => handleNumberChange('hour_rate', val)}
+                        placeholder="0.00"
+                        maxLength={10}
+                        allowDecimal={true}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="jcf-section-title"><FaClock size={12} /> Actual Schedule</div>
+
+                <div className="jcf-grid-2 jcf-mb-20">
+                  <div>
+                    <label className="jcf-label">Actual Start Date</label>
+                    <DatePicker
+                      selected={formData.actual_start_date}
+                      onChange={(date: Date | null) => handleDateChange("actual_start_date", date)}
+                      showTimeSelect
+                      dateFormat="dd-MM-yyyy HH:mm"
+                      placeholderText="Not started"
+                      className="jcf-date-input"
+                    />
+                  </div>
+                  <div>
+                    <label className="jcf-label">Actual End Date</label>
+                    <DatePicker
+                      selected={formData.actual_end_date}
+                      onChange={(date: Date | null) => handleDateChange("actual_end_date", date)}
+                      showTimeSelect
+                      dateFormat="dd-MM-yyyy HH:mm"
+                      placeholderText="Not completed"
+                      className="jcf-date-input"
+                    />
+                  </div>
+                </div>
+
+                <div className="jcf-section-title"><FaBuilding size={12} /> Warehouses</div>
+
+                <div className="jcf-grid-3">
+                  <div>
+                    <label className="jcf-label">Source Warehouse</label>
                     <input
                       type="text"
-                      name="quality_inspection_template"
-                      value={formData.quality_inspection_template}
+                      name="source_warehouse"
+                      value={formData.source_warehouse}
                       onChange={handleInputChange}
-                      placeholder="Optional"
+                      placeholder="Source warehouse"
                       className="jcf-input"
+                      disabled={isEditMode}
                     />
                   </div>
-
-                  <div className="jcf-section-title"><FaCalendarAlt size={12} /> Scheduled Time</div>
-
-                  <div className="jcf-grid-4">
-                    <div>
-                      <label className="jcf-label">Expected Start Date</label>
-                      <DatePicker
-                        selected={formData.expected_start_date}
-                        onChange={(date: Date | null) => handleDateChange("expected_start_date", date)}
-                        showTimeSelect
-                        dateFormat="dd-MM-yyyy HH:mm"
-                        placeholderText="Select start"
-                        className="jcf-date-input"
-                      />
-                    </div>
-                    <div>
-                      <label className="jcf-label">Expected End Date</label>
-                      <DatePicker
-                        selected={formData.expected_end_date}
-                        onChange={(date: Date | null) => handleDateChange("expected_end_date", date)}
-                        showTimeSelect
-                        dateFormat="dd-MM-yyyy HH:mm"
-                        placeholderText="Select end"
-                        className="jcf-date-input"
-                      />
-                      {errors.expected_end_date && <span className="jcf-error-text">{errors.expected_end_date}</span>}
-                    </div>
-                    <div>
-                      <label className="jcf-label">For Quantity</label>
-                      <input
-                        type="number"
-                        name="for_quantity"
-                        value={formData.for_quantity || ""}
-                        onChange={handleInputChange}
-                        placeholder="0"
-                        className="jcf-input"
-                      />
-                    </div>
-                    <div>
-                      <label className="jcf-label">Hour Rate</label>
-                      <input
-                        type="number"
-                        name="hour_rate"
-                        value={formData.hour_rate || ""}
-                        onChange={handleInputChange}
-                        placeholder="0.00"
-                        className="jcf-input"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="jcf-section-title"><FaBuilding size={12} /> Warehouses</div>
-
-                  <div className="jcf-grid-3">
-                    <div>
-                      <label className="jcf-label">Source Warehouse</label>
-                      <input
-                        type="text"
-                        name="source_warehouse"
-                        value={formData.source_warehouse}
-                        onChange={handleInputChange}
-                        placeholder="Source warehouse"
-                        className="jcf-input"
-                        disabled={isEditMode}
-                      />
-                    </div>
-                    <div>
-                      <label className="jcf-label">WIP Warehouse</label>
-                      <input
-                        type="text"
-                        name="wip_warehouse"
-                        value={formData.wip_warehouse}
-                        onChange={handleInputChange}
-                        placeholder="WIP warehouse"
-                        className="jcf-input"
-                        disabled={isEditMode}
-                      />
-                    </div>
-                    <div>
-                      <label className="jcf-label">Target Warehouse</label>
-                      <input
-                        type="text"
-                        name="target_warehouse"
-                        value={formData.target_warehouse}
-                        onChange={handleInputChange}
-                        placeholder="Target warehouse"
-                        className="jcf-input"
-                        disabled={isEditMode}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Status selector */}
-                  <div className="jcf-field-block jcf-mt-20">
-                    <label className="jcf-label">Status</label>
-                    <select
-                      name="status"
-                      value={formData.status}
+                  <div>
+                    <label className="jcf-label">WIP Warehouse</label>
+                    <input
+                      type="text"
+                      name="wip_warehouse"
+                      value={formData.wip_warehouse}
                       onChange={handleInputChange}
+                      placeholder="WIP warehouse"
                       className="jcf-input"
-                      disabled={formData.status === "Completed"}
-                    >
-                      <option value="Open">Open</option>
-                      <option value="Work In Progress">Work In Progress</option>
-                      <option value="On Hold">On Hold</option>
-                      <option value="Completed">Completed</option>
-                      <option value="Cancelled">Cancelled</option>
-                    </select>
+                      disabled={isEditMode}
+                    />
                   </div>
-                </div>
-              </div>
-            )}
-
-            {/* Tab 1 — Actual Time */}
-            {activeTab === 1 && (
-              <div className="jcf-fade-in">
-                <div className="jcf-card">
-                  <div className="jcf-section-title jcf-section-title-first"><FaClock size={12} /> Actual Schedule</div>
-
-                  <div className="jcf-grid-2 jcf-mb-20">
-                    <div>
-                      <label className="jcf-label">Actual Start Date</label>
-                      <DatePicker
-                        selected={formData.actual_start_date}
-                        onChange={(date: Date | null) => handleDateChange("actual_start_date", date)}
-                        showTimeSelect
-                        dateFormat="dd-MM-yyyy HH:mm"
-                        placeholderText="Not started"
-                        className="jcf-date-input"
-                      />
-                    </div>
-                    <div>
-                      <label className="jcf-label">Actual End Date</label>
-                      <DatePicker
-                        selected={formData.actual_end_date}
-                        onChange={(date: Date | null) => handleDateChange("actual_end_date", date)}
-                        showTimeSelect
-                        dateFormat="dd-MM-yyyy HH:mm"
-                        placeholderText="Not completed"
-                        className="jcf-date-input"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="jcf-section-title"><FaListUl size={12} /> Time Logs</div>
-
-                  <div className="jcf-table-wrap">
-                    <table className="jcf-table">
-                      <colgroup>
-                        <col style={{ width: "24%" }} />
-                        <col style={{ width: "26%" }} />
-                        <col style={{ width: "26%" }} />
-                        <col style={{ width: "16%" }} />
-                        <col style={{ width: "8%" }} />
-                      </colgroup>
-                      <thead>
-                        <tr>
-                          <th>Employee</th>
-                          <th>From Time</th>
-                          <th>To Time</th>
-                          <th>Completed Qty</th>
-                          <th></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {formData.time_logs.length === 0 ? (
-                          <tr>
-                            <td colSpan={5} className="jcf-table-empty">No rows</td>
-                          </tr>
-                        ) : (
-                          formData.time_logs.map((log, i) => (
-                            <tr key={log.id}>
-                              <td>
-                                <input
-                                  type="text"
-                                  value={log.employee}
-                                  onChange={(e) => updateTimeLog(log.id, "employee", e.target.value)}
-                                  placeholder="Employee"
-                                  className="jcf-cell-input"
-                                />
-                              </td>
-                              <td>
-                                <DatePicker
-                                  selected={log.from_time}
-                                  onChange={(date: Date | null) => updateTimeLog(log.id, "from_time", date)}
-                                  showTimeSelect
-                                  dateFormat="dd-MM HH:mm"
-                                  className="jcf-cell-date-input"
-                                  placeholderText="From"
-                                />
-                              </td>
-                              <td>
-                                <DatePicker
-                                  selected={log.to_time}
-                                  onChange={(date: Date | null) => updateTimeLog(log.id, "to_time", date)}
-                                  showTimeSelect
-                                  dateFormat="dd-MM HH:mm"
-                                  className="jcf-cell-date-input"
-                                  placeholderText="To"
-                                />
-                                {errors[`time_log_${i}`] && <span className="jcf-error-text">{errors[`time_log_${i}`]}</span>}
-                              </td>
-                              <td>
-                                <input
-                                  type="number"
-                                  value={log.completed_qty || ""}
-                                  onChange={(e) => updateTimeLog(log.id, "completed_qty", parseFloat(e.target.value) || 0)}
-                                  placeholder="0"
-                                  className="jcf-cell-input"
-                                />
-                              </td>
-                              <td className="jcf-cell-center">
-                                <button type="button" onClick={() => removeTimeLog(log.id)} className="jcf-row-remove">
-                                  <FaTrash size={11} />
-                                </button>
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                  <button type="button" onClick={addTimeLog} className="jcf-add-row-btn">
-                    <FaPlus size={10} /> Add Time Log
-                  </button>
-
-                  <div className="jcf-field-block jcf-mt-20">
-                    <label className="jcf-label">Remarks</label>
-                    <textarea
-                      name="remarks"
-                      value={formData.remarks}
+                  <div>
+                    <label className="jcf-label">Target Warehouse</label>
+                    <input
+                      type="text"
+                      name="target_warehouse"
+                      value={formData.target_warehouse}
                       onChange={handleInputChange}
-                      rows={4}
-                      placeholder="Any additional notes for this job card..."
-                      className="jcf-input jcf-textarea"
+                      placeholder="Target warehouse"
+                      className="jcf-input"
+                      disabled={isEditMode}
                     />
                   </div>
                 </div>
-              </div>
-            )}
-          </div>
 
-          {/* Footer actions */}
-          <div className="jcf-footer-row">
-            {activeTab > 0 && (
-              <button type="button" onClick={handlePrevious} className="jcf-btn-secondary">
-                ← Previous
-              </button>
-            )}
-            {activeTab < 1 && (
-              <button type="button" onClick={handleNext} className="jcf-btn-primary">
-                Next →
-              </button>
-            )}
-            {activeTab === 1 && (
-              <div style={{ display: 'flex', gap: '10px' }}>
-                {isEditMode && (
+                {/* Status selector */}
+                <div className="jcf-field-block jcf-mt-20">
+                  <label className="jcf-label">Status</label>
+                  <select
+                    name="status"
+                    value={formData.status}
+                    onChange={handleInputChange}
+                    className="jcf-input"
+                    disabled={formData.status === "Completed"}
+                  >
+                    <option value="Open">Open</option>
+                    <option value="Work In Progress">Work In Progress</option>
+                    <option value="On Hold">On Hold</option>
+                    <option value="Completed">Completed</option>
+                    <option value="Cancelled">Cancelled</option>
+                  </select>
+                </div>
+
+                {/* Remarks */}
+                <div className="jcf-field-block jcf-mt-20">
+                  <label className="jcf-label">Remarks</label>
+                  <textarea
+                    name="remarks"
+                    value={formData.remarks}
+                    onChange={handleInputChange}
+                    rows={4}
+                    placeholder="Any additional notes for this job card..."
+                    className="jcf-input jcf-textarea"
+                  />
+                </div>
+              </div> {/* end .jcf-card */}
+
+              {/* Footer - only for new job cards */}
+              {!isEditMode && (
+                <div className="jcf-footer-row">
                   <button 
-                    type="button" 
-                    onClick={handleUpdate} 
+                    type="submit" 
                     disabled={saving} 
                     className="jcf-btn-primary jcf-btn-submit"
                     style={{ opacity: saving ? 0.6 : 1 }}
                   >
                     {saving && <FaSpinner className="jcf-spinning" />}
-                    <FaSave /> Update Job Card
+                    <FaSave /> Create Job Card
                   </button>
-                )}
-                <button 
-                  type="submit" 
-                  disabled={saving} 
-                  className="jcf-btn-primary jcf-btn-submit"
-                  style={{ opacity: saving ? 0.6 : 1 }}
-                >
-                  {saving && <FaSpinner className="jcf-spinning" />}
-                  <FaSave /> {isEditMode ? "Save Changes" : "Create Job Card"}
-                </button>
-              </div>
-            )}
-          </div>
+                </div>
+              )}
+            </div> {/* end .jcf-main-col */}
+
+            {/* ── RIGHT SIDEBAR ── */}
+            <aside className="jcf-sidebar">
+              <div className="jcf-sidebar-card">
+
+                {/* Timer display */}
+                <div className="jcf-sidebar-timer">
+                  <span className="jcf-timer-label"><FaClock size={11} /> ELAPSED TIME</span>
+                  <span className="jcf-timer-value">{formatElapsed(elapsedSeconds)}</span>
+                </div>
+
+                {/* Status indicator */}
+                <div className="jcf-sidebar-status">
+                  <span className="jcf-status-label">Status</span>
+                  <span className={`jcf-status-badge jcf-status-${formData.status.replace(/\s/g, '-').toLowerCase()}`}>
+                    {formData.status}
+                  </span>
+                </div>
+
+                {/* Assigned employees */}
+                <div className="jcf-sidebar-section">
+                  <div className="jcf-sidebar-section-title">
+                    <FaUserCheck size={12} /> Assigned Employees
+                    {formData.assigned_employees.length > 0 && (
+                      <span className="jcf-assigned-count">{formData.assigned_employees.length}</span>
+                    )}
+                  </div>
+                  {formData.assigned_employees.length > 0 ? (
+                    <div className="jcf-assigned-list">
+                      {getSelectedEmployeeDetails().map((emp, idx) => (
+                        <div key={idx} className="jcf-assigned-employee-item">
+                          <span className="jcf-assigned-employee-tag">
+                            <FaUser size={10} /> {emp.name} ({emp.id})
+                          </span>
+                          <button
+                            type="button"
+                            className="jcf-remove-employee-btn"
+                            onClick={() => removeEmployee(emp.code)}
+                            title="Remove employee"
+                            disabled={jobStarted || jobCompleted}
+                          >
+                            <FaTimes size={10} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="jcf-sidebar-empty">No employees assigned</div>
+                  )}
+                </div>
+
+                {/* Action buttons */}
+                <div className="jcf-sidebar-actions">
+                  <button
+                    type="button"
+                    className="jcf-btn-secondary jcf-btn-block"
+                    onClick={openEmployeeModal}
+                    disabled={jobStarted || jobCompleted}
+                  >
+                    <FaUserPlus size={12} /> {hasAssignedEmployees ? "Manage Employees" : "Assign Employee"}
+                  </button>
+
+                  {/* Update button – only for edit mode */}
+                  {isEditMode && (
+                    <button
+                      type="button"
+                      className="jcf-btn-primary jcf-btn-block"
+                      onClick={handleUpdate}
+                      disabled={saving}
+                    >
+                      {saving ? <FaSpinner className="jcf-spinning" /> : <FaSave size={11} />}
+                      Update Job Card
+                    </button>
+                  )}
+
+                  {/* Start / Resume / Pause / Complete buttons */}
+                  {!jobStarted && !jobCompleted && (
+                    <button
+                      type="button"
+                      className="jcf-btn-start jcf-btn-block"
+                      onClick={handleStartJob}
+                      disabled={!hasAssignedEmployees || isStartingJob}
+                      title={!hasAssignedEmployees ? "Assign at least one employee before starting" : ""}
+                    >
+                      {isStartingJob ? <FaSpinner className="jcf-spinning" /> : <FaPlay size={11} />}
+                      {isStartingJob ? "Starting..." : "Start Job"}
+                    </button>
+                  )}
+
+                  {jobStarted && !jobCompleted && timerRunning && (
+                    <>
+                      <button
+                        type="button"
+                        className="jcf-btn-secondary jcf-btn-block"
+                        onClick={handlePauseJob}
+                        disabled={isStartingJob}
+                      >
+                        {isStartingJob ? <FaSpinner className="jcf-spinning" /> : <FaPause size={11} />}
+                        Pause Job
+                      </button>
+                      <button
+                        type="button"
+                        className="jcf-btn-complete jcf-btn-block"
+                        onClick={handleCompleteJobClick}
+                        disabled={isStartingJob}
+                      >
+                        <FaCheck size={11} /> Complete Job
+                      </button>
+                    </>
+                  )}
+
+                  {jobStarted && !jobCompleted && !timerRunning && (
+                    <>
+                      <button
+                        type="button"
+                        className="jcf-btn-start jcf-btn-block"
+                        onClick={() => {
+                          if (!hasAssignedEmployees) openEmployeeModal();
+                          else handleStartJob();
+                        }}
+                        disabled={!hasAssignedEmployees || isStartingJob}
+                      >
+                        {isStartingJob ? <FaSpinner className="jcf-spinning" /> : <FaPlay size={11} />}
+                        Resume Job
+                      </button>
+                      <button
+                        type="button"
+                        className="jcf-btn-complete jcf-btn-block"
+                        onClick={handleCompleteJobClick}
+                        disabled={isStartingJob}
+                      >
+                        <FaCheck size={11} /> Complete Job
+                      </button>
+                    </>
+                  )}
+
+                  {jobCompleted && (
+                    <div className="jcf-status-done jcf-btn-block">
+                      <FaCheck size={11} /> Completed
+                    </div>
+                  )}
+                </div>
+              </div> {/* end .jcf-sidebar-card */}
+            </aside>
+
+          </div> {/* end .jcf-form-layout */}
         </form>
       </div>
     </div>

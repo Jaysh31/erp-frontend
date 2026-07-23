@@ -999,11 +999,18 @@ select.form-field {
   background: color-mix(in srgb, var(--primary-color) 18%, var(--card-bg));
 }
 
-.wof-table-scroll {
+.wof-table-scroll{
   overflow-x: auto;
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  margin-bottom: 8px;
+  overflow-y: visible;
+  position: relative;
+}
+.wof-editable-table td{
+  position: relative;
+  overflow: visible;
+}
+
+.wof-editable-table{
+  overflow: visible;
 }
 
 .wof-editable-table {
@@ -1076,6 +1083,49 @@ select.form-field {
 .wof-row-delete-btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
+}
+
+/* ─── Operation Selection button (Operations To Perform table) ─────────
+   Replaces the old inline search dropdown, which was clipped by
+   .wof-table-scroll's overflow-x: auto (browsers force overflow-y to
+   "auto" too whenever overflow-x isn't "visible", so anything that
+   popped out of the cell vertically got cut off / caused the odd
+   overflow/scrollbar behavior). Clicking this opens a full modal instead,
+   so there's nothing for the scroll container to clip. */
+.wof-op-select-btn {
+  display: block;
+  width: 100%;
+  min-width: 130px;
+  max-width: 220px;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1.5px solid var(--border-color);
+  border-radius: 7px;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.wof-op-select-btn:hover:not(:disabled) {
+  border-color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 6%, var(--card-bg));
+  color: var(--primary-color);
+}
+
+.wof-op-select-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.wof-op-select-btn.placeholder {
+  color: var(--text-secondary);
+  font-weight: 400;
 }
 
 /* ─── Connections tab ──────────────────────────────────── */
@@ -1852,6 +1902,22 @@ select.form-field {
   background: #374151;
 }
 
+.dark .wof-op-select-btn {
+  background: #1f2937;
+  border-color: #374151;
+  color: #e5e7eb;
+}
+
+.dark .wof-op-select-btn:hover:not(:disabled) {
+  border-color: #4f46e5;
+  background: rgba(79, 70, 229, 0.12);
+  color: #818cf8;
+}
+
+.dark .wof-op-select-btn.placeholder {
+  color: #9ca3af;
+}
+
 /* ─── Responsive ─── */
 @media (max-width: 768px) {
   .wof-order-type-bar {
@@ -1887,6 +1953,10 @@ select.form-field {
 
   .wof-media-gallery {
     grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  }
+
+  .wof-op-select-btn {
+    max-width: 100%;
   }
 }
 /* ─── Stock Warning Modal ─────────────────────────────────────────────── */

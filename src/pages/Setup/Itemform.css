@@ -2,7 +2,57 @@
    ItemForm.css — consolidated, professional admin form styling
    Design tokens fall back gracefully if the app doesn't define them.
    ════════════════════════════════════════════════════════════════════ */
+/* Add to ItemForm.css */
 
+/* ─── Image Card Compact ────────────────────────────────────────────── */
+.itf-image-card-compact .itf-image-dropzone {
+  min-height: 100px;
+  padding: 12px 16px;
+}
+
+.itf-image-card-compact .itf-image-preview-img {
+  height: 100px;
+}
+
+.itf-image-card-compact .itf-image-icon-wrap {
+  width: 30px;
+  height: 30px;
+}
+
+.itf-image-card-compact .itf-image-dropzone-text {
+  font-size: 10.5px;
+}
+
+.itf-image-card-compact .itf-image-dropzone-hint {
+  font-size: 9.5px;
+}
+
+.itf-image-card-compact .itf-image-preview-wrapper {
+  flex-direction: row;
+  gap: 12px;
+  align-items: center;
+}
+
+.itf-image-card-compact .itf-image-preview {
+  width: 120px;
+  height: 100px;
+  flex-shrink: 0;
+}
+
+.itf-image-card-compact .itf-image-actions {
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.itf-image-card-compact .itf-image-btn {
+  padding: 4px 8px;
+  font-size: 10px;
+}
+
+.itf-image-card-compact .itf-section-head {
+  margin-bottom: 8px;
+}
    :root {
     --itf-primary: var(--primary-color, #4f46e5);
     --itf-primary-hover: var(--primary-hover, #4338ca);
@@ -32,7 +82,7 @@
   .itf-page {
     background: var(--itf-bg);
     min-height: 100vh;
-    padding: 24px 32px 64px;
+    padding: 16px 24px 48px;
     font-family: var(--itf-font);
     color: var(--itf-text);
     -webkit-font-smoothing: antialiased;
@@ -47,31 +97,31 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 4px 0 20px;
-    margin-bottom: 24px;
+    padding: 2px 0 12px;
+    margin-bottom: 16px;
     border-bottom: 1px solid var(--itf-border);
     flex-wrap: wrap;
-    gap: 12px;
+    gap: 8px;
   }
   
   .itf-breadcrumb {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     flex-wrap: wrap;
   }
   
   .itf-back-btn {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
     background: var(--itf-surface);
     border: 1px solid var(--itf-border);
     color: var(--itf-text-secondary);
-    font-size: 12.5px;
+    font-size: 12px;
     font-weight: 500;
     cursor: pointer;
-    padding: 6px 12px;
+    padding: 4px 10px;
     border-radius: var(--itf-radius-sm);
     transition: all 0.15s ease;
   }
@@ -84,12 +134,12 @@
   
   .itf-bc-sep {
     color: var(--itf-text-muted);
-    font-size: 13px;
+    font-size: 12px;
   }
   
   .itf-bc-link {
     color: var(--itf-text-secondary);
-    font-size: 13px;
+    font-size: 12px;
     cursor: pointer;
     transition: color 0.15s ease;
   }
@@ -101,16 +151,16 @@
   .itf-bc-current {
     color: var(--itf-text);
     font-weight: 600;
-    font-size: 13.5px;
+    font-size: 13px;
   }
   
   .itf-status-pill {
-    font-size: 10.5px;
-    padding: 3px 10px;
+    font-size: 10px;
+    padding: 2px 8px;
     border-radius: 20px;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.4px;
+    letter-spacing: 0.3px;
     margin-left: 2px;
   }
   
@@ -127,11 +177,11 @@
   .itf-topbar-actions {
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 10px;
   }
   
   .itf-unsaved-dot {
-    font-size: 12px;
+    font-size: 11px;
     color: #b98900;
     font-weight: 500;
     display: flex;
@@ -141,23 +191,23 @@
   .itf-unsaved-dot::before {
     content: "";
     display: inline-block;
-    width: 6px;
-    height: 6px;
+    width: 5px;
+    height: 5px;
     border-radius: 50%;
     background: #e0a800;
-    margin-right: 6px;
+    margin-right: 5px;
   }
   
   .itf-btn-save {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 9px 22px;
+    gap: 6px;
+    padding: 6px 16px;
     background: var(--itf-primary);
     color: #fff;
     border: none;
     border-radius: var(--itf-radius-sm);
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 600;
     cursor: pointer;
     transition: background 0.15s ease, transform 0.1s ease;
@@ -179,46 +229,46 @@
   
   /* ─── Layout ────────────────────────────────────────────────────────── */
   .itf-body {
-    max-width: 1180px;
+    max-width: 100%;
     margin: 0 auto;
   }
   
   .itf-form {
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 14px;
   }
   
   .itf-grid-main {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 320px;
-    gap: 20px;
+    grid-template-columns: minmax(0, 1fr) 280px;
+    gap: 16px;
     align-items: start;
   }
   
   .itf-col-left {
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 14px;
     min-width: 0;
   }
   
   .itf-col-right {
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 14px;
   }
   
   .itf-card-sticky {
     position: sticky;
-    top: 24px;
+    top: 16px;
   }
   
   /* ─── Card ──────────────────────────────────────────────────────────── */
   .itf-card {
     background: var(--itf-surface);
-    border-radius: var(--itf-radius-lg);
-    padding: 26px 28px;
+    border-radius: var(--itf-radius);
+    padding: 16px 18px;
     border: 1px solid var(--itf-border);
     box-shadow: var(--itf-shadow);
   }
@@ -226,7 +276,13 @@
   .itf-grid-2 {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 0 28px;
+    gap: 0 20px;
+  }
+  
+  .itf-grid-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0 16px;
   }
   
   .itf-col {
@@ -237,19 +293,19 @@
   .itf-divider {
     height: 1px;
     background: var(--itf-border);
-    margin: 20px 0;
+    margin: 12px 0;
   }
   
   /* ─── Section title ─────────────────────────────────────────────────── */
   .itf-section-head {
-    margin-bottom: 22px;
+    margin-bottom: 12px;
   }
   
   .itf-section-title {
     display: flex;
     align-items: center;
-    gap: 9px;
-    font-size: 15.5px;
+    gap: 6px;
+    font-size: 14px;
     font-weight: 650;
     color: var(--itf-text);
     margin: 0;
@@ -259,37 +315,37 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
-    border-radius: 8px;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
     background: var(--itf-primary-light);
     color: var(--itf-primary);
     flex-shrink: 0;
   }
   
   .itf-section-subtitle {
-    margin: 6px 0 0 37px;
-    font-size: 12.5px;
+    margin: 3px 0 0 30px;
+    font-size: 11.5px;
     color: var(--itf-text-muted);
-    line-height: 1.4;
+    line-height: 1.3;
   }
   
   /* ─── Field ─────────────────────────────────────────────────────────── */
   .itf-field {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    margin-bottom: 18px;
+    gap: 4px;
+    margin-bottom: 10px;
     position: relative;
   }
   
   .itf-label {
-    font-size: 12.5px;
+    font-size: 11.5px;
     font-weight: 600;
     color: var(--itf-text-secondary);
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 3px;
     letter-spacing: 0.1px;
   }
   
@@ -299,14 +355,14 @@
   }
   
   .itf-hint {
-    font-size: 11.5px;
+    font-size: 10.5px;
     color: var(--itf-text-muted);
     margin: 0;
-    line-height: 1.4;
+    line-height: 1.3;
   }
   
   .itf-field-error {
-    font-size: 11.5px;
+    font-size: 10.5px;
     color: var(--itf-danger);
     margin: 0;
     font-weight: 500;
@@ -333,26 +389,34 @@
   }
   
   .itf-input-prefix {
-    padding-left: 13px;
+    padding-left: 10px;
     color: var(--itf-text-muted);
-    font-size: 13.5px;
+    font-size: 12px;
+    font-weight: 500;
+    user-select: none;
+  }
+  
+  .itf-input-suffix {
+    padding-right: 10px;
+    color: var(--itf-text-muted);
+    font-size: 12px;
     font-weight: 500;
     user-select: none;
   }
   
   .itf-input {
     width: 100%;
-    padding: 10px 13px;
+    padding: 6px 10px;
     border: none;
     outline: none;
     border-radius: var(--itf-radius-sm);
-    font-size: 13.5px;
+    font-size: 12.5px;
     background: transparent;
     color: var(--itf-text);
   }
   
   .itf-input-has-prefix {
-    padding-left: 6px;
+    padding-left: 4px;
   }
   
   .itf-input[readonly] {
@@ -362,6 +426,17 @@
   
   .itf-input::placeholder {
     color: var(--itf-text-muted);
+  }
+  
+  /* Disable input spinner for number inputs */
+  .itf-input-wrap input[type="text"] {
+    -moz-appearance: textfield;
+  }
+  
+  .itf-input-wrap input[type="text"]::-webkit-outer-spin-button,
+  .itf-input-wrap input[type="text"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
   }
   
   /* ─── Select input ──────────────────────────────────────────────────── */
@@ -382,8 +457,8 @@
     border: 1px solid var(--itf-border);
     border-radius: var(--itf-radius-sm);
     background: var(--itf-input-bg);
-    min-height: 40px;
-    padding: 0 13px;
+    min-height: 34px;
+    padding: 0 10px;
     cursor: pointer;
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
   }
@@ -400,8 +475,8 @@
   
   .itf-select-display {
     flex: 1;
-    padding: 10px 0;
-    font-size: 13.5px;
+    padding: 6px 0;
+    font-size: 12.5px;
     color: var(--itf-text);
     background: transparent;
     border: none;
@@ -424,7 +499,7 @@
     color: var(--itf-text-muted);
     display: flex;
     align-items: center;
-    margin-left: 8px;
+    margin-left: 6px;
     flex-shrink: 0;
   }
   
@@ -435,7 +510,7 @@
   
   .itf-select-dropdown {
     position: absolute;
-    top: calc(100% + 6px);
+    top: calc(100% + 4px);
     left: 0;
     right: 0;
     background-color: var(--itf-surface);
@@ -446,17 +521,17 @@
     border: 1px solid var(--itf-border);
     border-radius: var(--itf-radius-sm);
     box-shadow: var(--itf-shadow-md);
-    max-height: 240px;
+    max-height: 200px;
     overflow-y: auto;
     z-index: 9999;
-    padding: 5px;
+    padding: 4px;
   }
   
   .itf-select-option {
-    padding: 9px 12px;
-    border-radius: 6px;
+    padding: 6px 10px;
+    border-radius: 4px;
     cursor: pointer;
-    font-size: 13px;
+    font-size: 12px;
     color: var(--itf-text);
     display: flex;
     justify-content: space-between;
@@ -480,32 +555,32 @@
   
   .itf-select-loading,
   .itf-select-empty {
-    padding: 18px;
+    padding: 12px;
     text-align: center;
     color: var(--itf-text-muted);
-    font-size: 12.5px;
+    font-size: 12px;
   }
   
   .itf-select-loading {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: 6px;
   }
   
   /* ─── Checkbox (card style) ─────────────────────────────────────────── */
   .itf-checkbox-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 10px;
-    margin-bottom: 10px;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 6px;
+    margin-bottom: 6px;
   }
   
   .itf-checkbox-card {
     display: flex;
     align-items: flex-start;
-    gap: 10px;
-    padding: 12px 14px;
+    gap: 8px;
+    padding: 8px 12px;
     border: 1px solid var(--itf-border);
     border-radius: var(--itf-radius-sm);
     cursor: pointer;
@@ -531,9 +606,9 @@
   
   .itf-checkbox-box {
     flex-shrink: 0;
-    width: 17px;
-    height: 17px;
-    border-radius: 5px;
+    width: 15px;
+    height: 15px;
+    border-radius: 4px;
     border: 1.5px solid var(--itf-border);
     background: var(--itf-surface);
     display: flex;
@@ -553,20 +628,20 @@
   .itf-checkbox-text {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 1px;
     min-width: 0;
   }
   
   .itf-checkbox-label {
-    font-size: 12.5px;
+    font-size: 11.5px;
     font-weight: 600;
     color: var(--itf-text);
   }
   
   .itf-checkbox-desc {
-    font-size: 11px;
+    font-size: 10px;
     color: var(--itf-text-muted);
-    line-height: 1.3;
+    line-height: 1.2;
   }
   
   /* ─── Image upload ──────────────────────────────────────────────────── */
@@ -577,12 +652,12 @@
   .itf-image-dropzone {
     border: 1.5px dashed var(--itf-border);
     border-radius: var(--itf-radius);
-    padding: 28px 20px;
+    padding: 16px 16px;
     text-align: center;
     cursor: pointer;
     transition: all 0.15s ease;
     background: var(--itf-hover);
-    min-height: 180px;
+    min-height: 140px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -603,12 +678,12 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
   }
   
   .itf-image-icon-wrap {
-    width: 44px;
-    height: 44px;
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
     background: var(--itf-surface);
     border: 1px solid var(--itf-border);
@@ -616,13 +691,13 @@
     align-items: center;
     justify-content: center;
     color: var(--itf-text-muted);
-    margin-bottom: 4px;
+    margin-bottom: 2px;
   }
   
   .itf-image-dropzone-text {
-    margin: 4px 0 2px;
+    margin: 2px 0 1px;
     color: var(--itf-text-secondary);
-    font-size: 12.5px;
+    font-size: 11.5px;
   }
   
   .itf-image-dropzone-bold {
@@ -633,7 +708,7 @@
   .itf-image-dropzone-hint {
     margin: 0;
     color: var(--itf-text-muted);
-    font-size: 11px;
+    font-size: 10px;
   }
   
   .itf-image-file-input {
@@ -644,7 +719,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
   }
   
   .itf-image-preview {
@@ -658,14 +733,14 @@
   
   .itf-image-preview-img {
     width: 100%;
-    height: 180px;
+    height: 140px;
     object-fit: cover;
     display: block;
   }
   
   .itf-image-actions {
     display: flex;
-    gap: 8px;
+    gap: 6px;
     width: 100%;
   }
   
@@ -674,12 +749,12 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    padding: 8px 12px;
+    gap: 4px;
+    padding: 5px 10px;
     border: 1px solid var(--itf-border);
     border-radius: var(--itf-radius-sm);
     background: var(--itf-surface);
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.15s ease;
@@ -708,34 +783,34 @@
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    margin-bottom: 16px;
-    gap: 12px;
+    margin-bottom: 10px;
+    gap: 8px;
   }
   
   .itf-opening-stock-header h4 {
-    margin: 0 0 2px;
-    font-size: 13.5px;
+    margin: 0 0 1px;
+    font-size: 12.5px;
     font-weight: 600;
     color: var(--itf-text);
   }
   
   .itf-opening-stock-sub {
     margin: 0;
-    font-size: 11.5px;
+    font-size: 10.5px;
     color: var(--itf-text-muted);
   }
   
   .itf-btn-add-row {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 8px 14px;
+    gap: 4px;
+    padding: 4px 12px;
     background: var(--itf-primary);
     color: white;
     border: none;
     border-radius: var(--itf-radius-sm);
     cursor: pointer;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
     white-space: nowrap;
     transition: background 0.15s ease;
@@ -754,31 +829,31 @@
   .itf-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 13px;
+    font-size: 12px;
   }
   
   .itf-table th {
     background: var(--itf-hover);
-    padding: 10px 12px;
+    padding: 6px 10px;
     text-align: left;
     font-weight: 600;
-    font-size: 11.5px;
+    font-size: 10.5px;
     text-transform: uppercase;
-    letter-spacing: 0.3px;
+    letter-spacing: 0.2px;
     color: var(--itf-text-secondary);
     border-bottom: 1px solid var(--itf-border);
   }
   
   .itf-table-th-num {
-    width: 36px;
+    width: 30px;
   }
   
   .itf-table-th-action {
-    width: 44px;
+    width: 36px;
   }
   
   .itf-table td {
-    padding: 8px 12px;
+    padding: 4px 8px;
     border-bottom: 1px solid var(--itf-border);
     vertical-align: middle;
   }
@@ -789,15 +864,16 @@
   
   .itf-table-td-num {
     color: var(--itf-text-muted);
-    font-size: 12.5px;
+    font-size: 11.5px;
+    text-align: center;
   }
   
   .itf-table-input {
     width: 100%;
-    padding: 7px 10px;
+    padding: 4px 8px;
     border: 1px solid var(--itf-border);
-    border-radius: 6px;
-    font-size: 13px;
+    border-radius: 4px;
+    font-size: 12px;
     text-align: right;
     background: var(--itf-input-bg);
     color: var(--itf-text);
@@ -817,14 +893,14 @@
   
   .itf-table-empty {
     text-align: center;
-    padding: 32px 16px;
+    padding: 20px 12px;
     color: var(--itf-text-muted);
-    font-size: 12.5px;
+    font-size: 11.5px;
   }
   
   .itf-table-empty-icon {
     display: block;
-    margin: 0 auto 8px;
+    margin: 0 auto 6px;
     color: var(--itf-text-muted);
     opacity: 0.6;
   }
@@ -834,8 +910,8 @@
     border: none;
     color: var(--itf-danger);
     cursor: pointer;
-    padding: 6px;
-    border-radius: 6px;
+    padding: 4px;
+    border-radius: 4px;
     display: flex;
     transition: background 0.15s ease;
   }
@@ -865,7 +941,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 11px 14px;
+    padding: 6px 12px;
     background: var(--itf-surface);
   }
   
@@ -875,13 +951,13 @@
   
   .itf-pricing-label {
     color: var(--itf-text-secondary);
-    font-size: 12.5px;
+    font-size: 11.5px;
   }
   
   .itf-pricing-value {
     font-weight: 600;
     color: var(--itf-text);
-    font-size: 13px;
+    font-size: 12px;
   }
   
   .itf-pricing-total {
@@ -896,41 +972,41 @@
   
   .itf-pricing-total .itf-pricing-value {
     color: var(--itf-primary);
-    font-size: 15px;
+    font-size: 13px;
   }
   
   /* ─── Right-rail summary block ──────────────────────────────────────── */
   .itf-summary-block {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 6px;
   }
   
   .itf-summary-row {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-size: 12.5px;
+    font-size: 11.5px;
     color: var(--itf-text-secondary);
   }
   
   .itf-summary-row strong {
     color: var(--itf-text);
-    font-size: 13px;
+    font-size: 12px;
   }
   
   .itf-summary-highlight {
     color: var(--itf-primary) !important;
-    font-size: 15px !important;
+    font-size: 13px !important;
   }
   
   /* ─── Inventory record panel ────────────────────────────────────────── */
   .itf-inventory-loading {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 12px 0 2px;
-    font-size: 12.5px;
+    gap: 6px;
+    padding: 8px 0 2px;
+    font-size: 11.5px;
     color: var(--itf-text-muted);
   }
   
@@ -938,43 +1014,43 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 10px;
+    margin-bottom: 6px;
   }
   
   .itf-inventory-record-head span:first-child {
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 600;
     color: var(--itf-text);
   }
   
   .itf-inventory-record-tag {
-    font-size: 10.5px;
+    font-size: 9.5px;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.3px;
+    letter-spacing: 0.2px;
     color: var(--itf-success);
     background: var(--itf-success-bg);
-    padding: 3px 9px;
+    padding: 2px 8px;
     border-radius: 20px;
   }
   
   /* ─── Validation errors ─────────────────────────────────────────────── */
   .itf-validation-errors {
-    padding: 14px 16px;
+    padding: 10px 14px;
     background: var(--itf-danger-bg);
     border: 1px solid #f3c8bf;
     border-radius: var(--itf-radius-sm);
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 4px;
   }
   
   .itf-validation-error {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     color: var(--itf-danger);
-    font-size: 12.5px;
+    font-size: 11.5px;
     font-weight: 500;
   }
   
@@ -984,13 +1060,13 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    min-height: 400px;
-    gap: 14px;
+    min-height: 300px;
+    gap: 10px;
     color: var(--itf-text-secondary);
   }
   
   .itf-loading-state p {
-    font-size: 13.5px;
+    font-size: 13px;
   }
   
   .itf-spin {
@@ -1034,12 +1110,25 @@
     }
   }
   
+  @media (max-width: 768px) {
+    .itf-grid-2 {
+      grid-template-columns: 1fr;
+      gap: 0;
+    }
+    
+    .itf-grid-3 {
+      grid-template-columns: 1fr 1fr;
+      gap: 0 12px;
+    }
+  }
+  
   @media (max-width: 640px) {
     .itf-page {
-      padding: 16px 16px 48px;
+      padding: 12px 12px 32px;
     }
   
-    .itf-grid-2 {
+    .itf-grid-2,
+    .itf-grid-3 {
       grid-template-columns: 1fr;
       gap: 0;
     }
@@ -1059,10 +1148,51 @@
     }
   
     .itf-card {
-      padding: 18px;
+      padding: 12px 14px;
     }
   
     .itf-checkbox-grid {
       grid-template-columns: 1fr;
     }
+    
+    .itf-col-right {
+      order: -1;
+    }
   }
+  /* ─── 50:50 Split Layout ────────────────────────────────────────────── */
+.itf-grid-2-50 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.itf-col-left-50 {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.itf-col-right-50 {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ─── Responsive adjustments ─────────────────────────────────────────── */
+@media (max-width: 980px) {
+  .itf-grid-2-50 {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  
+  .itf-col-left-50,
+  .itf-col-right-50 {
+    gap: 14px;
+  }
+}
+
+@media (max-width: 768px) {
+  .itf-grid-2-50 {
+    grid-template-columns: 1fr;
+  }
+}
