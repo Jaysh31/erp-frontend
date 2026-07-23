@@ -443,8 +443,8 @@
 }
 
 .supplier-status-inactive {
-  background: #f3f4f6;
-  color: #6b7280;
+  background: #f9dcdc;
+  color: #f20000;
 }
 
 .dark-theme .supplier-status-active {

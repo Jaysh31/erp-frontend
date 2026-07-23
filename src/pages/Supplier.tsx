@@ -112,7 +112,7 @@ export default function SupplierList() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [totalSuppliers, setTotalSuppliers] = useState(0);
-  const [, setTotalPages] = useState(1);
+const [totalPages, setTotalPages] = useState(1);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState<SupplierDisplay | null>(null);
   const [supplierGroups, setSupplierGroups] = useState<string[]>([]);
@@ -257,8 +257,15 @@ export default function SupplierList() {
     return matchesSearch && matchesStatus && matchesGroup;
   });
 
-  const totalFilteredItems = filteredData.length;
-  const totalPagesFiltered = Math.ceil(totalFilteredItems / itemsPerPage);
+ const totalFilteredItems =
+  searchTerm || statusFilter !== "all" || groupFilter !== "all"
+    ? filteredData.length
+    : totalSuppliers;
+
+const totalPagesFiltered =
+  searchTerm || statusFilter !== "all" || groupFilter !== "all"
+    ? Math.ceil(filteredData.length / itemsPerPage)
+    : totalPages;
 
   // Ensure current page is valid when data changes
   const validCurrentPage = Math.min(currentPage, totalPagesFiltered || 1);
@@ -266,10 +273,7 @@ export default function SupplierList() {
     setCurrentPage(validCurrentPage);
   }
 
-  const paginatedData = filteredData.slice(
-    (validCurrentPage - 1) * itemsPerPage,
-    validCurrentPage * itemsPerPage
-  );
+  const paginatedData = filteredData;
 
   const toggleAll = () => {
     if (allChecked) {
@@ -471,9 +475,12 @@ const handleQuickAddBankAccount = (supplier: SupplierDisplay) => {
     return (validCurrentPage - 1) * itemsPerPage + 1;
   };
 
-  const getEndIndex = () => {
-    return Math.min(validCurrentPage * itemsPerPage, totalFilteredItems);
-  };
+ const getEndIndex = () => {
+  return Math.min(
+    (currentPage - 1) * itemsPerPage + paginatedData.length,
+    totalSuppliers
+  );
+};
 
 
   return (
@@ -581,9 +588,9 @@ const handleQuickAddBankAccount = (supplier: SupplierDisplay) => {
             <table className="supplier-table">
               <thead>
                 <tr>
-                  <th className="supplier-th-check">
-                    <input type="checkbox" checked={allChecked} onChange={toggleAll} className="supplier-checkbox" />
-                  </th>
+                  {/* <th className="supplier-th-check"> */}
+                    {/* <input type="checkbox" checked={allChecked} onChange={toggleAll} className="supplier-checkbox" /> */}
+                  {/* </th> */}
                   <th className="supplier-th">Supplier Name</th>
                   <th className="supplier-th">Contact</th>
                   <th className="supplier-th">Group</th>
@@ -616,9 +623,9 @@ const handleQuickAddBankAccount = (supplier: SupplierDisplay) => {
                         key={row.id}
                         className={`supplier-tr ${selected.has(row.id) ? "supplier-tr-selected" : ""}`}
                       >
-                        <td className="supplier-td-check" onClick={(e) => { e.stopPropagation(); toggleRow(row.id); }}>
-                          <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleRow(row.id)} className="supplier-checkbox" />
-                        </td>
+                        {/* <td className="supplier-td-check" onClick={(e) => { e.stopPropagation(); toggleRow(row.id); }}> */}
+                          {/* <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleRow(row.id)} className="supplier-checkbox" /> */}
+                        {/* </td> */}
                         <td className="supplier-td supplier-td-name">{row.supplierName}</td>
                         <td className="supplier-td">
                           <div className="supplier-contact">
@@ -663,7 +670,7 @@ const handleQuickAddBankAccount = (supplier: SupplierDisplay) => {
                           )}
                         </td>
                         <td className="supplier-td supplier-td-meta">
-                          <span className="supplier-dot">·</span>
+                          {/* <span className="supplier-dot">·</span> */}
                           <div className="supplier-action-buttons">
                             <button
                               className="supplier-action-btn supplier-action-view"
@@ -682,7 +689,7 @@ const handleQuickAddBankAccount = (supplier: SupplierDisplay) => {
                             <button
                               className="supplier-action-btn supplier-action-delete"
                               onClick={(e) => { e.stopPropagation(); handleDelete(row); }}
-                              title="Delete"
+                              title="Inactive"
                             >
                               <FaTrash size={12} />
                             </button>
