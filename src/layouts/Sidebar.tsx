@@ -335,7 +335,9 @@ export default function Sidebar({
       items: [
         { title: 'Bank Accounts', icon: <BankAccountIcon />, path: '/banking/bank-accounts' },
         { title: 'Bank Transactions', icon: <BankTransactionIcon />, path: '/banking/bank-transactions' },
-        { title: 'Bank Reconciliation', icon: <BankReconciliationIcon />, path: '/banking/bank-reconciliation' }
+        { title: 'Bank Reconciliation', icon: <BankReconciliationIcon />, path: '/banking/bank-reconciliation' },
+        { title: 'Setups', icon: <TagIcon />, path: '/CompanyAccountingSetup' },
+
       ]
     },
     {
@@ -344,6 +346,7 @@ export default function Sidebar({
       icon: <ExpenseIcon />,
       items: [
         { title: 'Expense', icon: <TagIcon />, path: '/expenses/expense' },
+        
       ]
     },
     {

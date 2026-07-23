@@ -1298,3 +1298,213 @@ select.jcf-input {
     transform: none;
   }
 }
+
+/* ── Two‑column layout ────────────────────────────────────────── */
+.jcf-form-layout {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.jcf-main-col {
+  flex: 1;
+  min-width: 0; /* prevents overflow */
+}
+
+.jcf-sidebar {
+  width: 280px;
+  flex-shrink: 0;
+}
+
+/* ── Sidebar card ────────────────────────────────────────────── */
+.jcf-sidebar-card {
+  background: var(--jcf-surface);
+  border: 1px solid var(--jcf-border);
+  border-radius: var(--jcf-radius-lg);
+  padding: 20px 16px;
+  box-shadow: var(--jcf-shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* Timer inside sidebar */
+.jcf-sidebar-timer {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--jcf-border);
+}
+
+.jcf-sidebar-timer .jcf-timer-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--jcf-text-muted);
+}
+
+.jcf-sidebar-timer .jcf-timer-value {
+  font-family: var(--jcf-mono);
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--jcf-text-primary);
+  letter-spacing: 1px;
+}
+
+/* Status badge */
+.jcf-sidebar-status {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0 12px;
+  border-bottom: 1px solid var(--jcf-border);
+}
+
+.jcf-status-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--jcf-text-secondary);
+}
+
+.jcf-status-badge {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 20px;
+  text-transform: capitalize;
+}
+
+.jcf-status-open {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.jcf-status-work-in-progress {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.jcf-status-on-hold {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.jcf-status-completed {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.jcf-status-cancelled {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+/* Assigned employees section */
+.jcf-sidebar-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--jcf-border);
+}
+
+.jcf-sidebar-section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--jcf-text-secondary);
+}
+
+.jcf-assigned-count {
+  background: var(--jcf-blue);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 0 6px;
+  border-radius: 10px;
+  margin-left: auto;
+}
+
+.jcf-sidebar-empty {
+  font-size: 13px;
+  color: var(--jcf-text-muted);
+  font-style: italic;
+}
+
+/* Assigned employee tags (reuse existing styles) */
+.jcf-assigned-employee-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--jcf-blue-light);
+  border: 1px solid var(--jcf-blue-mid);
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  color: var(--jcf-blue-dark);
+}
+
+.jcf-assigned-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* Sidebar action buttons */
+.jcf-sidebar-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.jcf-btn-block {
+  width: 100%;
+  justify-content: center;
+}
+
+/* Responsive: stack columns on narrow screens */
+@media (max-width: 860px) {
+  .jcf-form-layout {
+    flex-direction: column;
+  }
+
+  .jcf-sidebar {
+    width: 100%;
+  }
+}
+/* ── Remove employee button ────────────────────────────────── */
+.jcf-assigned-employee-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.jcf-remove-employee-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: #fee2e2;
+  color: #dc2626;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s;
+  padding: 0;
+  font-size: 8px;
+}
+
+.jcf-remove-employee-btn:hover:not(:disabled) {
+  background: #fecaca;
+  transform: scale(1.1);
+}
+
+.jcf-remove-employee-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

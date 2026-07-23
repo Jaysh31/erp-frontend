@@ -6,11 +6,12 @@ import {
   FaInfoCircle, FaTimesCircle, FaPlus, FaTrash,
   FaPaperPlane, FaSearch,  FaBuilding, FaTruck,
   FaImage,  FaCalendarAlt,
-  FaCheckCircle,
+  FaCheckCircle, FaBoxOpen, FaCogs,
 } from "react-icons/fa";
 import "./WorkOrderForm.css";
 import { useAdminTheme } from "../admin-theme/AdminThemeContext";
 import api from "../services/api";
+import { createPortal } from "react-dom";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -47,28 +48,76 @@ interface CommentRow {
   time: string;
 }
 
-interface GRNItem {
-  id: number;
-  item_code: string;
-  item_name: string;
-  qty: number;
-  uom: string;
-  rate: number;
-  amount: number;
-  warehouse: string;
-}
-
+// Exact shape from GET /grn?page=1&limit=10&type=External
 interface GRNData {
   id: number;
-  name: string;
-  supplier: string;
-  date: string;
-  items: GRNItem[];
-  total_qty: number;
-  total_amount: number;
+  grn_number: string;
+  grn_date: string;
+  supplier_id: number | null;
+  supplier_name: string | null;
+  customer_id: number | null;
+  customer_name: string | null;
+  party_name: string | null;
+  purchase_order_id: number | null;
+  warehouse_id: number | null;
+  received_by: string | null;
+  vehicle_number: string | null;
+  delivery_challan_no: string | null;
+  invoice_number: string | null;
   status: string;
-  po_number?: string;
-  delivery_note?: string;
+  type: string;
+  is_completed: number;
+  total_ordered_qty: number;
+  total_received_qty: number;
+  total_accepted_qty: number;
+  total_rejected_qty: number;
+  remarks: string | null;
+  creation: string;
+  modified: string;
+  modified_by: string;
+  total_items: number;
+}
+
+interface GRNListResponse {
+  success: number;
+  data: {
+    data: GRNData[];
+    totalRecords: number;
+    page: number;
+    limit: number;
+  };
+}
+
+// Full GRN detail — GET /grn/:id. This is the shape that actually carries
+// the item lines + warehouse, which the list endpoint above does not.
+interface GRNItemDetail {
+  id: number;
+  grn_id: number;
+  item_id: number;
+  item_code: string;
+  item_name: string;
+  ordered_qty: number;
+  received_qty: number;
+  accepted_qty: number;
+  rejected_qty: number;
+  uom: string;
+  rate: number;
+  purchase_rate: number;
+  amount: number;
+  batch_no: string | null;
+  expiry_date: string | null;
+  remarks: string | null;
+}
+
+interface GRNDetail extends Omit<GRNData, "warehouse_id"> {
+  warehouse_id: number | null;
+  warehouse_name: string | null;
+  items: GRNItemDetail[];
+}
+
+interface GRNDetailResponse {
+  success: number;
+  data: GRNDetail;
 }
 
 interface WorkOrderData {
@@ -119,7 +168,7 @@ interface WorkOrderData {
   material_request_count: number;
   // External WO fields
   selected_grn_id?: number;
-  grn_items?: GRNItem[];
+  selected_grn?: GRNData;
   customer_name?: string;
   customer_po?: string;
   // Media
@@ -204,6 +253,26 @@ interface Warehouse {
 interface WarehouseResponse {
   success: number;
   data: { records: Warehouse[] };
+}
+
+// ─── Operation master API shape (GET /operation) ─────────────────────────────
+// Used only for External Work Orders: lets the user pick a defined
+// operation (with its workstation + hour rate) rather than typing free text.
+
+interface OperationMaster {
+  id: number;
+  name: string;
+  workstationId: number;
+  workstation_name: string;
+  batch_size: number;
+  total_operation_time: number;
+  hour_rate: number;
+  description: string | null;
+}
+
+interface OperationListResponse {
+  success: number;
+  data: OperationMaster[];
 }
 
 // ─── Job Card API shape ───────────────────────────────────────────────────────
@@ -297,6 +366,7 @@ interface WOPayload {
 
   // External WO fields
   selected_grn_id?: number;
+  order_type?: OrderType;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -348,116 +418,6 @@ const emptyWO = (): WorkOrderData => ({
   serial_no_count: 0, batch_count: 0, material_request_count: 0,
   media_files: [],
 });
-
-// ─── Hardcoded GRN Data ──────────────────────────────────────────────────────
-
-const HARDCODED_GRNS: GRNData[] = [
-  {
-    id: 1001,
-    name: "GRN-2026-001",
-    supplier: "ABC Engineering Supplies",
-    date: "2026-07-01",
-    po_number: "PO-2026-0042",
-    delivery_note: "DN-2026-0089",
-    status: "Received",
-    total_qty: 150,
-    total_amount: 42500,
-    items: [
-      { id: 1, item_code: "MS_Hex_Bolt_M12_100", item_name: "MS Hex Bolt M12 x 100mm", qty: 50, uom: "Nos", rate: 150, amount: 7500, warehouse: "Raw Material Store" },
-      { id: 2, item_code: "MS_Hex_Nut_M12", item_name: "MS Hex Nut M12", qty: 100, uom: "Nos", rate: 45, amount: 4500, warehouse: "Raw Material Store" }
-    ]
-  },
-  {
-    id: 1002,
-    name: "GRN-2026-002",
-    supplier: "Precision Metal Works",
-    date: "2026-07-03",
-    po_number: "PO-2026-0056",
-    delivery_note: "DN-2026-0094",
-    status: "Received",
-    total_qty: 80,
-    total_amount: 125000,
-    items: [
-      { id: 3, item_code: "SS_Plate_316_5mm", item_name: "Stainless Steel Plate 316 5mm", qty: 20, uom: "Kg", rate: 4500, amount: 90000, warehouse: "Raw Material Store" },
-      { id: 4, item_code: "Alu_Sheet_2mm", item_name: "Aluminum Sheet 2mm", qty: 60, uom: "Kg", rate: 583.33, amount: 35000, warehouse: "Raw Material Store" }
-    ]
-  },
-  {
-    id: 1003,
-    name: "GRN-2026-003",
-    supplier: "Electronic Components Ltd",
-    date: "2026-07-05",
-    po_number: "PO-2026-0068",
-    delivery_note: "DN-2026-0102",
-    status: "Received",
-    total_qty: 500,
-    total_amount: 87500,
-    items: [
-      { id: 5, item_code: "PCB_Controller_v2", item_name: "PCB Controller Board v2.0", qty: 250, uom: "Pcs", rate: 250, amount: 62500, warehouse: "Electronic Store" },
-      { id: 6, item_code: "Wire_Harness_12C", item_name: "Wire Harness 12 Core", qty: 250, uom: "Mtr", rate: 100, amount: 25000, warehouse: "Electronic Store" }
-    ]
-  },
-  {
-    id: 1004,
-    name: "GRN-2026-004",
-    supplier: "Fastener World Inc",
-    date: "2026-07-08",
-    po_number: "PO-2026-0074",
-    delivery_note: "DN-2026-0115",
-    status: "Received",
-    total_qty: 1000,
-    total_amount: 28000,
-    items: [
-      { id: 7, item_code: "Machine_Screw_M4_20mm", item_name: "Machine Screw M4 x 20mm", qty: 500, uom: "Nos", rate: 12, amount: 6000, warehouse: "Raw Material Store" },
-      { id: 8, item_code: "Washer_Spring_M4", item_name: "Spring Washer M4", qty: 500, uom: "Nos", rate: 44, amount: 22000, warehouse: "Raw Material Store" }
-    ]
-  },
-  {
-    id: 1005,
-    name: "GRN-2026-005",
-    supplier: "Industrial Paints & Chemicals",
-    date: "2026-07-10",
-    po_number: "PO-2026-0082",
-    delivery_note: "DN-2026-0128",
-    status: "Received",
-    total_qty: 200,
-    total_amount: 65000,
-    items: [
-      { id: 9, item_code: "Paint_Red_Oxide_5L", item_name: "Red Oxide Paint 5L", qty: 100, uom: "Ltr", rate: 350, amount: 35000, warehouse: "Chemical Store" },
-      { id: 10, item_code: "Thinner_General_5L", item_name: "General Thinner 5L", qty: 100, uom: "Ltr", rate: 300, amount: 30000, warehouse: "Chemical Store" }
-    ]
-  },
-  {
-    id: 1006,
-    name: "GRN-2026-006",
-    supplier: "Advanced Machining Solutions",
-    date: "2026-07-12",
-    po_number: "PO-2026-0093",
-    delivery_note: "DN-2026-0137",
-    status: "Received",
-    total_qty: 30,
-    total_amount: 210000,
-    items: [
-      { id: 11, item_code: "CNC_Tool_Holder_HSK63", item_name: "CNC Tool Holder HSK63", qty: 10, uom: "Pcs", rate: 12000, amount: 120000, warehouse: "Tool Store" },
-      { id: 12, item_code: "Carbide_Insert_CNMG1204", item_name: "Carbide Insert CNMG 120408", qty: 20, uom: "Box", rate: 4500, amount: 90000, warehouse: "Tool Store" }
-    ]
-  },
-  {
-    id: 1007,
-    name: "GRN-2026-007",
-    supplier: "Packaging Solutions Ltd",
-    date: "2026-07-15",
-    po_number: "PO-2026-0101",
-    delivery_note: "DN-2026-0145",
-    status: "Received",
-    total_qty: 1000,
-    total_amount: 120000,
-    items: [
-      { id: 13, item_code: "Carton_Box_30x20x15", item_name: "Carton Box 30x20x15 cm", qty: 500, uom: "Pcs", rate: 180, amount: 90000, warehouse: "Packaging Store" },
-      { id: 14, item_code: "Foam_Sheet_5mm", item_name: "Foam Sheet 5mm", qty: 500, uom: "Sheet", rate: 60, amount: 30000, warehouse: "Packaging Store" }
-    ]
-  }
-];
 
 // ─── Custom DatePicker with Calendar ─────────────────────────────────────────
 
@@ -792,6 +752,123 @@ function BomSearchField({
   );
 }
 
+// ─── OperationPickerField ─────────────────────────────────────────────────────
+// Used for External Work Orders — lets the user choose a defined operation
+// (GET /operation) instead of typing free text. Selecting one auto-fills
+// the workstation, hour rate, and default time on the row.
+
+// / ─── OperationPickerField (portal-based dropdown — same look, no clipping) ──
+function OperationPickerField({
+  value, operations, loading, onSelect, disabled = false,
+}: {
+  value: string;
+  operations: OperationMaster[];
+  loading?: boolean;
+  onSelect: (op: OperationMaster) => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [term, setTerm] = useState("");
+  const [coords, setCoords] = useState<{ top: number; left: number; width: number } | null>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const filtered = term.trim()
+    ? operations.filter(o => o.name.toLowerCase().includes(term.toLowerCase()))
+    : operations;
+
+  const positionDropdown = () => {
+    const r = wrapRef.current?.getBoundingClientRect();
+    if (r) setCoords({ top: r.bottom + 4, left: r.left, width: r.width });
+  };
+
+  const openDropdown = () => {
+    if (disabled) return;
+    positionDropdown();
+    setOpen(true);
+  };
+
+  // Reposition on scroll/resize while open (table scroll container, window resize, etc.)
+  useEffect(() => {
+    if (!open) return;
+    const handler = () => positionDropdown();
+    window.addEventListener("scroll", handler, true);
+    window.addEventListener("resize", handler);
+    return () => {
+      window.removeEventListener("scroll", handler, true);
+      window.removeEventListener("resize", handler);
+    };
+  }, [open]);
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return;
+    const h = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (wrapRef.current?.contains(target)) return;
+      const dropdownEl = document.getElementById("op-picker-portal-dropdown");
+      if (dropdownEl?.contains(target)) return;
+      setOpen(false);
+    };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [open]);
+
+  return (
+    <div className="warehouse-search-field" ref={wrapRef}>
+      <div className="warehouse-search-wrapper">
+        <div className="warehouse-search-input-wrap">
+          <FaSearch className="warehouse-search-icon" />
+          <input
+            ref={inputRef}
+            type="text"
+            value={open ? term : value}
+            onChange={e => { setTerm(e.target.value); if (!open) openDropdown(); }}
+            onFocus={openDropdown}
+            onKeyDown={e => e.key === "Escape" && setOpen(false)}
+            placeholder="Select operation…"
+            disabled={disabled || loading}
+            className="form-field form-field-sm warehouse-search-input"
+          />
+          {loading && <FaSpinner className="warehouse-loading-spinner spinning" />}
+        </div>
+      </div>
+
+      {open && !disabled && coords && createPortal(
+  <div
+    id="op-picker-portal-dropdown"
+    className="warehouse-dropdown"
+    style={{
+      position: "fixed",
+      top: coords.top,
+      left: coords.left,
+      width: coords.width,
+      zIndex: 5000,
+      background: "#ffffff",
+    }}
+  
+        >
+          {filtered.length === 0
+            ? <div className="warehouse-dropdown-empty">{term ? "No match" : "No operations found"}</div>
+            : <ul className="warehouse-dropdown-list">
+                {filtered.map(op => (
+                  <li key={op.id} className="warehouse-dropdown-item"
+                    onClick={() => { onSelect(op); setTerm(""); setOpen(false); }}>
+                    <div className="warehouse-item-name">{op.name.trim()}</div>
+                    <div className="warehouse-item-company">
+                      {op.workstation_name} · ₹{op.hour_rate}/hr · {op.total_operation_time} min
+                    </div>
+                  </li>
+                ))}
+              </ul>
+          }
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
 // ─── Main Form ────────────────────────────────────────────────────────────────
 
 export default function WorkOrderForm() {
@@ -846,9 +923,23 @@ export default function WorkOrderForm() {
   } | null>(null);
 
   // GRN state
-  const [grnList, setGrnList] = useState<GRNData[]>(HARDCODED_GRNS);
+  const [grnList, setGrnList] = useState<GRNData[]>([]);
   const [grnLoading, setGrnLoading] = useState(false);
+  const [grnError, setGrnError] = useState<string | null>(null);
   const [showGrnModal, setShowGrnModal] = useState(false);
+  const [grnDetailLoading, setGrnDetailLoading] = useState(false);
+
+  // Operation master state (External WO — GET /operation)
+  const [operationMasters, setOperationMasters] = useState<OperationMaster[]>([]);
+  const [operationsLoading, setOperationsLoading] = useState(false);
+
+  // Material availability: what the GRN actually brought in, and where it's
+  // sitting, compared against the full warehouse list. Populated once a GRN
+  // is selected on an External Work Order.
+  const [materialAvailability, setMaterialAvailability] = useState<
+    { item_code: string; item_name: string; received_qty: number; uom: string; warehouse: string }[]
+  >([]);
+  const [availabilityWarehouse, setAvailabilityWarehouse] = useState<string>("");
 
   // BOM state
   const [selectedBomLabel, setSelectedBomLabel] = useState("");
@@ -861,35 +952,48 @@ export default function WorkOrderForm() {
 
   const disabled = submitting || loading;
 
-  // ─── Load GRNs ──────────────────────────────────────────────────────
-  const loadGRNs = async () => {
+  // ─── Load GRNs (External type only) ───────────────────────────────────
+  const loadGRNs = async (page = 1, limit = 10) => {
     setGrnLoading(true);
+    setGrnError(null);
     try {
-      // Try to fetch from API first, fallback to hardcoded
-      const response = await api.get("/grn?status=received");
+      const response = await api.get<GRNListResponse>(`/grn?page=${page}&limit=${limit}&type=External`);
       if (response.data?.success === 1) {
-        const apiGrns = response.data.data?.records || [];
-        if (apiGrns.length > 0) {
-          setGrnList(apiGrns);
-        } else {
-          // If API returns empty, use hardcoded
-          setGrnList(HARDCODED_GRNS);
-        }
+        setGrnList(response.data.data?.data || []);
       } else {
-        // If API fails, use hardcoded
-        setGrnList(HARDCODED_GRNS);
+        setGrnList([]);
+        setGrnError("Failed to load GRNs");
       }
     } catch (err) {
-      console.log("Using hardcoded GRN data");
-      setGrnList(HARDCODED_GRNS);
+      console.error("Error loading GRNs:", err);
+      setGrnList([]);
+      setGrnError("Failed to load GRNs. Please check your connection and try again.");
     } finally {
       setGrnLoading(false);
+    }
+  };
+
+  // ─── Load operation masters (External type only) ──────────────────────
+  // Populates the operation picker so the user chooses "what operation we
+  // have to do" from the real list instead of typing free text.
+  const loadOperations = async () => {
+    setOperationsLoading(true);
+    try {
+      const response = await api.get<OperationListResponse>("/operation");
+      if (response.data?.success === 1) {
+        setOperationMasters(response.data.data || []);
+      }
+    } catch (err) {
+      console.error("Error loading operations:", err);
+    } finally {
+      setOperationsLoading(false);
     }
   };
 
   useEffect(() => {
     if (wo.order_type === "external") {
       loadGRNs();
+      loadOperations();
       setActiveTab("grn_selection");
     }
   }, [wo.order_type]);
@@ -898,8 +1002,9 @@ export default function WorkOrderForm() {
   useEffect(() => {
     if (!isNew && id) {
       setLoading(true);
-      api.get(`/work-order/${id}`)
-        .then(async (r) => {
+      api.get(`/work-order/${id}`).then(async (r) => {
+        console.log("GET work-order response:", r.data); // <- check this shape
+        
           if (r.data.success === 1) {
             const d = r.data.data;
 
@@ -911,7 +1016,7 @@ export default function WorkOrderForm() {
               id: d.id,
               name: d.name ?? prev.name,
               status: (d.status as Status) ?? prev.status,
-              order_type: d.selected_grn_id ? "external" : prev.order_type,
+              order_type: d.selected_grn_id ? "external" : (d.order_type as OrderType) ?? prev.order_type,
               company: d.company ?? prev.company,
               qty_to_manufacture: d.qty ?? 0,
               item_to_manufacture: d.production_item ?? "",
@@ -937,10 +1042,24 @@ export default function WorkOrderForm() {
            
               selected_grn_id: d.selected_grn_id ?? undefined,
               // Operations / required items aren't returned by the WO API —
-              // they get populated below from the linked BOM.
+              // they get populated below from the linked BOM (internal) or
+              // from the linked GRN (external, see the effect below).
               operations: prev.operations,
               required_items: prev.required_items,
             }));
+
+            // External WO: re-hydrate the GRN detail + material availability
+            // so re-opening a saved WO shows the same comparison.
+            if (d.selected_grn_id) {
+              try {
+                const gr = await api.get<GRNDetailResponse>(`/grn/${d.selected_grn_id}`);
+                if (gr.data.success === 1) {
+                  await hydrateFromGrnDetail(gr.data.data);
+                }
+              } catch (e) {
+                console.error("Failed to reload linked GRN detail:", e);
+              }
+            }
 
             // Fetch the linked BOM so we can show its label, operations,
             // and required items (scaled to the WO's saved qty).
@@ -1087,34 +1206,110 @@ export default function WorkOrderForm() {
     }));
   };
 
-  // Re-scale when qty changes and BOM is loaded
+  // Re-scale when qty changes and BOM is loaded (internal WOs only)
   useEffect(() => {
-    if (bomDetail && wo.qty_to_manufacture > 0) {
+    if (wo.order_type === "internal" && bomDetail && wo.qty_to_manufacture > 0) {
       applyBomToWo(bomDetail, wo.qty_to_manufacture);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wo.qty_to_manufacture]);
 
-  // ─── GRN Selection ────────────────────────────────────────────────────
-  const handleSelectGRN = (grn: GRNData) => {
-    // Get the first item's warehouse as source
-    const sourceWarehouse = grn.items.length > 0 ? grn.items[0].warehouse : "";
+  // ─── GRN → Required Items + material availability ─────────────────────
+  // Shared by both the live "select a GRN" flow and re-hydration when
+  // reopening a saved External WO. Given a full GRN detail record:
+  //   1. Populate the Required Items table from the GRN's item lines
+  //      (received_qty is what actually came in, not what was ordered).
+  //   2. Set the source warehouse to wherever the GRN was received into.
+  //   3. Cross-check that warehouse against /warehouse and build the
+  //      "material we have" comparison shown in the GRN Selection tab.
+  const hydrateFromGrnDetail = async (detail: GRNDetail) => {
+    // Some GRN item lines come back with item_code/item_name as null (the
+    // item master lookup wasn't joined server-side) — only item_id is
+    // reliable in that case. Fall back to an item_id-based label so the
+    // row is still usable and identifiable rather than showing "null".
+    const codeOf = (it: GRNItemDetail) => it.item_code || `ITEM-${it.item_id}`;
+    const nameOf = (it: GRNItemDetail) => it.item_name || `Unnamed item (ID ${it.item_id})`;
+
+    const items: RequiredItemRow[] = (detail.items || []).map(it => ({
+      id: uid(),
+      item_code: codeOf(it),
+      item_name: nameOf(it),
+      source_warehouse: detail.warehouse_name || "",
+      required_qty: it.received_qty,
+      uom: it.uom,
+      transferred_qty: 0,
+      consumed_qty: 0,
+      returned_qty: 0,
+      rate: it.rate || 0,
+      amount: it.amount || 0,
+    }));
 
     setWo(prev => ({
       ...prev,
-      selected_grn_id: grn.id,
-      grn_items: grn.items,
-    
-      source_warehouse: prev.source_warehouse || sourceWarehouse,
-      // Auto-fill item from GRN if only one item
-      ...(grn.items.length === 1 ? {
-        item_to_manufacture: grn.items[0].item_code,
-        item_name: grn.items[0].item_name,
-        qty_to_manufacture: grn.items[0].qty,
-        stock_uom: grn.items[0].uom,
-      } : {}),
+      required_items: items.length ? items : prev.required_items,
+      source_warehouse: detail.warehouse_name || prev.source_warehouse,
     }));
+
+    // Confirm the GRN's warehouse actually exists in /warehouse, and use
+    // that as the definitive "where is this material" label.
+    try {
+      const whRes = await api.get<WarehouseResponse>("/warehouse");
+      const warehouses = whRes.data?.data?.records || [];
+      const match = warehouses.find(w => w.id === detail.warehouse_id);
+      const warehouseName = match?.warehouse_name || detail.warehouse_name || "Unknown warehouse";
+      setAvailabilityWarehouse(warehouseName);
+
+      setMaterialAvailability(
+        (detail.items || []).map(it => ({
+          item_code: codeOf(it),
+          item_name: nameOf(it),
+          received_qty: it.received_qty,
+          uom: it.uom,
+          warehouse: warehouseName,
+        }))
+      );
+    } catch (e) {
+      console.error("Error loading warehouse list for availability check:", e);
+    }
+
+    // Make sure the operation master list is on hand as soon as material
+    // from the GRN is loaded, so the Operations To Perform picker on the
+    // GRN Selection tab has options immediately — not just whenever the
+    // order type happened to switch earlier.
+    if (operationMasters.length === 0 && !operationsLoading) {
+      loadOperations();
+    }
+  };
+
+  // ─── GRN Selection ────────────────────────────────────────────────────
+  // Selecting a GRN in the picker fetches the FULL detail record (the list
+  // endpoint only has summary counts), then populates the material table
+  // and availability comparison via hydrateFromGrnDetail above.
+  const handleSelectGRN = async (grn: GRNData) => {
     setShowGrnModal(false);
+    setWo(prev => ({
+      ...prev,
+      selected_grn_id: grn.id,
+      selected_grn: grn,
+      customer_name: grn.customer_name || grn.party_name || prev.customer_name,
+      customer_po: grn.delivery_challan_no || prev.customer_po,
+    }));
+
+    setGrnDetailLoading(true);
+    setGrnError(null);
+    try {
+      const res = await api.get<GRNDetailResponse>(`/grn/${grn.id}`);
+      if (res.data?.success === 1) {
+        await hydrateFromGrnDetail(res.data.data);
+      } else {
+        setApiError("Failed to load GRN item details");
+      }
+    } catch (err) {
+      console.error("Error loading GRN detail:", err);
+      setApiError("Failed to load GRN item details");
+    } finally {
+      setGrnDetailLoading(false);
+    }
   };
 
   // ─── Media Upload ─────────────────────────────────────────────────────
@@ -1168,7 +1363,7 @@ export default function WorkOrderForm() {
   const handleWorkOrderCompletion = async () => {
     if (!wo.id) return;
     setCompletionSummary({ show: true, loading: true, error: null });
-
+  
     try {
       // 1. Find the job card belonging to this Work Order that's Completed
       const jcListRes = await api.get<JobCardListResponse>("/job-card");
@@ -1176,7 +1371,7 @@ export default function WorkOrderForm() {
       const matched = jobCards.find(
         (jc) => String(jc.work_order) === String(wo.id) && jc.status === "Completed"
       );
-
+  
       if (!matched) {
         setCompletionSummary({
           show: true,
@@ -1185,7 +1380,7 @@ export default function WorkOrderForm() {
         });
         return;
       }
-
+  
       // 2. Pull the full job card detail (gives us process_loss_qty / total_completed_qty)
       const jcDetailRes = await api.get<JobCardDetailResponse>(`/job-card/${matched.id}`);
       const jc = jcDetailRes.data?.data;
@@ -1193,10 +1388,10 @@ export default function WorkOrderForm() {
         setCompletionSummary({ show: true, loading: false, error: "Failed to load job card details." });
         return;
       }
-
+  
       const totalCompletedQty = jc.total_completed_qty ?? 0;
       const processLossQty = jc.process_loss_qty ?? 0;
-
+  
       // Show the produced-vs-scrap breakdown immediately
       setCompletionSummary({
         show: true,
@@ -1212,10 +1407,10 @@ export default function WorkOrderForm() {
         inventoryPosting: false,
         inventoryError: null,
       });
-
+  
       // 3. Persist the Completed status onto the Work Order record
       try {
-        await api.post("/work-order", buildPayload("Completed"));
+        await api.put("/work-order", { ...buildPayload("Completed"), id: wo.id });
         setCompletionSummary(prev => (prev ? { ...prev, woStatusUpdated: true } : prev));
       } catch (woErr) {
         console.error("Error updating work order status:", woErr);
@@ -1225,7 +1420,7 @@ export default function WorkOrderForm() {
           ? { ...prev, woStatusUpdated: false, error: "Job card fetched, but failed to update the Work Order status. Your other changes here are still shown." }
           : prev));
       }
-
+  
       // 4. Resolve the Finished Goods warehouse id (kept for the manual
       // inventory-post button below)
       const whRes = await api.get<WarehouseResponse>("/warehouse");
@@ -1234,7 +1429,7 @@ export default function WorkOrderForm() {
       setCompletionSummary(prev => (prev
         ? { ...prev, fgWarehouseId: fgWarehouse?.id, fgWarehouseName: fgWarehouse?.warehouse_name }
         : prev));
-
+  
       // 5. Post the stock entry (Manufacture, WIP -> Finished Goods)
       await api.post("/stock-entry", {
         name: "",
@@ -1297,7 +1492,7 @@ export default function WorkOrderForm() {
         credit_note: "",
         is_return: 0,
       });
-
+  
       setCompletionSummary(prev => (prev ? { ...prev, stockEntryPosted: true } : prev));
     } catch (err: any) {
       console.error("Error processing work order completion:", err);
@@ -1370,12 +1565,18 @@ export default function WorkOrderForm() {
   const updateItem = (rowId: string, field: keyof RequiredItemRow, value: string | number) =>
     setWo(prev => ({ ...prev, required_items: prev.required_items.map(r => r.id === rowId ? { ...r, [field]: value } : r) }));
 
+  // ─── Availability lookup for a given item code (used in Required Items
+  // table so the user can see "available: X" next to what they're editing) ──
+  const availabilityFor = (itemCode: string) =>
+    materialAvailability.find(m => m.item_code === itemCode);
+
   // ─── Validation ───────────────────────────────────────────────────────
   const validate = () => {
     const errs: { field: string; label: string; message: string }[] = [];
-    if (!wo.bom_no.trim()) errs.push({ field: "bom_no", label: "BOM", message: "Please select a BOM" });
-    if (!wo.item_to_manufacture.trim()) errs.push({ field: "item_to_manufacture", label: "Item To Manufacture", message: "Required" });
-    if (wo.qty_to_manufacture <= 0) errs.push({ field: "qty_to_manufacture", label: "Qty To Manufacture", message: "Must be > 0" });
+    if (wo.order_type === "internal" && !wo.bom_no.trim()) errs.push({ field: "bom_no", label: "BOM", message: "Please select a BOM" });
+    if (wo.order_type === "external" && !wo.selected_grn_id) errs.push({ field: "selected_grn_id", label: "GRN", message: "Please select a GRN" });
+    if (!wo.item_to_manufacture.trim() && wo.order_type === "internal") errs.push({ field: "item_to_manufacture", label: "Item To Manufacture", message: "Required" });
+    if (wo.qty_to_manufacture <= 0 && wo.order_type === "internal") errs.push({ field: "qty_to_manufacture", label: "Qty To Manufacture", message: "Must be > 0" });
     if (!wo.target_warehouse.trim()) errs.push({ field: "target_warehouse", label: "Target Warehouse (FG)", message: "Required" });
     if (!wo.wip_warehouse.trim()) errs.push({ field: "wip_warehouse", label: "WIP Warehouse", message: "Required" });
     if (!wo.planned_start_date) errs.push({ field: "planned_start_date", label: "Planned Start Date", message: "Required" });
@@ -1439,12 +1640,15 @@ export default function WorkOrderForm() {
     track_semi_finished_goods: 0,
     amended_from: "",
 
+    // Pass the order type through so External WOs are tagged as such on
+    // the backend record, and carry the linked GRN id along with it.
+    order_type: wo.order_type,
     selected_grn_id: wo.selected_grn_id,
   });
 
   // ─── Submit ───────────────────────────────────────────────────────────
  // ─── Submit ───────────────────────────────────────────────────────────
-const handleSave = async (e: FormEvent) => {
+ const handleSave = async (e: FormEvent) => {
   e.preventDefault();
   setApiError(null);
   const errs = validate();
@@ -1455,27 +1659,29 @@ const handleSave = async (e: FormEvent) => {
       setActiveTab("production_item");
     else if (errs.find(e => e.field === "planned_start_date"))
       setActiveTab("configuration");
+    else if (errs.find(e => e.field === "selected_grn_id"))
+      setActiveTab("grn_selection");
     return;
   }
   setSubmitting(true);
   try {
     let response;
-    
+
     // Determine if this is a create or update based on whether we have an ID
-    const isUpdate = !isNew && wo.id;
-    
+    const isUpdate = !isNew && wo.id !== undefined && wo.id !== null;
+
     if (isUpdate) {
-      // UPDATE: Use POST with ID in the payload body
+      // UPDATE: Use PUT with ID in the payload body
       const updatePayload = {
         ...buildPayload(),
         id: wo.id, // Pass the ID in the payload body
       };
-      
+
       console.log("🔄 Updating Work Order with ID:", wo.id);
       console.log("Update Payload:", updatePayload);
-      
-      response = await api.post("/work-order", updatePayload);
-      
+
+      response = await api.put("/work-order", updatePayload);
+
       if (response.data?.success === 1) {
         const workOrderId = wo.id;
         try {
@@ -1528,9 +1734,9 @@ const handleSave = async (e: FormEvent) => {
       }
     } else {
       // CREATE: Use POST for new work order (no ID needed)
-      console.log("✨ Creating new Work Order");
+      console.log("✨ Creating new Work Order, type:", wo.order_type);
       response = await api.post("/work-order", buildPayload());
-      
+
       if (response.data?.success === 1) {
         const insertId = response.data?.data?.workOrder?.insertId;
         if (insertId) {
@@ -1941,60 +2147,193 @@ const handleSave = async (e: FormEvent) => {
                 </button>
               </div>
 
-              {wo.selected_grn_id ? (
+              {wo.selected_grn_id && wo.selected_grn ? (
                 <div className="wof-selected-grn">
+                  {grnDetailLoading && (
+                    <div className="wof-hint" style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+                      <FaSpinner className="spinning" /> Loading GRN item details…
+                    </div>
+                  )}
                   <div className="wof-grn-info">
                     <div className="wof-grn-row">
-                      <span className="wof-grn-label">GRN ID:</span>
-                      <span className="wof-grn-value">#{wo.selected_grn_id}</span>
+                      <span className="wof-grn-label">GRN Number:</span>
+                      <span className="wof-grn-value">{wo.selected_grn.grn_number} (#{wo.selected_grn.id})</span>
                     </div>
                     <div className="wof-grn-row">
                       <span className="wof-grn-label">Customer:</span>
                       <span className="wof-grn-value">{wo.customer_name || "N/A"}</span>
                     </div>
                     <div className="wof-grn-row">
-                      <span className="wof-grn-label">Customer PO:</span>
-                      <span className="wof-grn-value">{wo.customer_po || "N/A"}</span>
+                      <span className="wof-grn-label">GRN Date:</span>
+                      <span className="wof-grn-value">
+                        {wo.selected_grn.grn_date ? new Date(wo.selected_grn.grn_date).toLocaleDateString() : "N/A"}
+                      </span>
+                    </div>
+                  
+                    <div className="wof-grn-row">
+                      <span className="wof-grn-label">Delivery Challan No:</span>
+                      <span className="wof-grn-value">{wo.selected_grn.delivery_challan_no || "N/A"}</span>
+                    </div>
+                    
+                  
+                  </div>
+
+                  <div className="wof-grn-items">
+                    <span className="wof-section-title" style={{ fontSize: "12px" }}>GRN Quantities</span>
+                    <div style={{ display: "flex", gap: 16, marginTop: 10, flexWrap: "wrap" }}>
+                      <div style={{ flex: 1, minWidth: 120, background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: 12 }}>
+                        <div style={{ fontSize: 12, color: "#64748b" }}>Total Items</div>
+                        <div style={{ fontSize: 20, fontWeight: 700 }}>{wo.selected_grn.total_items}</div>
+                      </div>
+                      <div style={{ flex: 1, minWidth: 120, background: "#f0fdf4", border: "1px solid #86efac", borderRadius: 8, padding: 12 }}>
+                        <div style={{ fontSize: 12, color: "#166534" }}>Received Qty</div>
+                        <div style={{ fontSize: 20, fontWeight: 700, color: "#166534" }}>{wo.selected_grn.total_received_qty}</div>
+                      </div>
+                      <div style={{ flex: 1, minWidth: 120, background: "#eff6ff", border: "1px solid #93c5fd", borderRadius: 8, padding: 12 }}>
+                        <div style={{ fontSize: 12, color: "#1e40af" }}>Accepted Qty</div>
+                        <div style={{ fontSize: 20, fontWeight: 700, color: "#1e40af" }}>{wo.selected_grn.total_accepted_qty}</div>
+                      </div>
+                      <div style={{ flex: 1, minWidth: 120, background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 8, padding: 12 }}>
+                        <div style={{ fontSize: 12, color: "#991b1b" }}>Rejected Qty</div>
+                        <div style={{ fontSize: 20, fontWeight: 700, color: "#991b1b" }}>{wo.selected_grn.total_rejected_qty}</div>
+                      </div>
                     </div>
                   </div>
-                  {wo.grn_items && wo.grn_items.length > 0 && (
-                    <div className="wof-grn-items">
-                      <span className="wof-section-title" style={{ fontSize: "12px" }}>GRN Items</span>
-                      <table className="wof-editable-table">
-                        <thead>
-                          <tr>
-                            <th>Item Code</th>
-                            <th>Item Name</th>
-                            <th>Qty</th>
-                            <th>UOM</th>
-                            <th>Rate</th>
-                            <th>Amount</th>
+  {/* ── Operations to perform ──
+                      Same table UI as an Internal WO, but each row's
+                      operation is chosen from the operation master list
+                      (GET /operation) rather than typed free text. */}
+                  <div className="wof-divider" />
+                  <div className="wof-table-header">
+                    <span className="wof-section-title wof-section-title-flush">
+                      <FaCogs style={{ marginRight: 6 }} />
+                      Operations To Perform
+                    </span>
+                    <button type="button" className="wof-row-add-btn"
+                      onClick={() => setWo(p => ({ ...p, operations: [...p.operations, emptyOp()] }))}>
+                      <FaPlus size={10} /> Add Row
+                    </button>
+                  </div>
+                  <div className="wof-table-scroll">
+                    <table className="wof-editable-table">
+                      <thead>
+                        <tr>
+                          <th className="wof-col-no">#</th>
+                          <th>Operation</th>
+                          <th>Workstation</th>
+                          <th>Time (mins)</th>
+                          <th>Hour Rate</th>
+                          <th>Operating Cost</th>
+                          <th className="wof-col-action" />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {wo.operations.map((op, idx) => (
+                          <tr key={op.id}>
+                            <td className="wof-col-no">{idx + 1}</td>
+                            <td>
+                              <OperationPickerField
+                                value={op.operation}
+                                operations={operationMasters}
+                                loading={operationsLoading}
+                                disabled={disabled}
+                                onSelect={(o) => {
+                                  updateOp(op.id, "operation", o.name.trim());
+                                  updateOp(op.id, "workstation", o.workstation_name);
+                                  updateOp(op.id, "hour_rate", o.hour_rate);
+                                  updateOp(op.id, "time_in_mins", o.total_operation_time);
+                                  updateOp(
+                                    op.id,
+                                    "operating_cost",
+                                    Math.round((o.hour_rate / 60) * o.total_operation_time * 100) / 100
+                                  );
+                                }}
+                              />
+                            </td>
+                            <td>
+                              <input type="text" value={op.workstation}
+                                onChange={e => updateOp(op.id, "workstation", e.target.value)}
+                                className="form-field form-field-sm" placeholder="Auto-filled" disabled={disabled} />
+                            </td>
+                            <td>
+                              <input type="number" value={op.time_in_mins || ""}
+                                onChange={e => updateOp(op.id, "time_in_mins", Number(e.target.value))}
+                                className="form-field form-field-sm" min="0" step="0.01" disabled={disabled} />
+                            </td>
+                            <td>
+                              <input type="number" value={op.hour_rate || ""}
+                                onChange={e => updateOp(op.id, "hour_rate", Number(e.target.value))}
+                                className="form-field form-field-sm" min="0" step="0.01" disabled={disabled} />
+                            </td>
+                            <td>
+                              <input type="number" value={op.operating_cost || ""}
+                                onChange={e => updateOp(op.id, "operating_cost", Number(e.target.value))}
+                                className="form-field form-field-sm" min="0" step="0.01" disabled={disabled} />
+                            </td>
+                            <td className="wof-col-action">
+                              <button type="button" className="wof-row-delete-btn"
+                                onClick={() => setWo(p => ({ ...p, operations: p.operations.filter(o => o.id !== op.id) }))}
+                                disabled={wo.operations.length <= 1}>
+                                <FaTrash size={11} />
+                              </button>
+                            </td>
                           </tr>
-                        </thead>
-                        <tbody>
-                          {wo.grn_items.map((item, idx) => (
-                            <tr key={idx}>
-                              <td>{item.item_code}</td>
-                              <td>{item.item_name}</td>
-                              <td>{item.qty}</td>
-                              <td>{item.uom}</td>
-                              <td>₹{item.rate}</td>
-                              <td>₹{item.amount}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               ) : (
                 <div className="wof-no-grn">
                   <p>No GRN selected. Please click "Select GRN" to choose a Goods Receipt Note.</p>
                   <p style={{ fontSize: "12px", color: "var(--text-secondary, #6b7280)", marginTop: "8px" }}>
-                    <FaInfoCircle /> {grnList.length} GRNs available in the system
+                    <FaInfoCircle /> {grnList.length} GRN{grnList.length === 1 ? "" : "s"} available in the system
                   </p>
                 </div>
               )}
+                  {/* ── Material Available section ──
+                      Shows exactly what came in on this GRN (item, qty,
+                      uom) and which warehouse it's sitting in — the
+                      "how much material we have" comparison. */}
+                  {materialAvailability.length > 0 && (
+                    <>
+                      <div className="wof-divider" />
+                      <div className="wof-section-header">
+                        <span className="wof-section-title">
+                          <FaBoxOpen style={{ marginRight: 6 }} />
+                          Material Available {availabilityWarehouse && `— ${availabilityWarehouse}`}
+                        </span>
+                      </div>
+                      <div className="wof-table-scroll">
+                        <table className="wof-editable-table">
+                          <thead>
+                            <tr>
+                              <th className="wof-col-no">#</th>
+                              <th>Item Code</th>
+                              <th>Item Name</th>
+                              <th>Available Qty</th>
+                              <th>UOM</th>
+                              <th>Warehouse</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {materialAvailability.map((m, idx) => (
+                              <tr key={`${m.item_code}-${idx}`}>
+                                <td className="wof-col-no">{idx + 1}</td>
+                                <td>{m.item_code}</td>
+                                <td>{m.item_name}</td>
+                                <td style={{ fontWeight: 700, color: "#166534" }}>{m.received_qty}</td>
+                                <td>{m.uom}</td>
+                                <td>{m.warehouse}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  )}
+
+                
             </div>
           )}
 
@@ -2026,32 +2365,61 @@ const handleSave = async (e: FormEvent) => {
                 </div>
               </div>
 
-              <div className="wof-divider" />
-              <span className="wof-section-title">Bill of Materials</span>
+              {wo.order_type === "internal" && (
+                <>
+                  <div className="wof-divider" />
+                  <span className="wof-section-title">Bill of Materials</span>
 
-              {/* Row 2: BOM search + Item (auto-filled) */}
-              <div className="wof-grid-2" style={{ marginTop: 10 }}>
-                <BomSearchField
-                  value={selectedBomLabel || wo.bom_no}
-                  onSelect={handleSelectBom}
-                  onClear={handleClearBom}
-                  disabled={disabled}
-                  error={!wo.bom_no.trim() ? "Please select a BOM" : undefined}
-                />
-                <div className="wof-field">
-                  <label className="wof-label">Item To Manufacture <span className="wof-required">*</span></label>
-                  <input type="text" value={wo.item_to_manufacture}
-                    className="form-field" placeholder="Auto-filled from BOM" disabled />
-                  {wo.item_name && wo.item_name !== wo.item_to_manufacture && (
-                    <span className="wof-hint">{wo.item_name} · {wo.stock_uom}</span>
+                  {/* Row 2: BOM search + Item (auto-filled) */}
+                  <div className="wof-grid-2" style={{ marginTop: 10 }}>
+                    <BomSearchField
+                      value={selectedBomLabel || wo.bom_no}
+                      onSelect={handleSelectBom}
+                      onClear={handleClearBom}
+                      disabled={disabled}
+                      error={!wo.bom_no.trim() ? "Please select a BOM" : undefined}
+                    />
+                    <div className="wof-field">
+                      <label className="wof-label">Item To Manufacture <span className="wof-required">*</span></label>
+                      <input type="text" value={wo.item_to_manufacture}
+                        className="form-field" placeholder="Auto-filled from BOM" disabled />
+                      {wo.item_name && wo.item_name !== wo.item_to_manufacture && (
+                        <span className="wof-hint">{wo.item_name} · {wo.stock_uom}</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {bomLoading && (
+                    <div className="wof-hint" style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
+                      <FaSpinner className="spinning" /> Loading BOM details…
+                    </div>
                   )}
-                </div>
-              </div>
+                </>
+              )}
 
-              {bomLoading && (
-                <div className="wof-hint" style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
-                  <FaSpinner className="spinning" /> Loading BOM details…
-                </div>
+              {wo.order_type === "external" && (
+                <>
+                  <div className="wof-divider" />
+                  <span className="wof-section-title">Item To Manufacture</span>
+                  <div className="wof-grid-2" style={{ marginTop: 10 }}>
+                    <div className="wof-field">
+                      <label className="wof-label">Item Code</label>
+                      <input type="text" value={wo.item_to_manufacture}
+                        onChange={e => set("item_to_manufacture", e.target.value)}
+                        className="form-field" placeholder="e.g. ANKIT1234" disabled={disabled} />
+                    </div>
+                    <div className="wof-field">
+                      <label className="wof-label">Item Name</label>
+                      <input type="text" value={wo.item_name}
+                        onChange={e => set("item_name", e.target.value)}
+                        className="form-field" placeholder="e.g. Ankit1234" disabled={disabled} />
+                    </div>
+                  </div>
+                  <span className="wof-hint">
+                    For External Work Orders, the required items and available quantities come from
+                    the selected GRN (see the "GRN Selection" tab), not a BOM.
+                  </span>
+                </>
               )}
 
               <div className="wof-divider" />
@@ -2076,69 +2444,74 @@ const handleSave = async (e: FormEvent) => {
 
               <div className="wof-divider" />
 
-              {/* ── Operations Table ── */}
-              <div className="wof-table-header">
-                <span className="wof-section-title wof-section-title-flush">Operations</span>
-                <button type="button" className="wof-row-add-btn" onClick={() => setWo(p => ({ ...p, operations: [...p.operations, emptyOp()] }))}>
-                  <FaPlus size={10} /> Add Row
-                </button>
-              </div>
-              <div className="wof-table-scroll">
-                <table className="wof-editable-table">
-                  <thead>
-                    <tr>
-                      <th className="wof-col-no">#</th>
-                      <th>Operation</th>
-                      <th>Workstation</th>
-                      <th>Time (mins)</th>
-                      <th>Hour Rate</th>
-                      <th>Operating Cost</th>
-                      <th className="wof-col-action" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {wo.operations.map((op, idx) => (
-                      <tr key={op.id}>
-                        <td className="wof-col-no">{idx + 1}</td>
-                        <td>
-                          <input type="text" value={op.operation}
-                            onChange={e => updateOp(op.id, "operation", e.target.value)}
-                            className="form-field form-field-sm" placeholder="e.g. CNC Turning" disabled={disabled} />
-                        </td>
-                        <td>
-                          <input type="text" value={op.workstation}
-                            onChange={e => updateOp(op.id, "workstation", e.target.value)}
-                            className="form-field form-field-sm" placeholder="e.g. CNC Machine 1" disabled={disabled} />
-                        </td>
-                        <td>
-                          <input type="number" value={op.time_in_mins || ""}
-                            onChange={e => updateOp(op.id, "time_in_mins", Number(e.target.value))}
-                            className="form-field form-field-sm" min="0" step="0.01" disabled={disabled} />
-                        </td>
-                        <td>
-                          <input type="number" value={op.hour_rate || ""}
-                            onChange={e => updateOp(op.id, "hour_rate", Number(e.target.value))}
-                            className="form-field form-field-sm" min="0" step="0.01" disabled={disabled} />
-                        </td>
-                        <td>
-                          <input type="number" value={op.operating_cost || ""}
-                            onChange={e => updateOp(op.id, "operating_cost", Number(e.target.value))}
-                            className="form-field form-field-sm" min="0" step="0.01" disabled={disabled} />
-                        </td>
-                        <td className="wof-col-action">
-                          <button type="button" className="wof-row-delete-btn"
-                            onClick={() => setWo(p => ({ ...p, operations: p.operations.filter(o => o.id !== op.id) }))}
-                            disabled={wo.operations.length <= 1}>
-                            <FaTrash size={11} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              {/* ── Operations Table ── (Internal WO only — External WO has
+                  its own operation-picker table on the GRN Selection tab) */}
+              {wo.order_type === "internal" && (
+                <>
+                  <div className="wof-table-header">
+                    <span className="wof-section-title wof-section-title-flush">Operations</span>
+                    <button type="button" className="wof-row-add-btn" onClick={() => setWo(p => ({ ...p, operations: [...p.operations, emptyOp()] }))}>
+                      <FaPlus size={10} /> Add Row
+                    </button>
+                  </div>
+                  <div className="wof-table-scroll">
+                    <table className="wof-editable-table">
+                      <thead>
+                        <tr>
+                          <th className="wof-col-no">#</th>
+                          <th>Operation</th>
+                          <th>Workstation</th>
+                          <th>Time (mins)</th>
+                          <th>Hour Rate</th>
+                          <th>Operating Cost</th>
+                          <th className="wof-col-action" />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {wo.operations.map((op, idx) => (
+                          <tr key={op.id}>
+                            <td className="wof-col-no">{idx + 1}</td>
+                            <td>
+                              <input type="text" value={op.operation}
+                                onChange={e => updateOp(op.id, "operation", e.target.value)}
+                                className="form-field form-field-sm" placeholder="e.g. CNC Turning" disabled={disabled} />
+                            </td>
+                            <td>
+                              <input type="text" value={op.workstation}
+                                onChange={e => updateOp(op.id, "workstation", e.target.value)}
+                                className="form-field form-field-sm" placeholder="e.g. CNC Machine 1" disabled={disabled} />
+                            </td>
+                            <td>
+                              <input type="number" value={op.time_in_mins || ""}
+                                onChange={e => updateOp(op.id, "time_in_mins", Number(e.target.value))}
+                                className="form-field form-field-sm" min="0" step="0.01" disabled={disabled} />
+                            </td>
+                            <td>
+                              <input type="number" value={op.hour_rate || ""}
+                                onChange={e => updateOp(op.id, "hour_rate", Number(e.target.value))}
+                                className="form-field form-field-sm" min="0" step="0.01" disabled={disabled} />
+                            </td>
+                            <td>
+                              <input type="number" value={op.operating_cost || ""}
+                                onChange={e => updateOp(op.id, "operating_cost", Number(e.target.value))}
+                                className="form-field form-field-sm" min="0" step="0.01" disabled={disabled} />
+                            </td>
+                            <td className="wof-col-action">
+                              <button type="button" className="wof-row-delete-btn"
+                                onClick={() => setWo(p => ({ ...p, operations: p.operations.filter(o => o.id !== op.id) }))}
+                                disabled={wo.operations.length <= 1}>
+                                <FaTrash size={11} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
 
-              <div className="wof-divider" />
+                  <div className="wof-divider" />
+                </>
+              )}
 
               {/* ── Required Items Table ── */}
               <div className="wof-table-header">
@@ -2156,6 +2529,7 @@ const handleSave = async (e: FormEvent) => {
                       <th>Item Name</th>
                       <th>Source Warehouse</th>
                       <th>Required Qty</th>
+                      {wo.order_type === "external" && <th>Available Qty</th>}
                       <th>UOM</th>
                       <th>Rate</th>
                       <th>Amount</th>
@@ -2163,53 +2537,63 @@ const handleSave = async (e: FormEvent) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {wo.required_items.map((ri, idx) => (
-                      <tr key={ri.id}>
-                        <td className="wof-col-no">{idx + 1}</td>
-                        <td>
-                          <input type="text" value={ri.item_code}
-                            onChange={e => updateItem(ri.id, "item_code", e.target.value)}
-                            className="form-field form-field-sm" placeholder="e.g. MS_Hex_Nut_Blank_M12" disabled={disabled} />
-                        </td>
-                        <td>
-                          <input type="text" value={ri.item_name}
-                            onChange={e => updateItem(ri.id, "item_name", e.target.value)}
-                            className="form-field form-field-sm" placeholder="e.g. MS Hex Nut Blank M12" disabled={disabled} />
-                        </td>
-                        <td>
-                          <input type="text" value={ri.source_warehouse}
-                            onChange={e => updateItem(ri.id, "source_warehouse", e.target.value)}
-                            className="form-field form-field-sm" placeholder="e.g. Raw Material Store" disabled={disabled} />
-                        </td>
-                        <td>
-                          <input type="number" value={ri.required_qty || ""}
-                            onChange={e => updateItem(ri.id, "required_qty", Number(e.target.value))}
-                            className="form-field form-field-sm" min="0" step="0.001" disabled={disabled} />
-                        </td>
-                        <td>
-                          <input type="text" value={ri.uom}
-                            onChange={e => updateItem(ri.id, "uom", e.target.value)}
-                            className="form-field form-field-sm" placeholder="Nos" disabled={disabled} />
-                        </td>
-                        <td>
-                          <input type="number" value={ri.rate || ""}
-                            onChange={e => updateItem(ri.id, "rate", Number(e.target.value))}
-                            className="form-field form-field-sm" min="0" step="0.01" disabled={disabled} />
-                        </td>
-                        <td>
-                          <input type="number" value={ri.amount || ""}
-                            onChange={e => updateItem(ri.id, "amount", Number(e.target.value))}
-                            className="form-field form-field-sm" min="0" step="0.01" disabled={disabled} />
-                        </td>
-                        <td className="wof-col-action">
-                          <button type="button" className="wof-row-delete-btn"
-                            onClick={() => setWo(p => ({ ...p, required_items: p.required_items.filter(r => r.id !== ri.id) }))}
-                            disabled={wo.required_items.length <= 1}>
-                            <FaTrash size={11} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                    {wo.required_items.map((ri, idx) => {
+                      const avail = wo.order_type === "external" ? availabilityFor(ri.item_code) : undefined;
+                      const shortfall = avail !== undefined && ri.required_qty > avail.received_qty;
+                      return (
+                        <tr key={ri.id}>
+                          <td className="wof-col-no">{idx + 1}</td>
+                          <td>
+                            <input type="text" value={ri.item_code}
+                              onChange={e => updateItem(ri.id, "item_code", e.target.value)}
+                              className="form-field form-field-sm" placeholder="e.g. MS_Hex_Nut_Blank_M12" disabled={disabled} />
+                          </td>
+                          <td>
+                            <input type="text" value={ri.item_name}
+                              onChange={e => updateItem(ri.id, "item_name", e.target.value)}
+                              className="form-field form-field-sm" placeholder="e.g. MS Hex Nut Blank M12" disabled={disabled} />
+                          </td>
+                          <td>
+                            <input type="text" value={ri.source_warehouse}
+                              onChange={e => updateItem(ri.id, "source_warehouse", e.target.value)}
+                              className="form-field form-field-sm" placeholder="e.g. Raw Material Store" disabled={disabled} />
+                          </td>
+                          <td>
+                            <input type="number" value={ri.required_qty || ""}
+                              onChange={e => updateItem(ri.id, "required_qty", Number(e.target.value))}
+                              className="form-field form-field-sm" min="0" step="0.001" disabled={disabled} />
+                          </td>
+                          {wo.order_type === "external" && (
+                            <td style={{ fontWeight: 600, color: shortfall ? "#b91c1c" : "#166534", whiteSpace: "nowrap" }}>
+                              {avail ? avail.received_qty : "—"}
+                              {shortfall && <FaExclamationTriangle style={{ marginLeft: 4 }} title="Required qty exceeds what's available" />}
+                            </td>
+                          )}
+                          <td>
+                            <input type="text" value={ri.uom}
+                              onChange={e => updateItem(ri.id, "uom", e.target.value)}
+                              className="form-field form-field-sm" placeholder="Nos" disabled={disabled} />
+                          </td>
+                          <td>
+                            <input type="number" value={ri.rate || ""}
+                              onChange={e => updateItem(ri.id, "rate", Number(e.target.value))}
+                              className="form-field form-field-sm" min="0" step="0.01" disabled={disabled} />
+                          </td>
+                          <td>
+                            <input type="number" value={ri.amount || ""}
+                              onChange={e => updateItem(ri.id, "amount", Number(e.target.value))}
+                              className="form-field form-field-sm" min="0" step="0.01" disabled={disabled} />
+                          </td>
+                          <td className="wof-col-action">
+                            <button type="button" className="wof-row-delete-btn"
+                              onClick={() => setWo(p => ({ ...p, required_items: p.required_items.filter(r => r.id !== ri.id) }))}
+                              disabled={wo.required_items.length <= 1}>
+                              <FaTrash size={11} />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -2521,30 +2905,32 @@ const handleSave = async (e: FormEvent) => {
             <div className="modal-body">
               {grnLoading ? (
                 <div className="grn-loading"><FaSpinner className="spinning" /> Loading GRNs...</div>
+              ) : grnError ? (
+                <div className="grn-empty" style={{ color: "#b91c1c" }}>
+                  <FaExclamationTriangle style={{ marginRight: 6 }} />
+                  {grnError}
+                </div>
               ) : grnList.length === 0 ? (
-                <div className="grn-empty">No GRNs available</div>
+                <div className="grn-empty">No External GRNs available</div>
               ) : (
                 <div className="grn-list">
                   {grnList.map(grn => (
                     <div key={grn.id} className="grn-item" onClick={() => handleSelectGRN(grn)}>
                       <div className="grn-item-header">
-                        <span className="grn-item-id">GRN #{grn.id}</span>
+                        <span className="grn-item-id">{grn.grn_number}</span>
                         <span className="grn-item-status">{grn.status}</span>
                       </div>
                       <div className="grn-item-details">
-                        <span>Supplier: {grn.supplier}</span>
-                        <span>Date: {new Date(grn.date).toLocaleDateString()}</span>
-                        <span>Items: {grn.items.length}</span>
-                        <span>Total: ₹{grn.total_amount.toFixed(2)}</span>
+                        <span>Customer: {grn.customer_name || grn.party_name || "N/A"}</span>
+                        <span>Date: {grn.grn_date ? new Date(grn.grn_date).toLocaleDateString() : "N/A"}</span>
+                        <span>Items: {grn.total_items}</span>
+                        <span>Received Qty: {grn.total_received_qty}</span>
                       </div>
                       <div className="grn-item-items">
-                        {grn.items.slice(0, 3).map((item, idx) => (
-                          <span key={idx} className="grn-item-tag">
-                            {item.item_name} ({item.qty} {item.uom})
-                          </span>
-                        ))}
-                        {grn.items.length > 3 && (
-                          <span className="grn-item-tag">+{grn.items.length - 3} more</span>
+                        <span className="grn-item-tag">Accepted: {grn.total_accepted_qty}</span>
+                        <span className="grn-item-tag">Rejected: {grn.total_rejected_qty}</span>
+                        {grn.delivery_challan_no && (
+                          <span className="grn-item-tag">DC: {grn.delivery_challan_no}</span>
                         )}
                       </div>
                     </div>

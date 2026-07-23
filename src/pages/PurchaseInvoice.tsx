@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   FaSearch, FaPlus, FaEdit, FaTrash, FaFilter, 
-  FaTimes, FaSpinner, FaCopy, FaEye,
+  FaTimes, FaSpinner, FaEye,
   FaFileAlt, FaCheckCircle,
   FaTimesCircle, FaClock, FaExclamationTriangle,
   FaPaperPlane, FaReceipt,
@@ -10,7 +10,6 @@ import {
   FaAngleDoubleRight,
   FaChevronLeft,
   FaChevronRight,
-  FaMoneyBillWave
 } from 'react-icons/fa';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';

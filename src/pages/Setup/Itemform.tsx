@@ -21,6 +21,45 @@ import toast from "react-hot-toast";
 import api from "../../services/api";
 
 // ────────────────────────────────────────────────────────────────────────
+// Constants & Helpers for Image Handling
+// ────────────────────────────────────────────────────────────────────────
+const IMAGE_BASE_URL = "https://erp.sculptortechpvtltd.com/api/getimage";
+
+/**
+ * Convert a full URL or relative path to a relative path (starting with /)
+ * Example: "http://148.66.152.56:9001/erpsystem/items/49/49_profile2.png" -> "/items/49/49_profile2.png"
+ */
+const extractRelativePath = (url: string | null): string | null => {
+  if (!url) return null;
+  if (url.startsWith("data:")) return url; // keep data URLs for preview
+  if (url.startsWith("/")) return url; // already relative
+
+  try {
+    const parsed = new URL(url);
+    let path = parsed.pathname; // e.g., "/erpsystem/items/49/49_profile2.png"
+    if (path.startsWith("/erpsystem")) {
+      path = path.substring("/erpsystem".length);
+    }
+    return path || "/";
+  } catch {
+    // Not a valid URL – treat as relative without leading slash
+    return `/${url}`;
+  }
+};
+
+/**
+ * Build the full image URL for display.
+ * If the path is a data URL (preview) or already absolute, return as‑is.
+ */
+const getImageUrl = (path: string | null): string | null => {
+  if (!path) return null;
+  if (path.startsWith("data:")) return path;
+  if (path.startsWith("http")) return path; // fallback for absolute URLs
+  const relativePath = path.startsWith("/") ? path : `/${path}`;
+  return `${IMAGE_BASE_URL}${relativePath}`;
+};
+
+// ────────────────────────────────────────────────────────────────────────
 // Types
 // ────────────────────────────────────────────────────────────────────────
 interface ItemGroup {
@@ -161,6 +200,156 @@ function TextInput({
         readOnly={readOnly}
         min={min}
       />
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// NumberInput Component - For numeric inputs with validation
+// ────────────────────────────────────────────────────────────────────────
+interface NumberInputProps {
+  value: string | number;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  min?: number;
+  max?: number;
+  step?: number;
+  prefix?: string;
+  suffix?: string;
+  disabled?: boolean;
+  readOnly?: boolean;
+  className?: string;
+  allowDecimal?: boolean;
+  maxLength?: number;
+}
+
+function NumberInput({
+  value,
+  onChange,
+  placeholder = "0.00",
+  min,
+  max,
+  prefix,
+  suffix,
+  disabled = false,
+  readOnly = false,
+  className = "",
+  allowDecimal = true,
+  maxLength,
+}: NumberInputProps) {
+  const [displayValue, setDisplayValue] = useState<string>(String(value || ""));
+
+  // Sync external value changes
+  useEffect(() => {
+    if (value !== undefined && value !== null) {
+      setDisplayValue(String(value));
+    }
+  }, [value]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let rawValue = e.target.value;
+    
+    // Handle empty input
+    if (rawValue === "") {
+      setDisplayValue("");
+      onChange("");
+      return;
+    }
+
+    // Validate based on allowDecimal
+    if (!allowDecimal) {
+      // Only allow digits
+      rawValue = rawValue.replace(/[^0-9]/g, "");
+    } else {
+      // Allow digits and one decimal point
+      const parts = rawValue.split(".");
+      if (parts.length > 2) {
+        // More than one decimal point - keep only first two parts
+        rawValue = parts[0] + "." + parts.slice(1).join("");
+      }
+      // Only allow digits and a single decimal point
+      rawValue = rawValue.replace(/[^0-9.]/g, "");
+      // Ensure at most one decimal point
+      const decimalCount = (rawValue.match(/\./g) || []).length;
+      if (decimalCount > 1) {
+        const firstDecimalIndex = rawValue.indexOf(".");
+        rawValue = rawValue.substring(0, firstDecimalIndex + 1) + 
+                   rawValue.substring(firstDecimalIndex + 1).replace(/\./g, "");
+      }
+    }
+
+    // Check maxLength
+    if (maxLength && rawValue.replace(/\./g, "").length > maxLength) {
+      return;
+    }
+
+    setDisplayValue(rawValue);
+
+    // Parse and validate numeric value
+    if (rawValue === "" || rawValue === "-" || rawValue === ".") {
+      onChange(rawValue);
+      return;
+    }
+
+    const numValue = parseFloat(rawValue);
+    if (!isNaN(numValue)) {
+      if (min !== undefined && numValue < min) {
+        // Clamp to min
+        const clamped = min.toString();
+        setDisplayValue(clamped);
+        onChange(clamped);
+        return;
+      }
+      if (max !== undefined && numValue > max) {
+        // Clamp to max
+        const clamped = max.toString();
+        setDisplayValue(clamped);
+        onChange(clamped);
+        return;
+      }
+      onChange(rawValue);
+    }
+  };
+
+  const handleBlur = () => {
+    // Format on blur
+    if (displayValue === "" || displayValue === "." || displayValue === "-") {
+      setDisplayValue("");
+      onChange("");
+      return;
+    }
+    
+    const numValue = parseFloat(displayValue);
+    if (!isNaN(numValue)) {
+      // If allowDecimal is false, round to integer
+      const formatted = allowDecimal ? numValue.toString() : Math.round(numValue).toString();
+      setDisplayValue(formatted);
+      onChange(formatted);
+    }
+  };
+
+  const handleWheel = (e: React.WheelEvent<HTMLInputElement>) => {
+    // Prevent scroll wheel from changing value
+    e.preventDefault();
+  };
+
+  return (
+    <div className={`itf-input-wrap ${readOnly ? "itf-input-wrap-readonly" : ""} ${className}`}>
+      {prefix && <span className="itf-input-prefix">{prefix}</span>}
+      <input
+        type="text"
+        className={`itf-input ${prefix ? "itf-input-has-prefix" : ""}`}
+        value={displayValue}
+        onChange={handleChange}
+        onBlur={handleBlur}
+        onWheel={handleWheel}
+        placeholder={placeholder}
+        disabled={disabled}
+        readOnly={readOnly}
+        inputMode={allowDecimal ? "decimal" : "numeric"}
+        autoComplete="off"
+      />
+      {suffix && <span className="itf-input-suffix">{suffix}</span>}
     </div>
   );
 }
@@ -325,12 +514,15 @@ function ImageUpload({
     if (file) handleFileSelect(file);
   };
 
+  // Determine the display URL
+  const displayImage = image ? getImageUrl(image) : null;
+
   return (
     <div className="itf-image-upload-container">
-      {image ? (
+      {displayImage ? (
         <div className="itf-image-preview-wrapper">
           <div className="itf-image-preview">
-            <img src={image} alt="Item" className="itf-image-preview-img" />
+            <img src={displayImage} alt="Item" className="itf-image-preview-img" />
           </div>
           <div className="itf-image-actions">
             <button
@@ -471,24 +663,23 @@ function OpeningStockTable({
                 <tr key={entry.id}>
                   <td className="itf-table-td-num">{index + 1}</td>
                   <td>
-                    <input
-                      type="number"
-                      className="itf-table-input"
+                    <NumberInput
                       value={entry.quantity || ""}
-                      onChange={(e) => handleUpdate(entry.id, "quantity", parseFloat(e.target.value) || 0)}
-                      min="0"
+                      onChange={(v) => handleUpdate(entry.id, "quantity", parseFloat(v) || 0)}
                       placeholder="0"
+                      min={0}
+                      step={1}
+                      allowDecimal={false}
                     />
                   </td>
                   <td>
-                    <input
-                      type="number"
-                      className="itf-table-input"
+                    <NumberInput
                       value={entry.rate || ""}
-                      onChange={(e) => handleUpdate(entry.id, "rate", parseFloat(e.target.value) || 0)}
-                      min="0"
-                      step="0.01"
+                      onChange={(v) => handleUpdate(entry.id, "rate", parseFloat(v) || 0)}
                       placeholder="0.00"
+                      min={0}
+                      step={0.01}
+                      prefix="₹"
                     />
                   </td>
                   <td className="itf-table-total">₹{entry.total.toFixed(2)}</td>
@@ -611,7 +802,7 @@ export default function ItemForm() {
     inspectionRequiredBeforePurchase: false,
     inspectionRequiredBeforeDelivery: false,
     warehouseId: "",
-    hsn: "", // Added HSN field
+    hsn: "",
   });
 
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -771,7 +962,7 @@ export default function ItemForm() {
           standardRate: String(standardRate),
           sellingPrice: String(data.selling_price || 0),
           profitMargin: derivedMargin,
-          image: data.image || null,
+          image: extractRelativePath(data.image),
           isSalesItem: data.is_sales_item === 1,
           isPurchaseItem: data.is_purchase_item === 1,
           isStockItem: data.is_stock_item === 1,
@@ -782,7 +973,7 @@ export default function ItemForm() {
           inspectionRequiredBeforePurchase: data.inspection_required_before_purchase === 1,
           inspectionRequiredBeforeDelivery: data.inspection_required_before_delivery === 1,
           warehouseId: "",
-          hsn: data.hsn || data.HSN || "", // Load HSN from API response
+          hsn: data.hsn || data.HSN || "",
         });
 
         const openingQty = Number(data.opening_stock) || 0;
@@ -890,14 +1081,14 @@ export default function ItemForm() {
   // Default to first warehouse if available
   useEffect(() => {
     if (warehouses.length === 0) return;
-  
+
     // Don't overwrite when editing an existing item
     if (form.warehouseId) return;
-  
+
     const rawMaterialWarehouse = warehouses.find(
       (w) => w.warehouse_name === "Raw Material Store"
     );
-  
+
     if (rawMaterialWarehouse) {
       setFormRaw((prev) => ({
         ...prev,
@@ -955,49 +1146,21 @@ export default function ItemForm() {
 
     setSubmitting(true);
     try {
-      let imagePath = form.image;
-
-      if (imageFile) {
-        const uploadFormData = new FormData();
-        uploadFormData.append("image", imageFile);
-        uploadFormData.append("type", "item");
-
-        try {
-          const uploadResponse = await api.post("/upload", uploadFormData, {
-            headers: { "Content-Type": "multipart/form-data" },
-          });
-
-          if (uploadResponse.data.success === 1) {
-            imagePath = uploadResponse.data.data.path || uploadResponse.data.data.url;
-          } else {
-            toast.error("Failed to upload image");
-            setSubmitting(false);
-            return;
-          }
-        } catch (uploadError: any) {
-          console.error("Image upload error:", uploadError);
-          if (uploadError.response?.status === 413) {
-            toast.error("Image file is too large. Please use a smaller image (max 2MB).");
-          } else {
-            toast.error("Failed to upload image");
-          }
-          setSubmitting(false);
-          return;
-        }
-      }
-
+      // 1. Prepare the item payload WITHOUT the image
       const totalOpeningStock = openingStockEntries.reduce((sum, entry) => sum + entry.quantity, 0);
       const totalOpeningValue = openingStockEntries.reduce((sum, entry) => sum + entry.total, 0);
       const openingStockRate = totalOpeningStock > 0 ? totalOpeningValue / totalOpeningStock : 0;
 
-      const payload = {
-        id: parseInt(id || "0"),
+      // Determine if we have an existing image (to keep) or we're replacing it
+      const existingImage = form.image && !imageFile ? form.image : null; // keep existing if no new file
+
+      const payload: any = {
         naming_series: "STO-ITEM-.YYYY.-",
         item_code: form.itemCode || form.itemName.toUpperCase().replace(/\s+/g, "-"),
         item_name: form.itemName.trim(),
         item_group: form.itemGroup.trim(),
         stock_uom: form.defaultUOM.trim(),
-        image: imagePath,
+        image: existingImage, // will be updated after upload if new file
         disabled: form.disabled ? 1 : 0,
         tax_id: parseInt(form.taxId),
         is_stock_item: form.isStockItem ? 1 : 0,
@@ -1018,9 +1181,6 @@ export default function ItemForm() {
         over_billing_allowance: 0,
         brand: form.brand || null,
         description: form.description || form.itemName.trim(),
-        enable_deferred_expense: 0,
-        no_of_months_exp: 0,
-        enable_deferred_revenue: 0,
         no_of_months: 0,
         purchase_tax_withholding_category: null,
         sales_tax_withholding_category: null,
@@ -1065,9 +1225,15 @@ export default function ItemForm() {
         inspection_required_before_purchase: form.inspectionRequiredBeforePurchase ? 1 : 0,
         inspection_required_before_delivery: form.inspectionRequiredBeforeDelivery ? 1 : 0,
         quality_inspection_template: null,
-        HSN: form.hsn || "", // Add HSN to payload
+        HSN: form.hsn || "",
       };
 
+      // Include id if editing
+      if (!isNew && itemId) {
+        payload.id = itemId;
+      }
+
+      // 2. Save the item (POST or PUT)
       let response;
       if (isNew) {
         response = await api.post("/item", payload);
@@ -1081,20 +1247,73 @@ export default function ItemForm() {
         return;
       }
 
-      setIsDirty(false);
-      toast.success(isNew ? "Item created" : "Item updated");
+      // Get the item ID (insertId for new, existing id for edit)
+      const savedItemId = isNew
+        ? response.data.data?.insertId ?? response.data.data?.id
+        : itemId;
 
-      // Step 2: sync the inventory record
+      if (!savedItemId) {
+        toast.error("Item saved but could not retrieve ID");
+        setSubmitting(false);
+        return;
+      }
+
+      // 3. If there's a new image file, upload it and update the item
+      let uploadedImageUrl = null;
+      if (imageFile) {
+        const uploadFormData = new FormData();
+        uploadFormData.append("file", imageFile);
+        uploadFormData.append("itemID", String(savedItemId));
+        uploadFormData.append("type", "item");
+
+        try {
+          const uploadResponse = await api.post("/uploadmedia", uploadFormData, {
+            headers: { "Content-Type": "multipart/form-data" },
+          });
+
+          if (uploadResponse.data.success === 1) {
+            uploadedImageUrl = extractRelativePath(uploadResponse.data.fileUrl);
+            toast.success("Image uploaded successfully");
+          } else {
+            toast.error("Image upload failed: " + (uploadResponse.data.message || "Unknown error"));
+          }
+        } catch (uploadError: any) {
+          console.error("Image upload error:", uploadError);
+          if (uploadError.response?.status === 413) {
+            toast.error("Image file is too large. Please use a smaller image (max 2MB).");
+          } else {
+            toast.error("Failed to upload image: " + (uploadError.response?.data?.message || "Network error"));
+          }
+        }
+      }
+
+      // 4. If we got a new image URL, update the item's image field
+      if (uploadedImageUrl) {
+        const updatePayload = { id: savedItemId, image: uploadedImageUrl };
+        try {
+          const updateResponse = await api.put("/item", updatePayload);
+          if (updateResponse.data.success === 1) {
+            toast.success("Item image updated");
+            // Update local state with the new image URL
+            setFormRaw((prev) => ({ ...prev, image: uploadedImageUrl }));
+            setImageFile(null);
+          } else {
+            toast("Item saved but image URL could not be updated");
+          }
+        } catch (updateErr) {
+          console.error("Error updating item image:", updateErr);
+          toast("Item saved but image URL could not be updated");
+        }
+      }
+
+      // 5. Sync inventory (as before)
       let inventoryConfirmed = false;
-
       if (form.isStockItem) {
-        const savedItemId = isNew ? response.data.data?.insertId ?? response.data.data?.id : itemId;
         const savedItemCode = response.data.data?.item_code || payload.item_code;
 
         if (!form.warehouseId) {
           toast.error(`Item ${isNew ? "created" : "updated"}, but no warehouse was selected — inventory was not saved.`);
         } else if (!savedItemId) {
-          console.warn("Could not resolve item id — skipping inventory sync", response.data);
           toast.error(`Item ${isNew ? "created" : "updated"}, but couldn't resolve its id — inventory was not saved.`);
         } else {
           const inventoryPayload = {
@@ -1121,13 +1340,10 @@ export default function ItemForm() {
 
           try {
             let invResponse;
-            
             if (inventoryRecord && inventoryRecord.id) {
               invResponse = await api.put(`/inventory`, inventoryPayload);
             } else {
-              if (inventoryPayload.id === undefined) {
-                delete inventoryPayload.id;
-              }
+              if (inventoryPayload.id === undefined) delete inventoryPayload.id;
               invResponse = await api.post("/inventory", inventoryPayload);
             }
 
@@ -1150,8 +1366,12 @@ export default function ItemForm() {
         }
       }
 
+      setIsDirty(false);
+      toast.success(isNew ? "Item created" : "Item updated");
+
       setTimeout(() => navigate("/item-list"), inventoryConfirmed ? 1200 : 0);
       return;
+
     } catch (err: any) {
       console.error("Error saving item:", err);
       if (err.response?.status === 409) {
@@ -1212,18 +1432,19 @@ export default function ItemForm() {
           <div className="itf-grid-main">
             {/* Left column */}
             <div className="itf-col-left">
-              {/* Item Details Card */}
+              {/* Item Details Card - 3 columns */}
               <div className="itf-card">
                 <SectionTitle icon={<FaTag size={14} />} subtitle="Core identity and classification for this item.">
                   Item details
                 </SectionTitle>
 
-                <div className="itf-grid-2">
+                <div className="itf-grid-3">
                   <div className="itf-col">
                     <Field label="Item name" required error={fieldError("itemName")}>
                       <TextInput value={form.itemName} onChange={(v) => s("itemName", v)} placeholder="e.g. Cotton Yarn 40s" />
                     </Field>
-
+                  </div>
+                  <div className="itf-col">
                     <Field label="Item group" required error={fieldError("itemGroup")}>
                       <SelectInput
                         value={form.itemGroup}
@@ -1233,17 +1454,9 @@ export default function ItemForm() {
                         placeholder="Search for an item group…"
                       />
                     </Field>
-
-                    <Field label="HSN Code" hint="Harmonized System of Nomenclature code for taxation">
-                      <TextInput 
-                        value={form.hsn} 
-                        onChange={(v) => s("hsn", v)} 
-                        placeholder="e.g. 87690" 
-                        type="text" 
-                      />
-                    </Field>
-
-                    <Field label="Default unit of measure" required error={fieldError("defaultUOM")}>
+                  </div>
+                  <div className="itf-col">
+                    <Field label="Default UOM" required error={fieldError("defaultUOM")}>
                       <SelectInput
                         value={form.defaultUOM}
                         onChange={(v) => s("defaultUOM", v)}
@@ -1252,22 +1465,37 @@ export default function ItemForm() {
                         placeholder="Search for a UOM…"
                       />
                     </Field>
+                  </div>
+                </div>
 
+                <div className="itf-grid-3">
+                  <div className="itf-col">
+                    <Field label="HSN Code" hint="Harmonized System of Nomenclature code">
+                      <TextInput value={form.hsn} onChange={(v) => s("hsn", v)} placeholder="e.g. 87690" type="text" />
+                    </Field>
+                  </div>
+                  <div className="itf-col">
                     <Field label="Brand / company">
                       <TextInput value={form.brand} onChange={(v) => s("brand", v)} placeholder="Enter brand or company name" />
                     </Field>
                   </div>
-
                   <div className="itf-col">
-                    <Field label="Description">
-                      <TextInput value={form.description} onChange={(v) => s("description", v)} placeholder="Enter item description" />
-                    </Field>
-
                     <Field label="Safety stock" hint="Minimum stock level before reorder is triggered.">
-                      <TextInput value={form.safetyStock} onChange={(v) => s("safetyStock", v)} type="number" placeholder="20" min="0" />
+                      <NumberInput
+                        value={form.safetyStock}
+                        onChange={(v) => s("safetyStock", v)}
+                        placeholder="20"
+                        min={0}
+                        step={1}
+                        allowDecimal={false}
+                      />
                     </Field>
                   </div>
                 </div>
+
+                <Field label="Description">
+                  <TextInput value={form.description} onChange={(v) => s("description", v)} placeholder="Enter item description" />
+                </Field>
 
                 <div className="itf-divider" />
 
@@ -1284,9 +1512,6 @@ export default function ItemForm() {
                     checked={form.isPurchaseItem}
                     onChange={(v) => s("isPurchaseItem", v)}
                   />
-                </div>
-
-                <div className="itf-checkbox-grid">
                   <Checkbox
                     label="Inspect before purchase"
                     description="Raw material quality check"
@@ -1302,126 +1527,156 @@ export default function ItemForm() {
                 </div>
               </div>
 
-              {/* Pricing Card */}
-              <div className="itf-card">
-                <SectionTitle icon={<FaCalculator size={14} />} subtitle="Set the purchase cost and margin — MRP updates automatically.">
-                  Pricing
-                </SectionTitle>
+              {/* Pricing, Opening Stock, Warehouse - 50:50 split */}
+              <div className="itf-grid-2-50">
+                {/* Left: Pricing */}
+                <div className="itf-col-left-50">
+                  <div className="itf-card">
+                    <SectionTitle icon={<FaCalculator size={14} />} subtitle="Set the purchase cost and margin — MRP updates automatically.">
+                      Pricing
+                    </SectionTitle>
 
-                <div className="itf-grid-2">
-                  <Field label="Standard purchase rate (base price)" hint="The cost at which you purchase this item.">
-                    <TextInput value={form.standardRate} onChange={(v) => s("standardRate", v)} type="number" placeholder="0.00" min="0" prefix="₹" />
-                  </Field>
-                  <Field label="Profit margin (%)" hint="Margin applied on top of the base price.">
-                    <TextInput value={form.profitMargin} onChange={(v) => s("profitMargin", v)} type="number" placeholder="10" min="0" />
-                  </Field>
-                </div>
-
-                <div className="itf-grid-2">
-                  <Field label="Valuation rate" hint="Auto-calculated: base price + profit.">
-                    <TextInput value={form.valuationRate} readOnly prefix="₹" />
-                  </Field>
-                  <Field label="Last purchase rate" hint="Auto-set to the current base price.">
-                    <TextInput value={form.lastPurchaseRate} readOnly prefix="₹" />
-                  </Field>
-                </div>
-                <div> 
-                  <Field label="Tax type" required>
-                    <SelectInput
-                      value={form.taxId}
-                      onChange={(v) => s("taxId", v)}
-                      options={taxOptions}
-                      loading={loadingTaxes}
-                      placeholder="Select tax type…"
-                    />
-                  </Field>
-                </div>
-                <div className="itf-divider" />
-
-                <PricingSummary
-                  basePrice={parseFloat(form.standardRate) || 0}
-                  profitMargin={parseFloat(form.profitMargin) || 0}
-                  taxPercentage={taxPercentage}
-                  taxType={currentTax?.tax_type || "GST"}
-                />
-              </div>
-
-              {/* Opening Stock Card */}
-              <div className="itf-card">
-                <SectionTitle icon={<FaWarehouse size={14} />} subtitle="Record any stock on hand when this item is created.">
-                  Opening stock
-                </SectionTitle>
-                <OpeningStockTable entries={openingStockEntries} onChange={setOpeningStockEntries} />
-              </div>
-
-              {/* Inventory Card — simplified warehouse selection */}
-              <div className="itf-card">
-                <SectionTitle
-                  icon={<FaWarehouse size={14} />}
-                  subtitle="Select the warehouse where this item's stock will be stored."
-                >
-                  Warehouse assigned
-                </SectionTitle>
-
-                <div className="itf-grid-2">
-                  <Field
-                    label="Warehouse"
-                    required={form.isStockItem}
-                    hint="Opening stock will be added to this warehouse."
-                    error={fieldError("warehouseId")}
-                  >
-                    <SelectInput
-                      value={form.warehouseId}
-                      onChange={(v) => s("warehouseId", v)}
-                      options={warehouseOptions}
-                      loading={loadingWarehouses}
-                      placeholder="Select a warehouse…"
-                    />
-                  </Field>
-                </div>
-
-                {loadingInventory && (
-                  <div className="itf-inventory-loading">
-                    <FaSpinner className="itf-spin" size={13} /> Checking saved inventory…
-                  </div>
-                )}
-
-                {!loadingInventory && inventoryRecord && (
-                  <>
-                    <div className="itf-divider" />
-                    <div className="itf-inventory-record">
-                      <div className="itf-inventory-record-head">
-                        <span>Stock on record ({inventoryRecord.name})</span>
-                      </div>
-                      <div className="itf-pricing-list">
-                        <div className="itf-pricing-item">
-                          <span className="itf-pricing-label">Actual quantity</span>
-                          <span className="itf-pricing-value">{inventoryRecord.actual_qty} {inventoryRecord.stock_uom}</span>
-                        </div>
-                        <div className="itf-pricing-item">
-                          <span className="itf-pricing-label">Reserved stock</span>
-                          <span className="itf-pricing-value">{inventoryRecord.reserved_stock}</span>
-                        </div>
-                        <div className="itf-pricing-item">
-                          <span className="itf-pricing-label">Projected quantity</span>
-                          <span className="itf-pricing-value">{inventoryRecord.projected_qty}</span>
-                        </div>
-                        <div className="itf-pricing-item itf-pricing-item-divider">
-                          <span className="itf-pricing-label">Valuation rate</span>
-                          <span className="itf-pricing-value">₹{Number(inventoryRecord.valuation_rate).toFixed(2)}</span>
-                        </div>
-                        <div className="itf-pricing-item itf-pricing-total">
-                          <span className="itf-pricing-label">Stock value</span>
-                          <span className="itf-pricing-value">₹{Number(inventoryRecord.stock_value).toFixed(2)}</span>
-                        </div>
-                      </div>
+                    <div className="itf-grid-2">
+                      <Field label="Standard purchase rate (base price)" hint="The cost at which you purchase this item.">
+                        <NumberInput
+                          value={form.standardRate}
+                          onChange={(v) => s("standardRate", v)}
+                          placeholder="0.00"
+                          min={0}
+                          step={0.01}
+                          prefix="₹"
+                        />
+                      </Field>
+                      <Field label="Profit margin (%)" hint="Margin applied on top of the base price.">
+                        <NumberInput
+                          value={form.profitMargin}
+                          onChange={(v) => s("profitMargin", v)}
+                          placeholder="10"
+                          min={0}
+                          step={0.5}
+                          suffix="%"
+                        />
+                      </Field>
                     </div>
-                  </>
-                )}
+
+                    <div className="itf-grid-2">
+                      <Field label="Valuation rate" hint="Auto-calculated: base price + profit.">
+                        <NumberInput
+                          value={form.valuationRate}
+                          readOnly
+                          prefix="₹"
+                          onChange={() => {}}
+                        />
+                      </Field>
+                      <Field label="Last purchase rate" hint="Auto-set to the current base price.">
+                        <NumberInput
+                          value={form.lastPurchaseRate}
+                          readOnly
+                          prefix="₹"
+                          onChange={() => {}}
+                        />
+                      </Field>
+                    </div>
+
+                    <Field label="Tax type" required>
+                      <SelectInput
+                        value={form.taxId}
+                        onChange={(v) => s("taxId", v)}
+                        options={taxOptions}
+                        loading={loadingTaxes}
+                        placeholder="Select tax type…"
+                      />
+                    </Field>
+
+                    <div className="itf-divider" />
+
+                    <PricingSummary
+                      basePrice={parseFloat(form.standardRate) || 0}
+                      profitMargin={parseFloat(form.profitMargin) || 0}
+                      taxPercentage={taxPercentage}
+                      taxType={currentTax?.tax_type || "GST"}
+                    />
+                  </div>
+                </div>
+
+                {/* Right: Opening Stock + Warehouse */}
+                <div className="itf-col-right-50">
+                  {/* Opening Stock Card */}
+                  <div className="itf-card">
+                    <SectionTitle icon={<FaWarehouse size={14} />} subtitle="Record any stock on hand when this item is created.">
+                      Opening stock
+                    </SectionTitle>
+                    <OpeningStockTable entries={openingStockEntries} onChange={setOpeningStockEntries} />
+                  </div>
+
+                  {/* Warehouse Card */}
+                  <div className="itf-card">
+                    <SectionTitle
+                      icon={<FaWarehouse size={14} />}
+                      subtitle="Select the warehouse where this item's stock will be stored."
+                    >
+                      Warehouse assigned
+                    </SectionTitle>
+
+                    <Field
+                      label="Warehouse"
+                      required={form.isStockItem}
+                      hint="Opening stock will be added to this warehouse."
+                      error={fieldError("warehouseId")}
+                    >
+                      <SelectInput
+                        value={form.warehouseId}
+                        onChange={(v) => s("warehouseId", v)}
+                        options={warehouseOptions}
+                        loading={loadingWarehouses}
+                        placeholder="Select a warehouse…"
+                      />
+                    </Field>
+
+                    {loadingInventory && (
+                      <div className="itf-inventory-loading">
+                        <FaSpinner className="itf-spin" size={13} /> Checking saved inventory…
+                      </div>
+                    )}
+
+                    {!loadingInventory && inventoryRecord && (
+                      <>
+                        <div className="itf-divider" />
+                        <div className="itf-inventory-record">
+                          <div className="itf-inventory-record-head">
+                            <span>Stock on record ({inventoryRecord.name})</span>
+                          </div>
+                          <div className="itf-pricing-list">
+                            <div className="itf-pricing-item">
+                              <span className="itf-pricing-label">Actual quantity</span>
+                              <span className="itf-pricing-value">{inventoryRecord.actual_qty} {inventoryRecord.stock_uom}</span>
+                            </div>
+                            <div className="itf-pricing-item">
+                              <span className="itf-pricing-label">Reserved stock</span>
+                              <span className="itf-pricing-value">{inventoryRecord.reserved_stock}</span>
+                            </div>
+                            <div className="itf-pricing-item">
+                              <span className="itf-pricing-label">Projected quantity</span>
+                              <span className="itf-pricing-value">{inventoryRecord.projected_qty}</span>
+                            </div>
+                            <div className="itf-pricing-item itf-pricing-item-divider">
+                              <span className="itf-pricing-label">Valuation rate</span>
+                              <span className="itf-pricing-value">₹{Number(inventoryRecord.valuation_rate).toFixed(2)}</span>
+                            </div>
+                            <div className="itf-pricing-item itf-pricing-total">
+                              <span className="itf-pricing-label">Stock value</span>
+                              <span className="itf-pricing-value">₹{Number(inventoryRecord.stock_value).toFixed(2)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Right column */}
+            {/* Right column - Image & Summary */}
             <div className="itf-col-right">
               <div className="itf-card itf-card-sticky">
                 <SectionTitle icon={<FaImage size={14} />}>Item image</SectionTitle>
@@ -1449,14 +1704,6 @@ export default function ItemForm() {
                   </div>
                 </div>
 
-                <div className="itf-divider" />
-
-                <Checkbox
-                  label="Disabled"
-                  description="Hide this item from active use"
-                  checked={form.disabled}
-                  onChange={(v) => s("disabled", v)}
-                />
               </div>
             </div>
           </div>
