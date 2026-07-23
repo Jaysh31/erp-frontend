@@ -211,19 +211,10 @@ function App() {
               <Route path="/chart-of-accounts" element={<ChartOfAccounts />} />
               <Route path="/ledger-accounts" element={<LedgerAccounts />} />
               <Route path="/delivery-challan" element={<DeliveryChallan />} />
+              <Route path="/delivery-challan/edit/:id" element={<DeliveryChallanForm />} />
               <Route path="/delivery-challan/new" element={<DeliveryChallanForm />} />
               <Route path="/outstanding-receivables" element={<OutstandingDashboard />} />
               <Route path="/customer-payments" element={<CustomerPayments />} />
-
-
-
-
-              {/* <Route path="/sales" element={<SalesPage />} />
-            <Route path="/purchase" element={<PurchasePage />} />
-            <Route path="/inventory" element={<InventoryPage />} />
-            <Route path="/production" element={<ProductionPage />} />
-            <Route path="/reports" element={<ReportsPage />} />
-            <Route path="/settings" element={<SettingsPage />} /> */}
 
 
               <Route path="/job-card" element={<JobCardManagement />} />

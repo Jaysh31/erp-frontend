@@ -1,14 +1,13 @@
-import React, { useState, useEffect, useRef,  } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   FaArrowLeft, FaSave, FaSpinner, FaPlus,
   FaTrash, FaFileAlt,
- 
   FaTimes, FaExclamationTriangle, FaInfoCircle,
   FaUser, FaCreditCard, FaCalendarAlt,
   FaFileImport, FaCheckCircle, FaExclamationCircle, FaQuestionCircle,
   FaBuilding, FaPhone, FaEnvelope, FaBox, FaCalculator, FaClipboardList,
-
+  FaChevronDown,
 } from 'react-icons/fa';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import './CreateSalesOrder.css';
@@ -20,16 +19,49 @@ import ReactDOM from 'react-dom';
 
 type StockStatus = 'checking' | 'available' | 'insufficient' | 'unknown' | undefined;
 
+interface Customer {
+  id: string;
+  name: string;
+  code: string;
+  email: string;
+  phone: string;
+  address: string;
+  shippingAddress: string;
+  gstin: string;
+  contactPerson?: string;
+  contactMobile?: string;
+}
+
+interface TaxOption {
+  tax_id: number;
+  tax_type: string;
+}
+
+interface Product {
+  id: string;
+  itemCode: string;
+  itemName: string;
+  hsn: string;
+  description: string;
+  unit: string;
+  rate: number;
+  tax: number;
+  stockUom?: string;
+  standardRate?: number;
+}
+
 interface SalesOrderItem {
   id: string;
   itemCode: string;
   itemName: string;
+  hsn: string;
   quantity: number;
   rate: number;
   stockUom: string;
-  cgst: number;
-  sgst: number;
+  tax: number;
   amount: number;
+  taxAmount: number;
+  totalAmount: number;
   stockStatus?: StockStatus;
   availableQty?: number;
 }
@@ -57,8 +89,7 @@ interface SalesOrderForm {
   items: SalesOrderItem[];
   totalQuantity: number;
   baseTotal: number;
-  cgstTotal: number;
-  sgstTotal: number;
+  taxTotal: number;
   grandTotal: number;
   roundedTotal: number;
   paymentTermsTemplate: string;
@@ -93,12 +124,11 @@ interface SalesOrderApiRecord {
   items?: Array<{
     item_code?: string;
     item_name?: string;
+    hsn?: string;
     qty?: number;
     rate?: number;
     stock_uom?: string;
-    warehouse?: string;
-    cgst_rate?: number;
-    sgst_rate?: number;
+    tax_rate?: number;
     amount?: number;
   }>;
   payment_schedule?: any[];
@@ -124,12 +154,11 @@ interface QuotationApiRecord {
   items?: Array<{
     item_code?: string;
     item_name?: string;
+    hsn?: string;
     qty?: number;
     rate?: number;
     stock_uom?: string;
-    warehouse?: string;
-    cgst_rate?: number;
-    sgst_rate?: number;
+    tax_rate?: number;
     amount?: number;
   }>;
 }
@@ -146,38 +175,729 @@ interface InventoryApiRecord {
 }
 
 // ===== SHARED: portal-based dropdown menu position hook =====
-// function useDropdownPosition(isOpen: boolean, triggerRef: React.RefObject<HTMLDivElement | null>) {
-//   const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
+function useDropdownPosition(isOpen: boolean, triggerRef: React.RefObject<HTMLDivElement | null>) {
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
 
-//   const recalc = useCallback(() => {
-//     if (triggerRef.current) {
-//       const rect = triggerRef.current.getBoundingClientRect();
-//       setPos({
-//         top: rect.bottom + 4,
-//         left: rect.left,
-//         width: rect.width
-//       });
-//     }
-//   }, [triggerRef]);
+  const recalc = useCallback(() => {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setPos({
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: rect.width
+      });
+    }
+  }, [triggerRef]);
 
-//   useEffect(() => {
-//     if (!isOpen) return;
-//     recalc();
-//     window.addEventListener('scroll', recalc, true);
-//     window.addEventListener('resize', recalc);
-//     return () => {
-//       window.removeEventListener('scroll', recalc, true);
-//       window.removeEventListener('resize', recalc);
-//     };
-//   }, [isOpen, recalc]);
+  useEffect(() => {
+    if (!isOpen) return;
+    recalc();
+    window.addEventListener('scroll', recalc, true);
+    window.addEventListener('resize', recalc);
+    return () => {
+      window.removeEventListener('scroll', recalc, true);
+      window.removeEventListener('resize', recalc);
+    };
+  }, [isOpen, recalc]);
 
-//   return pos;
-// }
+  return pos;
+}
 
-// const withOption = (options: string[], value?: string | null): string[] => {
-//   if (!value) return options;
-//   return options.includes(value) ? options : [value, ...options];
-// };
+// ===== SEARCHABLE PRODUCT SELECT COMPONENT =====
+interface SearchableSelectProps {
+  value: string;
+  onChange: (value: string) => void;
+  options: Product[];
+  placeholder?: string;
+  disabled?: boolean;
+  error?: boolean;
+  onSearch?: (searchTerm: string) => Promise<void>;
+  loading?: boolean;
+  stockInfo?: { status: StockStatus; availableQty?: number };
+}
+
+const SearchableSelect: React.FC<SearchableSelectProps> = ({
+  value,
+  onChange,
+  options,
+  placeholder = 'Search...',
+  disabled = false,
+  error = false,
+  onSearch,
+  loading = false,
+  stockInfo,
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filteredOptions, setFilteredOptions] = useState<Product[]>(options);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const menuPos = useDropdownPosition(isOpen, wrapperRef);
+
+  useEffect(() => {
+    if (!searchTerm) {
+      setFilteredOptions(options);
+      return;
+    }
+
+    const filtered = options.filter(opt =>
+      opt.itemCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      opt.itemName.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    setFilteredOptions(filtered);
+  }, [searchTerm, options]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      const clickedTrigger = wrapperRef.current?.contains(target);
+      const clickedMenu = menuRef.current?.contains(target);
+      if (!clickedTrigger && !clickedMenu) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const term = e.target.value;
+    setSearchTerm(term);
+    setHighlightedIndex(-1);
+
+    if (!isOpen) {
+      setIsOpen(true);
+    }
+
+    if (onSearch && term.length > 0) {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+
+      debounceTimerRef.current = setTimeout(() => {
+        onSearch(term).catch(err => console.error('Search error:', err));
+      }, 500);
+    }
+  };
+
+  const handleSelect = (option: Product) => {
+    onChange(option.itemCode);
+    setSearchTerm('');
+    setIsOpen(false);
+    if (inputRef.current) {
+      inputRef.current.blur();
+    }
+  };
+
+  const getSelectedLabel = () => {
+    const selected = options.find(opt => opt.itemCode === value);
+    return selected ? `${selected.itemCode}` : '';
+  };
+
+  const getStockDisplay = () => {
+    if (!stockInfo || !value) return null;
+    if (stockInfo.status === 'checking') {
+      return <span className="so-stock-indicator so-stock-checking"><FaSpinner className="so-spinning" size={8} /></span>;
+    }
+    if (stockInfo.status === 'available') {
+      return <span className="so-stock-indicator so-stock-available"><FaCheckCircle size={8} /> {stockInfo.availableQty}</span>;
+    }
+    if (stockInfo.status === 'insufficient') {
+      return <span className="so-stock-indicator so-stock-insufficient"><FaExclamationCircle size={8} /> {stockInfo.availableQty || 0}</span>;
+    }
+    return <span className="so-stock-indicator so-stock-unknown"><FaQuestionCircle size={8} /></span>;
+  };
+
+  const menu = isOpen ? (
+    <div
+      ref={menuRef}
+      className="so-custom-scroll"
+      style={{
+        position: 'fixed',
+        top: menuPos.top,
+        left: menuPos.left,
+        width: menuPos.width,
+        background: 'var(--card-bg, #ffffff)',
+        border: '0.5px solid var(--border-color, #e2e8f0)',
+        borderRadius: '6px',
+        boxShadow: '0 4px 16px var(--shadow-color, rgba(0,0,0,0.15))',
+        zIndex: 99999,
+        maxHeight: '220px',
+        overflowY: 'auto',
+        overflowX: 'hidden'
+      }}
+    >
+      {filteredOptions.length > 0 ? (
+        filteredOptions.map((option, index) => (
+          <div
+            key={option.id}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              handleSelect(option);
+            }}
+            style={{
+              padding: '8px 12px',
+              cursor: 'pointer',
+              background: highlightedIndex === index ? 'var(--nav-hover, #eff6ff)' : 'transparent',
+              borderLeft: value === option.itemCode ? '2px solid var(--primary-color, #2563eb)' : '2px solid transparent',
+              transition: 'background 0.15s',
+              borderBottom: index < filteredOptions.length - 1 ? '0.5px solid var(--border-color, #f1f5f9)' : 'none'
+            }}
+            onMouseEnter={() => setHighlightedIndex(index)}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontWeight: 500, fontSize: '13px', color: 'var(--text-primary, #0f172a)' }}>{option.itemCode}</span>
+              <span style={{ fontSize: '12px', color: 'var(--text-secondary, #64748b)', marginLeft: '8px', textAlign: 'right' }}>
+                ₹{option.rate}
+              </span>
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--text-secondary, #94a3b8)', marginTop: '2px' }}>
+              {option.itemName} | HSN: {option.hsn || '-'} | Tax: {option.tax || 0}%
+            </div>
+          </div>
+        ))
+      ) : (
+        <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
+          {loading ? 'Loading...' : 'No items found'}
+        </div>
+      )}
+    </div>
+  ) : null;
+
+  return (
+    <div ref={wrapperRef} style={{ position: 'relative', width: '100%' }}>
+      <div style={{ position: 'relative' }}>
+        <input
+          ref={inputRef}
+          type="text"
+          placeholder={placeholder}
+          value={isOpen ? searchTerm : getSelectedLabel()}
+          onChange={handleSearchChange}
+          onFocus={() => !disabled && setIsOpen(true)}
+          disabled={disabled}
+          autoComplete="off"
+          className="so-table-input"
+          style={{
+            width: '100%',
+            padding: '4px 8px',
+            paddingRight: '30px',
+            border: error ? '0.5px solid var(--danger-color, #ef4444)' : '0.5px solid var(--border-color, #e2e8f0)',
+            borderRadius: '4px',
+            background: disabled ? 'var(--input-bg, #f3f4f6)' : 'var(--input-bg, #f8fafc)',
+            color: 'var(--text-primary, #0f172a)',
+            fontSize: '12px',
+            fontFamily: 'inherit',
+            cursor: disabled ? 'not-allowed' : 'text',
+            minHeight: '30px',
+            textAlign: 'left'
+          }}
+        />
+        {loading ? (
+          <FaSpinner className="so-spinning" style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', color: 'var(--primary-color, #2563eb)', fontSize: '11px' }} />
+        ) : (
+          <FaChevronDown style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary, #94a3b8)', fontSize: '11px', pointerEvents: 'none' }} />
+        )}
+        {/* Stock indicator inside the input */}
+        {value && stockInfo && (
+          <div style={{ position: 'absolute', right: '28px', top: '50%', transform: 'translateY(-50%)' }}>
+            {getStockDisplay()}
+          </div>
+        )}
+      </div>
+
+      {menu && ReactDOM.createPortal(menu, document.body)}
+    </div>
+  );
+};
+
+// ===== SEARCHABLE CUSTOMER DROPDOWN =====
+interface CustomerDropdownProps {
+  value: string;
+  onChange: (value: string, customerData?: Customer) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  error?: boolean;
+}
+
+const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
+  value,
+  onChange,
+  placeholder = 'Search Customer...',
+  disabled = false,
+  error = false,
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [filteredCustomers, setFilteredCustomers] = useState<Customer[]>([]);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const [loading, setLoading] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const menuPos = useDropdownPosition(isOpen, wrapperRef);
+
+  useEffect(() => {
+    fetchCustomers('');
+  }, []);
+
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setFilteredCustomers(customers);
+      return;
+    }
+
+    const filtered = customers.filter(customer =>
+      customer.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      customer.code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      customer.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      customer.phone?.includes(searchTerm) ||
+      customer.gstin?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    setFilteredCustomers(filtered);
+  }, [searchTerm, customers]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      const clickedTrigger = wrapperRef.current?.contains(target);
+      const clickedMenu = menuRef.current?.contains(target);
+      if (!clickedTrigger && !clickedMenu) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const fetchCustomers = async (search: string) => {
+    setLoading(true);
+    try {
+      const response = await api.get(`/customer?page=1&limit=50&search=${encodeURIComponent(search)}`);
+      const records = extractRecords(response.data);
+      
+      const mappedCustomers: Customer[] = records.map((cust: any) => ({
+        id: cust.id?.toString() || cust.name || '',
+        name: cust.customer_name || cust.name || '',
+        code: cust.customer_code || cust.code || '',
+        email: cust.email_id || cust.email || '',
+        phone: cust.mobile_no || cust.phone || '',
+        address: cust.address || '',
+        shippingAddress: cust.shipping_address || cust.address || '',
+        gstin: cust.gstin || '',
+        contactPerson: cust.contact_person || '',
+        contactMobile: cust.contact_mobile || cust.mobile_no || ''
+      }));
+      
+      setCustomers(mappedCustomers);
+      setFilteredCustomers(mappedCustomers);
+    } catch (error) {
+      console.error('Error fetching customers:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const term = e.target.value;
+    setSearchTerm(term);
+    setHighlightedIndex(-1);
+
+    if (!isOpen) {
+      setIsOpen(true);
+    }
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    debounceTimerRef.current = setTimeout(() => {
+      if (term.length > 0) {
+        fetchCustomers(term);
+      } else {
+        fetchCustomers('');
+      }
+    }, 500);
+  };
+
+  const handleSelect = (customer: Customer) => {
+    setSelectedCustomer(customer);
+    setSearchTerm('');
+    setIsOpen(false);
+    onChange(customer.id, customer);
+    if (inputRef.current) {
+      inputRef.current.blur();
+    }
+  };
+
+  const getDisplayValue = () => {
+    if (selectedCustomer) {
+      return `${selectedCustomer.name}`;
+    }
+    return '';
+  };
+
+  const menu = isOpen ? (
+    <div
+      ref={menuRef}
+      className="so-custom-scroll"
+      style={{
+        position: 'fixed',
+        top: menuPos.top,
+        left: menuPos.left,
+        width: menuPos.width,
+        background: 'var(--card-bg, #ffffff)',
+        border: '0.5px solid var(--border-color, #e2e8f0)',
+        borderRadius: '6px',
+        boxShadow: '0 4px 16px var(--shadow-color, rgba(0,0,0,0.15))',
+        zIndex: 99999,
+        maxHeight: '280px',
+        overflowY: 'auto',
+        overflowX: 'hidden'
+      }}
+    >
+      {loading ? (
+        <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
+          <FaSpinner className="so-spinning" style={{ display: 'inline-block', marginRight: '8px' }} /> Loading...
+        </div>
+      ) : filteredCustomers.length > 0 ? (
+        filteredCustomers.map((customer, index) => (
+          <div
+            key={customer.id}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              handleSelect(customer);
+            }}
+            style={{
+              padding: '10px 14px',
+              cursor: 'pointer',
+              background: highlightedIndex === index ? 'var(--nav-hover, #eff6ff)' : 'transparent',
+              borderLeft: value === customer.id ? '3px solid var(--primary-color, #2563eb)' : '3px solid transparent',
+              transition: 'background 0.15s',
+              borderBottom: index < filteredCustomers.length - 1 ? '0.5px solid var(--border-color, #f1f5f9)' : 'none'
+            }}
+            onMouseEnter={() => setHighlightedIndex(index)}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary, #0f172a)' }}>{customer.name}</span>
+              </div>
+              {customer.gstin && (
+                <span style={{ fontSize: '10px', color: 'var(--text-secondary, #94a3b8)', background: 'var(--layout-bg, #f1f5f9)', padding: '2px 8px', borderRadius: '4px' }}>
+                  GST: {customer.gstin}
+                </span>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: '16px', marginTop: '4px', fontSize: '11px', color: 'var(--text-secondary, #64748b)' }}>
+              {customer.contactPerson && (
+                <span><FaUser size={10} style={{ marginRight: '4px' }} />{customer.contactPerson}</span>
+              )}
+              {customer.phone && (
+                <span><FaPhone size={10} style={{ marginRight: '4px' }} />{customer.phone}</span>
+              )}
+              {customer.email && (
+                <span><FaEnvelope size={10} style={{ marginRight: '4px' }} />{customer.email}</span>
+              )}
+            </div>
+          </div>
+        ))
+      ) : (
+        <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
+          {searchTerm ? 'No matching customers found' : 'No customers available'}
+        </div>
+      )}
+    </div>
+  ) : null;
+
+  return (
+    <div ref={wrapperRef} style={{ position: 'relative', width: '100%' }}>
+      <div style={{ position: 'relative' }}>
+        <input
+          ref={inputRef}
+          type="text"
+          placeholder={placeholder}
+          value={isOpen ? searchTerm : getDisplayValue()}
+          onChange={handleSearchChange}
+          onFocus={() => setIsOpen(true)}
+          disabled={disabled}
+          autoComplete="off"
+          style={{
+            width: '100%',
+            padding: '6px 10px',
+            paddingRight: '35px',
+            border: error ? '0.5px solid var(--danger-color, #ef4444)' : '0.5px solid var(--border-color, #e2e8f0)',
+            borderRadius: '6px',
+            background: disabled ? 'var(--input-bg, #f3f4f6)' : 'var(--input-bg, #f8fafc)',
+            color: 'var(--text-primary, #0f172a)',
+            fontSize: '13px',
+            fontFamily: 'inherit',
+            cursor: disabled ? 'not-allowed' : 'text',
+            minHeight: '32px'
+          }}
+        />
+        {loading ? (
+          <FaSpinner className="so-spinning" style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--primary-color, #2563eb)', fontSize: '12px' }} />
+        ) : (
+          <FaChevronDown style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary, #64748b)', fontSize: '12px', pointerEvents: 'none' }} />
+        )}
+      </div>
+
+      {menu && ReactDOM.createPortal(menu, document.body)}
+    </div>
+  );
+};
+
+// ===== SEARCHABLE QUOTATION DROPDOWN =====
+interface QuotationDropdownProps {
+  value: string;
+  onChange: (value: string, quotationData?: QuotationApiRecord) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  error?: boolean;
+}
+
+const QuotationDropdown: React.FC<QuotationDropdownProps> = ({
+  value,
+  onChange,
+  placeholder = 'Search Quotation...',
+  disabled = false,
+  error = false,
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [quotations, setQuotations] = useState<QuotationApiRecord[]>([]);
+  const [filteredQuotations, setFilteredQuotations] = useState<QuotationApiRecord[]>([]);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const [loading, setLoading] = useState(false);
+  const [selectedQuotation, setSelectedQuotation] = useState<QuotationApiRecord | null>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const menuPos = useDropdownPosition(isOpen, wrapperRef);
+
+  useEffect(() => {
+    fetchQuotations('');
+  }, []);
+
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setFilteredQuotations(quotations);
+      return;
+    }
+
+    const filtered = quotations.filter(q =>
+      q.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      q.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      q.party_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      String(q.grand_total).includes(searchTerm)
+    );
+    setFilteredQuotations(filtered);
+  }, [searchTerm, quotations]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      const clickedTrigger = wrapperRef.current?.contains(target);
+      const clickedMenu = menuRef.current?.contains(target);
+      if (!clickedTrigger && !clickedMenu) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const fetchQuotations = async (search: string) => {
+    setLoading(true);
+    try {
+      const response = await api.get(`/quotation?page=1&limit=50&search=${encodeURIComponent(search)}`);
+      const records = extractRecords(response.data);
+      
+      const mappedQuotations: QuotationApiRecord[] = records.map((q: any) => ({
+        name: q.name || '',
+        party_name: q.party_name || '',
+        customer_name: q.customer_name || '',
+        transaction_date: q.transaction_date || '',
+        valid_till: q.valid_till || '',
+        company: q.company || null,
+        currency: q.currency || 'INR',
+        total_qty: q.total_qty || 0,
+        total: q.total || 0,
+        net_total: q.net_total || 0,
+        grand_total: q.grand_total || 0,
+        rounded_total: q.rounded_total || 0,
+        payment_terms_template: q.payment_terms_template || null,
+        tc_name: q.tc_name || null,
+        terms: q.terms || null,
+        payment_schedule: q.payment_schedule || [],
+        items: q.items || [],
+      }));
+      
+      setQuotations(mappedQuotations);
+      setFilteredQuotations(mappedQuotations);
+    } catch (error) {
+      console.error('Error fetching quotations:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const term = e.target.value;
+    setSearchTerm(term);
+    setHighlightedIndex(-1);
+
+    if (!isOpen) {
+      setIsOpen(true);
+    }
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    debounceTimerRef.current = setTimeout(() => {
+      if (term.length > 0) {
+        fetchQuotations(term);
+      } else {
+        fetchQuotations('');
+      }
+    }, 500);
+  };
+
+  const handleSelect = (quotation: QuotationApiRecord) => {
+    setSelectedQuotation(quotation);
+    setSearchTerm('');
+    setIsOpen(false);
+    onChange(quotation.name, quotation);
+    if (inputRef.current) {
+      inputRef.current.blur();
+    }
+  };
+
+  const getDisplayValue = () => {
+    if (selectedQuotation) {
+      return `${selectedQuotation.name} — ${selectedQuotation.customer_name || selectedQuotation.party_name || ''}`;
+    }
+    return '';
+  };
+
+  const menu = isOpen ? (
+    <div
+      ref={menuRef}
+      className="so-custom-scroll"
+      style={{
+        position: 'fixed',
+        top: menuPos.top,
+        left: menuPos.left,
+        width: menuPos.width,
+        background: 'var(--card-bg, #ffffff)',
+        border: '0.5px solid var(--border-color, #e2e8f0)',
+        borderRadius: '6px',
+        boxShadow: '0 4px 16px var(--shadow-color, rgba(0,0,0,0.15))',
+        zIndex: 99999,
+        maxHeight: '260px',
+        overflowY: 'auto',
+        overflowX: 'hidden'
+      }}
+    >
+      {loading ? (
+        <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
+          <FaSpinner className="so-spinning" style={{ display: 'inline-block', marginRight: '8px' }} /> Loading...
+        </div>
+      ) : filteredQuotations.length > 0 ? (
+        filteredQuotations.map((q, index) => (
+          <div
+            key={q.name}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              handleSelect(q);
+            }}
+            style={{
+              padding: '10px 14px',
+              cursor: 'pointer',
+              background: highlightedIndex === index ? 'var(--nav-hover, #eff6ff)' : 'transparent',
+              borderLeft: value === q.name ? '3px solid var(--primary-color, #2563eb)' : '3px solid transparent',
+              transition: 'background 0.15s',
+              borderBottom: index < filteredQuotations.length - 1 ? '0.5px solid var(--border-color, #f1f5f9)' : 'none'
+            }}
+            onMouseEnter={() => setHighlightedIndex(index)}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary, #0f172a)' }}>{q.name}</span>
+                <span style={{ fontSize: '12px', color: 'var(--text-secondary, #475569)', marginLeft: '8px' }}>{q.customer_name || q.party_name || ''}</span>
+              </div>
+              <span style={{
+                fontSize: '11px',
+                padding: '2px 10px',
+                borderRadius: '12px',
+                background: '#dbeafe',
+                color: '#1e40af',
+                fontWeight: 500
+              }}>
+                ₹{q.grand_total || 0}
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: '16px', marginTop: '4px', fontSize: '11px', color: 'var(--text-secondary, #64748b)' }}>
+              <span>Items: {q.items?.length || 0}</span>
+              <span>Date: {q.transaction_date ? new Date(q.transaction_date).toLocaleDateString() : ''}</span>
+            </div>
+          </div>
+        ))
+      ) : (
+        <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
+          {searchTerm ? 'No matching quotations found' : 'No quotations available'}
+        </div>
+      )}
+    </div>
+  ) : null;
+
+  return (
+    <div ref={wrapperRef} style={{ position: 'relative', width: '100%' }}>
+      <div style={{ position: 'relative' }}>
+        <input
+          ref={inputRef}
+          type="text"
+          placeholder={placeholder}
+          value={isOpen ? searchTerm : getDisplayValue()}
+          onChange={handleSearchChange}
+          onFocus={() => setIsOpen(true)}
+          disabled={disabled}
+          autoComplete="off"
+          style={{
+            width: '100%',
+            padding: '6px 10px',
+            paddingRight: '35px',
+            border: error ? '0.5px solid var(--danger-color, #ef4444)' : '0.5px solid var(--border-color, #e2e8f0)',
+            borderRadius: '6px',
+            background: disabled ? 'var(--input-bg, #f3f4f6)' : 'var(--input-bg, #f8fafc)',
+            color: 'var(--text-primary, #0f172a)',
+            fontSize: '13px',
+            fontFamily: 'inherit',
+            cursor: disabled ? 'not-allowed' : 'text',
+            minHeight: '32px'
+          }}
+        />
+        {loading ? (
+          <FaSpinner className="so-spinning" style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--primary-color, #2563eb)', fontSize: '12px' }} />
+        ) : (
+          <FaChevronDown style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: disabled ? 'var(--text-secondary, #94a3b8)' : 'var(--text-secondary, #64748b)', fontSize: '12px', pointerEvents: 'none' }} />
+        )}
+      </div>
+
+      {menu && ReactDOM.createPortal(menu, document.body)}
+    </div>
+  );
+};
 
 const unwrapDate = (value?: string | null): string => {
   if (!value) return '';
@@ -230,11 +950,6 @@ const extractRecords = (payload: any): any[] => {
   if (Array.isArray(data?.records)) return data.records;
   if (Array.isArray(data)) return data;
   return [];
-};
-
-const getItemGrossAmount = (item: SalesOrderItem): number => {
-  const gstPercent = (item.cgst || 0) + (item.sgst || 0);
-  return item.amount + (item.amount * gstPercent) / 100;
 };
 
 const generateSalesOrderName = (): string => {
@@ -325,12 +1040,19 @@ export default function CreateSalesOrder() {
     console.log('Using default light theme');
   }
 
+  // ===== NEW: Toggle state for With/Without Quotation =====
+  const [hasQuotation, setHasQuotation] = useState<boolean>(true);
+  const [selectedQuotation, setSelectedQuotation] = useState<string>('');
+  const [applyingQuotation, setApplyingQuotation] = useState(false);
+
+  // ===== Tax options state =====
+  const [taxOptions, setTaxOptions] = useState<TaxOption[]>([]);
+  const [loadingTaxOptions, setLoadingTaxOptions] = useState<boolean>(false);
+
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [saving, setSaving] = useState(false);
   const [, setLoadingRecord] = useState(false);
-  // const [focusedField, setFocusedField] = useState<string | null>(null);
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
-  // const [scanBarcode, setScanBarcode] = useState('');
   const [showValidationSummary, setShowValidationSummary] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [apiError, setApiError] = useState<string | null>(null);
@@ -351,22 +1073,18 @@ export default function CreateSalesOrder() {
     message: ''
   });
 
-  // Customer lookup
-  const [customers, setCustomers] = useState<any[]>([]);
-  const [loadingCustomers, setLoadingCustomers] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState<any | null>(null);
+  // Customer data
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [customerData, setCustomerData] = useState<Customer | null>(null);
 
-  // Item lookup
-  const [itemSuggestions, setItemSuggestions] = useState<{ [index: number]: any[] }>({});
-  const [itemSuggestLoading, setItemSuggestLoading] = useState<{ [index: number]: boolean }>({});
-  const [openItemDropdown, setOpenItemDropdown] = useState<number | null>(null);
-  const itemSearchTimers = useRef<{ [index: number]: ReturnType<typeof setTimeout> }>({});
+  // Product data
+  const [products, setProducts] = useState<Product[]>([]);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
+  const [isLoadingItems, setIsLoadingItems] = useState<boolean>(false);
 
   // Quotation lookup
   const [quotations, setQuotations] = useState<QuotationApiRecord[]>([]);
   const [loadingQuotations, setLoadingQuotations] = useState(false);
-  const [selectedQuotationName, setSelectedQuotationName] = useState('');
-  const [applyingQuotation, setApplyingQuotation] = useState(false);
 
   // Inventory / stock check
   const [inventoryMap, setInventoryMap] = useState<{ [itemCode: string]: InventoryApiRecord }>({});
@@ -390,12 +1108,11 @@ export default function CreateSalesOrder() {
     customerName: '',
     status: 'Draft',
     items: [
-      { id: '1', itemCode: '', itemName: '', quantity: 1, rate: 0, stockUom: 'Nos', cgst: 0, sgst: 0, amount: 0 }
+      { id: '1', itemCode: '', itemName: '', hsn: '', quantity: 1, rate: 0, stockUom: 'Nos', tax: 0, amount: 0, taxAmount: 0, totalAmount: 0 }
     ],
     totalQuantity: 0,
     baseTotal: 0,
-    cgstTotal: 0,
-    sgstTotal: 0,
+    taxTotal: 0,
     grandTotal: 0,
     roundedTotal: 0,
     paymentTermsTemplate: '',
@@ -433,55 +1150,47 @@ export default function CreateSalesOrder() {
     el.focus();
   };
 
-  // ─── load customers ──────────────────────────
-  const fetchCustomers = async () => {
-    setLoadingCustomers(true);
+  // ─── fetch tax options ──────────────────────────
+  const fetchTaxOptions = async () => {
+    setLoadingTaxOptions(true);
     try {
-      const response = await api.get('/customer');
-      const records = extractRecords(response.data);
-      setCustomers(records);
-    } catch (err) {
-      console.error('Error fetching customers:', err);
+      const response = await api.get('/item/get-tax');
+      const data = response.data;
+      if (data.success === 1 && Array.isArray(data.data)) {
+        setTaxOptions(data.data);
+      } else {
+        setTaxOptions([
+          { tax_id: 1, tax_type: 'GST18' },
+          { tax_id: 2, tax_type: 'GST12' },
+          { tax_id: 3, tax_type: 'GST5' },
+          { tax_id: 4, tax_type: 'GST0' },
+          { tax_id: 5, tax_type: 'IGST18' },
+        ]);
+      }
+    } catch (error) {
+      console.error('Error fetching tax options:', error);
+      setTaxOptions([
+        { tax_id: 1, tax_type: 'GST18' },
+        { tax_id: 2, tax_type: 'GST12' },
+        { tax_id: 3, tax_type: 'GST5' },
+        { tax_id: 4, tax_type: 'GST0' },
+        { tax_id: 5, tax_type: 'IGST18' },
+      ]);
     } finally {
-      setLoadingCustomers(false);
+      setLoadingTaxOptions(false);
     }
   };
 
   useEffect(() => {
-    fetchCustomers();
+    fetchTaxOptions();
   }, []);
 
-  const customerIdOf = (c: any) => c?.name ?? c?.id ?? c?.customer_code ?? '';
-  const customerLabelOf = (c: any) => {
-    const id = customerIdOf(c);
-    const label = c?.customer_name || c?.party_name || id;
-    return label && label !== id ? `${label} (${id})` : `${id}`;
+  // Helper to extract numeric tax value from tax_type
+  const extractTaxValue = (taxType: string): number => {
+    if (!taxType) return 0;
+    const match = taxType.match(/(\d+)/);
+    return match ? parseInt(match[0], 10) : 0;
   };
-
-  const handleCustomerChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value;
-    const match = customers.find((c) => String(customerIdOf(c)) === value);
-    setSelectedCustomer(match || null);
-    setFormData((prev) => ({
-      ...prev,
-      customer: value,
-      customerName: match?.customer_name || match?.party_name || value,
-    }));
-    if (errors.customer) setErrors((prev) => ({ ...prev, customer: '' }));
-  };
-
-  // const customerDetailFields: { label: string; key: string }[] = [
-  //   { label: 'Customer Name', key: 'customer_name' },
-  //   { label: 'Customer Group', key: 'customer_group' },
-  //   { label: 'Territory', key: 'territory' },
-  //   { label: 'Mobile No', key: 'mobile_no' },
-  //   { label: 'Phone', key: 'phone' },
-  //   { label: 'Email', key: 'email_id' },
-  //   { label: 'GSTIN', key: 'gstin' },
-  //   { label: 'PAN', key: 'pan' },
-  //   { label: 'Address', key: 'primary_address' },
-  //   { label: 'Credit Limit', key: 'credit_limit' },
-  // ];
 
   // ─── load quotations ──────────────────────────
   const fetchQuotations = async () => {
@@ -503,11 +1212,67 @@ export default function CreateSalesOrder() {
     }
   }, []);
 
-  const quotationLabelOf = (q: QuotationApiRecord) => {
-    const amount = q.grand_total ?? q.total ?? 0;
-    const customer = q.customer_name || q.party_name || '';
-    return `${q.name} — ${customer} (INR ${amount})`;
+  // ─── fetch items ──────────────────────────
+  const fetchAllItems = async () => {
+    setIsLoadingItems(true);
+    try {
+      const response = await api.get('/item?type=product&page=1&limit=100');
+      const records = extractRecords(response.data);
+      
+      const itemsData: Product[] = records.map((item: any) => ({
+        id: item.id?.toString() || item.name || '',
+        itemCode: item.item_code || item.name || '',
+        itemName: item.item_name || '',
+        hsn: item.HSN || item.hsn || '',
+        description: item.description || item.item_name || '',
+        unit: item.stock_uom || 'Nos',
+        rate: item.standard_rate || 0,
+        tax: item.tax_rate || 0,
+        stockUom: item.stock_uom,
+        standardRate: item.standard_rate,
+      }));
+      
+      setAllProducts(itemsData);
+      setProducts(itemsData);
+    } catch (error) {
+      console.error('Error fetching items:', error);
+    } finally {
+      setIsLoadingItems(false);
+    }
   };
+
+  useEffect(() => {
+    fetchAllItems();
+  }, []);
+
+  const handleItemSearch = useCallback(async (searchTerm: string) => {
+    if (!searchTerm.trim()) {
+      setProducts(allProducts);
+      return;
+    }
+
+    try {
+      const response = await api.get(`/item?type=product&page=1&limit=50&search=${encodeURIComponent(searchTerm)}`);
+      const records = extractRecords(response.data);
+      
+      const itemsData: Product[] = records.map((item: any) => ({
+        id: item.id?.toString() || item.name || '',
+        itemCode: item.item_code || item.name || '',
+        itemName: item.item_name || '',
+        hsn: item.HSN || item.hsn || '',
+        description: item.description || item.item_name || '',
+        unit: item.stock_uom || 'Nos',
+        rate: item.standard_rate || 0,
+        tax: item.tax_rate || 0,
+        stockUom: item.stock_uom,
+        standardRate: item.standard_rate,
+      }));
+      
+      setProducts(itemsData);
+    } catch (error) {
+      console.error('Search error:', error);
+    }
+  }, [allProducts]);
 
   // ─── load inventory ──────────────────────────
   const fetchInventory = async () => {
@@ -543,7 +1308,7 @@ export default function CreateSalesOrder() {
       const limit = 100;
       let page = 1;
       while (page <= 20) {
-        const response = await api.get(`/item?page=${page}&limit=${limit}&_=${Date.now()}`);
+        const response = await api.get(`/item?type=product&page=${page}&limit=${limit}`);
         const records = extractRecords(response.data);
         records.forEach((r: any) => {
           if (r.item_code) map[String(r.item_code).toUpperCase()] = r;
@@ -586,134 +1351,68 @@ export default function CreateSalesOrder() {
     });
   }, [inventoryMap]);
 
-  const StockBadge = ({ item }: { item: SalesOrderItem }) => {
-    if (!item.itemCode) return null;
-    if (loadingInventory) {
-      return (
-        <span className="so-stock-badge so-stock-checking">
-          <FaSpinner className="so-spinning" size={9} /> Checking
-        </span>
-      );
+  // ─── Customer Change Handler ──────────────────────────
+  const handleCustomerChange = (customerId: string, customer?: Customer) => {
+    const customerData = customer || customers.find(c => c.id === customerId);
+    if (customerData) {
+      setSelectedCustomer(customerData);
+      setCustomerData(customerData);
+      setFormData((prev) => ({
+        ...prev,
+        customer: customerData.id,
+        customerName: customerData.name,
+      }));
+      if (errors.customer) setErrors((prev) => ({ ...prev, customer: '' }));
+    } else {
+      setSelectedCustomer(null);
+      setCustomerData(null);
+      setFormData((prev) => ({
+        ...prev,
+        customer: '',
+        customerName: '',
+      }));
     }
-    if (item.stockStatus === 'available') {
-      return (
-        <span className="so-stock-badge so-stock-available" title={`${item.availableQty} in stock`}>
-          <FaCheckCircle size={9} /> In Stock ({item.availableQty})
-        </span>
-      );
-    }
-    if (item.stockStatus === 'insufficient') {
-      return (
-        <span className="so-stock-badge so-stock-insufficient" title={`Only ${item.availableQty} available`}>
-          <FaExclamationCircle size={9} /> Only {item.availableQty ?? 0} left
-        </span>
-      );
-    }
-    return (
-      <span className="so-stock-badge so-stock-unknown">
-        <FaQuestionCircle size={9} /> Unknown
-      </span>
-    );
   };
 
-  // ─── load items (search) ──────────────────────
-  const fetchItemOptions = async (index: number, query: string) => {
-    setItemSuggestLoading((prev) => ({ ...prev, [index]: true }));
+  // ─── customers state for dropdown ──────────────────────────
+  const [customers, setCustomers] = useState<Customer[]>([]);
+
+  const fetchCustomers = async () => {
     try {
-      const url = query
-        ? `/item?page=1&limit=10&search=${encodeURIComponent(query)}`
-        : `/item?page=1&limit=10`;
-      const response = await api.get(url);
+      const response = await api.get('/customer?page=1&limit=100');
       const records = extractRecords(response.data);
-      setItemSuggestions((prev) => ({ ...prev, [index]: records }));
-    } catch (err) {
-      console.error('Error fetching items:', err);
-      setItemSuggestions((prev) => ({ ...prev, [index]: [] }));
-    } finally {
-      setItemSuggestLoading((prev) => ({ ...prev, [index]: false }));
+      
+      const mappedCustomers: Customer[] = records.map((cust: any) => ({
+        id: cust.id?.toString() || cust.name || '',
+        name: cust.customer_name || cust.name || '',
+        code: cust.customer_code || cust.code || '',
+        email: cust.email_id || cust.email || '',
+        phone: cust.mobile_no || cust.phone || '',
+        address: cust.address || '',
+        shippingAddress: cust.shipping_address || cust.address || '',
+        gstin: cust.gstin || '',
+        contactPerson: cust.contact_person || '',
+        contactMobile: cust.contact_mobile || cust.mobile_no || ''
+      }));
+      
+      setCustomers(mappedCustomers);
+    } catch (error) {
+      console.error('Error fetching customers:', error);
     }
   };
 
-  const scheduleItemSearch = (index: number, query: string) => {
-    if (itemSearchTimers.current[index]) {
-      clearTimeout(itemSearchTimers.current[index]);
-    }
-    itemSearchTimers.current[index] = setTimeout(() => {
-      fetchItemOptions(index, query);
-    }, 300);
-  };
-
-  const handleItemCodeFocus = (index: number) => {
-    setOpenItemDropdown(index);
-    if (!itemSuggestions[index]) {
-      fetchItemOptions(index, formData.items[index].itemCode);
-    }
-  };
-
-  const handleItemCodeBlur = () => {
-    setTimeout(() => setOpenItemDropdown(null), 150);
-  };
-
-  const selectItemSuggestion = (index: number, record: any) => {
-    const itemCode = record?.item_code || record?.name || '';
-    const itemName = record?.item_name || '';
-    const rate = Number(record?.standard_rate ?? record?.rate ?? 0) || 0;
-    const cgst = Number(record?.cgst_rate ?? record?.cgst ?? 0) || 0;
-    const sgst = Number(record?.sgst_rate ?? record?.sgst ?? 0) || 0;
-    const stockUom = record?.stock_uom || record?.uom || 'Nos';
-
-    const updatedItems = [...formData.items];
-    const quantity = updatedItems[index].quantity;
-    const effectiveRate = rate || updatedItems[index].rate;
-    const { status, availableQty } = getStockStatus(itemCode, quantity);
-    updatedItems[index] = {
-      ...updatedItems[index],
-      itemCode,
-      itemName,
-      rate: effectiveRate,
-      stockUom,
-      cgst: cgst || updatedItems[index].cgst,
-      sgst: sgst || updatedItems[index].sgst,
-      amount: quantity * effectiveRate,
-      stockStatus: status,
-      availableQty,
-    };
-    setFormData((prev) => ({ ...prev, items: updatedItems }));
-    setOpenItemDropdown(null);
-  };
-
-  const itemOptionLabel = (record: any) => {
-    const code = record?.item_code || record?.name || '';
-    const name = record?.item_name || '';
-    return name ? `${code} — ${name}` : code;
-  };
+  useEffect(() => {
+    fetchCustomers();
+  }, []);
 
   // ─── load quotation ──────────────────────────
-  const handleQuotationChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const name = e.target.value;
-    setSelectedQuotationName(name);
-    if (!name) return;
+  const handleQuotationChange = async (quotationName: string, quotationData?: QuotationApiRecord) => {
+    setSelectedQuotation(quotationName);
+    if (!quotationName || !quotationData) return;
 
     setApplyingQuotation(true);
     try {
-      const response = await api.get('/quotation');
-      const payload = response.data;
-      const data = payload && (payload.success === 1 || payload.success === 0) ? payload.data : payload;
-      const records: QuotationApiRecord[] = Array.isArray(data?.records)
-        ? data.records
-        : Array.isArray(data)
-          ? data
-          : [];
-
-      const record: QuotationApiRecord | undefined =
-        records.find((q) => q.name === name) || quotations.find((q) => q.name === name);
-
-      if (!record) {
-        toast.error('Selected quotation could not be loaded');
-        return;
-      }
-
-      applyQuotationToForm(record);
+      applyQuotationToForm(quotationData);
     } catch (err) {
       console.error('Error loading quotation detail:', err);
       toast.error('Failed to load quotation details');
@@ -754,18 +1453,24 @@ export default function CreateSalesOrder() {
         const quantity = it.qty ?? 1;
         const rate = it.rate ?? master?.standard_rate ?? 0;
         const itemName = it.item_name || master?.item_name || '';
+        const hsn = it.hsn || master?.HSN || master?.hsn || '';
         const stockUom = it.stock_uom || master?.stock_uom || 'Nos';
+        const tax = it.tax_rate ?? 0;
+        const amount = it.amount ?? quantity * rate;
+        const taxAmount = (amount * tax) / 100;
         const { status, availableQty } = getStockStatus(itemCode, quantity);
         return {
           id: String(idx + 1),
           itemCode,
           itemName,
+          hsn,
           quantity,
           rate,
           stockUom,
-          cgst: it.cgst_rate ?? 0,
-          sgst: it.sgst_rate ?? 0,
-          amount: it.amount ?? quantity * rate,
+          tax,
+          amount,
+          taxAmount,
+          totalAmount: amount + taxAmount,
           stockStatus: status,
           availableQty,
         };
@@ -779,23 +1484,26 @@ export default function CreateSalesOrder() {
         const grand = record.grand_total ?? record.rounded_total ?? baseAmount;
         const taxAmount = Math.max(0, grand - baseAmount);
         const taxPercent = baseAmount > 0 ? (taxAmount / baseAmount) * 100 : 0;
-        const halfTax = Number((taxPercent / 2).toFixed(2));
 
         const match = findLikelyCatalogMatch(rate, quantity);
 
         if (match) {
           const itemCode = match.item_code;
           const { status, availableQty } = getStockStatus(itemCode, quantity);
+          const amount = quantity * Number(match.standard_rate ?? rate);
+          const taxAmt = (amount * taxPercent) / 100;
           items = [{
             id: '1',
             itemCode,
             itemName: match.item_name || '',
+            hsn: match.HSN || match.hsn || '',
             quantity,
             rate: Number(match.standard_rate ?? rate),
             stockUom: match.stock_uom || 'Nos',
-            cgst: halfTax,
-            sgst: halfTax,
-            amount: baseAmount,
+            tax: taxPercent,
+            amount,
+            taxAmount: taxAmt,
+            totalAmount: amount + taxAmt,
             stockStatus: status,
             availableQty,
           }];
@@ -805,17 +1513,19 @@ export default function CreateSalesOrder() {
             id: '1',
             itemCode: '',
             itemName: `Select item — no catalog match for ${record.name} totals`,
+            hsn: '',
             quantity,
             rate,
             stockUom: 'Nos',
-            cgst: halfTax,
-            sgst: halfTax,
+            tax: taxPercent,
             amount: baseAmount,
+            taxAmount: taxAmount,
+            totalAmount: grand,
           }];
           itemsNeedManualPick = true;
         }
       } else {
-        items = [{ id: '1', itemCode: '', itemName: '', quantity: 1, rate: 0, stockUom: 'Nos', cgst: 0, sgst: 0, amount: 0 }];
+        items = [{ id: '1', itemCode: '', itemName: '', hsn: '', quantity: 1, rate: 0, stockUom: 'Nos', tax: 0, amount: 0, taxAmount: 0, totalAmount: 0 }];
       }
     }
 
@@ -844,11 +1554,21 @@ export default function CreateSalesOrder() {
       }
     }
 
+    // Find customer match
+    let customerMatch: Customer | undefined;
+    if (record.party_name) {
+      customerMatch = customers.find((c) => c.id === record.party_name || c.name === record.party_name);
+      if (customerMatch) {
+        setSelectedCustomer(customerMatch);
+        setCustomerData(customerMatch);
+      }
+    }
+
     setFormData((prev) => ({
       ...prev,
       company: record.company || prev.company,
-      customer: record.party_name || prev.customer,
-      customerName: record.customer_name || prev.customerName,
+      customer: customerMatch?.id || record.party_name || prev.customer,
+      customerName: customerMatch?.name || record.customer_name || prev.customerName,
       date: unwrapDate(record.transaction_date) || prev.date,
       deliveryDate: unwrapDate(record.valid_till) || prev.deliveryDate,
       paymentTermsTemplate: record.payment_terms_template || prev.paymentTermsTemplate,
@@ -857,11 +1577,6 @@ export default function CreateSalesOrder() {
       items,
       paymentSchedule: paymentSchedule.length > 0 ? paymentSchedule : prev.paymentSchedule,
     }));
-
-    if (record.party_name) {
-      const match = customers.find((c) => String(customerIdOf(c)) === String(record.party_name));
-      if (match) setSelectedCustomer(match);
-    }
 
     if (itemsAreGuessed) {
       toast(
@@ -949,24 +1664,29 @@ export default function CreateSalesOrder() {
           const quantity = it.qty ?? 0;
           const rate = it.rate ?? 0;
           const itemCode = it.item_code || '';
+          const tax = it.tax_rate ?? 0;
+          const amount = it.amount ?? quantity * rate;
+          const taxAmount = (amount * tax) / 100;
           const { status, availableQty } = getStockStatus(itemCode, quantity);
           return {
             id: String(idx + 1),
             itemCode,
             itemName: it.item_name || '',
+            hsn: it.hsn || '',
             quantity,
             rate,
             stockUom: it.stock_uom || 'Nos',
-            cgst: it.cgst_rate ?? 0,
-            sgst: it.sgst_rate ?? 0,
-            amount: it.amount ?? quantity * rate,
+            tax,
+            amount,
+            taxAmount,
+            totalAmount: amount + taxAmount,
             stockStatus: status,
             availableQty,
           };
         })
         : cached?.items && cached.items.length > 0
           ? cached.items
-          : [{ id: '1', itemCode: '', itemName: '', quantity: 1, rate: 0, stockUom: 'Nos', cgst: 0, sgst: 0, amount: 0 }];
+          : [{ id: '1', itemCode: '', itemName: '', hsn: '', quantity: 1, rate: 0, stockUom: 'Nos', tax: 0, amount: 0, taxAmount: 0, totalAmount: 0 }];
 
     let paymentSchedule: PaymentScheduleRow[] = [];
     if (Array.isArray(record.payment_schedule) && record.payment_schedule.length > 0) {
@@ -991,6 +1711,16 @@ export default function CreateSalesOrder() {
       }];
     }
 
+    // Find customer match
+    let customerMatch: Customer | undefined;
+    if (record.party_name) {
+      customerMatch = customers.find((c) => c.id === record.party_name || c.name === record.party_name);
+      if (customerMatch) {
+        setSelectedCustomer(customerMatch);
+        setCustomerData(customerMatch);
+      }
+    }
+
     setFormData((prev) => ({
       ...prev,
       namingSeries: record.naming_series || prev.namingSeries,
@@ -998,8 +1728,8 @@ export default function CreateSalesOrder() {
       isSubcontracted: Boolean(record.is_subcontracted),
       company: record.company || prev.company,
       warehouse: record.set_warehouse || prev.warehouse,
-      customer: record.party_name || prev.customer,
-      customerName: record.customer_name || prev.customerName,
+      customer: customerMatch?.id || record.party_name || prev.customer,
+      customerName: customerMatch?.name || record.customer_name || prev.customerName,
       date: unwrapDate(record.transaction_date) || prev.date,
       deliveryDate: unwrapDate(record.delivery_date) || prev.deliveryDate,
       status: record.status || prev.status,
@@ -1013,8 +1743,11 @@ export default function CreateSalesOrder() {
 
   useEffect(() => {
     if (formData.customer && customers.length > 0) {
-      const match = customers.find((c) => String(customerIdOf(c)) === String(formData.customer));
-      if (match) setSelectedCustomer(match);
+      const match = customers.find((c) => c.id === formData.customer || c.name === formData.customer);
+      if (match) {
+        setSelectedCustomer(match);
+        setCustomerData(match);
+      }
     }
   }, [customers, formData.customer]);
 
@@ -1111,17 +1844,15 @@ export default function CreateSalesOrder() {
   const calculateTotals = () => {
     const totalQty = formData.items.reduce((sum, item) => sum + item.quantity, 0);
     const baseTotal = formData.items.reduce((sum, item) => sum + item.amount, 0);
-    const cgstTotal = formData.items.reduce((sum, item) => sum + (item.amount * (item.cgst || 0)) / 100, 0);
-    const sgstTotal = formData.items.reduce((sum, item) => sum + (item.amount * (item.sgst || 0)) / 100, 0);
-    const grandTotal = baseTotal + cgstTotal + sgstTotal;
+    const taxTotal = formData.items.reduce((sum, item) => sum + item.taxAmount, 0);
+    const grandTotal = baseTotal + taxTotal;
     const roundedTotal = Math.round(grandTotal);
 
     setFormData(prev => ({
       ...prev,
       totalQuantity: totalQty,
       baseTotal,
-      cgstTotal,
-      sgstTotal,
+      taxTotal,
       grandTotal,
       roundedTotal
     }));
@@ -1150,54 +1881,67 @@ export default function CreateSalesOrder() {
     if (field === 'quantity' || field === 'rate') {
       const quantity = field === 'quantity' ? Number(value) : updatedItems[index].quantity;
       const rate = field === 'rate' ? Number(value) : updatedItems[index].rate;
-      updatedItems[index].amount = quantity * rate;
+      const amount = quantity * rate;
+      const tax = updatedItems[index].tax || 0;
+      const taxAmount = (amount * tax) / 100;
+      updatedItems[index].amount = amount;
+      updatedItems[index].taxAmount = taxAmount;
+      updatedItems[index].totalAmount = amount + taxAmount;
     }
 
-    if (field === 'itemCode' || field === 'quantity') {
-      const itemCode = field === 'itemCode' ? String(value) : updatedItems[index].itemCode;
-      const quantity = field === 'quantity' ? Number(value) : updatedItems[index].quantity;
+    if (field === 'itemCode') {
+      const product = allProducts.find(p => p.itemCode === value);
+      if (product) {
+        const quantity = updatedItems[index].quantity || 1;
+        const rate = product.rate || 0;
+        const amount = quantity * rate;
+        const tax = product.tax || 0;
+        const taxAmount = (amount * tax) / 100;
+        
+        updatedItems[index].itemName = product.itemName || '';
+        updatedItems[index].hsn = product.hsn || '';
+        updatedItems[index].rate = rate;
+        updatedItems[index].stockUom = product.unit || 'Nos';
+        updatedItems[index].tax = tax;
+        updatedItems[index].amount = amount;
+        updatedItems[index].taxAmount = taxAmount;
+        updatedItems[index].totalAmount = amount + taxAmount;
+        
+        const { status, availableQty } = getStockStatus(String(value), quantity);
+        updatedItems[index].stockStatus = status;
+        updatedItems[index].availableQty = availableQty;
+      }
+    }
+
+    if (field === 'quantity') {
+      const itemCode = updatedItems[index].itemCode;
+      const quantity = Number(value);
+      const rate = updatedItems[index].rate || 0;
+      const amount = quantity * rate;
+      const tax = updatedItems[index].tax || 0;
+      const taxAmount = (amount * tax) / 100;
+      
+      updatedItems[index].amount = amount;
+      updatedItems[index].taxAmount = taxAmount;
+      updatedItems[index].totalAmount = amount + taxAmount;
+      
       const { status, availableQty } = getStockStatus(itemCode, quantity);
       updatedItems[index].stockStatus = status;
       updatedItems[index].availableQty = availableQty;
+    }
+
+    if (field === 'tax') {
+      const amount = updatedItems[index].amount || 0;
+      const tax = Number(value);
+      const taxAmount = (amount * tax) / 100;
+      updatedItems[index].taxAmount = taxAmount;
+      updatedItems[index].totalAmount = amount + taxAmount;
     }
 
     setFormData(prev => ({
       ...prev,
       items: updatedItems
     }));
-
-    if (field === 'itemCode') {
-      scheduleItemSearch(index, String(value));
-      setOpenItemDropdown(index);
-    }
-  };
-
-  const handleItemKeyDown = (e: React.KeyboardEvent, index: number, field: keyof SalesOrderItem) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-
-      const fields: (keyof SalesOrderItem)[] = ['itemCode', 'itemName', 'quantity', 'rate', 'cgst', 'sgst'];
-      const currentIndex = fields.indexOf(field);
-
-      if (currentIndex === fields.length - 1) {
-        if (formData.items[index].rate > 0 && formData.items[index].itemCode) {
-          addItemRow();
-          setTimeout(() => {
-            const newIndex = index + 1;
-            const refKey = `item_${newIndex}_itemCode`;
-            if (itemInputRefs.current[refKey]) {
-              itemInputRefs.current[refKey]?.focus();
-            }
-          }, 100);
-        }
-      } else {
-        const nextField = fields[currentIndex + 1];
-        const refKey = `item_${index}_${nextField}`;
-        if (itemInputRefs.current[refKey]) {
-          itemInputRefs.current[refKey]?.focus();
-        }
-      }
-    }
   };
 
   const addItemRow = () => {
@@ -1206,7 +1950,7 @@ export default function CreateSalesOrder() {
       ...prev,
       items: [
         ...prev.items,
-        { id: newId, itemCode: '', itemName: '', quantity: 1, rate: 0, stockUom: 'Nos', cgst: 0, sgst: 0, amount: 0 }
+        { id: newId, itemCode: '', itemName: '', hsn: '', quantity: 1, rate: 0, stockUom: 'Nos', tax: 0, amount: 0, taxAmount: 0, totalAmount: 0 }
       ]
     }));
   };
@@ -1276,11 +2020,14 @@ export default function CreateSalesOrder() {
   const buildApiPayload = () => {
     const validItems = formData.items.filter((item) => item.itemCode || item.itemName);
 
+    // Get the customer ID from the customerData or selectedCustomer
+    const customerId = customerData?.id || selectedCustomer?.id || formData.customer || '';
+
     const payload: any = {
       name: isEditMode && recordName ? recordName : generateSalesOrderName(),
       naming_series: formData.namingSeries,
       company: formData.company,
-      customer: formData.customer,
+      customer_id: customerId,  // Use customer ID here
       customer_name: formData.customerName,
       transaction_date: formatDate(formData.date),
       delivery_date: formatDate(formData.deliveryDate),
@@ -1296,11 +2043,11 @@ export default function CreateSalesOrder() {
       items: validItems.map((item) => ({
         item_code: item.itemCode,
         item_name: item.itemName,
+        hsn: item.hsn || '',
         qty: item.quantity,
         stock_uom: item.stockUom || 'Nos',
         rate: item.rate,
-        cgst_rate: item.cgst,
-        sgst_rate: item.sgst,
+        tax_rate: item.tax,
         amount: item.amount,
         warehouse: formData.warehouse,
       })),
@@ -1407,663 +2154,659 @@ export default function CreateSalesOrder() {
     navigate('/sales-order');
   };
 
-  // const allValidationErrors = getAllValidationErrors();
-  // const hasAnyErrors = allValidationErrors.length > 0;
+  return (
+    <div className={`so-page ${theme}`}>
+      <style>{`
+        .so-spinning { animation: soSpin 1s linear infinite; }
+        @keyframes soSpin { to { transform: rotate(360deg); } }
 
-  // In the return statement, replace the existing JSX with this structure:
+        .so-custom-scroll::-webkit-scrollbar {
+          width: 4px;
+          height: 4px;
+        }
+        .so-custom-scroll::-webkit-scrollbar-track {
+          background: var(--border-color, #f1f5f9);
+          border-radius: 2px;
+        }
+        .so-custom-scroll::-webkit-scrollbar-thumb {
+          background: var(--text-secondary, #cbd5e1);
+          border-radius: 2px;
+        }
+        .so-custom-scroll::-webkit-scrollbar-thumb:hover {
+          background: var(--text-secondary, #94a3b8);
+        }
+      `}</style>
 
-return (
-  <div className={`so-page ${theme}`}>
-    <style>{`
-      .so-spinning { animation: soSpin 1s linear infinite; }
-      @keyframes soSpin { to { transform: rotate(360deg); } }
+      {/* Success Modal */}
+      <SuccessModal
+        isOpen={showSuccessModal}
+        onClose={handleCloseModal}
+        salesOrder={successData.salesOrder}
+        totalItems={successData.totalItems}
+        message={successData.message}
+        customerName={successData.customerName}
+        onViewDetails={handleViewSalesOrder}
+      />
 
-      .so-custom-scroll::-webkit-scrollbar {
-        width: 4px;
-        height: 4px;
-      }
-      .so-custom-scroll::-webkit-scrollbar-track {
-        background: var(--border-color, #f1f5f9);
-        border-radius: 2px;
-      }
-      .so-custom-scroll::-webkit-scrollbar-thumb {
-        background: var(--text-secondary, #cbd5e1);
-        border-radius: 2px;
-      }
-      .so-custom-scroll::-webkit-scrollbar-thumb:hover {
-        background: var(--text-secondary, #94a3b8);
-      }
-    `}</style>
-
-    {/* Success Modal */}
-    <SuccessModal
-      isOpen={showSuccessModal}
-      onClose={handleCloseModal}
-      salesOrder={successData.salesOrder}
-      totalItems={successData.totalItems}
-      message={successData.message}
-      customerName={successData.customerName}
-      onViewDetails={handleViewSalesOrder}
-    />
-
-    {/* Validation Summary Modal */}
-    {showValidationSummary && validationErrors.length > 0 && (
-      <div className="so-modal-overlay" onClick={() => setShowValidationSummary(false)}>
-        <div className="so-validation-modal" onClick={(e) => e.stopPropagation()}>
-          <div className="so-modal-header so-modal-header-warning">
-            <h2 className="so-modal-title-warning">
-              <FaExclamationTriangle /> Missing Required Fields
-            </h2>
-            <button className="so-modal-close" onClick={() => setShowValidationSummary(false)}>×</button>
-          </div>
-          <div className="so-modal-body">
-            <p className="so-modal-intro">
-              Please fill in the following required fields before submitting:
-            </p>
-            <div className="so-error-list">
-              {validationErrors.map((error, idx) => (
-                <div key={idx} className="so-validation-error-item" onClick={() => jumpToField(error.field)}>
-                  <div className="so-error-header">
-                    <FaTimes className="so-error-icon" />
-                    <strong className="so-error-label">{error.label}</strong>
+      {/* Validation Summary Modal */}
+      {showValidationSummary && validationErrors.length > 0 && (
+        <div className="so-modal-overlay" onClick={() => setShowValidationSummary(false)}>
+          <div className="so-validation-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="so-modal-header so-modal-header-warning">
+              <h2 className="so-modal-title-warning">
+                <FaExclamationTriangle /> Missing Required Fields
+              </h2>
+              <button className="so-modal-close" onClick={() => setShowValidationSummary(false)}>×</button>
+            </div>
+            <div className="so-modal-body">
+              <p className="so-modal-intro">
+                Please fill in the following required fields before submitting:
+              </p>
+              <div className="so-error-list">
+                {validationErrors.map((error, idx) => (
+                  <div key={idx} className="so-validation-error-item" onClick={() => jumpToField(error.field)}>
+                    <div className="so-error-header">
+                      <FaTimes className="so-error-icon" />
+                      <strong className="so-error-label">{error.label}</strong>
+                    </div>
+                    <div className="so-error-message">{error.message}</div>
                   </div>
-                  <div className="so-error-message">{error.message}</div>
-                </div>
-              ))}
-            </div>
-            <div className="so-hint-banner">
-              <FaInfoCircle className="so-hint-icon" />
-              Click on any error to jump to that field
-            </div>
-          </div>
-          <div className="so-modal-footer">
-            <button className="so-btn-cancel" onClick={() => setShowValidationSummary(false)}>Close</button>
-          </div>
-        </div>
-      </div>
-    )}
-
-    {/* Stock Warning Modal */}
-    {showStockWarningModal && (
-      <div className="so-modal-overlay" onClick={() => setShowStockWarningModal(false)}>
-        <div className="so-validation-modal" onClick={(e) => e.stopPropagation()}>
-          <div className="so-modal-header so-modal-header-warning">
-            <h2 className="so-modal-title-warning">
-              <FaExclamationTriangle /> Insufficient Stock
-            </h2>
-            <button className="so-modal-close" onClick={() => setShowStockWarningModal(false)}>×</button>
-          </div>
-          <div className="so-modal-body">
-            <p className="so-modal-intro">
-              The following item{stockWarningItems.length > 1 ? 's do' : ' does'} not have enough stock available.
-              You can still create this sales order, or go back and adjust the quantities.
-            </p>
-            <div className="so-error-list">
-              {stockWarningItems.map((item, idx) => (
-                <div key={idx} className="so-validation-error-item" style={{ cursor: 'default' }}>
-                  <div className="so-error-header">
-                    <FaExclamationCircle className="so-error-icon" />
-                    <strong className="so-error-label">
-                      {item.itemName || item.itemCode} ({item.itemCode})
-                    </strong>
-                  </div>
-                  <div className="so-error-message">
-                    Requested {item.quantity}, only {item.availableQty ?? 0} in stock
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="so-hint-banner">
-              <FaInfoCircle className="so-hint-icon" />
-              You can create the order anyway and adjust stock later, or go back to change quantities.
-            </div>
-          </div>
-          <div className="so-modal-footer" style={{ justifyContent: 'space-between' }}>
-            <button className="so-btn-cancel" onClick={() => setShowStockWarningModal(false)}>
-              Go Back
-            </button>
-            <button className="so-btn so-btn-submit" onClick={confirmSaveDespiteStock} disabled={saving}>
-              {saving && <FaSpinner className="so-spinning" />}
-              <FaSave /> Create Anyway
-            </button>
-          </div>
-        </div>
-      </div>
-    )}
-
-    {/* Header */}
-    <div className="so-header">
-      <div className="so-header-left">
-        <button onClick={() => navigate('/sales-order')} className="so-back-btn">
-          <FaArrowLeft size={13} /> Back
-        </button>
-        <div className="so-header-divider" />
-        <h1 className="so-header-title">
-          {isEditMode ? 'Edit Sales Order' : 'Create Sales Order'}
-        </h1>
-      </div>
-      <div className="so-header-right">
-        <label className="so-checkbox-label">
-          <input
-            type="checkbox"
-            name="isSubcontracted"
-            checked={formData.isSubcontracted}
-            onChange={handleInputChange}
-            className="so-checkbox"
-          />
-          <span>Subcontracted</span>
-        </label>
-      </div>
-    </div>
-
-    {/* API Error Pill */}
-    {apiError && (
-      <div className="so-error-pill">
-        <FaExclamationTriangle size={11} />
-        {apiError}
-      </div>
-    )}
-
-    {/* Main Box */}
-    <div className="so-main-box">
-      {/* Two-Column Compact Layout */}
-      <div className="so-compact-layout">
-        {/* Left Column */}
-        <div className="so-left-column">
-          {/* Load from Quotation */}
-          {!isEditMode && (
-            <>
-              <div className="so-section-header">
-                <FaFileImport className="so-section-icon" />
-                <span>Load from Quotation</span>
+                ))}
               </div>
+              <div className="so-hint-banner">
+                <FaInfoCircle className="so-hint-icon" />
+                Click on any error to jump to that field
+              </div>
+            </div>
+            <div className="so-modal-footer">
+              <button className="so-btn-cancel" onClick={() => setShowValidationSummary(false)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Stock Warning Modal */}
+      {showStockWarningModal && (
+        <div className="so-modal-overlay" onClick={() => setShowStockWarningModal(false)}>
+          <div className="so-validation-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="so-modal-header so-modal-header-warning">
+              <h2 className="so-modal-title-warning">
+                <FaExclamationTriangle /> Insufficient Stock
+              </h2>
+              <button className="so-modal-close" onClick={() => setShowStockWarningModal(false)}>×</button>
+            </div>
+            <div className="so-modal-body">
+              <p className="so-modal-intro">
+                The following item{stockWarningItems.length > 1 ? 's do' : ' does'} not have enough stock available.
+                You can still create this sales order, or go back and adjust the quantities.
+              </p>
+              <div className="so-error-list">
+                {stockWarningItems.map((item, idx) => (
+                  <div key={idx} className="so-validation-error-item" style={{ cursor: 'default' }}>
+                    <div className="so-error-header">
+                      <FaExclamationCircle className="so-error-icon" />
+                      <strong className="so-error-label">
+                        {item.itemName || item.itemCode} ({item.itemCode})
+                      </strong>
+                    </div>
+                    <div className="so-error-message">
+                      Requested {item.quantity}, only {item.availableQty ?? 0} in stock
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="so-hint-banner">
+                <FaInfoCircle className="so-hint-icon" />
+                You can create the order anyway and adjust stock later, or go back to change quantities.
+              </div>
+            </div>
+            <div className="so-modal-footer" style={{ justifyContent: 'space-between' }}>
+              <button className="so-btn-cancel" onClick={() => setShowStockWarningModal(false)}>
+                Go Back
+              </button>
+              <button className="so-btn so-btn-submit" onClick={confirmSaveDespiteStock} disabled={saving}>
+                {saving && <FaSpinner className="so-spinning" />}
+                <FaSave /> Create Anyway
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="so-header">
+        <div className="so-header-left">
+          <button onClick={() => navigate('/sales-order')} className="so-back-btn">
+            <FaArrowLeft size={13} /> Back
+          </button>
+          <div className="so-header-divider" />
+          <h1 className="so-header-title">
+            {isEditMode ? 'Edit Sales Order' : 'Create Sales Order'}
+          </h1>
+        </div>
+        <div className="so-header-right">
+          <label className="so-checkbox-label">
+            <input
+              type="checkbox"
+              name="isSubcontracted"
+              checked={formData.isSubcontracted}
+              onChange={handleInputChange}
+              className="so-checkbox"
+            />
+            <span>Subcontracted</span>
+          </label>
+        </div>
+      </div>
+
+      {/* API Error Pill */}
+      {apiError && (
+        <div className="so-error-pill">
+          <FaExclamationTriangle size={11} />
+          {apiError}
+        </div>
+      )}
+
+      {/* Main Box */}
+      <div className="so-main-box">
+        {/* ===== NEW: Quotation Toggle (GRN-style) ===== */}
+        {!isEditMode && (
+          <div className="so-invoice-type-section">
+            <label className="so-label" style={{ marginBottom: 0, whiteSpace: 'nowrap' }}>
+              Create From
+            </label>
+            <div className="so-radio-group">
+              <label className="so-radio-label">
+                <input
+                  type="radio"
+                  name="quotationSource"
+                  value="with"
+                  checked={hasQuotation === true}
+                  onChange={() => setHasQuotation(true)}
+                />
+                With Quotation
+              </label>
+              <label className="so-radio-label">
+                <input
+                  type="radio"
+                  name="quotationSource"
+                  value="without"
+                  checked={hasQuotation === false}
+                  onChange={() => setHasQuotation(false)}
+                />
+                Without Quotation
+              </label>
+            </div>
+          </div>
+        )}
+
+        {/* Two-Column Compact Layout */}
+        <div className="so-compact-layout">
+          {/* Left Column */}
+          <div className="so-left-column">
+            {/* Load from Quotation - Conditional */}
+            {!isEditMode && hasQuotation && (
+              <>
+                <div className="so-section-header">
+                  <FaFileImport className="so-section-icon" />
+                  <span>Load from Quotation</span>
+                </div>
+                <div className="so-field">
+                  <label className="so-label">Select Quotation</label>
+                  <QuotationDropdown
+                    value={selectedQuotation}
+                    onChange={handleQuotationChange}
+                    placeholder="Search or select quotation..."
+                    disabled={loadingQuotations || applyingQuotation || loadingItemMaster}
+                    error={!!errors.quotation}
+                  />
+                  {applyingQuotation && (
+                    <span className="so-loading-text">
+                      <FaSpinner className="so-spinning" size={10} /> Loading quotation details...
+                    </span>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Basic Information */}
+            <div className="so-section-header" style={{ marginTop: (!isEditMode && hasQuotation) ? '0.5rem' : '0' }}>
+              <FaBox className="so-section-icon" />
+              <span>Basic Information</span>
+            </div>
+
+            {/* Customer & Date in one row */}
+            <div className="so-field-row">
+              <div className="so-field-half">
+                <label className="so-label"><FaUser size={11} style={{ marginRight: 4 }} />Customer <span className="so-required">*</span></label>
+                <CustomerDropdown
+                  value={formData.customer}
+                  onChange={handleCustomerChange}
+                  placeholder="Search Customer..."
+                  disabled={loadingItemMaster}
+                  error={!!errors.customer}
+                />
+                {errors.customer && <span className="so-error-text">{errors.customer}</span>}
+              </div>
+
+              <div className="so-field-half">
+                <label className="so-label">Date <span className="so-required">*</span></label>
+                <div className="so-date-field">
+                  <input
+                    type="date"
+                    name="date"
+                    value={formData.date}
+                    onChange={handleInputChange}
+                    className={`so-input ${errors.date ? 'so-input-error' : ''}`}
+                    ref={setRef('date')}
+                  />
+                  <button
+                    type="button"
+                    className="so-date-icon-btn"
+                    onClick={() => openDatePicker('date')}
+                    tabIndex={-1}
+                  >
+                    <FaCalendarAlt size={13} />
+                  </button>
+                </div>
+                {errors.date && <span className="so-error-text">{errors.date}</span>}
+              </div>
+            </div>
+
+            {/* Delivery Date and Status in grid-3 */}
+            <div className="so-grid-3">
               <div className="so-field">
-                <label className="so-label">Select Quotation</label>
+                <label className="so-label">Delivery Date <span className="so-required">*</span></label>
+                <div className="so-date-field">
+                  <input
+                    type="date"
+                    name="deliveryDate"
+                    value={formData.deliveryDate}
+                    onChange={handleInputChange}
+                    className={`so-input ${errors.deliveryDate ? 'so-input-error' : ''}`}
+                    ref={setRef('deliveryDate')}
+                  />
+                  <button
+                    type="button"
+                    className="so-date-icon-btn"
+                    onClick={() => openDatePicker('deliveryDate')}
+                    tabIndex={-1}
+                  >
+                    <FaCalendarAlt size={13} />
+                  </button>
+                </div>
+                {errors.deliveryDate && <span className="so-error-text">{errors.deliveryDate}</span>}
+              </div>
+
+              <div className="so-field">
+                <label className="so-label">Status</label>
                 <select
-                  value={selectedQuotationName}
-                  onChange={handleQuotationChange}
-                  disabled={loadingQuotations || applyingQuotation || loadingItemMaster}
+                  name="status"
+                  value={formData.status}
+                  onChange={handleInputChange}
                   className="so-select"
                 >
-                  <option value="">
-                    {loadingQuotations
-                      ? 'Loading quotations...'
-                      : loadingItemMaster
-                        ? 'Loading item catalog...'
-                        : 'Select a quotation to auto-fill...'}
-                  </option>
-                  {quotations.map((q) => (
-                    <option key={q.name} value={q.name}>
-                      {quotationLabelOf(q)}
-                    </option>
+                  {statusOptions.map((opt) => (
+                    <option key={opt} value={opt}>{opt}</option>
                   ))}
                 </select>
-                {applyingQuotation && (
-                  <span className="so-loading-text">
-                    <FaSpinner className="so-spinning" size={10} /> Loading quotation details...
-                  </span>
-                )}
               </div>
-            </>
-          )}
 
-          {/* Basic Information */}
-          <div className="so-section-header" style={{ marginTop: !isEditMode ? '1rem' : '0' }}>
-            <FaBox className="so-section-icon" />
-            <span>Basic Information</span>
-          </div>
-
-          {/* Customer & Date in one row */}
-          <div className="so-field-row">
-            <div className="so-field-half">
-              <label className="so-label"><FaUser size={11} style={{ marginRight: 4 }} />Customer <span className="so-required">*</span></label>
-              <select
-                name="customer"
-                value={formData.customer}
-                onChange={handleCustomerChange}
-                className={`so-select ${errors.customer ? 'so-select-error' : ''}`}
-                ref={setRef('customer')}
-                disabled={loadingCustomers}
-              >
-                <option value="">{loadingCustomers ? 'Loading customers...' : 'Select customer...'}</option>
-                {customers.map((c) => (
-                  <option key={customerIdOf(c)} value={customerIdOf(c)}>
-                    {customerLabelOf(c)}
-                  </option>
-                ))}
-              </select>
-              {errors.customer && <span className="so-error-text">{errors.customer}</span>}
-            </div>
-
-            <div className="so-field-half">
-              <label className="so-label">Date <span className="so-required">*</span></label>
-              <div className="so-date-field">
-                <input
-                  type="date"
-                  name="date"
-                  value={formData.date}
+              <div className="so-field">
+                <label className="so-label">Order Type</label>
+                <select
+                  name="orderType"
+                  value={formData.orderType}
                   onChange={handleInputChange}
-                  className={`so-input ${errors.date ? 'so-input-error' : ''}`}
-                  ref={setRef('date')}
-                />
-                <button
-                  type="button"
-                  className="so-date-icon-btn"
-                  onClick={() => openDatePicker('date')}
-                  tabIndex={-1}
+                  className="so-select"
+                  ref={setRef('orderType')}
                 >
-                  <FaCalendarAlt size={13} />
-                </button>
+                  <option value="Sales">Sales</option>
+                  <option value="Credit Note">Credit Note</option>
+                  <option value="Debit Note">Debit Note</option>
+                  <option value="Quotation">Quotation</option>
+                </select>
               </div>
-              {errors.date && <span className="so-error-text">{errors.date}</span>}
             </div>
           </div>
 
-          {/* Delivery Date and Status in grid-3 */}
-          <div className="so-grid-3">
-            <div className="so-field">
-              <label className="so-label">Delivery Date <span className="so-required">*</span></label>
-              <div className="so-date-field">
-                <input
-                  type="date"
-                  name="deliveryDate"
-                  value={formData.deliveryDate}
-                  onChange={handleInputChange}
-                  className={`so-input ${errors.deliveryDate ? 'so-input-error' : ''}`}
-                  ref={setRef('deliveryDate')}
-                />
-                <button
-                  type="button"
-                  className="so-date-icon-btn"
-                  onClick={() => openDatePicker('deliveryDate')}
-                  tabIndex={-1}
-                >
-                  <FaCalendarAlt size={13} />
-                </button>
-              </div>
-              {errors.deliveryDate && <span className="so-error-text">{errors.deliveryDate}</span>}
-            </div>
-
-            <div className="so-field">
-              <label className="so-label">Status</label>
-              <select
-                name="status"
-                value={formData.status}
-                onChange={handleInputChange}
-                className="so-select"
-              >
-                {statusOptions.map((opt) => (
-                  <option key={opt} value={opt}>{opt}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="so-field">
-              <label className="so-label">Order Type</label>
-              <select
-                name="orderType"
-                value={formData.orderType}
-                onChange={handleInputChange}
-                className="so-select"
-                ref={setRef('orderType')}
-              >
-                <option value="Sales">Sales</option>
-                <option value="Credit Note">Credit Note</option>
-                <option value="Debit Note">Debit Note</option>
-                <option value="Quotation">Quotation</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Column - Customer Detail Card */}
-        <div className="so-right-column">
-          {selectedCustomer ? (
-            <div className="so-detail-card">
-              <div className="so-card-header">
-                <FaBuilding size={14} />
-                <span>Customer Details</span>
-              </div>
-              <div className="so-card-content">
-                <h3>{selectedCustomer.customer_name || selectedCustomer.name}</h3>
-                <div className="so-card-info">
-                  {selectedCustomer.mobile_no && (
-                    <div className="so-info-item">
-                      <span className="so-info-label"><FaPhone size={10} /> Phone</span>
-                      <span className="so-info-value">{selectedCustomer.mobile_no}</span>
-                    </div>
-                  )}
-                  {selectedCustomer.email_id && (
-                    <div className="so-info-item">
-                      <span className="so-info-label"><FaEnvelope size={10} /> Email</span>
-                      <span className="so-info-value">{selectedCustomer.email_id}</span>
-                    </div>
-                  )}
-                  {selectedCustomer.gstin && (
-                    <div className="so-info-item">
-                      <span className="so-info-label">GST</span>
-                      <span className="so-info-value">{selectedCustomer.gstin}</span>
-                    </div>
-                  )}
-                  {selectedCustomer.primary_address && (
-                    <div className="so-info-item">
-                      <span className="so-info-label">Address</span>
-                      <span className="so-info-value">{selectedCustomer.primary_address}</span>
-                    </div>
-                  )}
+          {/* Right Column - Customer Detail Card */}
+          <div className="so-right-column">
+            {customerData ? (
+              <div className="so-detail-card">
+                <div className="so-card-header">
+                  <FaBuilding size={14} />
+                  <span>Customer Details</span>
                 </div>
-              </div>
-            </div>
-          ) : (
-            <div className="so-detail-card so-empty-card">
-              <div className="so-card-header">
-                <FaBuilding size={14} />
-                <span>Customer Details</span>
-              </div>
-              <div className="so-card-content">
-                <div className="so-empty-state">
-                  <FaInfoCircle size={24} />
-                  <p>Select a customer to view details</p>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Full Width - Items Section */}
-      <div className="so-items-full">
-        <div className="so-items-header">
-          <span className="so-items-title">
-            <FaClipboardList className="so-items-icon" /> Products
-          </span>
-          <button type="button" className="so-add-btn" onClick={addItemRow}>
-            <FaPlus size={9} /> Add
-          </button>
-        </div>
-
-        {errors.items && <div className="so-items-error"><FaExclamationTriangle /> {errors.items}</div>}
-
-        <div className="so-table-wrap">
-          <table className="so-items-table">
-            <thead>
-              <tr>
-                <th className="so-col-code">Item Code</th>
-                <th className="so-col-name">Item Name</th>
-                <th className="so-col-qty">Qty</th>
-                <th className="so-col-rate">Rate</th>
-                <th className="so-col-cgst">CGST %</th>
-                <th className="so-col-sgst">SGST %</th>
-                <th className="so-col-amount">Amount</th>
-                <th className="so-col-stock">Stock</th>
-                <th className="so-col-action"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {formData.items.map((item, index) => (
-                <tr key={item.id}>
-                  <td className="so-col-code">
-                    <input
-                      type="text"
-                      value={item.itemCode}
-                      onChange={(e) => handleItemChange(index, 'itemCode', e.target.value)}
-                      placeholder="Code"
-                      className={`so-table-input ${errors[`item_${index}_code`] ? 'so-input-error' : ''}`}
-                      ref={setItemRef(`item_${index}_itemCode`)}
-                      onFocus={() => handleItemCodeFocus(index)}
-                      onBlur={handleItemCodeBlur}
-                      onKeyDown={(e) => handleItemKeyDown(e, index, 'itemCode')}
-                      autoComplete="off"
-                    />
-                    {openItemDropdown === index && (
-                      <div className="so-item-dropdown">
-                        {itemSuggestLoading[index] && (
-                          <div className="so-item-loading"><FaSpinner className="so-spinning" size={11} /> Searching...</div>
-                        )}
-                        {!itemSuggestLoading[index] && (itemSuggestions[index]?.length ?? 0) === 0 && (
-                          <div className="so-item-empty">No items found</div>
-                        )}
-                        {!itemSuggestLoading[index] && itemSuggestions[index]?.map((rec, ri) => (
-                          <div
-                            key={ri}
-                            className="so-item-row"
-                            onMouseDown={() => selectItemSuggestion(index, rec)}
-                          >
-                            {itemOptionLabel(rec)}
-                          </div>
-                        ))}
+                <div className="so-card-content">
+                  <h3>{customerData.name}</h3>
+                  <div className="so-card-info">
+                    {customerData.code && (
+                      <div className="so-info-item">
+                        <span className="so-info-label">Code</span>
+                        <span className="so-info-value">{customerData.code}</span>
                       </div>
                     )}
-                  </td>
-                  <td className="so-col-name">
-                    <input
-                      type="text"
-                      value={item.itemName}
-                      disabled
-                      className="so-table-input so-table-input-disabled so-table-input-text"
-                    />
-                  </td>
-                  <td className="so-col-qty">
-                    <input
-                      type="number"
-                      value={item.quantity}
-                      onChange={(e) => handleItemChange(index, 'quantity', Number(e.target.value))}
-                      min="1"
-                      className={`so-table-input ${errors[`item_${index}_quantity`] ? 'so-input-error' : ''}`}
-                      ref={setItemRef(`item_${index}_quantity`)}
-                      onKeyDown={(e) => handleItemKeyDown(e, index, 'quantity')}
-                    />
-                  </td>
-                  <td className="so-col-rate">
-                    <input
-                      type="number"
-                      value={item.rate}
-                      onChange={(e) => handleItemChange(index, 'rate', Number(e.target.value))}
-                      min="0"
-                      step="0.01"
-                      className={`so-table-input ${errors[`item_${index}_rate`] ? 'so-input-error' : ''}`}
-                      ref={setItemRef(`item_${index}_rate`)}
-                      onKeyDown={(e) => handleItemKeyDown(e, index, 'rate')}
-                    />
-                  </td>
-                  <td className="so-col-cgst">
-                    <input
-                      type="number"
-                      value={item.cgst}
-                      onChange={(e) => handleItemChange(index, 'cgst', Number(e.target.value))}
-                      min="0"
-                      step="0.01"
-                      className="so-table-input"
-                      ref={setItemRef(`item_${index}_cgst`)}
-                      onKeyDown={(e) => handleItemKeyDown(e, index, 'cgst')}
-                    />
-                  </td>
-                  <td className="so-col-sgst">
-                    <input
-                      type="number"
-                      value={item.sgst}
-                      onChange={(e) => handleItemChange(index, 'sgst', Number(e.target.value))}
-                      min="0"
-                      step="0.01"
-                      className="so-table-input"
-                      ref={setItemRef(`item_${index}_sgst`)}
-                      onKeyDown={(e) => handleItemKeyDown(e, index, 'sgst')}
-                    />
-                  </td>
-                  <td className="so-col-amount">
-                    <span className="so-table-value">INR {getItemGrossAmount(item).toFixed(2)}</span>
-                  </td>
-                  <td className="so-col-stock">
-                    <StockBadge item={item} />
-                  </td>
-                  <td className="so-col-action">
-                    {formData.items.length > 1 && (
-                      <button
-                        type="button"
-                        className="so-remove-btn"
-                        onClick={() => removeItemRow(index)}
-                        title="Delete item"
-                      >
-                        <FaTrash size={11} />
-                      </button>
+                    {customerData.contactPerson && (
+                      <div className="so-info-item">
+                        <span className="so-info-label">Contact</span>
+                        <span className="so-info-value"><FaUser size={10} /> {customerData.contactPerson}</span>
+                      </div>
                     )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    {customerData.phone && (
+                      <div className="so-info-item">
+                        <span className="so-info-label">Phone</span>
+                        <span className="so-info-value"><FaPhone size={10} /> {customerData.phone}</span>
+                      </div>
+                    )}
+                    {customerData.email && (
+                      <div className="so-info-item">
+                        <span className="so-info-label">Email</span>
+                        <span className="so-info-value"><FaEnvelope size={10} /> {customerData.email}</span>
+                      </div>
+                    )}
+                    {customerData.gstin && (
+                      <div className="so-info-item">
+                        <span className="so-info-label">GST</span>
+                        <span className="so-info-value">{customerData.gstin}</span>
+                      </div>
+                    )}
+                    {customerData.address && (
+                      <div className="so-info-item">
+                        <span className="so-info-label">Address</span>
+                        <span className="so-info-value">{customerData.address}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="so-detail-card so-empty-card">
+                <div className="so-card-header">
+                  <FaBuilding size={14} />
+                  <span>Customer Details</span>
+                </div>
+                <div className="so-card-content">
+                  <div className="so-empty-state">
+                    <FaInfoCircle size={24} />
+                    <p>Select a customer to view details</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
 
-      {/* Bottom Section */}
-      <div className="so-bottom-section">
-        {/* Left Column - Payment Schedule & Terms */}
-        <div className="so-bottom-left">
-          {/* Payment Schedule */}
-          <div className="so-section-header">
-            <FaCreditCard className="so-section-icon" />
-            <span>Payment Schedule</span>
+        {/* Full Width - Items Section */}
+        <div className="so-items-full">
+          <div className="so-items-header">
+            <span className="so-items-title">
+              <FaClipboardList className="so-items-icon" /> Products
+            </span>
+            <button type="button" className="so-add-btn" onClick={addItemRow}>
+              <FaPlus size={9} /> Add
+            </button>
           </div>
 
-          <div className="so-payment-table-wrap">
-            <table className="so-payment-table">
+          {errors.items && <div className="so-items-error"><FaExclamationTriangle /> {errors.items}</div>}
+
+          <div className="so-table-wrap">
+            <table className="so-items-table">
               <thead>
                 <tr>
-                  <th>No.</th>
-                  <th>Due Date</th>
-                  <th>Duration (Days)</th>
-                  <th>Amount</th>
-                  <th></th>
+                  <th className="so-col-sno">#</th>
+                  <th className="so-col-code">Item Code <span className="so-required">*</span></th>
+                  <th className="so-col-name">Item Name <span className="so-required">*</span></th>
+                  <th className="so-col-hsn">HSN</th>
+                  <th className="so-col-qty">Qty <span className="so-required">*</span></th>
+                  <th className="so-col-uom">UOM</th>
+                  <th className="so-col-rate">Rate</th>
+                  <th className="so-col-tax">Tax</th>
+                  <th className="so-col-amount">Amount</th>
                 </tr>
               </thead>
               <tbody>
-                {formData.paymentSchedule.map((schedule, index) => (
-                  <tr key={schedule.id}>
-                    <td className="so-col-no">{index + 1}</td>
-                    <td className="so-col-date">
-                      <div className="so-date-field">
-                        <input
-                          type="date"
-                          value={schedule.dueDate}
-                          onChange={(e) => handlePaymentDueDateChange(index, e.target.value)}
-                          className="so-table-input"
-                          ref={setRef(`payment_${index}_dueDate`)}
-                        />
-                        <button
-                          type="button"
-                          className="so-date-icon-btn"
-                          onClick={() => openDatePicker(`payment_${index}_dueDate`)}
-                          tabIndex={-1}
-                        >
-                          <FaCalendarAlt size={11} />
-                        </button>
-                      </div>
-                    </td>
-                    <td className="so-col-duration">
-                      <input
-                        type="number"
-                        value={schedule.durationDays}
-                        onChange={(e) => handlePaymentDurationChange(index, Number(e.target.value))}
-                        min="0"
-                        className="so-table-input"
+                {formData.items.map((item, index) => (
+                  <tr key={item.id}>
+                    <td className="so-col-sno">{index + 1}</td>
+                    <td className="so-col-code">
+                      <SearchableSelect
+                        value={item.itemCode}
+                        onChange={(value) => handleItemChange(index, 'itemCode', value)}
+                        options={products}
+                        placeholder="Search..."
+                        onSearch={handleItemSearch}
+                        loading={isLoadingItems}
+                        error={!!errors[`item_${index}_code`]}
+                        stockInfo={{ status: item.stockStatus, availableQty: item.availableQty }}
                       />
                     </td>
-                    <td className="so-col-amount">
+                    <td className="so-col-name">
+                      <input
+                        type="text"
+                        value={item.itemName}
+                        onChange={(e) => handleItemChange(index, 'itemName', e.target.value)}
+                        placeholder="Item Name"
+                        className="so-table-input so-table-input-text"
+                        ref={setItemRef(`item_${index}_itemName`)}
+                      />
+                    </td>
+                    <td className="so-col-hsn">
+                      <input
+                        type="text"
+                        value={item.hsn}
+                        onChange={(e) => handleItemChange(index, 'hsn', e.target.value)}
+                        placeholder="HSN"
+                        className="so-table-input so-table-input-text"
+                        ref={setItemRef(`item_${index}_hsn`)}
+                      />
+                    </td>
+                    <td className="so-col-qty">
                       <input
                         type="number"
-                        value={schedule.paymentAmount}
-                        onChange={(e) => updatePaymentRow(index, { paymentAmount: Number(e.target.value) })}
+                        value={item.quantity}
+                        onChange={(e) => handleItemChange(index, 'quantity', Number(e.target.value) || 0)}
+                        min="1"
+                        className={`so-table-input ${errors[`item_${index}_quantity`] ? 'so-input-error' : ''}`}
+                        ref={setItemRef(`item_${index}_quantity`)}
+                      />
+                    </td>
+                    <td className="so-col-uom">
+                      <select
+                        value={item.stockUom}
+                        onChange={(e) => handleItemChange(index, 'stockUom', e.target.value)}
+                        className="so-table-input"
+                        ref={setItemRef(`item_${index}_stockUom`)}
+                      >
+                        <option value="Nos">Nos</option>
+                        <option value="Kg">Kg</option>
+                        <option value="Ltr">Ltr</option>
+                        <option value="Mtr">Mtr</option>
+                        <option value="Pcs">Pcs</option>
+                        <option value="Box">Box</option>
+                      </select>
+                    </td>
+                    <td className="so-col-rate">
+                      <input
+                        type="number"
+                        value={item.rate}
+                        onChange={(e) => handleItemChange(index, 'rate', Number(e.target.value) || 0)}
                         min="0"
                         step="0.01"
-                        className="so-table-input"
+                        className={`so-table-input ${errors[`item_${index}_rate`] ? 'so-input-error' : ''}`}
+                        ref={setItemRef(`item_${index}_rate`)}
                       />
                     </td>
-                    <td className="so-col-action">
-                      {formData.paymentSchedule.length > 1 && (
-                        <button
-                          type="button"
-                          className="so-remove-btn"
-                          onClick={() => removePaymentSchedule(index)}
-                        >
-                          <FaTrash size={10} />
-                        </button>
-                      )}
+                    <td className="so-col-tax">
+                      <select
+                        value={item.tax}
+                        onChange={(e) => handleItemChange(index, 'tax', Number(e.target.value) || 0)}
+                        className="so-table-input"
+                        ref={setItemRef(`item_${index}_tax`)}
+                        disabled={loadingTaxOptions}
+                      >
+                        <option value={0}>0%</option>
+                        {taxOptions.map((tax) => (
+                          <option key={tax.tax_id} value={extractTaxValue(tax.tax_type)}>
+                            {tax.tax_type}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="so-col-amount">
+                      <span className="so-table-value">₹{item.totalAmount.toFixed(2)}</span>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-
-          <button type="button" className="so-add-payment-btn" onClick={addPaymentSchedule}>
-            <FaPlus size={9} /> Add Schedule
-          </button>
-
-          {/* Terms and Conditions */}
-          <div className="so-section-header" style={{ marginTop: '1rem' }}>
-            <FaFileAlt className="so-section-icon" />
-            <span>Terms and Conditions</span>
-          </div>
-          <div className="so-field">
-            <label className="so-label">Term Details</label>
-            <textarea
-              name="termDetails"
-              value={formData.termDetails}
-              onChange={handleInputChange}
-              rows={3}
-              placeholder="Enter terms and conditions..."
-              className="so-textarea"
-              ref={setRef('termDetails')}
-            />
-          </div>
         </div>
 
-        {/* Right Column - Summary Card */}
-        <div className="so-bottom-right">
-          <div className="so-detail-card so-summary-card">
-            <div className="so-card-header">
-              <FaCalculator size={14} />
-              <span>Financial Summary</span>
+        {/* Bottom Section */}
+        <div className="so-bottom-section">
+          {/* Left Column - Payment Schedule & Terms */}
+          <div className="so-bottom-left">
+            {/* Payment Schedule */}
+            <div className="so-section-header">
+              <FaCreditCard className="so-section-icon" />
+              <span>Payment Schedule</span>
             </div>
-            <div className="so-card-content">
-              <div className="so-summary-grid">
-                <div className="so-summary-item">
-                  <span className="so-summary-label">Total Qty</span>
-                  <span className="so-summary-value">{formData.totalQuantity}</span>
-                </div>
-                <div className="so-summary-item">
-                  <span className="so-summary-label">Base Total</span>
-                  <span className="so-summary-value">INR {formData.baseTotal.toFixed(2)}</span>
-                </div>
-                <div className="so-summary-item">
-                  <span className="so-summary-label">CGST</span>
-                  <span className="so-summary-value">INR {formData.cgstTotal.toFixed(2)}</span>
-                </div>
-                <div className="so-summary-item">
-                  <span className="so-summary-label">SGST</span>
-                  <span className="so-summary-value">INR {formData.sgstTotal.toFixed(2)}</span>
-                </div>
-                <div className="so-summary-grand">
-                  <span className="so-summary-grand-label">Grand Total</span>
-                  <span className="so-summary-grand-value">INR {formData.roundedTotal.toFixed(2)}</span>
+
+            <div className="so-payment-table-wrap">
+              <table className="so-payment-table">
+                <thead>
+                  <tr>
+                    <th>No.</th>
+                    <th>Due Date</th>
+                    <th>Duration (Days)</th>
+                    <th>Amount</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {formData.paymentSchedule.map((schedule, index) => (
+                    <tr key={schedule.id}>
+                      <td className="so-col-no">{index + 1}</td>
+                      <td className="so-col-date">
+                        <div className="so-date-field">
+                          <input
+                            type="date"
+                            value={schedule.dueDate}
+                            onChange={(e) => handlePaymentDueDateChange(index, e.target.value)}
+                            className="so-table-input"
+                            ref={setRef(`payment_${index}_dueDate`)}
+                          />
+                          <button
+                            type="button"
+                            className="so-date-icon-btn"
+                            onClick={() => openDatePicker(`payment_${index}_dueDate`)}
+                            tabIndex={-1}
+                          >
+                            <FaCalendarAlt size={11} />
+                          </button>
+                        </div>
+                      </td>
+                      <td className="so-col-duration">
+                        <input
+                          type="number"
+                          value={schedule.durationDays}
+                          onChange={(e) => handlePaymentDurationChange(index, Number(e.target.value))}
+                          min="0"
+                          className="so-table-input"
+                        />
+                      </td>
+                      <td className="so-col-amount">
+                        <input
+                          type="number"
+                          value={schedule.paymentAmount}
+                          onChange={(e) => updatePaymentRow(index, { paymentAmount: Number(e.target.value) })}
+                          min="0"
+                          step="0.01"
+                          className="so-table-input"
+                        />
+                      </td>
+                      <td className="so-col-action">
+                        {formData.paymentSchedule.length > 1 && (
+                          <button
+                            type="button"
+                            className="so-remove-btn"
+                            onClick={() => removePaymentSchedule(index)}
+                          >
+                            <FaTrash size={10} />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <button type="button" className="so-add-payment-btn" onClick={addPaymentSchedule}>
+              <FaPlus size={9} /> Add Schedule
+            </button>
+
+            {/* Terms and Conditions */}
+            <div className="so-section-header" style={{ marginTop: '1rem' }}>
+              <FaFileAlt className="so-section-icon" />
+              <span>Terms and Conditions</span>
+            </div>
+            <div className="so-field">
+              <label className="so-label">Term Details</label>
+              <textarea
+                name="termDetails"
+                value={formData.termDetails}
+                onChange={handleInputChange}
+                rows={3}
+                placeholder="Enter terms and conditions..."
+                className="so-textarea"
+                ref={setRef('termDetails')}
+              />
+            </div>
+          </div>
+
+          {/* Right Column - Summary Card */}
+          <div className="so-bottom-right">
+            <div className="so-detail-card so-summary-card">
+              <div className="so-card-header">
+                <FaCalculator size={14} />
+                <span>Financial Summary</span>
+              </div>
+              <div className="so-card-content">
+                <div className="so-summary-grid">
+                  <div className="so-summary-item">
+                    <span className="so-summary-label">Total Qty</span>
+                    <span className="so-summary-value">{formData.totalQuantity}</span>
+                  </div>
+                  <div className="so-summary-item">
+                    <span className="so-summary-label">Base Total</span>
+                    <span className="so-summary-value">₹{formData.baseTotal.toFixed(2)}</span>
+                  </div>
+                  <div className="so-summary-item">
+                    <span className="so-summary-label">Tax</span>
+                    <span className="so-summary-value">₹{formData.taxTotal.toFixed(2)}</span>
+                  </div>
+                  <div className="so-summary-grand">
+                    <span className="so-summary-grand-label">Grand Total</span>
+                    <span className="so-summary-grand-value">₹{formData.roundedTotal.toFixed(2)}</span>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
 
-    {/* Form Actions */}
-    <div className="so-form-footer">
-      <button type="button" className="so-btn so-btn-secondary" onClick={handleCancel}>
-        <FaTimes size={11} /> Cancel
-      </button>
-      <button type="button" className="so-btn so-btn-submit" onClick={handleSubmit} disabled={saving}>
-        {saving && <FaSpinner className="so-spinning" />}
-        <FaSave /> {isEditMode ? 'Update Sales Order' : 'Create Sales Order'}
-      </button>
+      {/* Form Actions */}
+      <div className="so-form-footer">
+        <button type="button" className="so-btn so-btn-secondary" onClick={handleCancel}>
+          <FaTimes size={11} /> Cancel
+        </button>
+        <button type="button" className="so-btn so-btn-submit" onClick={handleSubmit} disabled={saving}>
+          {saving && <FaSpinner className="so-spinning" />}
+          <FaSave /> {isEditMode ? 'Update Sales Order' : 'Create Sales Order'}
+        </button>
+      </div>
     </div>
-  </div>
-)
+  );
 }

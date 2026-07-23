@@ -308,7 +308,7 @@ class DeliveryChallanAPI {
   }
 
   async getItems(params?: { page?: number; limit?: number; search?: string }): Promise<ApiResponse<any>> {
-    return this.apiService.get('/item', params);
+    return this.apiService.get('/item?type=product', params);
   }
 
   async getWarehouses(params?: { page?: number; limit?: number }): Promise<ApiResponse<any>> {
@@ -685,6 +685,7 @@ const SalesOrderDropdown: React.FC<SalesOrderDropdownProps> = ({
     } else {
       setOrders([]);
       setFilteredOrders([]);
+      setSelectedOrder(null);
     }
   }, [customerId]);
 
@@ -973,7 +974,7 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
           const mappedCustomers: Customer[] = customerList.map((cust: any) => ({
             id: cust.id?.toString() || '',
             name: cust.customer_name || cust.name || '',
-            code: cust.customer_code || cust.code || `CUST${cust.id}`,
+            code: cust.customer_code || cust.code || '',
             email: cust.email_id || cust.email || '',
             phone: cust.mobile_no || cust.phone || '',
             address: cust.address || '',
@@ -1035,7 +1036,7 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
 
   const getDisplayValue = () => {
     if (selectedCustomer) {
-      return `${selectedCustomer.code} - ${selectedCustomer.name}`;
+      return `${selectedCustomer.name}`;
     }
     return '';
   };
@@ -1083,8 +1084,7 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary, #0f172a)' }}>{customer.code}</span>
-                <span style={{ fontSize: '12px', color: 'var(--text-secondary, #475569)', marginLeft: '8px' }}>{customer.name}</span>
+                <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary, #0f172a)' }}>{customer.name}</span>
               </div>
               {customer.gstin && (
                 <span style={{ fontSize: '10px', color: 'var(--text-secondary, #94a3b8)', background: 'var(--layout-bg, #f1f5f9)', padding: '2px 8px', borderRadius: '4px' }}>
@@ -1287,7 +1287,7 @@ const NewDeliveryChallan: React.FC = () => {
           const mappedCustomers: Customer[] = customerList.map((cust: any) => ({
             id: cust.id?.toString() || '',
             name: cust.customer_name || cust.name || '',
-            code: cust.customer_code || cust.code || `CUST${cust.id}`,
+            code: cust.customer_code || cust.code || '',
             email: cust.email_id || cust.email || '',
             phone: cust.mobile_no || cust.phone || '',
             address: cust.address || '',
@@ -1505,7 +1505,21 @@ const NewDeliveryChallan: React.FC = () => {
             }
           }
 
-          if (field === 'quantity' || field === 'rate') {
+          if (field === 'quantity') {
+            const amount = (updated.quantity || 0) * (updated.rate || 0);
+            updated.amount = amount;
+            updated.taxAmount = (amount * (updated.tax || 0)) / 100;
+            updated.totalAmount = amount + updated.taxAmount;
+          }
+
+          if (field === 'rate') {
+            const amount = (updated.quantity || 0) * (updated.rate || 0);
+            updated.amount = amount;
+            updated.taxAmount = (amount * (updated.tax || 0)) / 100;
+            updated.totalAmount = amount + updated.taxAmount;
+          }
+
+          if (field === 'tax') {
             const amount = (updated.quantity || 0) * (updated.rate || 0);
             updated.amount = amount;
             updated.taxAmount = (amount * (updated.tax || 0)) / 100;
@@ -1587,30 +1601,49 @@ const NewDeliveryChallan: React.FC = () => {
       const payload = buildPayload('Submitted');
       const createResponse = await deliveryChallanAPI.createDeliveryNote(payload);
       if (!createResponse.success) throw new Error(createResponse.message || 'Failed to create');
+      
       const createdDC = createResponse.data;
       
-      const deliveryNote = createdDC?.delivery_note || createdDC?.name || dcNumber;
-      const totalItems = createdDC?.total_items || items.filter(i => i.itemCode && i.quantity > 0).length;
-      const message = createdDC?.message || createResponse.message || 'Delivery Note created successfully.';
+      // FIX: Extract delivery_note from the nested data object
+      const deliveryNote = createdDC?.data?.delivery_note || 
+                          createdDC?.delivery_note || 
+                          createdDC?.name || 
+                          dcNumber;
+      
+      const totalItems = createdDC?.data?.total_items || 
+                        createdDC?.total_items || 
+                        items.filter(i => i.itemCode && i.quantity > 0).length;
+      
+      const message = createdDC?.data?.message || 
+                     createdDC?.message || 
+                     createResponse.message || 
+                     'Delivery Note created successfully.';
       
       toast.success('Created!', { id: toastId });
       
-      if (createdDC.name) {
-        const submitResponse = await deliveryChallanAPI.submitDeliveryNote(createdDC.name);
-        if (!submitResponse.success) throw new Error(submitResponse.message || 'Failed to submit');
-        
-        setSuccessData({
-          deliveryNote: deliveryNote,
-          totalItems: totalItems,
-          message: message,
-          customerName: customerData?.name
-        });
-        setShowSuccessModal(true);
-        
-        toast.success(`DC ${deliveryNote} submitted!`);
+      // Show success modal immediately after creation
+      setSuccessData({
+        deliveryNote: deliveryNote,
+        totalItems: totalItems,
+        message: message,
+        customerName: customerData?.name
+      });
+      setShowSuccessModal(true);
+      
+      // Try to submit if we have a name
+      if (createdDC?.data?.delivery_note || createdDC?.name) {
+        const dcName = createdDC?.data?.delivery_note || createdDC?.name;
+        try {
+          await deliveryChallanAPI.submitDeliveryNote(dcName);
+          toast.success(`DC ${dcName} submitted!`);
+        } catch (submitError) {
+          console.warn('Submit failed but DC was created:', submitError);
+          toast('DC created but submission failed. Please submit manually.');
+        }
       }
     } catch (error: any) {
       toast.error(error.message || 'Failed to create', { id: toastId });
+      setIsSubmitting(false);
     } finally {
       setIsSubmitting(false);
     }
@@ -1625,9 +1658,14 @@ const NewDeliveryChallan: React.FC = () => {
       const response = await deliveryChallanAPI.createDeliveryNote(payload);
       if (!response.success) throw new Error(response.message || 'Failed to save');
       
-      const deliveryNote = response.data?.delivery_note || response.data?.name || dcNumber;
+      const createdDC = response.data;
+      const deliveryNote = createdDC?.data?.delivery_note || 
+                          createdDC?.delivery_note || 
+                          createdDC?.name || 
+                          dcNumber;
+      
       toast.success(`Draft saved: ${deliveryNote}`, { id: toastId });
-      setTimeout(() => navigate('/delivery-challans'), 1000);
+      setTimeout(() => navigate('/delivery-challan'), 1000);
     } catch (error: any) {
       toast.error(error.message || 'Failed to save', { id: toastId });
     } finally {
@@ -1637,18 +1675,18 @@ const NewDeliveryChallan: React.FC = () => {
 
   const handleCancel = () => {
     if (window.confirm('Are you sure? Unsaved data will be lost.')) {
-      navigate('/delivery-challans');
+      navigate('/delivery-challan');
     }
   };
 
   const handleViewDeliveryNote = () => {
     setShowSuccessModal(false);
-    navigate(`/delivery-challans/${successData.deliveryNote}`);
+    navigate(`/delivery-challan/${successData.deliveryNote}`);
   };
 
   const handleCloseModal = () => {
     setShowSuccessModal(false);
-    navigate('/delivery-challans');
+    navigate('/delivery-challan');
   };
 
   useEffect(() => {
