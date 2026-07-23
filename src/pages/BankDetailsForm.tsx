@@ -69,6 +69,7 @@ interface EmbedContext {
   supplierName?: string;
   editIndex?: number;
   prefill?: any;
+  isPendingSupplier?: boolean;
 }
 
 let keyCounter = 0;
@@ -162,10 +163,6 @@ const ALLOWED_FILE_TYPE = "application/pdf";
 const UPLOAD_MEDIA_URL = "/uploadmedia";
 const GET_IMAGE_BASE_URL = "/getimage/account";
 
-// The /bank-detail batch-create endpoint expects a numeric company_id at the
-// top level. When this form is embedded (opened from AddSupplier) that id
-// travels in via embedContext.companyId; when used standalone, it comes from
-// this cached value (falls back to the "Company" field the user typed in).
 const DEFAULT_COMPANY_ID_KEY = "default_company_id";
 const getDefaultCompanyId = (): number | null => {
   const stored = localStorage.getItem(DEFAULT_COMPANY_ID_KEY);
@@ -359,8 +356,7 @@ const PdfUploadField: React.FC<{
   const [popupBlocked, setPopupBlocked] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
-  // Reset preview state whenever the underlying file changes (new upload,
-  // removal, or loading a different record).
+  
   useEffect(() => {
     setPreviewError(null);
     setPopupBlocked(false);
@@ -561,6 +557,8 @@ const BankDetailsForm: React.FC = () => {
 
 
   const embedContext = (location.state as any)?.embedContext as EmbedContext | undefined;
+
+  const isPendingParty = !!embedContext && (embedContext.isPendingSupplier || !embedContext.partyId);
 
   // shared, company-level fields
   const [companyId, setCompanyId] = useState("");
@@ -1002,9 +1000,7 @@ const BankDetailsForm: React.FC = () => {
     return payload;
   };
 
-  // A single row inside the batch-create payload's `bank_details` array.
-  // company_id / party linkage is NOT repeated per-row here — it lives once
-  // at the top level of the batch payload (see buildBatchCreatePayload).
+
   const buildBankDetailEntry = (account: BankAccountEntry) => ({
     account_holder_name: account.account_holder_name.trim(),
     account_type: account.account_type,
@@ -1057,10 +1053,7 @@ const BankDetailsForm: React.FC = () => {
     return payload;
   };
 
-  // Saves every account in `accountsToSave`: existing accounts (with a
-  // recordId) are updated individually via PUT; brand-new accounts are
-  // created together in a single batched POST /bank-detail call. Returns
-  // the accounts with their recordId/docName filled in from the server.
+ 
   const saveAccounts = async (accountsToSave: BankAccountEntry[]): Promise<BankAccountEntry[]> => {
     const results: BankAccountEntry[] = [];
 
@@ -1069,7 +1062,7 @@ const BankDetailsForm: React.FC = () => {
 
     for (const account of existingAccounts) {
       const jsonPayload = buildAccountApiPayload(account);
-      const response = await api.put(`/bank-detail/${account.docName || account.recordId}`, jsonPayload, {
+      const response = await api.put(`/bank-detail`, jsonPayload, {
         headers: { "Content-Type": "application/json" },
       });
       if (response.data?.success !== undefined && response.data.success !== 1) {
@@ -1133,8 +1126,13 @@ const BankDetailsForm: React.FC = () => {
     }
 
     if (embedContext) {
-      if (!embedContext.partyId) {
-        setApiError("Missing supplier id — please save the supplier before adding a bank account.");
+      if (isPendingParty) {
+        navigate(embedContext.returnPath, {
+          state: {
+            bankAccountsUpdated: true,
+            updatedAccounts: accounts,
+          },
+        });
         return;
       }
 
@@ -1660,7 +1658,10 @@ const BankDetailsForm: React.FC = () => {
                     <strong style={{ color: "var(--text-primary, #111827)" }}>
                       {embedContext.supplierName || "this supplier"}
                     </strong>
-                    . These are saved immediately.
+                    .{" "}
+                    {isPendingParty
+                      ? "These will be saved when you save the supplier."
+                      : "These are saved immediately."}
                   </span>
                 </div>
               ) : (

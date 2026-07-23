@@ -9,12 +9,36 @@
   font-family: Inter, sans-serif;
 }
 
+/* ── Remove spinners from number inputs ── */
+.ndc-table-input[type="number"]::-webkit-outer-spin-button,
+.ndc-table-input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.ndc-table-input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
 /* ── Header ─────────────────────────────────────── */
 .ndc-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 10px;
   margin-bottom: 0.5rem;
+}
+
+.ndc-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ndc-header-right {
+  display: flex;
+  align-items: center;
 }
 
 .ndc-back-btn {
@@ -817,20 +841,34 @@
 
 /* ─── Invoice Type Toggle (GRN-style) ───────────── */
 .ndc-invoice-type-section {
-  margin-bottom: 16px;
-  padding-bottom: 16px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
   border-bottom: 1px solid var(--border-color, #e2e8f0);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ndc-invoice-type-section .ndc-label {
+  margin-bottom: 0 !important;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary, #64748b);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
 }
 
 .ndc-radio-group {
   display: inline-flex;
-  gap: 6px;
-  padding: 4px;
+  gap: 3px;
+  padding: 2px;
   background: var(--layout-bg, #f8fafc);
   border: 1px solid var(--border-color, #e2e8f0);
-  border-radius: 10px;
-  width: 100%;
-  max-width: 480px;
+  border-radius: 6px;
+  width: auto;
+  max-width: 260px;
+  flex-shrink: 0;
 }
 
 .ndc-radio-label {
@@ -838,14 +876,16 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 7px 14px;
-  font-size: 12px;
+  gap: 4px;
+  padding: 3px 10px;
+  font-size: 10px;
   font-weight: 600;
   color: var(--text-secondary, #64748b);
-  border-radius: 8px;
+  border-radius: 5px;
   cursor: pointer;
   transition: background 0.18s, color 0.18s;
+  min-height: 22px;
+  white-space: nowrap;
 }
 
 .ndc-radio-label:hover {
@@ -856,11 +896,15 @@
 .ndc-radio-label input[type="radio"] {
   accent-color: var(--primary-color, #2563eb);
   cursor: pointer;
+  width: 11px;
+  height: 11px;
+  margin: 0;
 }
 
 .ndc-radio-label:has(input:checked) {
   background: var(--primary-color, #2563eb);
   color: #fff;
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.2);
 }
 
 /* ── Success Modal ────────────────────────────────── */
@@ -1219,26 +1263,7 @@
   background: rgba(34, 197, 94, 0.15);
 }
 
-/* ── Header ─────────────────────────────────────── */
-.ndc-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 0.5rem;
-}
-
-.ndc-header-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.ndc-header-right {
-  display: flex;
-  align-items: center;
-}
-
+/* ── Type Section ────────────────────────────────── */
 .ndc-type-section {
   display: none;
 }
@@ -1304,6 +1329,16 @@
   .ndc-shipping-bottom-row {
     grid-template-columns: 1fr;
     gap: 12px;
+  }
+
+  .ndc-invoice-type-section {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  
+  .ndc-radio-group {
+    max-width: 100%;
+    flex: 1;
   }
 }
 
@@ -1371,6 +1406,16 @@
   .ndc-modal-btn {
     width: 100%;
     min-width: auto;
+  }
+
+  .ndc-radio-group {
+    max-width: 100%;
+    flex: 1;
+  }
+  
+  .ndc-radio-label {
+    font-size: 9px;
+    padding: 2px 8px;
   }
 }
 

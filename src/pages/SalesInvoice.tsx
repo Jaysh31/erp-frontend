@@ -1090,7 +1090,7 @@ const SalesInvoice: React.FC = () => {
       `}</style>
 
       {/* ===== STATS CARDS ===== */}
-      <div className="qt-stats-container">
+      {/* <div className="qt-stats-container">
         <StatsCard 
           label="Total Bills" 
           value={stats.total} 
@@ -1119,7 +1119,7 @@ const SalesInvoice: React.FC = () => {
           icon={<FaMoneyBillWave size={18} />}
           bgColor="#F5F3FF"
         />
-      </div>
+      </div> */}
 
       {/* ===== FILTER BAR ===== */}
       <div className="qt-filter-bar">
