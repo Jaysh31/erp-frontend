@@ -9,10 +9,10 @@ import {
   FaBuilding, FaPhone, FaEnvelope, FaBox, FaCalculator, FaClipboardList,
   FaChevronDown,
 } from 'react-icons/fa';
-import { useAdminTheme } from '../admin-theme/AdminThemeContext';
+import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import './CreateSalesOrder.css';
 import toast from 'react-hot-toast';
-import api from '../../src/services/api';
+import api from '../../services/api';
 import ReactDOM from 'react-dom';
 
 /* ─────────────────────────── Types ─────────────────────────── */
@@ -1083,12 +1083,12 @@ export default function CreateSalesOrder() {
   const [isLoadingItems, setIsLoadingItems] = useState<boolean>(false);
 
   // Quotation lookup
-  const [quotations, setQuotations] = useState<QuotationApiRecord[]>([]);
+  const [, setQuotations] = useState<QuotationApiRecord[]>([]);
   const [loadingQuotations, setLoadingQuotations] = useState(false);
 
   // Inventory / stock check
   const [inventoryMap, setInventoryMap] = useState<{ [itemCode: string]: InventoryApiRecord }>({});
-  const [loadingInventory, setLoadingInventory] = useState(false);
+  const [, setLoadingInventory] = useState(false);
 
   // Item master catalog
   const [itemMasterMap, setItemMasterMap] = useState<{ [itemCode: string]: any }>({});
@@ -1955,13 +1955,13 @@ export default function CreateSalesOrder() {
     }));
   };
 
-  const removeItemRow = (index: number) => {
-    if (formData.items.length <= 1) return;
-    setFormData(prev => ({
-      ...prev,
-      items: prev.items.filter((_, i) => i !== index)
-    }));
-  };
+  // const removeItemRow = (index: number) => {
+  //   if (formData.items.length <= 1) return;
+  //   setFormData(prev => ({
+  //     ...prev,
+  //     items: prev.items.filter((_, i) => i !== index)
+  //   }));
+  // };
 
   // ─── payment schedule ─────────────────────────
   const addPaymentSchedule = () => {

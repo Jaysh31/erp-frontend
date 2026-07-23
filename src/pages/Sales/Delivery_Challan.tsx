@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   FaPlus, 
   FaSearch, 
@@ -9,27 +9,27 @@ import {
   FaPrint as FaPrintIcon,
   FaChevronLeft,
   FaChevronRight,
+  FaAngleDoubleLeft,
+  FaAngleDoubleRight,
   FaExclamationTriangle,
   FaEllipsisV,
   FaFilePdf,
   FaFileExcel,
   FaBan,
   FaPaperPlane,
-  FaFileInvoice,
+  FaTruck,
   FaCopy,
-  
   FaSpinner,
   FaSync,
-  FaTimes,
-  FaMoneyBillWave
+  FaTimes
 } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
-import api from '../services/api';
+import api from '../../services/api';
 import toast from 'react-hot-toast';
 
 // ===== INTERFACES =====
 
-interface SalesInvoice {
+interface DeliveryChallan {
   id: string | number;
   name: string;
   customer_name: string;
@@ -40,9 +40,11 @@ interface SalesInvoice {
   modified: string;
   modified_by: string;
   creation: string;
-  deliveryChallanNo?: string;
-  paid_amount?: number;
-  outstanding_amount?: number;
+  invoiceNo?: string;
+  warehouse?: string;
+  vehicleNumber?: string;
+  deliveryStatus?: string;
+  totalDispatchQty?: number;
 }
 
 interface ApiResponse {
@@ -51,7 +53,7 @@ interface ApiResponse {
     total: number;
     page: number;
     limit: number;
-    records: SalesInvoice[];
+    records: DeliveryChallan[];
   };
 }
 
@@ -61,8 +63,9 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
     'Draft': { color: '#6b7280', bg: '#f3f4f6', label: 'Draft' },
     'Submitted': { color: '#1e40af', bg: '#dbeafe', label: 'Submitted' },
     'Cancelled': { color: '#991b1b', bg: '#fee2e2', label: 'Cancelled' },
-    'Paid': { color: '#065f46', bg: '#d1fae5', label: 'Paid' },
-    'Partially Paid': { color: '#92400e', bg: '#fef3c7', label: 'Partially Paid' }
+    'Pending': { color: '#92400e', bg: '#fef3c7', label: 'Pending' },
+    'Partial Dispatch': { color: '#1e40af', bg: '#dbeafe', label: 'Partial Dispatch' },
+    'Fully Dispatched': { color: '#065f46', bg: '#d1fae5', label: 'Fully Dispatched' }
   };
   const config = configs[status] || configs['Draft'];
   
@@ -74,44 +77,44 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
   );
 };
 
-// ===== STATS CARD =====
-const StatsCard: React.FC<{ 
-  label: string; 
-  value: string | number; 
-  color: string; 
-  icon?: React.ReactNode;
-  bgColor?: string;
-}> = ({ label, value, color, icon, bgColor }) => {
-  return (
-    <div className="qt-stat-card" style={{ background: bgColor || 'white', borderLeft: `4px solid ${color}` }}>
-      <div className="qt-stat-icon" style={{ color }}>
-        {icon}
-      </div>
-      <div className="qt-stat-content">
-        <p className="qt-stat-title">{label}</p>
-        <p className="qt-stat-value">{value}</p>
-      </div>
-    </div>
-  );
-};
-
 // ===== MAIN COMPONENT =====
-const SalesInvoice: React.FC = () => {
+const DeliveryChallans: React.FC = () => {
   const navigate = useNavigate();
+  const menuRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
   
   // ===== STATE =====
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('All');
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   const [showMoreMenu, setShowMoreMenu] = useState<string | null>(null);
   
-  const [invoices, setInvoices] = useState<SalesInvoice[]>([]);
+  const [challans, setChallans] = useState<DeliveryChallan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // ===== CLOSE MENU ON CLICK OUTSIDE =====
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showMoreMenu === null) return;
+      
+      const target = event.target as Node;
+      const menuContainer = menuRefs.current[showMoreMenu];
+      
+      // Check if click is outside the menu container
+      if (menuContainer && !menuContainer.contains(target)) {
+        setShowMoreMenu(null);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showMoreMenu]);
+
   // ===== FETCH DATA =====
-  const fetchInvoices = async () => {
+  const fetchChallans = async () => {
     setLoading(true);
     setError(null);
     try {
@@ -122,17 +125,17 @@ const SalesInvoice: React.FC = () => {
       params.append('limit', String(itemsPerPage));
       
       const query = params.toString() ? `?${params.toString()}` : '';
-      const response = await api.get<ApiResponse>(`/sales-invoice${query}`);
+      const response = await api.get<ApiResponse>(`/delivery-note${query}`);
       
       if (response.data?.data?.records) {
-        setInvoices(response.data.data.records);
+        setChallans(response.data.data.records);
       } else {
-        setInvoices([]);
+        setChallans([]);
       }
     } catch (err: any) {
       console.error('Error:', err);
-      setError(err.message || 'Failed to load sales invoices');
-      toast.error('Failed to load sales invoices');
+      setError(err.message || 'Failed to load delivery challans');
+      toast.error('Failed to load delivery challans');
     } finally {
       setLoading(false);
     }
@@ -140,13 +143,13 @@ const SalesInvoice: React.FC = () => {
 
   // ===== EFFECTS =====
   useEffect(() => {
-    fetchInvoices();
+    fetchChallans();
   }, []);
 
   useEffect(() => {
-    const timer = setTimeout(() => fetchInvoices(), 500);
+    const timer = setTimeout(() => fetchChallans(), 500);
     return () => clearTimeout(timer);
-  }, [searchTerm, selectedStatus, currentPage]);
+  }, [searchTerm, selectedStatus, currentPage, itemsPerPage]);
 
   // ===== HELPERS =====
   const formatDate = (date: string) => {
@@ -158,47 +161,85 @@ const SalesInvoice: React.FC = () => {
     });
   };
 
-
   // ===== FILTER DATA =====
-  const filteredData = invoices.filter(item => {
+  const filteredData = challans.filter(item => {
     const search = searchTerm.toLowerCase();
     const matchesSearch = 
       (item.name || '').toLowerCase().includes(search) ||
-      (item.customer_name || '').toLowerCase().includes(search) ||
-      (item.deliveryChallanNo || '').toLowerCase().includes(search);
+      (item.customer_name || '').toLowerCase().includes(search);
     const matchesStatus = selectedStatus === 'All' || item.status === selectedStatus;
     return matchesSearch && matchesStatus;
   });
 
   // ===== PAGINATION =====
-  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+  const totalFilteredItems = filteredData.length;
+  const totalPages = Math.ceil(totalFilteredItems / itemsPerPage);
+  const validCurrentPage = Math.min(currentPage, totalPages || 1);
+  
+  if (validCurrentPage !== currentPage) {
+    setCurrentPage(validCurrentPage);
+  }
+
   const paginatedData = filteredData.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
+    (validCurrentPage - 1) * itemsPerPage,
+    validCurrentPage * itemsPerPage
   );
 
-  // ===== SUMMARY STATS =====
-  const stats = {
-    total: invoices.length,
-    draft: invoices.filter(d => d.status === 'Draft').length,
-    submitted: invoices.filter(d => d.status === 'Submitted' || d.status === 'Paid' || d.status === 'Partially Paid').length,
-    paid: invoices.filter(d => d.status === 'Paid').length,
+  // ===== PAGINATION HELPERS =====
+  const goToPage = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+    }
+  };
+
+  const goToFirstPage = () => goToPage(1);
+  const goToLastPage = () => goToPage(totalPages);
+  const goToNextPage = () => goToPage(currentPage + 1);
+  const goToPrevPage = () => goToPage(currentPage - 1);
+
+  const handlePageSizeChange = (newSize: number) => {
+    setItemsPerPage(newSize);
+    setCurrentPage(1);
+  };
+
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisible = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+    if (endPage - startPage + 1 < maxVisible) startPage = Math.max(1, endPage - maxVisible + 1);
+    for (let i = startPage; i <= endPage; i++) pages.push(i);
+    return pages;
+  };
+
+  const getStartIndex = () => {
+    return (validCurrentPage - 1) * itemsPerPage + 1;
+  };
+
+  const getEndIndex = () => {
+    return Math.min(validCurrentPage * itemsPerPage, totalFilteredItems);
   };
 
   // ===== ACTIONS =====
-  const handleCreate = () => navigate('/sales-bill/new');
-  const handleRefresh = () => fetchInvoices();
-  const handleView = (id: string | number) => navigate(`/sales-bill/view/${id}`);
-  const handleEdit = (id: string | number) => navigate(`/sales-bill/edit/${id}`);
-  const handleDuplicate = (id: string | number) => navigate(`/sales-bill/duplicate/${id}`);
+  const handleCreate = () => navigate('/delivery-challan/new');
+  const handleRefresh = () => fetchChallans();
+  const handleView = (id: string | number) => navigate(`/delivery-challan/view/${id}`);
+  const handleEdit = (id: string | number) => {
+    setShowMoreMenu(null);
+    navigate(`/delivery-challan/edit/${id}`);
+  };
+  const handleDuplicate = (id: string | number) => {
+    setShowMoreMenu(null);
+    navigate(`/delivery-challan/duplicate/${id}`);
+  };
   const handlePrint = () => window.print();
   
   const handleCancel = async (id: string | number) => {
-    if (!window.confirm('Are you sure you want to cancel this Sales Bill?')) return;
+    if (!window.confirm('Are you sure you want to cancel this Delivery Challan?')) return;
     try {
-      await api.post(`/sales-invoice/${id}/cancel`, {});
-      toast.success('Sales Bill cancelled successfully');
-      fetchInvoices();
+      await api.post(`/delivery-note/${id}/cancel`, {});
+      toast.success('Delivery Challan cancelled successfully');
+      fetchChallans();
     } catch (err) {
       toast.error('Failed to cancel');
     }
@@ -206,11 +247,11 @@ const SalesInvoice: React.FC = () => {
   };
 
   const handleSubmit = async (id: string | number) => {
-    if (!window.confirm('Submit this Sales Bill?')) return;
+    if (!window.confirm('Submit this Delivery Challan?')) return;
     try {
-      await api.post(`/sales-invoice/${id}/submit`, {});
+      await api.post(`/delivery-note/${id}/submit`, {});
       toast.success('Submitted successfully');
-      fetchInvoices();
+      fetchChallans();
     } catch (err) {
       toast.error('Failed to submit');
     }
@@ -236,7 +277,6 @@ const SalesInvoice: React.FC = () => {
   return (
     <div className="quotation-page">
       <style>{`
-        /* ── Inherit styles from QuotationPage ── */
         .quotation-page {
           display: flex;
           flex-direction: column;
@@ -245,8 +285,7 @@ const SalesInvoice: React.FC = () => {
           border-radius: 8px;
           padding: 20px;
           gap: 16px;
-          overflow-y: auto;
-          overflow-x: hidden;
+          overflow: hidden;
         }
 
         .quotation-page::-webkit-scrollbar {
@@ -262,63 +301,6 @@ const SalesInvoice: React.FC = () => {
         }
         .quotation-page::-webkit-scrollbar-thumb:hover {
           background: var(--primary-color, #6366f1);
-        }
-
-        /* ── Stats Cards ── */
-        .qt-stats-container {
-          display: grid;
-          grid-template-columns: repeat(4, 1fr);
-          gap: 16px;
-          flex-shrink: 0;
-        }
-
-        .qt-stat-card {
-          border-radius: 12px;
-          padding: 16px 20px;
-          display: flex;
-          align-items: center;
-          gap: 14px;
-          box-shadow: 0 1px 3px var(--shadow-color, rgba(0,0,0,0.06));
-          transition: transform 0.15s, box-shadow 0.15s;
-          background: white;
-        }
-
-        .qt-stat-card:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 4px 12px var(--shadow-color, rgba(0,0,0,0.08));
-        }
-
-        .qt-stat-icon {
-          width: 44px;
-          height: 44px;
-          border-radius: 12px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 18px;
-          flex-shrink: 0;
-          background: rgba(255,255,255,0.6);
-        }
-
-        .qt-stat-content {
-          flex: 1;
-          min-width: 0;
-        }
-
-        .qt-stat-title {
-          color: var(--text-secondary, #6b7280);
-          font-size: 12px;
-          font-weight: 500;
-          margin-bottom: 2px;
-          letter-spacing: 0.3px;
-        }
-
-        .qt-stat-value {
-          color: var(--text-primary, #111827);
-          font-size: 22px;
-          font-weight: 700;
-          margin: 0;
-          line-height: 1.2;
         }
 
         /* ── Filter Bar ── */
@@ -500,11 +482,13 @@ const SalesInvoice: React.FC = () => {
           box-shadow: 0 1px 3px var(--shadow-color, rgba(0,0,0,0.05));
           border: 1px solid var(--border-color, #e5e7eb);
           overflow-x: auto;
-          overflow-y: visible;
-          flex-shrink: 0;
+          overflow-y: auto;
+          flex: 0 0 auto;
+          max-height: calc(100vh - 310px);
         }
 
         .qt-table-wrap::-webkit-scrollbar {
+          width: 6px;
           height: 6px;
         }
         .qt-table-wrap::-webkit-scrollbar-track {
@@ -523,11 +507,11 @@ const SalesInvoice: React.FC = () => {
           width: 100%;
           border-collapse: collapse;
           font-size: 13px;
-          min-width: 900px;
+          min-width: 700px;
         }
 
         .qt-th {
-          padding: 12px 14px;
+          padding: 12px 16px;
           text-align: left;
           font-size: 12px;
           font-weight: 600;
@@ -537,11 +521,9 @@ const SalesInvoice: React.FC = () => {
           white-space: nowrap;
           text-transform: uppercase;
           letter-spacing: 0.3px;
-        }
-
-        .qt-th-meta {
-          text-align: right;
-          padding-right: 20px;
+          position: sticky;
+          top: 0;
+          z-index: 10;
         }
 
         .qt-tr {
@@ -558,40 +540,32 @@ const SalesInvoice: React.FC = () => {
         }
 
         .qt-td {
-          padding: 10px 14px;
+          padding: 12px 16px;
           color: var(--text-primary, #374151);
           vertical-align: middle;
-          white-space: nowrap;
+          text-align: left;
         }
 
-        .qt-td-id {
+        .qt-td-dcno {
           font-weight: 600;
           color: var(--text-primary, #111827);
           font-family: monospace;
         }
 
-        .qt-td-link {
-          color: var(--primary-color, #6366f1);
+        .qt-td-customer {
           font-weight: 500;
-        }
-
-        .qt-td-link:hover {
-          text-decoration: underline;
+          color: var(--primary-color, #6366f1);
           cursor: pointer;
         }
 
-        .qt-td-meta {
-          text-align: right;
-          padding-right: 20px;
-          white-space: nowrap;
+        .qt-td-customer:hover {
+          text-decoration: underline;
         }
 
-        .qt-text-right {
-          text-align: right;
-        }
-
-        .qt-text-center {
-          text-align: center;
+        .qt-td-amount {
+          font-weight: 600;
+          font-size: 14px;
+          color: var(--text-primary, #1f2433);
         }
 
         /* ── Status Badge ── */
@@ -621,8 +595,8 @@ const SalesInvoice: React.FC = () => {
         }
 
         .qt-action-btn {
-          width: 28px;
-          height: 28px;
+          width: 32px;
+          height: 32px;
           border: none;
           border-radius: 6px;
           cursor: pointer;
@@ -631,38 +605,11 @@ const SalesInvoice: React.FC = () => {
           justify-content: center;
           transition: all 0.2s;
           background: transparent;
+          color: var(--text-secondary, #6b7280);
         }
 
-        .qt-action-view {
-          color: var(--primary-color, #6366f1);
-        }
-
-        .qt-action-view:hover {
-          background: rgba(99, 102, 241, 0.1);
-        }
-
-        .qt-action-edit {
-          color: #f59e0b;
-        }
-
-        .qt-action-edit:hover {
-          background: rgba(245, 158, 11, 0.1);
-        }
-
-        .qt-action-delete {
-          color: var(--danger-color, #ef4444);
-        }
-
-        .qt-action-delete:hover {
-          background: rgba(239, 68, 68, 0.1);
-        }
-
-        .qt-action-pdf {
-          color: #ef4444;
-        }
-
-        .qt-action-pdf:hover {
-          background: rgba(239, 68, 68, 0.1);
+        .qt-action-btn:hover {
+          background: var(--nav-hover, #f3f4f6);
         }
 
         .qt-action-more {
@@ -673,17 +620,10 @@ const SalesInvoice: React.FC = () => {
           background: var(--nav-hover, #f3f4f6);
         }
 
-        .qt-action-print {
-          color: var(--text-secondary, #6b7280);
-        }
-
-        .qt-action-print:hover {
-          background: var(--nav-hover, #f3f4f6);
-        }
-
         /* ── More Menu ── */
         .qt-more-menu-container {
           position: relative;
+          display: inline-block;
         }
 
         .qt-more-menu-dropdown {
@@ -694,7 +634,7 @@ const SalesInvoice: React.FC = () => {
           border: 1px solid var(--border-color, #e5e7eb);
           border-radius: 8px;
           box-shadow: 0 10px 40px var(--shadow-color, rgba(0,0,0,0.15));
-          min-width: 200px;
+          min-width: 180px;
           z-index: 100;
           padding: 4px 0;
           margin-top: 4px;
@@ -728,24 +668,20 @@ const SalesInvoice: React.FC = () => {
           background: #fef2f2;
         }
 
-        /* ── Amount Cell ── */
-        .qt-amount-cell {
-          font-weight: 600;
-          font-size: 14px;
-          color: var(--text-primary, #1f2433);
-        }
-
-        .qt-currency {
-          font-size: 11px;
-          font-weight: 400;
-          color: var(--text-secondary, #6b7280);
-          margin-right: 2px;
+        .qt-more-menu-dropdown .menu-divider {
+          height: 1px;
+          background: var(--border-color, #e5e7eb);
+          margin: 4px 0;
         }
 
         /* ── Empty State ── */
         .qt-empty-state {
           padding: 60px 20px;
           text-align: center;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          height: 100%;
         }
 
         .qt-empty-content {
@@ -776,12 +712,22 @@ const SalesInvoice: React.FC = () => {
           padding: 40px;
           text-align: center;
           color: var(--text-secondary, #6b7280);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          height: 100%;
         }
 
         .qt-error {
           padding: 40px;
           text-align: center;
           color: var(--danger-color, #ef4444);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          height: 100%;
         }
 
         .qt-retry-btn {
@@ -821,9 +767,25 @@ const SalesInvoice: React.FC = () => {
           gap: 4px;
         }
 
-        .qt-pagination-info {
+        .qt-pagination-label {
           font-size: 13px;
           color: var(--text-secondary, #6b7280);
+        }
+
+        .qt-page-size-select {
+          padding: 6px 10px;
+          border: 1px solid var(--border-color, #e5e7eb);
+          border-radius: 6px;
+          font-size: 13px;
+          background: var(--card-bg, white);
+          color: var(--text-primary, #374151);
+          cursor: pointer;
+          height: 34px;
+        }
+
+        .qt-page-size-select:focus {
+          border-color: var(--primary-color, #6366f1);
+          outline: none;
         }
 
         .qt-page-btn {
@@ -862,6 +824,11 @@ const SalesInvoice: React.FC = () => {
           background: var(--primary-hover, #4f46e5);
         }
 
+        .qt-pagination-info {
+          font-size: 13px;
+          color: var(--text-secondary, #6b7280);
+        }
+
         /* ── Spinner ── */
         .spinning {
           animation: spin 1s linear infinite;
@@ -874,18 +841,6 @@ const SalesInvoice: React.FC = () => {
         /* ── Dark Theme ── */
         .dark-theme .quotation-page {
           background: var(--layout-bg, #0f172a);
-        }
-
-        .dark-theme .qt-stat-card {
-          background: var(--card-bg, #1e293b);
-        }
-
-        .dark-theme .qt-stat-value {
-          color: var(--text-primary, #f8fafc);
-        }
-
-        .dark-theme .qt-stat-title {
-          color: var(--text-secondary, #94a3b8);
         }
 
         .dark-theme .qt-search-input {
@@ -942,12 +897,8 @@ const SalesInvoice: React.FC = () => {
           background: var(--nav-hover, rgba(255,255,255,0.05));
         }
 
-        .dark-theme .qt-amount-cell {
+        .dark-theme .qt-td-amount {
           color: var(--text-primary, #f8fafc);
-        }
-
-        .dark-theme .qt-currency {
-          color: var(--text-secondary, #94a3b8);
         }
 
         .dark-theme .qt-empty-content p {
@@ -983,6 +934,12 @@ const SalesInvoice: React.FC = () => {
           background: var(--nav-hover, rgba(255,255,255,0.05));
         }
 
+        .dark-theme .qt-page-size-select {
+          background: var(--card-bg, #1e293b);
+          border-color: var(--border-color, #334155);
+          color: var(--text-primary, #f8fafc);
+        }
+
         .dark-theme .qt-more-menu-dropdown {
           background: var(--card-bg, #1e293b);
           border-color: var(--border-color, #334155);
@@ -998,11 +955,6 @@ const SalesInvoice: React.FC = () => {
 
         /* ── Responsive ── */
         @media (max-width: 768px) {
-          .qt-stats-container {
-            grid-template-columns: repeat(2, 1fr);
-            gap: 12px;
-          }
-
           .quotation-page {
             padding: 12px;
             gap: 12px;
@@ -1027,7 +979,7 @@ const SalesInvoice: React.FC = () => {
           }
 
           .qt-table {
-            min-width: 700px;
+            min-width: 600px;
           }
 
           .qt-pagination {
@@ -1035,36 +987,27 @@ const SalesInvoice: React.FC = () => {
             align-items: center;
           }
 
+          .qt-pagination-center {
+            order: 2;
+          }
+
+          .qt-pagination-left,
+          .qt-pagination-right {
+            order: 1;
+          }
+
           .qt-td {
-            padding: 8px 10px;
+            padding: 10px 12px;
             font-size: 12px;
           }
 
           .qt-th {
-            padding: 8px 10px;
+            padding: 10px 12px;
             font-size: 11px;
           }
         }
 
         @media (max-width: 480px) {
-          .qt-stats-container {
-            grid-template-columns: 1fr;
-          }
-
-          .qt-stat-card {
-            padding: 12px 16px;
-          }
-
-          .qt-stat-value {
-            font-size: 18px;
-          }
-
-          .qt-stat-icon {
-            width: 36px;
-            height: 36px;
-            font-size: 14px;
-          }
-
           .qt-filter-right {
             flex-direction: column;
             width: 100%;
@@ -1089,38 +1032,6 @@ const SalesInvoice: React.FC = () => {
         }
       `}</style>
 
-      {/* ===== STATS CARDS ===== */}
-      {/* <div className="qt-stats-container">
-        <StatsCard 
-          label="Total Bills" 
-          value={stats.total} 
-          color="#3B82F6" 
-          icon={<FaFileInvoice size={18} />}
-          bgColor="#EFF6FF"
-        />
-        <StatsCard 
-          label="Draft" 
-          value={stats.draft} 
-          color="#6B7280" 
-          icon={<FaFileInvoice size={18} />}
-          bgColor="#F9FAFB"
-        />
-        <StatsCard 
-          label="Submitted" 
-          value={stats.submitted} 
-          color="#10B981" 
-          icon={<FaPaperPlane size={18} />}
-          bgColor="#ECFDF5"
-        />
-        <StatsCard 
-          label="Paid" 
-          value={stats.paid} 
-          color="#8B5CF6" 
-          icon={<FaMoneyBillWave size={18} />}
-          bgColor="#F5F3FF"
-        />
-      </div> */}
-
       {/* ===== FILTER BAR ===== */}
       <div className="qt-filter-bar">
         <div className="qt-filter-left">
@@ -1128,7 +1039,7 @@ const SalesInvoice: React.FC = () => {
             <FaSearch className="qt-search-icon" />
             <input
               type="text"
-              placeholder="Search by Bill Number, Customer, or DC No..."
+              placeholder="Search by DC No or Customer..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="qt-search-input"
@@ -1149,8 +1060,6 @@ const SalesInvoice: React.FC = () => {
             <option value="All">All Status</option>
             <option value="Draft">Draft</option>
             <option value="Submitted">Submitted</option>
-            <option value="Paid">Paid</option>
-            <option value="Partially Paid">Partially Paid</option>
             <option value="Cancelled">Cancelled</option>
           </select>
           <button className="qt-btn-secondary" onClick={handleRefresh}>
@@ -1160,7 +1069,7 @@ const SalesInvoice: React.FC = () => {
             <FaPrint size={12} /> Print
           </button>
           <button className="qt-btn-new" onClick={handleCreate}>
-            <FaPlus size={12} /> New Sales Bill
+            <FaPlus size={12} /> New DC
           </button>
         </div>
       </div>
@@ -1188,10 +1097,10 @@ const SalesInvoice: React.FC = () => {
 
       {/* ===== TABLE ===== */}
       <div className="qt-table-wrap">
-        {loading && invoices.length === 0 ? (
+        {loading && challans.length === 0 ? (
           <div className="qt-loading">
             <FaSpinner className="spinning" size={30} style={{ display: 'block', margin: '0 auto 12px' }} />
-            <p>Loading sales bills...</p>
+            <p>Loading delivery challans...</p>
           </div>
         ) : error ? (
           <div className="qt-error">
@@ -1204,181 +1113,169 @@ const SalesInvoice: React.FC = () => {
         ) : paginatedData.length === 0 ? (
           <div className="qt-empty-state">
             <div className="qt-empty-content">
-              <FaFileInvoice size={48} />
-              <p>No sales bills found</p>
+              <FaTruck size={48} />
+              <p>No delivery challans found</p>
               <span>Try adjusting your search criteria or create a new one</span>
               <button className="qt-btn-new" onClick={handleCreate} style={{ marginTop: '12px' }}>
-                <FaPlus size={12} /> New Sales Bill
+                <FaPlus size={12} /> New DC
               </button>
             </div>
           </div>
         ) : (
-          <>
-            <table className="qt-table">
-              <thead>
-                <tr>
-                  <th className="qt-th">Bill No</th>
-                  <th className="qt-th">Customer</th>
-                  <th className="qt-th">Bill Date</th>
-                  <th className="qt-th">Delivery Challan</th>
-                  <th className="qt-th qt-text-right">Amount</th>
-                  <th className="qt-th">Status</th>
-                  <th className="qt-th qt-th-meta">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedData.map((item) => (
-                  <tr key={item.id} className="qt-tr">
-                    <td className="qt-td qt-td-id">{item.name || '-'}</td>
-                    <td className="qt-td">
-                      <div className="qt-td-link" onClick={() => handleView(item.id)}>
-                        {item.customer_name || '-'}
-                      </div>
-                    </td>
-                    <td className="qt-td">
-                      <div>{formatDate(item.posting_date)}</div>
-                    </td>
-                    <td className="qt-td">
-                      <div>{item.deliveryChallanNo || '-'}</div>
-                    </td>
-                    <td className="qt-td qt-text-right qt-amount-cell">
-                      <span className="qt-currency">INR </span>
-                      {item.grand_total.toLocaleString()}
-                    </td>
-                    <td className="qt-td">
-                      <StatusBadge status={item.status || 'Draft'} />
-                    </td>
-                    <td className="qt-td qt-td-meta">
-                      <div className="qt-action-buttons">
-                        <button 
-                          className="qt-action-btn qt-action-view" 
-                          onClick={() => handleView(item.id)} 
-                          title="View"
-                        >
-                          <FaEye size={12} />
-                        </button>
-                        {item.status === 'Draft' && (
-                          <button 
-                            className="qt-action-btn qt-action-edit" 
-                            onClick={() => handleEdit(item.id)} 
-                            title="Edit"
-                          >
-                            <FaEdit size={12} />
-                          </button>
-                        )}
-                        <button 
-                          className="qt-action-btn qt-action-print" 
-                          onClick={handlePrint} 
-                          title="Print"
-                        >
-                          <FaPrintIcon size={12} />
-                        </button>
-                        <div className="qt-more-menu-container">
-                          <button 
-                            className="qt-action-btn qt-action-more" 
-                            onClick={() => toggleMenu(item.id)} 
-                            title="More"
-                          >
-                            <FaEllipsisV size={12} />
-                          </button>
-                          {showMoreMenu === String(item.id) && (
-                            <div className="qt-more-menu-dropdown">
-                              <button onClick={() => handleView(item.id)}>
-                                <FaEye size={12} /> View
-                              </button>
-                              {item.status === 'Draft' && (
-                                <>
-                                  <button onClick={() => handleEdit(item.id)}>
-                                    <FaEdit size={12} /> Edit
-                                  </button>
-                                  <button onClick={() => handleSubmit(item.id)}>
-                                    <FaPaperPlane size={12} /> Submit
-                                  </button>
-                                </>
-                              )}
-                              <button onClick={() => handleDuplicate(item.id)}>
-                                <FaCopy size={12} /> Duplicate
-                              </button>
-                              <button onClick={() => handleDownloadPDF(item.id)}>
-                                <FaFilePdf size={12} /> Download PDF
-                              </button>
-                              <button onClick={() => handleDownloadPDF(item.id)}>
-                                <FaFileExcel size={12} /> Download Excel
-                              </button>
-                              {item.status !== 'Cancelled' && (
-                                <button className="danger" onClick={() => handleCancel(item.id)}>
-                                  <FaBan size={12} /> Cancel
-                                </button>
-                              )}
-                              <button onClick={handlePrint}>
-                                <FaPrintIcon size={12} /> Print
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            {/* ===== PAGINATION ===== */}
-            {filteredData.length > 0 && (
-              <div className="qt-pagination">
-                <div className="qt-pagination-left">
-                  <span className="qt-pagination-info">
-                    Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredData.length)} of {filteredData.length} entries
-                  </span>
-                </div>
-                <div className="qt-pagination-center">
-                  <button 
-                    className="qt-page-btn"
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                  >
-                    <FaChevronLeft size={12} />
-                  </button>
-                  {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
-                    let pageNum = i + 1;
-                    if (totalPages > 7) {
-                      if (currentPage > 4) {
-                        pageNum = currentPage - 3 + i;
-                      }
-                      if (pageNum > totalPages) {
-                        pageNum = totalPages - (6 - i);
-                      }
-                    }
-                    return (
-                      <button
-                        key={pageNum}
-                        className={`qt-page-btn ${currentPage === pageNum ? 'qt-page-btn-active' : ''}`}
-                        onClick={() => setCurrentPage(pageNum)}
+          <table className="qt-table">
+            <thead>
+              <tr>
+                <th className="qt-th">DC No</th>
+                <th className="qt-th">Customer</th>
+                <th className="qt-th">Date</th>
+                <th className="qt-th">Amount</th>
+                <th className="qt-th">Status</th>
+                <th className="qt-th">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginatedData.map((item) => (
+                <tr key={item.id} className="qt-tr">
+                  <td className="qt-td qt-td-dcno">{item.name || '-'}</td>
+                  <td className="qt-td">
+                    <span className="qt-td-customer" onClick={() => handleView(item.id)}>
+                      {item.customer_name || '-'}
+                    </span>
+                  </td>
+                  <td className="qt-td">{formatDate(item.posting_date)}</td>
+                  <td className="qt-td qt-td-amount">
+                    {item.grand_total.toLocaleString()}
+                  </td>
+                  <td className="qt-td">
+                    <StatusBadge status={item.status || 'Draft'} />
+                  </td>
+                  <td className="qt-td">
+                    <div className="qt-action-buttons">
+                      <div 
+                        className="qt-more-menu-container" 
+                        ref={(el) => { menuRefs.current[String(item.id)] = el }}
                       >
-                        {pageNum}
-                      </button>
-                    );
-                  })}
-                  <button 
-                    className="qt-page-btn"
-                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
-                  >
-                    <FaChevronRight size={12} />
-                  </button>
-                </div>
-                <div className="qt-pagination-right">
-                  <span className="qt-pagination-info">
-                    Page {currentPage} of {totalPages}
-                  </span>
-                </div>
-              </div>
-            )}
-          </>
+                        <button 
+                          className="qt-action-btn qt-action-more" 
+                          onClick={() => toggleMenu(item.id)} 
+                          title="More"
+                        >
+                          <FaEllipsisV size={14} />
+                        </button>
+                        {showMoreMenu === String(item.id) && (
+                          <div className="qt-more-menu-dropdown">
+                            <button onClick={() => handleView(item.id)}>
+                              <FaEye size={12} /> View
+                            </button>
+                            {item.status === 'Draft' && (
+                              <>
+                                <button onClick={() => handleEdit(item.id)}>
+                                  <FaEdit size={12} /> Edit
+                                </button>
+                                <button onClick={() => handleSubmit(item.id)}>
+                                  <FaPaperPlane size={12} /> Submit
+                                </button>
+                              </>
+                            )}
+                            <button onClick={() => handleDuplicate(item.id)}>
+                              <FaCopy size={12} /> Duplicate
+                            </button>
+                            <div className="menu-divider" />
+                            <button onClick={handlePrint}>
+                              <FaPrintIcon size={12} /> Print
+                            </button>
+                            <button onClick={() => handleDownloadPDF(item.id)}>
+                              <FaFilePdf size={12} /> Download PDF
+                            </button>
+                            <button onClick={() => handleDownloadPDF(item.id)}>
+                              <FaFileExcel size={12} /> Download Excel
+                            </button>
+                            {item.status !== 'Cancelled' && (
+                              <button className="danger" onClick={() => handleCancel(item.id)}>
+                                <FaBan size={12} /> Cancel
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
       </div>
+
+      {/* ===== PAGINATION - Always visible ===== */}
+      {!loading && !error && (
+        <div className="qt-pagination">
+          <div className="qt-pagination-left">
+            <span className="qt-pagination-label">Show:</span>
+            <select
+              value={itemsPerPage}
+              onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+              className="qt-page-size-select"
+            >
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+            <span className="qt-pagination-label">entries</span>
+          </div>
+          <div className="qt-pagination-center">
+            <button
+              onClick={goToFirstPage}
+              disabled={currentPage === 1 || totalFilteredItems === 0}
+              className="qt-page-btn"
+            >
+              <FaAngleDoubleLeft size={12} />
+            </button>
+            <button
+              onClick={goToPrevPage}
+              disabled={currentPage === 1 || totalFilteredItems === 0}
+              className="qt-page-btn"
+            >
+              <FaChevronLeft size={12} />
+            </button>
+            {totalFilteredItems > 0 && getPageNumbers().map(page => (
+              <button
+                key={page}
+                onClick={() => goToPage(page)}
+                className={`qt-page-btn ${currentPage === page ? 'qt-page-btn-active' : ''}`}
+              >
+                {page}
+              </button>
+            ))}
+            <button
+              onClick={goToNextPage}
+              disabled={currentPage === totalPages || totalFilteredItems === 0}
+              className="qt-page-btn"
+            >
+              <FaChevronRight size={12} />
+            </button>
+            <button
+              onClick={goToLastPage}
+              disabled={currentPage === totalPages || totalFilteredItems === 0}
+              className="qt-page-btn"
+            >
+              <FaAngleDoubleRight size={12} />
+            </button>
+          </div>
+          <div className="qt-pagination-right">
+            <span className="qt-pagination-info">
+              {totalFilteredItems > 0 ? (
+                `Showing ${getStartIndex()} to ${getEndIndex()} of ${totalFilteredItems} entries`
+              ) : (
+                'No entries to show'
+              )}
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
-export default SalesInvoice;
+export default DeliveryChallans;

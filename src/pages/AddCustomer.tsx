@@ -8,13 +8,10 @@ import {
   FaExclamationTriangle,
   FaInfoCircle,
   FaUser,
-  FaEnvelope,
   FaCheckCircle,
   FaPlus,
   FaUserTie,
   FaTimes,
-  // FaPhone,
-  FaBriefcase,
   FaMapMarkerAlt,
 } from 'react-icons/fa';
 import './AddCustomer.css';

@@ -8,7 +8,6 @@ import {
   FaChevronRight,
   FaAngleDoubleLeft,
   FaAngleDoubleRight,
-  FaEye,
   FaEdit, 
   FaTrash, 
   FaPlus,
@@ -231,9 +230,7 @@ const Customer: React.FC = () => {
     }
   };
 
-  const handleView = (item: CustomerDisplay) => {
-    navigate(`/customer/${encodeURIComponent(item.id)}`);
-  };
+
 
   const handleEdit = (id: string) => {
     navigate(`/customer/edit/${id}`);

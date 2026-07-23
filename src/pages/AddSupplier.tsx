@@ -3,7 +3,7 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
   FaArrowLeft, FaSave, FaSpinner, FaInfoCircle, FaExclamationCircle,
   FaExclamationTriangle, FaTimesCircle, FaTimes, FaTrash,
-  FaBuilding, FaUser, FaMapMarkerAlt, FaTag, FaFolder, FaPhone, FaEnvelope,
+  FaBuilding, FaMapMarkerAlt, FaTag, FaFolder,
   FaUniversity, FaPlus, FaCheckCircle, FaUserTie,
 } from 'react-icons/fa';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
