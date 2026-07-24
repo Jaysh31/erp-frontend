@@ -36,7 +36,7 @@ interface PaymentScheduleRow {
 }
 
 interface QuotationForm {
-  type: string;           // 'Items' or 'Services'
+  type: string;           
   date: string;
   validTill: string;
   customer: string;      
