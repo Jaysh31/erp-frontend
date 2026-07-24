@@ -48,6 +48,17 @@ interface Product {
   tax: number;
   stockUom?: string;
   standardRate?: number;
+  creation?: string;
+  modified?: string;
+  modified_by?: string;
+  fg_item?: number;
+  fg_item_qty?: number;
+  item_id?: number;
+  transaction_date?: string;
+  warehouse?: string;
+  uom?: string;
+  net_rate?: number;
+  net_amount?: number;
 }
 
 interface SalesOrderItem {
@@ -59,11 +70,24 @@ interface SalesOrderItem {
   rate: number;
   stockUom: string;
   tax: number;
+  tax_id?: number;
   amount: number;
   taxAmount: number;
   totalAmount: number;
   stockStatus?: StockStatus;
   availableQty?: number;
+  // Additional fields for API
+  creation?: string;
+  modified?: string;
+  modified_by?: string;
+  fg_item?: number;
+  fg_item_qty?: number;
+  item_id?: number;
+  uom?: string;
+  net_rate?: number;
+  net_amount?: number;
+  warehouse?: string;
+  transaction_date?: string;
 }
 
 interface PaymentScheduleRow {
@@ -105,12 +129,14 @@ interface ValidationError {
 }
 
 interface SalesOrderApiRecord {
+  id?: number;
   name: string;
   naming_series?: string;
   order_type?: string;
   is_subcontracted?: number | boolean;
   company?: string;
   set_warehouse?: string;
+  customer_id?: number;
   party_name?: string;
   customer_name?: string;
   transaction_date?: string;
@@ -121,7 +147,13 @@ interface SalesOrderApiRecord {
   terms?: string;
   grand_total?: number;
   total?: number;
+  total_qty?: number;
+  net_total?: number;
+  base_total?: number;
+  currency?: string;
+  tax_id?: number;
   items?: Array<{
+    id?: number;
     item_code?: string;
     item_name?: string;
     hsn?: string;
@@ -129,9 +161,31 @@ interface SalesOrderApiRecord {
     rate?: number;
     stock_uom?: string;
     tax_rate?: number;
+    tax_id?: number;
     amount?: number;
+    creation?: string;
+    modified?: string;
+    modified_by?: string;
+    fg_item?: number | string;
+    fg_item_qty?: number | string;
+    item_id?: number | string;
+    uom?: string;
+    net_rate?: number;
+    net_amount?: number;
+    warehouse?: string;
+    transaction_date?: string;
+    description?: string;
   }>;
   payment_schedule?: any[];
+  rounded_total?: number;
+  base_grand_total?: number;
+  apply_discount_on?: string;
+  discount_amount?: number;
+  additional_discount_percentage?: number;
+  billing_status?: string;
+  delivery_status?: string;
+  per_delivered?: number;
+  per_billed?: number;
 }
 
 interface QuotationApiRecord {
@@ -159,7 +213,19 @@ interface QuotationApiRecord {
     rate?: number;
     stock_uom?: string;
     tax_rate?: number;
+    tax_id?: number;
     amount?: number;
+    creation?: string;
+    modified?: string;
+    modified_by?: string;
+    fg_item?: number;
+    fg_item_qty?: number;
+    item_id?: number;
+    uom?: string;
+    net_rate?: number;
+    net_amount?: number;
+    warehouse?: string;
+    transaction_date?: string;
   }>;
 }
 
@@ -1108,7 +1174,7 @@ export default function CreateSalesOrder() {
     customerName: '',
     status: 'Draft',
     items: [
-      { id: '1', itemCode: '', itemName: '', hsn: '', quantity: 1, rate: 0, stockUom: 'Nos', tax: 0, amount: 0, taxAmount: 0, totalAmount: 0 }
+      { id: '1', itemCode: '', itemName: '', hsn: '', quantity: 1, rate: 0, stockUom: 'Nos', tax: 0, tax_id: undefined, amount: 0, taxAmount: 0, totalAmount: 0 }
     ],
     totalQuantity: 0,
     baseTotal: 0,
@@ -1192,6 +1258,12 @@ export default function CreateSalesOrder() {
     return match ? parseInt(match[0], 10) : 0;
   };
 
+  // Helper to get tax_id from tax rate value
+  const getTaxIdFromRate = (taxRate: number): number | undefined => {
+    const taxOption = taxOptions.find(t => extractTaxValue(t.tax_type) === taxRate);
+    return taxOption?.tax_id;
+  };
+
   // ─── load quotations ──────────────────────────
   const fetchQuotations = async () => {
     setLoadingQuotations(true);
@@ -1230,6 +1302,17 @@ export default function CreateSalesOrder() {
         tax: item.tax_rate || 0,
         stockUom: item.stock_uom,
         standardRate: item.standard_rate,
+        creation: item.creation,
+        modified: item.modified,
+        modified_by: item.modified_by,
+        fg_item: item.fg_item,
+        fg_item_qty: item.fg_item_qty,
+        item_id: item.id,
+        warehouse: item.warehouse,
+        transaction_date: item.transaction_date,
+        uom: item.uom,
+        net_rate: item.net_rate,
+        net_amount: item.net_amount,
       }));
       
       setAllProducts(itemsData);
@@ -1266,6 +1349,17 @@ export default function CreateSalesOrder() {
         tax: item.tax_rate || 0,
         stockUom: item.stock_uom,
         standardRate: item.standard_rate,
+        creation: item.creation,
+        modified: item.modified,
+        modified_by: item.modified_by,
+        fg_item: item.fg_item,
+        fg_item_qty: item.fg_item_qty,
+        item_id: item.id,
+        warehouse: item.warehouse,
+        transaction_date: item.transaction_date,
+        uom: item.uom,
+        net_rate: item.net_rate,
+        net_amount: item.net_amount,
       }));
       
       setProducts(itemsData);
@@ -1456,6 +1550,7 @@ export default function CreateSalesOrder() {
         const hsn = it.hsn || master?.HSN || master?.hsn || '';
         const stockUom = it.stock_uom || master?.stock_uom || 'Nos';
         const tax = it.tax_rate ?? 0;
+        const tax_id = it.tax_id || getTaxIdFromRate(tax);
         const amount = it.amount ?? quantity * rate;
         const taxAmount = (amount * tax) / 100;
         const { status, availableQty } = getStockStatus(itemCode, quantity);
@@ -1468,11 +1563,23 @@ export default function CreateSalesOrder() {
           rate,
           stockUom,
           tax,
+          tax_id,
           amount,
           taxAmount,
           totalAmount: amount + taxAmount,
           stockStatus: status,
           availableQty,
+          creation: it.creation,
+          modified: it.modified,
+          modified_by: it.modified_by,
+          fg_item: it.fg_item,
+          fg_item_qty: it.fg_item_qty,
+          item_id: it.item_id,
+          uom: it.uom,
+          net_rate: it.net_rate,
+          net_amount: it.net_amount,
+          warehouse: it.warehouse,
+          transaction_date: it.transaction_date,
         };
       });
     } else {
@@ -1484,6 +1591,7 @@ export default function CreateSalesOrder() {
         const grand = record.grand_total ?? record.rounded_total ?? baseAmount;
         const taxAmount = Math.max(0, grand - baseAmount);
         const taxPercent = baseAmount > 0 ? (taxAmount / baseAmount) * 100 : 0;
+        const tax_id = getTaxIdFromRate(taxPercent);
 
         const match = findLikelyCatalogMatch(rate, quantity);
 
@@ -1501,11 +1609,23 @@ export default function CreateSalesOrder() {
             rate: Number(match.standard_rate ?? rate),
             stockUom: match.stock_uom || 'Nos',
             tax: taxPercent,
+            tax_id,
             amount,
             taxAmount: taxAmt,
             totalAmount: amount + taxAmt,
             stockStatus: status,
             availableQty,
+            creation: match.creation,
+            modified: match.modified,
+            modified_by: match.modified_by,
+            fg_item: match.fg_item,
+            fg_item_qty: match.fg_item_qty,
+            item_id: match.id,
+            uom: match.uom,
+            net_rate: match.net_rate,
+            net_amount: match.net_amount,
+            warehouse: match.warehouse,
+            transaction_date: match.transaction_date,
           }];
           itemsAreGuessed = true;
         } else {
@@ -1518,6 +1638,7 @@ export default function CreateSalesOrder() {
             rate,
             stockUom: 'Nos',
             tax: taxPercent,
+            tax_id,
             amount: baseAmount,
             taxAmount: taxAmount,
             totalAmount: grand,
@@ -1525,7 +1646,7 @@ export default function CreateSalesOrder() {
           itemsNeedManualPick = true;
         }
       } else {
-        items = [{ id: '1', itemCode: '', itemName: '', hsn: '', quantity: 1, rate: 0, stockUom: 'Nos', tax: 0, amount: 0, taxAmount: 0, totalAmount: 0 }];
+        items = [{ id: '1', itemCode: '', itemName: '', hsn: '', quantity: 1, rate: 0, stockUom: 'Nos', tax: 0, tax_id: undefined, amount: 0, taxAmount: 0, totalAmount: 0 }];
       }
     }
 
@@ -1600,46 +1721,23 @@ export default function CreateSalesOrder() {
     if (isEditMode && id) {
       fetchSalesOrderById(id);
     }
-  }, [id]);
+  }, [id, customers]);
 
-  const SALES_ORDER_PAGE_SIZE = 50;
-
-  const findSalesOrderRecord = async (orderId: string): Promise<SalesOrderApiRecord | null> => {
-    const MAX_PAGES = 50;
-    let page = 1;
-
-    while (page <= MAX_PAGES) {
-      const response = await api.get('/sales-order');
-      const payload = response.data;
-      if (payload && payload.success === 0) return null;
-
-      const data = payload && payload.success === 1 ? payload.data : payload;
-      const records: any[] = Array.isArray(data?.records)
-        ? data.records
-        : Array.isArray(data)
-          ? data
-          : [];
-
-      const found = records.find(
-        (r) => r && (r.name === orderId || String(r.id) === String(orderId))
-      );
-      if (found) return found;
-
-      const total = data?.total ?? records.length;
-      const fetchedSoFar = page * SALES_ORDER_PAGE_SIZE;
-      if (records.length === 0 || fetchedSoFar >= total) {
-        return null;
-      }
-      page += 1;
-    }
-    return null;
-  };
-
+  // ─── FIXED: fetch sales order by ID using direct endpoint ───
   const fetchSalesOrderById = async (orderId: string) => {
     setLoadingRecord(true);
     setApiError(null);
     try {
-      const record = await findSalesOrderRecord(orderId);
+      // Direct fetch by ID - matches your API endpoint /sales-order/:id
+      const response = await api.get(`/sales-order/${orderId}`);
+      
+      if (response.data.success !== 1) {
+        throw new Error(response.data?.message || 'Failed to fetch sales order');
+      }
+
+      // The data is directly in response.data.data
+      const record = response.data.data;
+      
       if (record) {
         loadSalesOrderIntoForm(record);
       } else {
@@ -1653,41 +1751,57 @@ export default function CreateSalesOrder() {
     }
   };
 
+  // ─── FIXED: load sales order into form ───
   const loadSalesOrderIntoForm = (record: SalesOrderApiRecord) => {
     setRecordName(record.name ?? null);
 
     const cached = readCachedSalesOrderLineData(record.name);
 
+    // Map items from the API response
     const items: SalesOrderItem[] =
       Array.isArray(record.items) && record.items.length > 0
         ? record.items.map((it, idx) => {
-          const quantity = it.qty ?? 0;
-          const rate = it.rate ?? 0;
-          const itemCode = it.item_code || '';
-          const tax = it.tax_rate ?? 0;
-          const amount = it.amount ?? quantity * rate;
-          const taxAmount = (amount * tax) / 100;
-          const { status, availableQty } = getStockStatus(itemCode, quantity);
-          return {
-            id: String(idx + 1),
-            itemCode,
-            itemName: it.item_name || '',
-            hsn: it.hsn || '',
-            quantity,
-            rate,
-            stockUom: it.stock_uom || 'Nos',
-            tax,
-            amount,
-            taxAmount,
-            totalAmount: amount + taxAmount,
-            stockStatus: status,
-            availableQty,
-          };
-        })
+            const quantity = it.qty ?? 0;
+            const rate = it.rate ?? 0;
+            const itemCode = it.item_code || '';
+            const tax = it.tax_rate ?? 0;
+            const tax_id = it.tax_id || getTaxIdFromRate(tax);
+            const amount = it.amount ?? quantity * rate;
+            const taxAmount = (amount * tax) / 100;
+            const { status, availableQty } = getStockStatus(itemCode, quantity);
+            return {
+              id: String(idx + 1),
+              itemCode,
+              itemName: it.item_name || '',
+              hsn: it.hsn || '',
+              quantity,
+              rate,
+              stockUom: it.stock_uom || 'Nos',
+              tax,
+              tax_id,
+              amount,
+              taxAmount,
+              totalAmount: amount + taxAmount,
+              stockStatus: status,
+              availableQty,
+              creation: it.creation,
+              modified: it.modified,
+              modified_by: it.modified_by,
+              fg_item: it.fg_item ? parseInt(String(it.fg_item)) : 0,
+              fg_item_qty: it.fg_item_qty ? parseFloat(String(it.fg_item_qty)) : 0,
+              item_id: it.item_id ? parseInt(String(it.item_id)) : 0,
+              uom: it.uom || it.stock_uom || 'Nos',
+              net_rate: it.net_rate || rate,
+              net_amount: it.net_amount || amount,
+              warehouse: it.warehouse || formData.warehouse || 'Finished Goods',
+              transaction_date: it.transaction_date || record.transaction_date,
+            };
+          })
         : cached?.items && cached.items.length > 0
           ? cached.items
-          : [{ id: '1', itemCode: '', itemName: '', hsn: '', quantity: 1, rate: 0, stockUom: 'Nos', tax: 0, amount: 0, taxAmount: 0, totalAmount: 0 }];
+          : [{ id: '1', itemCode: '', itemName: '', hsn: '', quantity: 1, rate: 0, stockUom: 'Nos', tax: 0, tax_id: undefined, amount: 0, taxAmount: 0, totalAmount: 0 }];
 
+    // Payment schedule
     let paymentSchedule: PaymentScheduleRow[] = [];
     if (Array.isArray(record.payment_schedule) && record.payment_schedule.length > 0) {
       paymentSchedule = record.payment_schedule.map((p: any, idx: number) => ({
@@ -1704,7 +1818,7 @@ export default function CreateSalesOrder() {
       paymentSchedule = [{
         id: '1',
         paymentTerm: record.payment_terms_template,
-        dueDate: unwrapDate(record.delivery_date),
+        dueDate: unwrapDate(record.delivery_date) || unwrapDate(record.transaction_date),
         durationDays: daysBetween(unwrapDate(record.transaction_date), unwrapDate(record.delivery_date)),
         invoicePortion: 100,
         paymentAmount: record.grand_total ?? record.total ?? 0,
@@ -1713,8 +1827,12 @@ export default function CreateSalesOrder() {
 
     // Find customer match
     let customerMatch: Customer | undefined;
-    if (record.party_name) {
-      customerMatch = customers.find((c) => c.id === record.party_name || c.name === record.party_name);
+    if (record.customer_name || record.party_name) {
+      const customerName = record.customer_name || record.party_name || '';
+      customerMatch = customers.find((c) => 
+        c.name === customerName || 
+        c.id === String(record.customer_id)
+      );
       if (customerMatch) {
         setSelectedCustomer(customerMatch);
         setCustomerData(customerMatch);
@@ -1728,7 +1846,7 @@ export default function CreateSalesOrder() {
       isSubcontracted: Boolean(record.is_subcontracted),
       company: record.company || prev.company,
       warehouse: record.set_warehouse || prev.warehouse,
-      customer: customerMatch?.id || record.party_name || prev.customer,
+      customer: customerMatch?.id || String(record.customer_id) || prev.customer,
       customerName: customerMatch?.name || record.customer_name || prev.customerName,
       date: unwrapDate(record.transaction_date) || prev.date,
       deliveryDate: unwrapDate(record.delivery_date) || prev.deliveryDate,
@@ -1737,7 +1855,7 @@ export default function CreateSalesOrder() {
       tcName: record.tc_name || prev.tcName,
       termDetails: record.terms || prev.termDetails,
       items,
-      paymentSchedule,
+      paymentSchedule: paymentSchedule.length > 0 ? paymentSchedule : prev.paymentSchedule,
     }));
   };
 
@@ -1896,6 +2014,7 @@ export default function CreateSalesOrder() {
         const rate = product.rate || 0;
         const amount = quantity * rate;
         const tax = product.tax || 0;
+        const tax_id = getTaxIdFromRate(tax);
         const taxAmount = (amount * tax) / 100;
         
         updatedItems[index].itemName = product.itemName || '';
@@ -1903,9 +2022,21 @@ export default function CreateSalesOrder() {
         updatedItems[index].rate = rate;
         updatedItems[index].stockUom = product.unit || 'Nos';
         updatedItems[index].tax = tax;
+        updatedItems[index].tax_id = tax_id;
         updatedItems[index].amount = amount;
         updatedItems[index].taxAmount = taxAmount;
         updatedItems[index].totalAmount = amount + taxAmount;
+        updatedItems[index].creation = product.creation;
+        updatedItems[index].modified = product.modified;
+        updatedItems[index].modified_by = product.modified_by;
+        updatedItems[index].fg_item = product.fg_item;
+        updatedItems[index].fg_item_qty = product.fg_item_qty;
+        updatedItems[index].item_id = product.item_id;
+        updatedItems[index].uom = product.uom;
+        updatedItems[index].net_rate = product.net_rate;
+        updatedItems[index].net_amount = product.net_amount;
+        updatedItems[index].warehouse = product.warehouse;
+        updatedItems[index].transaction_date = product.transaction_date;
         
         const { status, availableQty } = getStockStatus(String(value), quantity);
         updatedItems[index].stockStatus = status;
@@ -1933,7 +2064,10 @@ export default function CreateSalesOrder() {
     if (field === 'tax') {
       const amount = updatedItems[index].amount || 0;
       const tax = Number(value);
+      const tax_id = getTaxIdFromRate(tax);
       const taxAmount = (amount * tax) / 100;
+      updatedItems[index].tax = tax;
+      updatedItems[index].tax_id = tax_id;
       updatedItems[index].taxAmount = taxAmount;
       updatedItems[index].totalAmount = amount + taxAmount;
     }
@@ -1950,18 +2084,10 @@ export default function CreateSalesOrder() {
       ...prev,
       items: [
         ...prev.items,
-        { id: newId, itemCode: '', itemName: '', hsn: '', quantity: 1, rate: 0, stockUom: 'Nos', tax: 0, amount: 0, taxAmount: 0, totalAmount: 0 }
+        { id: newId, itemCode: '', itemName: '', hsn: '', quantity: 1, rate: 0, stockUom: 'Nos', tax: 0, tax_id: undefined, amount: 0, taxAmount: 0, totalAmount: 0 }
       ]
     }));
   };
-
-  // const removeItemRow = (index: number) => {
-  //   if (formData.items.length <= 1) return;
-  //   setFormData(prev => ({
-  //     ...prev,
-  //     items: prev.items.filter((_, i) => i !== index)
-  //   }));
-  // };
 
   // ─── payment schedule ─────────────────────────
   const addPaymentSchedule = () => {
@@ -2023,11 +2149,14 @@ export default function CreateSalesOrder() {
     // Get the customer ID from the customerData or selectedCustomer
     const customerId = customerData?.id || selectedCustomer?.id || formData.customer || '';
 
+    // Get tax_id from selected tax options
+    const taxId = taxOptions.length > 0 ? taxOptions[0].tax_id : null;
+
     const payload: any = {
       name: isEditMode && recordName ? recordName : generateSalesOrderName(),
       naming_series: formData.namingSeries,
       company: formData.company,
-      customer_id: customerId,  // Use customer ID here
+      customer_id: parseInt(customerId) || customerId,
       customer_name: formData.customerName,
       transaction_date: formatDate(formData.date),
       delivery_date: formatDate(formData.deliveryDate),
@@ -2037,20 +2166,38 @@ export default function CreateSalesOrder() {
       total: formData.baseTotal,
       net_total: formData.baseTotal,
       grand_total: formData.grandTotal,
+      tax_id: taxId,
       payment_terms_template: formData.paymentTermsTemplate,
       tc_name: formData.tcName,
       terms: formData.termDetails,
-      items: validItems.map((item) => ({
-        item_code: item.itemCode,
-        item_name: item.itemName,
-        hsn: item.hsn || '',
-        qty: item.quantity,
-        stock_uom: item.stockUom || 'Nos',
-        rate: item.rate,
-        tax_rate: item.tax,
-        amount: item.amount,
-        warehouse: formData.warehouse,
-      })),
+      items: validItems.map((item) => {
+        // Get tax_id for this item
+        const itemTaxId = item.tax_id || getTaxIdFromRate(item.tax) || taxId;
+        
+        return {
+          creation: item.creation || new Date().toISOString(),
+          modified: item.modified || new Date().toISOString(),
+          modified_by: item.modified_by || 'Administrator',
+          fg_item: item.fg_item || 0,
+          fg_item_qty: item.fg_item_qty || 0,
+          item_id: item.item_id || null,
+          item_code: item.itemCode,
+          item_name: item.itemName,
+          description: item.itemName || '',
+          qty: item.quantity,
+          stock_uom: item.stockUom || 'Nos',
+          uom: item.uom || item.stockUom || 'Nos',
+          rate: item.rate,
+          amount: item.amount,
+          net_rate: item.net_rate || item.rate,
+          net_amount: item.net_amount || item.amount,
+          warehouse: item.warehouse || formData.warehouse || 'Finished Goods',
+          transaction_date: item.transaction_date || formatDate(formData.date),
+          hsn: item.hsn || '',
+          tax_rate: item.tax,
+          tax_id: itemTaxId,
+        };
+      }),
       payment_schedule: formData.paymentSchedule.map((p) => ({
         payment_term: p.paymentTerm,
         due_date: p.dueDate,
