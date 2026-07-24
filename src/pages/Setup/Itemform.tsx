@@ -78,7 +78,7 @@ interface UOM {
   symbol: string;
   common_code: string;
   category: string;
-  enabled: number;
+  enabled?: number; // Made optional since it might not exist
   must_be_whole_number: number;
   creation: string;
 }
@@ -882,6 +882,27 @@ export default function ItemForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.standardRate, form.profitMargin, taxPercentage]);
 
+  // ─── Fetch UOMs ──────────────────────────────────────────────────────
+  const fetchUoms = async () => {
+    setLoadingUoms(true);
+    try {
+      const response = await api.get("/uom");
+      console.log("UOM Response:", response.data); // Debug log
+      
+      if (response.data.success === 1) {
+        // The data is nested inside data.records
+        const uomRecords = response.data.data?.records || response.data.data || [];
+        console.log("UOM Records:", uomRecords); // Debug log
+        setUoms(uomRecords);
+      }
+    } catch (err) {
+      console.error("Error fetching UOMs:", err);
+      toast.error("Failed to load UOMs");
+    } finally {
+      setLoadingUoms(false);
+    }
+  };
+
   useEffect(() => {
     const fetchLookups = async () => {
       setLoadingGroups(true);
@@ -894,15 +915,8 @@ export default function ItemForm() {
         setLoadingGroups(false);
       }
 
-      setLoadingUoms(true);
-      try {
-        const response = await api.get("/uom");
-        if (response.data.success === 1) setUoms(response.data.data.records || []);
-      } catch (err) {
-        console.error("Error fetching UOMs:", err);
-      } finally {
-        setLoadingUoms(false);
-      }
+      // Fetch UOMs using the updated function
+      await fetchUoms();
 
       setLoadingTaxes(true);
       try {
@@ -1066,12 +1080,11 @@ export default function ItemForm() {
     value: group.item_group_name,
   }));
 
-  const uomOptions = uoms
-    .filter((uom) => uom.enabled === 1)
-    .map((uom) => ({
-      label: uom.uom_name + (uom.symbol ? ` (${uom.symbol})` : ""),
-      value: uom.uom_name,
-    }));
+  // ─── UOM Options - Include all UOMs (no enabled filter) ────────────
+  const uomOptions = uoms.map((uom) => ({
+    label: uom.uom_name + (uom.symbol ? ` (${uom.symbol})` : ""),
+    value: uom.uom_name,
+  }));
 
   const taxOptions = taxes.map((tax) => ({
     label: tax.tax_type,

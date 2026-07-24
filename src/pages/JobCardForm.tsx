@@ -917,13 +917,8 @@ const JobCardForm: React.FC = () => {
         }
         
         // Update the associated work order with produced quantity and process loss
-        if (formData.work_order) {
-          try {
-            await api.put(`/work-order/${formData.work_order}`, workOrderPayload);
-          } catch (woErr) {
-            console.warn("Failed to update work order quantities:", woErr);
-          }
-        }
+       
+        
       }
 
       setTimerRunning(false);

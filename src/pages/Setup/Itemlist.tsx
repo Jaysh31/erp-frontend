@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FaSearch,
@@ -36,13 +36,20 @@ interface Item {
 
 interface ApiResponse {
   success: number;
-  data: Item[];
+  data:
+    | Item[]
+    | {
+        total: number;
+        page: number;
+        limit: number;
+        records: Item[];
+      };
 }
 
 export default function ItemList() {
   const navigate = useNavigate();
   const { theme } = useAdminTheme();
-  
+
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,25 +60,60 @@ export default function ItemList() {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [totalItems, setTotalItems] = useState(0);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [allItems, setAllItems] = useState<Item[]>([]);
 
-  // Fetch items from API
-  const fetchItems = async () => {
+  // Fetch items from API with pagination
+  const fetchItems = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams();
       params.append('page', currentPage.toString());
       params.append('limit', itemsPerPage.toString());
-      
+
       if (searchTerm) {
         params.append('search', searchTerm);
       }
+      if (statusFilter !== 'all') {
+        params.append('status', statusFilter === 'enabled' ? '1' : '0');
+      }
+      if (groupFilter !== 'all') {
+        params.append('group', groupFilter);
+      }
 
       const response = await api.get<ApiResponse>(`/item?${params.toString()}`);
-      
+      console.log('API RESPONSE for page', currentPage, ':', response.data);
+
       if (response.data.success === 1) {
-        setItems(response.data.data);
-        setTotalItems(response.data.data.length);
+        const raw = response.data.data;
+
+        if (Array.isArray(raw)) {
+          // Backend is ALREADY paginating (sends only `limit` items per page)
+          // but returns a bare array with no total count anywhere.
+          // We can't know the true total, so we estimate it from whether this
+          // page came back full:
+          //  - full page (raw.length === itemsPerPage) -> assume at least one more page exists
+          //  - partial/empty page -> this is the last page; total = everything up to here
+          setItems(raw);
+          setAllItems(raw);
+
+          const isFullPage = raw.length === itemsPerPage;
+          const estimatedTotal = isFullPage
+            ? currentPage * itemsPerPage + 1 // pretend there's at least 1 more beyond this page
+            : (currentPage - 1) * itemsPerPage + raw.length; // this is the true total (last page)
+
+          setTotalItems(estimatedTotal);
+        } else if (raw && typeof raw === 'object') {
+          // Backend returned the proper { total, page, limit, records } shape.
+          const records = raw.records || [];
+          setItems(records);
+          setTotalItems(raw.total || records.length || 0);
+          setAllItems(records);
+        } else {
+          setItems([]);
+          setTotalItems(0);
+          setAllItems([]);
+        }
       } else {
         setError('Failed to fetch items');
       }
@@ -81,12 +123,12 @@ export default function ItemList() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, itemsPerPage, searchTerm, statusFilter, groupFilter]);
 
   // Delete item
   const handleDeleteItem = async (id: number, e: React.MouseEvent) => {
     e.stopPropagation();
-    
+
     if (!window.confirm('Are you sure you want to delete this item?')) {
       return;
     }
@@ -95,7 +137,7 @@ export default function ItemList() {
     try {
       const response = await api.delete(`/item/${id}`);
       if (response.data.success === 1) {
-        setItems(prevItems => prevItems.filter(item => item.id !== id));
+        fetchItems();
         console.log('Item deleted successfully');
       } else {
         setError('Failed to delete item');
@@ -111,48 +153,73 @@ export default function ItemList() {
   // Handle edit
   const handleEditItem = (item: Item, e: React.MouseEvent) => {
     e.stopPropagation();
-    navigate(`/item/${item.id}`, { 
-      state: { itemData: item, editMode: true } 
+    navigate(`/item/${item.id}`, {
+      state: { itemData: item, editMode: true }
     });
   };
 
   // Fetch when dependencies change
   useEffect(() => {
     fetchItems();
-  }, [currentPage, itemsPerPage, searchTerm]);
+  }, [fetchItems]);
 
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, itemsPerPage, statusFilter, groupFilter]);
+  }, [searchTerm, statusFilter, groupFilter]);
 
   // Get unique item groups for filter
-  const itemGroups = Array.from(new Set(items.map(item => item.item_group))).filter(Boolean);
+  const itemGroups = Array.from(new Set(allItems.map(item => item.item_group))).filter(Boolean);
 
-  // Filter data based on status and group
-  const filteredItems = items.filter(item => {
-    const matchesStatus = statusFilter === 'all' || 
-                         (statusFilter === 'enabled' && item.disabled === 0) ||
-                         (statusFilter === 'disabled' && item.disabled === 1);
-    const matchesGroup = groupFilter === 'all' || item.item_group === groupFilter;
-    return matchesStatus && matchesGroup;
-  });
+  const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
+  const validCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
 
-  const paginatedData = filteredItems.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  const getStartIndex = () => (validCurrentPage - 1) * itemsPerPage + 1;
+  const getEndIndex = () => Math.min(validCurrentPage * itemsPerPage, totalItems);
 
-  const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
-
+  // Pagination navigation functions with wrap-around
   const goToPage = (page: number) => {
-    if (page >= 1 && page <= totalPages) setCurrentPage(page);
+    if (page < 1) {
+      page = totalPages;
+    } else if (page > totalPages) {
+      page = 1;
+    }
+
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+    }
   };
 
-  const goToFirstPage = () => goToPage(1);
-  const goToLastPage = () => goToPage(totalPages);
-  const goToNextPage = () => goToPage(currentPage + 1);
-  const goToPrevPage = () => goToPage(currentPage - 1);
+  const goToFirstPage = () => {
+    if (totalPages > 0) {
+      setCurrentPage(1);
+    }
+  };
+
+  const goToLastPage = () => {
+    if (totalPages > 0) {
+      setCurrentPage(totalPages);
+    }
+  };
+
+  const goToNextPage = () => {
+    console.log('goToNextPage clicked ->', { validCurrentPage, totalPages, totalItems, currentPage, itemsPerPage });
+    if (validCurrentPage < totalPages) {
+      setCurrentPage(validCurrentPage + 1);
+    } else {
+      // Wrap around to first page
+      setCurrentPage(1);
+    }
+  };
+
+  const goToPrevPage = () => {
+    if (validCurrentPage > 1) {
+      setCurrentPage(validCurrentPage - 1);
+    } else {
+      // Wrap around to last page
+      setCurrentPage(totalPages);
+    }
+  };
 
   const handlePageSizeChange = (newSize: number) => {
     setItemsPerPage(newSize);
@@ -162,7 +229,7 @@ export default function ItemList() {
   const getPageNumbers = () => {
     const pages = [];
     const maxVisible = 5;
-    let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+    let startPage = Math.max(1, validCurrentPage - Math.floor(maxVisible / 2));
     let endPage = Math.min(totalPages, startPage + maxVisible - 1);
     if (endPage - startPage + 1 < maxVisible) startPage = Math.max(1, endPage - maxVisible + 1);
     for (let i = startPage; i <= endPage; i++) pages.push(i);
@@ -176,8 +243,8 @@ export default function ItemList() {
   };
 
   const handleRowClick = (item: Item) => {
-    navigate(`/item/${item.id}`, { 
-      state: { itemData: item } 
+    navigate(`/item/${item.id}`, {
+      state: { itemData: item }
     });
   };
 
@@ -196,29 +263,41 @@ export default function ItemList() {
               type="text"
               placeholder="Search items..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+              }}
               className="itl-search-input"
             />
             {searchTerm && (
-              <button className="itl-search-clear" onClick={() => setSearchTerm('')}>
+              <button className="itl-search-clear" onClick={() => {
+                setSearchTerm('');
+                setCurrentPage(1);
+              }}>
                 <FaTimes size={12} />
               </button>
             )}
           </div>
         </div>
         <div className="itl-filter-right">
-          <select 
-            value={statusFilter} 
-            onChange={(e) => setStatusFilter(e.target.value)}
+          <select
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setCurrentPage(1);
+            }}
             className="itl-filter-select"
           >
             <option value="all">All Status</option>
             <option value="enabled">Enabled</option>
             <option value="disabled">Disabled</option>
           </select>
-          <select 
-            value={groupFilter} 
-            onChange={(e) => setGroupFilter(e.target.value)}
+          <select
+            value={groupFilter}
+            onChange={(e) => {
+              setGroupFilter(e.target.value);
+              setCurrentPage(1);
+            }}
             className="itl-filter-select"
           >
             <option value="all">All Groups</option>
@@ -266,7 +345,7 @@ export default function ItemList() {
               <strong>Group:</strong> {groupFilter}
             </span>
           )}
-          <button 
+          <button
             onClick={clearFilters}
             className="itl-clear-filters"
           >
@@ -305,13 +384,17 @@ export default function ItemList() {
                   <th className="itl-th">UOM</th>
                   <th className="itl-th">Type</th>
                   <th className="itl-th itl-th-meta">
-                    <span className="itl-count-label">{filteredItems.length} of {totalItems}</span>
+                    <span className="itl-count-label">
+                      {totalItems > 0
+                        ? `${getStartIndex()}–${getEndIndex()}`
+                        : '0'} of {totalItems}
+                    </span>
                     <span>Actions</span>
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {paginatedData.length === 0 ? (
+                {items.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="itl-empty-state">
                       <div className="itl-empty-content">
@@ -324,7 +407,7 @@ export default function ItemList() {
                     </td>
                   </tr>
                 ) : (
-                  paginatedData.map((row) => (
+                  items.map((row) => (
                     <tr
                       key={row.id}
                       className="itl-tr"
@@ -344,14 +427,14 @@ export default function ItemList() {
                       </td>
                       <td className="itl-td itl-td-meta">
                         <div className="itl-action-buttons" onClick={(e) => e.stopPropagation()}>
-                          <button 
+                          <button
                             className="itl-action-btn itl-edit-btn"
                             onClick={(e) => handleEditItem(row, e)}
                             title="Edit item"
                           >
                             <FaEdit size={14} />
                           </button>
-                          <button 
+                          <button
                             className="itl-action-btn itl-delete-btn"
                             onClick={(e) => handleDeleteItem(row.id, e)}
                             disabled={deletingId === row.id}
@@ -373,12 +456,12 @@ export default function ItemList() {
           </div>
 
           {/* Pagination */}
-          {totalPages > 1 && (
+          {(totalItems > 0 || items.length > 0) && (
             <div className="itl-pagination">
               <div className="itl-pagination-left">
                 <span className="itl-pagination-label">Show:</span>
-                <select 
-                  value={itemsPerPage} 
+                <select
+                  value={itemsPerPage}
                   onChange={(e) => handlePageSizeChange(Number(e.target.value))}
                   className="itl-page-size-select"
                 >
@@ -390,39 +473,39 @@ export default function ItemList() {
                 <span className="itl-pagination-label">entries</span>
               </div>
               <div className="itl-pagination-center">
-                <button 
-                  onClick={goToFirstPage} 
-                  disabled={currentPage === 1} 
+                <button
+                  onClick={goToFirstPage}
+                  disabled={validCurrentPage === 1 || totalPages === 0}
                   className="itl-page-btn"
                 >
                   <FaAngleDoubleLeft size={12} />
                 </button>
-                <button 
-                  onClick={goToPrevPage} 
-                  disabled={currentPage === 1} 
+                <button
+                  onClick={goToPrevPage}
+                  disabled={totalPages === 0}
                   className="itl-page-btn"
                 >
                   <FaChevronLeft size={12} />
                 </button>
-                {getPageNumbers().map(page => (
+                {totalPages > 0 && getPageNumbers().map(page => (
                   <button
                     key={page}
                     onClick={() => goToPage(page)}
-                    className={`itl-page-btn ${currentPage === page ? 'itl-page-btn-active' : ''}`}
+                    className={`itl-page-btn ${validCurrentPage === page ? 'itl-page-btn-active' : ''}`}
                   >
                     {page}
                   </button>
                 ))}
-                <button 
-                  onClick={goToNextPage} 
-                  disabled={currentPage === totalPages} 
+                <button
+                  onClick={goToNextPage}
+                  disabled={totalPages === 0}
                   className="itl-page-btn"
                 >
                   <FaChevronRight size={12} />
                 </button>
-                <button 
-                  onClick={goToLastPage} 
-                  disabled={currentPage === totalPages} 
+                <button
+                  onClick={goToLastPage}
+                  disabled={validCurrentPage === totalPages || totalPages === 0}
                   className="itl-page-btn"
                 >
                   <FaAngleDoubleRight size={12} />
@@ -430,7 +513,9 @@ export default function ItemList() {
               </div>
               <div className="itl-pagination-right">
                 <span className="itl-pagination-info">
-                  Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredItems.length)} of {filteredItems.length} entries
+                  {totalItems > 0
+                    ? `Showing ${getStartIndex()} to ${getEndIndex()} of ${totalItems} entries`
+                    : 'No entries to show'}
                 </span>
               </div>
             </div>
