@@ -9,8 +9,8 @@ import {
   FaCheckCircle, FaBoxOpen, FaCogs,
 } from "react-icons/fa";
 import "./WorkOrderForm.css";
-import { useAdminTheme } from "../admin-theme/AdminThemeContext";
-import api from "../services/api";
+import { useAdminTheme } from "../../admin-theme/AdminThemeContext";
+import api from "../../services/api";
 import { createPortal } from "react-dom";
 
 // ─── Types ────────────────────────────────────────────────────────────────────

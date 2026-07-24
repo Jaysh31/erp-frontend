@@ -30,8 +30,8 @@ import {
   FaLockOpen,
 } from "react-icons/fa";
 import "./InventoryList.css";
-import { useAdminTheme } from "../admin-theme/AdminThemeContext";
-import api from "../services/api";
+import { useAdminTheme } from "../../admin-theme/AdminThemeContext";
+import api from "../../services/api";
 
 // ─── Types ───────────────────────────────────────────────────────────────
 
@@ -201,7 +201,7 @@ export default function InventoryList() {
         const warehouseMap = new Map<number, string>();
         warehouses.forEach((wh) => warehouseMap.set(wh.id, wh.warehouse_name));
 
-        const transformedData: InventoryDisplay[] = records.map((item) => {
+        const transformedData: InventoryDisplay[] = records.map((item: { warehouse_Id: number; actual_qty: any; id: { toString: () => any; }; item_code: any; planned_qty: any; ordered_qty: any; reserved_qty: any; reserved_stock: any; projected_qty: any; stock_uom: any; valuation_rate: any; stock_value: any; creation: any; type: any; }) => {
           const warehouseName = warehouseMap.get(item.warehouse_Id) || "Unknown";
           const status = getStockStatus(item.actual_qty || 0);
 

@@ -28,8 +28,8 @@ import {
   FaDollarSign,
 } from "react-icons/fa";
 import "./Stockentry.css";
-import { useAdminTheme } from "../admin-theme/AdminThemeContext";
-import api from "../services/api";
+import { useAdminTheme } from "../../admin-theme/AdminThemeContext";
+import api from "../../services/api";
 import { FaSpinner } from "react-icons/fa6";
 
 type EntryType =

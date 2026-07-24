@@ -15,8 +15,8 @@ import {
   FaClock,
 } from "react-icons/fa";
 import "./JobCardManagement.css";
-import { useAdminTheme } from "../admin-theme/AdminThemeContext";
-import api from "../../src/services/api";
+import { useAdminTheme } from "../../admin-theme/AdminThemeContext";
+import api from "../../services/api";
 
 type Status = "Open" | "Work In Progress" | "Completed" | "On Hold" | "Cancelled";
 

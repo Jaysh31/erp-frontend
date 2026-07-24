@@ -16,7 +16,7 @@ import {
   GripVertical,
 } from "lucide-react";
 import "./Newbompage.css";
-import api from '../../src/services/api';
+import api from '../../../src/services/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
