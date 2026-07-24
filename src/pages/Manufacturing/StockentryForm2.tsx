@@ -20,8 +20,8 @@ import {
   FaBuilding,
 } from "react-icons/fa";
 import "./StockEntryForm2.css";
-import { useAdminTheme } from "../admin-theme/AdminThemeContext";
-import api from "../services/api";
+import { useAdminTheme } from "../../admin-theme/AdminThemeContext";
+import api from "../../services/api";
 
 // ─── Types ───────────────────────────────────────────────────────────────
 

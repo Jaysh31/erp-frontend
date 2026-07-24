@@ -16,8 +16,8 @@ import {
   FaFilter,
 } from 'react-icons/fa';
 import "./WorkOrder.css";
-import { useAdminTheme } from '../admin-theme/AdminThemeContext';
-import api from '../services/api';
+import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
+import api from '../../services/api';
 
 type Status = "Draft" | "Not Started" | "In Process" | "Completed" | "Stopped";
 

@@ -22,8 +22,8 @@ import {
   FaCalculator,
 } from "react-icons/fa";
 import "./StockEntryForm.css";
-import { useAdminTheme } from "../admin-theme/AdminThemeContext";
-import api from "../services/api";
+import { useAdminTheme } from "../../admin-theme/AdminThemeContext";
+import api from "../../services/api";
 
 // ─── Types ───────────────────────────────────────────────────────────────
 

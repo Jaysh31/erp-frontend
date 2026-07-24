@@ -10,7 +10,7 @@ import {
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import "./JobCardForm.css";
-import api from "../../src/services/api";
+import api from "../../services/api";
 
 // ─── DigitInput Component ─────────────────────────────────────────────
 

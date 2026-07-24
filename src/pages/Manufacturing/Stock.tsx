@@ -34,7 +34,7 @@ import {
   FaList,
 } from "react-icons/fa";
 import "./Stock.css";
-import { useAdminTheme } from "../admin-theme/AdminThemeContext";
+import { useAdminTheme } from "../../admin-theme/AdminThemeContext";
 // import api from "../services/api";
 import { FaMapPin } from "react-icons/fa6";
 
