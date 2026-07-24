@@ -517,16 +517,6 @@ const Customer: React.FC = () => {
                               <div className="igl-expanded-content">
                                 <div className="igl-contact-table-wrap">
                                   <table className="igl-contact-table">
-                                    <thead>
-                                      <tr>
-                                        <th className="igl-contact-th" style={{ width: '30px' }}>#</th>
-                                        <th className="igl-contact-th">Name</th>
-                                        <th className="igl-contact-th" style={{ width: '100px' }}>Type</th>
-                                        <th className="igl-contact-th">Email</th>
-                                        <th className="igl-contact-th" style={{ width: '130px' }}>Mobile</th>
-                                        <th className="igl-contact-th" style={{ width: '130px' }}>Alternate</th>
-                                      </tr>
-                                    </thead>
                                     <tbody>
                                       {row.contacts.map((contact, idx) => (
                                         <tr key={contact.id || idx} className="igl-contact-row">
