@@ -4,7 +4,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import {
   FaArrowLeft, FaSave, FaSpinner, FaExclamationTriangle,
   FaInfoCircle, FaTimesCircle, FaPlus, FaTrash,
-  FaPaperPlane, FaSearch,  FaBuilding, FaTruck,
+   FaSearch,  FaBuilding, FaTruck,
   FaImage,  FaCalendarAlt,
   FaCheckCircle, FaBoxOpen, FaCogs,
 } from "react-icons/fa";
@@ -889,7 +889,7 @@ export default function WorkOrderForm() {
   const [activeTab, setActiveTab] = useState<TabKey>("production_item");
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [newComment, setNewComment] = useState("");
+  // const [newComment, setNewComment] = useState("");
   const [apiError, setApiError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<{ field: string; label: string; message: string }[]>([]);
   const [showValidation, setShowValidation] = useState(false);

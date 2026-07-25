@@ -7,7 +7,6 @@ import {
   FaPaperPlane,
   FaBox,
   FaPlus,
-  FaTrash,
   FaSpinner,
   FaChevronDown,
   FaArrowLeft,
@@ -21,6 +20,9 @@ import {
   FaTruck,
   FaClipboardList,
   FaCheckCircle,
+  FaExclamationCircle,
+  FaQuestionCircle,
+  FaCalendarAlt,
 } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
@@ -56,6 +58,7 @@ interface SalesOrder {
   creation: string;
   po_no?: string;
   po_date?: string;
+  tax_id?: string;
   items?: Array<{
     item_code: string;
     description: string;
@@ -70,6 +73,7 @@ interface Product {
   id: string;
   itemCode: string;
   itemName: string;
+  hsn: string;
   description: string;
   unit: string;
   rate: number;
@@ -77,21 +81,52 @@ interface Product {
   type: 'product' | 'service';
   stockUom?: string;
   standardRate?: number;
+  creation?: string;
+  modified?: string;
+  modified_by?: string;
+  fg_item?: number;
+  fg_item_qty?: number;
+  item_id?: number;
+  warehouse?: string;
+  transaction_date?: string;
+  uom?: string;
+  net_rate?: number;
+  net_amount?: number;
+}
+
+interface TaxOption {
+  tax_id: number;
+  tax_type: string;
 }
 
 interface DeliveryChallanItem {
   id: string;
   itemCode: string;
   itemName: string;
+  hsn: string;
   description: string;
   quantity: number;
   unit: string;
   rate: number;
   amount: number;
   tax: number;
+  tax_id?: number;
   taxAmount: number;
   totalAmount: number;
   type: 'product' | 'service';
+  stockStatus?: 'checking' | 'available' | 'insufficient' | 'unknown';
+  availableQty?: number;
+  creation?: string;
+  modified?: string;
+  modified_by?: string;
+  fg_item?: number;
+  fg_item_qty?: number;
+  item_id?: number;
+  uom?: string;
+  net_rate?: number;
+  net_amount?: number;
+  warehouse?: string;
+  transaction_date?: string;
 }
 
 interface DeliveryNotePayload {
@@ -149,6 +184,17 @@ interface Warehouse {
   email_id: string | null;
   phone_no: string | null;
   disabled: number;
+}
+
+interface InventoryApiRecord {
+  name: string;
+  item_code: string;
+  warehouse_Id?: number;
+  actual_qty: number;
+  reserved_stock?: number;
+  projected_qty?: number;
+  stock_uom?: string;
+  company?: string;
 }
 
 // ===== API SERVICE =====
@@ -299,7 +345,7 @@ class DeliveryChallanAPI {
     return this.apiService.get('/customer', params);
   }
 
-  async getSalesOrders(params?: { customer?: string; page?: number; limit?: number; search?: string }): Promise<ApiResponse<any>> {
+  async getSalesOrders(params?: { customer_id?: string; }): Promise<ApiResponse<any>> {
     return this.apiService.get('/sales-order', params);
   }
 
@@ -314,55 +360,11 @@ class DeliveryChallanAPI {
   async getWarehouses(params?: { page?: number; limit?: number }): Promise<ApiResponse<any>> {
     return this.apiService.get('/warehouse', params);
   }
-}
 
-// ===== MOCK DATA =====
-const MOCK_CUSTOMERS: Customer[] = [
-  {
-    id: '1',
-    name: 'ABC Traders Pvt Ltd',
-    code: 'CUST001',
-    email: 'info@abctraders.com',
-    phone: '+91 98765 43210',
-    contactPerson: 'Rajesh Sharma',
-    contactMobile: '+91 98765 43211',
-    address: '123, Business Park, Mumbai - 400001',
-    shippingAddress: '123, Business Park, Mumbai - 400001',
-    gstin: '27AABCU1234D1Z1'
-  },
-  {
-    id: '2',
-    name: 'XYZ Enterprises',
-    code: 'CUST002',
-    email: 'contact@xyzent.com',
-    phone: '+91 87654 32109',
-    contactPerson: 'Priya Patel',
-    contactMobile: '+91 87654 32110',
-    address: '456, Industrial Estate, Pune - 411001',
-    shippingAddress: '456, Industrial Estate, Pune - 411001',
-    gstin: '27BXYZU5678D1Z1'
-  },
-  {
-    id: '3',
-    name: 'PQR Solutions Ltd',
-    code: 'CUST003',
-    email: 'info@pqrsolutions.com',
-    phone: '+91 76543 21098',
-    contactPerson: 'Amit Singh',
-    contactMobile: '+91 76543 21099',
-    address: '789, Tech Park, Bangalore - 560001',
-    shippingAddress: '789, Tech Park, Bangalore - 560001',
-    gstin: '27CPQRU9012D1Z1'
+  async getInventory(params?: { item_code?: string }): Promise<ApiResponse<any>> {
+    return this.apiService.get('/inventory', params);
   }
-];
-
-const MOCK_PRODUCTS: Product[] = [
-  { id: 'p1', itemCode: 'PRD-P001', itemName: 'Industrial Pump - 5 HP', description: 'Industrial Pump - 5 HP', unit: 'pcs', rate: 1500, tax: 18, type: 'product' },
-  { id: 'p2', itemCode: 'PRD-S001', itemName: 'Submersible Pump - 2 HP', description: 'Submersible Pump - 2 HP', unit: 'pcs', rate: 2000, tax: 18, type: 'product' },
-  { id: 'p3', itemCode: 'PRD-C001', itemName: 'Centrifugal Pump - 3 HP', description: 'Centrifugal Pump - 3 HP', unit: 'pcs', rate: 2500, tax: 12, type: 'product' },
-  { id: 'p4', itemCode: 'PRD-M001', itemName: 'Motor Assembly - 7.5 HP', description: 'Motor Assembly - 7.5 HP', unit: 'pcs', rate: 5000, tax: 18, type: 'product' },
-  { id: 'p5', itemCode: 'PRD-G001', itemName: 'Gear Box - 10:1 Ratio', description: 'Gear Box - 10:1 Ratio', unit: 'pcs', rate: 3000, tax: 12, type: 'product' },
-];
+}
 
 // ===== SHARED: portal-based dropdown menu position hook =====
 function useDropdownPosition(isOpen: boolean, triggerRef: React.RefObject<HTMLDivElement | null>) {
@@ -393,72 +395,6 @@ function useDropdownPosition(isOpen: boolean, triggerRef: React.RefObject<HTMLDi
   return pos;
 }
 
-// ===== SUCCESS MODAL COMPONENT =====
-interface SuccessModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  deliveryNote: string;
-  totalItems: number;
-  message: string;
-  customerName?: string;
-  onViewDetails?: () => void;
-}
-
-const SuccessModal: React.FC<SuccessModalProps> = ({
-  isOpen,
-  onClose,
-  deliveryNote,
-  totalItems,
-  message,
-  customerName,
-  onViewDetails
-}) => {
-  if (!isOpen) return null;
-
-  return ReactDOM.createPortal(
-    <div className="ndc-modal-overlay" onClick={onClose}>
-      <div className="ndc-modal-container" onClick={(e) => e.stopPropagation()}>
-        <div className="ndc-modal-success-icon">
-          <FaCheckCircle size={48} />
-        </div>
-        
-        <h2 className="ndc-modal-title">✓ Success!</h2>
-        
-        <p className="ndc-modal-message">{message}</p>
-        
-        <div className="ndc-modal-details">
-          <div className="ndc-modal-detail-item">
-            <span className="ndc-modal-detail-label">Delivery Note</span>
-            <span className="ndc-modal-detail-value ndc-modal-dn-number">{deliveryNote}</span>
-          </div>
-          
-          {customerName && (
-            <div className="ndc-modal-detail-item">
-              <span className="ndc-modal-detail-label">Customer</span>
-              <span className="ndc-modal-detail-value">{customerName}</span>
-            </div>
-          )}
-          
-          <div className="ndc-modal-detail-item">
-            <span className="ndc-modal-detail-label">Total Items</span>
-            <span className="ndc-modal-detail-value">{totalItems}</span>
-          </div>
-        </div>
-        
-        <div className="ndc-modal-actions">
-          <button onClick={onViewDetails || onClose} className="ndc-modal-btn ndc-modal-btn-primary">
-            View Delivery Note
-          </button>
-          <button onClick={onClose} className="ndc-modal-btn ndc-modal-btn-secondary">
-            Close
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body
-  );
-};
-
 // ===== SEARCHABLE PRODUCT SELECT COMPONENT =====
 interface SearchableSelectProps {
   value: string;
@@ -469,6 +405,7 @@ interface SearchableSelectProps {
   error?: boolean;
   onSearch?: (searchTerm: string) => Promise<void>;
   loading?: boolean;
+  stockInfo?: { status: 'checking' | 'available' | 'insufficient' | 'unknown'; availableQty?: number };
 }
 
 const SearchableSelect: React.FC<SearchableSelectProps> = ({
@@ -479,7 +416,8 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
   disabled = false,
   error = false,
   onSearch,
-  loading = false
+  loading = false,
+  stockInfo,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -552,6 +490,20 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
     return selected ? `${selected.itemCode}` : '';
   };
 
+  const getStockDisplay = () => {
+    if (!stockInfo || !value) return null;
+    if (stockInfo.status === 'checking') {
+      return <span className="ndc-stock-indicator ndc-stock-checking"><FaSpinner className="ndc-spinning" size={8} /></span>;
+    }
+    if (stockInfo.status === 'available') {
+      return <span className="ndc-stock-indicator ndc-stock-available"><FaCheckCircle size={8} /> {stockInfo.availableQty}</span>;
+    }
+    if (stockInfo.status === 'insufficient') {
+      return <span className="ndc-stock-indicator ndc-stock-insufficient"><FaExclamationCircle size={8} /> {stockInfo.availableQty || 0}</span>;
+    }
+    return <span className="ndc-stock-indicator ndc-stock-unknown"><FaQuestionCircle size={8} /></span>;
+  };
+
   const menu = isOpen ? (
     <div
       ref={menuRef}
@@ -596,7 +548,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
               </span>
             </div>
             <div style={{ fontSize: '11px', color: 'var(--text-secondary, #94a3b8)', marginTop: '2px' }}>
-              {option.itemName} | Tax: {option.tax}%
+              {option.itemName} | HSN: {option.hsn || '-'} | Tax: {option.tax || 0}%
             </div>
           </div>
         ))
@@ -632,13 +584,20 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
             fontSize: '12px',
             fontFamily: 'inherit',
             cursor: disabled ? 'not-allowed' : 'text',
-            minHeight: '30px'
+            minHeight: '30px',
+            textAlign: 'left'
           }}
         />
         {loading ? (
           <FaSpinner className="ndc-spinning" style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', color: 'var(--primary-color, #2563eb)', fontSize: '11px' }} />
         ) : (
           <FaChevronDown style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary, #94a3b8)', fontSize: '11px', pointerEvents: 'none' }} />
+        )}
+        {/* Stock indicator inside the input */}
+        {value && stockInfo && (
+          <div style={{ position: 'absolute', right: '28px', top: '50%', transform: 'translateY(-50%)' }}>
+            {getStockDisplay()}
+          </div>
         )}
       </div>
 
@@ -721,13 +680,13 @@ const SalesOrderDropdown: React.FC<SalesOrderDropdownProps> = ({
     setLoading(true);
     try {
       const response = await deliveryChallanAPI.getSalesOrders({
-        customer: custId,
-        page: 1,
-        limit: 50
+        customer_id: custId
       });
 
       if (response.success && response.data) {
         let orderList: SalesOrder[] = [];
+        
+        // Handle the response structure: { success: 1, data: { total, page, limit, records: [...] } }
         if (response.data.data?.records) {
           orderList = response.data.data.records;
         } else if (Array.isArray(response.data)) {
@@ -735,11 +694,38 @@ const SalesOrderDropdown: React.FC<SalesOrderDropdownProps> = ({
         } else if (response.data.data && Array.isArray(response.data.data)) {
           orderList = response.data.data;
         }
-        setOrders(orderList);
-        setFilteredOrders(orderList);
+        
+        // Map the response to SalesOrder interface
+        const mappedOrders: SalesOrder[] = orderList.map((record: any) => ({
+          id: record.id || record.sales_order_Id || 0,
+          customer: record.customer_id || '',
+          customer_name: record.customer_name || '',
+          company: record.company || '',
+          transaction_date: record.transaction_date || '',
+          delivery_date: record.delivery_date || '',
+          total_qty: record.total_qty || 0,
+          grand_total: record.grand_total || 0,
+          status: record.status || 'Draft',
+          creation: record.creation || '',
+          po_no: record.po_no || '',
+          po_date: record.po_date || '',
+          tax_id: record.tax_id || '',
+          items: (record.sales_items || []).map((item: any) => ({
+            item_code: item.item_code || '',
+            description: item.description || '',
+            qty: item.qty || 0,
+            uom: item.uom || item.stock_uom || 'pcs',
+            rate: item.rate || 0,
+            amount: item.amount || 0,
+          }))
+        }));
+        
+        setOrders(mappedOrders);
+        setFilteredOrders(mappedOrders);
       }
     } catch (error) {
       console.error('Error fetching sales orders:', error);
+      toast.error('Failed to fetch sales orders');
     } finally {
       setLoading(false);
     }
@@ -972,7 +958,7 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
 
         if (customerList.length > 0) {
           const mappedCustomers: Customer[] = customerList.map((cust: any) => ({
-            id: cust.id?.toString() || '',
+            id: cust.id?.toString() || cust.customer_id?.toString() || '',
             name: cust.customer_name || cust.name || '',
             code: cust.customer_code || cust.code || '',
             email: cust.email_id || cust.email || '',
@@ -985,18 +971,11 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
           }));
           setCustomers(mappedCustomers);
           setFilteredCustomers(mappedCustomers);
-        } else {
-          setCustomers(MOCK_CUSTOMERS);
-          setFilteredCustomers(MOCK_CUSTOMERS);
         }
-      } else {
-        setCustomers(MOCK_CUSTOMERS);
-        setFilteredCustomers(MOCK_CUSTOMERS);
       }
     } catch (error) {
       console.error('Error fetching customers:', error);
-      setCustomers(MOCK_CUSTOMERS);
-      setFilteredCustomers(MOCK_CUSTOMERS);
+      toast.error('Failed to fetch customers');
     } finally {
       setLoading(false);
     }
@@ -1151,6 +1130,72 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
   );
 };
 
+// ===== SUCCESS MODAL COMPONENT =====
+interface SuccessModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  deliveryNote: string;
+  totalItems: number;
+  message: string;
+  customerName?: string;
+  onViewDetails?: () => void;
+}
+
+const SuccessModal: React.FC<SuccessModalProps> = ({
+  isOpen,
+  onClose,
+  deliveryNote,
+  totalItems,
+  message,
+  customerName,
+  onViewDetails
+}) => {
+  if (!isOpen) return null;
+
+  return ReactDOM.createPortal(
+    <div className="ndc-modal-overlay" onClick={onClose}>
+      <div className="ndc-modal-container" onClick={(e) => e.stopPropagation()}>
+        <div className="ndc-modal-success-icon">
+          <FaCheckCircle size={48} />
+        </div>
+        
+        <h2 className="ndc-modal-title">✓ Success!</h2>
+        
+        <p className="ndc-modal-message">{message}</p>
+        
+        <div className="ndc-modal-details">
+          <div className="ndc-modal-detail-item">
+            <span className="ndc-modal-detail-label">Delivery Note</span>
+            <span className="ndc-modal-detail-value ndc-modal-dn-number">{deliveryNote}</span>
+          </div>
+          
+          {customerName && (
+            <div className="ndc-modal-detail-item">
+              <span className="ndc-modal-detail-label">Customer</span>
+              <span className="ndc-modal-detail-value">{customerName}</span>
+            </div>
+          )}
+          
+          <div className="ndc-modal-detail-item">
+            <span className="ndc-modal-detail-label">Total Items</span>
+            <span className="ndc-modal-detail-value">{totalItems}</span>
+          </div>
+        </div>
+        
+        <div className="ndc-modal-actions">
+          <button onClick={onViewDetails || onClose} className="ndc-modal-btn ndc-modal-btn-primary">
+            View Delivery Note
+          </button>
+          <button onClick={onClose} className="ndc-modal-btn ndc-modal-btn-secondary">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+};
+
 // ===== MAIN COMPONENT =====
 
 const NewDeliveryChallan: React.FC = () => {
@@ -1183,7 +1228,15 @@ const NewDeliveryChallan: React.FC = () => {
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [isLoadingItems, setIsLoadingItems] = useState<boolean>(false);
   const [roundOff, setRoundOff] = useState<number>(0);
+  const [taxOptions, setTaxOptions] = useState<TaxOption[]>([]);
+  const [loadingTaxOptions, setLoadingTaxOptions] = useState<boolean>(false);
+  const [, setTaxOptionsLoaded] = useState<boolean>(false);
+  const [inventoryMap, setInventoryMap] = useState<{ [itemCode: string]: InventoryApiRecord }>({});
+  const [, setLoadingInventory] = useState(false);
   
+  // ===== NEW: Status State =====
+  const [status, setStatus] = useState<string>('Draft');
+
   // Success Modal State
   const [showSuccessModal, setShowSuccessModal] = useState<boolean>(false);
   const [successData, setSuccessData] = useState<{
@@ -1199,11 +1252,99 @@ const NewDeliveryChallan: React.FC = () => {
 
   const deliveryChallanAPI = new DeliveryChallanAPI();
 
+  // ===== FETCH TAX OPTIONS =====
+  const fetchTaxOptions = async () => {
+    setLoadingTaxOptions(true);
+    try {
+      const response = await api.get('/item/get-tax');
+      const data = response.data;
+      if (data.success === 1 && Array.isArray(data.data)) {
+        setTaxOptions(data.data);
+      } else {
+        setTaxOptions([]);
+      }
+      setTaxOptionsLoaded(true);
+    } catch (error) {
+      console.error('Error fetching tax options:', error);
+      setTaxOptions([]);
+      setTaxOptionsLoaded(true);
+    } finally {
+      setLoadingTaxOptions(false);
+    }
+  };
+
+  // ===== FETCH INVENTORY =====
+  const fetchInventory = async () => {
+    setLoadingInventory(true);
+    try {
+      const response = await deliveryChallanAPI.getInventory();
+      const records = response.data?.data?.records || response.data || [];
+      const map: { [itemCode: string]: InventoryApiRecord } = {};
+      records.forEach((r: any) => {
+        if (r.item_code) {
+          const key = r.item_code.toUpperCase();
+          if (!map[key] || (r.actual_qty ?? 0) > (map[key].actual_qty ?? 0)) {
+            map[key] = r;
+          }
+        }
+      });
+      setInventoryMap(map);
+    } catch (err) {
+      console.error('Error fetching inventory:', err);
+    } finally {
+      setLoadingInventory(false);
+    }
+  };
+
+  // ===== GET STOCK STATUS =====
+  const getStockStatus = (itemCode: string, quantity: number): { status: 'checking' | 'available' | 'insufficient' | 'unknown'; availableQty?: number } => {
+    if (!itemCode) return { status: 'unknown' };
+    const inv = inventoryMap[itemCode.toUpperCase()];
+    if (!inv) return { status: 'unknown' };
+    return {
+      status: (inv.actual_qty ?? 0) >= quantity ? 'available' : 'insufficient',
+      availableQty: inv.actual_qty,
+    };
+  };
+
+  // ===== HELPER FUNCTIONS =====
+  const extractTaxValue = (taxType: string): number => {
+    if (!taxType) return 0;
+    const match = taxType.match(/(\d+)/);
+    return match ? parseInt(match[0], 10) : 0;
+  };
+
+  const getTaxIdFromRate = (taxRate: number, taxOpts: TaxOption[]): number | undefined => {
+    const taxOption = taxOpts.find(t => extractTaxValue(t.tax_type) === taxRate);
+    return taxOption?.tax_id;
+  };
+
+  const getTaxRateFromId = (taxId: number | string, taxOpts: TaxOption[]): number => {
+    if (!taxId) return 0;
+    const id = typeof taxId === 'string' ? parseInt(taxId, 10) : taxId;
+    const taxOption = taxOpts.find(t => t.tax_id === id);
+    return taxOption ? extractTaxValue(taxOption.tax_type) : 0;
+  };
+
   useEffect(() => {
+    fetchTaxOptions();
+    fetchInventory();
     fetchCustomers();
     fetchAllItems();
     fetchWarehouses();
   }, []);
+
+  // Update stock status when inventory changes
+  useEffect(() => {
+    if (Object.keys(inventoryMap).length === 0) return;
+    setItems((prev) =>
+      prev.map((item) => {
+        if (!item.itemCode) return item;
+        const { status, availableQty } = getStockStatus(item.itemCode, item.quantity);
+        return { ...item, stockStatus: status, availableQty };
+      })
+    );
+  }, [inventoryMap]);
 
   useEffect(() => {
     const total = getGrandTotal();
@@ -1229,40 +1370,10 @@ const NewDeliveryChallan: React.FC = () => {
         } else if (warehouseList.length > 0) {
           setWarehouse(warehouseList[0].warehouse_name);
         }
-      } else {
-        const mockWarehouses: Warehouse[] = [
-          { id: 9, warehouse_name: 'Raw Material Store', company: 'ChandraTara', parent_warehouse: null, warehouse_type: null, city: 'Pune', state: 'Mh', email_id: null, phone_no: '08668584275', disabled: 0 },
-          { id: 10, warehouse_name: 'Work In Progress', company: 'ChandraTara', parent_warehouse: null, warehouse_type: null, city: null, state: null, email_id: null, phone_no: null, disabled: 0 },
-          { id: 11, warehouse_name: 'Finished Goods', company: 'ChandraTara', parent_warehouse: null, warehouse_type: null, city: null, state: null, email_id: null, phone_no: '08668584275', disabled: 0 },
-          { id: 13, warehouse_name: 'Scrap Warehouse', company: 'ChandraTara', parent_warehouse: null, warehouse_type: null, city: null, state: null, email_id: null, phone_no: null, disabled: 0 }
-        ];
-        setWarehouses(mockWarehouses);
-        const finishedGoods = mockWarehouses.find(
-          w => w.warehouse_name.toLowerCase() === 'finished goods'
-        );
-        if (finishedGoods) {
-          setWarehouse(finishedGoods.warehouse_name);
-        } else if (mockWarehouses.length > 0) {
-          setWarehouse(mockWarehouses[0].warehouse_name);
-        }
       }
     } catch (error) {
       console.error('Error fetching warehouses:', error);
-      const mockWarehouses: Warehouse[] = [
-        { id: 9, warehouse_name: 'Raw Material Store', company: 'ChandraTara', parent_warehouse: null, warehouse_type: null, city: 'Pune', state: 'Mh', email_id: null, phone_no: '08668584275', disabled: 0 },
-        { id: 10, warehouse_name: 'Work In Progress', company: 'ChandraTara', parent_warehouse: null, warehouse_type: null, city: null, state: null, email_id: null, phone_no: null, disabled: 0 },
-        { id: 11, warehouse_name: 'Finished Goods', company: 'ChandraTara', parent_warehouse: null, warehouse_type: null, city: null, state: null, email_id: null, phone_no: '08668584275', disabled: 0 },
-        { id: 13, warehouse_name: 'Scrap Warehouse', company: 'ChandraTara', parent_warehouse: null, warehouse_type: null, city: null, state: null, email_id: null, phone_no: null, disabled: 0 }
-      ];
-      setWarehouses(mockWarehouses);
-      const finishedGoods = mockWarehouses.find(
-        w => w.warehouse_name.toLowerCase() === 'finished goods'
-      );
-      if (finishedGoods) {
-        setWarehouse(finishedGoods.warehouse_name);
-      } else if (mockWarehouses.length > 0) {
-        setWarehouse(mockWarehouses[0].warehouse_name);
-      }
+      toast.error('Failed to fetch warehouses');
     } finally {
       setIsLoadingWarehouses(false);
     }
@@ -1285,7 +1396,7 @@ const NewDeliveryChallan: React.FC = () => {
 
         if (customerList.length > 0) {
           const mappedCustomers: Customer[] = customerList.map((cust: any) => ({
-            id: cust.id?.toString() || '',
+            id: cust.id?.toString() || cust.customer_id?.toString() || '',
             name: cust.customer_name || cust.name || '',
             code: cust.customer_code || cust.code || '',
             email: cust.email_id || cust.email || '',
@@ -1297,14 +1408,11 @@ const NewDeliveryChallan: React.FC = () => {
             contactMobile: cust.contact_mobile || cust.mobile_no || ''
           }));
           setCustomers(mappedCustomers);
-        } else {
-          setCustomers(MOCK_CUSTOMERS);
         }
-      } else {
-        setCustomers(MOCK_CUSTOMERS);
       }
     } catch (error) {
-      setCustomers(MOCK_CUSTOMERS);
+      console.error('Error fetching customers:', error);
+      toast.error('Failed to fetch customers');
     } finally {
       setIsLoading(false);
     }
@@ -1316,26 +1424,35 @@ const NewDeliveryChallan: React.FC = () => {
       const response = await deliveryChallanAPI.getItems({ page: 1, limit: 100 });
       if (response.success && response.data?.data) {
         const itemsData = response.data.data.map((item: any) => ({
-          id: item.id.toString(),
-          itemCode: item.item_code,
-          itemName: item.item_name,
-          description: item.description || item.item_name,
+          id: item.id?.toString() || item.name || '',
+          itemCode: item.item_code || item.name || '',
+          itemName: item.item_name || '',
+          hsn: item.HSN || item.hsn || '',
+          description: item.description || item.item_name || '',
           unit: item.stock_uom || 'pcs',
           rate: item.standard_rate || 0,
           tax: item.gst_rate || item.tax_rate || 0,
           type: 'product' as 'product' | 'service',
           stockUom: item.stock_uom,
-          standardRate: item.standard_rate
+          standardRate: item.standard_rate,
+          creation: item.creation,
+          modified: item.modified,
+          modified_by: item.modified_by,
+          fg_item: item.fg_item,
+          fg_item_qty: item.fg_item_qty,
+          item_id: item.id,
+          warehouse: item.warehouse,
+          transaction_date: item.transaction_date,
+          uom: item.uom,
+          net_rate: item.net_rate,
+          net_amount: item.net_amount,
         }));
         setAllProducts(itemsData);
         setProducts(itemsData);
-      } else {
-        setAllProducts(MOCK_PRODUCTS);
-        setProducts(MOCK_PRODUCTS);
       }
     } catch (error) {
-      setAllProducts(MOCK_PRODUCTS);
-      setProducts(MOCK_PRODUCTS);
+      console.error('Error fetching items:', error);
+      toast.error('Failed to fetch items');
     } finally {
       setIsLoadingItems(false);
     }
@@ -1351,14 +1468,28 @@ const NewDeliveryChallan: React.FC = () => {
       const response = await deliveryChallanAPI.getItems({ page: 1, limit: 50, search: searchTerm });
       if (response.success && response.data?.data) {
         const itemsData = response.data.data.map((item: any) => ({
-          id: item.id.toString(),
-          itemCode: item.item_code,
-          itemName: item.item_name,
-          description: item.description || item.item_name,
+          id: item.id?.toString() || item.name || '',
+          itemCode: item.item_code || item.name || '',
+          itemName: item.item_name || '',
+          hsn: item.HSN || item.hsn || '',
+          description: item.description || item.item_name || '',
           unit: item.stock_uom || 'pcs',
           rate: item.standard_rate || 0,
           tax: item.gst_rate || item.tax_rate || 0,
-          type: 'product' as 'product' | 'service'
+          type: 'product' as 'product' | 'service',
+          stockUom: item.stock_uom,
+          standardRate: item.standard_rate,
+          creation: item.creation,
+          modified: item.modified,
+          modified_by: item.modified_by,
+          fg_item: item.fg_item,
+          fg_item_qty: item.fg_item_qty,
+          item_id: item.id,
+          warehouse: item.warehouse,
+          transaction_date: item.transaction_date,
+          uom: item.uom,
+          net_rate: item.net_rate,
+          net_amount: item.net_amount,
         }));
         setProducts(itemsData);
       }
@@ -1377,15 +1508,17 @@ const NewDeliveryChallan: React.FC = () => {
         id: '1',
         itemCode: '',
         itemName: '',
+        hsn: '',
         description: '',
         quantity: 1,
         unit: 'pcs',
         rate: 0,
         amount: 0,
         tax: 0,
+        tax_id: undefined,
         taxAmount: 0,
         totalAmount: 0,
-        type: isService ? 'service' : 'product'
+        type: isService ? 'service' : 'product',
       }]);
       toast.success(`Selected ${customerData.name}`);
     }
@@ -1407,26 +1540,44 @@ const NewDeliveryChallan: React.FC = () => {
 
     setSelectedOrderData(orderData);
 
+    // Get the tax rate from the order's tax_id
+    const orderTaxRate = orderData.tax_id ? getTaxRateFromId(orderData.tax_id, taxOptions) : 0;
+    const orderTaxId = orderData.tax_id ? parseInt(orderData.tax_id, 10) : undefined;
+
     if (orderData.items && orderData.items.length > 0) {
       const initialItems: DeliveryChallanItem[] = orderData.items.map((item, index) => {
         const product = allProducts.find(p => p.itemCode === item.item_code);
-        const taxRate = product?.tax || 0;
+        
+        // Use order's tax if available, otherwise use product's tax
+        let taxRate = orderTaxRate || product?.tax || 0;
+        let tax_id = orderTaxId || getTaxIdFromRate(taxRate, taxOptions);
+        
+        // If taxRate is 0 but we have a tax_id, get the rate from tax_id
+        if (taxRate === 0 && tax_id) {
+          taxRate = getTaxRateFromId(tax_id, taxOptions);
+        }
+        
         const amount = (item.qty || 0) * (item.rate || 0);
         const taxAmount = (amount * taxRate) / 100;
+        const { status, availableQty } = getStockStatus(item.item_code || '', item.qty || 0);
         
         return {
           id: `so-${index}`,
           itemCode: item.item_code || '',
           itemName: item.description || '',
+          hsn: product?.hsn || '',
           description: item.description || '',
           quantity: item.qty || 1,
           unit: item.uom || 'pcs',
           rate: item.rate || 0,
           amount: amount,
           tax: taxRate,
+          tax_id: tax_id,
           taxAmount: taxAmount,
           totalAmount: amount + taxAmount,
-          type: isService ? 'service' : 'product'
+          type: isService ? 'service' : 'product',
+          stockStatus: status,
+          availableQty: availableQty,
         };
       });
       setItems(initialItems);
@@ -1435,15 +1586,17 @@ const NewDeliveryChallan: React.FC = () => {
         id: '1',
         itemCode: '',
         itemName: '',
+        hsn: '',
         description: '',
         quantity: 1,
         unit: 'pcs',
         rate: 0,
         amount: 0,
         tax: 0,
+        tax_id: undefined,
         taxAmount: 0,
         totalAmount: 0,
-        type: isService ? 'service' : 'product'
+        type: isService ? 'service' : 'product',
       }]);
     }
 
@@ -1461,29 +1614,32 @@ const NewDeliveryChallan: React.FC = () => {
   };
 
   const addItem = () => {
-    setItems([...items, {
+    const newItem: DeliveryChallanItem = {
       id: Date.now().toString(),
       itemCode: '',
       itemName: '',
+      hsn: '',
       description: '',
       quantity: 1,
       unit: 'pcs',
       rate: 0,
       amount: 0,
       tax: 0,
+      tax_id: undefined,
       taxAmount: 0,
       totalAmount: 0,
-      type: isService ? 'service' : 'product'
-    }]);
+      type: isService ? 'service' : 'product',
+    };
+    setItems([...items, newItem]);
   };
 
-  const removeItem = (id: string) => {
-    if (items.length <= 1) {
-      toast.error('At least one item is required');
-      return;
-    }
-    setItems(items.filter(item => item.id !== id));
-  };
+  // const removeItem = (id: string) => {
+  //   if (items.length <= 1) {
+  //     toast.error('At least one item is required');
+  //     return;
+  //   }
+  //   setItems(items.filter(item => item.id !== id));
+  // };
 
   const updateItem = (id: string, field: keyof DeliveryChallanItem, value: any) => {
     setItems(prevItems =>
@@ -1494,36 +1650,69 @@ const NewDeliveryChallan: React.FC = () => {
           if (field === 'itemCode') {
             const product = allProducts.find(p => p.itemCode === value);
             if (product) {
-              updated.itemName = product.itemName;
+              const taxRate = product.tax || 0;
+              const tax_id = getTaxIdFromRate(taxRate, taxOptions);
+              const amount = (updated.quantity || 0) * product.rate;
+              const taxAmount = (amount * taxRate) / 100;
+              const { status, availableQty } = getStockStatus(product.itemCode, updated.quantity || 0);
+              
+              updated.itemName = product.itemName || '';
+              updated.hsn = product.hsn || '';
+              updated.description = product.description || '';
               updated.unit = product.unit;
               updated.rate = product.rate;
-              updated.tax = product.tax || 0;
-              const amount = (updated.quantity || 0) * product.rate;
+              updated.tax = taxRate;
+              updated.tax_id = tax_id;
               updated.amount = amount;
-              updated.taxAmount = (amount * updated.tax) / 100;
-              updated.totalAmount = amount + updated.taxAmount;
+              updated.taxAmount = taxAmount;
+              updated.totalAmount = amount + taxAmount;
+              updated.stockStatus = status;
+              updated.availableQty = availableQty;
+              updated.creation = product.creation;
+              updated.modified = product.modified;
+              updated.modified_by = product.modified_by;
+              updated.fg_item = product.fg_item;
+              updated.fg_item_qty = product.fg_item_qty;
+              updated.item_id = product.item_id;
+              updated.uom = product.uom;
+              updated.net_rate = product.net_rate;
+              updated.net_amount = product.net_amount;
+              updated.warehouse = product.warehouse;
+              updated.transaction_date = product.transaction_date;
             }
           }
 
           if (field === 'quantity') {
             const amount = (updated.quantity || 0) * (updated.rate || 0);
+            const taxAmount = (amount * (updated.tax || 0)) / 100;
             updated.amount = amount;
-            updated.taxAmount = (amount * (updated.tax || 0)) / 100;
-            updated.totalAmount = amount + updated.taxAmount;
+            updated.taxAmount = taxAmount;
+            updated.totalAmount = amount + taxAmount;
+            
+            if (updated.itemCode) {
+              const { status, availableQty } = getStockStatus(updated.itemCode, updated.quantity || 0);
+              updated.stockStatus = status;
+              updated.availableQty = availableQty;
+            }
           }
 
           if (field === 'rate') {
             const amount = (updated.quantity || 0) * (updated.rate || 0);
+            const taxAmount = (amount * (updated.tax || 0)) / 100;
             updated.amount = amount;
-            updated.taxAmount = (amount * (updated.tax || 0)) / 100;
-            updated.totalAmount = amount + updated.taxAmount;
+            updated.taxAmount = taxAmount;
+            updated.totalAmount = amount + taxAmount;
           }
 
           if (field === 'tax') {
             const amount = (updated.quantity || 0) * (updated.rate || 0);
-            updated.amount = amount;
-            updated.taxAmount = (amount * (updated.tax || 0)) / 100;
-            updated.totalAmount = amount + updated.taxAmount;
+            const taxRate = Number(value) || 0;
+            const tax_id = getTaxIdFromRate(taxRate, taxOptions);
+            const taxAmount = (amount * taxRate) / 100;
+            updated.tax = taxRate;
+            updated.tax_id = tax_id;
+            updated.taxAmount = taxAmount;
+            updated.totalAmount = amount + taxAmount;
           }
 
           return updated;
@@ -1538,13 +1727,13 @@ const NewDeliveryChallan: React.FC = () => {
   const getTotalTax = () => items.reduce((sum, item) => sum + (item.taxAmount || 0), 0);
   const getGrandTotal = () => items.reduce((sum, item) => sum + (item.totalAmount || 0), 0);
 
-  const buildPayload = (status: 'Draft' | 'Submitted'): DeliveryNotePayload => {
+  const buildPayload = (): DeliveryNotePayload => {
     const selectedWarehouse = warehouses.find(w => w.warehouse_name === warehouse);
     
     return {
       name: dcNumber,
       naming_series: "DN-.YYYY.-",
-      customer: customerData?.code || '',
+      customer: customerData?.id || '',
       customer_name: customerData?.name || '',
       posting_date: dcDate,
       company: 'SculptERP Pvt Ltd',
@@ -1558,7 +1747,7 @@ const NewDeliveryChallan: React.FC = () => {
       po_date: '',
       sales_order: hasSalesOrder ? selectedSalesOrder : '',
       instructions: remarks || '',
-      status: status,
+      status: status, // Use the status state
       dc_type: isService ? 'Services' : 'Products',
       quality_inspection: qualityInspection,
       items: items
@@ -1595,16 +1784,16 @@ const NewDeliveryChallan: React.FC = () => {
 
   const handleSubmit = async () => {
     if (!validateForm()) return;
+    setStatus('Submitted'); // Set status to Submitted
     setIsSubmitting(true);
     const toastId = toast.loading('Creating delivery challan...');
     try {
-      const payload = buildPayload('Submitted');
+      const payload = buildPayload();
       const createResponse = await deliveryChallanAPI.createDeliveryNote(payload);
       if (!createResponse.success) throw new Error(createResponse.message || 'Failed to create');
       
       const createdDC = createResponse.data;
       
-      // FIX: Extract delivery_note from the nested data object
       const deliveryNote = createdDC?.data?.delivery_note || 
                           createdDC?.delivery_note || 
                           createdDC?.name || 
@@ -1621,7 +1810,6 @@ const NewDeliveryChallan: React.FC = () => {
       
       toast.success('Created!', { id: toastId });
       
-      // Show success modal immediately after creation
       setSuccessData({
         deliveryNote: deliveryNote,
         totalItems: totalItems,
@@ -1630,7 +1818,6 @@ const NewDeliveryChallan: React.FC = () => {
       });
       setShowSuccessModal(true);
       
-      // Try to submit if we have a name
       if (createdDC?.data?.delivery_note || createdDC?.name) {
         const dcName = createdDC?.data?.delivery_note || createdDC?.name;
         try {
@@ -1651,10 +1838,11 @@ const NewDeliveryChallan: React.FC = () => {
 
   const handleSaveDraft = async () => {
     if (!validateForm()) return;
+    setStatus('Draft'); // Set status to Draft
     setIsSubmitting(true);
     const toastId = toast.loading('Saving draft...');
     try {
-      const payload = buildPayload('Draft');
+      const payload = buildPayload();
       const response = await deliveryChallanAPI.createDeliveryNote(payload);
       if (!response.success) throw new Error(response.message || 'Failed to save');
       
@@ -1681,7 +1869,7 @@ const NewDeliveryChallan: React.FC = () => {
 
   const handleViewDeliveryNote = () => {
     setShowSuccessModal(false);
-    navigate(`/delivery-challan/${successData.deliveryNote}`);
+    navigate('/delivery-challan');
   };
 
   const handleCloseModal = () => {
@@ -1695,15 +1883,17 @@ const NewDeliveryChallan: React.FC = () => {
         id: '1',
         itemCode: '',
         itemName: '',
+        hsn: '',
         description: '',
         quantity: 1,
         unit: 'pcs',
         rate: 0,
         amount: 0,
         tax: 0,
+        tax_id: undefined,
         taxAmount: 0,
         totalAmount: 0,
-        type: isService ? 'service' : 'product'
+        type: isService ? 'service' : 'product',
       }]);
     }
   }, [isService]);
@@ -1877,13 +2067,13 @@ const NewDeliveryChallan: React.FC = () => {
               </div>
             )}
 
-            {/* Delivery Challan Details - 3 columns in one row */}
+            {/* Delivery Challan Details - 4 columns in one row (added Status) */}
             <div className="ndc-section-header" style={{ marginTop: hasSalesOrder ? '0' : '0rem' }}>
               <FaBox className="ndc-section-icon" />
               <span>Challan Details</span>
             </div>
 
-            <div className="ndc-grid-3">
+            <div className="ndc-grid-4">
               <div className="ndc-field">
                 <label className="ndc-label">DC Number</label>
                 <div className="ndc-dc-number-display">{dcNumber}</div>
@@ -1893,12 +2083,31 @@ const NewDeliveryChallan: React.FC = () => {
                 <label className="ndc-label">
                   DC Date <span className="ndc-required">*</span>
                 </label>
-                <input
-                  type="date"
-                  value={dcDate}
-                  onChange={(e) => setDcDate(e.target.value)}
-                  className={`ndc-input ${errors.dcDate ? 'ndc-input-error' : ''}`}
-                />
+                <div className="ndc-date-field">
+                  <input
+                    type="date"
+                    value={dcDate}
+                    onChange={(e) => setDcDate(e.target.value)}
+                    className={`ndc-input ${errors.dcDate ? 'ndc-input-error' : ''}`}
+                  />
+                  <button
+                    type="button"
+                    className="ndc-date-icon-btn"
+                    onClick={() => {
+                      const el = document.querySelector('input[type="date"]') as HTMLInputElement;
+                      if (el) {
+                        if (typeof (el as any).showPicker === 'function') {
+                          (el as any).showPicker();
+                        } else {
+                          el.focus();
+                        }
+                      }
+                    }}
+                    tabIndex={-1}
+                  >
+                    <FaCalendarAlt size={13} />
+                  </button>
+                </div>
               </div>
 
               <div className="ndc-field">
@@ -1921,6 +2130,23 @@ const NewDeliveryChallan: React.FC = () => {
                 </select>
                 {errors.warehouse && <span className="ndc-error-text">{errors.warehouse}</span>}
                 {isLoadingWarehouses && <span className="ndc-loading-text">Loading warehouses...</span>}
+              </div>
+
+              {/* ===== NEW: Status Dropdown ===== */}
+              <div className="ndc-field">
+                <label className="ndc-label">
+                  Status <span className="ndc-required">*</span>
+                </label>
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
+                  className="ndc-select"
+                >
+                  <option value="Draft">Draft</option>
+                  <option value="Submitted">Submitted</option>
+                  <option value="Pending">Pending</option>
+                  <option value="Cancelled">Cancelled</option>
+                </select>
               </div>
             </div>
           </div>
@@ -2004,21 +2230,21 @@ const NewDeliveryChallan: React.FC = () => {
             <table className="ndc-items-table">
               <thead>
                 <tr>
-                  <th className="ndc-col-code">Product Code</th>
-                  <th className="ndc-col-name">Product Name</th>
-                  <th className="ndc-col-qty">Qty</th>
+                  <th className="ndc-col-sno">#</th>
+                  <th className="ndc-col-code">Item Code <span className="ndc-required">*</span></th>
+                  <th className="ndc-col-name">Item Name <span className="ndc-required">*</span></th>
+                  <th className="ndc-col-hsn">HSN</th>
+                  <th className="ndc-col-qty">Qty <span className="ndc-required">*</span></th>
                   <th className="ndc-col-unit">UOM</th>
                   <th className="ndc-col-rate">Rate</th>
-                  <th className="ndc-col-amount">Amount</th>
-                  <th className="ndc-col-gst">GST%</th>
                   <th className="ndc-col-tax">Tax</th>
-                  <th className="ndc-col-total">Total</th>
-                  <th className="ndc-col-action"></th>
+                  <th className="ndc-col-amount">Amount</th>
                 </tr>
               </thead>
               <tbody>
-                {items.map(item => (
+                {items.map((item, index) => (
                   <tr key={item.id}>
+                    <td className="ndc-col-sno">{index + 1}</td>
                     <td className="ndc-col-code">
                       <SearchableSelect
                         value={item.itemCode}
@@ -2027,13 +2253,25 @@ const NewDeliveryChallan: React.FC = () => {
                         placeholder="Search..."
                         onSearch={handleItemSearch}
                         loading={isLoadingItems}
+                        error={!!errors[`item_${index}_code`]}
+                        stockInfo={{ status: item.stockStatus || 'unknown', availableQty: item.availableQty }}
                       />
                     </td>
                     <td className="ndc-col-name">
                       <input
                         type="text"
                         value={item.itemName}
-                        disabled
+                        onChange={(e) => updateItem(item.id, 'itemName', e.target.value)}
+                        placeholder="Item Name"
+                        className="ndc-table-input ndc-table-input-text"
+                      />
+                    </td>
+                    <td className="ndc-col-hsn">
+                      <input
+                        type="text"
+                        value={item.hsn}
+                        onChange={(e) => updateItem(item.id, 'hsn', e.target.value)}
+                        placeholder="HSN"
                         className="ndc-table-input ndc-table-input-text"
                       />
                     </td>
@@ -2042,6 +2280,7 @@ const NewDeliveryChallan: React.FC = () => {
                         type="number"
                         value={item.quantity}
                         onChange={(e) => updateItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
+                        min="1"
                         className="ndc-table-input"
                       />
                     </td>
@@ -2055,6 +2294,8 @@ const NewDeliveryChallan: React.FC = () => {
                         <option value="kg">Kg</option>
                         <option value="ltr">Ltr</option>
                         <option value="mtr">Mtr</option>
+                        <option value="Nos">Nos</option>
+                        <option value="Box">Box</option>
                       </select>
                     </td>
                     <td className="ndc-col-rate">
@@ -2062,33 +2303,28 @@ const NewDeliveryChallan: React.FC = () => {
                         type="number"
                         value={item.rate}
                         onChange={(e) => updateItem(item.id, 'rate', parseFloat(e.target.value) || 0)}
-                        className="ndc-table-input"
-                      />
-                    </td>
-                    <td className="ndc-col-amount">
-                      <span className="ndc-table-value">₹{item.amount.toFixed(2)}</span>
-                    </td>
-                    <td className="ndc-col-gst">
-                      <input
-                        type="number"
-                        value={item.tax || 0}
-                        onChange={(e) => {
-                          const taxRate = parseFloat(e.target.value) || 0;
-                          updateItem(item.id, 'tax', taxRate);
-                        }}
+                        min="0"
+                        step="0.01"
                         className="ndc-table-input"
                       />
                     </td>
                     <td className="ndc-col-tax">
-                      <span className="ndc-table-value">₹{item.taxAmount.toFixed(2)}</span>
+                      <select
+                        value={item.tax}
+                        onChange={(e) => updateItem(item.id, 'tax', parseFloat(e.target.value) || 0)}
+                        className="ndc-table-input"
+                        disabled={loadingTaxOptions}
+                      >
+                        <option value={0}>0%</option>
+                        {taxOptions.map((tax) => (
+                          <option key={tax.tax_id} value={extractTaxValue(tax.tax_type)}>
+                            {tax.tax_type}
+                          </option>
+                        ))}
+                      </select>
                     </td>
-                    <td className="ndc-col-total">
-                      <span className="ndc-table-value ndc-table-value-bold">₹{item.totalAmount.toFixed(2)}</span>
-                    </td>
-                    <td className="ndc-col-action">
-                      <button onClick={() => removeItem(item.id)} className="ndc-remove-btn">
-                        <FaTrash />
-                      </button>
+                    <td className="ndc-col-amount">
+                      <span className="ndc-table-value">₹{item.totalAmount.toFixed(2)}</span>
                     </td>
                   </tr>
                 ))}

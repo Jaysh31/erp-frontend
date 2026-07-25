@@ -7,7 +7,7 @@ import {
   FaUser, FaCreditCard, FaCalendarAlt,
   FaFileImport, FaCheckCircle, FaExclamationCircle, FaQuestionCircle,
   FaBuilding, FaPhone, FaEnvelope, FaBox, FaCalculator, FaClipboardList,
-  FaChevronDown,
+  FaChevronDown, FaCopy,
 } from 'react-icons/fa';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import './CreateSalesOrder.css';
@@ -76,7 +76,6 @@ interface SalesOrderItem {
   totalAmount: number;
   stockStatus?: StockStatus;
   availableQty?: number;
-  // Additional fields for API
   creation?: string;
   modified?: string;
   modified_by?: string;
@@ -97,6 +96,20 @@ interface PaymentScheduleRow {
   durationDays: number;
   invoicePortion: number;
   paymentAmount: number;
+  paidAmount?: number;
+  status?: string;
+}
+
+// Payment Term Template
+interface PaymentTermTemplate {
+  id: string;
+  name: string;
+  description: string;
+  schedules: Array<{
+    paymentTerm: string;
+    dueDays: number;
+    invoicePortion: number;
+  }>;
 }
 
 interface SalesOrderForm {
@@ -487,6 +500,8 @@ interface CustomerDropdownProps {
   placeholder?: string;
   disabled?: boolean;
   error?: boolean;
+  customerList?: Customer[];
+  selectedCustomer?: Customer | null;
 }
 
 const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
@@ -495,6 +510,8 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
   placeholder = 'Search Customer...',
   disabled = false,
   error = false,
+  customerList = [],
+  selectedCustomer: propSelectedCustomer,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -502,7 +519,7 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
   const [filteredCustomers, setFilteredCustomers] = useState<Customer[]>([]);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [loading, setLoading] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(propSelectedCustomer || null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -510,9 +527,27 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
 
   const menuPos = useDropdownPosition(isOpen, wrapperRef);
 
+  // Use customerList prop if provided, otherwise fetch
   useEffect(() => {
-    fetchCustomers('');
-  }, []);
+    if (customerList.length > 0) {
+      setCustomers(customerList);
+      setFilteredCustomers(customerList);
+    } else {
+      fetchCustomers('');
+    }
+  }, [customerList]);
+
+  // Update selected customer when prop changes
+  useEffect(() => {
+    if (propSelectedCustomer) {
+      setSelectedCustomer(propSelectedCustomer);
+    } else if (value) {
+      const match = customers.find(c => c.id === value || c.name === value);
+      if (match) {
+        setSelectedCustomer(match);
+      }
+    }
+  }, [propSelectedCustomer, value, customers]);
 
   useEffect(() => {
     if (!searchTerm.trim()) {
@@ -585,9 +620,9 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
     }
 
     debounceTimerRef.current = setTimeout(() => {
-      if (term.length > 0) {
+      if (term.length > 0 && customerList.length === 0) {
         fetchCustomers(term);
-      } else {
+      } else if (term.length === 0 && customerList.length === 0) {
         fetchCustomers('');
       }
     }, 500);
@@ -1024,6 +1059,27 @@ const generateSalesOrderName = (): string => {
   return `SAL-ORD-${year}-${suffix}`;
 };
 
+// Helper to get tax value from tax_id
+const getTaxValueFromId = (taxId: number | string | undefined, taxOptions: TaxOption[]): number => {
+  if (!taxId) return 0;
+  const id = typeof taxId === 'string' ? parseInt(taxId, 10) : taxId;
+  const taxOption = taxOptions.find(t => t.tax_id === id);
+  return taxOption ? extractTaxValue(taxOption.tax_type) : 0;
+};
+
+// Helper to extract numeric tax value from tax_type
+const extractTaxValue = (taxType: string): number => {
+  if (!taxType) return 0;
+  const match = taxType.match(/(\d+)/);
+  return match ? parseInt(match[0], 10) : 0;
+};
+
+// Helper to get tax_id from tax rate value
+const getTaxIdFromRate = (taxRate: number, taxOptions: TaxOption[]): number | undefined => {
+  const taxOption = taxOptions.find(t => extractTaxValue(t.tax_type) === taxRate);
+  return taxOption?.tax_id;
+};
+
 /* ═════ SUCCESS MODAL COMPONENT ═════ */
 interface SuccessModalProps {
   isOpen: boolean;
@@ -1114,6 +1170,7 @@ export default function CreateSalesOrder() {
   // ===== Tax options state =====
   const [taxOptions, setTaxOptions] = useState<TaxOption[]>([]);
   const [loadingTaxOptions, setLoadingTaxOptions] = useState<boolean>(false);
+  const [taxOptionsLoaded, setTaxOptionsLoaded] = useState<boolean>(false);
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [saving, setSaving] = useState(false);
@@ -1125,6 +1182,7 @@ export default function CreateSalesOrder() {
   const [showStockWarningModal, setShowStockWarningModal] = useState(false);
   const [stockWarningItems, setStockWarningItems] = useState<SalesOrderItem[]>([]);
   const [recordName, setRecordName] = useState<string | null>(null);
+  const [recordFetched, setRecordFetched] = useState<boolean>(false);
 
   // Success Modal
   const [showSuccessModal, setShowSuccessModal] = useState<boolean>(false);
@@ -1162,6 +1220,92 @@ export default function CreateSalesOrder() {
 
   const statusOptions = ['Draft', 'Confirmed', 'On Hold', 'Completed', 'Cancelled', 'Closed'];
 
+  // ─── Payment Term Templates ──────────────────────────
+  const paymentTermTemplates: PaymentTermTemplate[] = [
+    {
+      id: 'on_delivery',
+      name: 'On Delivery',
+      description: 'Full payment upon delivery',
+      schedules: [
+        { paymentTerm: 'On Delivery', dueDays: 0, invoicePortion: 100 }
+      ]
+    },
+    {
+      id: 'net_15',
+      name: 'Net 15',
+      description: 'Payment due in 15 days',
+      schedules: [
+        { paymentTerm: 'Net 15', dueDays: 15, invoicePortion: 100 }
+      ]
+    },
+    {
+      id: 'net_30',
+      name: 'Net 30',
+      description: 'Payment due in 30 days',
+      schedules: [
+        { paymentTerm: 'Net 30', dueDays: 30, invoicePortion: 100 }
+      ]
+    },
+    {
+      id: 'net_60',
+      name: 'Net 60',
+      description: 'Payment due in 60 days',
+      schedules: [
+        { paymentTerm: 'Net 60', dueDays: 60, invoicePortion: 100 }
+      ]
+    },
+    {
+      id: '50_50',
+      name: '50% Advance + 50% On Delivery',
+      description: '50% advance, 50% on delivery',
+      schedules: [
+        { paymentTerm: '50% Advance', dueDays: 0, invoicePortion: 50 },
+        { paymentTerm: '50% On Delivery', dueDays: 0, invoicePortion: 50 }
+      ]
+    },
+    {
+      id: '30_70',
+      name: '30% Advance + 70% On Delivery',
+      description: '30% advance, 70% on delivery',
+      schedules: [
+        { paymentTerm: '30% Advance', dueDays: 0, invoicePortion: 30 },
+        { paymentTerm: '70% On Delivery', dueDays: 0, invoicePortion: 70 }
+      ]
+    },
+    {
+      id: 'advanced',
+      name: 'Advance Payment',
+      description: 'Full payment in advance',
+      schedules: [
+        { paymentTerm: 'Advance Payment', dueDays: 0, invoicePortion: 100 }
+      ]
+    },
+    {
+      id: 'letter_of_credit',
+      name: 'Letter of Credit (LC)',
+      description: 'Payment via Letter of Credit',
+      schedules: [
+        { paymentTerm: 'Letter of Credit', dueDays: 30, invoicePortion: 100 }
+      ]
+    },
+    {
+      id: 'cod',
+      name: 'Cash on Delivery (COD)',
+      description: 'Cash payment upon delivery',
+      schedules: [
+        { paymentTerm: 'Cash on Delivery', dueDays: 0, invoicePortion: 100 }
+      ]
+    },
+    {
+      id: 'eom',
+      name: 'End of Month (EOM)',
+      description: 'Payment at end of month',
+      schedules: [
+        { paymentTerm: 'End of Month', dueDays: 0, invoicePortion: 100 }
+      ]
+    },
+  ];
+
   const defaultFormData = (): SalesOrderForm => ({
     namingSeries: 'SAL-ORD-.YYYY.-',
     orderType: 'Sales',
@@ -1181,9 +1325,9 @@ export default function CreateSalesOrder() {
     taxTotal: 0,
     grandTotal: 0,
     roundedTotal: 0,
-    paymentTermsTemplate: '',
+    paymentTermsTemplate: 'on_delivery',
     paymentSchedule: [
-      { id: '1', paymentTerm: '', dueDate: '', durationDays: 30, invoicePortion: 100, paymentAmount: 0 }
+      { id: '1', paymentTerm: 'On Delivery', dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], durationDays: 7, invoicePortion: 100, paymentAmount: 0, paidAmount: 0, status: 'Pending' }
     ],
     tcName: '',
     termDetails: ''
@@ -1233,6 +1377,7 @@ export default function CreateSalesOrder() {
           { tax_id: 5, tax_type: 'IGST18' },
         ]);
       }
+      setTaxOptionsLoaded(true);
     } catch (error) {
       console.error('Error fetching tax options:', error);
       setTaxOptions([
@@ -1242,6 +1387,7 @@ export default function CreateSalesOrder() {
         { tax_id: 4, tax_type: 'GST0' },
         { tax_id: 5, tax_type: 'IGST18' },
       ]);
+      setTaxOptionsLoaded(true);
     } finally {
       setLoadingTaxOptions(false);
     }
@@ -1250,19 +1396,6 @@ export default function CreateSalesOrder() {
   useEffect(() => {
     fetchTaxOptions();
   }, []);
-
-  // Helper to extract numeric tax value from tax_type
-  const extractTaxValue = (taxType: string): number => {
-    if (!taxType) return 0;
-    const match = taxType.match(/(\d+)/);
-    return match ? parseInt(match[0], 10) : 0;
-  };
-
-  // Helper to get tax_id from tax rate value
-  const getTaxIdFromRate = (taxRate: number): number | undefined => {
-    const taxOption = taxOptions.find(t => extractTaxValue(t.tax_type) === taxRate);
-    return taxOption?.tax_id;
-  };
 
   // ─── load quotations ──────────────────────────
   const fetchQuotations = async () => {
@@ -1550,7 +1683,7 @@ export default function CreateSalesOrder() {
         const hsn = it.hsn || master?.HSN || master?.hsn || '';
         const stockUom = it.stock_uom || master?.stock_uom || 'Nos';
         const tax = it.tax_rate ?? 0;
-        const tax_id = it.tax_id || getTaxIdFromRate(tax);
+        const tax_id = it.tax_id || getTaxIdFromRate(tax, taxOptions);
         const amount = it.amount ?? quantity * rate;
         const taxAmount = (amount * tax) / 100;
         const { status, availableQty } = getStockStatus(itemCode, quantity);
@@ -1591,7 +1724,7 @@ export default function CreateSalesOrder() {
         const grand = record.grand_total ?? record.rounded_total ?? baseAmount;
         const taxAmount = Math.max(0, grand - baseAmount);
         const taxPercent = baseAmount > 0 ? (taxAmount / baseAmount) * 100 : 0;
-        const tax_id = getTaxIdFromRate(taxPercent);
+        const tax_id = getTaxIdFromRate(taxPercent, taxOptions);
 
         const match = findLikelyCatalogMatch(rate, quantity);
 
@@ -1656,9 +1789,11 @@ export default function CreateSalesOrder() {
         id: String(idx + 1),
         paymentTerm: p.payment_term || '',
         dueDate: unwrapDate(p.due_date),
-        durationDays: p.duration_days ?? daysBetween(unwrapDate(record.transaction_date), unwrapDate(p.due_date)),
+        durationDays: p.due_days ?? daysBetween(unwrapDate(record.transaction_date), unwrapDate(p.due_date)),
         invoicePortion: p.invoice_portion || 0,
         paymentAmount: p.payment_amount || 0,
+        paidAmount: p.paid_amount || 0,
+        status: p.status || 'Pending',
       }));
     } else {
       const txnDate = unwrapDate(record.transaction_date);
@@ -1671,6 +1806,8 @@ export default function CreateSalesOrder() {
           durationDays: daysBetween(txnDate, dueDate),
           invoicePortion: 100,
           paymentAmount: record.grand_total ?? record.total ?? 0,
+          paidAmount: 0,
+          status: 'Pending',
         }];
       }
     }
@@ -1718,28 +1855,26 @@ export default function CreateSalesOrder() {
 
   // ─── load existing sales order ───────────────────
   useEffect(() => {
-    if (isEditMode && id) {
+    if (isEditMode && id && taxOptionsLoaded && !recordFetched) {
       fetchSalesOrderById(id);
     }
-  }, [id, customers]);
+  }, [id, taxOptionsLoaded, recordFetched]);
 
-  // ─── FIXED: fetch sales order by ID using direct endpoint ───
   const fetchSalesOrderById = async (orderId: string) => {
     setLoadingRecord(true);
     setApiError(null);
     try {
-      // Direct fetch by ID - matches your API endpoint /sales-order/:id
       const response = await api.get(`/sales-order/${orderId}`);
       
       if (response.data.success !== 1) {
         throw new Error(response.data?.message || 'Failed to fetch sales order');
       }
 
-      // The data is directly in response.data.data
       const record = response.data.data;
       
       if (record) {
         loadSalesOrderIntoForm(record);
+        setRecordFetched(true);
       } else {
         setApiError('Sales order not found');
       }
@@ -1751,21 +1886,47 @@ export default function CreateSalesOrder() {
     }
   };
 
-  // ─── FIXED: load sales order into form ───
   const loadSalesOrderIntoForm = (record: SalesOrderApiRecord) => {
     setRecordName(record.name ?? null);
 
     const cached = readCachedSalesOrderLineData(record.name);
 
-    // Map items from the API response
+    let customerMatch: Customer | undefined;
+    if (record.customer_name) {
+      customerMatch = customers.find((c) => 
+        c.name === record.customer_name || 
+        c.id === String(record.customer_id)
+      );
+      if (customerMatch) {
+        setSelectedCustomer(customerMatch);
+        setCustomerData(customerMatch);
+      }
+    }
+
+    const parentTaxId = record.tax_id ? Number(record.tax_id) : undefined;
+
     const items: SalesOrderItem[] =
       Array.isArray(record.items) && record.items.length > 0
         ? record.items.map((it, idx) => {
             const quantity = it.qty ?? 0;
             const rate = it.rate ?? 0;
             const itemCode = it.item_code || '';
-            const tax = it.tax_rate ?? 0;
-            const tax_id = it.tax_id || getTaxIdFromRate(tax);
+            
+            let tax = it.tax_rate ?? 0;
+            let tax_id: number | undefined = it.tax_id ? Number(it.tax_id) : undefined;
+            
+            if (!tax_id && parentTaxId) {
+              tax_id = parentTaxId;
+              tax = getTaxValueFromId(parentTaxId, taxOptions);
+            } else if (tax_id && tax === 0) {
+              tax = getTaxValueFromId(tax_id, taxOptions);
+            } else if (tax > 0 && !tax_id) {
+              tax_id = getTaxIdFromRate(tax, taxOptions);
+            } else if (tax === 0 && !tax_id && parentTaxId) {
+              tax_id = parentTaxId;
+              tax = getTaxValueFromId(parentTaxId, taxOptions);
+            }
+            
             const amount = it.amount ?? quantity * rate;
             const taxAmount = (amount * tax) / 100;
             const { status, availableQty } = getStockStatus(itemCode, quantity);
@@ -1801,41 +1962,36 @@ export default function CreateSalesOrder() {
           ? cached.items
           : [{ id: '1', itemCode: '', itemName: '', hsn: '', quantity: 1, rate: 0, stockUom: 'Nos', tax: 0, tax_id: undefined, amount: 0, taxAmount: 0, totalAmount: 0 }];
 
-    // Payment schedule
     let paymentSchedule: PaymentScheduleRow[] = [];
     if (Array.isArray(record.payment_schedule) && record.payment_schedule.length > 0) {
       paymentSchedule = record.payment_schedule.map((p: any, idx: number) => ({
         id: String(idx + 1),
         paymentTerm: p.payment_term || '',
         dueDate: unwrapDate(p.due_date),
-        durationDays: p.duration_days ?? daysBetween(unwrapDate(record.transaction_date), unwrapDate(p.due_date)),
+        durationDays: p.due_days ?? daysBetween(unwrapDate(record.transaction_date), unwrapDate(p.due_date)),
         invoicePortion: p.invoice_portion || 0,
         paymentAmount: p.payment_amount || 0,
+        paidAmount: p.paid_amount || 0,
+        status: p.status || 'Pending',
       }));
     } else if (cached?.paymentSchedule && cached.paymentSchedule.length > 0) {
       paymentSchedule = cached.paymentSchedule;
     } else if (record.payment_terms_template) {
-      paymentSchedule = [{
-        id: '1',
-        paymentTerm: record.payment_terms_template,
-        dueDate: unwrapDate(record.delivery_date) || unwrapDate(record.transaction_date),
-        durationDays: daysBetween(unwrapDate(record.transaction_date), unwrapDate(record.delivery_date)),
-        invoicePortion: 100,
-        paymentAmount: record.grand_total ?? record.total ?? 0,
-      }];
-    }
-
-    // Find customer match
-    let customerMatch: Customer | undefined;
-    if (record.customer_name || record.party_name) {
-      const customerName = record.customer_name || record.party_name || '';
-      customerMatch = customers.find((c) => 
-        c.name === customerName || 
-        c.id === String(record.customer_id)
-      );
-      if (customerMatch) {
-        setSelectedCustomer(customerMatch);
-        setCustomerData(customerMatch);
+      const template = paymentTermTemplates.find(t => t.name === record.payment_terms_template || t.id === record.payment_terms_template);
+      if (template) {
+        applyPaymentTemplate(template.id);
+        paymentSchedule = formData.paymentSchedule;
+      } else {
+        paymentSchedule = [{
+          id: '1',
+          paymentTerm: record.payment_terms_template,
+          dueDate: unwrapDate(record.delivery_date) || unwrapDate(record.transaction_date),
+          durationDays: daysBetween(unwrapDate(record.transaction_date), unwrapDate(record.delivery_date)),
+          invoicePortion: 100,
+          paymentAmount: record.grand_total ?? record.total ?? 0,
+          paidAmount: 0,
+          status: 'Pending',
+        }];
       }
     }
 
@@ -1859,6 +2015,7 @@ export default function CreateSalesOrder() {
     }));
   };
 
+  // Update selected customer when formData.customer changes and customers are loaded
   useEffect(() => {
     if (formData.customer && customers.length > 0) {
       const match = customers.find((c) => c.id === formData.customer || c.name === formData.customer);
@@ -1868,6 +2025,38 @@ export default function CreateSalesOrder() {
       }
     }
   }, [customers, formData.customer]);
+
+  // ─── Apply Payment Template ──────────────────────────
+  const applyPaymentTemplate = (templateId: string) => {
+    const template = paymentTermTemplates.find(t => t.id === templateId);
+    if (!template) return;
+
+    const grandTotal = formData.roundedTotal || 0;
+    const date = formData.date || new Date().toISOString().split('T')[0];
+
+    const schedules: PaymentScheduleRow[] = template.schedules.map((s, idx) => {
+      const dueDate = addDays(date, s.dueDays);
+      const amount = (s.invoicePortion / 100) * grandTotal;
+      return {
+        id: String(idx + 1),
+        paymentTerm: s.paymentTerm,
+        dueDate: dueDate || date,
+        durationDays: s.dueDays,
+        invoicePortion: s.invoicePortion,
+        paymentAmount: amount,
+        paidAmount: 0,
+        status: 'Pending',
+      };
+    });
+
+    setFormData(prev => ({
+      ...prev,
+      paymentTermsTemplate: templateId,
+      paymentSchedule: schedules.length > 0 ? schedules : prev.paymentSchedule,
+    }));
+
+    toast.success(`Applied "${template.name}" payment terms`);
+  };
 
   // ─── validation ──────────────────────────────
   const getAllValidationErrors = (): ValidationError[] => {
@@ -1974,6 +2163,15 @@ export default function CreateSalesOrder() {
       grandTotal,
       roundedTotal
     }));
+
+    // Update payment amounts based on grand total
+    setFormData(prev => ({
+      ...prev,
+      paymentSchedule: prev.paymentSchedule.map(p => ({
+        ...p,
+        paymentAmount: (p.invoicePortion / 100) * roundedTotal
+      }))
+    }));
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -2014,7 +2212,7 @@ export default function CreateSalesOrder() {
         const rate = product.rate || 0;
         const amount = quantity * rate;
         const tax = product.tax || 0;
-        const tax_id = getTaxIdFromRate(tax);
+        const tax_id = getTaxIdFromRate(tax, taxOptions);
         const taxAmount = (amount * tax) / 100;
         
         updatedItems[index].itemName = product.itemName || '';
@@ -2064,7 +2262,7 @@ export default function CreateSalesOrder() {
     if (field === 'tax') {
       const amount = updatedItems[index].amount || 0;
       const tax = Number(value);
-      const tax_id = getTaxIdFromRate(tax);
+      const tax_id = getTaxIdFromRate(tax, taxOptions);
       const taxAmount = (amount * tax) / 100;
       updatedItems[index].tax = tax;
       updatedItems[index].tax_id = tax_id;
@@ -2092,11 +2290,21 @@ export default function CreateSalesOrder() {
   // ─── payment schedule ─────────────────────────
   const addPaymentSchedule = () => {
     const newId = String(formData.paymentSchedule.length + 1);
+    // const grandTotal = formData.roundedTotal || 0;
     setFormData(prev => ({
       ...prev,
       paymentSchedule: [
         ...prev.paymentSchedule,
-        { id: newId, paymentTerm: '', dueDate: '', durationDays: 0, invoicePortion: 0, paymentAmount: 0 }
+        { 
+          id: newId, 
+          paymentTerm: '', 
+          dueDate: '', 
+          durationDays: 0, 
+          invoicePortion: 0, 
+          paymentAmount: 0,
+          paidAmount: 0,
+          status: 'Pending'
+        }
       ]
     }));
   };
@@ -2113,6 +2321,12 @@ export default function CreateSalesOrder() {
     setFormData(prev => {
       const updated = [...prev.paymentSchedule];
       updated[index] = { ...updated[index], ...patch };
+      
+      if (patch.invoicePortion !== undefined) {
+        const grandTotal = prev.roundedTotal || 0;
+        updated[index].paymentAmount = (patch.invoicePortion / 100) * grandTotal;
+      }
+      
       return { ...prev, paymentSchedule: updated };
     });
   };
@@ -2146,38 +2360,32 @@ export default function CreateSalesOrder() {
   const buildApiPayload = () => {
     const validItems = formData.items.filter((item) => item.itemCode || item.itemName);
 
-    // Get the customer ID from the customerData or selectedCustomer
     const customerId = customerData?.id || selectedCustomer?.id || formData.customer || '';
 
-    // Get tax_id from selected tax options
     const taxId = taxOptions.length > 0 ? taxOptions[0].tax_id : null;
 
     const payload: any = {
-      name: isEditMode && recordName ? recordName : generateSalesOrderName(),
-      naming_series: formData.namingSeries,
-      company: formData.company,
+      company: 1,
+      modified_by: "Administrator",
       customer_id: parseInt(customerId) || customerId,
       customer_name: formData.customerName,
       transaction_date: formatDate(formData.date),
       delivery_date: formatDate(formData.deliveryDate),
       currency: 'INR',
-      set_warehouse: formData.warehouse,
+      selling_price_list: 'Standard Selling',
+      set_warehouse: 1,
+      reserve_stock: 1,
+      tax_id: taxId,
       total_qty: formData.totalQuantity,
       total: formData.baseTotal,
       net_total: formData.baseTotal,
       grand_total: formData.grandTotal,
-      tax_id: taxId,
-      payment_terms_template: formData.paymentTermsTemplate,
-      tc_name: formData.tcName,
-      terms: formData.termDetails,
+      rounded_total: formData.roundedTotal,
+      status: formData.status,
       items: validItems.map((item) => {
-        // Get tax_id for this item
-        const itemTaxId = item.tax_id || getTaxIdFromRate(item.tax) || taxId;
+        // const itemTaxId = item.tax_id || getTaxIdFromRate(item.tax, taxOptions) || taxId;
         
         return {
-          creation: item.creation || new Date().toISOString(),
-          modified: item.modified || new Date().toISOString(),
-          modified_by: item.modified_by || 'Administrator',
           fg_item: item.fg_item || 0,
           fg_item_qty: item.fg_item_qty || 0,
           item_id: item.item_id || null,
@@ -2191,19 +2399,17 @@ export default function CreateSalesOrder() {
           amount: item.amount,
           net_rate: item.net_rate || item.rate,
           net_amount: item.net_amount || item.amount,
-          warehouse: item.warehouse || formData.warehouse || 'Finished Goods',
-          transaction_date: item.transaction_date || formatDate(formData.date),
-          hsn: item.hsn || '',
-          tax_rate: item.tax,
-          tax_id: itemTaxId,
+          warehouse: 1,
         };
       }),
       payment_schedule: formData.paymentSchedule.map((p) => ({
-        payment_term: p.paymentTerm,
-        due_date: p.dueDate,
-        duration_days: p.durationDays,
-        invoice_portion: p.invoicePortion,
-        payment_amount: p.paymentAmount,
+        payment_term: p.paymentTerm || 'On Delivery',
+        due_date: p.dueDate || formData.deliveryDate,
+        due_days: p.durationDays || daysBetween(formData.date, p.dueDate || formData.deliveryDate),
+        invoice_portion: p.invoicePortion || 100,
+        payment_amount: p.paymentAmount || 0,
+        paid_amount: p.paidAmount || 0,
+        status: p.status || 'Pending',
       })),
     };
 
@@ -2228,7 +2434,7 @@ export default function CreateSalesOrder() {
         throw new Error(response.data?.message || 'Failed to save sales order');
       }
 
-      const savedName = response.data?.data?.name || payload.name;
+      const savedName = response.data?.data?.name || payload.name || generateSalesOrderName();
       cacheSalesOrderLineData(savedName, {
         items: formData.items,
         paymentSchedule: formData.paymentSchedule,
@@ -2531,6 +2737,8 @@ export default function CreateSalesOrder() {
                   placeholder="Search Customer..."
                   disabled={loadingItemMaster}
                   error={!!errors.customer}
+                  customerList={customers}
+                  selectedCustomer={selectedCustomer}
                 />
                 {errors.customer && <span className="so-error-text">{errors.customer}</span>}
               </div>
@@ -2819,22 +3027,70 @@ export default function CreateSalesOrder() {
               <span>Payment Schedule</span>
             </div>
 
+            {/* Payment Terms Template Dropdown - MOVED HERE */}
+            <div className="so-field" style={{ marginBottom: '0.5rem' }}>
+              <div className="so-field-row" style={{ gridTemplateColumns: '1fr auto' }}>
+                <select
+                  value={formData.paymentTermsTemplate}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setFormData(prev => ({ ...prev, paymentTermsTemplate: value }));
+                    if (value) {
+                      applyPaymentTemplate(value);
+                    }
+                  }}
+                  className="so-select"
+                  style={{ minWidth: '200px' }}
+                >
+                  <option value="">Select Payment Terms...</option>
+                  {paymentTermTemplates.map((template) => (
+                    <option key={template.id} value={template.id}>
+                      {template.name} - {template.description}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="so-add-btn"
+                  onClick={() => {
+                    if (formData.paymentTermsTemplate) {
+                      applyPaymentTemplate(formData.paymentTermsTemplate);
+                    }
+                  }}
+                  style={{ whiteSpace: 'nowrap', padding: '5px 14px' }}
+                >
+                  <FaCopy size={9} /> Apply
+                </button>
+              </div>
+            </div>
+
             <div className="so-payment-table-wrap">
               <table className="so-payment-table">
                 <thead>
                   <tr>
-                    <th>No.</th>
-                    <th>Due Date</th>
-                    <th>Duration (Days)</th>
-                    <th>Amount</th>
-                    <th></th>
+                    <th className="so-payment-col-no">#</th>
+                    <th className="so-payment-col-term">Payment Term</th>
+                    <th className="so-payment-col-date">Due Date</th>
+                    <th className="so-payment-col-duration">Days</th>
+                    <th className="so-payment-col-portion">%</th>
+                    <th className="so-payment-col-amount">Amount</th>
+                    <th className="so-payment-col-action"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {formData.paymentSchedule.map((schedule, index) => (
                     <tr key={schedule.id}>
-                      <td className="so-col-no">{index + 1}</td>
-                      <td className="so-col-date">
+                      <td className="so-payment-col-no">{index + 1}</td>
+                      <td className="so-payment-col-term">
+                        <input
+                          type="text"
+                          value={schedule.paymentTerm}
+                          onChange={(e) => updatePaymentRow(index, { paymentTerm: e.target.value })}
+                          placeholder="Term"
+                          className="so-table-input so-table-input-text"
+                        />
+                      </td>
+                      <td className="so-payment-col-date">
                         <div className="so-date-field">
                           <input
                             type="date"
@@ -2853,7 +3109,7 @@ export default function CreateSalesOrder() {
                           </button>
                         </div>
                       </td>
-                      <td className="so-col-duration">
+                      <td className="so-payment-col-duration">
                         <input
                           type="number"
                           value={schedule.durationDays}
@@ -2862,17 +3118,20 @@ export default function CreateSalesOrder() {
                           className="so-table-input"
                         />
                       </td>
-                      <td className="so-col-amount">
+                      <td className="so-payment-col-portion">
                         <input
                           type="number"
-                          value={schedule.paymentAmount}
-                          onChange={(e) => updatePaymentRow(index, { paymentAmount: Number(e.target.value) })}
+                          value={schedule.invoicePortion}
+                          onChange={(e) => updatePaymentRow(index, { invoicePortion: Number(e.target.value) })}
                           min="0"
-                          step="0.01"
+                          max="100"
                           className="so-table-input"
                         />
                       </td>
-                      <td className="so-col-action">
+                      <td className="so-payment-col-amount">
+                        <span className="so-table-value">₹{schedule.paymentAmount.toFixed(2)}</span>
+                      </td>
+                      <td className="so-payment-col-action">
                         {formData.paymentSchedule.length > 1 && (
                           <button
                             type="button"
