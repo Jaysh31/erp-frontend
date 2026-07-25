@@ -21,6 +21,7 @@ import { getUserRole } from '../utils/storage';
 
 interface POItem {
   id: number;
+  item_id: number;
   item_code: string;
   item_name: string;
   qty: number;
@@ -95,7 +96,9 @@ interface GRNSummary {
 
 interface InvoiceItem {
   id?: string;
+  db_item_id?: number;
   po_item_id?: number;
+  grn_item_id?: number;
   item_id?: number;
   item_code: string;
   item_name: string;
@@ -192,6 +195,10 @@ export default function PurchaseInvoiceForm() {
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const supplierSearchRef = useRef<HTMLDivElement>(null);
 
+  // ── Pending edit-mode bindings that depend on lists still loading ──────────
+  const [pendingSupplierId, setPendingSupplierId] = useState<number | null>(null);
+  const [pendingWarehouseId, setPendingWarehouseId] = useState<number | null>(null);
+
   // ── PO + GRN linked state (GRN bill source) ─────────────────────────────────
   const [allGRNs, setAllGRNs] = useState<GRNSummary[]>([]);
   const [loadingGRNList, setLoadingGRNList] = useState(false);
@@ -272,21 +279,51 @@ export default function PurchaseInvoiceForm() {
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, []);
 
+  // ─── EDIT-MODE BINDING FIX: resolve the supplier once BOTH the invoice load
+  //     and the supplier list have finished, instead of the old code which read
+  //     `suppliers` from a stale closure captured before fetchSuppliers() resolved.
+  useEffect(() => {
+    if (pendingSupplierId != null && suppliers.length > 0) {
+      const supplier = suppliers.find(s => s.id === pendingSupplierId);
+      if (supplier) {
+        setSelectedSupplier(supplier);
+        setSupplierSearch(supplier.supplier_name || '');
+      }
+      setPendingSupplierId(null);
+    }
+  }, [pendingSupplierId, suppliers]);
+
+  // ─── Same fix for warehouse: resolve once the warehouse list has loaded ────
+  useEffect(() => {
+    if (pendingWarehouseId != null && warehouses.length > 0) {
+      const wh = warehouses.find(w => w.id === pendingWarehouseId);
+      if (wh) setSelectedWarehouseId(wh.id);
+      setPendingWarehouseId(null);
+    }
+  }, [pendingWarehouseId, warehouses]);
+
   // ─── Calculate GST ──────────────────────────────────────────────────────────
   useEffect(() => {
     calculateGST();
-  }, [items, formData.cgst, formData.sgst, formData.deliveryCharges]);
+  }, [items, formData.deliveryCharges]);
 
+  // ── GST FIX: previously this derived cgst/sgst amounts from `formData.cgst` /
+  //    `formData.sgst`, but nothing in the UI ever set those two fields, so they
+  //    were always 0 no matter what tax % you picked per item. Tax now comes from
+  //    each row's own `tax_rate` (the Tax% dropdown), split evenly into a CGST
+  //    half and an SGST half for display, matching standard India GST invoicing.
   const calculateGST = () => {
-    const subTotal = items.reduce((s, r) => s + r.amount, 0);
-    const cgstAmount = (subTotal * formData.cgst) / 100;
-    const sgstAmount = (subTotal * formData.sgst) / 100;
-    const gstTotal = cgstAmount + sgstAmount;
-    const grandTotal = subTotal + gstTotal + formData.deliveryCharges;
+    const subTotal = items.reduce((s, r) => s + (r.amount || 0), 0);
+    const taxTotal = items.reduce((s, r) => s + ((r.amount || 0) * (r.tax_rate || 0)) / 100, 0);
+    const cgstAmount = taxTotal / 2;
+    const sgstAmount = taxTotal / 2;
+    const grandTotal = subTotal + taxTotal + formData.deliveryCharges;
 
     setFormData(prev => ({
       ...prev,
-      gstTotal,
+      cgst: subTotal > 0 ? Math.round((cgstAmount / subTotal) * 10000) / 100 : 0,
+      sgst: subTotal > 0 ? Math.round((sgstAmount / subTotal) * 10000) / 100 : 0,
+      gstTotal: taxTotal,
       grandTotal,
     }));
   };
@@ -295,7 +332,6 @@ export default function PurchaseInvoiceForm() {
   useEffect(() => {
     if (formData.billSource !== 'GRN') return;
     if (!selectedPO && selectedGRNIds.size === 0) {
-      setItems([]);
       return;
     }
 
@@ -394,7 +430,7 @@ export default function PurchaseInvoiceForm() {
       if (res.data?.success === 1) {
         const records = res.data.data?.records || res.data.data || [];
         setWarehouses(records);
-        if (records.length && selectedWarehouseId === '') {
+        if (records.length && selectedWarehouseId === '' && !isEdit) {
           setSelectedWarehouseId(records[0].id);
         }
       }
@@ -581,13 +617,14 @@ export default function PurchaseInvoiceForm() {
   // ─── Build invoice items from PO items + all selected GRNs' received qty ──
   const buildInvoiceItemsCombined = (poDetail: PODetail | null, grns: GRNRecord[]) => {
     if (poDetail?.items?.length) {
-      const receivedMap: Record<number, { qty: number; grnNums: string[] }> = {};
+      const receivedMap: Record<number, { qty: number; grnNums: string[]; grnItemId?: number }> = {};
       (grns || []).forEach(grn => {
         (grn.items || []).forEach(gi => {
           if (!receivedMap[gi.item_id]) {
-            receivedMap[gi.item_id] = { qty: 0, grnNums: [] };
+            receivedMap[gi.item_id] = { qty: 0, grnNums: [], grnItemId: gi.id };
           }
           receivedMap[gi.item_id].qty += gi.received_qty || 0;
+          receivedMap[gi.item_id].grnItemId = gi.id;
           if (grn.grn_number && !receivedMap[gi.item_id].grnNums.includes(grn.grn_number)) {
             receivedMap[gi.item_id].grnNums.push(grn.grn_number);
           }
@@ -595,7 +632,7 @@ export default function PurchaseInvoiceForm() {
       });
 
       const invoiceRows: InvoiceItem[] = (poDetail.items || []).map(pi => {
-        const rec = receivedMap[pi.id] || { qty: 0, grnNums: [] };
+        const rec = receivedMap[pi.id] || { qty: 0, grnNums: [], grnItemId: undefined };
         const totalReceived = rec.qty;
         const alreadyBilledQty = pi.rate > 0 ? (pi.billed_amt || 0) / pi.rate : 0;
         const unbilledQty = Math.max(0, totalReceived - alreadyBilledQty);
@@ -608,6 +645,8 @@ export default function PurchaseInvoiceForm() {
 
         return {
           po_item_id: pi.id,
+          grn_item_id: rec.grnItemId,
+          item_id: pi.item_id,
           item_code: pi.item_code || '',
           item_name: pi.item_name || '',
           uom: pi.uom || 'Nos',
@@ -639,6 +678,8 @@ export default function PurchaseInvoiceForm() {
         if (!merged[key]) {
           const tax = (taxes || []).find(t => t.tax_id === 1);
           merged[key] = {
+            grn_item_id: gi.id,
+            item_id: gi.item_id,
             item_code: gi.item_code || '',
             item_name: gi.item_name || '',
             uom: gi.uom || 'Nos',
@@ -676,6 +717,7 @@ export default function PurchaseInvoiceForm() {
       const tax = (taxes || []).find(t => parseInt((t.tax_type || '').replace('GST', '')) === taxRate);
       return {
         po_item_id: pi.id,
+        item_id: pi.item_id,
         item_code: pi.item_code || '',
         item_name: pi.item_name || '',
         uom: pi.uom || 'Nos',
@@ -782,38 +824,46 @@ export default function PurchaseInvoiceForm() {
       const res = await api.get(`/purchase-invoice/${invoiceId}`);
       if (res.data?.success === 1) {
         const inv = res.data.data;
-        setFormData({
+
+        // ── EDIT-MODE BINDING FIX: the previous mapping referenced a bunch of
+        //    fields (buyer_order_type, payment_terms, delivery_charges,
+        //    cgst_rate, sgst_rate, gst_total, delivery_date, vehicle_number,
+        //    delivery_terms, buyer_order_number) that simply don't exist on the
+        //    real /purchase-invoice/:id response — so every one of them always
+        //    fell back to its default. Only map fields that are actually
+        //    present. CGST/SGST/grand total now get recomputed from the loaded
+        //    items instead (see calculateGST), so they aren't set here at all.
+        //    billSource is forced to 'Without GRN' on edit so every item row is
+        //    fully editable — we don't have a reliable signal in the response
+        //    to reconstruct whether this was originally a GRN-based bill, and
+        //    locking rows to a GRN's "unbilled qty" ceiling on edit would block
+        //    legitimate corrections.
+        setFormData(prev => ({
+          ...prev,
           invoiceNumber: inv.name || '',
           status: inv.status || 'Draft',
-          date: inv.posting_date?.split('T')[0] || '',
+          date: inv.posting_date ? inv.posting_date.split('T')[0] : prev.date,
           billNo: inv.bill_no || '',
-          billDate: inv.bill_date?.split('T')[0] || '',
+          billDate: inv.bill_date ? inv.bill_date.split('T')[0] : '',
           notes: inv.remarks || '',
-          billSource: (inv.buyer_order_type === 'Without GRN' ? 'Without GRN' : 'GRN') as BillSource,
-          paymentTerms: inv.payment_terms || '',
-          buyerOrderNumber: inv.buyer_order_number || '',
-          deliveryDate: inv.delivery_date?.split('T')[0] || '',
-          vehicleNumber: inv.vehicle_number || '',
-          deliveryTerms: inv.delivery_terms || 'Free',
-          deliveryCharges: inv.delivery_charges || 0,
-          cgst: inv.cgst_rate || 0,
-          sgst: inv.sgst_rate || 0,
-          gstTotal: inv.gst_total || 0,
-          grandTotal: inv.grand_total || 0,
-        });
+          billSource: 'Without GRN',
+        }));
 
-        if (inv.supplier_name) {
-          const supplier = (suppliers || []).find(s => s.supplier_name === inv.supplier_name);
-          if (supplier) {
-            setSelectedSupplier(supplier);
-            setSupplierSearch(supplier.supplier_name || '');
-          }
+        // Supplier: resolved once the supplier list itself has loaded (see the
+        // pendingSupplierId effect above) — avoids the stale-closure bug where
+        // `suppliers` was still [] at the moment this ran.
+        if (inv.supplier != null) {
+          setPendingSupplierId(Number(inv.supplier));
+        } else if (inv.supplier_name) {
+          // fallback if only the name came back
+          setSupplierSearch(inv.supplier_name);
         }
 
         if (inv.items?.length) {
           const rows: InvoiceItem[] = inv.items.map((it: any) => ({
-            id: it.id || Date.now().toString(),
-            po_item_id: it.po_detail || 0,
+            id: it.id ? String(it.id) : Date.now().toString(),
+            db_item_id: it.id ? Number(it.id) : undefined,
+            po_item_id: it.po_detail || undefined,
             item_id: it.item_id || undefined,
             item_code: it.item_code || '',
             item_name: it.item_name || '',
@@ -826,12 +876,19 @@ export default function PurchaseInvoiceForm() {
             bill_qty: it.qty || 0,
             amount: it.amount || 0,
             grn_refs: it.grn_refs || [],
-            tax_rate: it.tax_rate || 0,
+            tax_rate: it.item_tax_rate ? parseFloat(it.item_tax_rate) : (it.tax_rate || 0),
             tax_id: it.tax_id || 1,
-            hsn_code: it.hsn_code || '',
+            HSN: it.hsn_code || it.HSN || '',
             note: it.note || '',
           }));
           setItems(rows);
+
+          // Warehouse: every loaded item carries its own `warehouse` id — use
+          // the first item's warehouse as the invoice-level warehouse selection.
+          const firstWarehouse = inv.items.find((it: any) => it.warehouse)?.warehouse;
+          if (firstWarehouse != null) {
+            setPendingWarehouseId(Number(firstWarehouse));
+          }
         }
       }
     } catch (err) {
@@ -843,10 +900,12 @@ export default function PurchaseInvoiceForm() {
   };
 
   // ─── Computed totals ────────────────────────────────────────────────────────
+  // GST FIX: derive tax entirely from each row's own tax_rate — see calculateGST
+  // above for why formData.cgst/sgst can no longer be trusted as the source.
   const subTotal = items.reduce((s, r) => s + (r.amount || 0), 0);
-  const cgstAmount = (subTotal * formData.cgst) / 100;
-  const sgstAmount = (subTotal * formData.sgst) / 100;
-  const totalTax = cgstAmount + sgstAmount;
+  const totalTax = items.reduce((s, r) => s + ((r.amount || 0) * (r.tax_rate || 0)) / 100, 0);
+  const cgstAmount = totalTax / 2;
+  const sgstAmount = totalTax / 2;
   const grandTotal = subTotal + totalTax + formData.deliveryCharges;
 
   // ─── Filtered lists with null-safety ────────────────────────────────────────
@@ -925,6 +984,19 @@ export default function PurchaseInvoiceForm() {
 
     const billableItems = items.filter(r => (r.bill_qty || 0) > 0);
     if (billableItems.length === 0) errs.push({ field: 'items', label: 'Items', message: 'At least one item must have quantity > 0' });
+
+    billableItems.forEach((item, index) => {
+      const resolvedId = item.grn_item_id ?? item.po_item_id ?? item.item_id;
+      if (!resolvedId) {
+        errs.push({
+          field: `item_id_${index}`,
+          label: `Item ${index + 1}`,
+          message: isManual
+            ? 'Please pick this item from the catalog search (item id is missing)'
+            : 'This item is missing an id — please re-select the PO/GRN',
+        });
+      }
+    });
 
     if (isManual) {
       items.forEach((item, index) => {
@@ -1059,10 +1131,9 @@ export default function PurchaseInvoiceForm() {
     const now = new Date();
     const postingTime = now.toTimeString().slice(0, 8);
     const payload: any = {
-      ...(isEdit && id ? { name: formData.invoiceNumber } : {}),
-      name: 'PINV-',
+      ...(isEdit && id ? { id: Number(id) } : {}),
+      name: isEdit ? (formData.invoiceNumber || 'PINV-') : 'PINV-',
       modified_by: 'Administrator',
-      // owner: 'Administrator',
       naming_series: 'PINV-',
       supplier: selectedSupplier?.id,
       supplier_name: selectedSupplier?.supplier_name || '',
@@ -1088,8 +1159,9 @@ export default function PurchaseInvoiceForm() {
       remarks: formData.notes || '',
 
       items: billableItems.map((r, idx) => ({
+        ...(isEdit && r.db_item_id ? { id: r.db_item_id } : {}),
         name: `item-${idx + 1}`,
-        item_id: r.id,
+        item_id: r.po_item_id ?? r.grn_item_id ?? r.item_id,
         item_code: r.item_code || '',
         item_name: r.item_name || '',
         warehouse: resolvedWarehouseId,
@@ -1098,6 +1170,11 @@ export default function PurchaseInvoiceForm() {
         rate: r.rate || 0,
         ordered_rate: r.ordered_rate || 0,
         amount: r.amount || 0,
+        // ── GST FIX: these three were never sent before, so any tax you picked
+        //    per item was silently dropped and never reached the backend.
+        item_tax_rate: String(r.tax_rate || 0),
+        tax_id: r.tax_id || undefined,
+        hsn_code: r.HSN || undefined,
         note: r.note || undefined,
       })),
     };
@@ -1303,10 +1380,10 @@ export default function PurchaseInvoiceForm() {
           </table>
           <div className="totals">
             <div>Sub Total: ₹ {subTotal.toFixed(2)}</div>
-            {(formData.cgst > 0 || formData.sgst > 0) && (
+            {totalTax > 0 && (
               <div className="gst-breakdown">
-                <div>CGST ({formData.cgst}%): ₹ {cgstAmount.toFixed(2)}</div>
-                <div>SGST ({formData.sgst}%): ₹ {sgstAmount.toFixed(2)}</div>
+                <div>CGST: ₹ {cgstAmount.toFixed(2)}</div>
+                <div>SGST: ₹ {sgstAmount.toFixed(2)}</div>
                 <div>Total GST: ₹ {totalTax.toFixed(2)}</div>
               </div>
             )}
@@ -1332,6 +1409,7 @@ export default function PurchaseInvoiceForm() {
                       value={source}
                       checked={formData.billSource === source}
                       onChange={() => handleBillSourceChange(source)}
+                      disabled={isEdit}
                     />
                     {source === 'GRN' ? 'GRN' : source}
                   </label>
@@ -1437,7 +1515,7 @@ export default function PurchaseInvoiceForm() {
                 </div>
 
                 {/* ── PO Selection Section (Without GRN mode — POs with no GRN) ── */}
-                {selectedSupplier && isManual && (
+                {selectedSupplier && isManual && !isEdit && (
                   <>
                     <div className="pif-grn-po-section">
                       <div className="pif-field" ref={poSearchRef} style={{ position: 'relative', maxWidth: 500 }}>
@@ -1569,7 +1647,7 @@ export default function PurchaseInvoiceForm() {
                 </div>
 
                 {/* ── PO + GRN Selection Section (GRN mode) ─────────────────── */}
-                {selectedSupplier && isGRNMode && (
+                {selectedSupplier && isGRNMode && !isEdit && (
                   <>
                     <div className="pif-grn-po-section">
                       <div className="pif-fields-row">
@@ -1714,29 +1792,31 @@ export default function PurchaseInvoiceForm() {
                   </>
                 )}
 
-                {/* ── Warehouse picker (Manual / Without-GRN mode) ─────────── */}
-                {selectedSupplier && isManual && (
-                  <>
-                    <div className="pif-divider" />
-                    <div className="pif-field" style={{ maxWidth: '500px' }}>
-                      <label className="pif-label">
-                        <FaWarehouse className="pif-label-icon" />
-                        Warehouse <span className="pif-required">*</span>
-                      </label>
-                      <select
-                        value={selectedWarehouseId}
-                        onChange={e => setSelectedWarehouseId(e.target.value ? Number(e.target.value) : '')}
-                        className={`form-field ${validationErrors.some(e => e.field === 'warehouse') ? 'field-error' : ''}`}
-                        disabled={loadingWarehouses}
-                      >
-                        <option value="">{loadingWarehouses ? 'Loading…' : 'Select warehouse'}</option>
-                        {(warehouses || []).map(w => (
-                          <option key={w.id} value={w.id}>{w.warehouse_name || ''}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </>
-                )}
+                {/* ── Warehouse picker (Manual / Without-GRN mode, incl. edit) ── */}
+                {selectedSupplier || isEdit ? (
+                  isManual && (
+                    <>
+                      <div className="pif-divider" />
+                      <div className="pif-field" style={{ maxWidth: '500px' }}>
+                        <label className="pif-label">
+                          <FaWarehouse className="pif-label-icon" />
+                          Warehouse <span className="pif-required">*</span>
+                        </label>
+                        <select
+                          value={selectedWarehouseId}
+                          onChange={e => setSelectedWarehouseId(e.target.value ? Number(e.target.value) : '')}
+                          className={`form-field ${validationErrors.some(e => e.field === 'warehouse') ? 'field-error' : ''}`}
+                          disabled={loadingWarehouses}
+                        >
+                          <option value="">{loadingWarehouses ? 'Loading…' : 'Select warehouse'}</option>
+                          {(warehouses || []).map(w => (
+                            <option key={w.id} value={w.id}>{w.warehouse_name || ''}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </>
+                  )
+                ) : null}
               </div>
 
               {/* Right Column */}
@@ -1793,7 +1873,7 @@ export default function PurchaseInvoiceForm() {
                     <div className="pif-party-card-content">
                       <div className="pif-party-empty-state">
                         <FaInfoCircle size={24} />
-                        <p>Select a supplier to view details</p>
+                        <p>{isEdit ? 'Loading supplier…' : 'Select a supplier to view details'}</p>
                       </div>
                     </div>
                   </div>
@@ -1864,6 +1944,29 @@ export default function PurchaseInvoiceForm() {
                     >
                       {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
+                  </div>
+                </div>
+
+                {/* GST Summary — live preview of what will be submitted, driven
+                    entirely by each item row's own Tax% dropdown */}
+                <div className="pif-party-detail-card">
+                  <div className="pif-party-card-header">
+                    <FaMoneyBillWave size={14} />
+                    <span>GST Summary</span>
+                  </div>
+                  <div className="pif-party-card-content">
+                    <div className="pif-party-info-item">
+                      <span className="pif-party-info-label">CGST</span>
+                      <span className="pif-party-info-value">₹ {cgstAmount.toFixed(2)}</span>
+                    </div>
+                    <div className="pif-party-info-item">
+                      <span className="pif-party-info-label">SGST</span>
+                      <span className="pif-party-info-value">₹ {sgstAmount.toFixed(2)}</span>
+                    </div>
+                    <div className="pif-party-info-item">
+                      <span className="pif-party-info-label">Total GST</span>
+                      <span className="pif-party-info-value">₹ {totalTax.toFixed(2)}</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2074,7 +2177,8 @@ export default function PurchaseInvoiceForm() {
                               className="pif-cell-input"
                             >
                               {(taxes || []).map(tax => {
-                                const rate = parseInt((tax.tax_type || '').replace('GST', ''));
+                                const parsed = parseInt((tax.tax_type || '').replace('GST', ''));
+                                const rate = isNaN(parsed) ? 0 : parsed;
                                 return (
                                   <option key={tax.tax_id} value={rate}>
                                     {tax.tax_type || ''}
@@ -2129,14 +2233,14 @@ export default function PurchaseInvoiceForm() {
                     <span>Sub Total</span>
                     <span>₹ {subTotal.toFixed(2)}</span>
                   </div>
-                  {(formData.cgst > 0 || formData.sgst > 0) && (
+                  {totalTax > 0 && (
                     <>
                       <div className="pif-totals-row">
-                        <span>CGST ({formData.cgst}%)</span>
+                        <span>CGST</span>
                         <span>₹ {cgstAmount.toFixed(2)}</span>
                       </div>
                       <div className="pif-totals-row">
-                        <span>SGST ({formData.sgst}%)</span>
+                        <span>SGST</span>
                         <span>₹ {sgstAmount.toFixed(2)}</span>
                       </div>
                       <div className="pif-totals-row">
