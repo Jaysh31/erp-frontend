@@ -901,13 +901,6 @@ const JobCardForm: React.FC = () => {
       payload.process_loss_qty = lossQty;
       payload.pending_qty = Math.max(0, formData.qty_to_manufacture - completedQty - lossQty);
       
-      // CRITICAL FIX: Update produced_qty and process_loss_qty for the Work Order
-      const workOrderPayload = {
-        produced_qty: completedQty,
-        process_loss_qty: lossQty,
-        status: "Completed"
-      };
-
       if (isEditMode && recordId) {
         // Update job card
         payload.id = Number(recordId);

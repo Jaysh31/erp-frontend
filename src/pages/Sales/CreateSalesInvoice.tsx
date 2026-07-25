@@ -14,7 +14,6 @@ import {
   FaArrowLeft,
   FaInfoCircle,
   FaCalculator,
-  FaFileAlt,
   FaBuilding,
   FaUser,
   FaPhone,
@@ -22,12 +21,20 @@ import {
   FaExclamationTriangle,
   FaCheck,
   FaCheckCircle,
+  FaCreditCard,
+  FaCopy,
+  FaCalendarAlt,
+  FaClipboardList,
+  FaExclamationCircle,
+  FaQuestionCircle,
+  FaFileAlt,
 } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import './CreateSalesInvoice.css';
+import { div } from 'framer-motion/m';
 
 // ===== INTERFACES =====
 
@@ -71,6 +78,7 @@ interface Product {
   id: string;
   itemCode: string;
   itemName: string;
+  hsn: string;
   description: string;
   unit: string;
   rate: number;
@@ -78,22 +86,75 @@ interface Product {
   type: 'product' | 'service';
   stockUom?: string;
   standardRate?: number;
+  creation?: string;
+  modified?: string;
+  modified_by?: string;
+  fg_item?: number;
+  fg_item_qty?: number;
+  item_id?: number;
+  warehouse?: string;
+  transaction_date?: string;
+  uom?: string;
+  net_rate?: number;
+  net_amount?: number;
+}
+
+interface TaxOption {
+  tax_id: number;
+  tax_type: string;
 }
 
 interface SalesBillItem {
   id: string;
   itemCode: string;
   itemName: string;
+  hsn: string;
   description: string;
   quantity: number;
   unit: string;
   rate: number;
   amount: number;
   tax: number;
+  tax_id?: number;
   taxAmount: number;
   totalAmount: number;
   type: 'product' | 'service';
-  deliveryChallanId?: string; // Track which DC this item came from
+  deliveryChallanId?: string;
+  stockStatus?: 'checking' | 'available' | 'insufficient' | 'unknown';
+  availableQty?: number;
+  creation?: string;
+  modified?: string;
+  modified_by?: string;
+  fg_item?: number;
+  fg_item_qty?: number;
+  item_id?: number;
+  uom?: string;
+  net_rate?: number;
+  net_amount?: number;
+  warehouse?: string;
+  transaction_date?: string;
+}
+
+interface PaymentScheduleRow {
+  id: string;
+  paymentTerm: string;
+  dueDate: string;
+  durationDays: number;
+  invoicePortion: number;
+  paymentAmount: number;
+  paidAmount?: number;
+  status?: string;
+}
+
+interface PaymentTermTemplate {
+  id: string;
+  name: string;
+  description: string;
+  schedules: Array<{
+    paymentTerm: string;
+    dueDays: number;
+    invoicePortion: number;
+  }>;
 }
 
 interface SalesBillPayload {
@@ -113,7 +174,7 @@ interface SalesBillPayload {
   po_no: string;
   po_date: string;
   sales_order: string;
-  delivery_challan: string; // Comma-separated list of DC IDs
+  delivery_challan: string;
   instructions: string;
   status: string;
   bill_type: string;
@@ -131,7 +192,16 @@ interface SalesBillPayload {
     total_amount: number;
     warehouse: string;
     type: string;
-    delivery_challan?: string; // Optional: reference to source DC
+    delivery_challan?: string;
+  }>;
+  payment_schedule?: Array<{
+    payment_term: string;
+    due_date: string;
+    due_days: number;
+    invoice_portion: number;
+    payment_amount: number;
+    paid_amount: number;
+    status: string;
   }>;
 }
 
@@ -172,12 +242,51 @@ interface Warehouse {
   disabled: number;
 }
 
+interface InventoryApiRecord {
+  name: string;
+  item_code: string;
+  warehouse_Id?: number;
+  actual_qty: number;
+  reserved_stock?: number;
+  projected_qty?: number;
+  stock_uom?: string;
+  company?: string;
+}
+
 interface ApiResponse<T = any> {
   data: T;
   message?: string;
   status: number;
   success: boolean;
 }
+
+// ===== HELPER FUNCTIONS =====
+const unwrapDate = (value?: string | null): string => {
+  if (!value) return '';
+  return value.split('T')[0];
+};
+
+const daysBetween = (from: string, to: string): number => {
+  if (!from || !to) return 0;
+  const a = new Date(from).getTime();
+  const b = new Date(to).getTime();
+  if (isNaN(a) || isNaN(b)) return 0;
+  return Math.max(0, Math.round((b - a) / 86400000));
+};
+
+const addDays = (date: string, days: number): string => {
+  if (!date) return '';
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return '';
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split('T')[0];
+};
+
+const extractTaxValue = (taxType: string): number => {
+  if (!taxType) return 0;
+  const match = taxType.match(/(\d+)/);
+  return match ? parseInt(match[0], 10) : 0;
+};
 
 // ===== API SERVICE =====
 
@@ -354,6 +463,10 @@ class SalesBillAPI {
   async getWarehouseById(id: number): Promise<ApiResponse<any>> {
     return this.apiService.get(`/warehouse/${id}`);
   }
+
+  async getInventory(params?: { item_code?: string }): Promise<ApiResponse<any>> {
+    return this.apiService.get('/inventory', params);
+  }
 }
 
 // ===== MOCK DATA =====
@@ -397,11 +510,11 @@ const MOCK_CUSTOMERS: Customer[] = [
 ];
 
 const MOCK_PRODUCTS: Product[] = [
-  { id: 'p1', itemCode: 'PRD-P001', itemName: 'Industrial Pump - 5 HP', description: 'Industrial Pump - 5 HP', unit: 'pcs', rate: 1500, tax: 18, type: 'product' },
-  { id: 'p2', itemCode: 'PRD-S001', itemName: 'Submersible Pump - 2 HP', description: 'Submersible Pump - 2 HP', unit: 'pcs', rate: 2000, tax: 18, type: 'product' },
-  { id: 'p3', itemCode: 'PRD-C001', itemName: 'Centrifugal Pump - 3 HP', description: 'Centrifugal Pump - 3 HP', unit: 'pcs', rate: 2500, tax: 12, type: 'product' },
-  { id: 'p4', itemCode: 'PRD-M001', itemName: 'Motor Assembly - 7.5 HP', description: 'Motor Assembly - 7.5 HP', unit: 'pcs', rate: 5000, tax: 18, type: 'product' },
-  { id: 'p5', itemCode: 'PRD-G001', itemName: 'Gear Box - 10:1 Ratio', description: 'Gear Box - 10:1 Ratio', unit: 'pcs', rate: 3000, tax: 12, type: 'product' },
+  { id: 'p1', itemCode: 'PRD-P001', itemName: 'Industrial Pump - 5 HP', hsn: '84137010', description: 'Industrial Pump - 5 HP', unit: 'pcs', rate: 1500, tax: 18, type: 'product' },
+  { id: 'p2', itemCode: 'PRD-S001', itemName: 'Submersible Pump - 2 HP', hsn: '84137020', description: 'Submersible Pump - 2 HP', unit: 'pcs', rate: 2000, tax: 18, type: 'product' },
+  { id: 'p3', itemCode: 'PRD-C001', itemName: 'Centrifugal Pump - 3 HP', hsn: '84137030', description: 'Centrifugal Pump - 3 HP', unit: 'pcs', rate: 2500, tax: 12, type: 'product' },
+  { id: 'p4', itemCode: 'PRD-M001', itemName: 'Motor Assembly - 7.5 HP', hsn: '85015210', description: 'Motor Assembly - 7.5 HP', unit: 'pcs', rate: 5000, tax: 18, type: 'product' },
+  { id: 'p5', itemCode: 'PRD-G001', itemName: 'Gear Box - 10:1 Ratio', hsn: '84834000', description: 'Gear Box - 10:1 Ratio', unit: 'pcs', rate: 3000, tax: 12, type: 'product' },
 ];
 
 const MOCK_WAREHOUSES: Warehouse[] = [
@@ -498,6 +611,217 @@ function useDropdownPosition(isOpen: boolean, triggerRef: React.RefObject<HTMLDi
   return pos;
 }
 
+// ===== SEARCHABLE PRODUCT SELECT COMPONENT =====
+interface SearchableSelectProps {
+  value: string;
+  onChange: (value: string) => void;
+  options: Product[];
+  placeholder?: string;
+  disabled?: boolean;
+  error?: boolean;
+  onSearch?: (searchTerm: string) => Promise<void>;
+  loading?: boolean;
+  stockInfo?: { status: 'checking' | 'available' | 'insufficient' | 'unknown'; availableQty?: number };
+}
+
+const SearchableSelect: React.FC<SearchableSelectProps> = ({
+  value,
+  onChange,
+  options,
+  placeholder = 'Search...',
+  disabled = false,
+  error = false,
+  onSearch,
+  loading = false,
+  stockInfo,
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filteredOptions, setFilteredOptions] = useState<Product[]>(options);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const menuPos = useDropdownPosition(isOpen, wrapperRef);
+
+  useEffect(() => {
+    if (!searchTerm) {
+      setFilteredOptions(options);
+      return;
+    }
+
+    const filtered = options.filter(opt =>
+      opt.itemCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      opt.itemName.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    setFilteredOptions(filtered);
+  }, [searchTerm, options]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      const clickedTrigger = wrapperRef.current?.contains(target);
+      const clickedMenu = menuRef.current?.contains(target);
+      if (!clickedTrigger && !clickedMenu) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const term = e.target.value;
+    setSearchTerm(term);
+    setHighlightedIndex(-1);
+
+    if (!isOpen) {
+      setIsOpen(true);
+    }
+
+    if (onSearch && term.length > 0) {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+
+      debounceTimerRef.current = setTimeout(() => {
+        onSearch(term).catch(err => console.error('Search error:', err));
+      }, 500);
+    }
+  };
+
+  const handleSelect = (option: Product) => {
+    onChange(option.itemCode);
+    setSearchTerm('');
+    setIsOpen(false);
+    if (inputRef.current) {
+      inputRef.current.blur();
+    }
+  };
+
+  const getSelectedLabel = () => {
+    const selected = options.find(opt => opt.itemCode === value);
+    return selected ? `${selected.itemCode}` : '';
+  };
+
+  const getStockDisplay = () => {
+    if (!stockInfo || !value) return null;
+    if (stockInfo.status === 'checking') {
+      return <span className="nsb-stock-indicator nsb-stock-checking"><FaSpinner className="nsb-spinning" size={8} /></span>;
+    }
+    if (stockInfo.status === 'available') {
+      return <span className="nsb-stock-indicator nsb-stock-available"><FaCheckCircle size={8} /> {stockInfo.availableQty}</span>;
+    }
+    if (stockInfo.status === 'insufficient') {
+      return <span className="nsb-stock-indicator nsb-stock-insufficient"><FaExclamationCircle size={8} /> {stockInfo.availableQty || 0}</span>;
+    }
+    return <span className="nsb-stock-indicator nsb-stock-unknown"><FaQuestionCircle size={8} /></span>;
+  };
+
+  const menu = isOpen ? (
+    <div
+      ref={menuRef}
+      className="nsb-custom-scroll"
+      style={{
+        position: 'fixed',
+        top: menuPos.top,
+        left: menuPos.left,
+        width: menuPos.width,
+        background: 'var(--card-bg, #ffffff)',
+        border: '0.5px solid var(--border-color, #e2e8f0)',
+        borderRadius: '6px',
+        boxShadow: '0 4px 16px var(--shadow-color, rgba(0,0,0,0.15))',
+        zIndex: 99999,
+        maxHeight: '220px',
+        overflowY: 'auto',
+        overflowX: 'hidden'
+      }}
+    >
+      {filteredOptions.length > 0 ? (
+        filteredOptions.map((option, index) => (
+          <div
+            key={option.id}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              handleSelect(option);
+            }}
+            style={{
+              padding: '8px 12px',
+              cursor: 'pointer',
+              background: highlightedIndex === index ? 'var(--nav-hover, #eff6ff)' : 'transparent',
+              borderLeft: value === option.itemCode ? '2px solid var(--primary-color, #2563eb)' : '2px solid transparent',
+              transition: 'background 0.15s',
+              borderBottom: index < filteredOptions.length - 1 ? '0.5px solid var(--border-color, #f1f5f9)' : 'none'
+            }}
+            onMouseEnter={() => setHighlightedIndex(index)}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontWeight: 500, fontSize: '13px', color: 'var(--text-primary, #0f172a)' }}>{option.itemCode}</span>
+              <span style={{ fontSize: '12px', color: 'var(--text-secondary, #64748b)', marginLeft: '8px', textAlign: 'right' }}>
+                ₹{option.rate}
+              </span>
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--text-secondary, #94a3b8)', marginTop: '2px' }}>
+              {option.itemName} | HSN: {option.hsn || '-'} | Tax: {option.tax || 0}%
+            </div>
+          </div>
+        ))
+      ) : (
+        <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
+          {loading ? 'Loading...' : 'No items found'}
+        </div>
+      )}
+    </div>
+  ) : null;
+
+  return (
+    <div ref={wrapperRef} style={{ position: 'relative', width: '100%' }}>
+      <div style={{ position: 'relative' }}>
+        <input
+          ref={inputRef}
+          type="text"
+          placeholder={placeholder}
+          value={isOpen ? searchTerm : getSelectedLabel()}
+          onChange={handleSearchChange}
+          onFocus={() => !disabled && setIsOpen(true)}
+          disabled={disabled}
+          autoComplete="off"
+          className="nsb-table-input"
+          style={{
+            width: '100%',
+            padding: '4px 8px',
+            paddingRight: '30px',
+            border: error ? '0.5px solid var(--danger-color, #ef4444)' : '0.5px solid var(--border-color, #e2e8f0)',
+            borderRadius: '4px',
+            background: disabled ? 'var(--input-bg, #f3f4f6)' : 'var(--input-bg, #f8fafc)',
+            color: 'var(--text-primary, #0f172a)',
+            fontSize: '12px',
+            fontFamily: 'inherit',
+            cursor: disabled ? 'not-allowed' : 'text',
+            minHeight: '30px',
+            textAlign: 'left'
+          }}
+        />
+        {loading ? (
+          <FaSpinner className="nsb-spinning" style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', color: 'var(--primary-color, #2563eb)', fontSize: '11px' }} />
+        ) : (
+          <FaChevronDown style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary, #94a3b8)', fontSize: '11px', pointerEvents: 'none' }} />
+        )}
+        {/* Stock indicator inside the input */}
+        {value && stockInfo && (
+          <div style={{ position: 'absolute', right: '28px', top: '50%', transform: 'translateY(-50%)' }}>
+            {getStockDisplay()}
+          </div>
+        )}
+      </div>
+
+      {menu && ReactDOM.createPortal(menu, document.body)}
+    </div>
+  );
+};
+
 // ===== MULTI-SELECT DELIVERY CHALLAN COMPONENT =====
 interface MultiDeliveryChallanSelectProps {
   selectedDCs: DeliveryChallanData[];
@@ -505,7 +829,7 @@ interface MultiDeliveryChallanSelectProps {
   placeholder?: string;
   disabled?: boolean;
   error?: boolean;
-  customerFilter?: string; // Filter by customer
+  customerFilter?: string;
 }
 
 const MultiDeliveryChallanSelect: React.FC<MultiDeliveryChallanSelectProps> = ({
@@ -608,7 +932,6 @@ const MultiDeliveryChallanSelect: React.FC<MultiDeliveryChallanSelectProps> = ({
           setDeliveryChallans(mappedDCs);
           setFilteredDCs(mappedDCs);
         } else {
-          // Filter mock data by customer if needed
           let mockData = MOCK_DELIVERY_CHALLANS;
           if (customerFilter) {
             mockData = mockData.filter(dc => dc.customer_id === customerFilter);
@@ -653,7 +976,6 @@ const MultiDeliveryChallanSelect: React.FC<MultiDeliveryChallanSelectProps> = ({
     if (isSelected) {
       newSelected = selectedDCs.filter(s => s.id !== dc.id);
     } else {
-      // Check if same customer
       if (selectedDCs.length > 0 && selectedDCs[0].customer_id !== dc.customer_id) {
         toast.error('All delivery challans must belong to the same customer');
         return;
@@ -802,7 +1124,6 @@ const MultiDeliveryChallanSelect: React.FC<MultiDeliveryChallanSelectProps> = ({
         )}
       </div>
 
-      {/* Selected DCs Tags */}
       {selectedDCs.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
           {selectedDCs.map(dc => (
@@ -1123,194 +1444,6 @@ const WarehouseSelect: React.FC<WarehouseSelectProps> = ({
   );
 };
 
-// ===== SEARCHABLE PRODUCT SELECT COMPONENT =====
-interface SearchableSelectProps {
-  value: string;
-  onChange: (value: string) => void;
-  options: Product[];
-  placeholder?: string;
-  disabled?: boolean;
-  error?: boolean;
-  onSearch?: (searchTerm: string) => Promise<void>;
-  loading?: boolean;
-}
-
-const SearchableSelect: React.FC<SearchableSelectProps> = ({
-  value,
-  onChange,
-  options,
-  placeholder = 'Search...',
-  disabled = false,
-  error = false,
-  onSearch,
-  loading = false
-}) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filteredOptions, setFilteredOptions] = useState<Product[]>(options);
-  const [highlightedIndex, setHighlightedIndex] = useState(-1);
-  const wrapperRef = useRef<HTMLDivElement | null>(null);
-  const menuRef = useRef<HTMLDivElement | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const menuPos = useDropdownPosition(isOpen, wrapperRef);
-
-  useEffect(() => {
-    if (!searchTerm) {
-      setFilteredOptions(options);
-      return;
-    }
-
-    const filtered = options.filter(opt =>
-      opt.itemCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      opt.itemName.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-    setFilteredOptions(filtered);
-  }, [searchTerm, options]);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node;
-      const clickedTrigger = wrapperRef.current?.contains(target);
-      const clickedMenu = menuRef.current?.contains(target);
-      if (!clickedTrigger && !clickedMenu) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const term = e.target.value;
-    setSearchTerm(term);
-    setHighlightedIndex(-1);
-
-    if (!isOpen) {
-      setIsOpen(true);
-    }
-
-    if (onSearch && term.length > 0) {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-
-      debounceTimerRef.current = setTimeout(() => {
-        onSearch(term).catch(err => console.error('Search error:', err));
-      }, 500);
-    }
-  };
-
-  const handleSelect = (option: Product) => {
-    onChange(option.itemCode);
-    setSearchTerm('');
-    setIsOpen(false);
-    if (inputRef.current) {
-      inputRef.current.blur();
-    }
-  };
-
-  const getSelectedLabel = () => {
-    const selected = options.find(opt => opt.itemCode === value);
-    return selected ? `${selected.itemCode}` : '';
-  };
-
-  const menu = isOpen ? (
-    <div
-      ref={menuRef}
-      className="nsb-custom-scroll"
-      style={{
-        position: 'fixed',
-        top: menuPos.top,
-        left: menuPos.left,
-        width: menuPos.width,
-        background: 'var(--card-bg, #ffffff)',
-        border: '0.5px solid var(--border-color, #e2e8f0)',
-        borderRadius: '6px',
-        boxShadow: '0 4px 16px var(--shadow-color, rgba(0,0,0,0.15))',
-        zIndex: 99999,
-        maxHeight: '220px',
-        overflowY: 'auto',
-        overflowX: 'hidden'
-      }}
-    >
-      {filteredOptions.length > 0 ? (
-        filteredOptions.map((option, index) => (
-          <div
-            key={option.id}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              handleSelect(option);
-            }}
-            style={{
-              padding: '8px 12px',
-              cursor: 'pointer',
-              background: highlightedIndex === index ? 'var(--nav-hover, #eff6ff)' : 'transparent',
-              borderLeft: value === option.itemCode ? '2px solid var(--primary-color, #2563eb)' : '2px solid transparent',
-              transition: 'background 0.15s',
-              borderBottom: index < filteredOptions.length - 1 ? '0.5px solid var(--border-color, #f1f5f9)' : 'none'
-            }}
-            onMouseEnter={() => setHighlightedIndex(index)}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontWeight: 500, fontSize: '13px', color: 'var(--text-primary, #0f172a)' }}>{option.itemCode}</span>
-              <span style={{ fontSize: '12px', color: 'var(--text-secondary, #64748b)', marginLeft: '8px', textAlign: 'right' }}>
-                ₹{option.rate}
-              </span>
-            </div>
-            <div style={{ fontSize: '11px', color: 'var(--text-secondary, #94a3b8)', marginTop: '2px' }}>
-              {option.itemName} | Tax: {option.tax}%
-            </div>
-          </div>
-        ))
-      ) : (
-        <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
-          {loading ? 'Loading...' : 'No items found'}
-        </div>
-      )}
-    </div>
-  ) : null;
-
-  return (
-    <div ref={wrapperRef} style={{ position: 'relative', width: '100%' }}>
-      <div style={{ position: 'relative' }}>
-        <input
-          ref={inputRef}
-          type="text"
-          placeholder={placeholder}
-          value={isOpen ? searchTerm : getSelectedLabel()}
-          onChange={handleSearchChange}
-          onFocus={() => !disabled && setIsOpen(true)}
-          disabled={disabled}
-          autoComplete="off"
-          className="nsb-table-input"
-          style={{
-            width: '100%',
-            padding: '4px 8px',
-            paddingRight: '30px',
-            border: error ? '0.5px solid var(--danger-color, #ef4444)' : '0.5px solid var(--border-color, #e2e8f0)',
-            borderRadius: '4px',
-            background: disabled ? 'var(--input-bg, #f3f4f6)' : 'var(--input-bg, #f8fafc)',
-            color: 'var(--text-primary, #0f172a)',
-            fontSize: '12px',
-            fontFamily: 'inherit',
-            cursor: disabled ? 'not-allowed' : 'text',
-            minHeight: '30px'
-          }}
-        />
-        {loading ? (
-          <FaSpinner className="nsb-spinning" style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', color: 'var(--primary-color, #2563eb)', fontSize: '11px' }} />
-        ) : (
-          <FaChevronDown style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary, #94a3b8)', fontSize: '11px', pointerEvents: 'none' }} />
-        )}
-      </div>
-
-      {menu && ReactDOM.createPortal(menu, document.body)}
-    </div>
-  );
-};
-
 // ===== MAIN COMPONENT =====
 
 const CreateSalesBill: React.FC = () => {
@@ -1328,7 +1461,6 @@ const CreateSalesBill: React.FC = () => {
   const [warehouse, setWarehouse] = useState<string>('');
   const [invoiceNumber, setInvoiceNumber] = useState<string>('');
   const [invoiceDate, setInvoiceDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [paymentTerms, setPaymentTerms] = useState<string>('');
   const [paymentMode, setPaymentMode] = useState<string>('');
   const [invoiceStatus, setInvoiceStatus] = useState<string>('Draft');
   const [remarks, setRemarks] = useState<string>('');
@@ -1344,13 +1476,268 @@ const CreateSalesBill: React.FC = () => {
   const [isLoadingItems, setIsLoadingItems] = useState<boolean>(false);
   const [roundOff, setRoundOff] = useState<number>(0);
   const [isCustomerDisabled, setIsCustomerDisabled] = useState<boolean>(false);
+  const [taxOptions, setTaxOptions] = useState<TaxOption[]>([]);
+  const [loadingTaxOptions, setLoadingTaxOptions] = useState<boolean>(false);
+  const [taxOptionsLoaded, setTaxOptionsLoaded] = useState<boolean>(false);
+  const [inventoryMap, setInventoryMap] = useState<{ [itemCode: string]: InventoryApiRecord }>({});
+  const [, setLoadingInventory] = useState(false);
+
+  // Payment Schedule state
+  const [paymentSchedule, setPaymentSchedule] = useState<PaymentScheduleRow[]>([
+    { id: '1', paymentTerm: 'On Delivery', dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], durationDays: 7, invoicePortion: 100, paymentAmount: 0, paidAmount: 0, status: 'Pending' }
+  ]);
+  const [selectedPaymentTemplate, setSelectedPaymentTemplate] = useState<string>('');
 
   const salesBillAPI = new SalesBillAPI();
 
+  // ─── Payment Term Templates ──────────────────────────
+  const paymentTermTemplates: PaymentTermTemplate[] = [
+    {
+      id: 'on_delivery',
+      name: 'On Delivery',
+      description: 'Full payment upon delivery',
+      schedules: [
+        { paymentTerm: 'On Delivery', dueDays: 0, invoicePortion: 100 }
+      ]
+    },
+    {
+      id: 'net_15',
+      name: 'Net 15',
+      description: 'Payment due in 15 days',
+      schedules: [
+        { paymentTerm: 'Net 15', dueDays: 15, invoicePortion: 100 }
+      ]
+    },
+    {
+      id: 'net_30',
+      name: 'Net 30',
+      description: 'Payment due in 30 days',
+      schedules: [
+        { paymentTerm: 'Net 30', dueDays: 30, invoicePortion: 100 }
+      ]
+    },
+    {
+      id: 'net_60',
+      name: 'Net 60',
+      description: 'Payment due in 60 days',
+      schedules: [
+        { paymentTerm: 'Net 60', dueDays: 60, invoicePortion: 100 }
+      ]
+    },
+    {
+      id: '50_50',
+      name: '50% Advance + 50% On Delivery',
+      description: '50% advance, 50% on delivery',
+      schedules: [
+        { paymentTerm: '50% Advance', dueDays: 0, invoicePortion: 50 },
+        { paymentTerm: '50% On Delivery', dueDays: 0, invoicePortion: 50 }
+      ]
+    },
+    {
+      id: '30_70',
+      name: '30% Advance + 70% On Delivery',
+      description: '30% advance, 70% on delivery',
+      schedules: [
+        { paymentTerm: '30% Advance', dueDays: 0, invoicePortion: 30 },
+        { paymentTerm: '70% On Delivery', dueDays: 0, invoicePortion: 70 }
+      ]
+    },
+    {
+      id: 'advanced',
+      name: 'Advance Payment',
+      description: 'Full payment in advance',
+      schedules: [
+        { paymentTerm: 'Advance Payment', dueDays: 0, invoicePortion: 100 }
+      ]
+    },
+    {
+      id: 'letter_of_credit',
+      name: 'Letter of Credit (LC)',
+      description: 'Payment via Letter of Credit',
+      schedules: [
+        { paymentTerm: 'Letter of Credit', dueDays: 30, invoicePortion: 100 }
+      ]
+    },
+    {
+      id: 'cod',
+      name: 'Cash on Delivery (COD)',
+      description: 'Cash payment upon delivery',
+      schedules: [
+        { paymentTerm: 'Cash on Delivery', dueDays: 0, invoicePortion: 100 }
+      ]
+    },
+    {
+      id: 'eom',
+      name: 'End of Month (EOM)',
+      description: 'Payment at end of month',
+      schedules: [
+        { paymentTerm: 'End of Month', dueDays: 0, invoicePortion: 100 }
+      ]
+    },
+  ];
+
+  // ─── Apply Payment Template ──────────────────────────
+  const applyPaymentTemplate = (templateId: string) => {
+    const template = paymentTermTemplates.find(t => t.id === templateId);
+    if (!template) return;
+
+    const grandTotal = getGrandTotalWithRound();
+    const date = billDate || new Date().toISOString().split('T')[0];
+
+    const schedules: PaymentScheduleRow[] = template.schedules.map((s, idx) => {
+      const dueDate = addDays(date, s.dueDays);
+      const amount = (s.invoicePortion / 100) * grandTotal;
+      return {
+        id: String(idx + 1),
+        paymentTerm: s.paymentTerm,
+        dueDate: dueDate || date,
+        durationDays: s.dueDays,
+        invoicePortion: s.invoicePortion,
+        paymentAmount: amount,
+        paidAmount: 0,
+        status: 'Pending',
+      };
+    });
+
+    setPaymentSchedule(schedules.length > 0 ? schedules : paymentSchedule);
+    setSelectedPaymentTemplate(templateId);
+
+    toast.success(`Applied "${template.name}" payment terms`);
+  };
+
+  // ─── Payment Schedule CRUD ──────────────────────────
+  const addPaymentSchedule = () => {
+    const newId = String(paymentSchedule.length + 1);
+    const grandTotal = getGrandTotalWithRound();
+    setPaymentSchedule([
+      ...paymentSchedule,
+      { 
+        id: newId, 
+        paymentTerm: '', 
+        dueDate: '', 
+        durationDays: 0, 
+        invoicePortion: 0, 
+        paymentAmount: 0,
+        paidAmount: 0,
+        status: 'Pending'
+      }
+    ]);
+  };
+
+  const removePaymentSchedule = (index: number) => {
+    if (paymentSchedule.length <= 1) return;
+    setPaymentSchedule(paymentSchedule.filter((_, i) => i !== index));
+  };
+
+  const updatePaymentRow = (index: number, patch: Partial<PaymentScheduleRow>) => {
+    const updated = [...paymentSchedule];
+    updated[index] = { ...updated[index], ...patch };
+    
+    if (patch.invoicePortion !== undefined) {
+      const grandTotal = getGrandTotalWithRound();
+      updated[index].paymentAmount = (patch.invoicePortion / 100) * grandTotal;
+    }
+    
+    setPaymentSchedule(updated);
+  };
+
+  const handlePaymentDueDateChange = (index: number, dueDate: string) => {
+    const duration = daysBetween(billDate, dueDate);
+    updatePaymentRow(index, { dueDate, durationDays: duration });
+  };
+
+  const handlePaymentDurationChange = (index: number, durationDays: number) => {
+    const dueDate = addDays(billDate, durationDays);
+    updatePaymentRow(index, { durationDays, dueDate });
+  };
+
+  // ─── Helper Functions ──────────────────────────────
+  const getTaxIdFromRate = (taxRate: number, taxOpts: TaxOption[]): number | undefined => {
+    const taxOption = taxOpts.find(t => extractTaxValue(t.tax_type) === taxRate);
+    return taxOption?.tax_id;
+  };
+
+  const getTaxRateFromId = (taxId: number | string, taxOpts: TaxOption[]): number => {
+    if (!taxId) return 0;
+    const id = typeof taxId === 'string' ? parseInt(taxId, 10) : taxId;
+    const taxOption = taxOpts.find(t => t.tax_id === id);
+    return taxOption ? extractTaxValue(taxOption.tax_type) : 0;
+  };
+
+  // ─── Fetch Tax Options ─────────────────────────────
+  const fetchTaxOptions = async () => {
+    setLoadingTaxOptions(true);
+    try {
+      const response = await api.get('/item/get-tax');
+      const data = response.data;
+      if (data.success === 1 && Array.isArray(data.data)) {
+        setTaxOptions(data.data);
+      } else {
+        setTaxOptions([]);
+      }
+      setTaxOptionsLoaded(true);
+    } catch (error) {
+      console.error('Error fetching tax options:', error);
+      setTaxOptions([]);
+      setTaxOptionsLoaded(true);
+    } finally {
+      setLoadingTaxOptions(false);
+    }
+  };
+
+  // ─── Fetch Inventory ──────────────────────────────
+  const fetchInventory = async () => {
+    setLoadingInventory(true);
+    try {
+      const response = await salesBillAPI.getInventory();
+      const records = response.data?.data?.records || response.data || [];
+      const map: { [itemCode: string]: InventoryApiRecord } = {};
+      records.forEach((r: any) => {
+        if (r.item_code) {
+          const key = r.item_code.toUpperCase();
+          if (!map[key] || (r.actual_qty ?? 0) > (map[key].actual_qty ?? 0)) {
+            map[key] = r;
+          }
+        }
+      });
+      setInventoryMap(map);
+    } catch (err) {
+      console.error('Error fetching inventory:', err);
+    } finally {
+      setLoadingInventory(false);
+    }
+  };
+
+  // ─── Get Stock Status ─────────────────────────────
+  const getStockStatus = (itemCode: string, quantity: number): { status: 'checking' | 'available' | 'insufficient' | 'unknown'; availableQty?: number } => {
+    if (!itemCode) return { status: 'unknown' };
+    const inv = inventoryMap[itemCode.toUpperCase()];
+    if (!inv) return { status: 'unknown' };
+    return {
+      status: (inv.actual_qty ?? 0) >= quantity ? 'available' : 'insufficient',
+      availableQty: inv.actual_qty,
+    };
+  };
+
+  // ─── Effects ───────────────────────────────────────
   useEffect(() => {
+    fetchTaxOptions();
+    fetchInventory();
     fetchCustomers();
     fetchAllItems();
   }, []);
+
+  // Update stock status when inventory changes
+  useEffect(() => {
+    if (Object.keys(inventoryMap).length === 0) return;
+    setItems((prev) =>
+      prev.map((item) => {
+        if (!item.itemCode) return item;
+        const { status, availableQty } = getStockStatus(item.itemCode, item.quantity);
+        return { ...item, stockStatus: status, availableQty };
+      })
+    );
+  }, [inventoryMap]);
 
   useEffect(() => {
     const total = getGrandTotal();
@@ -1358,6 +1745,17 @@ const CreateSalesBill: React.FC = () => {
     const diff = rounded - total;
     setRoundOff(diff);
   }, [items]);
+
+  // Update payment amounts when grand total changes
+  useEffect(() => {
+    const grandTotal = getGrandTotalWithRound();
+    setPaymentSchedule(prev => 
+      prev.map(p => ({
+        ...p,
+        paymentAmount: (p.invoicePortion / 100) * grandTotal
+      }))
+    );
+  }, [items, roundOff]);
 
   const fetchCustomers = async () => {
     setIsLoading(true);
@@ -1407,16 +1805,28 @@ const CreateSalesBill: React.FC = () => {
       const response = await salesBillAPI.getItems({ page: 1, limit: 100 });
       if (response.success && response.data?.data) {
         const itemsData = response.data.data.map((item: any) => ({
-          id: item.id.toString(),
-          itemCode: item.item_code,
-          itemName: item.item_name,
-          description: item.description || item.item_name,
+          id: item.id?.toString() || item.name || '',
+          itemCode: item.item_code || item.name || '',
+          itemName: item.item_name || '',
+          hsn: item.HSN || item.hsn || '',
+          description: item.description || item.item_name || '',
           unit: item.stock_uom || 'pcs',
           rate: item.standard_rate || 0,
           tax: item.gst_rate || item.tax_rate || 0,
           type: 'product' as 'product' | 'service',
           stockUom: item.stock_uom,
-          standardRate: item.standard_rate
+          standardRate: item.standard_rate,
+          creation: item.creation,
+          modified: item.modified,
+          modified_by: item.modified_by,
+          fg_item: item.fg_item,
+          fg_item_qty: item.fg_item_qty,
+          item_id: item.id,
+          warehouse: item.warehouse,
+          transaction_date: item.transaction_date,
+          uom: item.uom,
+          net_rate: item.net_rate,
+          net_amount: item.net_amount,
         }));
         setAllProducts(itemsData);
         setProducts(itemsData);
@@ -1442,14 +1852,28 @@ const CreateSalesBill: React.FC = () => {
       const response = await salesBillAPI.getItems({ page: 1, limit: 50, search: searchTerm });
       if (response.success && response.data?.data) {
         const itemsData = response.data.data.map((item: any) => ({
-          id: item.id.toString(),
-          itemCode: item.item_code,
-          itemName: item.item_name,
-          description: item.description || item.item_name,
+          id: item.id?.toString() || item.name || '',
+          itemCode: item.item_code || item.name || '',
+          itemName: item.item_name || '',
+          hsn: item.HSN || item.hsn || '',
+          description: item.description || item.item_name || '',
           unit: item.stock_uom || 'pcs',
           rate: item.standard_rate || 0,
           tax: item.gst_rate || item.tax_rate || 0,
-          type: 'product' as 'product' | 'service'
+          type: 'product' as 'product' | 'service',
+          stockUom: item.stock_uom,
+          standardRate: item.standard_rate,
+          creation: item.creation,
+          modified: item.modified,
+          modified_by: item.modified_by,
+          fg_item: item.fg_item,
+          fg_item_qty: item.fg_item_qty,
+          item_id: item.id,
+          warehouse: item.warehouse,
+          transaction_date: item.transaction_date,
+          uom: item.uom,
+          net_rate: item.net_rate,
+          net_amount: item.net_amount,
         }));
         setProducts(itemsData);
       }
@@ -1458,10 +1882,8 @@ const CreateSalesBill: React.FC = () => {
     }
   }, [allProducts]);
 
-  // Load items from multiple delivery challans
   const loadDeliveryChallansData = useCallback((dcs: DeliveryChallanData[]) => {
     if (dcs.length === 0) {
-      // Reset everything
       setSelectedCustomer('');
       setCustomerData(null);
       setIsCustomerDisabled(false);
@@ -1473,12 +1895,14 @@ const CreateSalesBill: React.FC = () => {
         id: '1',
         itemCode: '',
         itemName: '',
+        hsn: '',
         description: '',
         quantity: 1,
         unit: 'pcs',
         rate: 0,
         amount: 0,
         tax: 0,
+        tax_id: undefined,
         taxAmount: 0,
         totalAmount: 0,
         type: isService ? 'service' : 'product'
@@ -1486,7 +1910,6 @@ const CreateSalesBill: React.FC = () => {
       return;
     }
 
-    // Check if all DCs belong to same customer
     const firstCustomer = dcs[0];
     const allSameCustomer = dcs.every(dc => dc.customer_id === firstCustomer.customer_id);
     if (!allSameCustomer) {
@@ -1494,7 +1917,6 @@ const CreateSalesBill: React.FC = () => {
       return;
     }
 
-    // Set customer data (from first DC)
     const customer = customers.find(c => c.id === firstCustomer.customer_id || c.code === firstCustomer.customer_code);
     if (customer) {
       setCustomerData(customer);
@@ -1502,18 +1924,15 @@ const CreateSalesBill: React.FC = () => {
       setIsCustomerDisabled(true);
     }
 
-    // Use warehouse from first DC if available
     if (firstCustomer.warehouse) {
       setWarehouse(firstCustomer.warehouse);
     }
 
-    // Combine remarks
     const allRemarks = dcs.map(dc => dc.remarks || '').filter(r => r);
     if (allRemarks.length > 0) {
       setRemarks(allRemarks.join(' | '));
     }
 
-    // Combine items from all DCs
     const allItems: SalesBillItem[] = [];
     let itemCounter = 0;
 
@@ -1522,23 +1941,40 @@ const CreateSalesBill: React.FC = () => {
         dc.items.forEach((item, index) => {
           const product = allProducts.find(p => p.itemCode === item.item_code);
           const taxRate = product?.tax || 0;
+          const tax_id = getTaxIdFromRate(taxRate, taxOptions);
           const amount = (item.qty || 0) * (item.rate || 0);
           const taxAmount = (amount * taxRate) / 100;
+          const { status, availableQty } = getStockStatus(item.item_code || '', item.qty || 0);
           
           allItems.push({
             id: `dc-${dc.id}-${index}`,
             itemCode: item.item_code || '',
-            itemName: item.description || '',
-            description: item.description || '',
+            itemName: product?.itemName || item.description || '',
+            hsn: product?.hsn || '',
+            description: product?.description || item.description || '',
             quantity: item.qty || 1,
             unit: item.uom || 'pcs',
             rate: item.rate || 0,
             amount: amount,
             tax: taxRate,
+            tax_id: tax_id,
             taxAmount: taxAmount,
             totalAmount: amount + taxAmount,
             type: isService ? 'service' : 'product',
-            deliveryChallanId: dc.id
+            deliveryChallanId: dc.id,
+            stockStatus: status,
+            availableQty: availableQty,
+            creation: product?.creation,
+            modified: product?.modified,
+            modified_by: product?.modified_by,
+            fg_item: product?.fg_item,
+            fg_item_qty: product?.fg_item_qty,
+            item_id: product?.item_id,
+            uom: product?.uom,
+            net_rate: product?.net_rate,
+            net_amount: product?.net_amount,
+            warehouse: product?.warehouse,
+            transaction_date: product?.transaction_date,
           });
           itemCounter++;
         });
@@ -1549,17 +1985,18 @@ const CreateSalesBill: React.FC = () => {
       setItems(allItems);
       toast.success(`Loaded ${allItems.length} items from ${dcs.length} delivery challans`);
     } else {
-      // Add one empty item row if no items
       setItems([{
         id: '1',
         itemCode: '',
         itemName: '',
+        hsn: '',
         description: '',
         quantity: 1,
         unit: 'pcs',
         rate: 0,
         amount: 0,
         tax: 0,
+        tax_id: undefined,
         taxAmount: 0,
         totalAmount: 0,
         type: isService ? 'service' : 'product'
@@ -1568,7 +2005,7 @@ const CreateSalesBill: React.FC = () => {
     }
 
     setErrors({});
-  }, [customers, allProducts, isService]);
+  }, [customers, allProducts, isService, taxOptions]);
 
   const handleDeliveryChallansChange = (dcs: DeliveryChallanData[]) => {
     setSelectedDeliveryChallans(dcs);
@@ -1591,20 +2028,23 @@ const CreateSalesBill: React.FC = () => {
   };
 
   const addItem = () => {
-    setItems([...items, {
+    const newItem: SalesBillItem = {
       id: Date.now().toString(),
       itemCode: '',
       itemName: '',
+      hsn: '',
       description: '',
       quantity: 1,
       unit: 'pcs',
       rate: 0,
       amount: 0,
       tax: 0,
+      tax_id: undefined,
       taxAmount: 0,
       totalAmount: 0,
-      type: isService ? 'service' : 'product'
-    }]);
+      type: isService ? 'service' : 'product',
+    };
+    setItems([...items, newItem]);
   };
 
   const removeItem = (id: string) => {
@@ -1624,22 +2064,69 @@ const CreateSalesBill: React.FC = () => {
           if (field === 'itemCode') {
             const product = allProducts.find(p => p.itemCode === value);
             if (product) {
-              updated.itemName = product.itemName;
+              const taxRate = product.tax || 0;
+              const tax_id = getTaxIdFromRate(taxRate, taxOptions);
+              const amount = (updated.quantity || 0) * product.rate;
+              const taxAmount = (amount * taxRate) / 100;
+              const { status, availableQty } = getStockStatus(product.itemCode, updated.quantity || 0);
+              
+              updated.itemName = product.itemName || '';
+              updated.hsn = product.hsn || '';
+              updated.description = product.description || '';
               updated.unit = product.unit;
               updated.rate = product.rate;
-              updated.tax = product.tax || 0;
-              const amount = (updated.quantity || 0) * product.rate;
+              updated.tax = taxRate;
+              updated.tax_id = tax_id;
               updated.amount = amount;
-              updated.taxAmount = (amount * updated.tax) / 100;
-              updated.totalAmount = amount + updated.taxAmount;
+              updated.taxAmount = taxAmount;
+              updated.totalAmount = amount + taxAmount;
+              updated.stockStatus = status;
+              updated.availableQty = availableQty;
+              updated.creation = product.creation;
+              updated.modified = product.modified;
+              updated.modified_by = product.modified_by;
+              updated.fg_item = product.fg_item;
+              updated.fg_item_qty = product.fg_item_qty;
+              updated.item_id = product.item_id;
+              updated.uom = product.uom;
+              updated.net_rate = product.net_rate;
+              updated.net_amount = product.net_amount;
+              updated.warehouse = product.warehouse;
+              updated.transaction_date = product.transaction_date;
             }
           }
 
-          if (field === 'quantity' || field === 'rate') {
+          if (field === 'quantity') {
             const amount = (updated.quantity || 0) * (updated.rate || 0);
+            const taxAmount = (amount * (updated.tax || 0)) / 100;
             updated.amount = amount;
-            updated.taxAmount = (amount * (updated.tax || 0)) / 100;
-            updated.totalAmount = amount + updated.taxAmount;
+            updated.taxAmount = taxAmount;
+            updated.totalAmount = amount + taxAmount;
+            
+            if (updated.itemCode) {
+              const { status, availableQty } = getStockStatus(updated.itemCode, updated.quantity || 0);
+              updated.stockStatus = status;
+              updated.availableQty = availableQty;
+            }
+          }
+
+          if (field === 'rate') {
+            const amount = (updated.quantity || 0) * (updated.rate || 0);
+            const taxAmount = (amount * (updated.tax || 0)) / 100;
+            updated.amount = amount;
+            updated.taxAmount = taxAmount;
+            updated.totalAmount = amount + taxAmount;
+          }
+
+          if (field === 'tax') {
+            const amount = (updated.quantity || 0) * (updated.rate || 0);
+            const taxRate = Number(value) || 0;
+            const tax_id = getTaxIdFromRate(taxRate, taxOptions);
+            const taxAmount = (amount * taxRate) / 100;
+            updated.tax = taxRate;
+            updated.tax_id = tax_id;
+            updated.taxAmount = taxAmount;
+            updated.totalAmount = amount + taxAmount;
           }
 
           return updated;
@@ -1653,10 +2140,13 @@ const CreateSalesBill: React.FC = () => {
   const getTotalAmount = () => items.reduce((sum, item) => sum + (item.amount || 0), 0);
   const getTotalTax = () => items.reduce((sum, item) => sum + (item.taxAmount || 0), 0);
   const getGrandTotal = () => items.reduce((sum, item) => sum + (item.totalAmount || 0), 0);
+  const getGrandTotalWithRound = () => getGrandTotal() + roundOff;
 
   const buildPayload = (status: 'Draft' | 'Submitted'): SalesBillPayload => {
-    // Build comma-separated list of DC IDs
     const dcIds = selectedDeliveryChallans.map(dc => dc.id).join(',');
+    
+    const template = paymentTermTemplates.find(t => t.id === selectedPaymentTemplate);
+    const paymentTermsValue = template?.name || '';
 
     return {
       name: billNumber,
@@ -1669,7 +2159,7 @@ const CreateSalesBill: React.FC = () => {
       invoice_no: invoiceNumber || '',
       invoice_date: invoiceDate || billDate,
       due_date: dueDate || '',
-      payment_terms: paymentTerms || '',
+      payment_terms: paymentTermsValue,
       payment_mode: paymentMode || '',
       invoice_status: invoiceStatus || 'Draft',
       po_no: '',
@@ -1696,7 +2186,16 @@ const CreateSalesBill: React.FC = () => {
           warehouse: warehouse || '',
           type: item.type,
           delivery_challan: item.deliveryChallanId || ''
-        }))
+        })),
+      payment_schedule: paymentSchedule.map(p => ({
+        payment_term: p.paymentTerm || 'On Delivery',
+        due_date: p.dueDate || billDate,
+        due_days: p.durationDays || daysBetween(billDate, p.dueDate || billDate),
+        invoice_portion: p.invoicePortion || 100,
+        payment_amount: p.paymentAmount || 0,
+        paid_amount: p.paidAmount || 0,
+        status: p.status || 'Pending',
+      }))
     };
   };
 
@@ -1769,12 +2268,14 @@ const CreateSalesBill: React.FC = () => {
         id: '1',
         itemCode: '',
         itemName: '',
+        hsn: '',
         description: '',
         quantity: 1,
         unit: 'pcs',
         rate: 0,
         amount: 0,
         tax: 0,
+        tax_id: undefined,
         taxAmount: 0,
         totalAmount: 0,
         type: isService ? 'service' : 'product'
@@ -1787,7 +2288,7 @@ const CreateSalesBill: React.FC = () => {
   const subTotal = getTotalAmount();
   const totalTax = getTotalTax();
   const grandTotal = getGrandTotal();
-  const grandTotalWithRound = grandTotal + roundOff;
+  const grandTotalWithRound = getGrandTotalWithRound();
 
   return (
     <div className={`nsb-page ${theme}`}>
@@ -1813,6 +2314,38 @@ const CreateSalesBill: React.FC = () => {
         .nsb-custom-scroll {
           scrollbar-width: thin;
           scrollbar-color: var(--text-secondary, #cbd5e1) var(--border-color, #f1f5f9);
+        }
+
+        /* ── Stock Indicator ─────────────────────────── */
+        .nsb-stock-indicator {
+          display: inline-flex;
+          align-items: center;
+          gap: 2px;
+          font-size: 9px;
+          font-weight: 600;
+          padding: 1px 5px;
+          border-radius: 8px;
+          white-space: nowrap;
+        }
+
+        .nsb-stock-indicator.nsb-stock-available {
+          color: #059669;
+          background: #ecfdf5;
+        }
+
+        .nsb-stock-indicator.nsb-stock-insufficient {
+          color: #dc2626;
+          background: #fef2f2;
+        }
+
+        .nsb-stock-indicator.nsb-stock-unknown {
+          color: #6b7280;
+          background: #f3f4f6;
+        }
+
+        .nsb-stock-indicator.nsb-stock-checking {
+          color: #3b82f6;
+          background: #eff6ff;
         }
 
         @media print {
@@ -1973,24 +2506,62 @@ const CreateSalesBill: React.FC = () => {
                 <label className="nsb-label">
                   Bill Date <span className="nsb-required">*</span>
                 </label>
-                <input
-                  type="date"
-                  value={billDate}
-                  onChange={(e) => setBillDate(e.target.value)}
-                  className={`nsb-input ${errors.billDate ? 'nsb-input-error' : ''}`}
-                />
+                <div className="nsb-date-field">
+                  <input
+                    type="date"
+                    value={billDate}
+                    onChange={(e) => setBillDate(e.target.value)}
+                    className={`nsb-input ${errors.billDate ? 'nsb-input-error' : ''}`}
+                  />
+                  <button
+                    type="button"
+                    className="nsb-date-icon-btn"
+                    onClick={() => {
+                      const el = document.querySelector('input[type="date"]') as HTMLInputElement;
+                      if (el) {
+                        if (typeof (el as any).showPicker === 'function') {
+                          (el as any).showPicker();
+                        } else {
+                          el.focus();
+                        }
+                      }
+                    }}
+                    tabIndex={-1}
+                  >
+                    <FaCalendarAlt size={13} />
+                  </button>
+                </div>
               </div>
 
               <div className="nsb-field">
                 <label className="nsb-label">
                   Due Date <span className="nsb-required">*</span>
                 </label>
-                <input
-                  type="date"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                  className={`nsb-input ${errors.dueDate ? 'nsb-input-error' : ''}`}
-                />
+                <div className="nsb-date-field">
+                  <input
+                    type="date"
+                    value={dueDate}
+                    onChange={(e) => setDueDate(e.target.value)}
+                    className={`nsb-input ${errors.dueDate ? 'nsb-input-error' : ''}`}
+                  />
+                  <button
+                    type="button"
+                    className="nsb-date-icon-btn"
+                    onClick={() => {
+                      const el = document.querySelector('input[type="date"]') as HTMLInputElement;
+                      if (el) {
+                        if (typeof (el as any).showPicker === 'function') {
+                          (el as any).showPicker();
+                        } else {
+                          el.focus();
+                        }
+                      }
+                    }}
+                    tabIndex={-1}
+                  >
+                    <FaCalendarAlt size={13} />
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -2022,46 +2593,31 @@ const CreateSalesBill: React.FC = () => {
 
               <div className="nsb-field">
                 <label className="nsb-label">Invoice Date</label>
-                <input
-                  type="date"
-                  value={invoiceDate}
-                  onChange={(e) => setInvoiceDate(e.target.value)}
-                  className="nsb-input"
-                />
-              </div>
-            </div>
-
-            <div className="nsb-grid-2">
-              <div className="nsb-field">
-                <label className="nsb-label">Payment Terms</label>
-                <select
-                  value={paymentTerms}
-                  onChange={(e) => setPaymentTerms(e.target.value)}
-                  className="nsb-select"
-                >
-                  <option value="">Select Terms</option>
-                  <option value="Net 15">Net 15</option>
-                  <option value="Net 30">Net 30</option>
-                  <option value="Net 45">Net 45</option>
-                  <option value="Net 60">Net 60</option>
-                  <option value="Due on Receipt">Due on Receipt</option>
-                </select>
-              </div>
-
-              <div className="nsb-field">
-                <label className="nsb-label">Payment Mode</label>
-                <select
-                  value={paymentMode}
-                  onChange={(e) => setPaymentMode(e.target.value)}
-                  className="nsb-select"
-                >
-                  <option value="">Select Payment Mode</option>
-                  <option value="Cash">Cash</option>
-                  <option value="Bank Transfer">Bank Transfer</option>
-                  <option value="Cheque">Cheque</option>
-                  <option value="Credit Card">Credit Card</option>
-                  <option value="UPI">UPI</option>
-                </select>
+                <div className="nsb-date-field">
+                  <input
+                    type="date"
+                    value={invoiceDate}
+                    onChange={(e) => setInvoiceDate(e.target.value)}
+                    className="nsb-input"
+                  />
+                  <button
+                    type="button"
+                    className="nsb-date-icon-btn"
+                    onClick={() => {
+                      const el = document.querySelector('input[type="date"]') as HTMLInputElement;
+                      if (el) {
+                        if (typeof (el as any).showPicker === 'function') {
+                          (el as any).showPicker();
+                        } else {
+                          el.focus();
+                        }
+                      }
+                    }}
+                    tabIndex={-1}
+                  >
+                    <FaCalendarAlt size={13} />
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -2148,11 +2704,11 @@ const CreateSalesBill: React.FC = () => {
           </div>
         </div>
 
-        {/* FULL WIDTH - ITEMS SECTION */}
+        {/* FULL WIDTH - ITEMS SECTION - Updated with HSN and stock status */}
         <div className="nsb-items-full">
           <div className="nsb-items-header">
             <span className="nsb-items-title">
-              <FaBox className="nsb-items-icon" /> {isService ? 'Services' : 'Products'}
+              <FaClipboardList className="nsb-items-icon" /> {isService ? 'Services' : 'Products'}
               {selectedDeliveryChallans.length > 0 && (
                 <span style={{ fontSize: '10px', fontWeight: 'normal', color: 'var(--text-secondary, #64748b)' }}>
                   (from {selectedDeliveryChallans.length} DCs)
@@ -2160,7 +2716,7 @@ const CreateSalesBill: React.FC = () => {
               )}
             </span>
             <button onClick={addItem} className="nsb-add-btn">
-              <FaPlus size={9} /> Add Item
+              <FaPlus size={9} /> Add
             </button>
           </div>
 
@@ -2170,22 +2726,23 @@ const CreateSalesBill: React.FC = () => {
             <table className="nsb-items-table">
               <thead>
                 <tr>
-                  <th className="nsb-col-code">Product Code</th>
-                  <th className="nsb-col-name">Product Name</th>
-                  <th className="nsb-col-qty">Qty</th>
+                  <th className="nsb-col-sno">#</th>
+                  <th className="nsb-col-code">Item Code <span className="nsb-required">*</span></th>
+                  <th className="nsb-col-name">Item Name <span className="nsb-required">*</span></th>
+                  <th className="nsb-col-hsn">HSN</th>
+                  <th className="nsb-col-qty">Qty <span className="nsb-required">*</span></th>
                   <th className="nsb-col-unit">UOM</th>
                   <th className="nsb-col-rate">Rate</th>
-                  <th className="nsb-col-amount">Amount</th>
-                  <th className="nsb-col-gst">GST%</th>
                   <th className="nsb-col-tax">Tax</th>
-                  <th className="nsb-col-total">Total</th>
+                  <th className="nsb-col-amount">Amount</th>
                   <th className="nsb-col-dc">DC Ref</th>
                   <th className="nsb-col-action"></th>
                 </tr>
               </thead>
               <tbody>
-                {items.map(item => (
+                {items.map((item, index) => (
                   <tr key={item.id}>
+                    <td className="nsb-col-sno">{index + 1}</td>
                     <td className="nsb-col-code">
                       <SearchableSelect
                         value={item.itemCode}
@@ -2194,13 +2751,25 @@ const CreateSalesBill: React.FC = () => {
                         placeholder="Search..."
                         onSearch={handleItemSearch}
                         loading={isLoadingItems}
+                        error={!!errors[`item_${index}_code`]}
+                        stockInfo={{ status: item.stockStatus || 'unknown', availableQty: item.availableQty }}
                       />
                     </td>
                     <td className="nsb-col-name">
                       <input
                         type="text"
                         value={item.itemName}
-                        disabled
+                        onChange={(e) => updateItem(item.id, 'itemName', e.target.value)}
+                        placeholder="Item Name"
+                        className="nsb-table-input nsb-table-input-text"
+                      />
+                    </td>
+                    <td className="nsb-col-hsn">
+                      <input
+                        type="text"
+                        value={item.hsn}
+                        onChange={(e) => updateItem(item.id, 'hsn', e.target.value)}
+                        placeholder="HSN"
                         className="nsb-table-input nsb-table-input-text"
                       />
                     </td>
@@ -2209,6 +2778,7 @@ const CreateSalesBill: React.FC = () => {
                         type="number"
                         value={item.quantity}
                         onChange={(e) => updateItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
+                        min="1"
                         className="nsb-table-input"
                       />
                     </td>
@@ -2222,6 +2792,8 @@ const CreateSalesBill: React.FC = () => {
                         <option value="kg">Kg</option>
                         <option value="ltr">Ltr</option>
                         <option value="mtr">Mtr</option>
+                        <option value="Nos">Nos</option>
+                        <option value="Box">Box</option>
                       </select>
                     </td>
                     <td className="nsb-col-rate">
@@ -2229,28 +2801,28 @@ const CreateSalesBill: React.FC = () => {
                         type="number"
                         value={item.rate}
                         onChange={(e) => updateItem(item.id, 'rate', parseFloat(e.target.value) || 0)}
-                        className="nsb-table-input"
-                      />
-                    </td>
-                    <td className="nsb-col-amount">
-                      <span className="nsb-table-value">₹{item.amount.toFixed(2)}</span>
-                    </td>
-                    <td className="nsb-col-gst">
-                      <input
-                        type="number"
-                        value={item.tax || 0}
-                        onChange={(e) => {
-                          const taxRate = parseFloat(e.target.value) || 0;
-                          updateItem(item.id, 'tax', taxRate);
-                        }}
+                        min="0"
+                        step="0.01"
                         className="nsb-table-input"
                       />
                     </td>
                     <td className="nsb-col-tax">
-                      <span className="nsb-table-value">₹{item.taxAmount.toFixed(2)}</span>
+                      <select
+                        value={item.tax}
+                        onChange={(e) => updateItem(item.id, 'tax', parseFloat(e.target.value) || 0)}
+                        className="nsb-table-input"
+                        disabled={loadingTaxOptions}
+                      >
+                        <option value={0}>0%</option>
+                        {taxOptions.map((tax) => (
+                          <option key={tax.tax_id} value={extractTaxValue(tax.tax_type)}>
+                            {tax.tax_type}
+                          </option>
+                        ))}
+                      </select>
                     </td>
-                    <td className="nsb-col-total">
-                      <span className="nsb-table-value nsb-table-value-bold">₹{item.totalAmount.toFixed(2)}</span>
+                    <td className="nsb-col-amount">
+                      <span className="nsb-table-value">₹{item.totalAmount.toFixed(2)}</span>
                     </td>
                     <td className="nsb-col-dc">
                       {item.deliveryChallanId && (
@@ -2268,7 +2840,7 @@ const CreateSalesBill: React.FC = () => {
                     </td>
                     <td className="nsb-col-action">
                       <button onClick={() => removeItem(item.id)} className="nsb-remove-btn">
-                        <FaTrash />
+                        <FaTrash size={12} />
                       </button>
                     </td>
                   </tr>
@@ -2278,34 +2850,178 @@ const CreateSalesBill: React.FC = () => {
           </div>
         </div>
 
-        {/* BOTTOM SECTION */}
+        {/* BOTTOM SECTION - Payment Schedule */}
         <div className="nsb-bottom-section">
-          {/* LEFT COLUMN: Invoice Status + Remarks */}
+          {/* LEFT COLUMN */}
           <div className="nsb-bottom-left">
-            <div className="nsb-grid-2">
-              <div className="nsb-field">
-                <label className="nsb-label">Invoice Status</label>
+            {/* Payment Schedule Header */}
+            <div className="nsb-section-header">
+              <FaCreditCard className="nsb-section-icon" />
+              <span>Payment Schedule</span>
+            </div>
+
+            {/* Payment Terms Template Dropdown */}
+            <div className="nsb-field" style={{ marginBottom: '0.5rem' }}>
+              <div className="nsb-field-row" style={{ gridTemplateColumns: '1fr auto' }}>
                 <select
-                  value={invoiceStatus}
-                  onChange={(e) => setInvoiceStatus(e.target.value)}
+                  value={selectedPaymentTemplate}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setSelectedPaymentTemplate(value);
+                    if (value) {
+                      applyPaymentTemplate(value);
+                    }
+                  }}
                   className="nsb-select"
+                  style={{ minWidth: '200px' }}
                 >
-                  <option value="Draft">Draft</option>
-                  <option value="Submitted">Submitted</option>
-                  <option value="Paid">Paid</option>
-                  <option value="Overdue">Overdue</option>
+                  <option value="">Select Payment Terms...</option>
+                  {paymentTermTemplates.map((template) => (
+                    <option key={template.id} value={template.id}>
+                      {template.name} - {template.description}
+                    </option>
+                  ))}
                 </select>
+                <button
+                  type="button"
+                  className="nsb-add-btn"
+                  onClick={() => {
+                    if (selectedPaymentTemplate) {
+                      applyPaymentTemplate(selectedPaymentTemplate);
+                    }
+                  }}
+                  style={{ whiteSpace: 'nowrap', padding: '5px 14px' }}
+                >
+                  <FaCopy size={9} /> Apply
+                </button>
               </div>
-              <div className="nsb-field">
-                <label className="nsb-label">Remarks</label>
-                <textarea
-                  placeholder="Add any additional notes..."
-                  value={remarks}
-                  onChange={(e) => setRemarks(e.target.value)}
-                  className="nsb-textarea nsb-textarea-large"
-                  rows={2}
-                />
+            </div>
+
+            {/* Payment Schedule Table */}
+            <div className="nsb-payment-table-wrap">
+              <table className="nsb-payment-table">
+                <thead>
+                  <tr>
+                    <th className="nsb-payment-col-no">#</th>
+                    <th className="nsb-payment-col-term">Payment Term</th>
+                    <th className="nsb-payment-col-date">Due Date</th>
+                    <th className="nsb-payment-col-duration">Days</th>
+                    <th className="nsb-payment-col-portion">%</th>
+                    <th className="nsb-payment-col-amount">Amount</th>
+                    <th className="nsb-payment-col-action"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paymentSchedule.map((schedule, index) => (
+                    <tr key={schedule.id}>
+                      <td className="nsb-payment-col-no">{index + 1}</td>
+                      <td className="nsb-payment-col-term">
+                        <input
+                          type="text"
+                          value={schedule.paymentTerm}
+                          onChange={(e) => updatePaymentRow(index, { paymentTerm: e.target.value })}
+                          placeholder="Term"
+                          className="nsb-table-input nsb-table-input-text"
+                        />
+                      </td>
+                      <td className="nsb-payment-col-date">
+                        <input
+                          type="date"
+                          value={schedule.dueDate}
+                          onChange={(e) => handlePaymentDueDateChange(index, e.target.value)}
+                          className="nsb-table-input"
+                        />
+                      </td>
+                      <td className="nsb-payment-col-duration">
+                        <input
+                          type="number"
+                          value={schedule.durationDays}
+                          onChange={(e) => handlePaymentDurationChange(index, Number(e.target.value) || 0)}
+                          min="0"
+                          className="nsb-table-input"
+                        />
+                      </td>
+                      <td className="nsb-payment-col-portion">
+                        <input
+                          type="number"
+                          value={schedule.invoicePortion}
+                          onChange={(e) => updatePaymentRow(index, { invoicePortion: Number(e.target.value) || 0 })}
+                          min="0"
+                          max="100"
+                          className="nsb-table-input"
+                        />
+                      </td>
+                      <td className="nsb-payment-col-amount">
+                        <span className="nsb-table-value">₹{schedule.paymentAmount.toFixed(2)}</span>
+                      </td>
+                      <td className="nsb-payment-col-action">
+                        {paymentSchedule.length > 1 && (
+                          <button
+                            type="button"
+                            className="nsb-remove-btn"
+                            onClick={() => removePaymentSchedule(index)}
+                          >
+                            <FaTrash size={10} />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <button type="button" className="nsb-add-payment-btn" onClick={addPaymentSchedule}>
+              <FaPlus size={9} /> Add Schedule
+            </button>
+
+            {/* Payment Mode, Status & Remarks in one row */}
+            <div className="nsb-field" style={{ marginTop: '1rem' }}>
+              <div className="nsb-grid-2">
+                <div className="nsb-field">
+                  <label className="nsb-label">Payment Mode</label>
+                  <select
+                    value={paymentMode}
+                    onChange={(e) => setPaymentMode(e.target.value)}
+                    className="nsb-select"
+                  >
+                    <option value="">Select Payment Mode</option>
+                    <option value="Cash">Cash</option>
+                    <option value="Bank Transfer">Bank Transfer</option>
+                    <option value="Cheque">Cheque</option>
+                    <option value="Credit Card">Credit Card</option>
+                    <option value="UPI">UPI</option>
+                    <option value="NEFT">NEFT</option>
+                    <option value="RTGS">RTGS</option>
+                    <option value="IMPS">IMPS</option>
+                  </select>
+                </div>
+
+                <div className="nsb-field">
+                  <label className="nsb-label">Invoice Status</label>
+                  <select
+                    value={invoiceStatus}
+                    onChange={(e) => setInvoiceStatus(e.target.value)}
+                    className="nsb-select"
+                  >
+                    <option value="Draft">Draft</option>
+                    <option value="Submitted">Submitted</option>
+                    <option value="Paid">Paid</option>
+                    <option value="Overdue">Overdue</option>
+                  </select>
+                </div>
               </div>
+            </div>
+
+            <div className="nsb-field">
+              <label className="nsb-label">Remarks</label>
+              <input
+                type="text"
+                placeholder="Add notes..."
+                value={remarks}
+                onChange={(e) => setRemarks(e.target.value)}
+                className="nsb-input"
+              />
             </div>
           </div>
 
@@ -2348,6 +3064,12 @@ const CreateSalesBill: React.FC = () => {
                   <div className="nsb-summary-grand">
                     <span className="nsb-summary-grand-label">Grand Total</span>
                     <span className="nsb-summary-grand-value">₹{grandTotalWithRound.toFixed(2)}</span>
+                  </div>
+                  <div className="nsb-summary-item" style={{ borderTop: '1px solid var(--border-color, #e2e8f0)', marginTop: '4px', paddingTop: '6px' }}>
+                    <span className="nsb-summary-label" style={{ fontWeight: 600, color: 'var(--text-primary, #0f172a)' }}>Payment Schedule Total</span>
+                    <span className="nsb-summary-value" style={{ fontWeight: 600, color: 'var(--primary-color, #2563eb)' }}>
+                      ₹{paymentSchedule.reduce((sum, p) => sum + p.paymentAmount, 0).toFixed(2)}
+                    </span>
                   </div>
                 </div>
               </div>
