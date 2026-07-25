@@ -1373,3 +1373,120 @@
     width: 100%;
   }
 }
+/* Pagination Styles */
+.jc-pagination-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-color);
+  border-radius: 0 0 12px 12px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.jc-pagination-info {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.jc-pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.jc-pagination-size {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.jc-pagination-size label {
+  margin: 0;
+}
+
+.jc-pagination-select {
+  padding: 4px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  cursor: pointer;
+  outline: none;
+}
+
+.jc-pagination-select:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+.jc-pagination-buttons {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.jc-pagination-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.jc-pagination-btn:hover:not(:disabled) {
+  background: var(--hover-bg);
+  border-color: var(--primary-color);
+}
+
+.jc-pagination-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.jc-pagination-current {
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  font-weight: 500;
+  min-width: 80px;
+  text-align: center;
+}
+
+/* Responsive pagination */
+@media (max-width: 768px) {
+  .jc-pagination-container {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 12px 16px;
+  }
+
+  .jc-pagination-info {
+    text-align: center;
+  }
+
+  .jc-pagination-controls {
+    justify-content: center;
+  }
+
+  .jc-pagination-size {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .jc-pagination-buttons {
+    width: 100%;
+    justify-content: center;
+  }
+}

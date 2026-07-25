@@ -253,7 +253,7 @@ const DeleteConfirmModal: React.FC<{
   deleting: boolean;
 }> = ({ isOpen, type, name, onConfirm, onCancel, deleting }) => {
   if (!isOpen) return null;
-  
+
   return (
     <div className="nbom-modal-overlay" onClick={onCancel}>
       <div className="nbom-delete-modal" onClick={e => e.stopPropagation()}>
@@ -290,7 +290,7 @@ interface ValidationModalProps {
 
 const ValidationModal: React.FC<ValidationModalProps> = ({ errors, onClose }) => {
   if (errors.length === 0) return null;
-  
+
   return (
     <div className="nbom-modal-overlay" onClick={onClose}>
       <div className="nbom-validation-modal" onClick={e => e.stopPropagation()}>
@@ -352,7 +352,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
   const [defaultSourceWarehouse, setDefaultSourceWarehouse] = useState("");
   const [defaultTargetWarehouse, setDefaultTargetWarehouse] = useState("");
   const [bomType, setBomType] = useState<"Internal" | "External">("Internal");
-  
+
   const [showValidationErrors, setShowValidationErrors] = useState(false);
 
   const [compRows, setCompRows] = useState<ComponentRow[]>([
@@ -393,8 +393,12 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
   const [deleting, setDeleting] = useState(false);
 
   // Data
+  // "items" = finished/product items, used for "Item to Manufacture" (type=product)
   const [items, setItems] = useState<Item[]>([]);
   const [itemsLoading, setItemsLoading] = useState(false);
+  // "rawItems" = raw material items, used for Components table (type=raw)
+  const [rawItems, setRawItems] = useState<Item[]>([]);
+  const [rawItemsLoading, setRawItemsLoading] = useState(false);
   const [operations, setOperations] = useState<Operation[]>([]);
   const [operationsLoading, setOperationsLoading] = useState(false);
   const [workstations, setWorkstations] = useState<Workstation[]>([]);
@@ -437,7 +441,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
 
   const handleDrop = (e: React.DragEvent, dropIndex: number) => {
     e.preventDefault();
-    
+
     if (dragIndex === null || dragIndex === dropIndex) {
       setDragIndex(null);
       setDragOverIndex(null);
@@ -472,7 +476,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
   useEffect(() => {
     if (editData) {
       const { bom, items, operations } = editData;
-      
+
       setItemToManufacture(bom.item);
       setBomNo(bom.id);
       setBomId(bom.id);
@@ -480,7 +484,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
       setDefaultSourceWarehouse(bom.default_source_warehouse || "");
       setDefaultTargetWarehouse(bom.default_target_warehouse || "");
       setBomType(bom.type === "External" ? "External" : "Internal");
-      
+
       if (items && items.length > 0) {
         const comps = items.map((item: any) => ({
           id: item.id || Date.now() + Math.random(),
@@ -497,7 +501,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
         }));
         setCompRows(comps);
       }
-      
+
       if (operations && operations.length > 0) {
         setWithOperations(true);
         const ops = operations.map((op: any, idx: number) => ({
@@ -523,6 +527,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
 
   useEffect(() => {
     fetchItems();
+    fetchRawItems();
     fetchOperations();
     fetchWorkstations();
     fetchWarehouses();
@@ -531,7 +536,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
   const fetchItems = async () => {
     try {
       setItemsLoading(true);
-      const response = await api.get('/item');
+      const response = await api.get('/item?type=product');
       if (response.data.success === 1) {
         setItems(response.data.data);
       }
@@ -540,6 +545,21 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
       addToast('error', 'Error', 'Failed to fetch items');
     } finally {
       setItemsLoading(false);
+    }
+  };
+
+  const fetchRawItems = async () => {
+    try {
+      setRawItemsLoading(true);
+      const response = await api.get('/item?type=raw');
+      if (response.data.success === 1) {
+        setRawItems(response.data.data);
+      }
+    } catch (err: any) {
+      console.error('Error fetching raw items:', err);
+      addToast('error', 'Error', 'Failed to fetch raw materials');
+    } finally {
+      setRawItemsLoading(false);
     }
   };
 
@@ -613,7 +633,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
 
   const confirmDelete = async () => {
     const { type, rowId, name, dbRowId } = deleteModal;
-    
+
     if (type === 'component') {
       const row = compRows.find(r => r.id === rowId);
       if (row?.isNew) {
@@ -624,7 +644,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
       }
 
       const deleteId = dbRowId || rowId;
-      
+
       try {
         setDeleting(true);
         const response = await api.delete(`/bom-item/${deleteId}`);
@@ -653,7 +673,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
       }
 
       const deleteId = dbRowId || row?.operationId || rowId;
-      
+
       try {
         setDeleting(true);
         const response = await api.delete(`/bom-operation/${deleteId}`);
@@ -716,8 +736,8 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
       const hourRate = (workstationDetails?.hour_rate ?? selectedOp.hour_rate ?? 0).toString();
       const timeInMins = selectedOp.total_operation_time?.toString() || '0';
       const operatingCost = ((parseFloat(hourRate) || 0) * (parseFloat(timeInMins) || 0) / 60).toFixed(2);
-  
-      setOpRows(rs => rs.map((r, i) => 
+
+      setOpRows(rs => rs.map((r, i) =>
         i === idx ? {
           ...r,
           operation: operationName,
@@ -736,14 +756,14 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
   const handleWorkstationSelect = (idx: number, workstationName: string) => {
     const selectedWorkstation = workstations.find(w => w.workstation_name === workstationName);
     if (selectedWorkstation) {
-      setOpRows(rs => rs.map((r, i) => 
+      setOpRows(rs => rs.map((r, i) =>
         i === idx ? {
           ...r,
           workstation: workstationName,
           workstationId: selectedWorkstation.id,
           workstationType: selectedWorkstation.workstation_type || '',
           hourRate: selectedWorkstation.hour_rate?.toString() || r.hourRate || '0',
-          operatingCost: selectedWorkstation.hour_rate 
+          operatingCost: selectedWorkstation.hour_rate
             ? ((selectedWorkstation.hour_rate * (parseFloat(r.timeInMins) || 0)) / 60).toFixed(2)
             : r.operatingCost || '0',
         } : r
@@ -756,8 +776,8 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
     const hourRate = parseFloat(row.hourRate) || 0;
     const time = parseFloat(timeInMins) || 0;
     const operatingCost = (hourRate * time) / 60;
-    
-    setOpRows(rs => rs.map((r, i) => 
+
+    setOpRows(rs => rs.map((r, i) =>
       i === idx ? {
         ...r,
         timeInMins: timeInMins,
@@ -771,8 +791,8 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
     const time = parseFloat(row.timeInMins) || 0;
     const rate = parseFloat(hourRate) || 0;
     const operatingCost = (rate * time) / 60;
-    
-    setOpRows(rs => rs.map((r, i) => 
+
+    setOpRows(rs => rs.map((r, i) =>
       i === idx ? {
         ...r,
         hourRate: hourRate,
@@ -843,32 +863,32 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
 
   const handleSave = async () => {
     setShowValidationErrors(true);
-    
+
     const errs = getAllErrors();
     if (errs.length > 0) {
       setValidationErrors(errs);
       setShowValidation(true);
       return;
     }
-  
+
     setSaving(true);
     setApiError(null);
-  
+
     try {
       const selectedItem = items.find(i => i.item_code === itemToManufacture);
-      
+
       const totalComponentCost = compRows.reduce((sum, row) => {
         const rate = parseFloat(row.rate || "0") || 0;
         const qty = parseFloat(row.qty || "0") || 0;
         return sum + (rate * qty);
       }, 0);
-  
+
       const totalOperationCost = opRows.reduce((sum, row) => {
         return sum + (parseFloat(row.operatingCost || "0") || 0);
       }, 0);
-  
+
       const totalCost = totalComponentCost + totalOperationCost;
-      
+
       let bomResponse;
       const bomPayload = {
         item_Id: selectedItem?.id,
@@ -891,40 +911,40 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
         total_cost: totalCost,
         base_total_cost: totalCost,
       };
-  
+
       if (editData && editData.bom && editData.bom.id) {
-        bomResponse = await api.put('/bom', { 
+        bomResponse = await api.put('/bom', {
           id: editData.bom.id,
-          ...bomPayload 
+          ...bomPayload
         });
         setBomId(editData.bom.id);
       } else {
         bomResponse = await api.post('/bom', bomPayload);
       }
-  
+
       if (bomResponse.data.success !== 1) {
         throw new Error(bomResponse.data?.message || 'Failed to save BOM');
       }
-  
+
       const insertId = bomResponse.data?.data?.insertId || bomId || editData?.bom?.id || Date.now();
       setBomId(insertId);
       const parentRef = insertId;
-  
+
       // ─── Handle Components ──────────────────────────────────────────────────────
-      
+
       // Get existing component IDs from edit data
       const existingComponentIds = editData?.items?.map((item: any) => item.id) || [];
-      
+
       // Get current component IDs from the rows (excluding new ones)
       const currentComponentIds = compRows
         .filter(row => !row.isNew && row.id)
         .map(row => row.id);
-      
+
       // Find components to delete (existing ones not in current list)
       const componentsToDelete = existingComponentIds.filter(
         id => !currentComponentIds.includes(id)
       );
-      
+
       // Delete removed components
       for (const deleteId of componentsToDelete) {
         try {
@@ -933,16 +953,17 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
           console.error('Error deleting component:', err);
         }
       }
-      
+
       // Update or create components
       for (const comp of compRows) {
         if (!comp.itemCode.trim()) continue;
-        
-        const compItem = items.find(i => i.item_code === comp.itemCode);
+
+        // Components are sourced from the raw-materials list (type=raw)
+        const compItem = rawItems.find(i => i.item_code === comp.itemCode);
         const qty = parseFloat(comp.qty) || 0;
         const rate = parseFloat(comp.rate) || compItem?.standard_rate || compItem?.valuation_rate || 0;
         const amount = qty * rate;
-        
+
         const itemPayload: BOMItemData = {
           item_Id: compItem?.id,
           item_code: comp.itemCode,
@@ -961,7 +982,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
           owner: "Administrator",
           modified_by: "Administrator"
         };
-        
+
         if (comp.isNew) {
           // Create new component
           await api.post('/bom-item', itemPayload);
@@ -973,23 +994,23 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
           });
         }
       }
-  
+
       // ─── Handle Operations ─────────────────────────────────────────────────────
-      
+
       if (withOperations) {
         // Get existing operation IDs from edit data
         const existingOperationIds = editData?.operations?.map((op: any) => op.id) || [];
-        
+
         // Get current operation IDs from the rows (excluding new ones)
         const currentOperationIds = opRows
           .filter(row => !row.isNew && row.id)
           .map(row => row.id);
-        
+
         // Find operations to delete
         const operationsToDelete = existingOperationIds.filter(
           id => !currentOperationIds.includes(id)
         );
-        
+
         // Delete removed operations
         for (const deleteId of operationsToDelete) {
           try {
@@ -998,15 +1019,15 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
             console.error('Error deleting operation:', err);
           }
         }
-        
+
         // Update or create operations
         for (const op of opRows) {
           if (!op.operation.trim()) continue;
-          
+
           const hourRate = parseFloat(op.hourRate) || 0;
           const timeInMins = parseFloat(op.timeInMins) || 0;
           const operatingCost = (hourRate * timeInMins) / 60;
-          
+
           const opPayload: BOMOperationData = {
             operation: op.operation,
             sequence_id: parseInt(op.sequenceId) || 0,
@@ -1025,7 +1046,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
             owner: "Administrator",
             modified_by: "Administrator"
           };
-          
+
           if (op.isNew) {
             // Create new operation
             await api.post('/bom-operation', opPayload);
@@ -1038,13 +1059,13 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
           }
         }
       }
-  
+
       addToast('success', 'Success', `BOM ${editData ? 'updated' : 'created'} successfully! BOM ID: ${parentRef}`);
-      
+
       setTimeout(() => {
         if (onBack) onBack();
       }, 1000);
-      
+
     } catch (err: any) {
       console.error('Error saving BOM:', err);
       addToast('error', 'Error', err.response?.data?.message || 'Failed to save BOM');
@@ -1205,7 +1226,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
   </div>
 </div>
 
-        
+
 
         {/* Operations with Drag & Drop */}
         <div className="nbom-card">
@@ -1242,7 +1263,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                       </thead>
                       <tbody>
                         {opRows.map((row, idx) => (
-                          <tr 
+                          <tr
                             key={row.id}
                             draggable
                             onDragStart={(e) => handleDragStart(e, idx)}
@@ -1327,7 +1348,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                                 style={{ width: 80, background: "var(--c-bg-muted)" }}
                               />
                             </td>
-                           
+
                             <td style={{ textAlign: "center" }}>
                               <button
                                 className="nbom-edit-btn nbom-edit-btn--delete"
@@ -1385,7 +1406,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                           className="nbom-table-select"
                           value={row.itemCode}
                           onChange={e => {
-                            const selectedItem = items.find(i => i.item_code === e.target.value);
+                            const selectedItem = rawItems.find(i => i.item_code === e.target.value);
                             const rate = selectedItem?.standard_rate ?? selectedItem?.valuation_rate ?? 0;
                             setCompRows(rs => rs.map((r, i) => i === idx ? {
                               ...r,
@@ -1399,9 +1420,12 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                               amount: `₹ ${(rate * (parseFloat(r.qty) || 0)).toFixed(2)}`
                             } : r));
                           }}
+                          disabled={rawItemsLoading}
                         >
-                          <option value="">Select item...</option>
-                          {items.map(item => (
+                          <option value="">
+                            {rawItemsLoading ? 'Loading...' : 'Select item...'}
+                          </option>
+                          {rawItems.map(item => (
                             <option key={item.id} value={item.item_code}>
                               {item.item_code} - {item.item_name}
                             </option>
@@ -1430,8 +1454,8 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                           onChange={(val) => {
                             const qty = parseFloat(val) || 0;
                             const rate = parseFloat(row.rate) || 0;
-                            setCompRows(rs => rs.map((r, i) => i === idx ? { 
-                              ...r, 
+                            setCompRows(rs => rs.map((r, i) => i === idx ? {
+                              ...r,
                               qty: val,
                               amount: `₹ ${(rate * qty).toFixed(2)}`
                             } : r));
@@ -1455,8 +1479,8 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                           onChange={(val) => {
                             const rate = parseFloat(val) || 0;
                             const qty = parseFloat(row.qty) || 0;
-                            setCompRows(rs => rs.map((r, i) => i === idx ? { 
-                              ...r, 
+                            setCompRows(rs => rs.map((r, i) => i === idx ? {
+                              ...r,
                               rate: val,
                               amount: `₹ ${(rate * qty).toFixed(2)}`
                             } : r));
@@ -1502,8 +1526,8 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
               <div className="nbom-form-grid">
                 <div className="nbom-field">
                   <Label text="Default Source Warehouse" />
-                  <select 
-                    className="nbom-input" 
+                  <select
+                    className="nbom-input"
                     value={defaultSourceWarehouse || ''}
                     onChange={(e) => setDefaultSourceWarehouse(e.target.value)}
                   >
@@ -1517,8 +1541,8 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                 </div>
                 <div className="nbom-field">
                   <Label text="Default Target Warehouse" />
-                  <select 
-                    className="nbom-input" 
+                  <select
+                    className="nbom-input"
                     value={defaultTargetWarehouse || ''}
                     onChange={(e) => setDefaultTargetWarehouse(e.target.value)}
                   >
@@ -1544,7 +1568,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
             <div className="nbom-cost-card__value">₹{calculateTotalCost().totalComponentCost}</div>
             <div className="nbom-cost-card__subtitle">Total component cost</div>
           </div>
-          
+
           <div className="nbom-cost-card nbom-cost-card--operation">
             <div className="nbom-cost-card__icon">
               <Clock size={18} />
@@ -1553,7 +1577,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
             <div className="nbom-cost-card__value">₹{calculateTotalCost().totalOperationCost}</div>
             <div className="nbom-cost-card__subtitle">Total operations cost</div>
           </div>
-          
+
           <div className="nbom-cost-card nbom-cost-card--total">
             <div className="nbom-cost-card__icon">
               <TrendingUp size={18} />

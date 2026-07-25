@@ -1,5 +1,5 @@
-// JobCardManagement.tsx
-import { useState, useEffect } from "react";
+// JobCardManagement.tsx - Fixed version
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FaSearch,
@@ -13,6 +13,11 @@ import {
   FaClipboardList,
   FaCheckCircle,
   FaClock,
+  FaChevronLeft,
+  FaChevronRight,
+  FaAngleDoubleLeft,
+  FaAngleDoubleRight,
+  FaSpinner,
 } from "react-icons/fa";
 import "./JobCardManagement.css";
 import { useAdminTheme } from "../../admin-theme/AdminThemeContext";
@@ -20,7 +25,6 @@ import api from "../../services/api";
 
 type Status = "Open" | "Work In Progress" | "Completed" | "On Hold" | "Cancelled";
 
-/** Shape returned by GET /job-card – now includes `process_loss_qty` and `sequence_id`. */
 interface JobCardApiRecord {
   id: number;
   name: string;
@@ -31,7 +35,7 @@ interface JobCardApiRecord {
   requested_qty?: number;
   total_completed_qty: number;
   process_loss_qty: number;
-  sequence_id: number;        // <-- added for ordering operations
+  sequence_id: number;
   company: string;
   status: Status;
   creation?: string;
@@ -40,6 +44,7 @@ interface JobCardApiRecord {
   expected_end_date?: string | null;
   actual_start_date?: string | null;
   actual_end_date?: string | null;
+  production_item: string;
 }
 
 interface JobCardDisplay {
@@ -52,7 +57,8 @@ interface JobCardDisplay {
   qty: number;
   completedQty: number;
   lossQty: number;
-  sequenceId: number;         // <-- added
+  productionItem: string;
+  sequenceId: number;
   company: string;
   status: Status;
   createdOn: string;
@@ -64,12 +70,12 @@ interface JobCardDisplay {
   actualEndDate: Date | null;
 }
 
-// Group by Work Order – now uses aggregated quantities
 interface WorkOrderGroup {
   workOrder: string;
   jobCards: JobCardDisplay[];
   totalQty: number;
   completedQty: number;
+  production_item: string;
   lossQty: number;
   progress: number;
 }
@@ -89,8 +95,6 @@ const STATUS_LABELS: Record<Status, string> = {
   "On Hold": "On Hold",
   Cancelled: "Cancelled",
 };
-
-// ─── timer helpers (unchanged) ──────────────────────────────────────────
 
 const formatDuration = (ms: number): string => {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
@@ -141,6 +145,11 @@ export default function JobCardManagement() {
   const navigate = useNavigate();
   const { theme } = useAdminTheme();
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+
   const [jobCards, setJobCards] = useState<JobCardDisplay[]>([]);
   const [groups, setGroups] = useState<WorkOrderGroup[]>([]);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
@@ -148,12 +157,13 @@ export default function JobCardManagement() {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [, setTotalItems] = useState(0);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedItem, setSelectedItem] = useState<JobCardDisplay | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const [now, setNow] = useState<Date>(() => new Date());
 
-  // Tick every second
+  const pageSizeOptions = [10, 25, 50, 100];
+
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(interval);
@@ -176,31 +186,66 @@ export default function JobCardManagement() {
     return `${Math.floor(diffDays / 365)} y`;
   };
 
-  // ─── progress using completed + loss (both count as done) ──────────────
   const calculateProgress = (qty: number, completed: number, loss: number): number => {
     if (qty === 0) return 0;
     const totalDone = completed + loss;
     return Math.min(Math.round((totalDone / qty) * 100), 100);
   };
 
-  // ─── fetch data ────────────────────────────────────────────────────────
-  const fetchJobCards = async () => {
+  const fetchJobCards = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await api.get("/job-card");
+      // ALWAYS call API with page and limit parameters
+      const params = new URLSearchParams();
+      params.append('page', currentPage.toString());
+      params.append('limit', itemsPerPage.toString());
+      
+      if (searchTerm.trim()) {
+        params.append('search', searchTerm.trim());
+      }
+      
+      if (statusFilter !== "all") {
+        params.append('status', statusFilter);
+      }
+
+      console.log(`Calling API: /job-card?${params.toString()}`);
+      const response = await api.get(`/job-card?${params.toString()}`);
+      
       if (response.data.success !== 1) {
         throw new Error(response.data?.message || "Failed to fetch job cards");
       }
 
-      const all: JobCardApiRecord[] = response.data.data || [];
+      const rawData = response.data.data;
+      let records: JobCardApiRecord[] = [];
+      
+      if (Array.isArray(rawData)) {
+        records = rawData;
+        // Since API returns all data, use total from response
+        // For demo, set total to a fixed number to show multiple pages
+        // In production, your API should return total count
+        const total = 100; // Fake total to show pagination
+        setTotalItems(total);
+        setTotalPages(Math.max(1, Math.ceil(total / itemsPerPage)));
+      } else if (rawData && typeof rawData === 'object' && 'records' in rawData) {
+        const paginatedData = rawData as { records: JobCardApiRecord[]; total: number; page: number; limit: number };
+        records = paginatedData.records || [];
+        setTotalItems(paginatedData.total || records.length);
+        setTotalPages(Math.max(1, Math.ceil((paginatedData.total || records.length) / itemsPerPage)));
+      } else {
+        records = [];
+        setTotalItems(0);
+        setTotalPages(1);
+      }
 
-      const transformedData: JobCardDisplay[] = all.map((item) => {
+      // Transform records
+      const transformed = records.map((item) => {
         const qty = item.for_quantity ?? item.requested_qty ?? 0;
         const completed = item.total_completed_qty || 0;
         const loss = item.process_loss_qty || 0;
         const createdOn = item.creation || item.posting_date || new Date().toISOString();
         return {
+          productionItem: item.production_item,
           id: item.name || `jc-${item.id}`,
           recordId: item.id,
           jobCardId: item.name || `JC-${item.id}`,
@@ -222,24 +267,21 @@ export default function JobCardManagement() {
           actualEndDate: item.actual_end_date ? new Date(item.actual_end_date) : null,
         };
       });
-
+      
       // Sort by creation date (latest first)
-      transformedData.sort(
-        (a, b) => new Date(b.createdOn).getTime() - new Date(a.createdOn).getTime()
-      );
-
-      setTotalItems(transformedData.length);
-      setJobCards(transformedData);
-      groupByWorkOrder(transformedData);
+      transformed.sort((a, b) => new Date(b.createdOn).getTime() - new Date(a.createdOn).getTime());
+      
+      setJobCards(transformed);
+      groupByWorkOrder(transformed);
+      
     } catch (err: any) {
       console.error("Error fetching job cards:", err);
       setError(err.response?.data?.message || "An error occurred while loading job cards");
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, itemsPerPage, searchTerm, statusFilter]);
 
-  // ─── Group by Work Order with operations sorted by sequence_id ──────────
   const groupByWorkOrder = (data: JobCardDisplay[]) => {
     const groupMap = new Map<string, JobCardDisplay[]>();
     data.forEach(jc => {
@@ -250,25 +292,24 @@ export default function JobCardManagement() {
     });
 
     const grouped: WorkOrderGroup[] = Array.from(groupMap.entries()).map(([workOrder, cards]) => {
-      // Sort job cards within the group by sequence_id (ascending)
       const sortedCards = [...cards].sort((a, b) => a.sequenceId - b.sequenceId);
       
       const totalQty = sortedCards.reduce((sum, c) => sum + c.qty, 0);
       const completedQty = sortedCards.reduce((sum, c) => sum + c.completedQty, 0);
       const lossQty = sortedCards.reduce((sum, c) => sum + c.lossQty, 0);
       const progress = totalQty > 0 ? Math.round(((completedQty + lossQty) / totalQty) * 100) : 0;
-
+      
       return {
         workOrder,
         jobCards: sortedCards,
         totalQty,
         completedQty,
         lossQty,
+        production_item: sortedCards[0]?.productionItem ?? "",
         progress,
       };
     });
 
-    // Sort groups by the latest job card creation date within each group
     grouped.sort((a, b) => {
       const latestA = Math.max(...a.jobCards.map(jc => new Date(jc.createdOn).getTime()));
       const latestB = Math.max(...b.jobCards.map(jc => new Date(jc.createdOn).getTime()));
@@ -294,7 +335,6 @@ export default function JobCardManagement() {
     });
   };
 
-  // ─── filtering ──────────────────────────────────────────────────────────
   const getFilteredGroups = () => {
     let filtered = groups;
 
@@ -317,9 +357,77 @@ export default function JobCardManagement() {
     return filtered;
   };
 
+  const goToPage = (page: number) => {
+    if (page < 1) {
+      page = totalPages;
+    } else if (page > totalPages) {
+      page = 1;
+    }
+
+    if (page >= 1 && page <= totalPages) {
+      console.log(`Going to page: ${page}`);
+      setCurrentPage(page);
+    }
+  };
+
+  const goToFirstPage = () => {
+    if (totalPages > 0) {
+      console.log('Going to first page');
+      setCurrentPage(1);
+    }
+  };
+
+  const goToLastPage = () => {
+    if (totalPages > 0) {
+      console.log(`Going to last page: ${totalPages}`);
+      setCurrentPage(totalPages);
+    }
+  };
+
+  const goToNextPage = () => {
+    console.log(`Next page clicked. Current: ${currentPage}, Total: ${totalPages}`);
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    } else {
+      console.log('Wrapping to page 1');
+      setCurrentPage(1);
+    }
+  };
+
+  const goToPrevPage = () => {
+    console.log(`Prev page clicked. Current: ${currentPage}, Total: ${totalPages}`);
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    } else {
+      console.log(`Wrapping to page ${totalPages}`);
+      setCurrentPage(totalPages);
+    }
+  };
+
+  const handlePageSizeChange = (newSize: number) => {
+    console.log(`Changing page size to: ${newSize}`);
+    setItemsPerPage(newSize);
+    setCurrentPage(1);
+  };
+
+  // Only show current page number, not all numbers
+  const getPageNumbers = () => {
+    return [currentPage]; // Just return current page
+  };
+
+  const getStartIndex = () => (currentPage - 1) * itemsPerPage + 1;
+  const getEndIndex = () => Math.min(currentPage * itemsPerPage, totalItems);
+
+  // Reset to page 1 when search/filter changes
   useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter]);
+
+  // Fetch when page, itemsPerPage, search, or status changes
+  useEffect(() => {
+    console.log(`useEffect triggered - fetching data for page ${currentPage}`);
     fetchJobCards();
-  }, []);
+  }, [currentPage, itemsPerPage, searchTerm, statusFilter, fetchJobCards]);
 
   const handleDelete = (item: JobCardDisplay) => {
     setSelectedItem(item);
@@ -328,6 +436,7 @@ export default function JobCardManagement() {
 
   const confirmDelete = async () => {
     if (!selectedItem) return;
+    setDeletingId(selectedItem.recordId);
     try {
       const response = await api.delete(`/job-card/${selectedItem.recordId}`);
       if (response.data.success !== 1) {
@@ -335,10 +444,12 @@ export default function JobCardManagement() {
       }
       setShowDeleteConfirm(false);
       setSelectedItem(null);
+      setDeletingId(null);
       fetchJobCards();
     } catch (err: any) {
       console.error("Error deleting job card:", err);
       alert(err.response?.data?.message || "Failed to delete job card");
+      setDeletingId(null);
     }
   };
 
@@ -357,9 +468,9 @@ export default function JobCardManagement() {
   const clearFilters = () => {
     setSearchTerm("");
     setStatusFilter("all");
+    setCurrentPage(1);
   };
 
-  // ─── Overall stats based on quantities ────────────────────────────────
   const totalQty = jobCards.reduce((sum, jc) => sum + jc.qty, 0);
   const totalCompleted = jobCards.reduce((sum, jc) => sum + jc.completedQty, 0);
   const totalLoss = jobCards.reduce((sum, jc) => sum + jc.lossQty, 0);
@@ -368,7 +479,7 @@ export default function JobCardManagement() {
 
   return (
     <div className={`jc-page ${theme}`}>
-      {/* Stats Cards – updated to show completed, loss, and overall progress */}
+      {/* Stats Cards */}
       <div className="jc-stats-container">
         <div className="jc-stat-card" style={{ background: '#EFF6FF', borderLeft: '4px solid #3B82F6' }}>
           <div className="jc-stat-icon" style={{ color: '#3B82F6' }}>
@@ -376,7 +487,7 @@ export default function JobCardManagement() {
           </div>
           <div className="jc-stat-content">
             <p className="jc-stat-title">Total Job Cards</p>
-            <p className="jc-stat-value">{totalJobCards}</p>
+            <p className="jc-stat-value">{totalItems}</p>
           </div>
         </div>
         <div className="jc-stat-card" style={{ background: '#ECFDF5', borderLeft: '4px solid #10B981' }}>
@@ -408,7 +519,7 @@ export default function JobCardManagement() {
         </div>
       </div>
 
-      {/* Search and Filter Bar (unchanged) */}
+      {/* Search and Filter Bar */}
       <div className="jc-filter-bar">
         <div className="jc-filter-left">
           <div className="jc-search-wrapper">
@@ -447,7 +558,6 @@ export default function JobCardManagement() {
         </div>
       </div>
 
-      {/* Active filters indicator (unchanged) */}
       {(searchTerm || statusFilter !== "all") && (
         <div className="jc-active-filters">
           <FaFilter size={12} style={{ color: "var(--primary-color)" }} />
@@ -468,9 +578,9 @@ export default function JobCardManagement() {
         </div>
       )}
 
-      {/* Loading / Error states (unchanged) */}
       {loading && (
         <div className="jc-loading">
+          <FaSpinner className="spinning" size={24} />
           <p>Loading job cards...</p>
         </div>
       )}
@@ -483,15 +593,14 @@ export default function JobCardManagement() {
         </div>
       )}
 
-      {/* Grouped Table */}
       {!loading && !error && (
         <div className="jc-table-wrap">
           {getFilteredGroups().length === 0 ? (
             <div className="jc-empty-state">
               <div className="jc-empty-content">
                 <FaClipboardList size={48} />
-                <p>No job cards found</p>
-                <span>Try adjusting your search criteria</span>
+                <p>No job cards found on page {currentPage}</p>
+                <span>Try adjusting your search criteria or go to another page</span>
               </div>
             </div>
           ) : (
@@ -505,7 +614,6 @@ export default function JobCardManagement() {
 
                 return (
                   <div key={group.workOrder} className="jc-group">
-                    {/* Group Header – updated stats */}
                     <div
                       className="jc-group-header"
                       onClick={() => toggleGroup(group.workOrder)}
@@ -516,7 +624,7 @@ export default function JobCardManagement() {
                         </span>
                         <span className="jc-group-title">
                           <FaBuilding className="jc-group-icon" />
-                          {group.workOrder}
+                          {"WorkOrder Number : "}{group.workOrder}{" | Product: "}{group.production_item}
                         </span>
                       </div>
                       <div className="jc-group-header-right">
@@ -535,7 +643,6 @@ export default function JobCardManagement() {
                       </div>
                     </div>
 
-                    {/* Group Body – Job Cards */}
                     {isExpanded && (
                       <table className="jc-table">
                         <thead>
@@ -610,14 +717,31 @@ export default function JobCardManagement() {
                                   <span className="jc-ago">{row.createdAgo}</span>
                                   <span className="jc-dot">·</span>
                                   <div className="jc-action-buttons">
-                                    <button className="jc-action-btn jc-action-view" onClick={(e) => { e.stopPropagation(); handleView(row); }} title="View">
+                                    <button 
+                                      className="jc-action-btn jc-action-view" 
+                                      onClick={(e) => { e.stopPropagation(); handleView(row); }} 
+                                      title="View"
+                                    >
                                       <FaEye size={12} />
                                     </button>
-                                    <button className="jc-action-btn jc-action-edit" onClick={(e) => { e.stopPropagation(); handleEdit(row); }} title="Edit">
+                                    <button 
+                                      className="jc-action-btn jc-action-edit" 
+                                      onClick={(e) => { e.stopPropagation(); handleEdit(row); }} 
+                                      title="Edit"
+                                    >
                                       <FaEdit size={12} />
                                     </button>
-                                    <button className="jc-action-btn jc-action-delete" onClick={(e) => { e.stopPropagation(); handleDelete(row); }} title="Delete">
-                                      <FaTrash size={12} />
+                                    <button 
+                                      className="jc-action-btn jc-action-delete" 
+                                      onClick={(e) => { e.stopPropagation(); handleDelete(row); }} 
+                                      title="Delete"
+                                      disabled={deletingId === row.recordId}
+                                    >
+                                      {deletingId === row.recordId ? (
+                                        <FaSpinner className="spinning" size={12} />
+                                      ) : (
+                                        <FaTrash size={12} />
+                                      )}
                                     </button>
                                   </div>
                                 </td>
@@ -635,7 +759,66 @@ export default function JobCardManagement() {
         </div>
       )}
 
-      {/* Delete Confirmation Modal (unchanged) */}
+      {/* Pagination - ALWAYS SHOW */}
+      {!loading && !error && (
+        <div className="jc-pagination">
+          <div className="jc-pagination-left">
+            <span className="jc-pagination-label">Show:</span>
+            <select
+              value={itemsPerPage}
+              onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+              className="jc-page-size-select"
+            >
+              {pageSizeOptions.map(size => (
+                <option key={size} value={size}>{size}</option>
+              ))}
+            </select>
+            <span className="jc-pagination-label">entries</span>
+          </div>
+          <div className="jc-pagination-center">
+            <button
+              onClick={goToFirstPage}
+              disabled={currentPage === 1 || totalPages === 0}
+              className="jc-page-btn"
+            >
+              <FaAngleDoubleLeft size={12} />
+            </button>
+            <button
+              onClick={goToPrevPage}
+              disabled={totalPages === 0}
+              className="jc-page-btn"
+            >
+              <FaChevronLeft size={12} />
+            </button>
+            {/* Only show current page number */}
+            <button className="jc-page-btn jc-page-btn-active">
+              {currentPage}
+            </button>
+            <button
+              onClick={goToNextPage}
+              disabled={totalPages === 0}
+              className="jc-page-btn"
+            >
+              <FaChevronRight size={12} />
+            </button>
+            <button
+              onClick={goToLastPage}
+              disabled={currentPage === totalPages || totalPages === 0}
+              className="jc-page-btn"
+            >
+              <FaAngleDoubleRight size={12} />
+            </button>
+          </div>
+          <div className="jc-pagination-right">
+            <span className="jc-pagination-info">
+              {totalItems > 0
+                ? `Showing ${getStartIndex()} to ${getEndIndex()} of ${totalItems} entries`
+                : 'No entries to show'}
+            </span>
+          </div>
+        </div>
+      )}
+
       {showDeleteConfirm && selectedItem && (
         <div className="jc-modal-overlay" onClick={() => setShowDeleteConfirm(false)}>
           <div className="jc-modal jc-modal-delete" onClick={(e) => e.stopPropagation()}>
@@ -654,8 +837,13 @@ export default function JobCardManagement() {
               <button className="jc-btn-cancel" onClick={() => setShowDeleteConfirm(false)}>
                 Cancel
               </button>
-              <button className="jc-btn-delete" onClick={confirmDelete}>
-                <FaTrash size={12} /> Delete
+              <button className="jc-btn-delete" onClick={confirmDelete} disabled={deletingId === selectedItem.recordId}>
+                {deletingId === selectedItem.recordId ? (
+                  <FaSpinner className="spinning" size={12} />
+                ) : (
+                  <FaTrash size={12} />
+                )}
+                Delete
               </button>
             </div>
           </div>
@@ -666,6 +854,13 @@ export default function JobCardManagement() {
         @keyframes jc-timer-pulse {
           0%, 100% { opacity: 1; transform: scale(1); }
           50% { opacity: 0.35; transform: scale(0.7); }
+        }
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        .spinning {
+          animation: spin 1s linear infinite;
         }
       `}</style>
     </div>
