@@ -17,18 +17,37 @@ import {
   FaBuilding,
   FaPhone,
   FaEnvelope,
-
   FaCheckCircle,
   FaTimesCircle,
-
-  FaUniversity,
+  FaChevronDown,
+  FaChevronRight as FaChevronRightIcon,
+  FaUser,
+  FaStar,
+  FaGlobe,
 } from 'react-icons/fa';
 import "./Supplier.css";
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import api from '../services/api';
 import toast from 'react-hot-toast';
+import React from "react";
 
-
+interface Contact {
+  id: number;
+  supplier_id: number;
+  first_name: string;
+  last_name: string;
+  contact_name: string;
+  mobile_no: string;
+  alternate_mobile: string;
+  email_id: string;
+  telephone: string;
+  extension: string;
+  is_primary: number;
+  is_billing_contact: number;
+  is_saler_contact: number;
+  is_purchase_contact?: number;
+  remarks: string;
+}
 
 interface SupplierDisplay {
   id: string;
@@ -44,6 +63,8 @@ interface SupplierDisplay {
   onHold: boolean;
   createdAt: string;
   updatedAt: string;
+  website: string;
+  contacts: Contact[];
 }
 
 interface ApiResponse {
@@ -85,18 +106,6 @@ interface EditFormState {
   status: 'Active' | 'Inactive';
 }
 
-interface SupplierBankAccount {
-  id: string | number;
-  bank_name?: string;
-  account_holder_name?: string;
-  account_number?: string;
-  ifsc_code?: string;
-  branch_name?: string;
-  account_type?: string;
-  verified?: number | boolean;
-  is_primary?: number | boolean;
-}
-
 export default function SupplierList() {
   const navigate = useNavigate();
   const { theme } = useAdminTheme();
@@ -104,18 +113,17 @@ export default function SupplierList() {
   const [suppliers, setSuppliers] = useState<SupplierDisplay[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selected, ] = useState<Set<string>>(new Set());
-  // const [allChecked, setAllChecked] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [groupFilter, setGroupFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [totalSuppliers, setTotalSuppliers] = useState(0);
-const [totalPages, setTotalPages] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState<SupplierDisplay | null>(null);
   const [supplierGroups, setSupplierGroups] = useState<string[]>([]);
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
   // ─── Edit Modal State ──────────────────────────────────────────────────
   const [showEditModal, setShowEditModal] = useState(false);
@@ -127,15 +135,9 @@ const [totalPages, setTotalPages] = useState(1);
   const [showViewModal, setShowViewModal] = useState(false);
   const [viewSupplier, setViewSupplier] = useState<SupplierDisplay | null>(null);
 
-  // ─── Bank Accounts (per-supplier) ───────────────────────────────────────
-
-  const [bankAccountsMap, setBankAccountsMap] = useState<Record<string, SupplierBankAccount[]>>({});
-  const [showBankModal, setShowBankModal] = useState(false);
-  const [bankModalSupplier, setBankModalSupplier] = useState<SupplierDisplay | null>(null);
-
   const supplierTypes = ['Company', 'Individual', 'Partnership', 'Proprietorship', 'LLP', 'Trust', 'Society'];
   const countries = ['India', 'USA', 'UK', 'Germany', 'China', 'Japan', 'UAE', 'Singapore'];
- const taxCategories = ['Registered Regular', 'Registered Composition', 'Unregistered', 'SEZ', 'Export Oriented'];
+  const taxCategories = ['Registered Regular', 'Registered Composition', 'Unregistered', 'SEZ', 'Export Oriented'];
   const paymentTerms = ['7 Days', '15 Days', '30 Days', '45 Days', '60 Days', 'Due on Receipt'];
   const priceLists = ['Standard Buying', 'Export Pricing', 'Wholesale', 'Distributor'];
   const statusOptions = ['Active', 'Inactive'];
@@ -191,19 +193,11 @@ const [totalPages, setTotalPages] = useState(1);
           onHold: item.on_hold === 1 || item.on_hold === true,
           createdAt: item.created_at || '',
           updatedAt: item.updated_at || '',
+          website: item.website || '',
+          contacts: item.contacts || [],
         }));
 
         setSuppliers(transformedData);
-
-
-        const bankMap: Record<string, SupplierBankAccount[]> = {};
-        records.forEach((item: any) => {
-          const idStr = item.id?.toString() || '';
-          if (idStr) {
-            bankMap[idStr] = Array.isArray(item.bank_details) ? item.bank_details : [];
-          }
-        });
-        setBankAccountsMap(bankMap);
 
         // Extract unique supplier groups for filter
         const groups = Array.from(new Set(transformedData.map(s => s.supplierGroup).filter(g => g && g !== 'N/A')));
@@ -212,7 +206,6 @@ const [totalPages, setTotalPages] = useState(1);
         setSuppliers([]);
         setTotalSuppliers(0);
         setTotalPages(1);
-        setBankAccountsMap({});
         if (response.data?.message) {
           setError(response.data.message);
         }
@@ -222,7 +215,6 @@ const [totalPages, setTotalPages] = useState(1);
       setSuppliers([]);
       setTotalSuppliers(0);
       setTotalPages(1);
-      setBankAccountsMap({});
       if (err.message?.includes('Network Error') || err.code === 'ERR_NETWORK') {
         setError('Network error - Please check your connection');
       } else if (err.response?.status === 401) {
@@ -247,9 +239,16 @@ const [totalPages, setTotalPages] = useState(1);
 
   // Filter data based on search and status
   const filteredData = suppliers.filter(item => {
-    const matchesSearch = item.supplierName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const matchesSearch = 
+      item.supplierName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.phone.toLowerCase().includes(searchTerm.toLowerCase());
+      item.phone.includes(searchTerm) ||
+      item.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.contacts.some(contact => 
+        contact.contact_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        contact.email_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        contact.mobile_no.includes(searchTerm)
+      );
     const matchesStatus = statusFilter === 'all' ||
       (statusFilter === 'active' && item.status === 'Active') ||
       (statusFilter === 'inactive' && item.status === 'Inactive');
@@ -257,15 +256,15 @@ const [totalPages, setTotalPages] = useState(1);
     return matchesSearch && matchesStatus && matchesGroup;
   });
 
- const totalFilteredItems =
-  searchTerm || statusFilter !== "all" || groupFilter !== "all"
-    ? filteredData.length
-    : totalSuppliers;
+  const totalFilteredItems =
+    searchTerm || statusFilter !== "all" || groupFilter !== "all"
+      ? filteredData.length
+      : totalSuppliers;
 
-const totalPagesFiltered =
-  searchTerm || statusFilter !== "all" || groupFilter !== "all"
-    ? Math.ceil(filteredData.length / itemsPerPage)
-    : totalPages;
+  const totalPagesFiltered =
+    searchTerm || statusFilter !== "all" || groupFilter !== "all"
+      ? Math.ceil(filteredData.length / itemsPerPage)
+      : totalPages;
 
   // Ensure current page is valid when data changes
   const validCurrentPage = Math.min(currentPage, totalPagesFiltered || 1);
@@ -273,8 +272,10 @@ const totalPagesFiltered =
     setCurrentPage(validCurrentPage);
   }
 
-  const paginatedData = filteredData;
-
+  const paginatedData = filteredData.slice(
+    (validCurrentPage - 1) * itemsPerPage,
+    validCurrentPage * itemsPerPage
+  );
 
   const goToPage = (page: number) => {
     if (page >= 1 && page <= totalPagesFiltered) {
@@ -337,26 +338,6 @@ const totalPagesFiltered =
     setEditError(null);
   };
 
-  const DEFAULT_COMPANY_ID_KEY = 'default_company_id';
-const getDefaultCompanyId = (): number | null => {
-  const stored = localStorage.getItem(DEFAULT_COMPANY_ID_KEY);
-  return stored ? Number(stored) : null;
-};
-
-const handleQuickAddBankAccount = (supplier: SupplierDisplay) => {
-  navigate('/bank-details', {
-    state: {
-      embedContext: {
-        returnPath: `/supplier/${supplier.id}`,
-        partyType: 'Supplier',
-        partyId: String(supplier.id),
-        companyId: getDefaultCompanyId(),
-        supplierName: supplier.supplierName,
-      },
-    },
-  });
-};
-
   const handleEditSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!editForm) return;
@@ -406,15 +387,15 @@ const handleQuickAddBankAccount = (supplier: SupplierDisplay) => {
           prev.map((s) =>
             s.id === editForm.id
               ? {
-                ...s,
-                supplierName: payload.supplier_name,
-                supplierType: payload.supplier_type,
-                supplierGroup: payload.supplier_group,
-                country: payload.country,
-                email: payload.email_id,
-                phone: payload.mobile_no,
-                status: payload.disabled === 1 ? 'Inactive' : 'Active',
-              }
+                  ...s,
+                  supplierName: payload.supplier_name,
+                  supplierType: payload.supplier_type,
+                  supplierGroup: payload.supplier_group,
+                  country: payload.country,
+                  email: payload.email_id,
+                  phone: payload.mobile_no,
+                  status: payload.disabled === 1 ? 'Inactive' : 'Active',
+                }
               : s
           )
         );
@@ -443,13 +424,6 @@ const handleQuickAddBankAccount = (supplier: SupplierDisplay) => {
     setShowViewModal(true);
   };
 
-  const handleViewBankAccounts = (supplier: SupplierDisplay) => {
-    setBankModalSupplier(supplier);
-    setShowBankModal(true);
-
-  };
-
-
   const clearFilters = () => {
     setSearchTerm('');
     setStatusFilter('all');
@@ -460,13 +434,48 @@ const handleQuickAddBankAccount = (supplier: SupplierDisplay) => {
     return (validCurrentPage - 1) * itemsPerPage + 1;
   };
 
- const getEndIndex = () => {
-  return Math.min(
-    (currentPage - 1) * itemsPerPage + paginatedData.length,
-    totalSuppliers
-  );
-};
+  const getEndIndex = () => {
+    return Math.min(
+      (currentPage - 1) * itemsPerPage + paginatedData.length,
+      totalSuppliers
+    );
+  };
 
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'Active':
+        return <span className="supplier-status-badge supplier-status-active"><FaCheckCircle /> Active</span>;
+      case 'Inactive':
+        return <span className="supplier-status-badge supplier-status-inactive"><FaTimesCircle /> Inactive</span>;
+      default:
+        return <span className="supplier-status-badge">{status}</span>;
+    }
+  };
+
+  const toggleRow = (id: string) => {
+    const newExpanded = new Set(expandedRows);
+    if (newExpanded.has(id)) {
+      newExpanded.delete(id);
+    } else {
+      newExpanded.add(id);
+    }
+    setExpandedRows(newExpanded);
+  };
+
+  const getContactTypeLabel = (contact: Contact) => {
+    const types = [];
+    if (contact.is_billing_contact) types.push('Billing');
+    // Check both is_saler_contact and is_purchase_contact
+    if (contact.is_saler_contact || (contact as any).is_purchase_contact) types.push('Sales');
+    // If all three are 0 or undefined, return null to show dash
+    if (!contact.is_primary && !contact.is_billing_contact && !(contact.is_saler_contact || (contact as any).is_purchase_contact)) {
+      return null;
+    }
+    // If primary only (no other types), return 'Primary'
+    if (contact.is_primary && types.length === 0) return 'Primary';
+    // If primary with other types, show the other types
+    return types.length > 0 ? types.join(' • ') : 'General';
+  };
 
   return (
     <div className={`supplier-page ${theme}`}>
@@ -477,7 +486,7 @@ const handleQuickAddBankAccount = (supplier: SupplierDisplay) => {
             <FaSearch className="supplier-search-icon" />
             <input
               type="text"
-              placeholder="Search suppliers by name, email or phone..."
+              placeholder="Search suppliers by name, email, phone, or ID..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="supplier-search-input"
@@ -573,14 +582,11 @@ const handleQuickAddBankAccount = (supplier: SupplierDisplay) => {
             <table className="supplier-table">
               <thead>
                 <tr>
-                  {/* <th className="supplier-th-check"> */}
-                    {/* <input type="checkbox" checked={allChecked} onChange={toggleAll} className="supplier-checkbox" /> */}
-                  {/* </th> */}
+                  <th className="supplier-th" style={{ width: '30px' }}></th>
                   <th className="supplier-th">Supplier Name</th>
                   <th className="supplier-th">Contact</th>
                   <th className="supplier-th">Group</th>
                   <th className="supplier-th">Status</th>
-                  <th className="supplier-th">Bank Accounts</th>
                   <th className="supplier-th supplier-th-meta">
                     <span className="supplier-count-label">{totalFilteredItems} of {totalSuppliers}</span>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary, #9ca3af)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -592,7 +598,7 @@ const handleQuickAddBankAccount = (supplier: SupplierDisplay) => {
               <tbody>
                 {paginatedData.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="supplier-empty-state">
+                    <td colSpan={6} className="supplier-empty-state">
                       <div className="supplier-empty-content">
                         <FaBuilding size={48} />
                         <p>No suppliers found</p>
@@ -601,86 +607,155 @@ const handleQuickAddBankAccount = (supplier: SupplierDisplay) => {
                     </td>
                   </tr>
                 ) : (
-                  paginatedData.map((row) => {
-                    const rowBankAccounts = bankAccountsMap[row.id] || [];
+                  paginatedData.map((row, index) => {
+                    const serialNumber = (validCurrentPage - 1) * itemsPerPage + index + 1;
+                    const isExpanded = expandedRows.has(row.id);
+                    const hasContacts = row.contacts && row.contacts.length > 0;
+
                     return (
-                      <tr
-                        key={row.id}
-                        className={`supplier-tr ${selected.has(row.id) ? "supplier-tr-selected" : ""}`}
-                      >
-                        {/* <td className="supplier-td-check" onClick={(e) => { e.stopPropagation(); toggleRow(row.id); }}> */}
-                          {/* <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleRow(row.id)} className="supplier-checkbox" /> */}
-                        {/* </td> */}
-                        <td className="supplier-td supplier-td-name">{row.supplierName}</td>
-                        <td className="supplier-td">
-                          <div className="supplier-contact">
-                            <span className="supplier-contact-item">
-                              <FaEnvelope size={10} /> {row.email || 'N/A'}
-                            </span>
-                            <span className="supplier-contact-item">
-                              <FaPhone size={10} /> {row.phone || 'N/A'}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="supplier-td">
-                          <span className="supplier-group-badge">{row.supplierGroup}</span>
-                        </td>
-                        <td className="supplier-td">
-                          <span className={`supplier-status-badge ${row.status === 'Active' ? 'supplier-status-active' : 'supplier-status-inactive'}`}>
-                            {row.status === 'Active' ? <FaCheckCircle size={10} /> : <FaTimesCircle size={10} />}
-                            {row.status}
-                          </span>
-                        </td>
-                        <td className="supplier-td">
-                          {rowBankAccounts.length === 0 ? (
-                            <button
-                              type="button"
-                              className="supplier-bank-add-btn"
-                              onClick={(e) => { e.stopPropagation(); handleQuickAddBankAccount(row); }}
-                              title="Add bank account"
-                            >
-                              <FaPlus size={10} />
-                              Add Bank Account
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              className="supplier-bank-count-btn"
-                              onClick={(e) => { e.stopPropagation(); handleViewBankAccounts(row); }}
-                              title="View bank accounts"
-                            >
-                              <FaUniversity size={11} />
-                              {rowBankAccounts.length} account{rowBankAccounts.length !== 1 ? 's' : ''}
-                            </button>
-                          )}
-                        </td>
-                        <td className="supplier-td supplier-td-meta">
-                          {/* <span className="supplier-dot">·</span> */}
-                          <div className="supplier-action-buttons">
-                            <button
-                              className="supplier-action-btn supplier-action-view"
-                              onClick={(e) => { e.stopPropagation(); handleView(row); }}
-                              title="View"
-                            >
-                              <FaEye size={12} />
-                            </button>
-                            <button
-                              className="supplier-action-btn supplier-action-edit"
-                              onClick={(e) => { e.stopPropagation(); handleEdit(row); }}
-                              title="Edit"
-                            >
-                              <FaEdit size={12} />
-                            </button>
-                            <button
-                              className="supplier-action-btn supplier-action-delete"
-                              onClick={(e) => { e.stopPropagation(); handleDelete(row); }}
-                              title="Inactive"
-                            >
-                              <FaTrash size={12} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
+                      <React.Fragment key={row.id}>
+                        <tr 
+                          className={`supplier-tr ${isExpanded ? 'supplier-tr-expanded' : ''}`}
+                          onClick={() => toggleRow(row.id)}
+                          style={{ cursor: 'pointer' }}
+                        >
+                          <td className="supplier-td" style={{ textAlign: 'center', padding: '8px 4px' }}>
+                            {hasContacts && (
+                              <button 
+                                className="supplier-expand-btn"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleRow(row.id);
+                                }}
+                              >
+                                {isExpanded ? <FaChevronDown size={10} /> : <FaChevronRightIcon size={10} />}
+                              </button>
+                            )}
+                          </td>
+                          <td className="supplier-td">
+                            <div className="supplier-info">
+                              <div className="supplier-avatar">
+                                {row.supplierName.charAt(0).toUpperCase()}
+                              </div>
+                              <div>
+                                <div className="supplier-name">{row.supplierName}</div>
+                                {row.website && (
+                                  <div className="supplier-website">
+                                    <FaGlobe className="supplier-icon-small" />
+                                    {row.website}
+                                  </div>
+                                )}
+                                {hasContacts && (
+                                  <div className="supplier-contact-count">
+                                    <FaUser size={10} />
+                                    <span>{row.contacts.length} contact{row.contacts.length > 1 ? 's' : ''}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="supplier-td">
+                            <div className="supplier-contact">
+                              {row.email && (
+                                <span className="supplier-contact-item">
+                                  <FaEnvelope size={10} /> {row.email}
+                                </span>
+                              )}
+                              {row.phone && (
+                                <span className="supplier-contact-item">
+                                  <FaPhone size={10} /> {row.phone}
+                                </span>
+                              )}
+                              {!row.email && !row.phone && 'N/A'}
+                            </div>
+                          </td>
+                          <td className="supplier-td">
+                            <span className="supplier-group-badge">{row.supplierGroup}</span>
+                          </td>
+                          <td className="supplier-td">{getStatusBadge(row.status)}</td>
+                          <td className="supplier-td supplier-td-meta">
+                            <div className="supplier-action-buttons">
+                              <button
+                                className="supplier-action-btn supplier-action-view"
+                                onClick={(e) => { e.stopPropagation(); handleView(row); }}
+                                title="View"
+                              >
+                                <FaEye size={12} />
+                              </button>
+                              <button
+                                className="supplier-action-btn supplier-action-edit"
+                                onClick={(e) => { e.stopPropagation(); handleEdit(row); }}
+                                title="Edit"
+                              >
+                                <FaEdit size={12} />
+                              </button>
+                              <button
+                                className="supplier-action-btn supplier-action-delete"
+                                onClick={(e) => { e.stopPropagation(); handleDelete(row); }}
+                                title="Delete"
+                              >
+                                <FaTrash size={12} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                        {isExpanded && hasContacts && (
+                          <tr className="supplier-expanded-row">
+                            <td colSpan={6}>
+                              <div className="supplier-expanded-content">
+                                <div className="supplier-contact-table-wrap">
+                                  <table className="supplier-contact-table">
+                                    <tbody>
+                                      {row.contacts.map((contact, idx) => (
+                                        <tr key={contact.id || idx} className="supplier-contact-row">
+                                          <td className="supplier-contact-td" style={{ textAlign: 'center', padding: '10px 4px' }}>{idx + 1}</td>
+                                          <td className="supplier-contact-td">
+                                            <span className="supplier-contact-name-text">
+                                              {contact.contact_name || 'Unnamed Contact'}
+                                              {contact.is_primary === 1 && (
+                                                <span className="supplier-contact-badge-primary">
+                                                  <FaStar size={8} /> Primary
+                                                </span>
+                                              )}
+                                            </span>
+                                          </td>
+                                          <td className="supplier-contact-td">
+                                            {(() => {
+                                              const typeLabel = getContactTypeLabel(contact);
+                                              return typeLabel ? (
+                                                <span className="supplier-contact-type-badge">
+                                                  {typeLabel}
+                                                </span>
+                                              ) : (
+                                                <span className="supplier-contact-type-dash">—</span>
+                                              );
+                                            })()}
+                                          </td>
+                                          <td className="supplier-contact-td">
+                                            {contact.email_id ? (
+                                              <a href={`mailto:${contact.email_id}`} className="supplier-contact-email-link">
+                                                {contact.email_id}
+                                              </a>
+                                            ) : '—'}
+                                          </td>
+                                          <td className="supplier-contact-td">
+                                            {contact.mobile_no ? (
+                                              <a href={`tel:${contact.mobile_no}`} className="supplier-contact-phone-link">
+                                                {contact.mobile_no}
+                                              </a>
+                                            ) : '—'}
+                                          </td>
+                                          <td className="supplier-contact-td">{contact.alternate_mobile || '—'}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
                     );
                   })
                 )}
@@ -829,67 +904,6 @@ const handleQuickAddBankAccount = (supplier: SupplierDisplay) => {
               </button>
               <button className="supplier-btn-edit" onClick={() => { setShowViewModal(false); handleEdit(viewSupplier); }}>
                 <FaEdit size={12} /> Edit
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {showBankModal && bankModalSupplier && (
-        <div className="supplier-modal-overlay" onClick={() => setShowBankModal(false)}>
-          <div className="supplier-modal supplier-modal-bank" onClick={(e) => e.stopPropagation()}>
-            <div className="supplier-modal-header">
-              <div className="supplier-bank-modal-title-wrap">
-                <div className="supplier-bank-modal-icon"><FaUniversity size={14} /></div>
-                <div>
-                  <span className="supplier-modal-title">Bank Accounts</span>
-                  <span className="supplier-bank-modal-subtitle">{bankModalSupplier.supplierName}</span>
-                </div>
-              </div>
-              <button className="supplier-modal-close" onClick={() => setShowBankModal(false)}>
-                <FaTimes size={16} />
-              </button>
-            </div>
-            <div className="supplier-modal-body supplier-bank-modal-body">
-              {(bankAccountsMap[bankModalSupplier.id] || []).length === 0 ? (
-                <p>No bank accounts found for this supplier.</p>
-              ) : (
-                (bankAccountsMap[bankModalSupplier.id] || []).map((acc, idx) => {
-                  const isVerified = acc.verified === 1 || acc.verified === true;
-                  const isPrimary = acc.is_primary === 1 || acc.is_primary === true;
-                  return (
-                    <div key={acc.id || idx} className="supplier-bank-detail-card">
-                      <div className="supplier-bank-detail-header">
-                        <div className="supplier-bank-detail-header-left">
-                          <div className="supplier-bank-detail-icon"><FaUniversity size={13} /></div>
-                          <strong>{acc.bank_name || 'Bank account'}</strong>
-                        </div>
-                        <div className="supplier-bank-detail-badges">
-                          {isPrimary && <span className="supplier-bank-badge supplier-bank-badge-primary">Primary</span>}
-                          <span className={`supplier-bank-badge ${isVerified ? 'supplier-bank-badge-verified' : 'supplier-bank-badge-unverified'}`}>
-                            {isVerified ? <FaCheckCircle size={9} /> : <FaTimesCircle size={9} />}
-                            {isVerified ? 'Verified' : 'Unverified'}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="supplier-bank-detail-grid">
-                        <div className="supplier-bank-detail-item"><label>Holder</label><span>{acc.account_holder_name || 'N/A'}</span></div>
-                        <div className="supplier-bank-detail-item"><label>Account No.</label><span>{acc.account_number ? `•••• ${String(acc.account_number).slice(-4)}` : 'N/A'}</span></div>
-                        <div className="supplier-bank-detail-item"><label>IFSC</label><span>{acc.ifsc_code || 'N/A'}</span></div>
-                        <div className="supplier-bank-detail-item"><label>Branch</label><span>{acc.branch_name || 'N/A'}</span></div>
-                        <div className="supplier-bank-detail-item"><label>Type</label><span>{acc.account_type || 'N/A'}</span></div>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-            <div className="supplier-modal-footer">
-              <button className="supplier-btn-cancel" onClick={() => setShowBankModal(false)}>Close</button>
-              <button
-                className="supplier-btn-edit"
-                onClick={() => { setShowBankModal(false); handleEdit(bankModalSupplier); }}
-              >
-                <FaEdit size={12} /> Manage in Supplier Form
               </button>
             </div>
           </div>
