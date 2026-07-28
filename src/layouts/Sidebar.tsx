@@ -166,7 +166,7 @@ export default function Sidebar({
       icon: <CustomersIcon />,
       items: [
         { title: 'Customer List', icon: <CustomersIcon />, path: '/customer' },
-        { title: 'Add Customer', icon: <CustomersIcon />, path: '/customer/new' },
+        // { title: 'Add Customer', icon: <CustomersIcon />, path: '/customer/new' },
       ]
     },
     {
