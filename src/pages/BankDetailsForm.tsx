@@ -6,6 +6,7 @@ import {
   FaTimesCircle, FaUniversity, FaCheckCircle,
   FaFileUpload, FaShieldAlt, FaFilePdf, FaCloudUploadAlt, FaTrashAlt,
   FaExternalLinkAlt, FaDownload, FaPlus, FaCopy,
+  FaUser, FaPhone, FaEnvelope, FaMoneyBillWave,
 } from "react-icons/fa";
 import "./BankDetailsForm.css";
 import api from "../../src/services/api";
@@ -45,6 +46,19 @@ interface BankAccountEntry {
   is_primary: boolean;
 
   remarks: string;
+
+  contact_person_name: string; // first name
+  contact_person_last_name: string;
+  contact_person_phone: string;
+  contact_person_email: string;
+  contact_person_department: string;
+  contact_person_remarks: string;
+  contact_is_primary: boolean;
+  contact_is_billing: boolean;
+  contact_is_purchase: boolean;
+
+  cash_in_hand: string;
+  cash_in_account: string;
 
   // transient, UI-only upload state
   _cancelledChequeUploading: boolean;
@@ -111,6 +125,19 @@ const defaultAccount = (): BankAccountEntry => ({
 
   remarks: "",
 
+  contact_person_name: "",
+  contact_person_last_name: "",
+  contact_person_phone: "",
+  contact_person_email: "",
+  contact_person_department: "",
+  contact_person_remarks: "",
+  contact_is_primary: true,
+  contact_is_billing: false,
+  contact_is_purchase: false,
+
+  cash_in_hand: "",
+  cash_in_account: "",
+
   _cancelledChequeUploading: false,
   _passbookUploading: false,
   _cancelledChequeError: null,
@@ -149,6 +176,19 @@ const accountFromPrefill = (p: any): BankAccountEntry => ({
   is_primary: !!p.is_primary,
 
   remarks: p.remarks || "",
+
+  contact_person_name: p.contact_person_name || "",
+  contact_person_last_name: p.contact_person_last_name || "",
+  contact_person_phone: p.contact_person_phone || "",
+  contact_person_email: p.contact_person_email || "",
+  contact_person_department: p.contact_person_department || "",
+  contact_person_remarks: p.contact_person_remarks || "",
+  contact_is_primary: p.contact_is_primary === undefined ? true : !!p.contact_is_primary,
+  contact_is_billing: !!p.contact_is_billing,
+  contact_is_purchase: !!p.contact_is_purchase,
+
+  cash_in_hand: p.cash_in_hand !== undefined && p.cash_in_hand !== null ? String(p.cash_in_hand) : "",
+  cash_in_account: p.cash_in_account !== undefined && p.cash_in_account !== null ? String(p.cash_in_account) : "",
 
   _cancelledChequeUploading: false,
   _passbookUploading: false,
@@ -242,6 +282,37 @@ const sanitizeAccountField = (name: string, value: string): string => {
       return value.replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, 11);
     case "iban":
       return value.replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, 34);
+    case "contact_person_phone":
+      return value.replace(/[^0-9+\-\s]/g, "").slice(0, 15);
+    case "cash_in_hand":
+    case "cash_in_account":
+      // digits + a single decimal point, max 2 decimal places
+      return value
+        .replace(/[^0-9.]/g, "")
+        .replace(/(\..*)\./g, "$1")
+        .replace(/^(\d*\.\d{0,2}).*$/, "$1");
+    default:
+      return value;
+  }
+};
+
+// Sanitization for the fields inside the Contact Person modal — kept
+// separate from sanitizeAccountField since these aren't top-level
+// account inputs and a couple of names overlap in meaning but not rules.
+const sanitizeContactField = (
+  field: "firstName" | "lastName" | "phone" | "email" | "department" | "remarks",
+  value: string
+): string => {
+  switch (field) {
+    case "firstName":
+    case "lastName":
+      return value.replace(/[^A-Za-z\s.'-]/g, "");
+    case "phone":
+      return value.replace(/[^0-9+\-\s]/g, "").slice(0, 15);
+    case "department":
+      return value.replace(/[^A-Za-z0-9\s.&'-]/g, "").slice(0, 60);
+    case "remarks":
+      return value.slice(0, 300);
     default:
       return value;
   }
@@ -580,6 +651,21 @@ const BankDetailsForm: React.FC = () => {
   const [showValidationSummary, setShowValidationSummary] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
 
+  // Contact-person modal: holds a draft copy of the fields for whichever
+  // account index is currently being edited, or null when closed.
+  const [contactModal, setContactModal] = useState<{
+    idx: number;
+    firstName: string;
+    lastName: string;
+    phone: string;
+    email: string;
+    department: string;
+    remarks: string;
+    isPrimary: boolean;
+    isBilling: boolean;
+    isPurchase: boolean;
+  } | null>(null);
+
   // Pre-fill the party linkage when embedded.
   useEffect(() => {
     if (embedContext) {
@@ -684,6 +770,19 @@ const BankDetailsForm: React.FC = () => {
       is_primary: !!row.is_primary,
 
       remarks: row.remarks || "",
+
+      contact_person_name: row.contact_person_name || "",
+      contact_person_last_name: row.contact_person_last_name || "",
+      contact_person_phone: row.contact_person_phone || "",
+      contact_person_email: row.contact_person_email || "",
+      contact_person_department: row.contact_person_department || "",
+      contact_person_remarks: row.contact_person_remarks || "",
+      contact_is_primary: row.contact_is_primary === undefined ? true : !!row.contact_is_primary,
+      contact_is_billing: !!row.contact_is_billing,
+      contact_is_purchase: !!row.contact_is_purchase,
+
+      cash_in_hand: row.cash_in_hand !== undefined && row.cash_in_hand !== null ? String(row.cash_in_hand) : "",
+      cash_in_account: row.cash_in_account !== undefined && row.cash_in_account !== null ? String(row.cash_in_account) : "",
 
       _cancelledChequeUploading: false,
       _passbookUploading: false,
@@ -899,6 +998,100 @@ const BankDetailsForm: React.FC = () => {
     });
   };
 
+  // ── contact person modal ─────────────────────────────────────────────
+
+  const openContactModal = (idx: number) => {
+    const acc = accounts[idx];
+    setContactModal({
+      idx,
+      firstName: acc.contact_person_name,
+      lastName: acc.contact_person_last_name,
+      phone: acc.contact_person_phone,
+      email: acc.contact_person_email,
+      department: acc.contact_person_department,
+      remarks: acc.contact_person_remarks,
+      isPrimary: acc.contact_person_name ? acc.contact_is_primary : true,
+      isBilling: acc.contact_is_billing,
+      isPurchase: acc.contact_is_purchase,
+    });
+  };
+
+  const closeContactModal = () => setContactModal(null);
+
+  const handleContactModalTextChange = (
+    field: "firstName" | "lastName" | "phone" | "email" | "department" | "remarks",
+    value: string
+  ) => {
+    setContactModal((prev) => {
+      if (!prev) return prev;
+      const sanitized = field === "email" ? value : sanitizeContactField(field, value);
+      return { ...prev, [field]: sanitized };
+    });
+  };
+
+  const handleContactModalCheckChange = (
+    field: "isPrimary" | "isBilling" | "isPurchase",
+    checked: boolean
+  ) => {
+    setContactModal((prev) => (prev ? { ...prev, [field]: checked } : prev));
+  };
+
+  const contactModalIsValid = !!(
+    contactModal &&
+    contactModal.firstName.trim() &&
+    contactModal.lastName.trim() &&
+    contactModal.email.trim() &&
+    contactModal.phone.trim()
+  );
+
+  const saveContactModal = () => {
+    if (!contactModal || !contactModalIsValid) return;
+    updateAccount(contactModal.idx, {
+      contact_person_name: contactModal.firstName.trim(),
+      contact_person_last_name: contactModal.lastName.trim(),
+      contact_person_phone: contactModal.phone.trim(),
+      contact_person_email: contactModal.email.trim(),
+      contact_person_department: contactModal.department.trim(),
+      contact_person_remarks: contactModal.remarks.trim(),
+      contact_is_primary: contactModal.isPrimary,
+      contact_is_billing: contactModal.isBilling,
+      contact_is_purchase: contactModal.isPurchase,
+    });
+    setContactModal(null);
+  };
+
+  const removeContactPerson = (idx: number) => {
+    updateAccount(idx, {
+      contact_person_name: "",
+      contact_person_last_name: "",
+      contact_person_phone: "",
+      contact_person_email: "",
+      contact_person_department: "",
+      contact_person_remarks: "",
+      contact_is_primary: true,
+      contact_is_billing: false,
+      contact_is_purchase: false,
+    });
+  };
+
+  const CONTACT_AVATAR_COLORS = [
+    "#6366f1", "#ec4899", "#f59e0b", "#10b981",
+    "#3b82f6", "#8b5cf6", "#ef4444", "#14b8a6",
+  ];
+
+  const getContactInitials = (name: string): string => {
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return "?";
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  };
+
+  const getContactAvatarColor = (name: string): string => {
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    return CONTACT_AVATAR_COLORS[Math.abs(hash) % CONTACT_AVATAR_COLORS.length];
+  };
+
   // ── file handlers (upload happens immediately via /uploadmedia) ────
 
   const resolveAccountId = (account: BankAccountEntry): string =>
@@ -986,6 +1179,19 @@ const BankDetailsForm: React.FC = () => {
 
       remarks: account.remarks || null,
 
+      contact_person_name: account.contact_person_name.trim() || null,
+      contact_person_last_name: account.contact_person_last_name.trim() || null,
+      contact_person_phone: account.contact_person_phone.trim() || null,
+      contact_person_email: account.contact_person_email.trim() || null,
+      contact_person_department: account.contact_person_department.trim() || null,
+      contact_person_remarks: account.contact_person_remarks.trim() || null,
+      contact_is_primary: account.contact_person_name ? (account.contact_is_primary ? 1 : 0) : 0,
+      contact_is_billing: account.contact_is_billing ? 1 : 0,
+      contact_is_purchase: account.contact_is_purchase ? 1 : 0,
+
+      cash_in_hand: account.cash_in_hand.trim() ? Number(account.cash_in_hand.trim()) : 0,
+      cash_in_account: account.cash_in_account.trim() ? Number(account.cash_in_account.trim()) : 0,
+
       created_by: 1,
       updated_by: 1,
     };
@@ -1026,6 +1232,19 @@ const BankDetailsForm: React.FC = () => {
     is_primary: account.is_primary ? 1 : 0,
     is_deleted: 0,
     remarks: account.remarks || null,
+
+    contact_person_name: account.contact_person_name.trim() || null,
+    contact_person_last_name: account.contact_person_last_name.trim() || null,
+    contact_person_phone: account.contact_person_phone.trim() || null,
+    contact_person_email: account.contact_person_email.trim() || null,
+    contact_person_department: account.contact_person_department.trim() || null,
+    contact_person_remarks: account.contact_person_remarks.trim() || null,
+    contact_is_primary: account.contact_person_name ? (account.contact_is_primary ? 1 : 0) : 0,
+    contact_is_billing: account.contact_is_billing ? 1 : 0,
+    contact_is_purchase: account.contact_is_purchase ? 1 : 0,
+
+    cash_in_hand: account.cash_in_hand.trim() ? Number(account.cash_in_hand.trim()) : 0,
+    cash_in_account: account.cash_in_account.trim() ? Number(account.cash_in_account.trim()) : 0,
   });
   
   const buildBatchCreatePayload = (accountsToSave: BankAccountEntry[]) => {
@@ -1195,6 +1414,8 @@ const BankDetailsForm: React.FC = () => {
   const renderAccountFields = (idx: number) => {
     const account = accounts[idx];
     const accountId = resolveAccountId(account);
+    const contactFullName = `${account.contact_person_name} ${account.contact_person_last_name}`.trim();
+
     return (
       <>
         <div className="bdf-section-title bdf-section-title-first">
@@ -1243,6 +1464,75 @@ const BankDetailsForm: React.FC = () => {
             </select>
           </div>
         </div>
+
+        <div className="bdf-section-title">
+          <FaUser size={12} /> Contact Persons
+        </div>
+
+        <div className="bdf-contacts-row">
+          {!account.contact_person_name && (
+            <button
+              type="button"
+              className="bdf-contact-add-circle"
+              onClick={() => openContactModal(idx)}
+            >
+              <span className="bdf-contact-add-circle-icon">
+                <FaPlus size={16} />
+              </span>
+              <span className="bdf-contact-add-circle-label">Add</span>
+            </button>
+          )}
+
+          {account.contact_person_name && (
+            <div className="bdf-contact-item">
+              <div
+                className="bdf-contact-avatar-wrap"
+                onClick={() => openContactModal(idx)}
+                title="Click to edit"
+              >
+                <div
+                  className="bdf-contact-avatar-circle"
+                  style={{ background: getContactAvatarColor(contactFullName) }}
+                >
+                  {getContactInitials(contactFullName)}
+                </div>
+                {account.contact_is_primary && (
+                  <span className="bdf-contact-primary-check" title="Primary contact">
+                    <FaCheckCircle size={11} />
+                  </span>
+                )}
+                <button
+                  type="button"
+                  className="bdf-contact-remove-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeContactPerson(idx);
+                  }}
+                  title="Remove contact"
+                >
+                  ×
+                </button>
+              </div>
+              <span className="bdf-contact-name-label" title={contactFullName}>
+                {contactFullName}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {!account.contact_person_name && (
+          <div className="bdf-contact-empty-state">
+            <FaUser className="bdf-contact-empty-icon" />
+            <span>No contact person added. Click &quot;Add&quot; to add one.</span>
+          </div>
+        )}
+
+        {account.contact_person_name && (
+          <div className="bdf-contact-hint-row">
+            <FaInfoCircle size={11} />
+            Click the avatar to edit this contact, or use the × to remove it.
+          </div>
+        )}
 
         <div className="bdf-section-title">
           <FaUniversity size={12} /> Bank &amp; Account
@@ -1462,6 +1752,43 @@ const BankDetailsForm: React.FC = () => {
         </div>
 
         <div className="bdf-section-title">
+          <FaMoneyBillWave size={12} /> Opening Balances
+        </div>
+
+        <div className="bdf-grid-2 bdf-mb-20">
+          <div>
+            <label className="bdf-label">
+              Cash in Hand <span className="bdf-label-optional">(optional)</span>
+            </label>
+            <input
+              type="text"
+              inputMode="decimal"
+              name="cash_in_hand"
+              value={account.cash_in_hand}
+              onChange={(e) => handleAccountInputChange(idx, e)}
+              placeholder="0.00"
+              autoComplete="off"
+              className="bdf-input"
+            />
+          </div>
+          <div>
+            <label className="bdf-label">
+              Cash in Account <span className="bdf-label-optional">(optional)</span>
+            </label>
+            <input
+              type="text"
+              inputMode="decimal"
+              name="cash_in_account"
+              value={account.cash_in_account}
+              onChange={(e) => handleAccountInputChange(idx, e)}
+              placeholder="0.00"
+              autoComplete="off"
+              className="bdf-input"
+            />
+          </div>
+        </div>
+
+        <div className="bdf-section-title">
           <FaFileUpload size={12} /> Documents
         </div>
 
@@ -1591,6 +1918,147 @@ const BankDetailsForm: React.FC = () => {
             </div>
             <div className="bdf-modal-footer">
               <button className="bdf-btn-cancel" onClick={() => setShowValidationSummary(false)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {contactModal && (
+        <div className="bdf-modal-overlay" onClick={closeContactModal}>
+          <div className="bdf-contact-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="bdf-modal-header bdf-modal-header-plain">
+              <h2 className="bdf-modal-title">
+                <FaUser size={14} /> Contact Person
+              </h2>
+              <button className="bdf-modal-close" onClick={closeContactModal}>×</button>
+            </div>
+            <div className="bdf-modal-body">
+              <div className="bdf-grid-2">
+                <div>
+                  <label className="bdf-label">First Name *</label>
+                  <input
+                    type="text"
+                    value={contactModal.firstName}
+                    onChange={(e) => handleContactModalTextChange("firstName", e.target.value)}
+                    placeholder="Enter first name"
+                    autoComplete="off"
+                    className="bdf-input"
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="bdf-label">Last Name *</label>
+                  <input
+                    type="text"
+                    value={contactModal.lastName}
+                    onChange={(e) => handleContactModalTextChange("lastName", e.target.value)}
+                    placeholder="Enter last name"
+                    autoComplete="off"
+                    className="bdf-input"
+                  />
+                </div>
+              </div>
+
+              <div className="bdf-grid-2">
+                <div>
+                  <label className="bdf-label">
+                    <FaEnvelope size={10} /> Email *
+                  </label>
+                  <input
+                    type="email"
+                    value={contactModal.email}
+                    onChange={(e) => handleContactModalTextChange("email", e.target.value)}
+                    placeholder="Enter email"
+                    autoComplete="off"
+                    className="bdf-input"
+                  />
+                </div>
+                <div>
+                  <label className="bdf-label">
+                    <FaPhone size={10} /> Phone *
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="tel"
+                    value={contactModal.phone}
+                    onChange={(e) => handleContactModalTextChange("phone", e.target.value)}
+                    placeholder="Enter phone number"
+                    autoComplete="off"
+                    className="bdf-input"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="bdf-label">
+                  Department <span className="bdf-label-optional">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={contactModal.department}
+                  onChange={(e) => handleContactModalTextChange("department", e.target.value)}
+                  placeholder="Enter department"
+                  autoComplete="off"
+                  className="bdf-input"
+                />
+              </div>
+
+              <div>
+                <label className="bdf-label">
+                  Remarks <span className="bdf-label-optional">(optional)</span>
+                </label>
+                <textarea
+                  value={contactModal.remarks}
+                  onChange={(e) => handleContactModalTextChange("remarks", e.target.value)}
+                  placeholder="Enter any remarks about this contact"
+                  className="bdf-input bdf-textarea"
+                  rows={3}
+                />
+              </div>
+
+              <div className="bdf-contact-modal-checks">
+                <label className="bdf-checkbox-label">
+                  <input
+                    type="checkbox"
+                    className="bdf-checkbox"
+                    checked={contactModal.isPrimary}
+                    onChange={(e) => handleContactModalCheckChange("isPrimary", e.target.checked)}
+                  />
+                  Set as Primary Contact
+                </label>
+                <label className="bdf-checkbox-label">
+                  <input
+                    type="checkbox"
+                    className="bdf-checkbox"
+                    checked={contactModal.isBilling}
+                    onChange={(e) => handleContactModalCheckChange("isBilling", e.target.checked)}
+                  />
+                  Billing Contact
+                </label>
+                <label className="bdf-checkbox-label">
+                  <input
+                    type="checkbox"
+                    className="bdf-checkbox"
+                    checked={contactModal.isPurchase}
+                    onChange={(e) => handleContactModalCheckChange("isPurchase", e.target.checked)}
+                  />
+                  Purchase Contact
+                </label>
+              </div>
+            </div>
+            <div className="bdf-modal-footer">
+              <button type="button" className="bdf-btn-cancel" onClick={closeContactModal}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="bdf-btn-primary"
+                onClick={saveContactModal}
+                disabled={!contactModalIsValid}
+                style={{ opacity: contactModalIsValid ? 1 : 0.6 }}
+              >
+                <FaSave size={12} /> Save
+              </button>
             </div>
           </div>
         </div>
