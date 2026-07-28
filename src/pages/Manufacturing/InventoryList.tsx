@@ -144,6 +144,19 @@ const getWarehouseVisual = (name: string) => {
   return { icon: <FaWarehouse />, tone: "indigo", tag: "Warehouse" };
 };
 
+// ─── Warehouse ordering helper ────────────────────────────────────────────
+// Ensures warehouses always render in the production-flow order:
+// Raw Material -> Work in Progress -> Finished Goods -> Scrap -> anything else
+const getWarehouseOrderRank = (name: string, type?: string | null) => {
+  const n = (name || "").toLowerCase();
+  const t = (type || "").toLowerCase();
+  if (n.includes("raw material") || t.includes("raw material")) return 1;
+  if (n.includes("work in progress") || n.includes("wip") || t.includes("work in progress")) return 2;
+  if (n.includes("finished") || t.includes("finished")) return 3;
+  if (n.includes("scrap") || t.includes("scrap")) return 4;
+  return 5; // custom/unnamed warehouse types go last
+};
+
 export default function InventoryList() {
   const navigate = useNavigate();
   const { theme } = useAdminTheme();
@@ -247,6 +260,8 @@ export default function InventoryList() {
   };
 
   // ─── Group Internal Items by Item Code ──────────────────────────────
+  // Internal items collapse into ONE row per item code (per warehouse).
+  // External items are never grouped — each record stays as its own row.
   const groupInternalItems = (items: InventoryDisplay[]): InventoryDisplay[] => {
     // Separate internal and external items
     const internalItems = items.filter(item => item.type === "Internal");
@@ -254,7 +269,7 @@ export default function InventoryList() {
 
     // Group internal items by itemCode
     const groupedMap = new Map<string, InventoryDisplay[]>();
-    
+
     internalItems.forEach(item => {
       if (!groupedMap.has(item.itemCode)) {
         groupedMap.set(item.itemCode, []);
@@ -264,7 +279,7 @@ export default function InventoryList() {
 
     // Create grouped items for internal
     const groupedInternalItems: InventoryDisplay[] = [];
-    
+
     groupedMap.forEach((group, itemCode) => {
       // Calculate totals
       const totalActualQty = group.reduce((sum, item) => sum + item.actualQty, 0);
@@ -275,7 +290,7 @@ export default function InventoryList() {
 
       // Use the first item as template
       const firstItem = group[0];
-      
+
       const groupedItem: InventoryDisplay = {
         ...firstItem,
         id: `grouped-${itemCode}`,
@@ -293,7 +308,7 @@ export default function InventoryList() {
       groupedInternalItems.push(groupedItem);
     });
 
-    // Return: grouped internal items + external items (unchanged)
+    // Return: grouped internal items + external items (unchanged, one row each)
     return [...groupedInternalItems, ...externalItems];
   };
 
@@ -301,7 +316,7 @@ export default function InventoryList() {
   const updateStats = (items: InventoryDisplay[]) => {
     // For stats, use grouped internal items to avoid double counting
     const groupedItems = groupInternalItems(items);
-    
+
     const totalValue = groupedItems.reduce((sum, item) => sum + item.stockValue, 0);
     const lowStock = groupedItems.filter((item) => item.status === "Low Stock").length;
     const outOfStock = groupedItems.filter((item) => item.status === "Out of Stock").length;
@@ -326,13 +341,13 @@ export default function InventoryList() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [warehouses]);
 
-  // ─── Per-warehouse rollups with grouping ──────────────────────────
+  // ─── Per-warehouse rollups with grouping, sorted by production stage ──
   const warehouseCards = useMemo(() => {
-    return warehouses.map((wh) => {
+    const cards = warehouses.map((wh) => {
       const warehouseItems = inventoryItems.filter((item) => item.warehouseId === wh.id);
-      // Group internal items for this warehouse
+      // Group internal items for this warehouse (one row per item code); external stays ungrouped
       const groupedWarehouseItems = groupInternalItems(warehouseItems);
-      
+
       const internalItems = groupedWarehouseItems.filter((item) => item.type === "Internal");
       const externalItems = groupedWarehouseItems.filter((item) => item.type === "External");
       const totalValue = groupedWarehouseItems.reduce((sum, item) => sum + item.stockValue, 0);
@@ -352,6 +367,15 @@ export default function InventoryList() {
         visual,
       };
     });
+
+    // Sort: Raw Material -> Work in Progress -> Finished Goods -> Scrap -> others
+    // Warehouses within the same stage are sorted alphabetically for stability.
+    return cards.sort((a, b) => {
+      const rankA = getWarehouseOrderRank(a.warehouse_name, a.warehouse_type);
+      const rankB = getWarehouseOrderRank(b.warehouse_name, b.warehouse_type);
+      if (rankA !== rankB) return rankA - rankB;
+      return a.warehouse_name.localeCompare(b.warehouse_name);
+    });
   }, [warehouses, inventoryItems]);
 
   const activeWarehouse = warehouseCards.find((wh) => wh.id === detailWarehouseId) || null;
@@ -359,16 +383,16 @@ export default function InventoryList() {
   // ─── Items for the detail view (with grouping) ────────────────────
   const detailItems = useMemo(() => {
     if (!activeWarehouse) return [];
-    
+
     // Get items based on active tab
     let items = activeWarehouse.items;
-    
+
     if (activeTab === "internal") {
       items = items.filter(item => item.type === "Internal");
     } else if (activeTab === "external") {
       items = items.filter(item => item.type === "External");
     }
-    
+
     // Apply search and status filters
     return items.filter((item) => {
       const matchesSearch =
@@ -898,7 +922,7 @@ export default function InventoryList() {
                     <ul>
                       {selectedItem.groupItems.map((subItem) => (
                         <li key={subItem.id}>
-                          {subItem.itemCode} - Qty: {subItem.actualQty} {subItem.uom} - 
+                          {subItem.itemCode} - Qty: {subItem.actualQty} {subItem.uom} -
                           Reserved: {subItem.reservedStock} {subItem.uom}
                         </li>
                       ))}

@@ -1334,33 +1334,40 @@ export default function GRNForm() {
   const grandTotal = billTotals.itemsTotal + deliveryChargeAmount;
 
   // ─── Inventory Sync ───────────────────────────────────────────────────
-  const postInventoryForItems = async (items: GRNItem[]) => {
-    const inventoryType = formData.isService ? 'External' : 'Internal';
-    const role = getUserRole();
-    console.log(role);
-    const results = await Promise.allSettled(
-      items.map((item) => {
-        const payload = {
-          item_Id: item.itemId ?? item.poItemId,
-          item_code: item.itemCode,
-          warehouse_Id: formData.warehouseId,
-          actual_qty: item.receivedQty || 0,
-          ordered_qty: item.orderedQty || item.receivedQty || 0,
-          stock_uom: item.uom,
-          company: company,
-          valuation_rate: item.rate || 0,
-          modified_by: role?.name,
-          type: inventoryType,
-        };
-        return api.post('/inventory', payload);
-      })
-    );
+// ─── Inventory Sync ───────────────────────────────────────────────────
+const postInventoryForItems = async (items: GRNItem[]) => {
+  const inventoryType = formData.isService ? 'External' : 'Internal';
+  const role = getUserRole();
+  
+  // Get GRN ID and GRN number for existing GRNs (edit mode)
+  const grnId = isEditMode && id ? parseInt(id) : undefined;
+  const grnNumber = isEditMode ? formData.grn_number : undefined;
+  
+  const results = await Promise.allSettled(
+    items.map((item) => {
+      const payload = {
+        item_Id: item.itemId ?? item.poItemId,
+        item_code: item.itemCode,
+        warehouse_Id: formData.warehouseId,
+        actual_qty: item.receivedQty || 0,
+        ordered_qty: item.orderedQty || item.receivedQty || 0,
+        stock_uom: item.uom,
+        company: company,
+        valuation_rate: item.rate || 0,
+        modified_by: role?.name,
+        type: inventoryType,
+        grn_id: grnId,           // GRN ID for reference
+        grn_number: grnNumber,   // GRN Number for reference
+      };
+      return api.post('/inventory', payload);
+    })
+  );
 
-    const failed = results.filter(r => r.status === 'rejected');
-    if (failed.length > 0) {
-      console.error(`Failed to post ${failed.length} of ${items.length} inventory entries`, failed);
-    }
-  };
+  const failed = results.filter(r => r.status === 'rejected');
+  if (failed.length > 0) {
+    console.error(`Failed to post ${failed.length} of ${items.length} inventory entries`, failed);
+  }
+};
 
   // ─── Print ────────────────────────────────────────────────────────────
   const handlePrint = () => {

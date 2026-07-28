@@ -36,6 +36,19 @@ interface DashboardData {
   stats: WorkOrderStats;
 }
 
+interface ProducibleItemRow {
+  name: string;
+  required: number;
+  available: number;
+  possible: number;
+}
+
+interface ProducibleResult {
+  maxUnits: number;
+  bottleneck: string;
+  items: ProducibleItemRow[];
+}
+
 export default function DashboardPage() {
   const { theme } = useAdminTheme();
   const navigate = useNavigate();
@@ -61,8 +74,15 @@ export default function DashboardPage() {
     }
   });
 
+  // ─── Production Capacity Check state ─────────────────────────────────
+  const [boms, setBoms] = useState<any[]>([]);
+  const [selectedBomId, setSelectedBomId] = useState<string>("");
+  const [bomLoading, setBomLoading] = useState(false);
+  const [producible, setProducible] = useState<ProducibleResult | null>(null);
+
   useEffect(() => {
     fetchDashboardData();
+    fetchBoms();
   }, []);
 
   const fetchDashboardData = async () => {
@@ -109,6 +129,81 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // ─── Production Capacity Check handlers ──────────────────────────────
+
+  const fetchBoms = async () => {
+    try {
+      const response = await api.get("/bom?limit=1000");
+      if (response.data.success === 1) {
+        setBoms(response.data.data.records || []);
+      }
+    } catch (error) {
+      console.error("Error fetching BOMs:", error);
+    }
+  };
+
+  const handleBomSelect = async (id: string) => {
+    setSelectedBomId(id);
+    setProducible(null);
+    if (!id) return;
+
+    setBomLoading(true);
+    try {
+      const response = await api.get(`/bom/${id}`);
+      if (response.data.success === 1) {
+        calculateProducible(response.data.data);
+      }
+    } catch (error) {
+      console.error("Error fetching BOM details:", error);
+    } finally {
+      setBomLoading(false);
+    }
+  };
+
+  const calculateProducible = (data: any) => {
+    const bomQty = data.bom?.quantity || 1;
+    const items = data.items || [];
+  
+    if (items.length === 0) {
+      setProducible({ maxUnits: 0, bottleneck: "No raw materials", items: [] });
+      return;
+    }
+  
+    let maxUnits = Infinity;
+    let bottleneck = "";
+  
+    const rows: ProducibleItemRow[] = items.map((item: any) => {
+      const requiredPerUnit = (item.qty || 0) / bomQty;
+  
+      // Sum actual physical stock across all warehouses
+      const warehouseStock = Array.isArray(item.stock_by_warehouse)
+        ? item.stock_by_warehouse.reduce((sum: number, w: any) => sum + (w.actual_qty || 0), 0)
+        : 0;
+  
+      const available = warehouseStock || item.actual_qty || item.total_available_stock || 0;
+  
+      const possible = requiredPerUnit > 0 ? Math.floor(available / requiredPerUnit) : Infinity;
+  
+      if (possible < maxUnits) {
+        maxUnits = possible;
+        bottleneck = item.item_name || item.item_code;
+      }
+  
+      return {
+        name: item.item_name || item.item_code,
+        required: requiredPerUnit,
+        available,
+        possible: possible === Infinity ? 0 : possible,
+      };
+    });
+  
+    setProducible({
+      maxUnits: maxUnits === Infinity ? 0 : maxUnits,
+      bottleneck,
+      items: rows,
+    });
   };
 
   // ─── Navigation Handlers ──────────────────────────────────────────────
@@ -287,6 +382,64 @@ export default function DashboardPage() {
     ))}
   </div>
 </div>
+
+        {/* Production Capacity Check */}
+        <div className="card produce-check">
+          <div className="card-header">
+            <h3>Production Capacity Check</h3>
+            <span className="badge">Live Stock</span>
+          </div>
+
+          <select
+            className="produce-select"
+            value={selectedBomId}
+            onChange={(e) => handleBomSelect(e.target.value)}
+          >
+            <option value="">Select a product (BOM)...</option>
+            {boms.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.item_name || b.item} (Qty {b.quantity})
+              </option>
+            ))}
+          </select>
+
+          {bomLoading && <div className="produce-loading">Checking stock...</div>}
+
+          {producible && !bomLoading && (
+            <>
+              <div className="produce-result">
+                <div className="produce-result-icon"><FaBoxes /></div>
+                <div>
+                  <div className="produce-result-value">{producible.maxUnits} units</div>
+                  <div className="produce-result-label">
+                    can be made from current stock
+                    {producible.maxUnits > 0 && producible.bottleneck && (
+                      <> · limited by <strong>{producible.bottleneck}</strong></>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="produce-items">
+                {producible.items.map((row, idx) => (
+                  <div key={idx} className="produce-item-row">
+                    <span className="produce-item-name">{row.name}</span>
+                    <span className="produce-item-stock">
+                      {row.available} avail · {row.required.toFixed(2)}/unit
+                    </span>
+                    <span
+                      className={`produce-item-badge ${
+                        row.possible === producible.maxUnits ? "is-bottleneck" : ""
+                      }`}
+                    >
+                      {row.possible} pcs
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
 
         {/* Recent Activity */}
         <div className="card recent-activity">
