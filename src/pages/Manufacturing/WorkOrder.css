@@ -1274,3 +1274,236 @@
 
 
 }
+
+
+/* Add these styles to your existing WorkOrder.css file */
+
+/* Progress Bar Colors based on percentage */
+.wo-progress-fill {
+  transition: width 0.5s ease, background-color 0.3s ease;
+}
+
+/* Job Card Info Styles */
+.wo-job-card-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wo-job-card-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary, #111827);
+  min-width: 40px;
+}
+
+.wo-job-card-bar {
+  width: 50px;
+  height: 4px;
+  background: var(--bg-secondary, #e5e7eb);
+  border-radius: 2px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.wo-job-card-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.wo-job-card-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary, #6b7280);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wo-job-card-btn:hover {
+  background: var(--bg-secondary, #f3f4f6);
+  color: var(--primary-color, #3b82f6);
+}
+
+/* Complete Action Button */
+.wo-action-complete {
+  color: #22c55e;
+}
+
+.wo-action-complete:hover:not(:disabled) {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.wo-action-complete:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Complete Modal Styles */
+.wo-modal-complete .wo-modal-body {
+  padding: 24px;
+}
+
+.wo-complete-summary {
+  text-align: center;
+}
+
+.wo-complete-icon {
+  margin-bottom: 16px;
+}
+
+.wo-complete-summary h3 {
+  margin: 0 0 8px 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary, #111827);
+}
+
+.wo-complete-detail {
+  color: var(--text-secondary, #6b7280);
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+
+.wo-complete-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin: 16px 0;
+  padding: 16px;
+  background: var(--bg-secondary, #f9fafb);
+  border-radius: 8px;
+}
+
+.wo-complete-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wo-complete-stat span {
+  font-size: 12px;
+  color: var(--text-secondary, #6b7280);
+}
+
+.wo-complete-stat strong {
+  font-size: 16px;
+  color: var(--text-primary, #111827);
+}
+
+.wo-complete-progress {
+  margin: 16px 0;
+}
+
+.wo-complete-progress-bar {
+  height: 8px;
+  background: var(--bg-secondary, #e5e7eb);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.wo-complete-progress-bar .wo-progress-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+
+.wo-complete-warning {
+  font-size: 13px;
+  color: #f59e0b;
+  background: #fffbeb;
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid #fcd34d;
+  margin-top: 16px;
+}
+
+.wo-btn-complete {
+  padding: 8px 20px;
+  background: #22c55e;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: background 0.2s;
+}
+
+.wo-btn-complete:hover:not(:disabled) {
+  background: #16a34a;
+}
+
+.wo-btn-complete:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Dark mode overrides */
+.dark .wo-job-card-text {
+  color: #f3f4f6;
+}
+
+.dark .wo-job-card-bar {
+  background: #374151;
+}
+
+.dark .wo-complete-summary h3 {
+  color: #f3f4f6;
+}
+
+.dark .wo-complete-detail {
+  color: #9ca3af;
+}
+
+.dark .wo-complete-stats {
+  background: #374151;
+}
+
+.dark .wo-complete-stat strong {
+  color: #f3f4f6;
+}
+
+.dark .wo-complete-warning {
+  background: #374151;
+  border-color: #f59e0b;
+  color: #fbbf24;
+}
+
+.dark .wo-action-complete:hover:not(:disabled) {
+  background: #1a3a2a;
+}
+
+.dark .wo-job-card-btn:hover {
+  background: #374151;
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+  .wo-job-card-info {
+    flex-wrap: wrap;
+  }
+  
+  .wo-job-card-bar {
+    width: 40px;
+  }
+
+  .wo-complete-stats {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .wo-status-badge {
+    font-size: 11px;
+    padding: 3px 8px;
+  }
+}

@@ -15,6 +15,12 @@ import {
   FaFilter,
   FaSpinner,
   FaCalendarAlt,
+  FaCheckCircle,
+  FaPlay,
+  FaClock,
+  FaStop,
+  FaFileAlt,
+  FaTasks,
 } from 'react-icons/fa';
 import "./WorkOrder.css";
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
@@ -33,6 +39,9 @@ interface WorkOrder {
   status: Status;
   planned_start_date: string;
   planned_end_date: string;
+  total_job_cards?: number;
+  completed_job_cards?: number;
+  job_card_progress?: string;
 }
 
 interface WorkOrderDisplay {
@@ -44,8 +53,12 @@ interface WorkOrderDisplay {
   status: Status;
   plannedStartDate: string;
   plannedEndDate: string;
-  progress: number;
+  progress: number; // Now based on job cards only
   createdAgo: string;
+  totalJobCards: number;
+  completedJobCards: number;
+  jobCardProgress: string;
+  canComplete: boolean;
 }
 
 interface ApiResponse {
@@ -89,9 +102,12 @@ export default function WorkOrderList() {
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
   const [selectedItem, setSelectedItem] = useState<WorkOrderDisplay | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [completingId, setCompletingId] = useState<string | null>(null);
   const [allWorkOrders, setAllWorkOrders] = useState<WorkOrderDisplay[]>([]);
+  const [completionProgress, setCompletionProgress] = useState<number>(0);
 
   const pageSizeOptions = [10, 25, 50, 100];
   const dateFilterOptions = [
@@ -120,10 +136,17 @@ export default function WorkOrderList() {
     return `${Math.floor(diffDays / 365)} y`;
   };
 
-  // Calculate progress percentage
-  const calculateProgress = (qty: number, producedQty: number): number => {
-    if (qty === 0) return 0;
-    return Math.min(Math.round((producedQty / qty) * 100), 100);
+  // Calculate progress based on job cards only
+  const calculateJobCardProgress = (total: number = 0, completed: number = 0): number => {
+    if (total === 0) return 0;
+    return Math.min(Math.round((completed / total) * 100), 100);
+  };
+
+  // Check if work order can be completed
+  const canCompleteWorkOrder = (status: Status, totalJobCards: number, completedJobCards: number): boolean => {
+    if (status === 'Completed' || status === 'Stopped') return false;
+    if (totalJobCards === 0) return false;
+    return completedJobCards >= totalJobCards;
   };
 
   // Check if date falls within filter range
@@ -179,18 +202,29 @@ export default function WorkOrderList() {
         const totalPagesCalc = Math.max(1, Math.ceil(total / limit));
         setTotalPages(totalPagesCalc);
 
-        const transformedData: WorkOrderDisplay[] = records.map((item: WorkOrder) => ({
-          id: item.id.toString(),
-          name: item.name,
-          productionItem: item.production_item,
-          qty: item.qty,
-          producedQty: item.produced_qty,
-          status: item.status,
-          plannedStartDate: item.planned_start_date,
-          plannedEndDate: item.planned_end_date,
-          progress: calculateProgress(item.qty, item.produced_qty),
-          createdAgo: formatDate(item.planned_start_date),
-        }));
+        const transformedData: WorkOrderDisplay[] = records.map((item: WorkOrder) => {
+          const totalJobCards = item.total_job_cards || 0;
+          const completedJobCards = item.completed_job_cards || 0;
+          // Progress is now based on job cards only
+          const progress = calculateJobCardProgress(totalJobCards, completedJobCards);
+          
+          return {
+            id: item.id.toString(),
+            name: item.name,
+            productionItem: item.production_item,
+            qty: item.qty,
+            producedQty: item.produced_qty,
+            status: item.status,
+            plannedStartDate: item.planned_start_date,
+            plannedEndDate: item.planned_end_date,
+            progress: progress, // Now based on job cards
+            createdAgo: formatDate(item.planned_start_date),
+            totalJobCards,
+            completedJobCards,
+            jobCardProgress: item.job_card_progress || `${completedJobCards}/${totalJobCards}`,
+            canComplete: canCompleteWorkOrder(item.status, totalJobCards, completedJobCards),
+          };
+        });
 
         setWorkOrders(transformedData);
         setAllWorkOrders(transformedData);
@@ -223,18 +257,29 @@ export default function WorkOrderList() {
       const response = await api.get<ApiResponse>(`/work-order?${params.toString()}`);
       if (response.data.success === 1) {
         const { records } = response.data.data;
-        const transformedData: WorkOrderDisplay[] = records.map((item: WorkOrder) => ({
-          id: item.id.toString(),
-          name: item.name,
-          productionItem: item.production_item,
-          qty: item.qty,
-          producedQty: item.produced_qty,
-          status: item.status,
-          plannedStartDate: item.planned_start_date,
-          plannedEndDate: item.planned_end_date,
-          progress: calculateProgress(item.qty, item.produced_qty),
-          createdAgo: formatDate(item.planned_start_date),
-        }));
+        const transformedData: WorkOrderDisplay[] = records.map((item: WorkOrder) => {
+          const totalJobCards = item.total_job_cards || 0;
+          const completedJobCards = item.completed_job_cards || 0;
+          // Progress is now based on job cards only
+          const progress = calculateJobCardProgress(totalJobCards, completedJobCards);
+          
+          return {
+            id: item.id.toString(),
+            name: item.name,
+            productionItem: item.production_item,
+            qty: item.qty,
+            producedQty: item.produced_qty,
+            status: item.status,
+            plannedStartDate: item.planned_start_date,
+            plannedEndDate: item.planned_end_date,
+            progress: progress, // Now based on job cards
+            createdAgo: formatDate(item.planned_start_date),
+            totalJobCards,
+            completedJobCards,
+            jobCardProgress: item.job_card_progress || `${completedJobCards}/${totalJobCards}`,
+            canComplete: canCompleteWorkOrder(item.status, totalJobCards, completedJobCards),
+          };
+        });
         setAllWorkOrders(transformedData);
       }
     } catch (err) {
@@ -340,6 +385,58 @@ export default function WorkOrderList() {
     }
   };
 
+  // Handle complete work order
+  const handleCompleteWorkOrder = (item: WorkOrderDisplay, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!item.canComplete) {
+      alert('This work order cannot be completed. Please check job cards.');
+      return;
+    }
+    setSelectedItem(item);
+    // Calculate completion progress
+    const progress = item.totalJobCards > 0 
+      ? Math.round((item.completedJobCards / item.totalJobCards) * 100)
+      : 0;
+    setCompletionProgress(progress);
+    setShowCompleteConfirm(true);
+  };
+
+  const confirmComplete = async () => {
+    if (!selectedItem) return;
+    setCompletingId(selectedItem.id);
+    try {
+      const response = await api.put(`/work-order/${selectedItem.id}`, {
+        status: 'Completed',
+        produced_qty: selectedItem.qty,
+        actual_end_date: new Date().toISOString()
+      });
+      
+      if (response.data.success === 1) {
+        setShowCompleteConfirm(false);
+        setSelectedItem(null);
+        setCompletingId(null);
+        // Refresh the list
+        fetchWorkOrders();
+        fetchAllWorkOrders();
+        // Show success message
+        alert(`Work Order ${selectedItem.name} has been completed successfully!`);
+      } else {
+        alert('Failed to complete work order. Please try again.');
+      }
+    } catch (err) {
+      console.error('Error completing work order:', err);
+      alert('An error occurred while completing the work order.');
+    } finally {
+      setCompletingId(null);
+    }
+  };
+
+  // Navigate to job cards for work order
+  const handleViewJobCards = (item: WorkOrderDisplay, e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigate(`/job-card?work_order=${item.id}`);
+  };
+
   // Navigate to edit form (view mode)
   const handleRowClick = (item: WorkOrderDisplay) => {
     navigate(`/work-order/${encodeURIComponent(item.id)}`);
@@ -378,6 +475,30 @@ export default function WorkOrderList() {
     const matchesDate = dateFilter === 'all' || isDateInRange(item.plannedStartDate, dateFilter);
     return matchesSearch && matchesStatus && matchesDate;
   });
+
+  // Get status icon
+  const getStatusIcon = (status: Status) => {
+    switch (status) {
+      case 'Completed':
+        return <FaCheckCircle size={14} />;
+      case 'In Process':
+        return <FaClock size={14} />;
+      case 'Not Started':
+        return <FaPlay size={14} />;
+      case 'Stopped':
+        return <FaStop size={14} />;
+      default:
+        return <FaFileAlt size={14} />;
+    }
+  };
+
+  // Get progress color based on percentage
+  const getProgressColor = (progress: number) => {
+    if (progress >= 100) return '#22c55e';
+    if (progress >= 70) return '#3b82f6';
+    if (progress >= 40) return '#f59e0b';
+    return '#ef4444';
+  };
 
   return (
     <div className={`wo-page ${theme}`}>
@@ -499,21 +620,20 @@ export default function WorkOrderList() {
                   <th className="wo-th">WO #</th>
                   <th className="wo-th">Production Item</th>
                   <th className="wo-th">Qty</th>
+                  <th className="wo-th">Job Cards</th>
                   <th className="wo-th">Progress</th>
                   <th className="wo-th">Status</th>
                   <th className="wo-th">Planned Dates</th>
                   <th className="wo-th wo-th-meta">
                     <span className="wo-count-label">{filteredData.length} of {totalItems}</span>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary, #9ca3af)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                    </svg>
+                    <FaTasks size={14} style={{ color: 'var(--text-secondary, #9ca3af)' }} />
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {filteredData.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="wo-empty-state">
+                    <td colSpan={8} className="wo-empty-state">
                       <div className="wo-empty-content">
                         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -539,18 +659,49 @@ export default function WorkOrderList() {
                       <td className="wo-td wo-td-link">{row.productionItem}</td>
                       <td className="wo-td wo-td-number">{row.qty.toLocaleString()}</td>
                       <td className="wo-td">
+                        <div className="wo-job-card-info">
+                          <span className="wo-job-card-text">
+                            {row.completedJobCards}/{row.totalJobCards}
+                          </span>
+                          {row.totalJobCards > 0 && (
+                            <div className="wo-job-card-bar">
+                              <div 
+                                className="wo-job-card-fill"
+                                style={{ 
+                                  width: `${(row.completedJobCards / row.totalJobCards) * 100}%`,
+                                  backgroundColor: row.completedJobCards >= row.totalJobCards ? '#22c55e' : '#3b82f6'
+                                }}
+                              />
+                            </div>
+                          )}
+                          <button
+                            className="wo-job-card-btn"
+                            onClick={(e) => handleViewJobCards(row, e)}
+                            title="View Job Cards"
+                          >
+                            <FaFileAlt size={12} />
+                          </button>
+                        </div>
+                      </td>
+                      <td className="wo-td">
                         <div className="wo-progress-container">
                           <div className="wo-progress-bar">
                             <div 
                               className="wo-progress-fill" 
-                              style={{ width: `${row.progress}%` }}
+                              style={{ 
+                                width: `${row.progress}%`,
+                                backgroundColor: getProgressColor(row.progress)
+                              }}
                             />
                           </div>
-                          <span className="wo-progress-text">{row.progress}%</span>
+                          <span className="wo-progress-text" style={{ color: getProgressColor(row.progress) }}>
+                            {row.progress}%
+                          </span>
                         </div>
                       </td>
                       <td className="wo-td">
                         <span className={`wo-status-badge ${STATUS_CLASS[row.status]}`}>
+                          {getStatusIcon(row.status)}
                           {STATUS_LABELS[row.status]}
                         </span>
                       </td>
@@ -558,8 +709,6 @@ export default function WorkOrderList() {
                         <div className="wo-date-range">
                           <FaCalendarAlt size={12} style={{ color: 'var(--text-secondary)', marginRight: '4px' }} />
                           <span>{new Date(row.plannedStartDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
-                          <span className="wo-date-sep">→</span>
-                          <span>{new Date(row.plannedEndDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
                         </div>
                       </td>
                       <td className="wo-td wo-td-meta" onClick={(e) => e.stopPropagation()}>
@@ -580,6 +729,20 @@ export default function WorkOrderList() {
                           >
                             <FaEdit size={12} />
                           </button>
+                          {row.canComplete && (
+                            <button
+                              className="wo-action-btn wo-action-complete"
+                              onClick={(e) => handleCompleteWorkOrder(row, e)}
+                              title="Complete Work Order"
+                              disabled={completingId === row.id}
+                            >
+                              {completingId === row.id ? (
+                                <FaSpinner className="spinning" size={12} />
+                              ) : (
+                                <FaCheckCircle size={12} />
+                              )}
+                            </button>
+                          )}
                           <button
                             className="wo-action-btn wo-action-delete"
                             onClick={(e) => handleDelete(row, e)}
@@ -693,6 +856,76 @@ export default function WorkOrderList() {
         </div>
       )}
 
+      {/* Complete Work Order Confirmation Modal */}
+      {showCompleteConfirm && selectedItem && (
+        <div className="wo-modal-overlay" onClick={() => setShowCompleteConfirm(false)}>
+          <div className="wo-modal wo-modal-complete" onClick={(e) => e.stopPropagation()}>
+            <div className="wo-modal-header">
+              <span className="wo-modal-title">Complete Work Order</span>
+              <button className="wo-modal-close" onClick={() => setShowCompleteConfirm(false)}>
+                <FaTimes size={16} />
+              </button>
+            </div>
+            <div className="wo-modal-body">
+              <div className="wo-complete-summary">
+                <div className="wo-complete-icon">
+                  <FaCheckCircle size={48} style={{ color: '#22c55e' }} />
+                </div>
+                <h3>Ready to Complete?</h3>
+                <p className="wo-complete-detail">
+                  <strong>{selectedItem.name}</strong> - {selectedItem.productionItem}
+                </p>
+                <div className="wo-complete-stats">
+                  <div className="wo-complete-stat">
+                    <span>Quantity</span>
+                    <strong>{selectedItem.qty} units</strong>
+                  </div>
+                  <div className="wo-complete-stat">
+                    <span>Job Cards</span>
+                    <strong>{selectedItem.completedJobCards}/{selectedItem.totalJobCards} completed</strong>
+                  </div>
+                  <div className="wo-complete-stat">
+                    <span>Completion</span>
+                    <strong>{completionProgress}%</strong>
+                  </div>
+                </div>
+                <div className="wo-complete-progress">
+                  <div className="wo-progress-bar wo-complete-progress-bar">
+                    <div 
+                      className="wo-progress-fill" 
+                      style={{ 
+                        width: `${completionProgress}%`, 
+                        backgroundColor: completionProgress >= 100 ? '#22c55e' : '#3b82f6'
+                      }}
+                    />
+                  </div>
+                </div>
+                <p className="wo-complete-warning">
+                  ⚠️ This will mark the work order as completed and update the production quantity.
+                </p>
+              </div>
+            </div>
+            <div className="wo-modal-footer">
+              <button className="wo-btn-cancel" onClick={() => setShowCompleteConfirm(false)}>
+                Cancel
+              </button>
+              <button 
+                className="wo-btn-complete" 
+                onClick={confirmComplete} 
+                disabled={completingId === selectedItem.id}
+              >
+                {completingId === selectedItem.id ? (
+                  <FaSpinner className="spinning" size={12} />
+                ) : (
+                  <FaCheckCircle size={12} />
+                )}
+                Complete Work Order
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`
         @keyframes spin {
           0% { transform: rotate(0deg); }
@@ -700,6 +933,246 @@ export default function WorkOrderList() {
         }
         .spinning {
           animation: spin 1s linear infinite;
+        }
+
+        /* Job Card Styles */
+        .wo-job-card-info {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .wo-job-card-text {
+          font-size: 13px;
+          font-weight: 600;
+          color: var(--text-primary, #111827);
+          min-width: 40px;
+        }
+
+        .wo-job-card-bar {
+          width: 50px;
+          height: 4px;
+          background: var(--bg-secondary, #e5e7eb);
+          border-radius: 2px;
+          overflow: hidden;
+          flex-shrink: 0;
+        }
+
+        .wo-job-card-fill {
+          height: 100%;
+          border-radius: 2px;
+          transition: width 0.3s ease;
+        }
+
+        .wo-job-card-btn {
+          background: none;
+          border: none;
+          color: var(--text-secondary, #6b7280);
+          cursor: pointer;
+          padding: 4px;
+          border-radius: 4px;
+          transition: all 0.2s;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .wo-job-card-btn:hover {
+          background: var(--bg-secondary, #f3f4f6);
+          color: var(--primary-color, #3b82f6);
+        }
+
+        /* Status Badge with Icon */
+        .wo-status-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 4px 12px;
+          border-radius: 12px;
+          font-size: 12px;
+          font-weight: 500;
+        }
+
+        /* Complete Action Button */
+        .wo-action-complete {
+          color: #22c55e;
+        }
+
+        .wo-action-complete:hover:not(:disabled) {
+          background: #dcfce7;
+          color: #16a34a;
+        }
+
+        .wo-action-complete:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        .wo-action-complete .spinning {
+          color: #22c55e;
+        }
+
+        /* Complete Modal */
+        .wo-modal-complete .wo-modal-body {
+          padding: 24px;
+        }
+
+        .wo-complete-summary {
+          text-align: center;
+        }
+
+        .wo-complete-icon {
+          margin-bottom: 16px;
+        }
+
+        .wo-complete-summary h3 {
+          margin: 0 0 8px 0;
+          font-size: 20px;
+          font-weight: 600;
+          color: var(--text-primary, #111827);
+        }
+
+        .wo-complete-detail {
+          color: var(--text-secondary, #6b7280);
+          font-size: 14px;
+          margin-bottom: 20px;
+        }
+
+        .wo-complete-stats {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 12px;
+          margin: 16px 0;
+          padding: 16px;
+          background: var(--bg-secondary, #f9fafb);
+          border-radius: 8px;
+        }
+
+        .wo-complete-stat {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+
+        .wo-complete-stat span {
+          font-size: 12px;
+          color: var(--text-secondary, #6b7280);
+        }
+
+        .wo-complete-stat strong {
+          font-size: 16px;
+          color: var(--text-primary, #111827);
+        }
+
+        .wo-complete-progress {
+          margin: 16px 0;
+        }
+
+        .wo-complete-progress-bar {
+          height: 8px;
+          background: var(--bg-secondary, #e5e7eb);
+          border-radius: 4px;
+          overflow: hidden;
+        }
+
+        .wo-complete-progress-bar .wo-progress-fill {
+          height: 100%;
+          border-radius: 4px;
+          transition: width 0.5s ease;
+        }
+
+        .wo-complete-warning {
+          font-size: 13px;
+          color: #f59e0b;
+          background: #fffbeb;
+          padding: 12px;
+          border-radius: 6px;
+          border: 1px solid #fcd34d;
+          margin-top: 16px;
+        }
+
+        .wo-btn-complete {
+          padding: 8px 20px;
+          background: #22c55e;
+          color: #ffffff;
+          border: none;
+          border-radius: 6px;
+          font-size: 14px;
+          font-weight: 500;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          transition: background 0.2s;
+        }
+
+        .wo-btn-complete:hover:not(:disabled) {
+          background: #16a34a;
+        }
+
+        .wo-btn-complete:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+
+        /* Dark mode styles */
+        .dashboard.dark .wo-job-card-text {
+          color: #f3f4f6;
+        }
+
+        .dashboard.dark .wo-job-card-bar {
+          background: #374151;
+        }
+
+        .dashboard.dark .wo-complete-summary h3 {
+          color: #f3f4f6;
+        }
+
+        .dashboard.dark .wo-complete-detail {
+          color: #9ca3af;
+        }
+
+        .dashboard.dark .wo-complete-stats {
+          background: #374151;
+        }
+
+        .dashboard.dark .wo-complete-stat strong {
+          color: #f3f4f6;
+        }
+
+        .dashboard.dark .wo-complete-warning {
+          background: #374151;
+          border-color: #f59e0b;
+          color: #fbbf24;
+        }
+
+        .dashboard.dark .wo-action-complete:hover:not(:disabled) {
+          background: #1a3a2a;
+        }
+
+        .dashboard.dark .wo-job-card-btn:hover {
+          background: #374151;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+          .wo-job-card-info {
+            flex-wrap: wrap;
+          }
+          
+          .wo-job-card-bar {
+            width: 40px;
+          }
+
+          .wo-complete-stats {
+            grid-template-columns: 1fr;
+            gap: 8px;
+          }
+
+          .wo-status-badge {
+            font-size: 11px;
+            padding: 3px 8px;
+          }
         }
       `}</style>
     </div>

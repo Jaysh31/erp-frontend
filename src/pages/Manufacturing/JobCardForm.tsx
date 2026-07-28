@@ -790,7 +790,7 @@ const JobCardForm: React.FC = () => {
   }, [timerRunning]);
 
   const jobStarted = !!formData.actual_start_date;
-  const jobCompleted = formData.status === "Completed";
+  const jobCompleted = formData.status === "In Process";
   const hasAssignedEmployees = formData.assigned_employees.length > 0;
 
   // ─── handleStartJob function ─────────────────────────────────────
@@ -1456,18 +1456,7 @@ const JobCardForm: React.FC = () => {
                       />
                     </div>
                   </div>
-                  <div>
-                    <label className="jcf-label">Hour Rate</label>
-                    <div className="input-group">
-                      <DigitInput
-                        value={String(formData.hour_rate)}
-                        onChange={(val) => handleNumberChange('hour_rate', val)}
-                        placeholder="0.00"
-                        maxLength={10}
-                        allowDecimal={true}
-                      />
-                    </div>
-                  </div>
+                  
                 </div>
 
                 <div className="jcf-section-title"><FaClock size={12} /> Actual Schedule</div>
@@ -1647,18 +1636,7 @@ const JobCardForm: React.FC = () => {
                     <FaUserPlus size={12} /> {hasAssignedEmployees ? "Manage Employees" : "Assign Employee"}
                   </button>
 
-                  {/* Update button – only for edit mode */}
-                  {isEditMode && (
-                    <button
-                      type="button"
-                      className="jcf-btn-primary jcf-btn-block"
-                      onClick={handleUpdate}
-                      disabled={saving}
-                    >
-                      {saving ? <FaSpinner className="jcf-spinning" /> : <FaSave size={11} />}
-                      Update Job Card
-                    </button>
-                  )}
+                 
 
                   {/* Start / Resume / Pause / Complete buttons */}
                   {!jobStarted && !jobCompleted && (
@@ -1725,6 +1703,19 @@ const JobCardForm: React.FC = () => {
                     <div className="jcf-status-done jcf-btn-block">
                       <FaCheck size={11} /> Completed
                     </div>
+                  )}
+
+                   {/* Update button – only for edit mode */}
+                   {isEditMode && (
+                    <button
+                      type="button"
+                      className="jcf-btn-primary jcf-btn-block"
+                      onClick={handleUpdate}
+                      disabled={saving}
+                    >
+                      {saving ? <FaSpinner className="jcf-spinning" /> : <FaSave size={11} />}
+                      Update Job Card
+                    </button>
                   )}
                 </div>
               </div> {/* end .jcf-sidebar-card */}

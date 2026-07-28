@@ -210,6 +210,19 @@ interface BomApiOperation {
   
 }
 
+// Per-warehouse stock breakdown returned inline on each BOM item line
+// (GET /bom/:id → data.items[].stock_by_warehouse).
+interface BomItemWarehouseStock {
+  id: number;
+  warehouse_name: string;
+  actual_qty: number;
+  reserved_qty: number;
+  available_qty: number;
+  projected_qty: number;
+  stock_value: number;
+  valuation_rate: number;
+}
+
 interface BomApiItem {
   id: number;
   item_code: string;
@@ -220,6 +233,14 @@ interface BomApiItem {
   source_warehouse?: string | null;
   rate: number;
   amount: number;
+  // Stock/availability fields returned alongside each BOM item line —
+  // used to check whether enough raw material exists to manufacture a
+  // given qty of the finished item.
+  actual_qty?: number;
+  available_qty?: number;
+  total_available_stock?: number;
+  total_stock?: number;
+  stock_by_warehouse?: BomItemWarehouseStock[];
 }
 
 interface BomDetail {
@@ -954,9 +975,25 @@ export default function WorkOrderForm() {
   const [bomDetail, setBomDetail] = useState<{ bom: BomDetail; items: BomApiItem[]; operations: BomApiOperation[] } | null>(null);
   const [bomLoading, setBomLoading] = useState(false);
 
+  // ── Material availability constraints derived from the selected BOM ──
+  // Computed whenever a BOM is loaded or qty_to_manufacture changes: for
+  // each raw material in the BOM, how much is actually in stock vs. how
+  // much this Work Order would consume — and from that, the max qty of
+  // the finished item that can be made right now.
+  const [materialConstraints, setMaterialConstraints] = useState<
+    { item_code: string; item_name: string; available: number; required: number; uom: string; shortfall: boolean }[]
+  >([]);
+  const [maxProducibleQty, setMaxProducibleQty] = useState<number | null>(null);
+
   // Media upload state
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingMedia, setUploadingMedia] = useState(false);
+  // Files picked before the Work Order has been saved (no id yet). These
+  // are staged locally and only uploaded once we have a real Work Order id
+  // (either the insertId from a fresh POST, or wo.id for an existing WO).
+  const [pendingMedia, setPendingMedia] = useState<
+    { id: string; file: File; url: string; name: string; type: "image" | "video" }[]
+  >([]);
 
   const disabled = submitting || loading;
 
@@ -1116,6 +1153,10 @@ export default function WorkOrderForm() {
                     operations: ops.length ? ops : [emptyOp()],
                     required_items: items.length ? items : [emptyItem()],
                   }));
+
+                  // Re-derive the material availability / max-producible-qty
+                  // picture for this saved qty, same as a fresh BOM pick.
+                  computeMaterialConstraints(detail, qty);
                 }
               } catch {
                 setApiError("Failed to load linked BOM details");
@@ -1153,7 +1194,9 @@ export default function WorkOrderForm() {
             source_warehouse: prev.source_warehouse || detail.bom.default_source_warehouse || "",
             target_warehouse: prev.target_warehouse || detail.bom.default_target_warehouse || "",
           }));
-          applyBomToWo(detail, wo.qty_to_manufacture || bom.quantity);
+          const qtyToUse = wo.qty_to_manufacture || bom.quantity;
+          applyBomToWo(detail, qtyToUse);
+          computeMaterialConstraints(detail, qtyToUse);
         }
       })
       .catch(() => setApiError("Failed to load BOM details"))
@@ -1163,6 +1206,8 @@ export default function WorkOrderForm() {
   const handleClearBom = () => {
     setSelectedBomLabel("");
     setBomDetail(null);
+    setMaterialConstraints([]);
+    setMaxProducibleQty(null);
     setWo(prev => ({
       ...prev,
       bom_no: "", item_to_manufacture: "", item_name: "",
@@ -1214,10 +1259,66 @@ export default function WorkOrderForm() {
     }));
   };
 
+  // ─── Material availability check ──────────────────────────────────────
+  // Given the BOM detail (whose items carry stock_by_warehouse / total_stock
+  // from GET /bom/:id) and a target manufacture qty, work out:
+  //   1. How much of each raw material is actually available right now
+  //      (summed across all warehouses it's held in).
+  //   2. How much this Work Order would consume of each, scaled to qty.
+  //   3. The maximum qty of the finished item makeable from current stock —
+  //      the scarcest raw material sets this ceiling.
+  const getItemAvailableQty = (item: BomApiItem) => {
+    // Prefer the true physical stock summed across warehouses — this
+    // ignores reservations (including ones this same WO already placed),
+    // which is what "how much material physically exists" should mean.
+    if (Array.isArray(item.stock_by_warehouse) && item.stock_by_warehouse.length > 0) {
+      return item.stock_by_warehouse.reduce((sum, w) => sum + (w.actual_qty || 0), 0);
+    }
+    if (typeof item.total_stock === "number") return item.total_stock;
+    if (typeof item.actual_qty === "number") return item.actual_qty;
+    if (typeof item.available_qty === "number") return item.available_qty;
+    return 0;
+  };
+
+  const computeMaterialConstraints = (
+    detail: { bom: BomDetail; items: BomApiItem[]; operations: BomApiOperation[] },
+    qty: number
+  ) => {
+    const base = detail.bom.quantity > 0 ? detail.bom.quantity : 1;
+
+    const constraints = detail.items.map(it => {
+      const perUnitQty = it.qty / base; // raw material needed per 1 finished unit
+      const available = getItemAvailableQty(it);
+      const required = Math.round(perUnitQty * qty * 1000) / 1000;
+      return {
+        item_code: it.item_code,
+        item_name: it.item_name,
+        available,
+        required,
+        uom: it.stock_uom || it.uom,
+        shortfall: qty > 0 && required > available,
+        perUnitQty,
+      };
+    });
+
+    // Max producible qty = the smallest "how many finished units can this
+    // material support" across all raw materials that actually consume
+    // stock (perUnitQty > 0). If nothing constrains it, leave as null.
+    const bounded = constraints
+      .filter(c => c.perUnitQty > 0)
+      .map(c => Math.floor(c.available / c.perUnitQty));
+
+    const max = bounded.length > 0 ? Math.min(...bounded) : null;
+
+    setMaterialConstraints(constraints.map(({ perUnitQty, ...rest }) => rest));
+    setMaxProducibleQty(max);
+  };
+
   // Re-scale when qty changes and BOM is loaded (internal WOs only)
   useEffect(() => {
     if (wo.type === "internal" && bomDetail && wo.qty_to_manufacture > 0) {
       applyBomToWo(bomDetail, wo.qty_to_manufacture);
+      computeMaterialConstraints(bomDetail, wo.qty_to_manufacture);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wo.qty_to_manufacture]);
@@ -1321,19 +1422,19 @@ export default function WorkOrderForm() {
   };
 
   // ─── Media Upload ─────────────────────────────────────────────────────
-  const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
+  // Shared uploader — used both when a Work Order already exists (upload
+  // fires immediately) and right after a brand-new Work Order is created
+  // (fires once, using the fresh insertId).
+  const uploadMediaFiles = async (files: File[], workOrderId: number) => {
+    if (files.length === 0) return;
     setUploadingMedia(true);
     const formData = new FormData();
+    files.forEach((file) => formData.append("file", file)); // <-- change media -> file
 
-    for (let i = 0; i < files.length; i++) {
-      formData.append("file", files[i]);   // <-- change media -> file
-    }
+    // formData.append("itemID", String(workOrderId)); // or whatever your item id is
+    formData.append("type", "wo");
+    formData.append("woID", "128");
 
-    formData.append("itemID", String(wo.id)); // or whatever your item id is
-    formData.append("type", "item");
 
     try {
       const response = await api.post("/uploadmedia", formData, {
@@ -1351,8 +1452,41 @@ export default function WorkOrderForm() {
       setApiError("Failed to upload media files");
     } finally {
       setUploadingMedia(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
     }
+  };
+
+  const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    // Brand-new Work Order: there's no id yet, so we can't call
+    // /uploadmedia (it needs a real work order id as itemID). Stage the
+    // files locally instead; they get uploaded right after create in
+    // handleSave once we have the insertId.
+    if (!wo.id) {
+      const staged = Array.from(files).map((file) => ({
+        id: uid(),
+        file,
+        url: URL.createObjectURL(file),
+        name: file.name,
+        type: (file.type.startsWith("video") ? "video" : "image") as "image" | "video",
+      }));
+      setPendingMedia(prev => [...prev, ...staged]);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    // Existing Work Order: upload right away.
+    await uploadMediaFiles(Array.from(files), wo.id);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const removePendingMedia = (id: string) => {
+    setPendingMedia(prev => {
+      const target = prev.find(f => f.id === id);
+      if (target) URL.revokeObjectURL(target.url);
+      return prev.filter(f => f.id !== id);
+    });
   };
 
   // ─── Work Order Completion: job card lookup → WO update → stock entry ──
@@ -1523,12 +1657,6 @@ export default function WorkOrderForm() {
   // ─── Manual step: push the produced qty into Finished Goods inventory ──
   // Only runs when the user clicks the "Post to Inventory" button in the
   // completion modal — never automatically.
- // ─── Manual step: push the produced qty into Finished Goods inventory ──
-// Only runs when the user clicks the "Post to Inventory" button in the
-// completion modal — never automatically.
-// ─── Manual step: push the produced qty into Finished Goods inventory ──
-// Only runs when the user clicks the "Post to Inventory" button in the
-// completion modal — never automatically.
 const handlePostInventory = async () => {
   if (!completionSummary || completionSummary.totalCompletedQty === undefined) return;
   if (!completionSummary.fgWarehouseId) {
@@ -1597,6 +1725,21 @@ const handlePostInventory = async () => {
     if (!wo.target_warehouse.trim()) errs.push({ field: "target_warehouse", label: "Target Warehouse (FG)", message: "Required" });
     if (!wo.wip_warehouse.trim()) errs.push({ field: "wip_warehouse", label: "WIP Warehouse", message: "Required" });
     if (!wo.planned_start_date) errs.push({ field: "planned_start_date", label: "Planned Start Date", message: "Required" });
+
+    // Block creation/update if the BOM's raw materials don't have enough
+    // stock for the requested Qty To Manufacture — direct the user to add
+    // stock in Inventory instead of letting the WO go through short.
+    if (wo.type === "internal" && materialConstraints.some(c => c.shortfall)) {
+      const shortfalls = materialConstraints.filter(c => c.shortfall);
+      const detail = shortfalls
+        .map(c => `${c.item_name} (need ${c.required} ${c.uom}, have ${c.available} ${c.uom})`)
+        .join("; ");
+      errs.push({
+        field: "qty_to_manufacture",
+        label: "Material Availability",
+        message: `Not enough stock to manufacture ${wo.qty_to_manufacture} ${wo.stock_uom}: ${detail}. Please add stock in Inventory${maxProducibleQty !== null ? `, or reduce the quantity to ${maxProducibleQty} ${wo.stock_uom} or below` : ""}.`,
+      });
+    }
     return errs;
   };
 
@@ -1664,7 +1807,6 @@ const handlePostInventory = async () => {
   });
 
   // ─── Submit ───────────────────────────────────────────────────────────
- // ─── Submit ───────────────────────────────────────────────────────────
  const handleSave = async (e: FormEvent) => {
   e.preventDefault();
   setApiError(null);
@@ -1701,6 +1843,16 @@ const handlePostInventory = async () => {
 
       if (response.data?.success === 1) {
         const workOrderId = wo.id;
+
+        // Upload any files staged before this WO had an id (shouldn't
+        // normally happen on update since wo.id already exists, but if a
+        // user somehow has pending media, flush it now too).
+        if (pendingMedia.length > 0 && workOrderId) {
+          await uploadMediaFiles(pendingMedia.map(p => p.file), workOrderId);
+          pendingMedia.forEach(p => URL.revokeObjectURL(p.url));
+          setPendingMedia([]);
+        }
+
         try {
           const jobCardResponse = await api.post(`/job-card/create-job-cards-from-wo/${workOrderId}`);
           if (jobCardResponse.data?.success === 0) {
@@ -1757,6 +1909,14 @@ const handlePostInventory = async () => {
       if (response.data?.success === 1) {
         const insertId = response.data?.data?.workOrder?.insertId;
         if (insertId) {
+          // Now that we have a real Work Order id, upload any images/videos
+          // that were staged locally while the form had no id yet.
+          if (pendingMedia.length > 0) {
+            await uploadMediaFiles(pendingMedia.map(p => p.file), insertId);
+            pendingMedia.forEach(p => URL.revokeObjectURL(p.url));
+            setPendingMedia([]);
+          }
+
           try {
             const jobCardResponse = await api.post(`/job-card/create-job-cards-from-wo/${insertId}`);
             // Check if job card creation failed due to insufficient stock
@@ -2451,10 +2611,25 @@ const handlePostInventory = async () => {
                   <label className="wof-label">Qty To Manufacture <span className="wof-required">*</span></label>
                   <input type="number" value={wo.qty_to_manufacture || ""}
                     onChange={e => set("qty_to_manufacture", Number(e.target.value))}
-                    className="form-field" placeholder="e.g. 100"  />
+                    className={`form-field${materialConstraints.some(c => c.shortfall) ? " field-error" : ""}`}
+                    placeholder="e.g. 100"  />
                   {bomDetail && (
                     <span className="wof-hint">
                       BOM base: {bomDetail.bom.quantity} {bomDetail.bom.uom} — rows scale automatically
+                    </span>
+                  )}
+                  {bomDetail && maxProducibleQty !== null && (
+                    <span
+                      className="wof-hint"
+                      style={{
+                        display: "block",
+                        marginTop: 4,
+                        fontWeight: 600,
+                        color: materialConstraints.some(c => c.shortfall) ? "#b91c1c" : "#166534",
+                      }}
+                    >
+                      <FaBoxOpen style={{ marginRight: 4 }} />
+                      Can make up to {maxProducibleQty} {wo.stock_uom} from current stock
                     </span>
                   )}
                 </div>
@@ -2463,6 +2638,31 @@ const handlePostInventory = async () => {
                   {bomLoading && (
                     <div className="wof-hint" style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
                       <FaSpinner className="spinning" /> Loading BOM details…
+                    </div>
+                  )}
+
+                  {/* ── Insufficient stock warning ──
+                      Shown as soon as the requested Qty To Manufacture would
+                      consume more of any raw material than is currently in
+                      stock. Submission is blocked for this (see validate()). */}
+                  {materialConstraints.some(c => c.shortfall) && (
+                    <div style={{
+                      marginTop: 10, background: "#fef2f2", border: "1px solid #fca5a5",
+                      borderRadius: 6, padding: "10px 12px",
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#991b1b", fontWeight: 600, fontSize: 13, marginBottom: 6 }}>
+                        <FaExclamationTriangle /> Not enough stock to manufacture {wo.qty_to_manufacture} {wo.stock_uom}
+                      </div>
+                      <ul style={{ margin: 0, paddingLeft: 20, fontSize: 12.5, color: "#7f1d1d" }}>
+                        {materialConstraints.filter(c => c.shortfall).map(c => (
+                          <li key={c.item_code}>
+                            {c.item_name} ({c.item_code}): need {c.required} {c.uom}, only {c.available} {c.uom} available
+                          </li>
+                        ))}
+                      </ul>
+                      <div style={{ fontSize: 12, color: "#7f1d1d", marginTop: 6 }}>
+                        Please add stock in Inventory{maxProducibleQty !== null ? `, or reduce the quantity to ${maxProducibleQty} ${wo.stock_uom} or below` : ""}.
+                      </div>
                     </div>
                   )}
                 </>
@@ -2511,15 +2711,15 @@ const handlePostInventory = async () => {
                   onChange={v => set("source_warehouse", v)}required disabled={disabled}
                   hint="Where raw materials are picked from" 
                   />
-                  
+                  <WarehouseSearchField label="WIP Warehouse" value={wo.wip_warehouse}
+                  onChange={v => set("wip_warehouse", v)} required disabled={disabled}
+                  hint="Where production operations happen"
+               />
                 <WarehouseSearchField label="Target Warehouse (FG)" value={wo.target_warehouse}
                   onChange={v => set("target_warehouse", v)} required disabled={disabled}
                   hint="Where finished goods are stored"
                 />
-                <WarehouseSearchField label="WIP Warehouse" value={wo.wip_warehouse}
-                  onChange={v => set("wip_warehouse", v)} required disabled={disabled}
-                  hint="Where production operations happen"
-               />
+                
               </div>
 
              
@@ -2612,6 +2812,7 @@ const handlePostInventory = async () => {
                       <th>Source Warehouse</th>
                       <th>Required Qty</th>
                       {wo.type === "external" && <th>Available Qty</th>}
+                      {wo.type === "internal" && <th>Available Qty</th>}
                       <th>UOM</th>
                       <th>Rate</th>
                       <th>Amount</th>
@@ -2622,6 +2823,9 @@ const handlePostInventory = async () => {
                     {wo.required_items.map((ri, idx) => {
                       const avail = wo.type === "external" ? availabilityFor(ri.item_code) : undefined;
                       const shortfall = avail !== undefined && ri.required_qty > avail.received_qty;
+                      const bomConstraint = wo.type === "internal"
+                        ? materialConstraints.find(c => c.item_code === ri.item_code)
+                        : undefined;
                       return (
                         <tr key={ri.id}>
                           <td className="wof-col-no">{idx + 1}</td>
@@ -2649,6 +2853,12 @@ const handlePostInventory = async () => {
                             <td style={{ fontWeight: 600, color: shortfall ? "#b91c1c" : "#166534", whiteSpace: "nowrap" }}>
                               {avail ? avail.received_qty : "—"}
                               {shortfall && <FaExclamationTriangle style={{ marginLeft: 4 }} title="Required qty exceeds what's available" />}
+                            </td>
+                          )}
+                          {wo.type === "internal" && (
+                            <td style={{ fontWeight: 600, color: bomConstraint?.shortfall ? "#b91c1c" : "#166534", whiteSpace: "nowrap" }}>
+                              {bomConstraint ? bomConstraint.available : "—"}
+                              {bomConstraint?.shortfall && <FaExclamationTriangle style={{ marginLeft: 4 }} title="Required qty exceeds what's in stock" />}
                             </td>
                           )}
                           <td>
@@ -2752,11 +2962,45 @@ const handlePostInventory = async () => {
                   {uploadingMedia ? <FaSpinner className="spinning" /> : <FaImage />}
                   {uploadingMedia ? "Uploading..." : "Upload Images/Videos"}
                 </button>
-                <span className="wof-hint">Upload product images, process videos, or inspection photos (optional)</span>
+                <span className="wof-hint">
+                  Upload product images, process videos, or inspection photos (optional).
+                  {!wo.id && " These will be uploaded once the Work Order is saved."}
+                </span>
               </div>
 
-              {wo.media_files.length > 0 && (
+              {(pendingMedia.length > 0 || wo.media_files.length > 0) && (
                 <div className="wof-media-gallery">
+                  {pendingMedia.map((file) => (
+                    <div key={file.id} className="wof-media-item" style={{ position: "relative" }}>
+                      {file.type === "image" ? (
+                        <img src={file.url} alt={file.name} className="wof-media-preview" />
+                      ) : (
+                        <video src={file.url} className="wof-media-preview" controls />
+                      )}
+                      <span
+                        style={{
+                          position: "absolute",
+                          top: 4,
+                          left: 4,
+                          fontSize: 10,
+                          fontWeight: 600,
+                          background: "#fbbf24",
+                          color: "#78350f",
+                          padding: "1px 6px",
+                          borderRadius: 3,
+                        }}
+                      >
+                        Pending
+                      </span>
+                      <button
+                        type="button"
+                        className="wof-media-delete"
+                        onClick={() => removePendingMedia(file.id)}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
                   {wo.media_files.map((file) => (
                     <div key={file.id} className="wof-media-item">
                       {file.type === "image" ? (
@@ -2875,7 +3119,7 @@ const handlePostInventory = async () => {
             <button type="submit" className="submit-btn" disabled={submitting}>
               {submitting && <FaSpinner className="spinning" />}
               <FaSave size={12} />
-              {isNew ? "Create" : "Update"}
+              {isNew ? "Create" : "Save"}
             </button>
           </div>
         </form>
