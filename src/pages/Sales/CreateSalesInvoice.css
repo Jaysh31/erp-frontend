@@ -1,13 +1,25 @@
 /* CreateSalesInvoice.css */
 /* ========================================
-   SALES BILL - UPDATED WITH PAYMENT SECTION
+   SALES BILL - COMPLETE CSS
 ======================================== */
 
 .nsb-page {
-  padding: 1.5rem 2rem;
+  padding: 0rem 2rem;
   background: var(--layout-bg, #f8fafc);
   min-height: 100vh;
   font-family: Inter, sans-serif;
+}
+
+/* ── Remove spinners from number inputs ── */
+.nsb-table-input[type="number"]::-webkit-outer-spin-button,
+.nsb-table-input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.nsb-table-input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
 }
 
 /* ── Header ─────────────────────────────────────── */
@@ -16,7 +28,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 1.5rem;
+  margin-bottom: 0.5rem;
 }
 
 .nsb-header-left {
@@ -98,14 +110,14 @@
   background: var(--card-bg, #ffffff);
   border-radius: 14px;
   border: 1px solid var(--border-color, #e2e8f0);
-  padding: 28px 32px;
+  padding: 14px 24px;
   box-shadow: 0 1px 4px var(--shadow-color, rgba(0,0,0,0.06));
   margin-bottom: 1.5rem;
 }
 
 /* ── Toggle Section ───────────────────────────────── */
 .nsb-invoice-type-section {
-  margin-bottom: 16px;
+  margin-bottom: 12px;
   padding-bottom: 12px;
   border-bottom: 1px solid var(--border-color, #e2e8f0);
   display: flex;
@@ -176,7 +188,7 @@
   display: grid;
   grid-template-columns: 1fr 320px;
   gap: 24px;
-  margin-top: 0.5rem;
+  margin-top: 0rem;
   align-items: start;
 }
 
@@ -210,7 +222,7 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
-  margin-bottom: 1rem;
+  margin-bottom: 0rem;
 }
 
 .nsb-field-half {
@@ -348,6 +360,36 @@
   margin-top: 2px;
 }
 
+/* ── Date Field with Icon ───────────────────────── */
+.nsb-date-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.nsb-date-field input[type='date'] {
+  padding-right: 32px;
+}
+
+.nsb-date-field input[type='date']::-webkit-calendar-picker-indicator {
+  display: none;
+}
+
+.nsb-date-icon-btn {
+  position: absolute;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary, #6b7280);
+  cursor: pointer;
+  padding: 0;
+}
+
 /* ── Grid Layouts ────────────────────────────────── */
 .nsb-grid-2 {
   display: grid;
@@ -387,12 +429,6 @@
   align-items: center;
   box-sizing: border-box;
   cursor: default;
-}
-
-.dark-theme .nsb-bill-number-display {
-  background: var(--layout-bg, #0f172a);
-  border-color: var(--border-color, #334155);
-  color: var(--text-primary, #f8fafc);
 }
 
 /* ── Detail Cards ────────────────────────────────── */
@@ -481,82 +517,6 @@
   font-size: 12px;
 }
 
-/* ── Summary Card ────────────────────────────────── */
-.nsb-summary-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-
-.nsb-summary-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 6px 0;
-  font-size: 12px;
-  color: var(--text-secondary, #64748b);
-  border-bottom: 1px solid var(--border-color, #e2e8f0);
-}
-
-.nsb-summary-item:last-of-type {
-  border-bottom: none;
-}
-
-.nsb-summary-label {
-  color: var(--text-secondary, #64748b);
-  font-weight: 500;
-  font-size: 11px;
-}
-
-.nsb-summary-value {
-  color: var(--text-primary, #0f172a);
-  font-weight: 600;
-  font-size: 12px;
-}
-
-.nsb-roundoff-wrap {
-  width: auto;
-}
-
-.nsb-roundoff-input {
-  width: 70px;
-  padding: 3px 6px;
-  border: 1px solid var(--border-color, #e2e8f0);
-  border-radius: 6px;
-  background: var(--layout-bg, #f8fafc);
-  color: var(--text-primary, #0f172a);
-  font-size: 11px;
-  text-align: right;
-  font-family: inherit;
-}
-
-.nsb-roundoff-input:focus {
-  outline: none;
-  border-color: var(--primary-color, #2563eb);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 15%, transparent);
-}
-
-.nsb-summary-grand {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 0 2px 0;
-  margin-top: 4px;
-  border-top: 2px solid var(--primary-color, #2563eb);
-}
-
-.nsb-summary-grand-label {
-  font-weight: 700;
-  font-size: 12px;
-  color: var(--text-primary, #0f172a);
-}
-
-.nsb-summary-grand-value {
-  font-weight: 700;
-  font-size: 13px;
-  color: var(--primary-color, #2563eb);
-}
-
 /* ── DC Field Wrapper ─────────────────────────────── */
 .nsb-dc-field-wrapper {
   margin-bottom: 0rem;
@@ -564,7 +524,7 @@
 
 /* ── Items Full Width ────────────────────────────── */
 .nsb-items-full {
-  margin: 0.5rem 0;
+  margin: 1.0rem 0 0 0;
   width: 100%;
 }
 
@@ -648,6 +608,7 @@
   white-space: nowrap;
   background: var(--layout-bg, #f8fafc);
   border-bottom: 1px solid var(--border-color, #e2e8f0);
+  text-align: left;
 }
 
 .nsb-items-table td {
@@ -660,18 +621,25 @@
   background: color-mix(in srgb, var(--primary-color) 3%, var(--card-bg));
 }
 
-.nsb-col-code { width: 18%; }
-.nsb-col-name { width: 16%; }
-.nsb-col-qty { width: 8%; text-align: right; }
-.nsb-col-unit { width: 8%; }
-.nsb-col-rate { width: 10%; text-align: right; }
+/* ── Items Table - Column Widths ───────────────── */
+.nsb-col-sno { width: 3%; text-align: center; }
+.nsb-col-code { width: 12%; }
+.nsb-col-code .nsb-table-input { text-align: left; }
+.nsb-col-name { width: 14%; }
+.nsb-col-name .nsb-table-input { text-align: left; }
+.nsb-col-hsn { width: 8%; }
+.nsb-col-hsn .nsb-table-input { text-align: left; }
+.nsb-col-qty { width: 8%; text-align: center; }
+.nsb-col-unit { width: 6%; text-align: center; }
+.nsb-col-unit .nsb-table-input { text-align: left; }
+.nsb-col-rate { width: 8%; text-align: right; }
+.nsb-col-tax { width: 7%; text-align: center; }
+.nsb-col-tax .nsb-table-input { text-align: left; }
+.nsb-col-tax-amount { width: 9%; text-align: right; }
 .nsb-col-amount { width: 10%; text-align: right; }
-.nsb-col-gst { width: 7%; text-align: right; }
-.nsb-col-tax { width: 10%; text-align: right; }
-.nsb-col-total { width: 11%; text-align: right; }
-.nsb-col-dc { width: 8%; text-align: center; }
-.nsb-col-action { width: 6%; text-align: center; }
+.nsb-col-action { width: 4%; text-align: center; }
 
+/* ── Table Inputs ───────────────────────────────── */
 .nsb-table-input {
   width: 100%;
   padding: 4px 6px;
@@ -706,13 +674,10 @@
   display: inline-block;
   padding: 4px 6px;
   color: var(--text-primary, #0f172a);
-  font-weight: 500;
+  font-weight: 600;
   white-space: nowrap;
-}
-
-.nsb-table-value-bold {
-  font-weight: 700;
-  color: var(--text-primary, #0f172a);
+  min-width: 60px;
+  text-align: right;
 }
 
 .nsb-remove-btn {
@@ -729,6 +694,177 @@
 .nsb-remove-btn:hover {
   color: var(--danger-color, #ef4444);
   background: color-mix(in srgb, var(--danger-color) 8%, transparent);
+}
+
+/* ── Stock Indicator inside input ────────────────── */
+.nsb-stock-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
+.nsb-stock-indicator.nsb-stock-available {
+  color: #059669;
+  background: #ecfdf5;
+}
+
+.nsb-stock-indicator.nsb-stock-insufficient {
+  color: #dc2626;
+  background: #fef2f2;
+}
+
+.nsb-stock-indicator.nsb-stock-unknown {
+  color: #6b7280;
+  background: #f3f4f6;
+}
+
+.nsb-stock-indicator.nsb-stock-checking {
+  color: #3b82f6;
+  background: #eff6ff;
+}
+
+/* ── Summary Card ────────────────────────────────── */
+.nsb-summary-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.nsb-summary-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  font-size: 12px;
+  border-bottom: 1px solid var(--border-color, #e2e8f0);
+}
+
+.nsb-summary-item:last-of-type {
+  border-bottom: none;
+}
+
+.nsb-summary-label {
+  color: var(--text-secondary, #64748b);
+  font-weight: 500;
+  font-size: 11px;
+}
+
+.nsb-summary-value {
+  color: var(--text-primary, #0f172a);
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.nsb-roundoff-wrap {
+  width: auto;
+}
+
+.nsb-roundoff-input {
+  width: 70px;
+  padding: 3px 6px;
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 6px;
+  background: var(--layout-bg, #f8fafc);
+  color: var(--text-primary, #0f172a);
+  font-size: 11px;
+  text-align: right;
+  font-family: inherit;
+}
+
+.nsb-roundoff-input:focus {
+  outline: none;
+  border-color: var(--primary-color, #2563eb);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 15%, transparent);
+}
+
+.nsb-summary-grand {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0 2px 0;
+  margin-top: 4px;
+  border-top: 2px solid var(--primary-color, #2563eb);
+}
+
+.nsb-summary-grand-label {
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--text-primary, #0f172a);
+}
+
+.nsb-summary-grand-value {
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--primary-color, #2563eb);
+}
+
+/* ── Payment Schedule Table ────────────────────────────── */
+.nsb-payment-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 8px;
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.nsb-payment-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.nsb-payment-table th {
+  padding: 8px 10px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-secondary, #64748b);
+  background: var(--layout-bg, #f8fafc);
+  border-bottom: 1px solid var(--border-color, #e2e8f0);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.nsb-payment-table td {
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border-color, #f1f5f9);
+  vertical-align: middle;
+}
+
+.nsb-payment-col-no { width: 4%; text-align: center; }
+.nsb-payment-col-term { width: 18%; }
+.nsb-payment-col-term .nsb-table-input { text-align: left; }
+.nsb-payment-col-date { width: 18%; }
+.nsb-payment-col-date .nsb-table-input { text-align: left; }
+.nsb-payment-col-duration { width: 10%; text-align: center; }
+.nsb-payment-col-portion { width: 10%; text-align: center; }
+.nsb-payment-col-amount { width: 18%; text-align: right; }
+.nsb-payment-col-portion .nsb-table-input,
+.nsb-payment-col-duration .nsb-table-input,
+.nsb-payment-col-amount .nsb-table-input { text-align: right; }
+.nsb-payment-col-action { width: 6%; text-align: center; }
+
+.nsb-add-payment-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  margin-top: 0.5rem;
+  background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+  color: var(--primary-color, #2563eb);
+  border: none;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.nsb-add-payment-btn:hover {
+  background: color-mix(in srgb, var(--primary-color) 25%, transparent);
 }
 
 /* ── Bottom Section ────────────────────────────────── */
@@ -829,6 +965,164 @@
 
 .nsb-btn-submit:active:not(:disabled) {
   transform: translateY(0) scale(0.97);
+}
+
+/* ── Modal Styles ──────────────────────────────── */
+.nsb-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999999;
+  animation: nsbFadeIn 0.25s ease-out;
+}
+
+@keyframes nsbFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.nsb-modal-container {
+  background: var(--card-bg, #ffffff);
+  border-radius: 20px;
+  padding: 40px 48px 32px;
+  max-width: 460px;
+  width: 90%;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.2);
+  text-align: center;
+  position: relative;
+  animation: nsbSlideUp 0.3s ease-out;
+}
+
+@keyframes nsbSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.nsb-modal-success-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  height: 80px;
+  margin: 0 auto 16px;
+  background: #dcfce7;
+  border-radius: 50%;
+  color: #22c55e;
+}
+
+.nsb-modal-success-icon svg {
+  font-size: 40px;
+}
+
+.nsb-modal-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary, #0f172a);
+  margin: 0 0 8px 0;
+}
+
+.nsb-modal-message {
+  font-size: 14px;
+  color: var(--text-secondary, #64748b);
+  margin: 0 0 24px 0;
+  line-height: 1.5;
+}
+
+.nsb-modal-details {
+  background: var(--layout-bg, #f8fafc);
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 24px;
+  text-align: left;
+}
+
+.nsb-modal-detail-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-color, #e2e8f0);
+}
+
+.nsb-modal-detail-item:last-child {
+  border-bottom: none;
+}
+
+.nsb-modal-detail-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary, #64748b);
+}
+
+.nsb-modal-detail-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #0f172a);
+}
+
+.nsb-modal-sb-number {
+  color: var(--primary-color, #2563eb);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.nsb-modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.nsb-modal-btn {
+  padding: 10px 28px;
+  border-radius: 30px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+  min-width: 140px;
+}
+
+.nsb-modal-btn-primary {
+  background: var(--primary-color, #2563eb);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+}
+
+.nsb-modal-btn-primary:hover {
+  background: color-mix(in srgb, var(--primary-color) 85%, #000);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.4);
+}
+
+.nsb-modal-btn-secondary {
+  background: var(--layout-bg, #f1f5f9);
+  color: var(--text-secondary, #64748b);
+}
+
+.nsb-modal-btn-secondary:hover {
+  background: var(--border-color, #e2e8f0);
 }
 
 /* ── Dark Theme ─────────────────────────────────── */
@@ -956,9 +1250,59 @@
   color: var(--primary-color, #60a5fa);
 }
 
-.dark-theme .nsb-col-dc span {
-  background: color-mix(in srgb, var(--primary-color) 20%, transparent) !important;
-  color: var(--primary-color, #60a5fa) !important;
+.dark-theme .nsb-payment-table th {
+  background: var(--layout-bg, #0f172a);
+  border-color: var(--border-color, #334155);
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .nsb-payment-table td {
+  border-color: var(--border-color, #334155);
+}
+
+.dark-theme .nsb-payment-table .nsb-table-input {
+  background: var(--layout-bg, #0f172a);
+  border-color: var(--border-color, #334155);
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .nsb-modal-container {
+  background: var(--card-bg, #1e293b);
+  border: 1px solid var(--border-color, #334155);
+}
+
+.dark-theme .nsb-modal-title {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .nsb-modal-message {
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .nsb-modal-details {
+  background: var(--layout-bg, #0f172a);
+}
+
+.dark-theme .nsb-modal-detail-item {
+  border-color: var(--border-color, #334155);
+}
+
+.dark-theme .nsb-modal-detail-value {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .nsb-modal-sb-number {
+  color: var(--primary-color, #60a5fa);
+}
+
+.dark-theme .nsb-modal-btn-secondary {
+  background: var(--layout-bg, #1e293b);
+  color: var(--text-secondary, #94a3b8);
+  border: 1px solid var(--border-color, #334155);
+}
+
+.dark-theme .nsb-modal-success-icon {
+  background: rgba(34, 197, 94, 0.15);
 }
 
 /* ── Responsive ───────────────────────────────────── */
@@ -968,7 +1312,7 @@
   }
 
   .nsb-main-box {
-    padding: 1.5rem;
+    padding: 1.0rem;
   }
 }
 
@@ -1005,15 +1349,17 @@
     grid-template-columns: 1fr;
   }
 
-  .nsb-col-code { width: 20%; }
-  .nsb-col-name { width: 18%; }
+  .nsb-col-sno { display: none; }
+  .nsb-col-code { width: 16%; }
+  .nsb-col-name { width: 16%; }
+  .nsb-col-hsn { display: none; }
   .nsb-col-qty { width: 10%; }
-  .nsb-col-unit { width: 10%; }
-  .nsb-col-rate { width: 12%; }
+  .nsb-col-unit { display: none; }
+  .nsb-col-rate { width: 10%; }
+  .nsb-col-tax { width: 8%; }
+  .nsb-col-tax-amount { width: 12%; }
   .nsb-col-amount { width: 12%; }
-  .nsb-col-gst { width: 8%; }
-  .nsb-col-tax { width: 10%; }
-  .nsb-col-total { width: 12%; }
+  .nsb-col-action { width: 6%; }
 
   .nsb-invoice-type-section {
     flex-wrap: wrap;
@@ -1023,6 +1369,11 @@
   .nsb-radio-group {
     max-width: 100%;
     flex: 1;
+  }
+
+  .nsb-bottom-section {
+    grid-template-columns: 1fr;
+    gap: 16px;
   }
 }
 
@@ -1043,21 +1394,13 @@
     font-size: 10px;
   }
 
-  .nsb-col-code { width: 22%; }
-  .nsb-col-name { width: 16%; }
+  .nsb-col-code { width: 20%; }
+  .nsb-col-name { width: 18%; }
   .nsb-col-qty { width: 12%; }
-  .nsb-col-unit { display: none; }
   .nsb-col-rate { width: 12%; }
-  .nsb-col-amount { width: 12%; }
-  .nsb-col-gst { display: none; }
   .nsb-col-tax { width: 10%; }
-  .nsb-col-total { width: 12%; }
-  .nsb-col-action { width: 8%; }
-
-  .nsb-bottom-section {
-    grid-template-columns: 1fr;
-    gap: 16px;
-  }
+  .nsb-col-tax-amount { width: 14%; }
+  .nsb-col-amount { width: 14%; }
 
   .nsb-radio-group {
     max-width: 100%;
@@ -1119,87 +1462,4 @@
   .nsb-page {
     background: white;
   }
-}
-
-/* CreateSalesInvoice.css - Add these new styles */
-
-/* ── Payment Schedule Table ────────────────────────────── */
-.nsb-payment-table-wrap {
-  overflow-x: auto;
-  border: 1px solid var(--border-color, #e2e8f0);
-  border-radius: 8px;
-  margin-top: 0.5rem;
-  margin-bottom: 0.5rem;
-}
-
-.nsb-payment-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12px;
-}
-
-.nsb-payment-table th {
-  padding: 8px 10px;
-  text-align: left;
-  font-weight: 600;
-  color: var(--text-secondary, #64748b);
-  background: var(--layout-bg, #f8fafc);
-  border-bottom: 1px solid var(--border-color, #e2e8f0);
-  font-size: 10px;
-  text-transform: uppercase;
-}
-
-.nsb-payment-table td {
-  padding: 4px 6px;
-  border-bottom: 1px solid var(--border-color, #f1f5f9);
-  vertical-align: middle;
-}
-
-.nsb-payment-col-no { width: 4%; text-align: center; }
-.nsb-payment-col-term { width: 18%; }
-.nsb-payment-col-term .nsb-table-input { text-align: left; }
-.nsb-payment-col-date { width: 18%; }
-.nsb-payment-col-date .nsb-table-input { text-align: left; }
-.nsb-payment-col-duration { width: 10%; text-align: center; }
-.nsb-payment-col-portion { width: 10%; text-align: center; }
-.nsb-payment-col-amount { width: 18%; text-align: right; }
-.nsb-payment-col-portion .nsb-table-input,
-.nsb-payment-col-duration .nsb-table-input,
-.nsb-payment-col-amount .nsb-table-input { text-align: right; }
-.nsb-payment-col-action { width: 6%; text-align: center; }
-
-.nsb-add-payment-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 12px;
-  margin-top: 0.5rem;
-  background: color-mix(in srgb, var(--primary-color) 12%, transparent);
-  color: var(--primary-color, #2563eb);
-  border: none;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.nsb-add-payment-btn:hover {
-  background: color-mix(in srgb, var(--primary-color) 25%, transparent);
-}
-
-/* Dark theme support */
-.dark-theme .nsb-payment-table th {
-  background: var(--layout-bg, #0f172a);
-  border-color: var(--border-color, #334155);
-  color: var(--text-secondary, #94a3b8);
-}
-
-.dark-theme .nsb-payment-table td {
-  border-color: var(--border-color, #334155);
-}
-
-.dark-theme .nsb-payment-table .nsb-table-input {
-  background: var(--layout-bg, #0f172a);
-  border-color: var(--border-color, #334155);
-  color: var(--text-primary, #f8fafc);
 }

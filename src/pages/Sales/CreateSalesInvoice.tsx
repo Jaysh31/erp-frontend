@@ -1,4 +1,3 @@
-// CreateSalesBill.tsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import {
@@ -6,7 +5,6 @@ import {
   FaTimes,
   FaPrint,
   FaPaperPlane,
-  FaBox,
   FaPlus,
   FaTrash,
   FaSpinner,
@@ -34,7 +32,6 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import './CreateSalesInvoice.css';
-import { div } from 'framer-motion/m';
 
 // ===== INTERFACES =====
 
@@ -97,6 +94,9 @@ interface Product {
   uom?: string;
   net_rate?: number;
   net_amount?: number;
+  item_group?: string;
+  income_account?: string;
+  cost_center?: string;
 }
 
 interface TaxOption {
@@ -122,6 +122,15 @@ interface SalesBillItem {
   deliveryChallanId?: string;
   stockStatus?: 'checking' | 'available' | 'insufficient' | 'unknown';
   availableQty?: number;
+  itemGroup?: string;
+  incomeAccount?: string;
+  costCenter?: string;
+  weightPerUnit?: number;
+  weightUom?: string;
+  serialNo?: string;
+  batchNo?: string;
+  discountPercentage?: number;
+  discountAmount?: number;
   creation?: string;
   modified?: string;
   modified_by?: string;
@@ -157,42 +166,103 @@ interface PaymentTermTemplate {
   }>;
 }
 
+interface DeliveryChallanPaymentSchedule {
+  id: number;
+  reference_id: number;
+  payment_term: string;
+  due_date: string;
+  due_days: number;
+  invoice_portion: number;
+  payment_amount: number;
+  paid_amount: number;
+  pending_amount: number;
+  status: string;
+}
+
+interface DeliveryChallanItem {
+  id?: number;
+  item_code: string;
+  item_name?: string;
+  description: string;
+  qty: number;
+  uom: string;
+  rate: number;
+  amount: number;
+  tax_id?: number;
+  tax_rate?: number;
+}
+
+interface DeliveryChallanData {
+  id: string;
+  customer_id: string;
+  customer_name: string;
+  customer_code: string;
+  sales_order_id?: string;
+  sales_order_number?: string;
+  items?: DeliveryChallanItem[];
+  posting_date: string;
+  total_qty: number;
+  grand_total: number;
+  po_no?: string;
+  po_date?: string;
+  warehouse?: string;
+  remarks?: string;
+  customer_details?: {
+    id: number;
+    customer_name: string;
+    customer_type: string;
+    customer_group: string;
+    territory: string;
+    mobile_no: string;
+    email_id: string;
+    primary_address?: string;
+    tax_id?: string;
+    default_currency?: string;
+    payment_terms?: string;
+    disabled: number;
+  };
+  payment_schedule?: DeliveryChallanPaymentSchedule[];
+  currency?: string;
+}
+
 interface SalesBillPayload {
-  name: string;
-  naming_series: string;
   customer: string;
+  company: string;
+  modified_by: string;
   customer_name: string;
   posting_date: string;
-  company: string;
-  set_warehouse: string;
-  invoice_no: string;
-  invoice_date: string;
   due_date: string;
-  payment_terms: string;
-  payment_mode: string;
-  invoice_status: string;
-  po_no: string;
-  po_date: string;
-  sales_order: string;
-  delivery_challan: string;
-  instructions: string;
+  currency: string;
+  conversion_rate: number;
+  selling_price_list: string;
   status: string;
-  bill_type: string;
+  customer_address: string;
+  contact_person: string;
+  territory: string;
+  remarks: string;
+  total_taxes_and_charges: number;
+  paid_amount: number;
+  update_stock: number;
+  is_pos: number;
+  is_return: number;
   items: Array<{
-    name: string;
     item_code: string;
     item_name: string;
     description: string;
+    item_group: string;
     qty: number;
-    uom: string;
     rate: number;
-    amount: number;
-    tax: number;
-    tax_amount: number;
-    total_amount: number;
+    uom: string;
+    actual_batch_qty: number;
+    stock_uom: string;
     warehouse: string;
-    type: string;
-    delivery_challan?: string;
+    income_account: string;
+    cost_center: string;
+    discount_percentage: number;
+    weight_per_unit: number;
+    weight_uom: string;
+    serial_no?: string;
+    batch_no?: string;
   }>;
   payment_schedule?: Array<{
     payment_term: string;
@@ -203,30 +273,6 @@ interface SalesBillPayload {
     paid_amount: number;
     status: string;
   }>;
-}
-
-interface DeliveryChallanData {
-  id: string;
-  customer_id: string;
-  customer_name: string;
-  customer_code: string;
-  sales_order_id?: string;
-  sales_order_number?: string;
-  items?: Array<{
-    item_code: string;
-    description: string;
-    qty: number;
-    uom: string;
-    rate: number;
-    amount: number;
-  }>;
-  posting_date: string;
-  total_qty: number;
-  grand_total: number;
-  po_no?: string;
-  po_date?: string;
-  warehouse?: string;
-  remarks?: string;
 }
 
 interface Warehouse {
@@ -261,10 +307,6 @@ interface ApiResponse<T = any> {
 }
 
 // ===== HELPER FUNCTIONS =====
-const unwrapDate = (value?: string | null): string => {
-  if (!value) return '';
-  return value.split('T')[0];
-};
 
 const daysBetween = (from: string, to: string): number => {
   if (!from || !to) return 0;
@@ -286,6 +328,17 @@ const extractTaxValue = (taxType: string): number => {
   if (!taxType) return 0;
   const match = taxType.match(/(\d+)/);
   return match ? parseInt(match[0], 10) : 0;
+};
+
+const getTaxIdFromRate = (taxRate: number, taxOpts: TaxOption[]): number | undefined => {
+  const taxOption = taxOpts.find(t => extractTaxValue(t.tax_type) === taxRate);
+  return taxOption?.tax_id;
+};
+
+const getTaxRateFromId = (taxId: number | undefined, taxOpts: TaxOption[]): number => {
+  if (!taxId) return 0;
+  const taxOption = taxOpts.find(t => t.tax_id === taxId);
+  return taxOption ? extractTaxValue(taxOption.tax_type) : 0;
 };
 
 // ===== API SERVICE =====
@@ -409,31 +462,31 @@ class SalesBillAPI {
   }
 
   async createSalesBill(payload: SalesBillPayload): Promise<ApiResponse<any>> {
-    return this.apiService.post('/sales-bill', payload);
+    return this.apiService.post('/sales-invoice', payload);
   }
 
   async submitSalesBill(name: string): Promise<ApiResponse<any>> {
-    return this.apiService.post(`/sales-bill/${name}/submit`, {});
+    return this.apiService.post(`/sales-invoice/${name}/submit`, {});
   }
 
   async getSalesBill(id: string): Promise<ApiResponse<any>> {
-    return this.apiService.get(`/sales-bill/${id}`);
+    return this.apiService.get(`/sales-invoice/${id}`);
   }
 
   async getSalesBills(params?: Record<string, any>): Promise<ApiResponse<any[]>> {
-    return this.apiService.get('/sales-bills', params);
+    return this.apiService.get('/sales-invoice', params);
   }
 
   async updateSalesBill(id: string, data: Partial<SalesBillPayload>): Promise<ApiResponse<any>> {
-    return this.apiService.put(`/sales-bill/${id}`, data);
+    return this.apiService.put(`/sales-invoice/${id}`, data);
   }
 
   async deleteSalesBill(id: string): Promise<ApiResponse<any>> {
-    return this.apiService.delete(`/sales-bill/${id}`);
+    return this.apiService.delete(`/sales-invoice/${id}`);
   }
 
-  async getCustomers(): Promise<ApiResponse<any>> {
-    return this.apiService.get('/customer');
+  async getCustomers(params?: { page?: number; limit?: number; search?: string }): Promise<ApiResponse<any>> {
+    return this.apiService.get('/customer', params);
   }
 
   async getSalesOrders(params?: { customer?: string; page?: number; limit?: number; search?: string }): Promise<ApiResponse<any>> {
@@ -467,120 +520,88 @@ class SalesBillAPI {
   async getInventory(params?: { item_code?: string }): Promise<ApiResponse<any>> {
     return this.apiService.get('/inventory', params);
   }
+
+  async getTaxOptions(): Promise<ApiResponse<TaxOption[]>> {
+    return this.apiService.get('/item/get-tax');
+  }
 }
 
-// ===== MOCK DATA =====
-const MOCK_CUSTOMERS: Customer[] = [
-  {
-    id: '1',
-    name: 'ABC Traders Pvt Ltd',
-    code: 'CUST001',
-    email: 'info@abctraders.com',
-    phone: '+91 98765 43210',
-    contactPerson: 'Rajesh Sharma',
-    contactMobile: '+91 98765 43211',
-    address: '123, Business Park, Mumbai - 400001',
-    shippingAddress: '123, Business Park, Mumbai - 400001',
-    gstin: '27AABCU1234D1Z1'
-  },
-  {
-    id: '2',
-    name: 'XYZ Enterprises',
-    code: 'CUST002',
-    email: 'contact@xyzent.com',
-    phone: '+91 87654 32109',
-    contactPerson: 'Priya Patel',
-    contactMobile: '+91 87654 32110',
-    address: '456, Industrial Estate, Pune - 411001',
-    shippingAddress: '456, Industrial Estate, Pune - 411001',
-    gstin: '27BXYZU5678D1Z1'
-  },
-  {
-    id: '3',
-    name: 'PQR Solutions Ltd',
-    code: 'CUST003',
-    email: 'info@pqrsolutions.com',
-    phone: '+91 76543 21098',
-    contactPerson: 'Amit Singh',
-    contactMobile: '+91 76543 21099',
-    address: '789, Tech Park, Bangalore - 560001',
-    shippingAddress: '789, Tech Park, Bangalore - 560001',
-    gstin: '27CPQRU9012D1Z1'
-  }
-];
+// ===== SUCCESS MODAL COMPONENT =====
+interface SuccessModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onViewDetails: () => void;
+  salesBill: string;
+  totalItems: number;
+  message: string;
+  customerName?: string;
+  totalAmount?: number;
+}
 
-const MOCK_PRODUCTS: Product[] = [
-  { id: 'p1', itemCode: 'PRD-P001', itemName: 'Industrial Pump - 5 HP', hsn: '84137010', description: 'Industrial Pump - 5 HP', unit: 'pcs', rate: 1500, tax: 18, type: 'product' },
-  { id: 'p2', itemCode: 'PRD-S001', itemName: 'Submersible Pump - 2 HP', hsn: '84137020', description: 'Submersible Pump - 2 HP', unit: 'pcs', rate: 2000, tax: 18, type: 'product' },
-  { id: 'p3', itemCode: 'PRD-C001', itemName: 'Centrifugal Pump - 3 HP', hsn: '84137030', description: 'Centrifugal Pump - 3 HP', unit: 'pcs', rate: 2500, tax: 12, type: 'product' },
-  { id: 'p4', itemCode: 'PRD-M001', itemName: 'Motor Assembly - 7.5 HP', hsn: '85015210', description: 'Motor Assembly - 7.5 HP', unit: 'pcs', rate: 5000, tax: 18, type: 'product' },
-  { id: 'p5', itemCode: 'PRD-G001', itemName: 'Gear Box - 10:1 Ratio', hsn: '84834000', description: 'Gear Box - 10:1 Ratio', unit: 'pcs', rate: 3000, tax: 12, type: 'product' },
-];
+const SuccessModal: React.FC<SuccessModalProps> = ({
+  isOpen,
+  onClose,
+  onViewDetails,
+  salesBill,
+  totalItems,
+  message,
+  customerName,
+  totalAmount
+}) => {
+  if (!isOpen) return null;
 
-const MOCK_WAREHOUSES: Warehouse[] = [
-  { id: 13, warehouse_name: 'Scrap Warehouse', company: 'ChandraTara', parent_warehouse: null, warehouse_type: null, city: null, state: null, email_id: null, phone_no: null, disabled: 0 },
-  { id: 12, warehouse_name: 'Rejected Material', company: 'ChandraTara', parent_warehouse: null, warehouse_type: null, city: 'AURANGABAD', state: 'MAHARASHTRA', email_id: 'tejasvitthaltarte@gmail.com', phone_no: '08669082516', disabled: 0 },
-  { id: 11, warehouse_name: 'Finished Goods', company: 'ChandraTara', parent_warehouse: null, warehouse_type: null, city: null, state: null, email_id: null, phone_no: '08668584275', disabled: 0 },
-  { id: 10, warehouse_name: 'Work In Progress', company: 'ChandraTara', parent_warehouse: null, warehouse_type: null, city: null, state: null, email_id: null, phone_no: null, disabled: 0 },
-  { id: 9, warehouse_name: 'Raw Material Store', company: 'ChandraTara', parent_warehouse: null, warehouse_type: null, city: 'Pune', state: 'Mh', email_id: null, phone_no: '08668584275', disabled: 0 }
-];
-
-const MOCK_DELIVERY_CHALLANS: DeliveryChallanData[] = [
-  {
-    id: 'DC-2024-001',
-    customer_id: '1',
-    customer_name: 'ABC Traders Pvt Ltd',
-    customer_code: 'CUST001',
-    sales_order_id: '101',
-    sales_order_number: 'SO-2024-001',
-    posting_date: '2024-01-15',
-    total_qty: 10,
-    grand_total: 15000,
-    po_no: 'PO-1001',
-    po_date: '2024-01-10',
-    warehouse: 'Main Warehouse',
-    items: [
-      { item_code: 'PRD-P001', description: 'Industrial Pump - 5 HP', qty: 10, uom: 'pcs', rate: 1500, amount: 15000 }
-    ],
-    remarks: 'Delivered on time'
-  },
-  {
-    id: 'DC-2024-002',
-    customer_id: '1',
-    customer_name: 'ABC Traders Pvt Ltd',
-    customer_code: 'CUST001',
-    sales_order_id: '101',
-    sales_order_number: 'SO-2024-001',
-    posting_date: '2024-01-20',
-    total_qty: 15,
-    grand_total: 30000,
-    po_no: 'PO-1001',
-    po_date: '2024-01-10',
-    warehouse: 'Main Warehouse',
-    items: [
-      { item_code: 'PRD-S001', description: 'Submersible Pump - 2 HP', qty: 15, uom: 'pcs', rate: 2000, amount: 30000 }
-    ],
-    remarks: 'Second delivery'
-  },
-  {
-    id: 'DC-2024-003',
-    customer_id: '2',
-    customer_name: 'XYZ Enterprises',
-    customer_code: 'CUST002',
-    sales_order_id: '102',
-    sales_order_number: 'SO-2024-002',
-    posting_date: '2024-02-01',
-    total_qty: 20,
-    grand_total: 50000,
-    po_no: 'PO-1002',
-    po_date: '2024-01-25',
-    warehouse: 'Main Warehouse',
-    items: [
-      { item_code: 'PRD-M001', description: 'Motor Assembly - 7.5 HP', qty: 10, uom: 'pcs', rate: 5000, amount: 50000 }
-    ],
-    remarks: 'Delivered'
-  }
-];
+  return ReactDOM.createPortal(
+    <div className="nsb-modal-overlay" onClick={onClose}>
+      <div className="nsb-modal-container" onClick={(e) => e.stopPropagation()}>
+        <div className="nsb-modal-success-icon">
+          <FaCheckCircle size={48} />
+        </div>
+        
+        <h2 className="nsb-modal-title">✓ Success!</h2>
+        
+        <p className="nsb-modal-message">{message}</p>
+        
+        <div className="nsb-modal-details">
+          <div className="nsb-modal-detail-item">
+            <span className="nsb-modal-detail-label">Sales Invoice</span>
+            <span className="nsb-modal-detail-value nsb-modal-sb-number">{salesBill}</span>
+          </div>
+          
+          {customerName && (
+            <div className="nsb-modal-detail-item">
+              <span className="nsb-modal-detail-label">Customer</span>
+              <span className="nsb-modal-detail-value">{customerName}</span>
+            </div>
+          )}
+          
+          <div className="nsb-modal-detail-item">
+            <span className="nsb-modal-detail-label">Total Items</span>
+            <span className="nsb-modal-detail-value">{totalItems}</span>
+          </div>
+          
+          {totalAmount !== undefined && (
+            <div className="nsb-modal-detail-item">
+              <span className="nsb-modal-detail-label">Total Amount</span>
+              <span className="nsb-modal-detail-value" style={{ color: 'var(--primary-color, #2563eb)', fontWeight: 700 }}>
+                ₹{totalAmount.toFixed(2)}
+              </span>
+            </div>
+          )}
+        </div>
+        
+        <div className="nsb-modal-actions">
+          <button onClick={onViewDetails} className="nsb-modal-btn nsb-modal-btn-primary">
+            View Sales Bill
+          </button>
+          <button onClick={onClose} className="nsb-modal-btn nsb-modal-btn-secondary">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+};
 
 // ===== SHARED: portal-based dropdown menu position hook =====
 function useDropdownPosition(isOpen: boolean, triggerRef: React.RefObject<HTMLDivElement | null>) {
@@ -809,11 +830,268 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
         ) : (
           <FaChevronDown style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary, #94a3b8)', fontSize: '11px', pointerEvents: 'none' }} />
         )}
-        {/* Stock indicator inside the input */}
         {value && stockInfo && (
           <div style={{ position: 'absolute', right: '28px', top: '50%', transform: 'translateY(-50%)' }}>
             {getStockDisplay()}
           </div>
+        )}
+      </div>
+
+      {menu && ReactDOM.createPortal(menu, document.body)}
+    </div>
+  );
+};
+
+// ===== SEARCHABLE CUSTOMER DROPDOWN =====
+interface CustomerDropdownProps {
+  value: string;
+  onChange: (value: string, customerData?: Customer) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  error?: boolean;
+}
+
+const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
+  value,
+  onChange,
+  placeholder = 'Search Customer...',
+  disabled = false,
+  error = false,
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [filteredCustomers, setFilteredCustomers] = useState<Customer[]>([]);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const [loading, setLoading] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const salesBillAPI = new SalesBillAPI();
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const menuPos = useDropdownPosition(isOpen, wrapperRef);
+
+  useEffect(() => {
+    fetchCustomers('');
+  }, []);
+
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setFilteredCustomers(customers);
+      return;
+    }
+
+    const filtered = customers.filter(customer =>
+      customer.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      customer.code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      customer.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      customer.phone?.includes(searchTerm) ||
+      customer.gstin?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    setFilteredCustomers(filtered);
+  }, [searchTerm, customers]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      const clickedTrigger = wrapperRef.current?.contains(target);
+      const clickedMenu = menuRef.current?.contains(target);
+      if (!clickedTrigger && !clickedMenu) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const fetchCustomers = async (search: string) => {
+    setLoading(true);
+    try {
+      const response = await salesBillAPI.getCustomers({
+        page: 1,
+        limit: 50,
+        search: search || undefined
+      });
+
+      if (response.success && response.data) {
+        let customerList: any[] = [];
+
+        if (response.data.data && Array.isArray(response.data.data.records)) {
+          customerList = response.data.data.records;
+        } else if (Array.isArray(response.data)) {
+          customerList = response.data;
+        } else if (response.data.data && Array.isArray(response.data.data)) {
+          customerList = response.data.data;
+        }
+
+        if (customerList.length > 0) {
+          const mappedCustomers: Customer[] = customerList.map((cust: any) => ({
+            id: cust.id?.toString() || cust.customer_id?.toString() || '',
+            name: cust.customer_name || cust.name || '',
+            code: cust.customer_code || cust.code || '',
+            email: cust.email_id || cust.email || '',
+            phone: cust.mobile_no || cust.phone || '',
+            address: cust.address || '',
+            shippingAddress: cust.shipping_address || cust.address || '',
+            gstin: cust.gstin || '',
+            contactPerson: cust.contact_person || '',
+            contactMobile: cust.contact_mobile || cust.mobile_no || ''
+          }));
+          setCustomers(mappedCustomers);
+          setFilteredCustomers(mappedCustomers);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching customers:', error);
+      toast.error('Failed to fetch customers');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const term = e.target.value;
+    setSearchTerm(term);
+    setHighlightedIndex(-1);
+
+    if (!isOpen) {
+      setIsOpen(true);
+    }
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    debounceTimerRef.current = setTimeout(() => {
+      if (term.length > 0) {
+        fetchCustomers(term);
+      } else {
+        fetchCustomers('');
+      }
+    }, 500);
+  };
+
+  const handleSelect = (customer: Customer) => {
+    setSelectedCustomer(customer);
+    setSearchTerm('');
+    setIsOpen(false);
+    onChange(customer.id, customer);
+    if (inputRef.current) {
+      inputRef.current.blur();
+    }
+  };
+
+  const getDisplayValue = () => {
+    if (selectedCustomer) {
+      return `${selectedCustomer.name}`;
+    }
+    return '';
+  };
+
+  const menu = isOpen ? (
+    <div
+      ref={menuRef}
+      className="nsb-custom-scroll"
+      style={{
+        position: 'fixed',
+        top: menuPos.top,
+        left: menuPos.left,
+        width: menuPos.width,
+        background: 'var(--card-bg, #ffffff)',
+        border: '0.5px solid var(--border-color, #e2e8f0)',
+        borderRadius: '6px',
+        boxShadow: '0 4px 16px var(--shadow-color, rgba(0,0,0,0.15))',
+        zIndex: 99999,
+        maxHeight: '280px',
+        overflowY: 'auto',
+        overflowX: 'hidden'
+      }}
+    >
+      {loading ? (
+        <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
+          <FaSpinner className="nsb-spinning" style={{ display: 'inline-block', marginRight: '8px' }} /> Loading...
+        </div>
+      ) : filteredCustomers.length > 0 ? (
+        filteredCustomers.map((customer, index) => (
+          <div
+            key={customer.id}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              handleSelect(customer);
+            }}
+            style={{
+              padding: '10px 14px',
+              cursor: 'pointer',
+              background: highlightedIndex === index ? 'var(--nav-hover, #eff6ff)' : 'transparent',
+              borderLeft: value === customer.id ? '3px solid var(--primary-color, #2563eb)' : '3px solid transparent',
+              transition: 'background 0.15s',
+              borderBottom: index < filteredCustomers.length - 1 ? '0.5px solid var(--border-color, #f1f5f9)' : 'none'
+            }}
+            onMouseEnter={() => setHighlightedIndex(index)}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary, #0f172a)' }}>{customer.name}</span>
+              </div>
+              {customer.gstin && (
+                <span style={{ fontSize: '10px', color: 'var(--text-secondary, #94a3b8)', background: 'var(--layout-bg, #f1f5f9)', padding: '2px 8px', borderRadius: '4px' }}>
+                  GST: {customer.gstin}
+                </span>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: '16px', marginTop: '4px', fontSize: '11px', color: 'var(--text-secondary, #64748b)' }}>
+              {customer.contactPerson && (
+                <span><FaUser size={10} style={{ marginRight: '4px' }} />{customer.contactPerson}</span>
+              )}
+              {customer.phone && (
+                <span><FaPhone size={10} style={{ marginRight: '4px' }} />{customer.phone}</span>
+              )}
+              {customer.email && (
+                <span><FaEnvelope size={10} style={{ marginRight: '4px' }} />{customer.email}</span>
+              )}
+            </div>
+          </div>
+        ))
+      ) : (
+        <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
+          {searchTerm ? 'No matching customers found' : 'No customers available'}
+        </div>
+      )}
+    </div>
+  ) : null;
+
+  return (
+    <div ref={wrapperRef} style={{ position: 'relative', width: '100%' }}>
+      <div style={{ position: 'relative' }}>
+        <input
+          ref={inputRef}
+          type="text"
+          placeholder={placeholder}
+          value={isOpen ? searchTerm : getDisplayValue()}
+          onChange={handleSearchChange}
+          onFocus={() => setIsOpen(true)}
+          disabled={disabled}
+          autoComplete="off"
+          style={{
+            width: '100%',
+            padding: '6px 10px',
+            paddingRight: '35px',
+            border: error ? '0.5px solid var(--danger-color, #ef4444)' : '0.5px solid var(--border-color, #e2e8f0)',
+            borderRadius: '6px',
+            background: disabled ? 'var(--input-bg, #f3f4f6)' : 'var(--input-bg, #f8fafc)',
+            color: 'var(--text-primary, #0f172a)',
+            fontSize: '13px',
+            fontFamily: 'inherit',
+            cursor: disabled ? 'not-allowed' : 'text',
+            minHeight: '32px'
+          }}
+        />
+        {loading ? (
+          <FaSpinner className="nsb-spinning" style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--primary-color, #2563eb)', fontSize: '12px' }} />
+        ) : (
+          <FaChevronDown style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary, #64748b)', fontSize: '12px', pointerEvents: 'none' }} />
         )}
       </div>
 
@@ -915,10 +1193,10 @@ const MultiDeliveryChallanSelect: React.FC<MultiDeliveryChallanSelectProps> = ({
         if (dcList.length > 0) {
           const mappedDCs: DeliveryChallanData[] = dcList.map((dc: any) => ({
             id: dc.name || dc.id || '',
-            customer_id: dc.customer || '',
+            customer_id: dc.customer_id?.toString() || '',
             customer_name: dc.customer_name || '',
             customer_code: dc.customer_code || '',
-            sales_order_id: dc.sales_order || '',
+            sales_order_id: dc.sales_order_id?.toString() || '',
             sales_order_number: dc.sales_order_number || '',
             posting_date: dc.posting_date || dc.date || '',
             total_qty: dc.total_qty || 0,
@@ -927,34 +1205,17 @@ const MultiDeliveryChallanSelect: React.FC<MultiDeliveryChallanSelectProps> = ({
             po_date: dc.po_date || '',
             warehouse: dc.set_warehouse || dc.warehouse || '',
             items: dc.items || [],
-            remarks: dc.instructions || dc.remarks || ''
+            remarks: dc.instructions || dc.remarks || '',
+            customer_details: dc.customer_details || null,
+            payment_schedule: dc.payment_schedule || [],
+            currency: dc.currency || ''
           }));
           setDeliveryChallans(mappedDCs);
           setFilteredDCs(mappedDCs);
-        } else {
-          let mockData = MOCK_DELIVERY_CHALLANS;
-          if (customerFilter) {
-            mockData = mockData.filter(dc => dc.customer_id === customerFilter);
-          }
-          setDeliveryChallans(mockData);
-          setFilteredDCs(mockData);
         }
-      } else {
-        let mockData = MOCK_DELIVERY_CHALLANS;
-        if (customerFilter) {
-          mockData = mockData.filter(dc => dc.customer_id === customerFilter);
-        }
-        setDeliveryChallans(mockData);
-        setFilteredDCs(mockData);
       }
     } catch (error) {
       console.error('Error fetching delivery challans:', error);
-      let mockData = MOCK_DELIVERY_CHALLANS;
-      if (customerFilter) {
-        mockData = mockData.filter(dc => dc.customer_id === customerFilter);
-      }
-      setDeliveryChallans(mockData);
-      setFilteredDCs(mockData);
     } finally {
       setLoading(false);
     }
@@ -1283,18 +1544,10 @@ const WarehouseSelect: React.FC<WarehouseSelectProps> = ({
           }));
           setWarehouses(mappedWarehouses);
           setFilteredWarehouses(mappedWarehouses);
-        } else {
-          setWarehouses(MOCK_WAREHOUSES);
-          setFilteredWarehouses(MOCK_WAREHOUSES);
         }
-      } else {
-        setWarehouses(MOCK_WAREHOUSES);
-        setFilteredWarehouses(MOCK_WAREHOUSES);
       }
     } catch (error) {
       console.error('Error fetching warehouses:', error);
-      setWarehouses(MOCK_WAREHOUSES);
-      setFilteredWarehouses(MOCK_WAREHOUSES);
     } finally {
       setLoading(false);
     }
@@ -1478,9 +1731,24 @@ const CreateSalesBill: React.FC = () => {
   const [isCustomerDisabled, setIsCustomerDisabled] = useState<boolean>(false);
   const [taxOptions, setTaxOptions] = useState<TaxOption[]>([]);
   const [loadingTaxOptions, setLoadingTaxOptions] = useState<boolean>(false);
-  const [taxOptionsLoaded, setTaxOptionsLoaded] = useState<boolean>(false);
+  const [, setTaxOptionsLoaded] = useState<boolean>(false);
   const [inventoryMap, setInventoryMap] = useState<{ [itemCode: string]: InventoryApiRecord }>({});
   const [, setLoadingInventory] = useState(false);
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+
+  // Success Modal state
+  const [showSuccessModal, setShowSuccessModal] = useState<boolean>(false);
+  const [successData, setSuccessData] = useState<{
+    salesBill: string;
+    totalItems: number;
+    message: string;
+    customerName?: string;
+    totalAmount?: number;
+  }>({
+    salesBill: '',
+    totalItems: 0,
+    message: ''
+  });
 
   // Payment Schedule state
   const [paymentSchedule, setPaymentSchedule] = useState<PaymentScheduleRow[]>([
@@ -1608,7 +1876,6 @@ const CreateSalesBill: React.FC = () => {
   // ─── Payment Schedule CRUD ──────────────────────────
   const addPaymentSchedule = () => {
     const newId = String(paymentSchedule.length + 1);
-    const grandTotal = getGrandTotalWithRound();
     setPaymentSchedule([
       ...paymentSchedule,
       { 
@@ -1651,31 +1918,27 @@ const CreateSalesBill: React.FC = () => {
     updatePaymentRow(index, { durationDays, dueDate });
   };
 
-  // ─── Helper Functions ──────────────────────────────
-  const getTaxIdFromRate = (taxRate: number, taxOpts: TaxOption[]): number | undefined => {
-    const taxOption = taxOpts.find(t => extractTaxValue(t.tax_type) === taxRate);
-    return taxOption?.tax_id;
-  };
-
-  const getTaxRateFromId = (taxId: number | string, taxOpts: TaxOption[]): number => {
-    if (!taxId) return 0;
-    const id = typeof taxId === 'string' ? parseInt(taxId, 10) : taxId;
-    const taxOption = taxOpts.find(t => t.tax_id === id);
-    return taxOption ? extractTaxValue(taxOption.tax_type) : 0;
-  };
-
   // ─── Fetch Tax Options ─────────────────────────────
   const fetchTaxOptions = async () => {
     setLoadingTaxOptions(true);
     try {
-      const response = await api.get('/item/get-tax');
-      const data = response.data;
-      if (data.success === 1 && Array.isArray(data.data)) {
-        setTaxOptions(data.data);
+      const response = await salesBillAPI.getTaxOptions();
+      if (response.success && response.data) {
+        let taxData: TaxOption[] = [];
+        if (Array.isArray(response.data)) {
+          taxData = response.data;
+        } else {
+          const nestedData = (response.data as any)?.data;
+          if (Array.isArray(nestedData)) {
+            taxData = nestedData;
+          }
+        }
+        setTaxOptions(taxData);
+        setTaxOptionsLoaded(true);
       } else {
         setTaxOptions([]);
+        setTaxOptionsLoaded(true);
       }
-      setTaxOptionsLoaded(true);
     } catch (error) {
       console.error('Error fetching tax options:', error);
       setTaxOptions([]);
@@ -1723,8 +1986,9 @@ const CreateSalesBill: React.FC = () => {
   useEffect(() => {
     fetchTaxOptions();
     fetchInventory();
-    fetchCustomers();
     fetchAllItems();
+    fetchCustomers();
+    fetchWarehouses();
   }, []);
 
   // Update stock status when inventory changes
@@ -1760,7 +2024,7 @@ const CreateSalesBill: React.FC = () => {
   const fetchCustomers = async () => {
     setIsLoading(true);
     try {
-      const response = await salesBillAPI.getCustomers();
+      const response = await salesBillAPI.getCustomers({ page: 1, limit: 100 });
       if (response.success && response.data) {
         let customerList: any[] = [];
 
@@ -1774,9 +2038,9 @@ const CreateSalesBill: React.FC = () => {
 
         if (customerList.length > 0) {
           const mappedCustomers: Customer[] = customerList.map((cust: any) => ({
-            id: cust.id?.toString() || '',
+            id: cust.id?.toString() || cust.customer_id?.toString() || '',
             name: cust.customer_name || cust.name || '',
-            code: cust.customer_code || cust.code || `CUST${cust.id}`,
+            code: cust.customer_code || cust.code || '',
             email: cust.email_id || cust.email || '',
             phone: cust.mobile_no || cust.phone || '',
             address: cust.address || '',
@@ -1786,14 +2050,10 @@ const CreateSalesBill: React.FC = () => {
             contactMobile: cust.contact_mobile || cust.mobile_no || ''
           }));
           setCustomers(mappedCustomers);
-        } else {
-          setCustomers(MOCK_CUSTOMERS);
         }
-      } else {
-        setCustomers(MOCK_CUSTOMERS);
       }
     } catch (error) {
-      setCustomers(MOCK_CUSTOMERS);
+      console.error('Error fetching customers:', error);
     } finally {
       setIsLoading(false);
     }
@@ -1812,7 +2072,7 @@ const CreateSalesBill: React.FC = () => {
           description: item.description || item.item_name || '',
           unit: item.stock_uom || 'pcs',
           rate: item.standard_rate || 0,
-          tax: item.gst_rate || item.tax_rate || 0,
+          tax: 0,
           type: 'product' as 'product' | 'service',
           stockUom: item.stock_uom,
           standardRate: item.standard_rate,
@@ -1827,18 +2087,55 @@ const CreateSalesBill: React.FC = () => {
           uom: item.uom,
           net_rate: item.net_rate,
           net_amount: item.net_amount,
+          item_group: item.item_group || 'Products',
+          income_account: item.income_account || 'Sales - A',
+          cost_center: item.cost_center || 'Main - A'
         }));
         setAllProducts(itemsData);
         setProducts(itemsData);
-      } else {
-        setAllProducts(MOCK_PRODUCTS);
-        setProducts(MOCK_PRODUCTS);
       }
     } catch (error) {
-      setAllProducts(MOCK_PRODUCTS);
-      setProducts(MOCK_PRODUCTS);
+      console.error('Error fetching items:', error);
     } finally {
       setIsLoadingItems(false);
+    }
+  };
+
+  const fetchWarehouses = async () => {
+    try {
+      const response = await salesBillAPI.getWarehouses({ page: 1, limit: 100 });
+      if (response.success && response.data) {
+        let whList: any[] = [];
+        if (response.data.data?.records) {
+          whList = response.data.data.records;
+        } else if (Array.isArray(response.data.data)) {
+          whList = response.data.data;
+        } else if (Array.isArray(response.data)) {
+          whList = response.data;
+        }
+        if (whList.length > 0) {
+          const mapped: Warehouse[] = whList.map((wh: any) => ({
+            id: wh.id || 0,
+            warehouse_name: wh.warehouse_name || wh.name || '',
+            company: wh.company || '',
+            parent_warehouse: wh.parent_warehouse || null,
+            warehouse_type: wh.warehouse_type || null,
+            city: wh.city || null,
+            state: wh.state || null,
+            email_id: wh.email_id || null,
+            phone_no: wh.phone_no || null,
+            disabled: wh.disabled || 0
+          }));
+          setWarehouses(mapped);
+          
+          const finishedGoods = mapped.find(w => w.warehouse_name.toLowerCase() === 'finished goods');
+          if (finishedGoods) {
+            setWarehouse(finishedGoods.id.toString());
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching warehouses:', error);
     }
   };
 
@@ -1859,7 +2156,7 @@ const CreateSalesBill: React.FC = () => {
           description: item.description || item.item_name || '',
           unit: item.stock_uom || 'pcs',
           rate: item.standard_rate || 0,
-          tax: item.gst_rate || item.tax_rate || 0,
+          tax: 0,
           type: 'product' as 'product' | 'service',
           stockUom: item.stock_uom,
           standardRate: item.standard_rate,
@@ -1874,6 +2171,9 @@ const CreateSalesBill: React.FC = () => {
           uom: item.uom,
           net_rate: item.net_rate,
           net_amount: item.net_amount,
+          item_group: item.item_group || 'Products',
+          income_account: item.income_account || 'Sales - A',
+          cost_center: item.cost_center || 'Main - A'
         }));
         setProducts(itemsData);
       }
@@ -1882,6 +2182,7 @@ const CreateSalesBill: React.FC = () => {
     }
   }, [allProducts]);
 
+  // ─── Load Delivery Challans Data ──────────────────────
   const loadDeliveryChallansData = useCallback((dcs: DeliveryChallanData[]) => {
     if (dcs.length === 0) {
       setSelectedCustomer('');
@@ -1889,8 +2190,6 @@ const CreateSalesBill: React.FC = () => {
       setIsCustomerDisabled(false);
       setSelectedSalesOrder('');
       setSelectedOrderData(null);
-      setWarehouse('');
-      setRemarks('');
       setItems([{
         id: '1',
         itemCode: '',
@@ -1917,14 +2216,48 @@ const CreateSalesBill: React.FC = () => {
       return;
     }
 
-    const customer = customers.find(c => c.id === firstCustomer.customer_id || c.code === firstCustomer.customer_code);
-    if (customer) {
-      setCustomerData(customer);
-      setSelectedCustomer(customer.id);
-      setIsCustomerDisabled(true);
+    let autoFilledCustomer: Customer | null = null;
+
+    const customerInList = customers.find(c => c.id === firstCustomer.customer_id || c.code === firstCustomer.customer_code);
+    
+    if (customerInList) {
+      autoFilledCustomer = customerInList;
+    } else if (firstCustomer.customer_details) {
+      autoFilledCustomer = {
+        id: firstCustomer.customer_details.id?.toString() || firstCustomer.customer_id || '',
+        name: firstCustomer.customer_details.customer_name || firstCustomer.customer_name || '',
+        code: firstCustomer.customer_code || '',
+        email: firstCustomer.customer_details.email_id || '',
+        phone: firstCustomer.customer_details.mobile_no || '',
+        address: firstCustomer.customer_details.primary_address || '',
+        shippingAddress: firstCustomer.customer_details.primary_address || '',
+        gstin: firstCustomer.customer_details.tax_id || '',
+        contactPerson: '',
+        contactMobile: firstCustomer.customer_details.mobile_no || ''
+      };
+    } else {
+      autoFilledCustomer = {
+        id: firstCustomer.customer_id || '',
+        name: firstCustomer.customer_name || '',
+        code: firstCustomer.customer_code || '',
+        email: '',
+        phone: '',
+        address: '',
+        shippingAddress: '',
+        gstin: '',
+        contactPerson: '',
+        contactMobile: ''
+      };
     }
 
-    if (firstCustomer.warehouse) {
+    setCustomerData(autoFilledCustomer);
+    setSelectedCustomer(autoFilledCustomer.id);
+    setIsCustomerDisabled(true);
+
+    const finishedGoods = warehouses.find(w => w.warehouse_name.toLowerCase() === 'finished goods');
+    if (finishedGoods) {
+      setWarehouse(finishedGoods.id.toString());
+    } else if (firstCustomer.warehouse) {
       setWarehouse(firstCustomer.warehouse);
     }
 
@@ -1933,15 +2266,34 @@ const CreateSalesBill: React.FC = () => {
       setRemarks(allRemarks.join(' | '));
     }
 
-    const allItems: SalesBillItem[] = [];
-    let itemCounter = 0;
+    const dcWithSO = dcs.find(dc => dc.sales_order_id);
+    if (dcWithSO && dcWithSO.sales_order_id) {
+      setSelectedSalesOrder(dcWithSO.sales_order_id);
+    }
 
+    const allItems: SalesBillItem[] = [];
     dcs.forEach(dc => {
       if (dc.items && dc.items.length > 0) {
         dc.items.forEach((item, index) => {
           const product = allProducts.find(p => p.itemCode === item.item_code);
-          const taxRate = product?.tax || 0;
-          const tax_id = getTaxIdFromRate(taxRate, taxOptions);
+          
+          const taxIdFromDC = (item as any).tax_id;
+          let taxRate = 0;
+          let taxId = taxIdFromDC;
+          
+          if (taxIdFromDC) {
+            const taxOption = taxOptions.find(t => t.tax_id === taxIdFromDC);
+            if (taxOption) {
+              taxRate = extractTaxValue(taxOption.tax_type);
+            } else if (product?.tax) {
+              taxRate = product.tax;
+              taxId = getTaxIdFromRate(taxRate, taxOptions);
+            }
+          } else if (product?.tax) {
+            taxRate = product.tax;
+            taxId = getTaxIdFromRate(taxRate, taxOptions);
+          }
+
           const amount = (item.qty || 0) * (item.rate || 0);
           const taxAmount = (amount * taxRate) / 100;
           const { status, availableQty } = getStockStatus(item.item_code || '', item.qty || 0);
@@ -1949,7 +2301,7 @@ const CreateSalesBill: React.FC = () => {
           allItems.push({
             id: `dc-${dc.id}-${index}`,
             itemCode: item.item_code || '',
-            itemName: product?.itemName || item.description || '',
+            itemName: product?.itemName || item.item_name || item.description || '',
             hsn: product?.hsn || '',
             description: product?.description || item.description || '',
             quantity: item.qty || 1,
@@ -1957,13 +2309,18 @@ const CreateSalesBill: React.FC = () => {
             rate: item.rate || 0,
             amount: amount,
             tax: taxRate,
-            tax_id: tax_id,
+            tax_id: taxId,
             taxAmount: taxAmount,
             totalAmount: amount + taxAmount,
             type: isService ? 'service' : 'product',
             deliveryChallanId: dc.id,
             stockStatus: status,
             availableQty: availableQty,
+            itemGroup: product?.item_group || 'Products',
+            incomeAccount: product?.income_account || 'Sales - A',
+            costCenter: product?.cost_center || 'Main - A',
+            weightPerUnit: 0,
+            weightUom: 'kg',
             creation: product?.creation,
             modified: product?.modified,
             modified_by: product?.modified_by,
@@ -1976,7 +2333,6 @@ const CreateSalesBill: React.FC = () => {
             warehouse: product?.warehouse,
             transaction_date: product?.transaction_date,
           });
-          itemCounter++;
         });
       }
     });
@@ -2004,22 +2360,38 @@ const CreateSalesBill: React.FC = () => {
       toast('No items found in selected delivery challans');
     }
 
+    const firstDCPaymentSchedule = dcs[0].payment_schedule;
+    
+    if (firstDCPaymentSchedule && firstDCPaymentSchedule.length > 0) {
+      const autoPaymentSchedule: PaymentScheduleRow[] = firstDCPaymentSchedule.map((ps, idx) => ({
+        id: String(idx + 1),
+        paymentTerm: ps.payment_term || '',
+        dueDate: ps.due_date ? ps.due_date.split('T')[0] : '',
+        durationDays: ps.due_days || 0,
+        invoicePortion: ps.invoice_portion || 0,
+        paymentAmount: ps.payment_amount || 0,
+        paidAmount: ps.paid_amount || 0,
+        status: ps.status || 'Pending'
+      }));
+
+      if (autoPaymentSchedule.length > 0) {
+        setPaymentSchedule(autoPaymentSchedule);
+        toast.success(`Auto-filled payment schedule with ${autoPaymentSchedule.length} terms from Delivery Challan`);
+      }
+    }
+
     setErrors({});
-  }, [customers, allProducts, isService, taxOptions]);
+  }, [customers, allProducts, isService, taxOptions, warehouses]);
 
   const handleDeliveryChallansChange = (dcs: DeliveryChallanData[]) => {
     setSelectedDeliveryChallans(dcs);
     loadDeliveryChallansData(dcs);
   };
 
-  const handleCustomerChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const customerId = e.target.value;
+  const handleCustomerChange = (customerId: string, customerData?: Customer) => {
     setSelectedCustomer(customerId);
-    if (customerId) {
-      const customer = customers.find(c => c.id === customerId);
-      if (customer) {
-        setCustomerData(customer);
-      }
+    if (customerId && customerData) {
+      setCustomerData(customerData);
     } else {
       setCustomerData(null);
       setSelectedSalesOrder('');
@@ -2043,6 +2415,11 @@ const CreateSalesBill: React.FC = () => {
       taxAmount: 0,
       totalAmount: 0,
       type: isService ? 'service' : 'product',
+      itemGroup: 'Products',
+      incomeAccount: 'Sales - A',
+      costCenter: 'Main - A',
+      weightPerUnit: 0,
+      weightUom: 'kg'
     };
     setItems([...items, newItem]);
   };
@@ -2082,6 +2459,11 @@ const CreateSalesBill: React.FC = () => {
               updated.totalAmount = amount + taxAmount;
               updated.stockStatus = status;
               updated.availableQty = availableQty;
+              updated.itemGroup = product.item_group || 'Products';
+              updated.incomeAccount = product.income_account || 'Sales - A';
+              updated.costCenter = product.cost_center || 'Main - A';
+              updated.weightPerUnit = 0;
+              updated.weightUom = 'kg';
               updated.creation = product.creation;
               updated.modified = product.modified;
               updated.modified_by = product.modified_by;
@@ -2098,7 +2480,8 @@ const CreateSalesBill: React.FC = () => {
 
           if (field === 'quantity') {
             const amount = (updated.quantity || 0) * (updated.rate || 0);
-            const taxAmount = (amount * (updated.tax || 0)) / 100;
+            const taxRate = updated.tax || 0;
+            const taxAmount = (amount * taxRate) / 100;
             updated.amount = amount;
             updated.taxAmount = taxAmount;
             updated.totalAmount = amount + taxAmount;
@@ -2112,16 +2495,17 @@ const CreateSalesBill: React.FC = () => {
 
           if (field === 'rate') {
             const amount = (updated.quantity || 0) * (updated.rate || 0);
-            const taxAmount = (amount * (updated.tax || 0)) / 100;
+            const taxRate = updated.tax || 0;
+            const taxAmount = (amount * taxRate) / 100;
             updated.amount = amount;
             updated.taxAmount = taxAmount;
             updated.totalAmount = amount + taxAmount;
           }
 
           if (field === 'tax') {
-            const amount = (updated.quantity || 0) * (updated.rate || 0);
             const taxRate = Number(value) || 0;
             const tax_id = getTaxIdFromRate(taxRate, taxOptions);
+            const amount = (updated.quantity || 0) * (updated.rate || 0);
             const taxAmount = (amount * taxRate) / 100;
             updated.tax = taxRate;
             updated.tax_id = tax_id;
@@ -2143,49 +2527,53 @@ const CreateSalesBill: React.FC = () => {
   const getGrandTotalWithRound = () => getGrandTotal() + roundOff;
 
   const buildPayload = (status: 'Draft' | 'Submitted'): SalesBillPayload => {
-    const dcIds = selectedDeliveryChallans.map(dc => dc.id).join(',');
-    
     const template = paymentTermTemplates.find(t => t.id === selectedPaymentTemplate);
     const paymentTermsValue = template?.name || '';
 
+    // Get warehouse name from ID
+    const selectedWarehouse = warehouses.find(w => w.id.toString() === warehouse);
+    const warehouseName = selectedWarehouse?.warehouse_name || 'Finished Goods - A';
+
     return {
-      name: billNumber,
-      naming_series: "SB-.YYYY.-",
       customer: customerData?.code || '',
+      company: 'SculptERP Pvt Ltd',
+      modified_by: 'Administrator',
       customer_name: customerData?.name || '',
       posting_date: billDate,
-      company: 'SculptERP Pvt Ltd',
-      set_warehouse: warehouse || '',
-      invoice_no: invoiceNumber || '',
-      invoice_date: invoiceDate || billDate,
       due_date: dueDate || '',
-      payment_terms: paymentTermsValue,
-      payment_mode: paymentMode || '',
-      invoice_status: invoiceStatus || 'Draft',
-      po_no: '',
-      po_date: '',
-      sales_order: selectedSalesOrder || '',
-      delivery_challan: dcIds,
-      instructions: remarks || '',
+      currency: 'INR',
+      conversion_rate: 1,
+      selling_price_list: 'Standard Selling',
       status: status,
-      bill_type: isService ? 'Services' : 'Products',
+      customer_address: customerData?.address || '',
+      contact_person: customerData?.contactPerson || '',
+      territory: 'Maharashtra',
+      remarks: remarks || '',
+      total_taxes_and_charges: getTotalTax(),
+      paid_amount: 0,
+      update_stock: 1,
+      is_pos: 0,
+      is_return: 0,
       items: items
         .filter(item => item.itemCode && item.quantity > 0)
         .map(item => ({
-          name: item.itemName || item.itemCode,
           item_code: item.itemCode,
           item_name: item.itemName || item.itemCode,
           description: item.description || item.itemName || item.itemCode,
+          item_group: item.itemGroup || 'Products',
           qty: item.quantity,
-          uom: item.unit,
           rate: item.rate,
-          amount: item.amount,
-          tax: item.tax || 0,
-          tax_amount: item.taxAmount || 0,
-          total_amount: item.totalAmount || 0,
-          warehouse: warehouse || '',
-          type: item.type,
-          delivery_challan: item.deliveryChallanId || ''
+          uom: item.unit,
+          actual_batch_qty: item.quantity,
+          stock_uom: item.unit,
+          warehouse: warehouseName,
+          income_account: item.incomeAccount || 'Sales - A',
+          cost_center: item.costCenter || 'Main - A',
+          discount_percentage: item.discountPercentage || 0,
+          weight_per_unit: item.weightPerUnit || 0,
+          weight_uom: item.weightUom || 'kg',
+          ...(item.serialNo && { serial_no: item.serialNo }),
+          ...(item.batchNo && { batch_no: item.batchNo })
         })),
       payment_schedule: paymentSchedule.map(p => ({
         payment_term: p.paymentTerm || 'On Delivery',
@@ -2223,14 +2611,36 @@ const CreateSalesBill: React.FC = () => {
     try {
       const payload = buildPayload('Submitted');
       const createResponse = await salesBillAPI.createSalesBill(payload);
-      if (!createResponse.success) throw new Error(createResponse.message || 'Failed to create');
-      const createdSB = createResponse.data;
+      
+      if (!createResponse.success) {
+        throw new Error(createResponse.message || 'Failed to create');
+      }
+      
+      const responseData = createResponse.data;
+      const salesBillName = responseData?.data?.name || responseData?.name || billNumber;
+      const totalItemsCount = responseData?.data?.total_items || items.filter(i => i.itemCode && i.quantity > 0).length;
+      const message = responseData?.data?.message || responseData?.message || createResponse.message || 'Sales Invoice created successfully.';
+      const totalAmount = getGrandTotalWithRound();
+
       toast.success('Created!', { id: toastId });
-      if (createdSB.name) {
-        const submitResponse = await salesBillAPI.submitSalesBill(createdSB.name);
-        if (!submitResponse.success) throw new Error(submitResponse.message || 'Failed to submit');
-        toast.success(`Bill ${createdSB.name} submitted!`);
-        setTimeout(() => navigate('/sales-bill'), 1500);
+
+      setSuccessData({
+        salesBill: salesBillName,
+        totalItems: totalItemsCount,
+        message: message,
+        customerName: customerData?.name,
+        totalAmount: totalAmount
+      });
+      setShowSuccessModal(true);
+
+      if (salesBillName && salesBillName !== billNumber) {
+        try {
+          await salesBillAPI.submitSalesBill(salesBillName);
+          toast.success(`Bill ${salesBillName} submitted!`);
+        } catch (submitError) {
+          console.warn('Submit failed but SB was created:', submitError);
+          toast('SB created but submission failed. Please submit manually.');
+        }
       }
     } catch (error: any) {
       toast.error(error.message || 'Failed to create', { id: toastId });
@@ -2247,7 +2657,11 @@ const CreateSalesBill: React.FC = () => {
       const payload = buildPayload('Draft');
       const response = await salesBillAPI.createSalesBill(payload);
       if (!response.success) throw new Error(response.message || 'Failed to save');
-      toast.success('Saved as draft!', { id: toastId });
+      
+      const responseData = response.data;
+      const salesBillName = responseData?.data?.name || responseData?.name || billNumber;
+      
+      toast.success(`Draft saved: ${salesBillName}`, { id: toastId });
       setTimeout(() => navigate('/sales-bill'), 1000);
     } catch (error: any) {
       toast.error(error.message || 'Failed to save', { id: toastId });
@@ -2256,10 +2670,20 @@ const CreateSalesBill: React.FC = () => {
     }
   };
 
+  const handleViewSalesBill = () => {
+    setShowSuccessModal(false);
+    navigate('/sales-bill');
+  };
+
+  const handleCloseModal = () => {
+    setShowSuccessModal(false);
+    navigate('/sales-bill');
+  };
+
   const handleCancel = () => {
-    if (window.confirm('Are you sure? Unsaved data will be lost.')) {
+
       navigate('/sales-bill');
-    }
+    
   };
 
   useEffect(() => {
@@ -2278,7 +2702,12 @@ const CreateSalesBill: React.FC = () => {
         tax_id: undefined,
         taxAmount: 0,
         totalAmount: 0,
-        type: isService ? 'service' : 'product'
+        type: isService ? 'service' : 'product',
+        itemGroup: 'Products',
+        incomeAccount: 'Sales - A',
+        costCenter: 'Main - A',
+        weightPerUnit: 0,
+        weightUom: 'kg'
       }]);
     }
   }, [isService]);
@@ -2287,7 +2716,6 @@ const CreateSalesBill: React.FC = () => {
   const totalQuantity = getTotalQty();
   const subTotal = getTotalAmount();
   const totalTax = getTotalTax();
-  const grandTotal = getGrandTotal();
   const grandTotalWithRound = getGrandTotalWithRound();
 
   return (
@@ -2316,43 +2744,23 @@ const CreateSalesBill: React.FC = () => {
           scrollbar-color: var(--text-secondary, #cbd5e1) var(--border-color, #f1f5f9);
         }
 
-        /* ── Stock Indicator ─────────────────────────── */
-        .nsb-stock-indicator {
-          display: inline-flex;
-          align-items: center;
-          gap: 2px;
-          font-size: 9px;
-          font-weight: 600;
-          padding: 1px 5px;
-          border-radius: 8px;
-          white-space: nowrap;
-        }
-
-        .nsb-stock-indicator.nsb-stock-available {
-          color: #059669;
-          background: #ecfdf5;
-        }
-
-        .nsb-stock-indicator.nsb-stock-insufficient {
-          color: #dc2626;
-          background: #fef2f2;
-        }
-
-        .nsb-stock-indicator.nsb-stock-unknown {
-          color: #6b7280;
-          background: #f3f4f6;
-        }
-
-        .nsb-stock-indicator.nsb-stock-checking {
-          color: #3b82f6;
-          background: #eff6ff;
-        }
-
         @media print {
           .nsb-form-footer, button { display: none !important; }
           body { padding: 0; }
         }
       `}</style>
+
+      {/* Success Modal */}
+      <SuccessModal
+        isOpen={showSuccessModal}
+        onClose={handleCloseModal}
+        onViewDetails={handleViewSalesBill}
+        salesBill={successData.salesBill}
+        totalItems={successData.totalItems}
+        message={successData.message}
+        customerName={successData.customerName}
+        totalAmount={successData.totalAmount}
+      />
 
       {/* Header */}
       <div className="nsb-header">
@@ -2443,7 +2851,7 @@ const CreateSalesBill: React.FC = () => {
                   {errors.deliveryChallan && <span className="nsb-error-text">{errors.deliveryChallan}</span>}
                   {selectedDeliveryChallans.length > 0 && (
                     <span className="nsb-field-hint">
-                      ✓ {selectedDeliveryChallans.length} Delivery Challans selected. Items will be combined.
+                      ✓ {selectedDeliveryChallans.length} Delivery Challans selected. Items, customer & payment terms will be auto-filled.
                     </span>
                   )}
                 </div>
@@ -2461,17 +2869,13 @@ const CreateSalesBill: React.FC = () => {
                 <label className="nsb-label">
                   Customer <span className="nsb-required">*</span>
                 </label>
-                <select
+                <CustomerDropdown
                   value={selectedCustomer}
                   onChange={handleCustomerChange}
+                  placeholder="Search Customer..."
                   disabled={isLoading || (hasDeliveryChallan && isCustomerDisabled)}
-                  className={`nsb-select ${errors.customer ? 'nsb-select-error' : ''}`}
-                >
-                  <option value="">Select Customer</option>
-                  {customers.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
+                  error={!!errors.customer}
+                />
                 {errors.customer && <span className="nsb-error-text">{errors.customer}</span>}
                 {hasDeliveryChallan && isCustomerDisabled && (
                   <span className="nsb-field-hint">Auto-selected from Delivery Challans</span>
@@ -2584,7 +2988,7 @@ const CreateSalesBill: React.FC = () => {
                 <label className="nsb-label">Invoice Number</label>
                 <input
                   type="text"
-                  placeholder="INV-2024-001"
+                  placeholder="INV-2026-001"
                   value={invoiceNumber}
                   onChange={(e) => setInvoiceNumber(e.target.value)}
                   className="nsb-input"
@@ -2704,7 +3108,7 @@ const CreateSalesBill: React.FC = () => {
           </div>
         </div>
 
-        {/* FULL WIDTH - ITEMS SECTION - Updated with HSN and stock status */}
+        {/* FULL WIDTH - ITEMS SECTION */}
         <div className="nsb-items-full">
           <div className="nsb-items-header">
             <span className="nsb-items-title">
@@ -2734,8 +3138,8 @@ const CreateSalesBill: React.FC = () => {
                   <th className="nsb-col-unit">UOM</th>
                   <th className="nsb-col-rate">Rate</th>
                   <th className="nsb-col-tax">Tax</th>
-                  <th className="nsb-col-amount">Amount</th>
-                  <th className="nsb-col-dc">DC Ref</th>
+                  <th className="nsb-col-tax-amount" style={{ textAlign: 'right' }}>Tax Amt</th>
+                  <th className="nsb-col-amount" style={{ textAlign: 'right' }}>Amount</th>
                   <th className="nsb-col-action"></th>
                 </tr>
               </thead>
@@ -2821,22 +3225,11 @@ const CreateSalesBill: React.FC = () => {
                         ))}
                       </select>
                     </td>
-                    <td className="nsb-col-amount">
-                      <span className="nsb-table-value">₹{item.totalAmount.toFixed(2)}</span>
+                    <td className="nsb-col-tax-amount" style={{ textAlign: 'right' }}>
+                      <span className="nsb-table-value">₹{item.taxAmount.toFixed(2)}</span>
                     </td>
-                    <td className="nsb-col-dc">
-                      {item.deliveryChallanId && (
-                        <span style={{
-                          fontSize: '9px',
-                          padding: '1px 4px',
-                          borderRadius: '8px',
-                          background: 'color-mix(in srgb, var(--primary-color) 10%, transparent)',
-                          color: 'var(--primary-color, #2563eb)',
-                          whiteSpace: 'nowrap'
-                        }}>
-                          {item.deliveryChallanId}
-                        </span>
-                      )}
+                    <td className="nsb-col-amount" style={{ textAlign: 'right' }}>
+                      <span className="nsb-table-value">₹{item.totalAmount.toFixed(2)}</span>
                     </td>
                     <td className="nsb-col-action">
                       <button onClick={() => removeItem(item.id)} className="nsb-remove-btn">

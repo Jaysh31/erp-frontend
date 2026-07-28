@@ -78,7 +78,7 @@ export default function WorkOrderList() {
   const navigate = useNavigate();
   const { theme } = useAdminTheme();
 
-  const [workOrders, setWorkOrders] = useState<WorkOrderDisplay[]>([]);
+  const [, setWorkOrders] = useState<WorkOrderDisplay[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -257,18 +257,7 @@ export default function WorkOrderList() {
     fetchAllWorkOrders();
   }, [fetchAllWorkOrders]);
 
-  const goToPage = (page: number) => {
-    if (page < 1) {
-      page = totalPages;
-    } else if (page > totalPages) {
-      page = 1;
-    }
 
-    if (page >= 1 && page <= totalPages) {
-      console.log(`Going to page: ${page}`);
-      setCurrentPage(page);
-    }
-  };
 
   const goToFirstPage = () => {
     if (totalPages > 0) {
@@ -310,10 +299,6 @@ export default function WorkOrderList() {
     setCurrentPage(1);
   };
 
-  // Only show current page number
-  const getPageNumbers = () => {
-    return [currentPage];
-  };
 
   const handleDelete = (item: WorkOrderDisplay, e: React.MouseEvent) => {
     e.stopPropagation();

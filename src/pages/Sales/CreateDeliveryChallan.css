@@ -266,15 +266,22 @@
   font-size: 13px;
 }
 
-/* ── Grid 3 Layout ───────────────────────────────── */
-.ndc-grid-3 {
+/* ── Grid 4 Layout ───────────────────────────────── */
+.ndc-grid-4 {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 14px;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  gap: 12px;
 }
 
 @media (max-width: 768px) {
-  .ndc-grid-3 {
+  .ndc-grid-4 {
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .ndc-grid-4 {
     grid-template-columns: 1fr;
     gap: 12px;
   }
@@ -608,20 +615,22 @@
 }
 
 /* ── Items Table - Column Widths ───────────────── */
-.ndc-col-sno { width: 2%; text-align: center; }
-.ndc-col-code { width: 14%; }
+.ndc-col-sno { width: 3%; text-align: center; }
+.ndc-col-code { width: 12%; }
 .ndc-col-code .ndc-table-input { text-align: left; }
 .ndc-col-name { width: 14%; }
 .ndc-col-name .ndc-table-input { text-align: left; }
-.ndc-col-hsn { width: 10%; }
+.ndc-col-hsn { width: 8%; }
 .ndc-col-hsn .ndc-table-input { text-align: left; }
-.ndc-col-qty { width: 10%; text-align: center; }
+.ndc-col-qty { width: 8%; text-align: center; }
 .ndc-col-unit { width: 6%; text-align: center; }
 .ndc-col-unit .ndc-table-input { text-align: left; }
-.ndc-col-rate { width: 9%; text-align: right; }
+.ndc-col-rate { width: 8%; text-align: right; }
 .ndc-col-tax { width: 7%; text-align: center; }
 .ndc-col-tax .ndc-table-input { text-align: left; }
-.ndc-col-amount { width: 9%; text-align: right; }
+.ndc-col-tax-amount { width: 9%; text-align: right; }
+.ndc-col-amount { width: 10%; text-align: right; }
+.ndc-col-action { width: 4%; text-align: center; }
 
 /* ── Table Inputs ───────────────────────────────── */
 .ndc-table-input {
@@ -660,6 +669,8 @@
   color: var(--text-primary, #0f172a);
   font-weight: 600;
   white-space: nowrap;
+  min-width: 60px;
+  text-align: right;
 }
 
 .ndc-remove-btn {
@@ -1321,8 +1332,8 @@
     justify-content: center;
   }
 
-  .ndc-grid-3 {
-    grid-template-columns: 1fr;
+  .ndc-grid-4 {
+    grid-template-columns: 1fr 1fr;
     gap: 12px;
   }
 
@@ -1341,14 +1352,16 @@
   }
 
   .ndc-col-sno { display: none; }
-  .ndc-col-code { width: 18%; }
+  .ndc-col-code { width: 16%; }
   .ndc-col-name { width: 16%; }
   .ndc-col-hsn { display: none; }
-  .ndc-col-qty { width: 12%; }
+  .ndc-col-qty { width: 10%; }
   .ndc-col-unit { display: none; }
-  .ndc-col-rate { width: 12%; }
+  .ndc-col-rate { width: 10%; }
   .ndc-col-tax { width: 8%; }
+  .ndc-col-tax-amount { width: 12%; }
   .ndc-col-amount { width: 12%; }
+  .ndc-col-action { width: 6%; }
 
   .ndc-invoice-type-section {
     flex-wrap: wrap;
@@ -1378,11 +1391,17 @@
     font-size: 10px;
   }
 
-  .ndc-col-code { width: 22%; }
+  .ndc-grid-4 {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .ndc-col-code { width: 20%; }
   .ndc-col-name { width: 18%; }
-  .ndc-col-qty { width: 14%; }
-  .ndc-col-rate { width: 14%; }
+  .ndc-col-qty { width: 12%; }
+  .ndc-col-rate { width: 12%; }
   .ndc-col-tax { width: 10%; }
+  .ndc-col-tax-amount { width: 14%; }
   .ndc-col-amount { width: 14%; }
 
   .ndc-modal-container {
@@ -1439,9 +1458,4 @@
   .ndc-page {
     background: white;
   }
-}
-.ndc-grid-4 {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr 1fr;
-  gap: 12px;
 }
