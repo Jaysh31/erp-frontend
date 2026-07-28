@@ -357,18 +357,7 @@ export default function JobCardManagement() {
     return filtered;
   };
 
-  const goToPage = (page: number) => {
-    if (page < 1) {
-      page = totalPages;
-    } else if (page > totalPages) {
-      page = 1;
-    }
 
-    if (page >= 1 && page <= totalPages) {
-      console.log(`Going to page: ${page}`);
-      setCurrentPage(page);
-    }
-  };
 
   const goToFirstPage = () => {
     if (totalPages > 0) {
@@ -410,10 +399,7 @@ export default function JobCardManagement() {
     setCurrentPage(1);
   };
 
-  // Only show current page number, not all numbers
-  const getPageNumbers = () => {
-    return [currentPage]; // Just return current page
-  };
+
 
   const getStartIndex = () => (currentPage - 1) * itemsPerPage + 1;
   const getEndIndex = () => Math.min(currentPage * itemsPerPage, totalItems);
@@ -475,7 +461,7 @@ export default function JobCardManagement() {
   const totalCompleted = jobCards.reduce((sum, jc) => sum + jc.completedQty, 0);
   const totalLoss = jobCards.reduce((sum, jc) => sum + jc.lossQty, 0);
   const overallProgress = totalQty > 0 ? Math.round(((totalCompleted + totalLoss) / totalQty) * 100) : 0;
-  const totalJobCards = jobCards.length;
+  // const totalJobCards = jobCards.length;
 
   return (
     <div className={`jc-page ${theme}`}>

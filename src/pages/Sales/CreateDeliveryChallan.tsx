@@ -24,11 +24,12 @@ import {
   FaQuestionCircle,
   FaCalendarAlt,
 } from 'react-icons/fa';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import './CreateDeliveryChallan.css';
+import { FaTrash } from 'react-icons/fa6';
 
 // ===== INTERFACES =====
 
@@ -66,6 +67,8 @@ interface SalesOrder {
     uom: string;
     rate: number;
     amount: number;
+    tax_id?: number;
+    tax?: number;
   }>;
 }
 
@@ -116,6 +119,7 @@ interface DeliveryChallanItem {
   type: 'product' | 'service';
   stockStatus?: 'checking' | 'available' | 'insufficient' | 'unknown';
   availableQty?: number;
+  inventoryId?: number;
   creation?: string;
   modified?: string;
   modified_by?: string;
@@ -130,9 +134,9 @@ interface DeliveryChallanItem {
 }
 
 interface DeliveryNotePayload {
-  name: string;
+  id?: string | number;
   naming_series: string;
-  customer: string;
+  customer_id: number;
   customer_name: string;
   posting_date: string;
   company: string;
@@ -140,15 +144,12 @@ interface DeliveryNotePayload {
   transporter: string;
   vehicle_no: string;
   driver_name: string;
-  lr_no: string;
-  lr_date: string;
-  po_no: string;
-  po_date: string;
-  sales_order: string;
+  lr_no: string | null;
+  lr_date: string | null;
+  sales_order_id: number | null;
   instructions: string;
   status: string;
-  dc_type: string;
-  quality_inspection: boolean;
+  type: string;
   items: Array<{
     name: string;
     item_code: string;
@@ -159,6 +160,7 @@ interface DeliveryNotePayload {
     rate: number;
     amount: number;
     tax: number;
+    tax_id: number | null;
     tax_amount: number;
     total_amount: number;
     warehouse: string;
@@ -187,14 +189,27 @@ interface Warehouse {
 }
 
 interface InventoryApiRecord {
+  planned_qty: number;
+  indented_qty: number;
+  ordered_qty: number;
+  reserved_qty: number;
+  reserved_qty_for_production: number;
+  reserved_qty_for_sub_contract: number;
+  reserved_qty_for_production_plan: number;
+  id: number;
   name: string;
   item_code: string;
+  item_Id?: number;
   warehouse_Id?: number;
+  warehouse_name?: string;
   actual_qty: number;
   reserved_stock?: number;
   projected_qty?: number;
   stock_uom?: string;
   company?: string;
+  valuation_rate?: number;
+  stock_value?: number;
+  type?: string;
 }
 
 // ===== API SERVICE =====
@@ -321,6 +336,11 @@ class DeliveryChallanAPI {
     return this.apiService.post('/delivery-note', payload);
   }
 
+  async updateDeliveryNote(payload: DeliveryNotePayload): Promise<ApiResponse<any>> {
+    // ID is inside payload, not in URL
+    return this.apiService.put('/delivery-note', payload);
+  }
+
   async submitDeliveryNote(name: string): Promise<ApiResponse<any>> {
     return this.apiService.post(`/delivery-note/${name}/submit`, {});
   }
@@ -333,10 +353,6 @@ class DeliveryChallanAPI {
     return this.apiService.get('/delivery-notes', params);
   }
 
-  async updateDeliveryNote(id: string, data: Partial<DeliveryNotePayload>): Promise<ApiResponse<any>> {
-    return this.apiService.put(`/delivery-note/${id}`, data);
-  }
-
   async deleteDeliveryNote(id: string): Promise<ApiResponse<any>> {
     return this.apiService.delete(`/delivery-note/${id}`);
   }
@@ -345,7 +361,7 @@ class DeliveryChallanAPI {
     return this.apiService.get('/customer', params);
   }
 
-  async getSalesOrders(params?: { customer_id?: string; }): Promise<ApiResponse<any>> {
+  async getSalesOrders(params?: { customer_id?: string; page?: number; limit?: number }): Promise<ApiResponse<any>> {
     return this.apiService.get('/sales-order', params);
   }
 
@@ -363,6 +379,10 @@ class DeliveryChallanAPI {
 
   async getInventory(params?: { item_code?: string }): Promise<ApiResponse<any>> {
     return this.apiService.get('/inventory', params);
+  }
+
+  async updateInventory(id: number, data: any): Promise<ApiResponse<any>> {
+    return this.apiService.put(`/inventory`, data);
   }
 }
 
@@ -593,7 +613,6 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
         ) : (
           <FaChevronDown style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary, #94a3b8)', fontSize: '11px', pointerEvents: 'none' }} />
         )}
-        {/* Stock indicator inside the input */}
         {value && stockInfo && (
           <div style={{ position: 'absolute', right: '28px', top: '50%', transform: 'translateY(-50%)' }}>
             {getStockDisplay()}
@@ -614,6 +633,7 @@ interface SalesOrderDropdownProps {
   placeholder?: string;
   disabled?: boolean;
   error?: boolean;
+  taxOptions?: TaxOption[];
 }
 
 const SalesOrderDropdown: React.FC<SalesOrderDropdownProps> = ({
@@ -622,7 +642,8 @@ const SalesOrderDropdown: React.FC<SalesOrderDropdownProps> = ({
   customerId,
   placeholder = 'Search Sales Order...',
   disabled = false,
-  error = false
+  error = false,
+  taxOptions = []
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -637,6 +658,21 @@ const SalesOrderDropdown: React.FC<SalesOrderDropdownProps> = ({
   const deliveryChallanAPI = new DeliveryChallanAPI();
 
   const menuPos = useDropdownPosition(isOpen, wrapperRef);
+
+  // Helper to extract tax rate from tax_type string (e.g., "GST18" -> 18)
+  const extractTaxValue = (taxType: string): number => {
+    if (!taxType) return 0;
+    const match = taxType.match(/(\d+)/);
+    return match ? parseInt(match[0], 10) : 0;
+  };
+
+  // Get tax rate from tax_id using taxOptions
+  const getTaxRateFromId = (taxId: number | string | undefined): number => {
+    if (!taxId) return 0;
+    const id = typeof taxId === 'string' ? parseInt(taxId, 10) : taxId;
+    const taxOption = taxOptions.find(t => t.tax_id === id);
+    return taxOption ? extractTaxValue(taxOption.tax_type) : 0;
+  };
 
   useEffect(() => {
     if (customerId) {
@@ -686,7 +722,6 @@ const SalesOrderDropdown: React.FC<SalesOrderDropdownProps> = ({
       if (response.success && response.data) {
         let orderList: SalesOrder[] = [];
         
-        // Handle the response structure: { success: 1, data: { total, page, limit, records: [...] } }
         if (response.data.data?.records) {
           orderList = response.data.data.records;
         } else if (Array.isArray(response.data)) {
@@ -695,7 +730,6 @@ const SalesOrderDropdown: React.FC<SalesOrderDropdownProps> = ({
           orderList = response.data.data;
         }
         
-        // Map the response to SalesOrder interface
         const mappedOrders: SalesOrder[] = orderList.map((record: any) => ({
           id: record.id || record.sales_order_Id || 0,
           customer: record.customer_id || '',
@@ -717,6 +751,8 @@ const SalesOrderDropdown: React.FC<SalesOrderDropdownProps> = ({
             uom: item.uom || item.stock_uom || 'pcs',
             rate: item.rate || 0,
             amount: item.amount || 0,
+            tax_id: item.tax_id || record.tax_id || null,
+            tax: item.tax || 0,
           }))
         }));
         
@@ -745,7 +781,18 @@ const SalesOrderDropdown: React.FC<SalesOrderDropdownProps> = ({
     setSelectedOrder(order);
     setSearchTerm('');
     setIsOpen(false);
-    onChange(String(order.id), order);
+    
+    // Process items with tax from taxOptions
+    const processedOrder = {
+      ...order,
+      items: order.items?.map(item => ({
+        ...item,
+        // If item has tax_id, get tax rate from it
+        tax: item.tax_id ? getTaxRateFromId(item.tax_id) : item.tax || 0
+      }))
+    };
+    
+    onChange(String(order.id), processedOrder);
     if (inputRef.current) {
       inputRef.current.blur();
     }
@@ -887,7 +934,7 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
   placeholder = 'Search Customer...',
   disabled = false,
   error = false,
-  }) => {
+}) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -1200,8 +1247,12 @@ const SuccessModal: React.FC<SuccessModalProps> = ({
 
 const NewDeliveryChallan: React.FC = () => {
   const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
   const { theme } = useAdminTheme();
 
+  // Determine if we're in edit mode
+  const isEditMode = !!id;
+  
   // State for toggle
   const [hasSalesOrder, setHasSalesOrder] = useState<boolean>(true);
   
@@ -1221,7 +1272,7 @@ const NewDeliveryChallan: React.FC = () => {
   const [customerData, setCustomerData] = useState<Customer | null>(null);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [dcNumber] = useState<string>(`DN-${new Date().getFullYear()}-001`);
+  const [dcNumber, setDcNumber] = useState<string>(`DN-${new Date().getFullYear()}-001`);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -1231,10 +1282,11 @@ const NewDeliveryChallan: React.FC = () => {
   const [taxOptions, setTaxOptions] = useState<TaxOption[]>([]);
   const [loadingTaxOptions, setLoadingTaxOptions] = useState<boolean>(false);
   const [, setTaxOptionsLoaded] = useState<boolean>(false);
-  const [inventoryMap, setInventoryMap] = useState<{ [itemCode: string]: InventoryApiRecord }>({});
+  const [inventoryMap, setInventoryMap] = useState<{ [itemCode: string]: InventoryApiRecord[] }>({});
   const [, setLoadingInventory] = useState(false);
+  const [isLoadingData, setIsLoadingData] = useState<boolean>(false);
   
-  // ===== NEW: Status State =====
+  // Status State
   const [status, setStatus] = useState<string>('Draft');
 
   // Success Modal State
@@ -1251,6 +1303,25 @@ const NewDeliveryChallan: React.FC = () => {
   });
 
   const deliveryChallanAPI = new DeliveryChallanAPI();
+
+  // ===== HELPER FUNCTIONS =====
+  const extractTaxValue = (taxType: string): number => {
+    if (!taxType) return 0;
+    const match = taxType.match(/(\d+)/);
+    return match ? parseInt(match[0], 10) : 0;
+  };
+
+  const getTaxIdFromRate = (taxRate: number, taxOpts: TaxOption[]): number | undefined => {
+    const taxOption = taxOpts.find(t => extractTaxValue(t.tax_type) === taxRate);
+    return taxOption?.tax_id;
+  };
+
+  const getTaxRateFromId = (taxId: number | string | undefined, taxOpts: TaxOption[]): number => {
+    if (!taxId) return 0;
+    const id = typeof taxId === 'string' ? parseInt(taxId, 10) : taxId;
+    const taxOption = taxOpts.find(t => t.tax_id === id);
+    return taxOption ? extractTaxValue(taxOption.tax_type) : 0;
+  };
 
   // ===== FETCH TAX OPTIONS =====
   const fetchTaxOptions = async () => {
@@ -1279,13 +1350,36 @@ const NewDeliveryChallan: React.FC = () => {
     try {
       const response = await deliveryChallanAPI.getInventory();
       const records = response.data?.data?.records || response.data || [];
-      const map: { [itemCode: string]: InventoryApiRecord } = {};
+      const map: { [itemCode: string]: InventoryApiRecord[] } = {};
       records.forEach((r: any) => {
         if (r.item_code) {
           const key = r.item_code.toUpperCase();
-          if (!map[key] || (r.actual_qty ?? 0) > (map[key].actual_qty ?? 0)) {
-            map[key] = r;
+          if (!map[key]) {
+            map[key] = [];
           }
+          map[key].push({
+            id: r.id,
+            name: r.name,
+            item_code: r.item_code,
+            item_Id: r.item_Id,
+            warehouse_Id: r.warehouse_Id,
+            warehouse_name: r.warehouse_name,
+            actual_qty: r.actual_qty || 0,
+            reserved_stock: r.reserved_stock || 0,
+            projected_qty: r.projected_qty || 0,
+            stock_uom: r.stock_uom,
+            company: r.company,
+            valuation_rate: r.valuation_rate,
+            stock_value: r.stock_value,
+            type: r.type,
+            planned_qty: 0,
+            indented_qty: 0,
+            ordered_qty: 0,
+            reserved_qty: 0,
+            reserved_qty_for_production: 0,
+            reserved_qty_for_sub_contract: 0,
+            reserved_qty_for_production_plan: 0
+          });
         }
       });
       setInventoryMap(map);
@@ -1297,33 +1391,143 @@ const NewDeliveryChallan: React.FC = () => {
   };
 
   // ===== GET STOCK STATUS =====
-  const getStockStatus = (itemCode: string, quantity: number): { status: 'checking' | 'available' | 'insufficient' | 'unknown'; availableQty?: number } => {
+  const getStockStatus = (itemCode: string, quantity: number): { status: 'checking' | 'available' | 'insufficient' | 'unknown'; availableQty?: number; inventoryRecords?: InventoryApiRecord[] } => {
     if (!itemCode) return { status: 'unknown' };
-    const inv = inventoryMap[itemCode.toUpperCase()];
-    if (!inv) return { status: 'unknown' };
+    const records = inventoryMap[itemCode.toUpperCase()];
+    if (!records || records.length === 0) return { status: 'unknown' };
+    
+    const sorted = [...records].sort((a, b) => b.actual_qty - a.actual_qty);
+    const bestRecord = sorted[0];
+    
     return {
-      status: (inv.actual_qty ?? 0) >= quantity ? 'available' : 'insufficient',
-      availableQty: inv.actual_qty,
+      status: (bestRecord.actual_qty ?? 0) >= quantity ? 'available' : 'insufficient',
+      availableQty: bestRecord.actual_qty,
+      inventoryRecords: records,
     };
   };
 
-  // ===== HELPER FUNCTIONS =====
-  const extractTaxValue = (taxType: string): number => {
-    if (!taxType) return 0;
-    const match = taxType.match(/(\d+)/);
-    return match ? parseInt(match[0], 10) : 0;
-  };
-
-  const getTaxIdFromRate = (taxRate: number, taxOpts: TaxOption[]): number | undefined => {
-    const taxOption = taxOpts.find(t => extractTaxValue(t.tax_type) === taxRate);
-    return taxOption?.tax_id;
-  };
-
-  const getTaxRateFromId = (taxId: number | string, taxOpts: TaxOption[]): number => {
-    if (!taxId) return 0;
-    const id = typeof taxId === 'string' ? parseInt(taxId, 10) : taxId;
-    const taxOption = taxOpts.find(t => t.tax_id === id);
-    return taxOption ? extractTaxValue(taxOption.tax_type) : 0;
+  // ===== FETCH DELIVERY CHALLAN FOR EDIT =====
+  const fetchDeliveryChallanForEdit = async (challanId: string) => {
+    setIsLoadingData(true);
+    try {
+      const response = await deliveryChallanAPI.getDeliveryNote(challanId);
+      
+      if (response.success && response.data) {
+        const data = response.data.data || response.data;
+        
+        // Set form fields
+        if (data.customer_id) {
+          setSelectedCustomer(String(data.customer_id));
+          // Fetch customer details
+          const customer = customers.find(c => c.id === String(data.customer_id));
+          if (customer) {
+            setCustomerData(customer);
+          } else {
+            // Try to find customer from the data
+            if (data.customer_name) {
+              setCustomerData({
+                id: String(data.customer_id),
+                name: data.customer_name,
+                code: data.customer_code || '',
+                email: data.customer_email || '',
+                phone: data.customer_phone || '',
+                address: data.customer_address || '',
+                shippingAddress: data.shipping_address || '',
+                gstin: data.gstin || '',
+              });
+            }
+          }
+        }
+        
+        if (data.posting_date) {
+          setDcDate(data.posting_date.split('T')[0]);
+        }
+        
+        if (data.set_warehouse) {
+          setWarehouse(data.set_warehouse);
+        }
+        
+        if (data.transporter) {
+          setTransporter(data.transporter);
+        }
+        
+        if (data.vehicle_no) {
+          setVehicleNumber(data.vehicle_no);
+        }
+        
+        if (data.instructions) {
+          setRemarks(data.instructions);
+        }
+        
+        if (data.status) {
+          setStatus(data.status);
+        }
+        
+        if (data.type === 'Services') {
+          setIsService(true);
+        }
+        
+        if (data.name) {
+          setDcNumber(data.name);
+        }
+        
+        if (data.sales_order_id) {
+          setHasSalesOrder(true);
+          setSelectedSalesOrder(String(data.sales_order_id));
+        } else {
+          setHasSalesOrder(false);
+        }
+        
+        // Set items
+        if (data.items && Array.isArray(data.items) && data.items.length > 0) {
+          const mappedItems: DeliveryChallanItem[] = data.items.map((item: any, index: number) => {
+            const product = allProducts.find(p => p.itemCode === item.item_code);
+            const taxRate = item.tax || 0;
+            const taxId = item.tax_id || getTaxIdFromRate(taxRate, taxOptions);
+            const amount = (item.qty || 0) * (item.rate || 0);
+            const taxAmount = (amount * taxRate) / 100;
+            const { status: stockStatus, availableQty, inventoryRecords } = getStockStatus(item.item_code || '', item.qty || 0);
+            let inventoryId: number | undefined;
+            if (inventoryRecords && inventoryRecords.length > 0) {
+              const sorted = [...inventoryRecords].sort((a, b) => b.actual_qty - a.actual_qty);
+              inventoryId = sorted[0]?.id;
+            }
+            
+            return {
+              id: `existing-${index}`,
+              itemCode: item.item_code || '',
+              itemName: item.item_name || item.description || '',
+              hsn: product?.hsn || item.hsn || '',
+              description: item.description || '',
+              quantity: item.qty || 1,
+              unit: item.uom || item.stock_uom || 'pcs',
+              rate: item.rate || 0,
+              amount: amount,
+              tax: taxRate,
+              tax_id: taxId,
+              taxAmount: taxAmount,
+              totalAmount: item.total_amount || (amount + taxAmount),
+              type: item.type === 'Services' ? 'service' : 'product',
+              stockStatus: stockStatus,
+              availableQty: availableQty,
+              inventoryId: inventoryId,
+            };
+          });
+          setItems(mappedItems);
+        }
+        
+        toast.success('Delivery Challan loaded for editing');
+      } else {
+        toast.error('Failed to load delivery challan');
+        navigate('/delivery-challan');
+      }
+    } catch (error) {
+      console.error('Error fetching delivery challan:', error);
+      toast.error('Failed to load delivery challan');
+      navigate('/delivery-challan');
+    } finally {
+      setIsLoadingData(false);
+    }
   };
 
   useEffect(() => {
@@ -1334,14 +1538,31 @@ const NewDeliveryChallan: React.FC = () => {
     fetchWarehouses();
   }, []);
 
+  // Load edit data after initial data is fetched
+  useEffect(() => {
+    if (isEditMode && id && customers.length > 0 && allProducts.length > 0 && taxOptions.length > 0) {
+      fetchDeliveryChallanForEdit(id);
+    }
+  }, [isEditMode, id, customers.length, allProducts.length, taxOptions.length]);
+
   // Update stock status when inventory changes
   useEffect(() => {
     if (Object.keys(inventoryMap).length === 0) return;
     setItems((prev) =>
       prev.map((item) => {
         if (!item.itemCode) return item;
-        const { status, availableQty } = getStockStatus(item.itemCode, item.quantity);
-        return { ...item, stockStatus: status, availableQty };
+        const { status, availableQty, inventoryRecords } = getStockStatus(item.itemCode, item.quantity);
+        let inventoryId: number | undefined;
+        if (inventoryRecords && inventoryRecords.length > 0) {
+          const sorted = [...inventoryRecords].sort((a, b) => b.actual_qty - a.actual_qty);
+          inventoryId = sorted[0]?.id;
+        }
+        return { 
+          ...item, 
+          stockStatus: status, 
+          availableQty,
+          inventoryId: inventoryId || item.inventoryId,
+        };
       })
     );
   }, [inventoryMap]);
@@ -1361,14 +1582,17 @@ const NewDeliveryChallan: React.FC = () => {
         const warehouseList: Warehouse[] = response.data.data.records;
         setWarehouses(warehouseList);
         
-        const finishedGoods = warehouseList.find(
-          w => w.warehouse_name.toLowerCase() === 'finished goods'
-        );
-        
-        if (finishedGoods) {
-          setWarehouse(finishedGoods.warehouse_name);
-        } else if (warehouseList.length > 0) {
-          setWarehouse(warehouseList[0].warehouse_name);
+        // Set "Finished Goods" as default only if not in edit mode
+        if (!isEditMode) {
+          const finishedGoods = warehouseList.find(
+            w => w.warehouse_name.toLowerCase() === 'finished goods'
+          );
+          
+          if (finishedGoods) {
+            setWarehouse(finishedGoods.warehouse_name);
+          } else if (warehouseList.length > 0) {
+            setWarehouse(warehouseList[0].warehouse_name);
+          }
         }
       }
     } catch (error) {
@@ -1504,22 +1728,26 @@ const NewDeliveryChallan: React.FC = () => {
       setCustomerData(customerData);
       setSelectedSalesOrder('');
       setSelectedOrderData(null);
-      setItems([{
-        id: '1',
-        itemCode: '',
-        itemName: '',
-        hsn: '',
-        description: '',
-        quantity: 1,
-        unit: 'pcs',
-        rate: 0,
-        amount: 0,
-        tax: 0,
-        tax_id: undefined,
-        taxAmount: 0,
-        totalAmount: 0,
-        type: isService ? 'service' : 'product',
-      }]);
+      // Only reset items if not in edit mode or if items are empty
+      if (!isEditMode || items.length === 0) {
+        setItems([{
+          id: '1',
+          itemCode: '',
+          itemName: '',
+          hsn: '',
+          description: '',
+          quantity: 1,
+          unit: 'pcs',
+          rate: 0,
+          amount: 0,
+          tax: 0,
+          tax_id: undefined,
+          taxAmount: 0,
+          totalAmount: 0,
+          type: isService ? 'service' : 'product',
+          inventoryId: undefined,
+        }]);
+      }
       toast.success(`Selected ${customerData.name}`);
     }
   };
@@ -1540,26 +1768,44 @@ const NewDeliveryChallan: React.FC = () => {
 
     setSelectedOrderData(orderData);
 
-    // Get the tax rate from the order's tax_id
-    const orderTaxRate = orderData.tax_id ? getTaxRateFromId(orderData.tax_id, taxOptions) : 0;
     const orderTaxId = orderData.tax_id ? parseInt(orderData.tax_id, 10) : undefined;
+    const orderTaxRate = orderTaxId ? getTaxRateFromId(orderTaxId, taxOptions) : 0;
 
     if (orderData.items && orderData.items.length > 0) {
       const initialItems: DeliveryChallanItem[] = orderData.items.map((item, index) => {
         const product = allProducts.find(p => p.itemCode === item.item_code);
         
-        // Use order's tax if available, otherwise use product's tax
-        let taxRate = orderTaxRate || product?.tax || 0;
-        let tax_id = orderTaxId || getTaxIdFromRate(taxRate, taxOptions);
+        let taxRate = 0;
+        let tax_id: number | undefined = undefined;
         
-        // If taxRate is 0 but we have a tax_id, get the rate from tax_id
+        if (item.tax_id) {
+          tax_id = typeof item.tax_id === 'string' ? parseInt(item.tax_id, 10) : item.tax_id;
+          taxRate = getTaxRateFromId(tax_id, taxOptions);
+        } else if (orderTaxId) {
+          tax_id = orderTaxId;
+          taxRate = orderTaxRate;
+        } else if (product?.tax) {
+          taxRate = product.tax;
+          tax_id = getTaxIdFromRate(taxRate, taxOptions);
+        }
+        
         if (taxRate === 0 && tax_id) {
           taxRate = getTaxRateFromId(tax_id, taxOptions);
         }
         
+        if (taxRate === 0 && item.tax) {
+          taxRate = item.tax;
+          tax_id = getTaxIdFromRate(taxRate, taxOptions);
+        }
+        
         const amount = (item.qty || 0) * (item.rate || 0);
         const taxAmount = (amount * taxRate) / 100;
-        const { status, availableQty } = getStockStatus(item.item_code || '', item.qty || 0);
+        const { status, availableQty, inventoryRecords } = getStockStatus(item.item_code || '', item.qty || 0);
+        let inventoryId: number | undefined;
+        if (inventoryRecords && inventoryRecords.length > 0) {
+          const sorted = [...inventoryRecords].sort((a, b) => b.actual_qty - a.actual_qty);
+          inventoryId = sorted[0]?.id;
+        }
         
         return {
           id: `so-${index}`,
@@ -1578,6 +1824,7 @@ const NewDeliveryChallan: React.FC = () => {
           type: isService ? 'service' : 'product',
           stockStatus: status,
           availableQty: availableQty,
+          inventoryId: inventoryId,
         };
       });
       setItems(initialItems);
@@ -1597,6 +1844,7 @@ const NewDeliveryChallan: React.FC = () => {
         taxAmount: 0,
         totalAmount: 0,
         type: isService ? 'service' : 'product',
+        inventoryId: undefined,
       }]);
     }
 
@@ -1629,17 +1877,18 @@ const NewDeliveryChallan: React.FC = () => {
       taxAmount: 0,
       totalAmount: 0,
       type: isService ? 'service' : 'product',
+      inventoryId: undefined,
     };
     setItems([...items, newItem]);
   };
 
-  // const removeItem = (id: string) => {
-  //   if (items.length <= 1) {
-  //     toast.error('At least one item is required');
-  //     return;
-  //   }
-  //   setItems(items.filter(item => item.id !== id));
-  // };
+  const removeItem = (id: string) => {
+    if (items.length <= 1) {
+      toast.error('At least one item is required');
+      return;
+    }
+    setItems(items.filter(item => item.id !== id));
+  };
 
   const updateItem = (id: string, field: keyof DeliveryChallanItem, value: any) => {
     setItems(prevItems =>
@@ -1654,7 +1903,12 @@ const NewDeliveryChallan: React.FC = () => {
               const tax_id = getTaxIdFromRate(taxRate, taxOptions);
               const amount = (updated.quantity || 0) * product.rate;
               const taxAmount = (amount * taxRate) / 100;
-              const { status, availableQty } = getStockStatus(product.itemCode, updated.quantity || 0);
+              const { status, availableQty, inventoryRecords } = getStockStatus(product.itemCode, updated.quantity || 0);
+              let inventoryId: number | undefined;
+              if (inventoryRecords && inventoryRecords.length > 0) {
+                const sorted = [...inventoryRecords].sort((a, b) => b.actual_qty - a.actual_qty);
+                inventoryId = sorted[0]?.id;
+              }
               
               updated.itemName = product.itemName || '';
               updated.hsn = product.hsn || '';
@@ -1668,6 +1922,7 @@ const NewDeliveryChallan: React.FC = () => {
               updated.totalAmount = amount + taxAmount;
               updated.stockStatus = status;
               updated.availableQty = availableQty;
+              updated.inventoryId = inventoryId;
               updated.creation = product.creation;
               updated.modified = product.modified;
               updated.modified_by = product.modified_by;
@@ -1690,9 +1945,15 @@ const NewDeliveryChallan: React.FC = () => {
             updated.totalAmount = amount + taxAmount;
             
             if (updated.itemCode) {
-              const { status, availableQty } = getStockStatus(updated.itemCode, updated.quantity || 0);
+              const { status, availableQty, inventoryRecords } = getStockStatus(updated.itemCode, updated.quantity || 0);
+              let inventoryId: number | undefined;
+              if (inventoryRecords && inventoryRecords.length > 0) {
+                const sorted = [...inventoryRecords].sort((a, b) => b.actual_qty - a.actual_qty);
+                inventoryId = sorted[0]?.id;
+              }
               updated.stockStatus = status;
               updated.availableQty = availableQty;
+              updated.inventoryId = inventoryId || updated.inventoryId;
             }
           }
 
@@ -1727,13 +1988,80 @@ const NewDeliveryChallan: React.FC = () => {
   const getTotalTax = () => items.reduce((sum, item) => sum + (item.taxAmount || 0), 0);
   const getGrandTotal = () => items.reduce((sum, item) => sum + (item.totalAmount || 0), 0);
 
+  // ===== UPDATE INVENTORY FUNCTION =====
+  const updateInventory = async (itemsToUpdate: DeliveryChallanItem[]) => {
+    const updatePromises: Promise<any>[] = [];
+    const failedUpdates: string[] = [];
+
+    for (const item of itemsToUpdate) {
+      if (item.type === 'service') continue;
+      if (!item.inventoryId) {
+        console.warn(`No inventory ID found for item: ${item.itemCode}`);
+        continue;
+      }
+      if (item.quantity <= 0) continue;
+
+      const records = inventoryMap[item.itemCode.toUpperCase()];
+      if (!records || records.length === 0) {
+        console.warn(`No inventory records found for item: ${item.itemCode}`);
+        continue;
+      }
+
+      const record = records.find(r => r.id === item.inventoryId);
+      if (!record) {
+        console.warn(`Inventory record with id ${item.inventoryId} not found for item: ${item.itemCode}`);
+        continue;
+      }
+
+      const currentQty = record.actual_qty || 0;
+      const newQty = Math.max(0, currentQty - item.quantity);
+
+      const updatePayload = {
+        id: item.inventoryId,
+        name: record.name,
+        item_Id: record.item_Id,
+        item_code: item.itemCode,
+        warehouse_Id: record.warehouse_Id,
+        actual_qty: newQty,
+        planned_qty: record.planned_qty || 0,
+        indented_qty: record.indented_qty || 0,
+        ordered_qty: record.ordered_qty || 0,
+        reserved_qty: record.reserved_qty || 0,
+        reserved_qty_for_production: record.reserved_qty_for_production || 0,
+        reserved_qty_for_sub_contract: record.reserved_qty_for_sub_contract || 0,
+        reserved_qty_for_production_plan: record.reserved_qty_for_production_plan || 0,
+        reserved_stock: record.reserved_stock || 0,
+        stock_uom: record.stock_uom || 'Nos',
+        company: record.company || 'SculptorTech Pvt Ltd',
+        valuation_rate: record.valuation_rate || 0,
+        type: record.type || 'Internal',
+      };
+
+      updatePromises.push(
+        deliveryChallanAPI.updateInventory(item.inventoryId, updatePayload)
+          .then(() => {
+            console.log(`Inventory updated for ${item.itemCode}: ${currentQty} -> ${newQty}`);
+          })
+          .catch((err) => {
+            console.error(`Failed to update inventory for ${item.itemCode}:`, err);
+            failedUpdates.push(item.itemCode);
+          })
+      );
+    }
+
+    if (updatePromises.length > 0) {
+      await Promise.allSettled(updatePromises);
+    }
+
+    return failedUpdates;
+  };
+
   const buildPayload = (): DeliveryNotePayload => {
     const selectedWarehouse = warehouses.find(w => w.warehouse_name === warehouse);
     
-    return {
-      name: dcNumber,
+    const payload: DeliveryNotePayload = {
       naming_series: "DN-.YYYY.-",
-      customer: customerData?.id || '',
+      customer_id: customerData?.id ? parseInt(customerData.id, 10) : 0,
       customer_name: customerData?.name || '',
       posting_date: dcDate,
       company: 'SculptERP Pvt Ltd',
@@ -1741,15 +2069,12 @@ const NewDeliveryChallan: React.FC = () => {
       transporter: transporter || '',
       vehicle_no: vehicleNumber || '',
       driver_name: transporter || '',
-      lr_no: '',
-      lr_date: '',
-      po_no: '',
-      po_date: '',
-      sales_order: hasSalesOrder ? selectedSalesOrder : '',
+      lr_no: null,
+      lr_date: null,
+      sales_order_id: hasSalesOrder && selectedSalesOrder ? parseInt(selectedSalesOrder, 10) : null,
       instructions: remarks || '',
-      status: status, // Use the status state
-      dc_type: isService ? 'Services' : 'Products',
-      quality_inspection: qualityInspection,
+      status: status,
+      type: isService ? 'Services' : 'Products',
       items: items
         .filter(item => item.itemCode && item.quantity > 0)
         .map(item => ({
@@ -1762,12 +2087,20 @@ const NewDeliveryChallan: React.FC = () => {
           rate: item.rate,
           amount: item.amount,
           tax: item.tax || 0,
+          tax_id: item.tax_id ?? null,
           tax_amount: item.taxAmount || 0,
           total_amount: item.totalAmount || 0,
           warehouse: selectedWarehouse?.warehouse_name || warehouse || '',
           type: item.type
         }))
     };
+
+    // If in edit mode, add the id to payload
+    if (isEditMode && id) {
+      payload.id = id;
+    }
+
+    return payload;
   };
 
   const validateForm = (): boolean => {
@@ -1784,15 +2117,23 @@ const NewDeliveryChallan: React.FC = () => {
 
   const handleSubmit = async () => {
     if (!validateForm()) return;
-    setStatus('Submitted'); // Set status to Submitted
     setIsSubmitting(true);
-    const toastId = toast.loading('Creating delivery challan...');
+    const toastId = toast.loading(isEditMode ? 'Updating delivery challan...' : 'Creating delivery challan...');
     try {
       const payload = buildPayload();
-      const createResponse = await deliveryChallanAPI.createDeliveryNote(payload);
-      if (!createResponse.success) throw new Error(createResponse.message || 'Failed to create');
       
-      const createdDC = createResponse.data;
+      let response;
+      if (isEditMode && id) {
+        // UPDATE: Use PUT with payload containing id
+        response = await deliveryChallanAPI.updateDeliveryNote(payload);
+      } else {
+        // CREATE: Use POST
+        response = await deliveryChallanAPI.createDeliveryNote(payload);
+      }
+      
+      if (!response.success) throw new Error(response.message || (isEditMode ? 'Failed to update' : 'Failed to create'));
+      
+      const createdDC = response.data;
       
       const deliveryNote = createdDC?.data?.delivery_note || 
                           createdDC?.delivery_note || 
@@ -1805,10 +2146,25 @@ const NewDeliveryChallan: React.FC = () => {
       
       const message = createdDC?.data?.message || 
                      createdDC?.message || 
-                     createResponse.message || 
-                     'Delivery Note created successfully.';
+                     response.message || 
+                     (isEditMode ? 'Delivery Note updated successfully.' : 'Delivery Note created successfully.');
       
-      toast.success('Created!', { id: toastId });
+      // Only update inventory for new DCs, not for edits
+      if (!isEditMode) {
+        const itemsToDispatch = items.filter(item => item.itemCode && item.quantity > 0);
+        if (itemsToDispatch.length > 0) {
+          toast.loading('Updating inventory...', { id: toastId });
+          const failedUpdates = await updateInventory(itemsToDispatch);
+          
+          if (failedUpdates.length > 0) {
+            toast(`Inventory updated with ${failedUpdates.length} failures: ${failedUpdates.join(', ')}`, { id: toastId });
+          } else {
+            toast.success('Inventory updated successfully!', { id: toastId });
+          }
+        }
+      }
+      
+      toast.success(isEditMode ? 'Updated!' : 'Created!', { id: toastId });
       
       setSuccessData({
         deliveryNote: deliveryNote,
@@ -1818,18 +2174,21 @@ const NewDeliveryChallan: React.FC = () => {
       });
       setShowSuccessModal(true);
       
-      if (createdDC?.data?.delivery_note || createdDC?.name) {
-        const dcName = createdDC?.data?.delivery_note || createdDC?.name;
-        try {
-          await deliveryChallanAPI.submitDeliveryNote(dcName);
-          toast.success(`DC ${dcName} submitted!`);
-        } catch (submitError) {
-          console.warn('Submit failed but DC was created:', submitError);
-          toast('DC created but submission failed. Please submit manually.');
+      // Only auto-submit for new DCs
+      if (!isEditMode && (status === 'Submitted' || status === 'Pending')) {
+        if (createdDC?.data?.delivery_note || createdDC?.name) {
+          const dcName = createdDC?.data?.delivery_note || createdDC?.name;
+          try {
+            await deliveryChallanAPI.submitDeliveryNote(dcName);
+            toast.success(`DC ${dcName} submitted!`);
+          } catch (submitError) {
+            console.warn('Submit failed but DC was created:', submitError);
+            toast('DC created but submission failed. Please submit manually.');
+          }
         }
       }
     } catch (error: any) {
-      toast.error(error.message || 'Failed to create', { id: toastId });
+      toast.error(error.message || (isEditMode ? 'Failed to update' : 'Failed to create'), { id: toastId });
       setIsSubmitting(false);
     } finally {
       setIsSubmitting(false);
@@ -1838,13 +2197,19 @@ const NewDeliveryChallan: React.FC = () => {
 
   const handleSaveDraft = async () => {
     if (!validateForm()) return;
-    setStatus('Draft'); // Set status to Draft
     setIsSubmitting(true);
-    const toastId = toast.loading('Saving draft...');
+    const toastId = toast.loading(isEditMode ? 'Updating draft...' : 'Saving draft...');
     try {
       const payload = buildPayload();
-      const response = await deliveryChallanAPI.createDeliveryNote(payload);
-      if (!response.success) throw new Error(response.message || 'Failed to save');
+      
+      let response;
+      if (isEditMode && id) {
+        response = await deliveryChallanAPI.updateDeliveryNote(payload);
+      } else {
+        response = await deliveryChallanAPI.createDeliveryNote(payload);
+      }
+      
+      if (!response.success) throw new Error(response.message || (isEditMode ? 'Failed to update' : 'Failed to save'));
       
       const createdDC = response.data;
       const deliveryNote = createdDC?.data?.delivery_note || 
@@ -1852,10 +2217,10 @@ const NewDeliveryChallan: React.FC = () => {
                           createdDC?.name || 
                           dcNumber;
       
-      toast.success(`Draft saved: ${deliveryNote}`, { id: toastId });
+      toast.success(`${isEditMode ? 'Draft updated' : 'Draft saved'}: ${deliveryNote}`, { id: toastId });
       setTimeout(() => navigate('/delivery-challan'), 1000);
     } catch (error: any) {
-      toast.error(error.message || 'Failed to save', { id: toastId });
+      toast.error(error.message || (isEditMode ? 'Failed to update' : 'Failed to save'), { id: toastId });
     } finally {
       setIsSubmitting(false);
     }
@@ -1894,6 +2259,7 @@ const NewDeliveryChallan: React.FC = () => {
         taxAmount: 0,
         totalAmount: 0,
         type: isService ? 'service' : 'product',
+        inventoryId: undefined,
       }]);
     }
   }, [isService]);
@@ -1904,6 +2270,17 @@ const NewDeliveryChallan: React.FC = () => {
   const totalTax = getTotalTax();
   const grandTotal = getGrandTotal();
   const grandTotalWithRound = grandTotal + roundOff;
+
+  if (isLoadingData) {
+    return (
+      <div className="ndc-page" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '80vh' }}>
+        <div style={{ textAlign: 'center' }}>
+          <FaSpinner className="ndc-spinning" size={40} style={{ color: 'var(--primary-color)' }} />
+          <p style={{ marginTop: '16px', color: 'var(--text-secondary)' }}>Loading delivery challan...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`ndc-page ${theme}`}>
@@ -1955,7 +2332,14 @@ const NewDeliveryChallan: React.FC = () => {
             <FaArrowLeft size={13} /> Back
           </button>
           <div className="ndc-header-divider" />
-          <h1 className="ndc-header-title">Create Delivery Challan</h1>
+          <h1 className="ndc-header-title">
+            {isEditMode ? 'Edit Delivery Challan' : 'Create Delivery Challan'}
+          </h1>
+          {isEditMode && id && (
+            <span style={{ fontSize: '12px', color: 'var(--text-secondary)', marginLeft: '8px' }}>
+              #{id}
+            </span>
+          )}
         </div>
         <div className="ndc-header-right">
           <label className="ndc-checkbox-label">
@@ -1989,6 +2373,7 @@ const NewDeliveryChallan: React.FC = () => {
                 value="with"
                 checked={hasSalesOrder === true}
                 onChange={() => setHasSalesOrder(true)}
+                disabled={isEditMode}
               />
               With Sales Order
             </label>
@@ -1999,10 +2384,16 @@ const NewDeliveryChallan: React.FC = () => {
                 value="without"
                 checked={hasSalesOrder === false}
                 onChange={() => setHasSalesOrder(false)}
+                disabled={isEditMode}
               />
               Without Sales Order
             </label>
           </div>
+          {isEditMode && (
+            <span style={{ fontSize: '11px', color: 'var(--text-secondary)', marginLeft: '8px' }}>
+              (Source type cannot be changed in edit mode)
+            </span>
+          )}
         </div>
 
         {/* TWO COLUMN LAYOUT */}
@@ -2026,7 +2417,7 @@ const NewDeliveryChallan: React.FC = () => {
                     value={selectedCustomer}
                     onChange={handleCustomerChange}
                     placeholder="Search Customer..."
-                    disabled={isLoading}
+                    disabled={isLoading || isEditMode}
                     error={!!errors.customer}
                   />
                   {errors.customer && <span className="ndc-error-text">{errors.customer}</span>}
@@ -2041,8 +2432,9 @@ const NewDeliveryChallan: React.FC = () => {
                     onChange={handleSalesOrderChange}
                     customerId={selectedCustomer}
                     placeholder="Search or select sales order..."
-                    disabled={!selectedCustomer}
+                    disabled={!selectedCustomer || isEditMode}
                     error={!!errors.salesOrder}
+                    taxOptions={taxOptions}
                   />
                   {errors.salesOrder && <span className="ndc-error-text">{errors.salesOrder}</span>}
                 </div>
@@ -2058,7 +2450,7 @@ const NewDeliveryChallan: React.FC = () => {
                     value={selectedCustomer}
                     onChange={handleCustomerChange}
                     placeholder="Search Customer..."
-                    disabled={isLoading}
+                    disabled={isLoading || isEditMode}
                     error={!!errors.customer}
                     fullWidth={true}
                   />
@@ -2089,6 +2481,7 @@ const NewDeliveryChallan: React.FC = () => {
                     value={dcDate}
                     onChange={(e) => setDcDate(e.target.value)}
                     className={`ndc-input ${errors.dcDate ? 'ndc-input-error' : ''}`}
+                    disabled={isEditMode}
                   />
                   <button
                     type="button"
@@ -2118,7 +2511,7 @@ const NewDeliveryChallan: React.FC = () => {
                   value={warehouse}
                   onChange={(e) => setWarehouse(e.target.value)}
                   className={`ndc-select ${errors.warehouse ? 'ndc-select-error' : ''}`}
-                  disabled={isLoadingWarehouses}
+                  disabled={isLoadingWarehouses || isEditMode}
                 >
                   <option value="">Select Warehouse</option>
                   {warehouses.map(w => (
@@ -2132,7 +2525,7 @@ const NewDeliveryChallan: React.FC = () => {
                 {isLoadingWarehouses && <span className="ndc-loading-text">Loading warehouses...</span>}
               </div>
 
-              {/* ===== NEW: Status Dropdown ===== */}
+              {/* Status Dropdown */}
               <div className="ndc-field">
                 <label className="ndc-label">
                   Status <span className="ndc-required">*</span>
@@ -2238,7 +2631,9 @@ const NewDeliveryChallan: React.FC = () => {
                   <th className="ndc-col-unit">UOM</th>
                   <th className="ndc-col-rate">Rate</th>
                   <th className="ndc-col-tax">Tax</th>
-                  <th className="ndc-col-amount">Amount</th>
+                  <th className="ndc-col-tax-amount" style={{ textAlign: 'right' }}>Tax Amt</th>
+                  <th className="ndc-col-amount" style={{ textAlign: 'right' }}>Amount</th>
+                  <th className="ndc-col-action"></th>
                 </tr>
               </thead>
               <tbody>
@@ -2323,8 +2718,16 @@ const NewDeliveryChallan: React.FC = () => {
                         ))}
                       </select>
                     </td>
-                    <td className="ndc-col-amount">
+                    <td className="ndc-col-tax-amount" style={{ textAlign: 'right' }}>
+                      <span className="ndc-table-value">₹{item.taxAmount.toFixed(2)}</span>
+                    </td>
+                    <td className="ndc-col-amount" style={{ textAlign: 'right' }}>
                       <span className="ndc-table-value">₹{item.totalAmount.toFixed(2)}</span>
+                    </td>
+                    <td className="ndc-col-action">
+                      <button onClick={() => removeItem(item.id)} className="ndc-remove-btn">
+                        <FaTrash size={12} />
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -2450,10 +2853,10 @@ const NewDeliveryChallan: React.FC = () => {
           <FaPrint size={11} /> Print
         </button>
         <button onClick={handleSaveDraft} disabled={isSubmitting} className="ndc-btn ndc-btn-draft">
-          {isSubmitting ? <FaSpinner className="ndc-spinning" size={11} /> : <FaSave size={11} />} Draft
+          {isSubmitting ? <FaSpinner className="ndc-spinning" size={11} /> : <FaSave size={11} />} {isEditMode ? 'Update Draft' : 'Draft'}
         </button>
         <button onClick={handleSubmit} disabled={isSubmitting} className="ndc-btn ndc-btn-submit">
-          {isSubmitting ? <FaSpinner className="ndc-spinning" size={11} /> : <FaPaperPlane size={11} />} Submit
+          {isSubmitting ? <FaSpinner className="ndc-spinning" size={11} /> : <FaPaperPlane size={11} />} {isEditMode ? 'Update' : 'Submit'}
         </button>
         <button onClick={handleCancel} className="ndc-btn ndc-btn-cancel">
           <FaTimes size={11} /> Cancel
