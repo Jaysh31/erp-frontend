@@ -4,12 +4,14 @@ import { useNavigate, useParams, useLocation } from "react-router-dom";
 import {
   FaArrowLeft, FaSave, FaSpinner, FaInfoCircle, FaExclamationTriangle,
   FaTimesCircle, FaFileAlt, FaShoppingCart, FaIndustry, FaPercentage,
-  FaUniversity, FaArrowRight, FaFileInvoiceDollar,
+  FaUniversity, FaArrowRight, FaFileInvoiceDollar, FaCheckCircle,
 } from "react-icons/fa";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import "./AddCompanyForm.css";
 import { useAdminTheme } from "../admin-theme/AdminThemeContext";
+import api from "../../src/services/api";
+import toast from "react-hot-toast";
 
 // ─── interfaces ───────────────────────────────────────────────────────────
 
@@ -103,6 +105,12 @@ const SECTIONS: { key: SectionKey; name: string }[] = [
   { key: "bank", name: "Bank Account" },
 ];
 
+// Formats a Date as YYYY-MM-DD for the API (no timezone surprises).
+const formatDateForApi = (date: Date): string => {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+};
+
 const AddCompanyForm: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -113,11 +121,23 @@ const AddCompanyForm: React.FC = () => {
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [saving, setSaving] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
 
   const [showValidationSummary, setShowValidationSummary] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
 
   const [formData, setFormData] = useState<CompanyFormData>(defaultFormData());
+
+  // Bank accounts collected via the "Manage Bank Account" sub-flow. These
+  // travel with the company payload on submit rather than being saved
+  // independently — see the embedContext handoff below.
+  const [bankAccounts, setBankAccounts] = useState<Record<string, any>[]>([]);
+
+  // Draft cache key — same pattern as AddSupplier. Navigating to
+  // /bank-details/... and back unmounts this component, which would wipe
+  // React state; we persist to localStorage right before leaving and
+  // restore it when we detect we've come back.
+  const [formDraftKey, setFormDraftKey] = useState<string>("");
 
   const sectionRefs = useRef<Record<SectionKey, HTMLDivElement | null>>({
     details: null,
@@ -126,15 +146,147 @@ const AddCompanyForm: React.FC = () => {
     bank: null,
   });
 
-  // ─── load existing company when editing (from navigation state only) ────
+  // ─── set up the draft key, and load company data (from nav state,
+  //     from a saved draft, or start fresh) ──────────────────────────────
   useEffect(() => {
-    if (isEditMode) {
+    if (isEditMode && id) {
+      const formKey = `company_form_draft_edit_${id}`;
+      setFormDraftKey(formKey);
+
+      const returningFromBankDetails = !!(location.state as any)?.bankAccountsUpdated;
+
+      if (returningFromBankDetails) {
+        restoreFormDraft(formKey);
+        return;
+      }
+
       const state = location.state as { company?: any };
       if (state?.company) {
         loadCompanyIntoForm(state.company);
+        // Seed the draft immediately — router state gets replaced the
+        // moment we come back from Bank Details, so this is what a
+        // subsequent round trip will restore from.
+        try {
+          localStorage.setItem(
+            formKey,
+            JSON.stringify({
+              formData: {
+                ...state.company,
+                date_of_establishment: state.company.date_of_establishment || null,
+              },
+            })
+          );
+        } catch {
+          /* ignore quota errors etc. */
+        }
+      } else {
+        // No company passed via nav state — fall back to whatever was
+        // last saved to the draft for this company id, if anything.
+        restoreFormDraft(formKey);
       }
+    } else {
+      const returningFromBankDetails = !!(location.state as any)?.bankAccountsUpdated;
+      const oldDraftId = sessionStorage.getItem("new_company_draft_id");
+
+      if (returningFromBankDetails && oldDraftId) {
+        const formKey = `company_form_draft_new_${oldDraftId}`;
+        setFormDraftKey(formKey);
+        restoreFormDraft(formKey);
+        return;
+      }
+
+      // Fresh "New Company" visit — clear any stale draft and start over.
+      const oldDraftIdToClear = sessionStorage.getItem("new_company_draft_id");
+      if (oldDraftIdToClear) {
+        localStorage.removeItem(`company_form_draft_new_${oldDraftIdToClear}`);
+      }
+
+      const draftId = `tmp-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+      sessionStorage.setItem("new_company_draft_id", draftId);
+
+      const formKey = `company_form_draft_new_${draftId}`;
+      setFormDraftKey(formKey);
+
+      setFormData(defaultFormData());
+      setBankAccounts([]);
     }
-  }, [id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, isEditMode]);
+
+  // ─── pick up bank accounts handed back from the Bank Details sub-flow ───
+  useEffect(() => {
+    const state = location.state as { bankAccountsUpdated?: boolean; updatedAccounts?: any[] } | undefined;
+    if (!state?.bankAccountsUpdated) return;
+
+    if (Array.isArray(state.updatedAccounts) && state.updatedAccounts.length > 0) {
+      setBankAccounts((prev) => {
+        const merged = [...prev];
+        let primaryKeepIdx: number | null = null;
+
+        state.updatedAccounts!.forEach((row) => {
+          const existingIdx =
+            row.recordId != null
+              ? merged.findIndex((a) => a.recordId === row.recordId)
+              : merged.findIndex((a) => a._key === row._key);
+
+          let idx: number;
+          if (existingIdx >= 0) {
+            merged[existingIdx] = row;
+            idx = existingIdx;
+          } else {
+            merged.push(row);
+            idx = merged.length - 1;
+          }
+
+          if (row.is_primary) primaryKeepIdx = idx;
+        });
+
+        if (primaryKeepIdx === null) return merged;
+        const keepIdx: number = primaryKeepIdx;
+        return merged.map((acc, i) => (i !== keepIdx && acc.is_primary ? { ...acc, is_primary: false } : acc));
+      });
+    }
+
+    // Clear the flag so navigating away and back doesn't re-trigger this.
+    navigate(location.pathname, { replace: true, state: {} });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
+
+  const restoreFormDraft = (formKey: string) => {
+    try {
+      const stored = JSON.parse(localStorage.getItem(formKey) || "null");
+      if (stored?.formData) {
+        setFormData((prev) => ({
+          ...prev,
+          ...stored.formData,
+          date_of_establishment: stored.formData.date_of_establishment
+            ? new Date(stored.formData.date_of_establishment)
+            : null,
+        }));
+      }
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const persistFormDraft = () => {
+    if (!formDraftKey) return;
+    try {
+      localStorage.setItem(
+        formDraftKey,
+        JSON.stringify({
+          formData: {
+            ...formData,
+            date_of_establishment: formData.date_of_establishment
+              ? formatDateForApi(formData.date_of_establishment)
+              : null,
+          },
+        })
+      );
+    } catch {
+      /* ignore quota errors etc. */
+    }
+  };
 
   const loadCompanyIntoForm = (c: any) => {
     setFormData((prev) => ({
@@ -142,6 +294,9 @@ const AddCompanyForm: React.FC = () => {
       ...c,
       date_of_establishment: c.date_of_establishment ? new Date(c.date_of_establishment) : null,
     }));
+    if (Array.isArray(c.bank_details)) {
+      setBankAccounts(c.bank_details);
+    }
   };
 
   const scrollToSection = (key: SectionKey) => {
@@ -187,15 +342,141 @@ const AddCompanyForm: React.FC = () => {
     }
     setFormData((prev) => ({ ...prev, [name]: processedValue }));
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
+    if (apiError) setApiError(null);
   };
 
   const handleDateChange = (field: keyof CompanyFormData, date: Date | null) => {
     setFormData((prev) => ({ ...prev, [field]: date }));
   };
 
-  // ─── submit (no API — local only for now) ─────────────────────────────
+  // ─── bank details sub-flow ─────────────────────────────────────────────
 
-  const handleSubmit = (e: FormEvent) => {
+  const openBankDetails = () => {
+    // Save what's on screen right now — navigating away unmounts this
+    // component, so React state alone won't survive the round trip.
+    persistFormDraft();
+
+    navigate("/bank-details", {
+      state: {
+        embedContext: {
+          returnPath: location.pathname,
+          partyType: "Company",
+          partyId: isEditMode && id ? id : "",
+          companyId: isEditMode && id ? Number(id) : null,
+          supplierName: formData.company || "New Company",
+          // Always true: the company (and its bank accounts) is only
+          // persisted when the Company form itself is submitted.
+          isPendingSupplier: true,
+          prefill: bankAccounts.length > 0 ? bankAccounts : undefined,
+        },
+      },
+    });
+  };
+
+  const removeBankAccount = (idx: number) => {
+    setBankAccounts((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  // ─── payload builder ────────────────────────────────────────────────────
+
+  const buildBankDetailPayload = (account: Record<string, any>) => ({
+    account_holder_name: (account.account_holder_name || "").trim(),
+    account_type: account.account_type || "Savings",
+
+    bank_name: (account.bank_name || "").trim(),
+    branch_name: (account.branch_name || "").trim(),
+    account_number: (account.account_number || "").trim(),
+    ifsc_code: account.ifsc_code ? String(account.ifsc_code).trim().toUpperCase() : "",
+    micr_code: account.micr_code ? String(account.micr_code).trim() : null,
+    swift_code: account.swift_code ? String(account.swift_code).trim().toUpperCase() : null,
+    iban: account.iban ? String(account.iban).trim().toUpperCase() : null,
+
+    upi_id: account.upi_id || null,
+    currency: account.currency || "INR",
+
+    // Not yet collected in the Bank Account form — sent as null for now.
+    address: null,
+    city: null,
+    district: null,
+    state: null,
+    country: null,
+    pincode: null,
+
+    cancelled_cheque: account.cancelled_cheque || null,
+    passbook_copy: account.passbook_copy || null,
+
+    verified: account.verified ? 1 : 0,
+    verified_by: account.verified ? account.verified_by || "Administrator" : null,
+    verified_on: account.verified ? account.verified_on || null : null,
+
+    is_primary: account.is_primary ? 1 : 0,
+    remarks: account.remarks || null,
+  });
+
+  const buildCompanyApiPayload = () => {
+    const payload: any = {
+      // Company Details
+      company_name: formData.company.trim(),
+      abbr: formData.abbr.trim(),
+      default_currency: formData.default_currency.trim(),
+      country: formData.country.trim(),
+      default_holiday_list: formData.default_holiday_list || null,
+      tax_id: formData.tax_id || null,
+      domain: formData.domain || null,
+      date_of_establishment: formData.date_of_establishment
+        ? formatDateForApi(formData.date_of_establishment)
+        : null,
+      default_letter_head: formData.default_letter_head || null,
+      default_gst_rate: formData.default_gst_rate,
+      parent_company: formData.parent_company || null,
+      is_group: formData.is_group ? 1 : 0,
+      gstin_uin: formData.gstin_uin || null,
+      gst_category: formData.gst_category,
+      pan: formData.pan || null,
+      registration_details: formData.registration_details || null,
+
+      // Fields the backend expects but that don't have UI here yet.
+      reporting_currency: formData.default_currency.trim() || null,
+      company_logo: null,
+      date_of_incorporation: null,
+      phone_no: null,
+      email: null,
+      company_description: null,
+      date_of_commencement: null,
+      fax: null,
+      website: null,
+
+      modified_by: "Administrator",
+
+      // Buying and Selling
+      default_buying_terms: formData.default_buying_terms || null,
+      default_selling_terms: formData.default_selling_terms || null,
+      monthly_sales_target: formData.monthly_sales_target || 0,
+      default_sales_contact: formData.default_sales_contact || null,
+      default_warehouse_for_sales_return: formData.default_warehouse_for_sales_return || null,
+      purchase_expense_account: formData.purchase_expense_account || null,
+      purchase_expense_contra_account: formData.purchase_expense_contra_account || null,
+      service_expense_account: formData.service_expense_account || null,
+
+      // Stock and Manufacturing
+      default_operating_cost_account: formData.default_operating_cost_account || null,
+      default_work_in_progress_warehouse: formData.default_work_in_progress_warehouse || null,
+      default_finished_goods_warehouse: formData.default_finished_goods_warehouse || null,
+      default_scrap_warehouse: formData.default_scrap_warehouse || null,
+
+      bank_details: bankAccounts.map(buildBankDetailPayload),
+    };
+
+    if (isEditMode && id) {
+      payload.id = Number(id);
+    }
+
+    return payload;
+  };
+
+  // ─── submit ─────────────────────────────────────────────────────────────
+
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
     const allErrors = getAllValidationErrors();
@@ -207,13 +488,56 @@ const AddCompanyForm: React.FC = () => {
     }
 
     setSaving(true);
-    // No API call yet — this is where the create/update request will go.
-    console.log(isEditMode ? "Update company:" : "Create company:", formData);
+    setApiError(null);
 
-    setTimeout(() => {
-      setSaving(false);
+    const payload = buildCompanyApiPayload();
+
+    try {
+      if (isEditMode) {
+        const response = await api.put("/company", payload, {
+          headers: { "Content-Type": "application/json" },
+        });
+        if (response.data?.success !== undefined && response.data.success !== 1) {
+          throw new Error(response.data?.message || "Failed to update company");
+        }
+        toast.success("Company updated successfully.");
+      } else {
+        const response = await api.post("/company", payload, {
+          headers: { "Content-Type": "application/json" },
+        });
+        if (response.data?.success !== undefined && response.data.success !== 1) {
+          throw new Error(response.data?.message || "Failed to create company");
+        }
+        toast.success("Company created successfully.");
+      }
+
+      if (formDraftKey) localStorage.removeItem(formDraftKey);
+      if (!isEditMode) sessionStorage.removeItem("new_company_draft_id");
+
       navigate("/company");
-    }, 400);
+    } catch (err: any) {
+      console.error("Error saving company:", err);
+      let message = "Failed to save company";
+      if (err.response) {
+        message = err.response.data?.message || `Server error: ${err.response.status}`;
+      } else if (err.request) {
+        message = "Network error. Please check your connection.";
+      } else if (err.message) {
+        message = err.message;
+      }
+      setApiError(message);
+      toast.error(message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancel = () => {
+    if (!isEditMode && formDraftKey) {
+      localStorage.removeItem(formDraftKey);
+      sessionStorage.removeItem("new_company_draft_id");
+    }
+    navigate("/company");
   };
 
   const allValidationErrors = getAllValidationErrors();
@@ -270,12 +594,19 @@ const AddCompanyForm: React.FC = () => {
       {/* Header */}
       <div className="acf-header-wrap">
         <div className="acf-header-row">
-          <button type="button" onClick={() => navigate("/company")} className="acf-back-btn">
+          <button type="button" onClick={handleCancel} className="acf-back-btn">
             <FaArrowLeft size={12} /> Back
           </button>
           <h1 className="acf-title">
             {isEditMode ? "Edit Company" : "New Company"}
           </h1>
+
+          {apiError && (
+            <div className="acf-error-pill">
+              <FaExclamationTriangle size={11} />
+              {apiError}
+            </div>
+          )}
 
           {hasAnyErrors && (
             <div className="acf-error-pill">
@@ -328,7 +659,7 @@ const AddCompanyForm: React.FC = () => {
                   />
                   {errors.abbr && <span className="acf-error-text">{errors.abbr}</span>}
                 </div>
-                {/* <div>
+                <div>
                   <label className="acf-label">Default Currency *</label>
                   <input
                     type="text" name="default_currency" value={formData.default_currency} onChange={handleInputChange}
@@ -336,7 +667,7 @@ const AddCompanyForm: React.FC = () => {
                     className={`acf-input ${errors.default_currency ? "acf-input-error" : ""}`}
                   />
                   {errors.default_currency && <span className="acf-error-text">{errors.default_currency}</span>}
-                </div> */}
+                </div>
               </div>
 
               <div className="acf-grid-3">
@@ -505,26 +836,86 @@ const AddCompanyForm: React.FC = () => {
               </div>
             </div> */}
 
-            {/* ── Bank Account (navigates out) ───────────────────────── */}
+            {/* ── Bank Account (navigates out, returns via embedContext) ─ */}
             <div ref={setSectionRef("bank")} data-section-key="bank">
               <div className="acf-section-title">
                 <FaUniversity size={12} /> Bank Account
               </div>
-              <div className="acf-nav-card" onClick={() => navigate("/bank-details")}>
-                <div className="acf-nav-card-icon"><FaUniversity size={16} /></div>
-                <div className="acf-nav-card-text">
-                  <div className="acf-nav-card-title">Manage Bank Account</div>
-                  <div className="acf-nav-card-sub">Add and edit the company's bank accounts used on invoices and payment vouchers.</div>
+
+              {bankAccounts.length === 0 ? (
+                <div className="acf-nav-card" onClick={openBankDetails}>
+                  <div className="acf-nav-card-icon"><FaUniversity size={16} /></div>
+                  <div className="acf-nav-card-text">
+                    <div className="acf-nav-card-title">Manage Bank Account</div>
+                    <div className="acf-nav-card-sub">
+                      Add and edit the company's bank accounts used on invoices and payment vouchers.
+                    </div>
+                  </div>
+                  <FaArrowRight size={13} className="acf-nav-card-arrow" />
                 </div>
-                <FaArrowRight size={13} className="acf-nav-card-arrow" />
-              </div>
+              ) : (
+                <>
+                  <div className="acf-bank-accounts-list">
+                    {bankAccounts.map((acc, idx) => (
+                      <div
+                        key={acc._key || acc.recordId || idx}
+                        className="acf-bank-account-card"
+                        onClick={openBankDetails}
+                      >
+                        <div className="acf-bank-account-icon">
+                          <FaUniversity size={15} />
+                        </div>
+                        <div className="acf-bank-account-info">
+                          <div className="acf-bank-account-top">
+                            <strong className="acf-bank-account-name">{acc.bank_name || "Bank account"}</strong>
+                            <div className="acf-bank-account-badges">
+                              {acc.is_primary && (
+                                <span className="acf-bank-badge acf-bank-badge-primary">Primary</span>
+                              )}
+                              {acc.verified && (
+                                <span className="acf-bank-badge acf-bank-badge-verified">
+                                  <FaCheckCircle size={9} /> Verified
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="acf-bank-account-details">
+                            {acc.account_holder_name && <span>{acc.account_holder_name}</span>}
+                            {acc.account_number && (
+                              <span>•••• {String(acc.account_number).slice(-4)}</span>
+                            )}
+                            {acc.branch_name && <span>{acc.branch_name}</span>}
+                            {acc.ifsc_code && <span>{acc.ifsc_code}</span>}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          className="acf-bank-remove-btn"
+                          onClick={(e) => { e.stopPropagation(); removeBankAccount(idx); }}
+                          title="Remove"
+                        >
+                          <FaTimesCircle size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <button type="button" className="acf-add-bank-btn" onClick={openBankDetails}>
+                    <FaUniversity size={11} /> Add Another Bank Account
+                  </button>
+                  <p className="acf-bank-hint">
+                    <FaInfoCircle size={11} />
+                    Bank account details are saved together when you submit this form.
+                  </p>
+                </>
+              )}
             </div>
 
           </div>
 
           {/* Bottom actions (mirrors the header button for long pages) */}
           <div className="acf-footer-row">
-            <button type="button" onClick={() => navigate("/company")} className="acf-btn-secondary">
+            <button type="button" onClick={handleCancel} className="acf-btn-secondary">
               Cancel
             </button>
             <button type="submit" disabled={saving} className="acf-btn-primary acf-btn-submit" style={{ opacity: saving ? 0.6 : 1 }}>

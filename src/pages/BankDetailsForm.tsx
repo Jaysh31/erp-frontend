@@ -82,7 +82,7 @@ interface EmbedContext {
   companyId?: number | null;
   supplierName?: string;
   editIndex?: number;
-  prefill?: any;
+  prefill?: any; 
   isPendingSupplier?: boolean;
 }
 
@@ -636,12 +636,18 @@ const BankDetailsForm: React.FC = () => {
   const [partyType, setPartyType] = useState("");
   const [partyId, setPartyId] = useState("");
 
-  // one entry per bank account for this company / party
-  const [accounts, setAccounts] = useState<BankAccountEntry[]>(() => {
-    if (embedContext?.prefill) return [accountFromPrefill(embedContext.prefill)];
-    return [defaultAccount()];
-  });
-
+// one entry per bank account for this company / party
+const [accounts, setAccounts] = useState<BankAccountEntry[]>(() => {
+  if (embedContext?.prefill) {
+    const prefillArray = Array.isArray(embedContext.prefill)
+      ? embedContext.prefill
+      : [embedContext.prefill];
+    if (prefillArray.length > 0) {
+      return prefillArray.map(accountFromPrefill);
+    }
+  }
+  return [defaultAccount()];
+});
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [touched, setTouched] = useState<{ [key: string]: boolean }>({});
   const [saving, setSaving] = useState(false);
@@ -1192,8 +1198,8 @@ const BankDetailsForm: React.FC = () => {
       cash_in_hand: account.cash_in_hand.trim() ? Number(account.cash_in_hand.trim()) : 0,
       cash_in_account: account.cash_in_account.trim() ? Number(account.cash_in_account.trim()) : 0,
 
-      created_by: 1,
-      updated_by: 1,
+      // created_by: 1,
+      // updated_by: 1,
     };
 
     if (account.docName) {
@@ -1465,7 +1471,7 @@ const BankDetailsForm: React.FC = () => {
           </div>
         </div>
 
-        <div className="bdf-section-title">
+        {/* <div className="bdf-section-title">
           <FaUser size={12} /> Contact Persons
         </div>
 
@@ -1532,7 +1538,7 @@ const BankDetailsForm: React.FC = () => {
             <FaInfoCircle size={11} />
             Click the avatar to edit this contact, or use the × to remove it.
           </div>
-        )}
+        )} */}
 
         <div className="bdf-section-title">
           <FaUniversity size={12} /> Bank &amp; Account

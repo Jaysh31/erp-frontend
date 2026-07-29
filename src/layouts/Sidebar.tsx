@@ -286,15 +286,16 @@ export default function Sidebar({
       icon: <ReceivablesIcon />,
       items: [
         {
-          title: 'Customer Payments',
-          icon: <PaymentIcon />,
-          path: '/Customer-payments'
-        },
-        {
           title: 'Customer Invoices',
           icon: <InvoiceIcon />,
           path: '/customer-invoices'
         },
+        {
+          title: 'Customer Payments',
+          icon: <PaymentIcon />,
+          path: '/Customer-payments'
+        },
+        
         {
           title: 'Credit Notes',
           icon: <CreditNoteIcon />,
