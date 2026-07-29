@@ -615,16 +615,7 @@ const AddCompanyForm: React.FC = () => {
             </div>
           )}
 
-          <button
-            type="submit"
-            form="acf-company-form"
-            disabled={saving}
-            className="acf-btn-primary acf-btn-submit acf-header-save"
-            style={{ opacity: saving ? 0.6 : 1 }}
-          >
-            {saving && <FaSpinner className="acf-spinning" />}
-            <FaSave /> {isEditMode ? "Update Company" : "Create Company"}
-          </button>
+          
         </div>
       </div>
 

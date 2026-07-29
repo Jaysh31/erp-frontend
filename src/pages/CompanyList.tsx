@@ -287,7 +287,7 @@ export default function CompanyList() {
       )}
 
       {/* Stats Cards */}
-      <div className="cl-stats-container">
+      {/* <div className="cl-stats-container">
         {stats.map((stat, index) => (
           <div key={index} className="cl-stat-card" style={{ background: `linear-gradient(135deg, ${stat.color} 0%, ${stat.color}cc 100%)` }}>
             <div className="cl-stat-icon">{stat.icon}</div>
@@ -297,7 +297,7 @@ export default function CompanyList() {
             </div>
           </div>
         ))}
-      </div>
+      </div> */}
 
       {/* Search and Filter Bar */}
       <div className="cl-filter-bar">
