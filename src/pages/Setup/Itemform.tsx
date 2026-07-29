@@ -907,7 +907,7 @@ export default function ItemForm() {
     const fetchLookups = async () => {
       setLoadingGroups(true);
       try {
-        const response = await api.get("/item-group");
+        const response = await api.get("/item-group?type=parent");
         if (response.data.success === 1) setItemGroups(response.data.data);
       } catch (err) {
         console.error("Error fetching item groups:", err);
