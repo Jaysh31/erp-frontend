@@ -3256,7 +3256,6 @@ export default function WorkOrderForm() {
                       <th>Time (mins)</th>
                       <th>Hour Rate</th>
                       <th>Operating Cost</th>
-                      <th className="wof-col-action" />
                     </tr>
                   </thead>
                   <tbody>
@@ -3291,13 +3290,7 @@ export default function WorkOrderForm() {
                               onChange={v => updateOp(op.id, "operating_cost", v)} disabled={disabled} />
                           </div>
                         </td>
-                        <td className="wof-col-action">
-                          <button type="button" className="wof-row-delete-btn"
-                            onClick={() => setWo(p => ({ ...p, operations: p.operations.filter(o => o.id !== op.id) }))}
-                            disabled={wo.operations.length <= 1}>
-                            <FaTrash size={11} />
-                          </button>
-                        </td>
+                        
                       </tr>
                     ))}
                   </tbody>
@@ -3326,7 +3319,6 @@ export default function WorkOrderForm() {
                       <th>UOM</th>
                       <th>Rate</th>
                       <th>Amount</th>
-                      <th className="wof-col-action" />
                     </tr>
                   </thead>
                   <tbody>
@@ -3377,13 +3369,7 @@ export default function WorkOrderForm() {
                                 onChange={v => updateItem(ri.id, "amount", v)} disabled={disabled} />
                             </div>
                           </td>
-                          <td className="wof-col-action">
-                            <button type="button" className="wof-row-delete-btn"
-                              onClick={() => setWo(p => ({ ...p, required_items: p.required_items.filter(r => r.id !== ri.id) }))}
-                              disabled={wo.required_items.length <= 1}>
-                              <FaTrash size={11} />
-                            </button>
-                          </td>
+                        
                         </tr>
                       );
                     })}
