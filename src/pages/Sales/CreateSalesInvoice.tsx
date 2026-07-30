@@ -142,6 +142,7 @@ interface SalesBillItem {
   net_amount?: number;
   warehouse?: string;
   transaction_date?: string;
+  inventoryId?: number;
 }
 
 interface PaymentScheduleRow {
@@ -289,14 +290,27 @@ interface Warehouse {
 }
 
 interface InventoryApiRecord {
+  planned_qty: number;
+  indented_qty: number;
+  ordered_qty: number;
+  reserved_qty: number;
+  reserved_qty_for_production: number;
+  reserved_qty_for_sub_contract: number;
+  reserved_qty_for_production_plan: number;
+  id: number;
   name: string;
   item_code: string;
+  item_Id?: number;
   warehouse_Id?: number;
+  warehouse_name?: string;
   actual_qty: number;
   reserved_stock?: number;
   projected_qty?: number;
   stock_uom?: string;
   company?: string;
+  valuation_rate?: number;
+  stock_value?: number;
+  type?: string;
 }
 
 interface ApiResponse<T = any> {
@@ -333,12 +347,6 @@ const extractTaxValue = (taxType: string): number => {
 const getTaxIdFromRate = (taxRate: number, taxOpts: TaxOption[]): number | undefined => {
   const taxOption = taxOpts.find(t => extractTaxValue(t.tax_type) === taxRate);
   return taxOption?.tax_id;
-};
-
-const getTaxRateFromId = (taxId: number | undefined, taxOpts: TaxOption[]): number => {
-  if (!taxId) return 0;
-  const taxOption = taxOpts.find(t => t.tax_id === taxId);
-  return taxOption ? extractTaxValue(taxOption.tax_type) : 0;
 };
 
 // ===== API SERVICE =====
@@ -519,6 +527,10 @@ class SalesBillAPI {
 
   async getInventory(params?: { item_code?: string }): Promise<ApiResponse<any>> {
     return this.apiService.get('/inventory', params);
+  }
+
+  async updateInventory(_id: number, data: any): Promise<ApiResponse<any>> {
+    return this.apiService.put(`/inventory`, data);
   }
 
   async getTaxOptions(): Promise<ApiResponse<TaxOption[]>> {
@@ -1732,7 +1744,7 @@ const CreateSalesBill: React.FC = () => {
   const [taxOptions, setTaxOptions] = useState<TaxOption[]>([]);
   const [loadingTaxOptions, setLoadingTaxOptions] = useState<boolean>(false);
   const [, setTaxOptionsLoaded] = useState<boolean>(false);
-  const [inventoryMap, setInventoryMap] = useState<{ [itemCode: string]: InventoryApiRecord }>({});
+  const [inventoryMap, setInventoryMap] = useState<{ [itemCode: string]: InventoryApiRecord[] }>({});
   const [, setLoadingInventory] = useState(false);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
 
@@ -1954,13 +1966,36 @@ const CreateSalesBill: React.FC = () => {
     try {
       const response = await salesBillAPI.getInventory();
       const records = response.data?.data?.records || response.data || [];
-      const map: { [itemCode: string]: InventoryApiRecord } = {};
+      const map: { [itemCode: string]: InventoryApiRecord[] } = {};
       records.forEach((r: any) => {
         if (r.item_code) {
           const key = r.item_code.toUpperCase();
-          if (!map[key] || (r.actual_qty ?? 0) > (map[key].actual_qty ?? 0)) {
-            map[key] = r;
+          if (!map[key]) {
+            map[key] = [];
           }
+          map[key].push({
+            id: r.id,
+            name: r.name,
+            item_code: r.item_code,
+            item_Id: r.item_Id,
+            warehouse_Id: r.warehouse_Id,
+            warehouse_name: r.warehouse_name,
+            actual_qty: r.actual_qty || 0,
+            reserved_stock: r.reserved_stock || 0,
+            projected_qty: r.projected_qty || 0,
+            stock_uom: r.stock_uom,
+            company: r.company,
+            valuation_rate: r.valuation_rate,
+            stock_value: r.stock_value,
+            type: r.type,
+            planned_qty: 0,
+            indented_qty: 0,
+            ordered_qty: 0,
+            reserved_qty: 0,
+            reserved_qty_for_production: 0,
+            reserved_qty_for_sub_contract: 0,
+            reserved_qty_for_production_plan: 0
+          });
         }
       });
       setInventoryMap(map);
@@ -1972,14 +2007,87 @@ const CreateSalesBill: React.FC = () => {
   };
 
   // ─── Get Stock Status ─────────────────────────────
-  const getStockStatus = (itemCode: string, quantity: number): { status: 'checking' | 'available' | 'insufficient' | 'unknown'; availableQty?: number } => {
+  const getStockStatus = (itemCode: string, quantity: number): { status: 'checking' | 'available' | 'insufficient' | 'unknown'; availableQty?: number; inventoryRecords?: InventoryApiRecord[] } => {
     if (!itemCode) return { status: 'unknown' };
-    const inv = inventoryMap[itemCode.toUpperCase()];
-    if (!inv) return { status: 'unknown' };
+    const records = inventoryMap[itemCode.toUpperCase()];
+    if (!records || records.length === 0) return { status: 'unknown' };
+    
+    const sorted = [...records].sort((a, b) => b.actual_qty - a.actual_qty);
+    const bestRecord = sorted[0];
+    
     return {
-      status: (inv.actual_qty ?? 0) >= quantity ? 'available' : 'insufficient',
-      availableQty: inv.actual_qty,
+      status: (bestRecord.actual_qty ?? 0) >= quantity ? 'available' : 'insufficient',
+      availableQty: bestRecord.actual_qty,
+      inventoryRecords: records,
     };
+  };
+
+  // ─── Update Inventory Function ─────────────────────
+  const updateInventory = async (itemsToUpdate: SalesBillItem[]): Promise<string[]> => {
+    const updatePromises: Promise<any>[] = [];
+    const failedUpdates: string[] = [];
+
+    for (const item of itemsToUpdate) {
+      if (item.type === 'service') continue;
+      if (!item.inventoryId) {
+        console.warn(`No inventory ID found for item: ${item.itemCode}`);
+        continue;
+      }
+      if (item.quantity <= 0) continue;
+
+      const records = inventoryMap[item.itemCode.toUpperCase()];
+      if (!records || records.length === 0) {
+        console.warn(`No inventory records found for item: ${item.itemCode}`);
+        continue;
+      }
+
+      const record = records.find(r => r.id === item.inventoryId);
+      if (!record) {
+        console.warn(`Inventory record with id ${item.inventoryId} not found for item: ${item.itemCode}`);
+        continue;
+      }
+
+      const currentQty = record.actual_qty || 0;
+      const newQty = Math.max(0, currentQty - item.quantity);
+
+      const updatePayload = {
+        id: item.inventoryId,
+        name: record.name,
+        item_Id: record.item_Id,
+        item_code: item.itemCode,
+        warehouse_Id: record.warehouse_Id,
+        actual_qty: newQty,
+        planned_qty: record.planned_qty || 0,
+        indented_qty: record.indented_qty || 0,
+        ordered_qty: record.ordered_qty || 0,
+        reserved_qty: record.reserved_qty || 0,
+        reserved_qty_for_production: record.reserved_qty_for_production || 0,
+        reserved_qty_for_sub_contract: record.reserved_qty_for_sub_contract || 0,
+        reserved_qty_for_production_plan: record.reserved_qty_for_production_plan || 0,
+        reserved_stock: record.reserved_stock || 0,
+        stock_uom: record.stock_uom || 'Nos',
+        company: record.company || 'SculptorTech Pvt Ltd',
+        valuation_rate: record.valuation_rate || 0,
+        type: record.type || 'Internal',
+      };
+
+      updatePromises.push(
+        salesBillAPI.updateInventory(item.inventoryId, updatePayload)
+          .then(() => {
+            console.log(`Inventory updated for ${item.itemCode}: ${currentQty} -> ${newQty}`);
+          })
+          .catch((err) => {
+            console.error(`Failed to update inventory for ${item.itemCode}:`, err);
+            failedUpdates.push(item.itemCode);
+          })
+      );
+    }
+
+    if (updatePromises.length > 0) {
+      await Promise.allSettled(updatePromises);
+    }
+
+    return failedUpdates;
   };
 
   // ─── Effects ───────────────────────────────────────
@@ -1997,8 +2105,18 @@ const CreateSalesBill: React.FC = () => {
     setItems((prev) =>
       prev.map((item) => {
         if (!item.itemCode) return item;
-        const { status, availableQty } = getStockStatus(item.itemCode, item.quantity);
-        return { ...item, stockStatus: status, availableQty };
+        const { status, availableQty, inventoryRecords } = getStockStatus(item.itemCode, item.quantity);
+        let inventoryId: number | undefined;
+        if (inventoryRecords && inventoryRecords.length > 0) {
+          const sorted = [...inventoryRecords].sort((a, b) => b.actual_qty - a.actual_qty);
+          inventoryId = sorted[0]?.id;
+        }
+        return { 
+          ...item, 
+          stockStatus: status, 
+          availableQty,
+          inventoryId: inventoryId || item.inventoryId,
+        };
       })
     );
   }, [inventoryMap]);
@@ -2072,7 +2190,7 @@ const CreateSalesBill: React.FC = () => {
           description: item.description || item.item_name || '',
           unit: item.stock_uom || 'pcs',
           rate: item.standard_rate || 0,
-          tax: 0,
+          tax: item.gst_rate || item.tax_rate || 0,
           type: 'product' as 'product' | 'service',
           stockUom: item.stock_uom,
           standardRate: item.standard_rate,
@@ -2156,7 +2274,7 @@ const CreateSalesBill: React.FC = () => {
           description: item.description || item.item_name || '',
           unit: item.stock_uom || 'pcs',
           rate: item.standard_rate || 0,
-          tax: 0,
+          tax: item.gst_rate || item.tax_rate || 0,
           type: 'product' as 'product' | 'service',
           stockUom: item.stock_uom,
           standardRate: item.standard_rate,
@@ -2296,7 +2414,12 @@ const CreateSalesBill: React.FC = () => {
 
           const amount = (item.qty || 0) * (item.rate || 0);
           const taxAmount = (amount * taxRate) / 100;
-          const { status, availableQty } = getStockStatus(item.item_code || '', item.qty || 0);
+          const { status, availableQty, inventoryRecords } = getStockStatus(item.item_code || '', item.qty || 0);
+          let inventoryId: number | undefined;
+          if (inventoryRecords && inventoryRecords.length > 0) {
+            const sorted = [...inventoryRecords].sort((a, b) => b.actual_qty - a.actual_qty);
+            inventoryId = sorted[0]?.id;
+          }
           
           allItems.push({
             id: `dc-${dc.id}-${index}`,
@@ -2316,6 +2439,7 @@ const CreateSalesBill: React.FC = () => {
             deliveryChallanId: dc.id,
             stockStatus: status,
             availableQty: availableQty,
+            inventoryId: inventoryId,
             itemGroup: product?.item_group || 'Products',
             incomeAccount: product?.income_account || 'Sales - A',
             costCenter: product?.cost_center || 'Main - A',
@@ -2445,7 +2569,12 @@ const CreateSalesBill: React.FC = () => {
               const tax_id = getTaxIdFromRate(taxRate, taxOptions);
               const amount = (updated.quantity || 0) * product.rate;
               const taxAmount = (amount * taxRate) / 100;
-              const { status, availableQty } = getStockStatus(product.itemCode, updated.quantity || 0);
+              const { status, availableQty, inventoryRecords } = getStockStatus(product.itemCode, updated.quantity || 0);
+              let inventoryId: number | undefined;
+              if (inventoryRecords && inventoryRecords.length > 0) {
+                const sorted = [...inventoryRecords].sort((a, b) => b.actual_qty - a.actual_qty);
+                inventoryId = sorted[0]?.id;
+              }
               
               updated.itemName = product.itemName || '';
               updated.hsn = product.hsn || '';
@@ -2459,6 +2588,7 @@ const CreateSalesBill: React.FC = () => {
               updated.totalAmount = amount + taxAmount;
               updated.stockStatus = status;
               updated.availableQty = availableQty;
+              updated.inventoryId = inventoryId;
               updated.itemGroup = product.item_group || 'Products';
               updated.incomeAccount = product.income_account || 'Sales - A';
               updated.costCenter = product.cost_center || 'Main - A';
@@ -2487,9 +2617,15 @@ const CreateSalesBill: React.FC = () => {
             updated.totalAmount = amount + taxAmount;
             
             if (updated.itemCode) {
-              const { status, availableQty } = getStockStatus(updated.itemCode, updated.quantity || 0);
+              const { status, availableQty, inventoryRecords } = getStockStatus(updated.itemCode, updated.quantity || 0);
+              let inventoryId: number | undefined;
+              if (inventoryRecords && inventoryRecords.length > 0) {
+                const sorted = [...inventoryRecords].sort((a, b) => b.actual_qty - a.actual_qty);
+                inventoryId = sorted[0]?.id;
+              }
               updated.stockStatus = status;
               updated.availableQty = availableQty;
+              updated.inventoryId = inventoryId || updated.inventoryId;
             }
           }
 
@@ -2527,10 +2663,6 @@ const CreateSalesBill: React.FC = () => {
   const getGrandTotalWithRound = () => getGrandTotal() + roundOff;
 
   const buildPayload = (status: 'Draft' | 'Submitted'): SalesBillPayload => {
-    const template = paymentTermTemplates.find(t => t.id === selectedPaymentTemplate);
-    const paymentTermsValue = template?.name || '';
-
-    // Get warehouse name from ID
     const selectedWarehouse = warehouses.find(w => w.id.toString() === warehouse);
     const warehouseName = selectedWarehouse?.warehouse_name || 'Finished Goods - A';
 
@@ -2622,6 +2754,19 @@ const CreateSalesBill: React.FC = () => {
       const message = responseData?.data?.message || responseData?.message || createResponse.message || 'Sales Invoice created successfully.';
       const totalAmount = getGrandTotalWithRound();
 
+      // Update inventory for the items
+      const itemsToDispatch = items.filter(item => item.itemCode && item.quantity > 0 && item.type !== 'service');
+      if (itemsToDispatch.length > 0) {
+        toast.loading('Updating inventory...', { id: toastId });
+        const failedUpdates = await updateInventory(itemsToDispatch);
+        
+        if (failedUpdates.length > 0) {
+          toast(`Inventory updated with ${failedUpdates.length} failures: ${failedUpdates.join(', ')}`, { id: toastId });
+        } else {
+          toast.success('Inventory updated successfully!', { id: toastId });
+        }
+      }
+
       toast.success('Created!', { id: toastId });
 
       setSuccessData({
@@ -2681,9 +2826,7 @@ const CreateSalesBill: React.FC = () => {
   };
 
   const handleCancel = () => {
-
-      navigate('/sales-bill');
-    
+    navigate('/sales-bill');
   };
 
   useEffect(() => {
