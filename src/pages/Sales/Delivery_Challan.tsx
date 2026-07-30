@@ -45,6 +45,8 @@ interface DeliveryChallan {
   vehicleNumber?: string;
   deliveryStatus?: string;
   totalDispatchQty?: number;
+  // Computed field for display
+  displayDcNumber?: string;
 }
 
 interface ApiResponse {
@@ -56,6 +58,14 @@ interface ApiResponse {
     records: DeliveryChallan[];
   };
 }
+
+// ===== FORMAT DC NUMBER =====
+const formatDcNumber = (id: string | number): string => {
+  // Convert to number and pad with zeros to 5 digits
+  const numId = typeof id === 'string' ? parseInt(id, 10) : id;
+  const paddedId = String(numId).padStart(5, '0');
+  return `DC-${paddedId}`;
+};
 
 // ===== STATUS BADGE =====
 const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
@@ -128,7 +138,12 @@ const DeliveryChallans: React.FC = () => {
       const response = await api.get<ApiResponse>(`/delivery-note${query}`);
       
       if (response.data?.data?.records) {
-        setChallans(response.data.data.records);
+        // Add display DC number to each record
+        const recordsWithDisplayNumber = response.data.data.records.map((record) => ({
+          ...record,
+          displayDcNumber: formatDcNumber(record.id)
+        }));
+        setChallans(recordsWithDisplayNumber);
       } else {
         setChallans([]);
       }
@@ -164,7 +179,9 @@ const DeliveryChallans: React.FC = () => {
   // ===== FILTER DATA =====
   const filteredData = challans.filter(item => {
     const search = searchTerm.toLowerCase();
+    const displayNumber = item.displayDcNumber?.toLowerCase() || '';
     const matchesSearch = 
+      displayNumber.includes(search) ||
       (item.name || '').toLowerCase().includes(search) ||
       (item.customer_name || '').toLowerCase().includes(search);
     const matchesStatus = selectedStatus === 'All' || item.status === selectedStatus;
@@ -1136,7 +1153,9 @@ const DeliveryChallans: React.FC = () => {
             <tbody>
               {paginatedData.map((item) => (
                 <tr key={item.id} className="qt-tr">
-                  <td className="qt-td qt-td-dcno">{item.name || '-'}</td>
+                  <td className="qt-td qt-td-dcno">
+                    {item.displayDcNumber || item.name || '-'}
+                  </td>
                   <td className="qt-td">
                     <span className="qt-td-customer" onClick={() => handleView(item.id)}>
                       {item.customer_name || '-'}
