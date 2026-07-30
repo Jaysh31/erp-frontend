@@ -41,15 +41,6 @@ interface BOMRecord {
   total_cost: number;
   creation: string;
   type: string;
-  is_deleted?: number;
-  item_Id?: number;
-  cost_allocation_per?: number;
-  process_loss_percentage?: number;
-  with_operations?: number;
-  track_semi_finished_goods?: number;
-  is_phantom_bom?: number;
-  allow_alternative_item?: number;
-  inspection_required?: number;
 }
 
 interface BOMListResponse {
@@ -85,7 +76,7 @@ interface BOMRow {
 
 interface Toast {
   id: string;
-  type: 'success' | 'error' | 'info' | 'warning';
+  type: 'success' | 'error' | 'info';
   title: string;
   message: string;
 }
@@ -95,70 +86,6 @@ interface DeleteModal {
   bomId: string;
   bomItem: string;
   bomType: string;
-}
-
-// ─── Validation Functions ────────────────────────────────────────────────────
-
-const VALIDATION_RULES = {
-  // BOM Validation Rules
-  BOM: {
-    item: {
-      required: true,
-      minLength: 1,
-      maxLength: 140,
-      message: 'Item name is required and must be between 1-140 characters'
-    },
-    quantity: {
-      required: true,
-      minValue: 0.000000001,
-      maxValue: 999999999.999999999,
-      message: 'Quantity must be greater than 0 and less than 1 billion'
-    },
-    totalCost: {
-      required: false,
-      minValue: 0,
-      maxValue: 999999999999.999999999,
-      message: 'Total cost must be between 0 and 999,999,999,999.99'
-    },
-    uom: {
-      required: true,
-      maxLength: 140,
-      message: 'Unit of Measurement is required and must be less than 140 characters'
-    },
-    type: {
-      required: true,
-      allowedValues: ['Internal', 'External'],
-      message: 'Type must be either Internal or External'
-    },
-    company: {
-      required: true,
-      maxLength: 140,
-      message: 'Company is required and must be less than 140 characters'
-    },
-    costAllocationPer: {
-      required: false,
-      minValue: 0,
-      maxValue: 100,
-      message: 'Cost allocation percentage must be between 0 and 100'
-    },
-    processLossPercentage: {
-      required: false,
-      minValue: 0,
-      maxValue: 100,
-      message: 'Process loss percentage must be between 0 and 100'
-    },
-    operatingCost: {
-      required: false,
-      minValue: 0,
-      maxValue: 999999999.999999999,
-      message: 'Operating cost must be between 0 and 999,999,999.99'
-    }
-  }
-};
-
-interface ValidationResult {
-  isValid: boolean;
-  errors: Record<string, string>;
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -202,148 +129,6 @@ const BOMPage: React.FC = () => {
 
   const rootRef = useRef<HTMLDivElement>(null);
 
-  // ─── Validation Helpers ──────────────────────────────────────────────────
-
-  const validateBOMRecord = (record: Partial<BOMRecord>): ValidationResult => {
-    const errors: Record<string, string> = {};
-    const rules = VALIDATION_RULES.BOM;
-
-    // Validate item
-    if (rules.item.required && !record.item?.trim()) {
-      errors.item = rules.item.message;
-    } else if (record.item && (record.item.length < rules.item.minLength || record.item.length > rules.item.maxLength)) {
-      errors.item = rules.item.message;
-    }
-
-    // Validate item_name
-    if (rules.item.required && !record.item_name?.trim()) {
-      errors.item_name = 'Item name is required';
-    } else if (record.item_name && record.item_name.length > rules.item.maxLength) {
-      errors.item_name = `Item name must be less than ${rules.item.maxLength} characters`;
-    }
-
-    // Validate quantity
-    if (rules.quantity.required) {
-      const qty = Number(record.quantity);
-      if (isNaN(qty) || qty <= 0) {
-        errors.quantity = 'Quantity must be greater than 0';
-      } else if (qty < rules.quantity.minValue || qty > rules.quantity.maxValue) {
-        errors.quantity = `Quantity must be between ${rules.quantity.minValue} and ${rules.quantity.maxValue}`;
-      }
-    }
-
-    // Validate total_cost
-    const totalCost = Number(record.total_cost);
-    if (!isNaN(totalCost) && totalCost > 0) {
-      if (totalCost < (rules.totalCost.minValue || 0) || totalCost > (rules.totalCost.maxValue || Infinity)) {
-        errors.totalCost = rules.totalCost.message;
-      }
-    }
-
-    // Validate UOM
-    if (rules.uom.required && !record.uom?.trim()) {
-      errors.uom = rules.uom.message;
-    } else if (record.uom && record.uom.length > rules.uom.maxLength) {
-      errors.uom = `UOM must be less than ${rules.uom.maxLength} characters`;
-    }
-
-    // Validate type
-    if (rules.type.required && !record.type) {
-      errors.type = rules.type.message;
-    } else if (record.type && !rules.type.allowedValues.includes(record.type)) {
-      errors.type = `Type must be either ${rules.type.allowedValues.join(' or ')}`;
-    }
-
-    // Validate company
-    if (rules.company.required && !record.company?.trim()) {
-      errors.company = rules.company.message;
-    } else if (record.company && record.company.length > rules.company.maxLength) {
-      errors.company = `Company must be less than ${rules.company.maxLength} characters`;
-    }
-
-    // Validate cost_allocation_per
-    const costAlloc = Number(record.cost_allocation_per);
-    if (!isNaN(costAlloc) && costAlloc > 0) {
-      if (costAlloc < (rules.costAllocationPer.minValue || 0) || costAlloc > (rules.costAllocationPer.maxValue || 100)) {
-        errors.cost_allocation_per = rules.costAllocationPer.message;
-      }
-    }
-
-    // Validate process_loss_percentage
-    const processLoss = Number(record.process_loss_percentage);
-    if (!isNaN(processLoss) && processLoss > 0) {
-      if (processLoss < (rules.processLossPercentage.minValue || 0) || processLoss > (rules.processLossPercentage.maxValue || 100)) {
-        errors.process_loss_percentage = rules.processLossPercentage.message;
-      }
-    }
-
-    return {
-      isValid: Object.keys(errors).length === 0,
-      errors
-    };
-  };
-
-  const validateBOMData = (bomData: any): ValidationResult => {
-    const errors: Record<string, string> = {};
-    
-    // Validate BOM header
-    const headerValidation = validateBOMRecord(bomData);
-    Object.assign(errors, headerValidation.errors);
-
-    // Validate items if present
-    if (bomData.items && Array.isArray(bomData.items)) {
-      bomData.items.forEach((item: any, index: number) => {
-        const itemValidation = validateBOMRecord({
-          item: item.item,
-          item_name: item.item_name,
-          quantity: item.quantity,
-          uom: item.uom,
-          type: bomData.type,
-          company: bomData.company
-        });
-        Object.keys(itemValidation.errors).forEach(key => {
-          errors[`item_${index}_${key}`] = itemValidation.errors[key];
-        });
-      });
-    }
-
-    // Validate operations if present
-    if (bomData.operations && Array.isArray(bomData.operations)) {
-      bomData.operations.forEach((op: any, index: number) => {
-        if (!op.operation?.trim()) {
-          errors[`operation_${index}_name`] = `Operation ${index + 1} name is required`;
-        }
-        if (op.operating_cost && isNaN(Number(op.operating_cost))) {
-          errors[`operation_${index}_cost`] = `Operation ${index + 1} cost must be a valid number`;
-        }
-      });
-    }
-
-    return {
-      isValid: Object.keys(errors).length === 0,
-      errors
-    };
-  };
-
-  const validateSearchParams = (searchTerm: string, statusFilter: string): ValidationResult => {
-    const errors: Record<string, string> = {};
-
-    // Validate search term length
-    if (searchTerm && searchTerm.length > 255) {
-      errors.search = 'Search term must be less than 255 characters';
-    }
-
-    // Validate status filter
-    if (statusFilter && !['all', 'active', 'disabled'].includes(statusFilter)) {
-      errors.status = 'Invalid status filter';
-    }
-
-    return {
-      isValid: Object.keys(errors).length === 0,
-      errors
-    };
-  };
-
   // ─── Toast helper functions ──────────────────────────────────────────────────
 
   const addToast = useCallback((type: Toast['type'], title: string, message: string) => {
@@ -367,32 +152,17 @@ const BOMPage: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      // Validate search parameters
-      const searchValidation = validateSearchParams(searchTerm, statusFilter);
-      if (!searchValidation.isValid) {
-        const errorMessages = Object.values(searchValidation.errors).join(', ');
-        addToast('warning', 'Validation Warning', errorMessages);
-        setError(errorMessages);
-        return;
-      }
-
       const params = new URLSearchParams({
         page: String(1),
         limit: String(1000),
       });
 
       if (searchTerm.trim()) {
-        // Sanitize search term - remove any potentially dangerous characters
-        const sanitizedSearch = searchTerm.trim().replace(/[<>{}]/g, '');
-        params.append('search', sanitizedSearch);
+        params.append('search', searchTerm.trim());
       }
 
       if (statusFilter !== 'all') {
-        // Validate status filter value
-        const validStatuses = ['active', 'disabled'];
-        if (validStatuses.includes(statusFilter)) {
-          params.append('status', statusFilter === 'active' ? '1' : '0');
-        }
+        params.append('status', statusFilter);
       }
 
       const sortMap: Record<string, string> = {
@@ -409,39 +179,19 @@ const BOMPage: React.FC = () => {
       const response = await api.get<BOMListResponse>(`/bom?${params.toString()}`);
       
       if (response.data.success === 1) {
-        // Validate and filter records
-        const validRecords = response.data.data.records.filter(record => {
-          // Filter out soft-deleted records if they exist
-          if (record.is_deleted === 1) return false;
-          
-          // Validate record data
-          const validation = validateBOMRecord(record);
-          if (!validation.isValid) {
-            console.warn(`BOM record ${record.id} failed validation:`, validation.errors);
-            return false;
-          }
-          return true;
-        });
-        
-        setAllBomData(validRecords);
-        
-        if (validRecords.length < response.data.data.records.length) {
-          addToast('info', 'Data Filtered', `${response.data.data.records.length - validRecords.length} records were filtered out due to validation errors.`);
-        }
+        setAllBomData(response.data.data.records);
       } else {
         setError('Failed to load BOMs');
-        addToast('error', 'Error', 'Failed to load BOMs');
       }
     } catch (err: any) {
       console.error('Error fetching BOMs:', err);
-      let errorMessage = 'An unexpected error occurred.';
       if (err.response) {
-        errorMessage = err.response.data?.message || `Server error: ${err.response.status}`;
+        setError(err.response.data?.message || `Server error: ${err.response.status}`);
       } else if (err.request) {
-        errorMessage = 'Network error. Please check your connection.';
+        setError('Network error. Please check your connection.');
+      } else {
+        setError('An unexpected error occurred.');
       }
-      setError(errorMessage);
-      addToast('error', 'Error', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -475,22 +225,9 @@ const BOMPage: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-
-      // Validate BOM ID
-      if (!bomId || bomId <= 0) {
-        throw new Error('Invalid BOM ID');
-      }
-
       const response = await api.get<BOMDetailResponse>(`/bom/${bomId}`);
       
       if (response.data.success === 1) {
-        // Validate BOM data before displaying
-        const validation = validateBOMData(response.data.data);
-        if (!validation.isValid) {
-          addToast('warning', 'Data Validation Warning', 'Some BOM data may be incomplete or invalid. Please review the details.');
-          console.warn('BOM validation errors:', validation.errors);
-        }
-        
         setViewBOMData(response.data.data);
         setShowViewBOM(true);
       } else {
@@ -498,7 +235,7 @@ const BOMPage: React.FC = () => {
       }
     } catch (err: any) {
       console.error('Error fetching BOM:', err);
-      addToast('error', 'Error', err.response?.data?.message || err.message || 'Failed to load BOM data');
+      addToast('error', 'Error', err.response?.data?.message || 'Failed to load BOM data');
     } finally {
       setLoading(false);
     }
@@ -510,22 +247,9 @@ const BOMPage: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-
-      // Validate BOM ID
-      if (!bomId || bomId <= 0) {
-        throw new Error('Invalid BOM ID');
-      }
-
       const response = await api.get<BOMDetailResponse>(`/bom/${bomId}`);
       
       if (response.data.success === 1) {
-        // Validate BOM data before editing
-        const validation = validateBOMData(response.data.data);
-        if (!validation.isValid) {
-          addToast('warning', 'Data Validation Warning', 'Some BOM data may be incomplete. Please review and correct before saving.');
-          console.warn('BOM validation errors:', validation.errors);
-        }
-        
         setEditBOMData(response.data.data);
         setShowNewBOM(true);
       } else {
@@ -533,7 +257,7 @@ const BOMPage: React.FC = () => {
       }
     } catch (err: any) {
       console.error('Error fetching BOM:', err);
-      addToast('error', 'Error', err.response?.data?.message || err.message || 'Failed to load BOM data');
+      addToast('error', 'Error', err.response?.data?.message || 'Failed to load BOM data');
     } finally {
       setLoading(false);
     }
@@ -602,7 +326,7 @@ const BOMPage: React.FC = () => {
     return records.map(record => ({
       id: String(record.id),
       status: record.is_active === 1 ? "Active" : "Disabled",
-      itemToManufacture: record.item_name || record.item || 'Unnamed Item',
+      itemToManufacture: record.item_name || record.item,
       totalCost: `₹ ${(record.total_cost || 0).toFixed(2)}`,
       createdOn: new Date(record.creation).toLocaleDateString('en-US', {
         month: 'short',
@@ -662,12 +386,6 @@ const BOMPage: React.FC = () => {
   // ─── Delete Modal Handlers ────────────────────────────────────────────────
 
   const openDeleteModal = (row: BOMRow) => {
-    // Validate row data before opening delete modal
-    if (!row.id || !row.itemToManufacture) {
-      addToast('error', 'Error', 'Invalid BOM data for deletion');
-      return;
-    }
-    
     setDeleteModal({
       isOpen: true,
       bomId: row.id,
@@ -690,12 +408,6 @@ const BOMPage: React.FC = () => {
   const confirmDelete = async () => {
     try {
       setDeleting(true);
-      
-      // Validate delete data
-      if (!deleteModal.bomId || isNaN(Number(deleteModal.bomId))) {
-        throw new Error('Invalid BOM ID for deletion');
-      }
-
       const response = await api.delete(`/bom/${deleteModal.bomId}`);
       
       if (response.data.success === 1) {
@@ -707,7 +419,7 @@ const BOMPage: React.FC = () => {
       }
     } catch (err: any) {
       console.error('Error deleting BOM:', err);
-      addToast('error', 'Delete Failed', err.response?.data?.message || err.message || 'Failed to delete BOM');
+      addToast('error', 'Delete Failed', err.response?.data?.message || 'Failed to delete BOM');
     } finally {
       setDeleting(false);
     }
@@ -716,26 +428,14 @@ const BOMPage: React.FC = () => {
   // ─── Actions ──────────────────────────────────────────────────────────────
 
   const handleView = (row: BOMRow) => {
-    if (!row.id || isNaN(Number(row.id))) {
-      addToast('error', 'Error', 'Invalid BOM ID');
-      return;
-    }
     fetchBOMForView(Number(row.id));
   };
 
   const handleEdit = (row: BOMRow) => {
-    if (!row.id || isNaN(Number(row.id))) {
-      addToast('error', 'Error', 'Invalid BOM ID');
-      return;
-    }
     fetchBOMForEdit(Number(row.id));
   };
 
   const handleDelete = (row: BOMRow) => {
-    if (!row.id || !row.itemToManufacture) {
-      addToast('error', 'Error', 'Invalid BOM data');
-      return;
-    }
     openDeleteModal(row);
   };
 
@@ -837,7 +537,6 @@ const BOMPage: React.FC = () => {
             <div className="bom-toast-icon">
               {toast.type === 'success' && <CheckCircle size={16} />}
               {toast.type === 'error' && <AlertCircle size={16} />}
-              {toast.type === 'warning' && <AlertTriangle size={16} />}
               {toast.type === 'info' && <Info size={16} />}
             </div>
             <div className="bom-toast-content">
@@ -903,13 +602,8 @@ const BOMPage: React.FC = () => {
                   type="text"
                   placeholder={`Search ${activeTab !== 'all' ? activeTab + ' ' : ''}BOMs by ID or Item...`}
                   value={searchTerm}
-                  onChange={(e) => {
-                    // Sanitize input - prevent XSS and special characters
-                    const value = e.target.value.replace(/[<>{}]/g, '');
-                    setSearchTerm(value);
-                  }}
+                  onChange={(e) => setSearchTerm(e.target.value)}
                   className="bom-search-input"
-                  maxLength={255}
                 />
                 {searchTerm && (
                   <button className="bom-search-clear" onClick={() => setSearchTerm('')}>
@@ -1061,9 +755,7 @@ const BOMPage: React.FC = () => {
                           </span>
                         </td>
                         <td className="bom-td" style={{ fontWeight: 500 }}>{row.itemToManufacture}</td>
-                        <td className="bom-td">
-                          {row.quantity > 0 ? row.quantity.toLocaleString() : '0'}
-                        </td>
+                        <td className="bom-td">{row.quantity}</td>
                         <td className="bom-td">{row.uom}</td>
                         <td className="bom-td bom-cost">{row.totalCost}</td>
                         <td className="bom-td bom-td-meta">

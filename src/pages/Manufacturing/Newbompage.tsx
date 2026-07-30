@@ -51,12 +51,6 @@ interface OperationRow {
   isNew?: boolean;
 }
 
-interface ValidationError {
-  field: string;
-  label: string;
-  message: string;
-}
-
 interface Toast {
   id: string;
   type: 'success' | 'error' | 'info';
@@ -281,54 +275,6 @@ const DeleteConfirmModal: React.FC<{
   );
 };
 
-// ─── Validation Modal ─────────────────────────────────────────────────────────
-
-interface ValidationModalProps {
-  errors: ValidationError[];
-  onClose: () => void;
-}
-
-const ValidationModal: React.FC<ValidationModalProps> = ({ errors, onClose }) => {
-  if (errors.length === 0) return null;
-
-  return (
-    <div className="nbom-modal-overlay" onClick={onClose}>
-      <div className="nbom-validation-modal" onClick={e => e.stopPropagation()}>
-        <div className="nbom-modal-header">
-          <h2 className="nbom-modal-title">
-            <AlertTriangle size={16} />
-            Missing Required Fields
-          </h2>
-          <button className="nbom-modal-close" onClick={onClose}><X size={18} /></button>
-        </div>
-        <div className="nbom-modal-body">
-          <p className="nbom-modal-intro">
-            Please fill in all fields marked with <strong style={{ color: '#dc2626' }}>*</strong> before saving:
-          </p>
-          <div className="nbom-error-list">
-            {errors.map((err, i) => (
-              <div key={i} className="nbom-validation-error-item">
-                <div className="nbom-error-header">
-                  <XCircle size={14} className="nbom-error-icon" />
-                  <strong className="nbom-error-label">{err.label}</strong>
-                </div>
-                <div className="nbom-error-message">{err.message}</div>
-              </div>
-            ))}
-          </div>
-          <div className="nbom-hint-banner">
-            <InfoIcon size={13} className="nbom-hint-icon" />
-            Please fix all errors before saving
-          </div>
-        </div>
-        <div className="nbom-modal-footer">
-          <button className="nbom-btn-cancel" onClick={onClose}>Close</button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 interface NewBOMPageProps {
@@ -344,7 +290,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
   const [opsPanelOpen, setOpsPanelOpen] = useState(true);
   const [withOperations, setWithOperations] = useState(false);
   const [itemToManufacture, setItemToManufacture] = useState("");
-  const [quantity, setQuantity] = useState<string>("1");
+  const [quantity, setQuantity] = useState<string>(""); // Changed from "1" to ""
   const [, setBomNo] = useState("");
   const [bomId, setBomId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
@@ -352,8 +298,6 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
   const [defaultSourceWarehouse, setDefaultSourceWarehouse] = useState("");
   const [defaultTargetWarehouse, setDefaultTargetWarehouse] = useState("");
   const [bomType, setBomType] = useState<"Internal" | "External">("Internal");
-
-  const [showValidationErrors, setShowValidationErrors] = useState(false);
 
   const [compRows, setCompRows] = useState<ComponentRow[]>([
     { id: Date.now(), itemCode: "", itemName: "", qty: "", uom: "", rate: "0", amount: "₹ 0.00", itemGroup: "", valuationRate: 0, standardRate: 0, isNew: true },
@@ -380,8 +324,10 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
-  const [showValidation, setShowValidation] = useState(false);
-  const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
+  // ─── Validation state ──────────────────────────────────────────────────────
+  const [fieldErrors, setFieldErrors] = useState<{ [key: string]: string }>({});
+  const [showValidationErrors, setShowValidationErrors] = useState(false);
+
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [deleteModal, setDeleteModal] = useState<DeleteModal>({
     isOpen: false,
@@ -393,10 +339,8 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
   const [deleting, setDeleting] = useState(false);
 
   // Data
-  // "items" = finished/product items, used for "Item to Manufacture" (type=product)
   const [items, setItems] = useState<Item[]>([]);
   const [itemsLoading, setItemsLoading] = useState(false);
-  // "rawItems" = raw material items, used for Components table (type=raw)
   const [rawItems, setRawItems] = useState<Item[]>([]);
   const [rawItemsLoading, setRawItemsLoading] = useState(false);
   const [operations, setOperations] = useState<Operation[]>([]);
@@ -480,7 +424,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
       setItemToManufacture(bom.item);
       setBomNo(bom.id);
       setBomId(bom.id);
-      setQuantity(String(bom.quantity || 1));
+      setQuantity(String(bom.quantity || ""));
       setDefaultSourceWarehouse(bom.default_source_warehouse || "");
       setDefaultTargetWarehouse(bom.default_target_warehouse || "");
       setBomType(bom.type === "External" ? "External" : "Internal");
@@ -825,57 +769,77 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
     };
   };
 
-  const getAllErrors = (): ValidationError[] => {
-    const errs: ValidationError[] = [];
+  // ─── Validation Functions ──────────────────────────────────────────────────
 
-    if (!itemToManufacture.trim())
-      errs.push({ field: "itemToManufacture", label: "Item to Manufacture", message: "Item to Manufacture is required" });
+  const validateForm = (): { isValid: boolean; errors: { [key: string]: string } } => {
+    const errors: { [key: string]: string } = {};
 
-    // Only validate components for Internal BOM
+    // Validate Item to Manufacture
+    if (!itemToManufacture.trim()) {
+      errors.itemToManufacture = "Item to Manufacture is required";
+    }
+
+    // Validate Components (only for Internal BOM)
     if (bomType === "Internal") {
       const filledComps = compRows.filter(r => r.itemCode.trim());
-      if (filledComps.length === 0)
-        errs.push({ field: "components", label: "Components", message: "At least one component with an Item Code is required" });
+      if (filledComps.length === 0) {
+        errors.components = "At least one component with an Item Code is required";
+      }
 
       compRows.forEach((r, i) => {
-        if (r.itemCode && !r.uom.trim())
-          errs.push({ field: `comp_uom_${i}`, label: `Component ${i + 1} UOM`, message: `UOM is required for component "${r.itemCode}"` });
-        if (r.itemCode && (!r.qty || parseFloat(r.qty) <= 0))
-          errs.push({ field: `comp_qty_${i}`, label: `Component ${i + 1} Qty`, message: `Valid quantity is required for component "${r.itemCode}"` });
+        if (r.itemCode && !r.uom.trim()) {
+          errors[`comp_uom_${i}`] = `UOM is required for component "${r.itemCode}"`;
+        }
+        if (r.itemCode && (!r.qty || parseFloat(r.qty) <= 0)) {
+          errors[`comp_qty_${i}`] = `Valid quantity is required for component "${r.itemCode}"`;
+        }
       });
     }
 
-    // For External BOM, operations are required
+    // Validate Operations for External BOM
     if (bomType === "External" && !withOperations) {
-      errs.push({ field: "operations", label: "Operations", message: "Operations are required for External/Service BOM" });
+      errors.operations = "Operations are required for External/Service BOM";
     }
 
-    if (withOperations) {
+    // Validate operation rows
+    if (withOperations || bomType === "External") {
       opRows.forEach((r, i) => {
-        if (!r.operation.trim())
-          errs.push({ field: `op_${i}`, label: `Operation ${i + 1}`, message: `Operation name is required for row ${i + 1}` });
-        if (!r.workstation.trim())
-          errs.push({ field: `op_workstation_${i}`, label: `Operation ${i + 1} Workstation`, message: `Workstation is required for operation "${r.operation || i + 1}"` });
-        if (!r.timeInMins || parseFloat(r.timeInMins) <= 0)
-          errs.push({ field: `op_time_${i}`, label: `Operation ${i + 1} Time`, message: `Valid time is required for operation "${r.operation || i + 1}"` });
+        if (!r.operation.trim()) {
+          errors[`op_${i}`] = `Operation name is required for row ${i + 1}`;
+        }
+        if (!r.workstation.trim()) {
+          errors[`op_workstation_${i}`] = `Workstation is required for operation "${r.operation || i + 1}"`;
+        }
+        if (!r.timeInMins || parseFloat(r.timeInMins) <= 0) {
+          errors[`op_time_${i}`] = `Valid time is required for operation "${r.operation || i + 1}"`;
+        }
       });
     }
 
-    return errs;
+    return { isValid: Object.keys(errors).length === 0, errors };
+  };
+
+  const getFieldError = (field: string): string | undefined => {
+    if (!showValidationErrors) return undefined;
+    return fieldErrors[field];
   };
 
   const hasFieldError = (field: string): boolean => {
-    if (!showValidationErrors) return false;
-    return getAllErrors().some(e => e.field === field);
+    return !!getFieldError(field);
   };
 
   const handleSave = async () => {
+    const { isValid, errors } = validateForm();
+    setFieldErrors(errors);
     setShowValidationErrors(true);
 
-    const errs = getAllErrors();
-    if (errs.length > 0) {
-      setValidationErrors(errs);
-      setShowValidation(true);
+    if (!isValid) {
+      // Scroll to the first error
+      const firstErrorField = Object.keys(errors)[0];
+      const element = document.querySelector(`[data-field="${firstErrorField}"]`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
       return;
     }
 
@@ -903,7 +867,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
         item: itemToManufacture,
         item_name: selectedItem?.item_name || "",
         company: "SculptorTech",
-        quantity: parseFloat(quantity) || 1,
+        quantity: parseFloat(quantity) || 0,
         uom: selectedItem?.stock_uom || "Nos",
         is_active: 1,
         is_default: 1,
@@ -940,20 +904,15 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
 
       // ─── Handle Components (only for Internal BOM) ────────────────────────────
       if (bomType === "Internal") {
-        // Get existing component IDs from edit data
         const existingComponentIds = editData?.items?.map((item: any) => item.id) || [];
-
-        // Get current component IDs from the rows (excluding new ones)
         const currentComponentIds = compRows
           .filter(row => !row.isNew && row.id)
           .map(row => row.id);
 
-        // Find components to delete (existing ones not in current list)
         const componentsToDelete = existingComponentIds.filter(
           id => !currentComponentIds.includes(id)
         );
 
-        // Delete removed components
         for (const deleteId of componentsToDelete) {
           try {
             await api.delete(`/bom-item/${deleteId}`);
@@ -962,11 +921,9 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
           }
         }
 
-        // Update or create components
         for (const comp of compRows) {
           if (!comp.itemCode.trim()) continue;
 
-          // Components are sourced from the raw-materials list (type=raw)
           const compItem = rawItems.find(i => i.item_code === comp.itemCode);
           const qty = parseFloat(comp.qty) || 0;
           const rate = parseFloat(comp.rate) || compItem?.standard_rate || compItem?.valuation_rate || 0;
@@ -992,10 +949,8 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
           };
 
           if (comp.isNew) {
-            // Create new component
             await api.post('/bom-item', itemPayload);
           } else {
-            // Update existing component
             await api.put(`/bom-item`, {
               id: comp.id,
               ...itemPayload
@@ -1006,20 +961,15 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
 
       // ─── Handle Operations ─────────────────────────────────────────────────────
 
-      // Get existing operation IDs from edit data
       const existingOperationIds = editData?.operations?.map((op: any) => op.id) || [];
-
-      // Get current operation IDs from the rows (excluding new ones)
       const currentOperationIds = opRows
         .filter(row => !row.isNew && row.id)
         .map(row => row.id);
 
-      // Find operations to delete
       const operationsToDelete = existingOperationIds.filter(
         id => !currentOperationIds.includes(id)
       );
 
-      // Delete removed operations
       for (const deleteId of operationsToDelete) {
         try {
           await api.delete(`/bom-operation/${deleteId}`);
@@ -1028,7 +978,6 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
         }
       }
 
-      // Update or create operations
       for (const op of opRows) {
         if (!op.operation.trim()) continue;
 
@@ -1041,7 +990,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
           sequence_id: parseInt(op.sequenceId) || 0,
           bom_no: parentRef,
           finished_good: itemToManufacture,
-          finished_good_qty: parseFloat(quantity) || 1,
+          finished_good_qty: parseFloat(quantity) || 0,
           workstation: op.workstation,
           workstation_type: op.workstationType || "Machine",
           time_in_mins: timeInMins,
@@ -1056,10 +1005,8 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
         };
 
         if (op.isNew) {
-          // Create new operation
           await api.post('/bom-operation', opPayload);
         } else {
-          // Update existing operation
           await api.put(`/bom-operation`, {
             id: op.id,
             ...opPayload
@@ -1103,14 +1050,6 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
         onCancel={closeDeleteModal}
         deleting={deleting}
       />
-
-      {/* Validation Modal */}
-      {showValidation && (
-        <ValidationModal
-          errors={validationErrors}
-          onClose={() => setShowValidation(false)}
-        />
-      )}
 
       {/* Topbar */}
       <div className="nbom-topbar">
@@ -1196,12 +1135,18 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
         <div className="nbom-card">
           <div className="nbom-card__body nbom-two-column">
             {/* Item */}
-            <div className="nbom-field nbom-flex-item">
+            <div className="nbom-field nbom-flex-item" data-field="itemToManufacture">
               <Label text="Item to Manufacture" required info />
               <select
-                className={`nbom-input ${hasFieldError('itemToManufacture') ? 'nbom-input--error' : ''}`}
+                className="nbom-input"
                 value={itemToManufacture}
-                onChange={e => setItemToManufacture(e.target.value)}
+                onChange={e => {
+                  setItemToManufacture(e.target.value);
+                  // Clear error when user selects
+                  if (fieldErrors.itemToManufacture) {
+                    setFieldErrors(prev => ({ ...prev, itemToManufacture: '' }));
+                  }
+                }}
                 disabled={itemsLoading}
               >
                 <option value="">
@@ -1213,10 +1158,10 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                   </option>
                 ))}
               </select>
-              {hasFieldError('itemToManufacture') && (
-                <span className="nbom-error-text">
-                  Item to Manufacture is required
-                </span>
+              {getFieldError('itemToManufacture') && (
+                <div style={{ color: '#dc2626', fontSize: '13px', fontWeight: '500', marginTop: '6px' }}>
+                  {getFieldError('itemToManufacture')}
+                </div>
               )}
             </div>
 
@@ -1241,16 +1186,21 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
               <div className="nbom-card__title" style={{ marginBottom: 14 }}>
                 <span className="nbom-card__title-dot" />Components
               </div>
+              {getFieldError('components') && (
+                <div style={{ marginBottom: 12, color: '#dc2626', fontSize: '13px', fontWeight: '500' }}>
+                  {getFieldError('components')}
+                </div>
+              )}
               <div className="nbom-table-wrap">
                 <table className="nbom-table">
                   <thead>
                     <tr>
                       <th className="nbom-table-no">No.</th>
-                      <th>Item Code <span style={{ color: "var(--c-danger)" }}>*</span></th>
+                      <th>Item Code <span style={{ color: "#dc2626" }}>*</span></th>
                       <th>Item Name</th>
                       <th>Item Group</th>
-                      <th>Qty <span style={{ color: "var(--c-danger)" }}>*</span></th>
-                      <th>UOM <span style={{ color: "var(--c-danger)" }}>*</span></th>
+                      <th>Qty <span style={{ color: "#dc2626" }}>*</span></th>
+                      <th>UOM <span style={{ color: "#dc2626" }}>*</span></th>
                       <th>Rate</th>
                       <th>Amount</th>
                       <th></th>
@@ -1318,19 +1268,37 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                                 qty: val,
                                 amount: `₹ ${(rate * qty).toFixed(2)}`
                               } : r));
+                              if (fieldErrors[`comp_qty_${idx}`]) {
+                                setFieldErrors(prev => ({ ...prev, [`comp_qty_${idx}`]: '' }));
+                              }
                             }}
                             placeholder="0"
                             maxLength={10}
-                            className={`nbom-digit-input ${hasFieldError(`comp_qty_${idx}`) ? 'nbom-input--error' : ''}`}
+                            className="nbom-digit-input"
                           />
+                          {getFieldError(`comp_qty_${idx}`) && (
+                            <div style={{ marginTop: 4, color: '#dc2626', fontSize: '12px' }}>
+                              {getFieldError(`comp_qty_${idx}`)}
+                            </div>
+                          )}
                         </td>
                         <td>
                           <input
-                            className={`nbom-table-input ${hasFieldError(`comp_uom_${idx}`) ? 'nbom-input--error' : ''}`}
+                            className="nbom-table-input"
                             value={row.uom}
-                            onChange={e => setCompRows(rs => rs.map((r, i) => i === idx ? { ...r, uom: e.target.value } : r))}
+                            onChange={e => {
+                              setCompRows(rs => rs.map((r, i) => i === idx ? { ...r, uom: e.target.value } : r));
+                              if (fieldErrors[`comp_uom_${idx}`]) {
+                                setFieldErrors(prev => ({ ...prev, [`comp_uom_${idx}`]: '' }));
+                              }
+                            }}
                             style={{ width: 80 }}
                           />
+                          {getFieldError(`comp_uom_${idx}`) && (
+                            <div style={{ marginTop: 4, color: '#dc2626', fontSize: '12px' }}>
+                              {getFieldError(`comp_uom_${idx}`)}
+                            </div>
+                          )}
                         </td>
                         <td>
                           <DigitInput
@@ -1403,9 +1371,14 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
               {(bomType === "External" || withOperations) && (
                 <div style={{ marginTop: bomType === "Internal" ? 16 : 0 }}>
                   {bomType === "External" && (
-                    <div className="nbom-info-banner" style={{ marginBottom: 16 }}>
+                    <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: '#eff6ff', borderRadius: '6px', color: '#1e40af', fontSize: '13px' }}>
                       <InfoIcon size={14} />
                       <span>External/Service BOM requires operations to define the service workflow.</span>
+                    </div>
+                  )}
+                  {getFieldError('operations') && (
+                    <div style={{ marginBottom: 12, color: '#dc2626', fontSize: '13px', fontWeight: '500' }}>
+                      {getFieldError('operations')}
                     </div>
                   )}
                   <div className="nbom-table-wrap">
@@ -1414,11 +1387,11 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                         <tr>
                           <th className="nbom-table-drag-col"></th>
                           <th className="nbom-table-no">No.</th>
-                          <th>Operation <span style={{ color: "var(--c-danger)" }}>*</span></th>
+                          <th>Operation <span style={{ color: "#dc2626" }}>*</span></th>
                           <th>Seq ID</th>
-                          <th>Workstation <span style={{ color: "var(--c-danger)" }}>*</span></th>
+                          <th>Workstation <span style={{ color: "#dc2626" }}>*</span></th>
                           <th>WS Type</th>
-                          <th>Time (mins) <span style={{ color: "var(--c-danger)" }}>*</span></th>
+                          <th>Time (mins) <span style={{ color: "#dc2626" }}>*</span></th>
                           <th>Hour Rate (₹)</th>
                           <th>Operating Cost</th>
                           <th></th>
@@ -1444,9 +1417,14 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                             <td className="nbom-table-no">{idx + 1}</td>
                             <td>
                               <select
-                                className={`nbom-table-select ${hasFieldError(`op_${idx}`) ? 'nbom-input--error' : ''}`}
+                                className="nbom-table-select"
                                 value={row.operation}
-                                onChange={e => handleOperationSelect(idx, e.target.value)}
+                                onChange={e => {
+                                  handleOperationSelect(idx, e.target.value);
+                                  if (fieldErrors[`op_${idx}`]) {
+                                    setFieldErrors(prev => ({ ...prev, [`op_${idx}`]: '' }));
+                                  }
+                                }}
                                 disabled={operationsLoading || workstationsLoading}
                               >
                                 <option value="">{operationsLoading ? 'Loading...' : 'Select operation...'}</option>
@@ -1454,6 +1432,11 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                                   <option key={op.id} value={op.name}>{op.name}</option>
                                 ))}
                               </select>
+                              {getFieldError(`op_${idx}`) && (
+                                <div style={{ marginTop: 4, color: '#dc2626', fontSize: '12px' }}>
+                                  {getFieldError(`op_${idx}`)}
+                                </div>
+                              )}
                             </td>
                             <td>
                               <DigitInput
@@ -1466,9 +1449,14 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                             </td>
                             <td>
                               <select
-                                className={`nbom-table-select ${hasFieldError(`op_workstation_${idx}`) ? 'nbom-input--error' : ''}`}
+                                className="nbom-table-select"
                                 value={row.workstation}
-                                onChange={e => handleWorkstationSelect(idx, e.target.value)}
+                                onChange={e => {
+                                  handleWorkstationSelect(idx, e.target.value);
+                                  if (fieldErrors[`op_workstation_${idx}`]) {
+                                    setFieldErrors(prev => ({ ...prev, [`op_workstation_${idx}`]: '' }));
+                                  }
+                                }}
                                 disabled={workstationsLoading}
                               >
                                 <option value="">{workstationsLoading ? 'Loading...' : 'Select workstation...'}</option>
@@ -1476,6 +1464,11 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                                   <option key={w.id} value={w.workstation_name}>{w.workstation_name}</option>
                                 ))}
                               </select>
+                              {getFieldError(`op_workstation_${idx}`) && (
+                                <div style={{ marginTop: 4, color: '#dc2626', fontSize: '12px' }}>
+                                  {getFieldError(`op_workstation_${idx}`)}
+                                </div>
+                              )}
                             </td>
                             <td>
                               <input
@@ -1488,11 +1481,21 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                             <td>
                               <DigitInput
                                 value={row.timeInMins}
-                                onChange={(val) => handleTimeChange(idx, val)}
+                                onChange={(val) => {
+                                  handleTimeChange(idx, val);
+                                  if (fieldErrors[`op_time_${idx}`]) {
+                                    setFieldErrors(prev => ({ ...prev, [`op_time_${idx}`]: '' }));
+                                  }
+                                }}
                                 placeholder="0"
                                 maxLength={10}
-                                className={`nbom-digit-input ${hasFieldError(`op_time_${idx}`) ? 'nbom-input--error' : ''}`}
+                                className="nbom-digit-input"
                               />
+                              {getFieldError(`op_time_${idx}`) && (
+                                <div style={{ marginTop: 4, color: '#dc2626', fontSize: '12px' }}>
+                                  {getFieldError(`op_time_${idx}`)}
+                                </div>
+                              )}
                             </td>
                             <td>
                               <DigitInput
