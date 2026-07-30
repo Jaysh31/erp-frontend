@@ -33,17 +33,17 @@ interface QualityTemplateDetail {
   }>;
 }
 
-interface ParameterRow {
-  id: string;
-  parameter_id: string | number;
-  parameter_name: string;
-  specification: string;
-  inspection_method_id: string | number;
-  inspection_method_name: string;
-  observations: string[];
-  result: string;
-  remarks: string;
-}
+// interface ParameterRow {
+//   id: string;
+//   parameter_id: string | number;
+//   parameter_name: string;
+//   specification: string;
+//   inspection_method_id: string | number;
+//   inspection_method_name: string;
+//   observations: string[];
+//   result: string;
+//   remarks: string;
+// }
 
 interface ObservationDetail {
   sample_no: number;

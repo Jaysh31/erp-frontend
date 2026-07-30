@@ -1,4 +1,3 @@
-// WorkOrderForm.tsx
 import { useState, type FormEvent, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
@@ -130,7 +129,7 @@ interface WorkOrderData {
   qty_to_manufacture: number;
   item_to_manufacture: string;
   item_name: string;
-  item_id:String;
+  item_id: string;
   stock_uom: string;
   bom_no: string;
   // Qty tracking (read-only in most cases)
@@ -255,7 +254,7 @@ interface BomDetail {
   total_cost?: number;
   default_source_warehouse?: string;
   default_target_warehouse?: string;
-  item_Id?: number; // Add this line - it's optional since it might not always be present
+  item_Id?: number;
 }
 
 interface BomDetailResponse {
@@ -388,11 +387,8 @@ interface WOPayload {
   status: string;
   track_semi_finished_goods: number;
   amended_from: string;
-
-  // External WO fields
   selected_grn_id?: number;
   order_type?: OrderType;
-  // Read by the Work Order service to distinguish Internal vs External WOs
   type: string;
 }
 
@@ -426,7 +422,6 @@ const emptyItem = (): RequiredItemRow => ({
 });
 const emptyWO = (): WorkOrderData => ({
   name: "", status: "Draft",
-  // order_type: "internal",
   company: "", qty_to_manufacture: 0, item_to_manufacture: "", item_name: "", stock_uom: "Nos",
   bom_no: "",
   material_transferred_for_manufacturing: 0, manufactured_qty: 0,
@@ -508,7 +503,7 @@ function DatePickerField({
             onFocus={() => setShowCalendar(true)}
             placeholder="Select date..."
             disabled={disabled}
-            className={`form-field date-picker-input${error ? " field-error" : ""}`}
+            className={`form-field date-picker-input`}
             readOnly
           />
           {value && !disabled && (
@@ -614,7 +609,7 @@ function DatePickerField({
         )}
       </div>
       {hint && <span className="wof-hint">{hint}</span>}
-      {error && <div className="wof-error-msg">{error}</div>}
+      {error && <div style={{ color: '#dc2626', fontSize: '13px', fontWeight: '500', marginTop: '4px' }}>{error}</div>}
     </div>
   );
 }
@@ -667,10 +662,10 @@ function DigitInput({
         onChange={handleChange}
         placeholder={placeholder}
         disabled={disabled}
-        className={`${className}${error ? " field-error" : ""}`}
+        className={className}
       />
       {hint && <span className="wof-hint">{hint}</span>}
-      {error && <div className="wof-error-msg">{error}</div>}
+      {error && <div style={{ color: '#dc2626', fontSize: '13px', fontWeight: '500', marginTop: '4px' }}>{error}</div>}
     </div>
   );
 }
@@ -722,7 +717,7 @@ function WarehouseSearchField({
             onKeyDown={e => e.key === "Escape" && setOpen(false)}
             placeholder={placeholder}
             disabled={disabled || loading}
-            className={`form-field warehouse-search-input${error ? " field-error" : ""}`}
+            className="form-field warehouse-search-input"
           />
           {loading && <FaSpinner className="warehouse-loading-spinner spinning" />}
           {value && !disabled && (
@@ -749,7 +744,7 @@ function WarehouseSearchField({
         )}
       </div>
       {hint && <span className="wof-hint">{hint}</span>}
-      {error && <div className="wof-error-msg">{error}</div>}
+      {error && <div style={{ color: '#dc2626', fontSize: '13px', fontWeight: '500', marginTop: '4px' }}>{error}</div>}
     </div>
   );
 }
@@ -808,7 +803,7 @@ function BomSearchField({
             onKeyDown={e => e.key === "Escape" && setOpen(false)}
             placeholder={filterType === "External" ? "Search External BOM by item code or name…" : "Search BOM by item code or name…"}
             disabled={disabled || loading}
-            className={`form-field warehouse-search-input${error ? " field-error" : ""}`}
+            className="form-field warehouse-search-input"
           />
           {loading && <FaSpinner className="warehouse-loading-spinner spinning" />}
           {value && !disabled && (
@@ -842,7 +837,7 @@ function BomSearchField({
           ? "Select an External BOM to auto-fill Operations."
           : "Select a BOM to auto-fill operations and required items."}
       </span>
-      {error && <div className="wof-error-msg">{error}</div>}
+      {error && <div style={{ color: '#dc2626', fontSize: '13px', fontWeight: '500', marginTop: '4px' }}>{error}</div>}
     </div>
   );
 }
@@ -1995,27 +1990,91 @@ export default function WorkOrderForm() {
   // ─── Validation ───────────────────────────────────────────────────────
   const validate = () => {
     const errs: { field: string; label: string; message: string }[] = [];
-    if (wo.type === "internal" && !wo.bom_no.trim()) errs.push({ field: "bom_no", label: "BOM", message: "Please select a BOM" });
-    if (wo.type === "external" && !wo.selected_grn_id) errs.push({ field: "selected_grn_id", label: "GRN", message: "Please select a GRN" });
-    if (!wo.item_to_manufacture.trim() && wo.type === "internal") errs.push({ field: "item_to_manufacture", label: "Item To Manufacture", message: "Required" });
-    if (wo.type === "external" && !wo.item_to_manufacture.trim()) errs.push({ field: "item_to_manufacture", label: "Item To Manufacture", message: "Select an Operations Source BOM to set this" });
-    if (wo.qty_to_manufacture <= 0 && wo.type === "internal") errs.push({ field: "qty_to_manufacture", label: "Qty To Manufacture", message: "Must be > 0" });
-    if (wo.type === "external" && wo.qty_to_manufacture <= 0) errs.push({ field: "qty_to_manufacture", label: "Qty To Manufacture", message: "Must be > 0" });
-    if (!wo.target_warehouse.trim()) errs.push({ field: "target_warehouse", label: "Target Warehouse (FG)", message: "Required" });
-    if (!wo.wip_warehouse.trim()) errs.push({ field: "wip_warehouse", label: "WIP Warehouse", message: "Required" });
-    if (!wo.planned_start_date) errs.push({ field: "planned_start_date", label: "Planned Start Date", message: "Required" });
 
-    if (wo.type === "internal" && materialConstraints.some(c => c.shortfall)) {
-      const shortfalls = materialConstraints.filter(c => c.shortfall);
-      const detail = shortfalls
-        .map(c => `${c.item_name} (need ${c.required} ${c.uom}, have ${c.available} ${c.uom})`)
-        .join("; ");
-      errs.push({
-        field: "qty_to_manufacture",
-        label: "Material Availability",
-        message: `Not enough stock to manufacture ${wo.qty_to_manufacture} ${wo.stock_uom}: ${detail}. Please add stock in Inventory${maxProducibleQty !== null ? `, or reduce the quantity to ${maxProducibleQty} ${wo.stock_uom} or below` : ""}.`,
-      });
+    // ─── Validation for Internal Work Orders ───────────────────────────
+    if (wo.type === "internal") {
+      // BOM validation
+      if (!wo.bom_no.trim()) {
+        errs.push({ field: "bom_no", label: "BOM", message: "Please select a BOM" });
+      }
+
+      // Item to Manufacture validation (from table: production_item is required)
+      if (!wo.item_to_manufacture.trim()) {
+        errs.push({ field: "item_to_manufacture", label: "Item To Manufacture", message: "Required" });
+      }
+
+      // Qty validation (from table: qty decimal(21,9) NOT NULL, default 1)
+      if (wo.qty_to_manufacture <= 0) {
+        errs.push({ field: "qty_to_manufacture", label: "Qty To Manufacture", message: "Must be greater than 0" });
+      }
+
+      // Material availability validation
+      if (materialConstraints.some(c => c.shortfall)) {
+        const shortfalls = materialConstraints.filter(c => c.shortfall);
+        const detail = shortfalls
+          .map(c => `${c.item_name} (need ${c.required} ${c.uom}, have ${c.available} ${c.uom})`)
+          .join("; ");
+        errs.push({
+          field: "qty_to_manufacture",
+          label: "Material Availability",
+          message: `Not enough stock to manufacture ${wo.qty_to_manufacture} ${wo.stock_uom}: ${detail}. Please add stock in Inventory${maxProducibleQty !== null ? `, or reduce the quantity to ${maxProducibleQty} ${wo.stock_uom} or below` : ""}.`,
+        });
+      }
     }
+
+    // ─── Validation for External Work Orders ───────────────────────────
+    if (wo.type === "external") {
+      // GRN validation
+      if (!wo.selected_grn_id) {
+        errs.push({ field: "selected_grn_id", label: "GRN", message: "Please select a GRN" });
+      }
+
+      // Item to Manufacture validation (from table: production_item is required)
+      if (!wo.item_to_manufacture.trim()) {
+        errs.push({ field: "item_to_manufacture", label: "Item To Manufacture", message: "Select an Operations Source BOM to set this" });
+      }
+
+      // Qty validation (from table: qty decimal(21,9) NOT NULL, default 1)
+      if (wo.qty_to_manufacture <= 0) {
+        errs.push({ field: "qty_to_manufacture", label: "Qty To Manufacture", message: "Must be greater than 0" });
+      }
+
+      // Check if required items exist from GRN
+      const hasRequiredItems = wo.required_items.some(item => item.item_code.trim() && item.required_qty > 0);
+      if (!hasRequiredItems) {
+        errs.push({ field: "required_items", label: "Required Items", message: "At least one required item with quantity is needed" });
+      }
+    }
+
+    // ─── Common validations for both types ─────────────────────────────
+
+    // Company validation (from table: company varchar(140) YES, but required for WO)
+    if (!wo.company.trim()) {
+      errs.push({ field: "company", label: "Company", message: "Company is required" });
+    }
+
+    // Warehouse validations (from table: source_warehouse, wip_warehouse, fg_warehouse are all varchar(140) YES)
+    if (!wo.source_warehouse.trim()) {
+      errs.push({ field: "source_warehouse", label: "Source Warehouse", message: "Required" });
+    }
+    if (!wo.target_warehouse.trim()) {
+      errs.push({ field: "target_warehouse", label: "Target Warehouse (FG)", message: "Required" });
+    }
+    if (!wo.wip_warehouse.trim()) {
+      errs.push({ field: "wip_warehouse", label: "WIP Warehouse", message: "Required" });
+    }
+
+    // Planned Start Date validation (from table: planned_start_date datetime(6) YES)
+    if (!wo.planned_start_date) {
+      errs.push({ field: "planned_start_date", label: "Planned Start Date", message: "Required" });
+    }
+
+    // Operations validation (at least one operation with a name)
+    const hasValidOperation = wo.operations.some(op => op.operation.trim() && op.workstation.trim());
+    if (!hasValidOperation) {
+      errs.push({ field: "operations", label: "Operations", message: "At least one operation with name and workstation is required" });
+    }
+
     return errs;
   };
 
@@ -2074,12 +2133,7 @@ export default function WorkOrderForm() {
     status: overrideStatus ?? wo.status,
     track_semi_finished_goods: 0,
     amended_from: "",
-
-    // Pass the order type through so External WOs are tagged as such on
-    // the backend record, and carry the linked GRN id along with it.
     selected_grn_id: wo.selected_grn_id,
-    // "type" is what the Work Order service reads to decide Internal vs
-    // External behaviour server-side.
     type: wo.type === "internal" ? "Internal" : "External",
     sales_order: ""
   });
@@ -2091,18 +2145,14 @@ export default function WorkOrderForm() {
   const errs = validate();
   if (errs.length) {
     setValidationErrors(errs);
-    setShowValidation(true);
-    if (errs.find(e => e.field === "planned_start_date")) {
-      setActiveTab("configuration");
-    } else if (errs.find(e => e.field === "selected_grn_id")) {
-      setActiveTab("grn_selection");
-    } else if (wo.type === "external") {
-      // Warehouse / material / qty / item errors for External WOs all live
-      // on the GRN Selection tab now (Production Item tab doesn't exist
-      // for External).
-      setActiveTab("grn_selection");
-    } else if (["bom_no","item_to_manufacture","qty_to_manufacture","target_warehouse","wip_warehouse"].some(f => errs.find(e => e.field === f))) {
-      setActiveTab("production_item");
+    // Remove popup - just show inline errors
+    // Scroll to the first error
+    const firstErrorField = errs[0]?.field;
+    if (firstErrorField) {
+      const element = document.querySelector(`[data-field="${firstErrorField}"]`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
     }
     return;
   }
@@ -2279,6 +2329,16 @@ export default function WorkOrderForm() {
 
   const totalRawMaterialCost = wo.required_items.reduce((sum, item) => sum + (item.amount || 0), 0);
 
+  // Helper function to get error message for a field
+  const getFieldError = (field: string): string | undefined => {
+    return validationErrors.find(e => e.field === field)?.message;
+  };
+
+  // Helper function to check if field has error
+  const hasFieldError = (field: string): boolean => {
+    return !!getFieldError(field);
+  };
+
   if (loading) {
     return (
       <div className={`wof-page ${theme}`}>
@@ -2290,32 +2350,6 @@ export default function WorkOrderForm() {
   return (
     <div className={`wof-page ${theme}`}>
       <div className="wof-inner">
-
-        {/* Validation modal */}
-        {showValidation && validationErrors.length > 0 && (
-          <div className="modal-overlay" onClick={() => setShowValidation(false)}>
-            <div className="validation-summary-modal" onClick={e => e.stopPropagation()}>
-              <div className="modal-header">
-                <h2><FaExclamationTriangle /> Missing Required Fields</h2>
-                <button className="modal-close" onClick={() => setShowValidation(false)}>×</button>
-              </div>
-              <div className="modal-body">
-                <div className="validation-errors-list">
-                  {validationErrors.map((e, i) => (
-                    <div key={i} className="validation-error-item">
-                      <div className="error-header"><FaTimesCircle className="error-icon" /><strong>{e.label}</strong></div>
-                      <div className="error-message">{e.message}</div>
-                    </div>
-                  ))}
-                </div>
-                <div className="validation-tip"><FaInfoCircle className="tip-icon" /> Fix the errors above before submitting</div>
-              </div>
-              <div className="modal-footer">
-                <button className="btn-cancel" onClick={() => setShowValidation(false)}>Close</button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Stock Warning Modal - Compulsory to close before navigating */}
         {stockWarningModal.show && (
@@ -2432,7 +2466,7 @@ export default function WorkOrderForm() {
                       <div style={{ flex: 1, background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 8, padding: 16 }}>
                         <div style={{ fontSize: 12, color: "#991b1b" }}>Scrap / Loss</div>
                         <div style={{ fontSize: 28, fontWeight: 700, color: "#991b1b" }}>
-                          {completionSummary.processLossQty}
+                          {completionSummary.processLossQty ?? 0}
                         </div>
                       </div>
                     </div>
@@ -2626,6 +2660,13 @@ export default function WorkOrderForm() {
                 </button>
               </div>
 
+              {/* GRN Selection Error */}
+              {hasFieldError("selected_grn_id") && (
+                <div style={{ color: '#dc2626', fontSize: '13px', fontWeight: '500', marginTop: '8px', marginBottom: '8px' }}>
+                  {getFieldError("selected_grn_id")}
+                </div>
+              )}
+
               {wo.selected_grn_id && wo.selected_grn ? (
                 <div className="wof-selected-grn">
                   {grnDetailLoading && (
@@ -2687,7 +2728,7 @@ export default function WorkOrderForm() {
 
                   {/* ── Operations source: an External BOM (auto-fill) or manual rows ── */}
                   <div className="wof-divider" />
-                  <span className="wof-section-title">Operations Source (optional)</span>
+                  <span className="wof-section-title">Operations Source</span>
                   <div style={{ marginTop: 10 }}>
                     <BomSearchField
                       value={selectedExternalBomLabel}
@@ -2695,6 +2736,7 @@ export default function WorkOrderForm() {
                       onClear={handleClearExternalBom}
                       disabled={disabled}
                       filterType="External"
+                      error={getFieldError("bom_no")}
                     />
                   </div>
 
@@ -2705,26 +2747,32 @@ export default function WorkOrderForm() {
                   <div className="wof-divider" />
                   <span className="wof-section-title">Production Details</span>
                   <div className="wof-grid-2" style={{ marginTop: 10 }}>
-                    <div className="wof-field">
-                      <label className="wof-label">Item To Manufacture</label>
+                    <div className="wof-field" data-field="item_to_manufacture">
+                      <label className="wof-label">Item To Manufacture <span className="wof-required">*</span></label>
                       <input
                         type="text"
                         value={wo.item_name || wo.item_to_manufacture}
                         readOnly
-                        className={`form-field${validationErrors.find(e => e.field === "item_to_manufacture") ? " field-error" : ""}`}
+                        className="form-field"
                         placeholder="Select an Operations Source BOM above to auto-fill"
                       />
                       <span className="wof-hint">Comes from the Operations Source BOM selected above.</span>
+                      {hasFieldError("item_to_manufacture") && (
+                        <div style={{ color: '#dc2626', fontSize: '13px', fontWeight: '500', marginTop: '4px' }}>
+                          {getFieldError("item_to_manufacture")}
+                        </div>
+                      )}
                     </div>
-                    <div className="wof-field">
+                    <div className="wof-field" data-field="qty_to_manufacture">
                       <label className="wof-label">Qty To Manufacture <span className="wof-required">*</span></label>
                       <div className="input-group">
                         <DigitInput
                           value={wo.qty_to_manufacture}
                           onChange={v => set("qty_to_manufacture", v)}
                           placeholder="e.g. 100"
-                          className={`form-field${validationErrors.find(e => e.field === "qty_to_manufacture") ? " field-error" : ""}`}
+                          className="form-field"
                           disabled={disabled}
+                          error={getFieldError("qty_to_manufacture")}
                         />
                       </div>
                       <span className="wof-hint">How many units this Work Order is producing.</span>
@@ -2739,20 +2787,25 @@ export default function WorkOrderForm() {
                   <div className="wof-table-header">
                     <span className="wof-section-title wof-section-title-flush">
                       <FaCogs style={{ marginRight: 6 }} />
-                      Operations To Perform
+                      Operations To Perform <span className="wof-required">*</span>
                     </span>
                     <button type="button" className="wof-row-add-btn"
                       onClick={() => setWo(p => ({ ...p, operations: [...p.operations, emptyOp()] }))}>
                       <FaPlus size={10} /> Add Row
                     </button>
                   </div>
+                  {hasFieldError("operations") && (
+                    <div style={{ color: '#dc2626', fontSize: '13px', fontWeight: '500', marginTop: '8px', marginBottom: '8px' }}>
+                      {getFieldError("operations")}
+                    </div>
+                  )}
                   <div className="wof-table-scroll">
                     <table className="wof-editable-table">
                       <thead>
                         <tr>
                           <th className="wof-col-no">#</th>
-                          <th>Operation</th>
-                          <th>Workstation</th>
+                          <th>Operation <span className="wof-required">*</span></th>
+                          <th>Workstation <span className="wof-required">*</span></th>
                           <th>Time (mins)</th>
                           <th>Hour Rate</th>
                           <th>Operating Cost</th>
@@ -2823,12 +2876,17 @@ export default function WorkOrderForm() {
                   {/* ── Required Items (always sourced from the selected GRN) ── */}
                   <div className="wof-divider" />
                   <div className="wof-table-header">
-                    <span className="wof-section-title wof-section-title-flush">Required Items</span>
+                    <span className="wof-section-title wof-section-title-flush">Required Items <span className="wof-required">*</span></span>
                     <button type="button" className="wof-row-add-btn"
                       onClick={() => setWo(p => ({ ...p, required_items: [...p.required_items, emptyItem()] }))}>
                       <FaPlus size={10} /> Add Row
                     </button>
                   </div>
+                  {hasFieldError("required_items") && (
+                    <div style={{ color: '#dc2626', fontSize: '13px', fontWeight: '500', marginTop: '8px', marginBottom: '8px' }}>
+                      {getFieldError("required_items")}
+                    </div>
+                  )}
                   <div className="wof-table-scroll">
                     <table className="wof-editable-table">
                       <thead>
@@ -2836,8 +2894,8 @@ export default function WorkOrderForm() {
                           <th className="wof-col-no">#</th>
                           <th>Item Code</th>
                           <th>Item Name</th>
-                          <th>Source Warehouse</th>
-                          <th>Required Qty</th>
+                          <th>Source Warehouse <span className="wof-required">*</span></th>
+                          <th>Required Qty <span className="wof-required">*</span></th>
                           <th>Available Qty</th>
                           <th>UOM</th>
                           <th>Rate</th>
@@ -2922,17 +2980,35 @@ export default function WorkOrderForm() {
               {/* ── Warehouses (External WOs don't get a "Production Item" tab,
                   so these live here instead) ── */}
               <div className="wof-divider" />
-              <span className="wof-section-title">Warehouses</span>
+              <span className="wof-section-title">Warehouses <span className="wof-required">*</span></span>
               <div className="wof-grid-3" style={{ marginTop: 10 }}>
-                <WarehouseSearchField label="Source Warehouse" value={wo.source_warehouse}
-                  onChange={v => set("source_warehouse", v)} required disabled={disabled}
-                  hint="Where raw materials are picked from" />
-                <WarehouseSearchField label="WIP Warehouse" value={wo.wip_warehouse}
-                  onChange={v => set("wip_warehouse", v)} required disabled={disabled}
-                  hint="Where production operations happen" />
-                <WarehouseSearchField label="Target Warehouse (FG)" value={wo.target_warehouse}
-                  onChange={v => set("target_warehouse", v)} required disabled={disabled}
-                  hint="Where finished goods are stored" />
+                <WarehouseSearchField 
+                  label="Source Warehouse" 
+                  value={wo.source_warehouse}
+                  onChange={v => set("source_warehouse", v)} 
+                  required 
+                  disabled={disabled}
+                  hint="Where raw materials are picked from" 
+                  error={getFieldError("source_warehouse")}
+                />
+                <WarehouseSearchField 
+                  label="WIP Warehouse" 
+                  value={wo.wip_warehouse}
+                  onChange={v => set("wip_warehouse", v)} 
+                  required 
+                  disabled={disabled}
+                  hint="Where production operations happen" 
+                  error={getFieldError("wip_warehouse")}
+                />
+                <WarehouseSearchField 
+                  label="Target Warehouse (FG)" 
+                  value={wo.target_warehouse}
+                  onChange={v => set("target_warehouse", v)} 
+                  required 
+                  disabled={disabled}
+                  hint="Where finished goods are stored" 
+                  error={getFieldError("target_warehouse")}
+                />
               </div>
 
               {/* ── Media Attachments ── */}
@@ -3052,22 +3128,26 @@ export default function WorkOrderForm() {
               <span className="wof-section-title">Bill of Materials</span>
 
               <div className="wof-grid-2" style={{ marginTop: 10 }}>
-                <BomSearchField
-                  value={selectedBomLabel || wo.bom_no}
-                  onSelect={handleSelectBom}
-                  onClear={handleClearBom}
-                  disabled={disabled}
-                  filterType="Internal"
-                />
-                <div className="wof-field">
+                <div data-field="bom_no">
+                  <BomSearchField
+                    value={selectedBomLabel || wo.bom_no}
+                    onSelect={handleSelectBom}
+                    onClear={handleClearBom}
+                    disabled={disabled}
+                    filterType="Internal"
+                    error={getFieldError("bom_no")}
+                  />
+                </div>
+                <div className="wof-field" data-field="qty_to_manufacture">
                   <label className="wof-label">Qty To Manufacture <span className="wof-required">*</span></label>
                   <div className="input-group">
                     <DigitInput
                       value={wo.qty_to_manufacture}
                       onChange={v => set("qty_to_manufacture", v)}
                       placeholder="e.g. 100"
-                      className={`form-field${materialConstraints.some(c => c.shortfall) ? " field-error" : ""}`}
+                      className="form-field"
                       disabled={disabled}
+                      error={getFieldError("qty_to_manufacture")}
                     />
                   </div>
                   {bomDetail && (
@@ -3120,40 +3200,62 @@ export default function WorkOrderForm() {
               )}
 
               <div className="wof-divider" />
-              <span className="wof-section-title">Warehouses</span>
+              <span className="wof-section-title">Warehouses <span className="wof-required">*</span></span>
 
               <div className="wof-grid-3" style={{ marginTop: 10 }}>
-                <WarehouseSearchField label="Source Warehouse" value={wo.source_warehouse}
-                  onChange={v => set("source_warehouse", v)} required disabled={disabled}
-                  hint="Where raw materials are picked from" />
-                <WarehouseSearchField label="WIP Warehouse" value={wo.wip_warehouse}
-                  onChange={v => set("wip_warehouse", v)} required disabled={disabled}
-                  hint="Where production operations happen" />
-                <WarehouseSearchField label="Target Warehouse (FG)" value={wo.target_warehouse}
-                  onChange={v => set("target_warehouse", v)} required disabled={disabled}
-                  hint="Where finished goods are stored" />
+                <WarehouseSearchField 
+                  label="Source Warehouse" 
+                  value={wo.source_warehouse}
+                  onChange={v => set("source_warehouse", v)} 
+                  required 
+                  disabled={disabled}
+                  hint="Where raw materials are picked from" 
+                  error={getFieldError("source_warehouse")}
+                />
+                <WarehouseSearchField 
+                  label="WIP Warehouse" 
+                  value={wo.wip_warehouse}
+                  onChange={v => set("wip_warehouse", v)} 
+                  required 
+                  disabled={disabled}
+                  hint="Where production operations happen" 
+                  error={getFieldError("wip_warehouse")}
+                />
+                <WarehouseSearchField 
+                  label="Target Warehouse (FG)" 
+                  value={wo.target_warehouse}
+                  onChange={v => set("target_warehouse", v)} 
+                  required 
+                  disabled={disabled}
+                  hint="Where finished goods are stored" 
+                  error={getFieldError("target_warehouse")}
+                />
               </div>
 
               <div className="wof-divider" />
 
               {/* ── Operations Table ── */}
               <div className="wof-table-header">
-                <span className="wof-section-title wof-section-title-flush">Operations</span>
+                <span className="wof-section-title wof-section-title-flush">Operations <span className="wof-required">*</span></span>
                 <button type="button" className="wof-row-add-btn" onClick={() => setWo(p => ({ ...p, operations: [...p.operations, emptyOp()] }))}>
                   <FaPlus size={10} /> Add Row
                 </button>
               </div>
+              {hasFieldError("operations") && (
+                <div style={{ color: '#dc2626', fontSize: '13px', fontWeight: '500', marginTop: '8px', marginBottom: '8px' }}>
+                  {getFieldError("operations")}
+                </div>
+              )}
               <div className="wof-table-scroll">
                 <table className="wof-editable-table">
                   <thead>
                     <tr>
                       <th className="wof-col-no">#</th>
-                      <th>Operation</th>
-                      <th>Workstation</th>
+                      <th>Operation <span className="wof-required">*</span></th>
+                      <th>Workstation <span className="wof-required">*</span></th>
                       <th>Time (mins)</th>
                       <th>Hour Rate</th>
                       <th>Operating Cost</th>
-                      <th className="wof-col-action" />
                     </tr>
                   </thead>
                   <tbody>
@@ -3188,13 +3290,7 @@ export default function WorkOrderForm() {
                               onChange={v => updateOp(op.id, "operating_cost", v)} disabled={disabled} />
                           </div>
                         </td>
-                        <td className="wof-col-action">
-                          <button type="button" className="wof-row-delete-btn"
-                            onClick={() => setWo(p => ({ ...p, operations: p.operations.filter(o => o.id !== op.id) }))}
-                            disabled={wo.operations.length <= 1}>
-                            <FaTrash size={11} />
-                          </button>
-                        </td>
+                        
                       </tr>
                     ))}
                   </tbody>
@@ -3223,7 +3319,6 @@ export default function WorkOrderForm() {
                       <th>UOM</th>
                       <th>Rate</th>
                       <th>Amount</th>
-                      <th className="wof-col-action" />
                     </tr>
                   </thead>
                   <tbody>
@@ -3274,13 +3369,7 @@ export default function WorkOrderForm() {
                                 onChange={v => updateItem(ri.id, "amount", v)} disabled={disabled} />
                             </div>
                           </td>
-                          <td className="wof-col-action">
-                            <button type="button" className="wof-row-delete-btn"
-                              onClick={() => setWo(p => ({ ...p, required_items: p.required_items.filter(r => r.id !== ri.id) }))}
-                              disabled={wo.required_items.length <= 1}>
-                              <FaTrash size={11} />
-                            </button>
-                          </td>
+                        
                         </tr>
                       );
                     })}
@@ -3419,13 +3508,14 @@ export default function WorkOrderForm() {
               <span className="wof-section-title">Dates</span>
 
               <div className="wof-grid-2" style={{ marginTop: 10 }}>
-                <div className="wof-field">
+                <div className="wof-field" data-field="planned_start_date">
                   <DatePickerField
                     label="Planned Start Date"
                     value={wo.planned_start_date}
                     onChange={v => set("planned_start_date", v)}
                     required
                     disabled={disabled}
+                    error={getFieldError("planned_start_date")}
                   />
                 </div>
 
@@ -3445,6 +3535,57 @@ export default function WorkOrderForm() {
                     disabled={disabled}
                     min={wo.actual_start_date}
                   />
+                </div>
+              </div>
+
+              {/* ── Company Field ── */}
+              <div className="wof-divider" />
+              <span className="wof-section-title">Company Details</span>
+              <div className="wof-grid-2" style={{ marginTop: 10 }}>
+                <div className="wof-field" data-field="company">
+                  <label className="wof-label">Company <span className="wof-required">*</span></label>
+                  <input
+                    type="text"
+                    value={wo.company}
+                    onChange={e => set("company", e.target.value)}
+                    className="form-field"
+                    placeholder="Enter company name"
+                    disabled={disabled}
+                  />
+                  {hasFieldError("company") && (
+                    <div style={{ color: '#dc2626', fontSize: '13px', fontWeight: '500', marginTop: '4px' }}>
+                      {getFieldError("company")}
+                    </div>
+                  )}
+                </div>
+                <div className="wof-field">
+                  <label className="wof-label">Stock UOM</label>
+                  <input
+                    type="text"
+                    value={wo.stock_uom}
+                    onChange={e => set("stock_uom", e.target.value)}
+                    className="form-field"
+                    placeholder="e.g. Nos"
+                    disabled={disabled}
+                  />
+                </div>
+              </div>
+
+              {/* ── Transfer Material Against ── */}
+              <div className="wof-divider" />
+              <span className="wof-section-title">Transfer Settings</span>
+              <div className="wof-grid-2" style={{ marginTop: 10 }}>
+                <div className="wof-field">
+                  <label className="wof-label">Transfer Material Against</label>
+                  <select
+                    value={wo.transfer_material_against}
+                    onChange={e => set("transfer_material_against", e.target.value as "Work Order" | "Job Card")}
+                    className="form-field"
+                    disabled={disabled}
+                  >
+                    <option value="Work Order">Work Order</option>
+                    <option value="Job Card">Job Card</option>
+                  </select>
                 </div>
               </div>
             </div>
@@ -3512,7 +3653,7 @@ export default function WorkOrderForm() {
               {/* Job Card Production Summary - Now shows data from API */}
               <span className="wof-section-title">Job Card Production Summary</span>
               
-              {completionSummary && (completionSummary.totalCompletedQty !== undefined && (completionSummary.totalCompletedQty > 0 || completionSummary.processLossQty > 0)) ? (
+              {completionSummary && (completionSummary.totalCompletedQty !== undefined && (completionSummary.totalCompletedQty > 0 || (completionSummary.processLossQty ?? 0) > 0)) ? (
                 <>
                   <div style={{ display: "flex", gap: 16, marginTop: 16, marginBottom: 16 }}>
                     <div style={{ 
@@ -3562,11 +3703,11 @@ export default function WorkOrderForm() {
                         </span>
                       </div>
                       <div style={{ fontSize: 32, fontWeight: 700, color: "#991b1b", marginBottom: 4 }}>
-                        {completionSummary.processLossQty}
+                        {completionSummary.processLossQty ?? 0}
                       </div>
                       <div style={{ fontSize: 12, color: "#b91c1c" }}>
                         {wo.qty_to_manufacture > 0 
-                          ? `${((completionSummary.processLossQty / wo.qty_to_manufacture) * 100).toFixed(1)}% of target qty` 
+                          ? `${(((completionSummary.processLossQty ?? 0) / wo.qty_to_manufacture) * 100).toFixed(1)}% of target qty` 
                           : "0% of target qty"}
                       </div>
                     </div>
@@ -3600,7 +3741,7 @@ export default function WorkOrderForm() {
                         </div>
                         <div style={{ fontSize: 18, fontWeight: 600, color: "#dc2626" }}>
                           {wo.qty_to_manufacture > 0 
-                            ? `${((completionSummary.processLossQty / wo.qty_to_manufacture) * 100).toFixed(1)}%` 
+                            ? `${(((completionSummary.processLossQty ?? 0) / wo.qty_to_manufacture) * 100).toFixed(1)}%` 
                             : "0%"}
                         </div>
                       </div>
