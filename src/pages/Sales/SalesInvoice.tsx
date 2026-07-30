@@ -17,7 +17,6 @@ import {
   FaPaperPlane,
   FaFileInvoice,
   FaCopy,
-  
   FaSpinner,
   FaSync,
   FaTimes
@@ -42,6 +41,8 @@ interface SalesInvoice {
   deliveryChallanNo?: string;
   paid_amount?: number;
   outstanding_amount?: number;
+  // Computed field for display
+  displayInvoiceNumber?: string;
 }
 
 interface ApiResponse {
@@ -73,6 +74,13 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
   );
 };
 
+// ===== FORMAT INVOICE NUMBER =====
+const formatInvoiceNumber = (id: string | number): string => {
+  // Convert to number and pad with zeros to 5 digits
+  const numId = typeof id === 'string' ? parseInt(id, 10) : id;
+  const paddedId = String(numId).padStart(5, '0');
+  return `SINV-${paddedId}`;
+};
 
 // ===== MAIN COMPONENT =====
 const SalesInvoice: React.FC = () => {
@@ -104,7 +112,12 @@ const SalesInvoice: React.FC = () => {
       const response = await api.get<ApiResponse>(`/sales-invoice${query}`);
       
       if (response.data?.data?.records) {
-        setInvoices(response.data.data.records);
+        // Add display invoice number to each record
+        const recordsWithDisplayNumber = response.data.data.records.map((record) => ({
+          ...record,
+          displayInvoiceNumber: formatInvoiceNumber(record.id)
+        }));
+        setInvoices(recordsWithDisplayNumber);
       } else {
         setInvoices([]);
       }
@@ -137,11 +150,12 @@ const SalesInvoice: React.FC = () => {
     });
   };
 
-
   // ===== FILTER DATA =====
   const filteredData = invoices.filter(item => {
     const search = searchTerm.toLowerCase();
+    const displayNumber = item.displayInvoiceNumber?.toLowerCase() || '';
     const matchesSearch = 
+      displayNumber.includes(search) ||
       (item.name || '').toLowerCase().includes(search) ||
       (item.customer_name || '').toLowerCase().includes(search) ||
       (item.deliveryChallanNo || '').toLowerCase().includes(search);
@@ -155,7 +169,6 @@ const SalesInvoice: React.FC = () => {
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
-
 
   // ===== ACTIONS =====
   const handleCreate = () => navigate('/sales-bill/new');
@@ -1201,7 +1214,9 @@ const SalesInvoice: React.FC = () => {
               <tbody>
                 {paginatedData.map((item) => (
                   <tr key={item.id} className="qt-tr">
-                    <td className="qt-td qt-td-id">{item.name || '-'}</td>
+                    <td className="qt-td qt-td-id">
+                      {item.displayInvoiceNumber || item.name || '-'}
+                    </td>
                     <td className="qt-td">
                       <div className="qt-td-link" onClick={() => handleView(item.id)}>
                         {item.customer_name || '-'}
