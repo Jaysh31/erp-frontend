@@ -4,7 +4,7 @@ import { storage } from "../utils/storage";
  
 //export baseURL separately
 // export const baseURL = 'http://localhost:7200/api';
-
+ 
 export const baseURL = 'https://erp.sculptortechpvtltd.com/api';
  
 export const imageBaseURL = `${baseURL}/getmedia/`;
