@@ -14,10 +14,10 @@
   --bdf-amber-bg: #fffbeb;
   --bdf-amber-border: #fcd34d;
 
-  --bdf-red: #dc2626;
-  --bdf-red-bg: #fef2f2;
-  --bdf-red-border: #fca5a5;
-  --bdf-red-light: #fee2e2;
+  --bdf-red: var(--danger-color, #dc2626);
+  --bdf-red-bg: color-mix(in srgb, var(--danger-color, #dc2626) 8%, var(--card-bg, #fff));
+  --bdf-red-border: color-mix(in srgb, var(--danger-color, #dc2626) 35%, var(--border-color, #fca5a5));
+  --bdf-red-light: color-mix(in srgb, var(--danger-color, #dc2626) 14%, var(--card-bg, #fff));
 
   --bdf-green: #16a34a;
   --bdf-green-bg: #f0fdf4;
@@ -288,7 +288,7 @@
 }
 
 .bdf-input-error:focus {
-  box-shadow: 0 0 0 3px rgba(220, 38, 38, .14) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger-color, #dc2626) 14%, transparent) !important;
 }
 
 /* Valid state */
@@ -704,6 +704,7 @@ select.bdf-input {
   border-top: 1px solid var(--bdf-border);
   display: flex;
   justify-content: flex-end;
+  gap: 10px;
   background: var(--bdf-surface-2);
 }
 
@@ -856,6 +857,252 @@ select.bdf-input {
   border-color: var(--bdf-blue);
 }
 
+
+.bdf-contact-modal {
+  background: var(--bdf-surface);
+  border-radius: var(--bdf-radius-lg);
+  width: 100%;
+  
+  max-width: 580px;
+  box-shadow: var(--bdf-shadow-lg);
+  overflow: hidden;
+  animation: bdf-modal-in 220ms cubic-bezier(0.34, 1.28, 0.64, 1);
+}
+
+.bdf-modal-header-plain {
+  background: var(--bdf-surface);
+  border-bottom: 1px solid var(--bdf-border);
+}
+
+
+.bdf-modal-header-themed {
+  background: var(--primary-gradient, linear-gradient(135deg, var(--bdf-blue), var(--bdf-blue-dark)));
+  border-bottom: 1px solid var(--bdf-blue-dark);
+}
+
+.bdf-modal-header-themed .bdf-modal-title {
+  color: #fff;
+}
+
+.bdf-modal-header-themed .bdf-modal-close {
+  color: rgba(255, 255, 255, .85);
+}
+
+.bdf-modal-header-themed .bdf-modal-close:hover {
+  background: rgba(255, 255, 255, .18);
+  color: #fff;
+}
+
+.bdf-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--bdf-text-primary);
+  margin: 0;
+}
+
+/* Row of checkboxes at the bottom of the contact modal — plain (no
+   bordered box) so the three options read as a single related group,
+   matching the reference "Set as Primary / Billing / Purchase Contact"
+   layout. */
+.bdf-contact-modal-checks {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: nowrap;
+  padding-top: 2px;
+}
+
+.bdf-contact-modal-checks .bdf-checkbox-label {
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+@media (max-width: 520px) {
+  .bdf-contact-modal-checks {
+    flex-wrap: wrap;
+  }
+}
+
+/* ── Contact Persons — circular avatar UI ─────────────────────────────
+   Mirrors the "Add" circle + avatar-with-checkmark pattern used
+   elsewhere in the app (e.g. the Supplier form's Contact Persons
+   section), themed through the same --primary-color / --card-bg /
+   --border-color / --text-* bridge variables above so it automatically
+   matches whichever admin theme (blue/green/dark) is active. */
+.bdf-contacts-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.bdf-contact-add-circle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: var(--bdf-font);
+}
+
+.bdf-contact-add-circle-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--bdf-blue);
+  background: var(--bdf-blue-light);
+  border: 2px dashed var(--bdf-blue-mid);
+  transition: all var(--bdf-transition);
+}
+
+.bdf-contact-add-circle:hover .bdf-contact-add-circle-icon {
+  background: color-mix(in srgb, var(--primary-color, #2563eb) 16%, var(--card-bg, #fff));
+  border-color: var(--bdf-blue);
+  transform: scale(1.04);
+}
+
+.bdf-contact-add-circle-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--bdf-text-secondary);
+}
+
+.bdf-contact-add-circle:hover .bdf-contact-add-circle-label {
+  color: var(--bdf-blue);
+}
+
+.bdf-contact-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.bdf-contact-avatar-wrap {
+  position: relative;
+  cursor: pointer;
+}
+
+.bdf-contact-avatar-circle {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  box-shadow: var(--bdf-shadow-sm);
+  transition: transform var(--bdf-transition);
+}
+
+.bdf-contact-avatar-wrap:hover .bdf-contact-avatar-circle {
+  transform: scale(1.04);
+}
+
+.bdf-contact-primary-check {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  background: var(--bdf-green);
+  border: 2px solid var(--bdf-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+
+.bdf-contact-remove-btn {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--bdf-surface);
+  border: 1px solid var(--bdf-border);
+  color: var(--bdf-text-muted);
+  font-size: 12px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--bdf-transition), color var(--bdf-transition), border-color var(--bdf-transition);
+}
+
+.bdf-contact-item:hover .bdf-contact-remove-btn {
+  opacity: 1;
+}
+
+.bdf-contact-remove-btn:hover {
+  color: var(--bdf-red);
+  border-color: var(--bdf-red-border);
+  background: var(--bdf-red-bg);
+}
+
+.bdf-contact-name-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--bdf-text-primary);
+  max-width: 78px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bdf-contact-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 22px 16px;
+  border: 1.5px dashed var(--bdf-border);
+  border-radius: var(--bdf-radius);
+  background: var(--bdf-surface-2);
+  color: var(--bdf-text-muted);
+  font-size: 12.5px;
+  text-align: center;
+  margin-bottom: 14px;
+}
+
+.bdf-contact-empty-icon {
+  font-size: 18px;
+  color: color-mix(in srgb, var(--bdf-text-secondary) 55%, transparent);
+}
+
+.bdf-contact-hint-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--bdf-text-muted);
+  margin-bottom: 16px;
+}
+
+.bdf-contact-hint-row svg {
+  color: var(--bdf-blue);
+  flex-shrink: 0;
+}
+
 /* ── PDF upload field ────────────────────────────────────────── */
 .bdf-file-input-hidden {
   position: absolute;
@@ -985,20 +1232,30 @@ select.bdf-input {
   .bdf-title {
     font-size: 15px;
   }
+
+  .bdf-contact-add-circle-icon,
+  .bdf-contact-avatar-circle {
+    width: 52px;
+    height: 52px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .bdf-fade-in,
   .bdf-validation-modal,
+  .bdf-contact-modal,
   .bdf-modal-overlay,
   .bdf-status-icon,
   .bdf-error-text,
-  .bdf-valid-text {
+  .bdf-valid-text,
+  .bdf-contact-item {
     animation: none;
   }
 
   .bdf-btn-primary:hover,
-  .bdf-validation-error-item:hover {
+  .bdf-validation-error-item:hover,
+  .bdf-contact-add-circle:hover .bdf-contact-add-circle-icon,
+  .bdf-contact-avatar-wrap:hover .bdf-contact-avatar-circle {
     transform: none;
   }
 }
