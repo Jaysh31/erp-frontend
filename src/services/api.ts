@@ -1,5 +1,6 @@
 import axios from "axios";
 import type { AxiosInstance, InternalAxiosRequestConfig } from "axios";
+import { storage } from "../utils/storage";
  
 //export baseURL separately
 // export const baseURL = 'http://localhost:7200/api';
@@ -17,10 +18,10 @@ const api: AxiosInstance = axios.create({
  
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig): InternalAxiosRequestConfig => {
-    const token = localStorage.getItem('token');
+    const token = storage.getToken();   
  
     if (token && config.headers) {
-      config.headers['Authorization'] = `Bearer ${token}`;
+      config.headers['Authorization'] = token;
     }
  
     return config;

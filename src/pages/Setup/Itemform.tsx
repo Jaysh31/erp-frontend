@@ -18,12 +18,16 @@ import {
 import "./ItemForm.css";
 import { useAdminTheme } from "../../admin-theme/AdminThemeContext";
 import toast from "react-hot-toast";
-import api from "../../services/api";
+import api, { baseURL } from "../../services/api";
 
 // ────────────────────────────────────────────────────────────────────────
 // Constants & Helpers for Image Handling
 // ────────────────────────────────────────────────────────────────────────
-const IMAGE_BASE_URL = "https://erp.sculptortechpvtltd.com/api/getimage";
+// const IMAGE_BASE_URL = "https://erp.sculptortechpvtltd.com/api/getimage";
+
+const IMAGE_BASE_URL = `${baseURL}/getimage`;
+
+
 
 /**
  * Convert a full URL or relative path to a relative path (starting with /)
