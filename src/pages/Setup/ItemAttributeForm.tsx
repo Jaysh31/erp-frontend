@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   FaArrowLeft,
@@ -6,8 +6,6 @@ import {
   FaSpinner,
   FaExclamationCircle,
   FaExclamationTriangle,
-  FaInfoCircle,
-  FaTimesCircle,
   FaPlus,
   FaTag,
 } from 'react-icons/fa';
@@ -48,12 +46,11 @@ export default function ItemAttributeForm() {
     { id: "5", value: "White", abbreviation: "WHI" },
   ]);
 
-  // const [editingRow, setEditingRow] = useState<string | null>(null);
   const [comment, setComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [errors, ] = useState<{ [key: string]: string }>({});
-  const [showValidationSummary, setShowValidationSummary] = useState(false);
-  const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const [validationErrors] = useState<ValidationError[]>([]);
+  const [formSubmitted, setFormSubmitted] = useState(false);
 
   const addRow = () => {
     setValues([...values, { id: Date.now().toString(), value: "", abbreviation: "" }]);
@@ -67,91 +64,115 @@ export default function ItemAttributeForm() {
     setValues(values.map((v) => (v.id === id ? { ...v, [field]: val } : v)));
   };
 
-  // ─── Validation ──────────────────────────────────────────────────────
+  // ─── Validation Functions ──────────────────────────────────────────
   const getAllValidationErrors = (): ValidationError[] => {
     const allErrors: ValidationError[] = [];
 
+    // 1. Validate Attribute Name - REQUIRED (varchar(140), NOT NULL, UNIQUE)
     if (!form.attributeName.trim()) {
       allErrors.push({ field: 'attributeName', label: 'Attribute Name', message: 'Attribute name is required' });
+    } else if (form.attributeName.length > 140) {
+      allErrors.push({ field: 'attributeName', label: 'Attribute Name', message: 'Attribute name must not exceed 140 characters' });
     }
 
+    // 2. Validate Attribute Values
     values.forEach((v, i) => {
+      // Attribute Value is required
       if (!v.value.trim()) {
-        allErrors.push({ field: `value_${i}`, label: `Attribute Value ${i + 1}`, message: 'Attribute value is required' });
+        allErrors.push({ 
+          field: `value_${i}`, 
+          label: `Attribute Value ${i + 1}`, 
+          message: 'Attribute value is required' 
+        });
+      } else if (v.value.length > 140) {
+        allErrors.push({ 
+          field: `value_${i}`, 
+          label: `Attribute Value ${i + 1}`, 
+          message: 'Attribute value must not exceed 140 characters' 
+        });
       }
+
+      // Abbreviation is required
       if (!v.abbreviation.trim()) {
-        allErrors.push({ field: `abbreviation_${i}`, label: `Abbreviation ${i + 1}`, message: 'Abbreviation is required' });
+        allErrors.push({ 
+          field: `abbreviation_${i}`, 
+          label: `Abbreviation ${i + 1}`, 
+          message: 'Abbreviation is required' 
+        });
+      } else if (v.abbreviation.length > 140) {
+        allErrors.push({ 
+          field: `abbreviation_${i}`, 
+          label: `Abbreviation ${i + 1}`, 
+          message: 'Abbreviation must not exceed 140 characters' 
+        });
       }
     });
 
     return allErrors;
   };
 
+  // ─── Real-time validation ──────────────────────────────────────────
+  useEffect(() => {
+    const validationErrorsList = getAllValidationErrors();
+    const fieldErrors: { [key: string]: string } = {};
+    validationErrorsList.forEach(error => {
+      fieldErrors[error.field] = error.message;
+    });
+    setErrors(fieldErrors);
+  }, [form.attributeName, values]);
+
+  // ─── Field Error Helper ────────────────────────────────────────────
+  const getFieldError = (field: string): string | undefined => {
+    // Only show errors if form has been submitted
+    if (!formSubmitted) {
+      return undefined;
+    }
+    return errors[field];
+  };
+
   const handleSave = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setFormSubmitted(true);
 
     const validationErrorsList = getAllValidationErrors();
     if (validationErrorsList.length > 0) {
-      setValidationErrors(validationErrorsList);
-      setShowValidationSummary(true);
+      // Scroll to first error field
+      const firstError = validationErrorsList[0];
+      const element = document.querySelector(`[data-field="${firstError.field}"]`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const input = element as HTMLInputElement;
+        input.focus();
+      }
       return;
     }
 
     setSubmitting(true);
     try {
+      // Prepare payload according to table schema
+      const payload = {
+        attribute_name: form.attributeName.trim(),
+        numeric_values: form.numericValues ? 1 : 0,
+        disabled: form.disabled ? 1 : 0,
+      };
+
+      console.log('Saving item attribute:', payload);
+      
+      // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 1000));
       navigate('/item-attribute');
     } catch (err) {
-      // Handle error
+      console.error('Error saving item attribute:', err);
     } finally {
       setSubmitting(false);
     }
   };
 
-  const hasErrors = getAllValidationErrors().length > 0;
+  const hasErrors = formSubmitted && getAllValidationErrors().length > 0;
 
   return (
     <div className={`iaf-page ${theme}`}>
       <div className="iaf-inner">
-
-        {/* ─── Validation Summary Modal ────────────────────────────── */}
-        {showValidationSummary && validationErrors.length > 0 && (
-          <div className="modal-overlay" onClick={() => setShowValidationSummary(false)}>
-            <div className="validation-summary-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="modal-header">
-                <h2>
-                  <FaExclamationTriangle /> Missing Required Fields
-                </h2>
-                <button className="modal-close" onClick={() => setShowValidationSummary(false)}>×</button>
-              </div>
-              <div className="modal-body">
-                <p className="modal-description">
-                  Please fill in the following required fields before submitting:
-                </p>
-                <div className="validation-errors-list">
-                  {validationErrors.map((error, idx) => (
-                    <div key={idx} className="validation-error-item">
-                      <div className="error-header">
-                        <FaTimesCircle className="error-icon" />
-                        <strong>{error.label}</strong>
-                      </div>
-                      <div className="error-message">{error.message}</div>
-                    </div>
-                  ))}
-                </div>
-                <div className="validation-tip">
-                  <FaInfoCircle className="tip-icon" />
-                  Please fix the errors above before submitting
-                </div>
-              </div>
-              <div className="modal-footer">
-                <button className="btn-cancel" onClick={() => setShowValidationSummary(false)}>
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* ─── Header ────────────────────────────────────────────────── */}
         <div className="iaf-header">
@@ -162,7 +183,16 @@ export default function ItemAttributeForm() {
             <h1>{isNew ? 'Add New Item Attribute' : `Edit: ${attributeName}`}</h1>
           </div>
           {hasErrors && (
-            <div className="error-badge">
+            <div className="error-badge" style={{
+              background: '#dc3545',
+              color: 'white',
+              padding: '4px 10px',
+              borderRadius: '12px',
+              fontSize: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px'
+            }}>
               <FaExclamationTriangle size={12} />
               {getAllValidationErrors().length} missing field{getAllValidationErrors().length !== 1 ? 's' : ''}
             </div>
@@ -185,10 +215,16 @@ export default function ItemAttributeForm() {
                 type="text"
                 value={form.attributeName}
                 onChange={(e) => setForm({ ...form, attributeName: e.target.value })}
-                className={`form-field${errors.attributeName ? ' field-error' : ''}`}
-                placeholder="Enter attribute name"
+                className={`form-field${getFieldError('attributeName') ? ' field-error' : ''}`}
+                placeholder="Enter attribute name (max 140 characters)"
+                maxLength={140}
+                data-field="attributeName"
               />
-              {errors.attributeName && <span className="iaf-error-msg"><FaExclamationCircle size={10} />{errors.attributeName}</span>}
+              {getFieldError('attributeName') && (
+                <span className="iaf-error-msg" style={{ color: 'red', fontSize: '12px', marginTop: '4px', display: 'block' }}>
+                  <FaExclamationCircle size={10} /> {getFieldError('attributeName')}
+                </span>
+              )}
             </div>
 
             <div className="iaf-field-check">
@@ -244,31 +280,50 @@ export default function ItemAttributeForm() {
                         <td colSpan={5} className="iaf-empty-row">No rows</td>
                       </tr>
                     ) : (
-                      values.map((row, i) => (
-                        <tr key={row.id} className="iaf-itr">
-                          <td className="iaf-itd"><input type="checkbox" className="iaf-checkbox" /></td>
-                          <td className="iaf-itd iaf-itd-no">{i + 1}</td>
-                          <td className="iaf-itd">
-                            <input
-                              className="iaf-cell-input"
-                              value={row.value}
-                              onChange={(e) => updateValue(row.id, "value", e.target.value)}
-                              placeholder="Enter value"
-                            />
-                          </td>
-                          <td className="iaf-itd">
-                            <input
-                              className="iaf-cell-input"
-                              value={row.abbreviation}
-                              onChange={(e) => updateValue(row.id, "abbreviation", e.target.value)}
-                              placeholder="Enter abbreviation"
-                            />
-                          </td>
-                          <td className="iaf-itd">
-                            <button className="iaf-remove-row" onClick={() => removeRow(row.id)} type="button">×</button>
-                          </td>
-                        </tr>
-                      ))
+                      values.map((row, i) => {
+                        const valueError = getFieldError(`value_${i}`);
+                        const abbreviationError = getFieldError(`abbreviation_${i}`);
+                        
+                        return (
+                          <tr key={row.id} className="iaf-itr">
+                            <td className="iaf-itd"><input type="checkbox" className="iaf-checkbox" /></td>
+                            <td className="iaf-itd iaf-itd-no">{i + 1}</td>
+                            <td className="iaf-itd">
+                              <input
+                                className={`iaf-cell-input${valueError ? ' field-error' : ''}`}
+                                value={row.value}
+                                onChange={(e) => updateValue(row.id, "value", e.target.value)}
+                                placeholder="Enter value (max 140 chars)"
+                                maxLength={140}
+                                data-field={`value_${i}`}
+                              />
+                              {valueError && (
+                                <span className="iaf-error-msg" style={{ color: 'red', fontSize: '11px', marginTop: '2px', display: 'block' }}>
+                                  <FaExclamationCircle size={10} /> {valueError}
+                                </span>
+                              )}
+                            </td>
+                            <td className="iaf-itd">
+                              <input
+                                className={`iaf-cell-input${abbreviationError ? ' field-error' : ''}`}
+                                value={row.abbreviation}
+                                onChange={(e) => updateValue(row.id, "abbreviation", e.target.value)}
+                                placeholder="Enter abbreviation (max 140 chars)"
+                                maxLength={140}
+                                data-field={`abbreviation_${i}`}
+                              />
+                              {abbreviationError && (
+                                <span className="iaf-error-msg" style={{ color: 'red', fontSize: '11px', marginTop: '2px', display: 'block' }}>
+                                  <FaExclamationCircle size={10} /> {abbreviationError}
+                                </span>
+                              )}
+                            </td>
+                            <td className="iaf-itd">
+                              <button className="iaf-remove-row" onClick={() => removeRow(row.id)} type="button">×</button>
+                            </td>
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
@@ -291,6 +346,7 @@ export default function ItemAttributeForm() {
                     placeholder="Type a reply / comment"
                     value={comment}
                     onChange={(e) => setComment(e.target.value)}
+                    maxLength={140}
                   />
                 </div>
 

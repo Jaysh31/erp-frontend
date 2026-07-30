@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   FaArrowLeft,
@@ -6,8 +6,6 @@ import {
   FaSpinner,
   FaExclamationCircle,
   FaExclamationTriangle,
-  FaInfoCircle,
-  FaTimesCircle,
   FaPlus,
   FaFolder,
   FaTag,
@@ -90,10 +88,9 @@ export default function ItemGroupForm() {
   const [commentText, setCommentText] = useState("");
   const [, setIsDirty] = useState(isNew);
   const [submitting, setSubmitting] = useState(false);
-  const [errors, ] = useState<{ [key: string]: string }>({});
-  const [showValidationSummary, setShowValidationSummary] = useState(false);
-  const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [apiError, setApiError] = useState<string | null>(null);
+  const [formSubmitted, setFormSubmitted] = useState(false);
 
   const comments = existing?.comments ?? [];
   const activity = existing?.activity ?? [];
@@ -102,11 +99,145 @@ export default function ItemGroupForm() {
   const getAllValidationErrors = (): ValidationError[] => {
     const allErrors: ValidationError[] = [];
 
+    // 1. Validate Item Group Name (required for new records)
     if (isNew && !itemGroupName.trim()) {
-      allErrors.push({ field: 'itemGroupName', label: 'Item Group Name', message: 'Item group name is required' });
+      allErrors.push({ 
+        field: 'itemGroupName', 
+        label: 'Item Group Name', 
+        message: 'Item group name is required' 
+      });
     }
 
+    // 2. Validate Item Group Name length (max 140 characters)
+    if (itemGroupName && itemGroupName.length > 140) {
+      allErrors.push({ 
+        field: 'itemGroupName', 
+        label: 'Item Group Name', 
+        message: 'Item group name must not exceed 140 characters' 
+      });
+    }
+
+    // 3. Validate Parent Item Group length (max 140 characters)
+    if (parentItemGroup && parentItemGroup.length > 140) {
+      allErrors.push({ 
+        field: 'parentItemGroup', 
+        label: 'Parent Item Group', 
+        message: 'Parent item group must not exceed 140 characters' 
+      });
+    }
+
+    // 4. Validate HSN/SAC length (max 140 characters)
+    if (hsnSac && hsnSac.length > 140) {
+      allErrors.push({ 
+        field: 'hsnSac', 
+        label: 'HSN/SAC', 
+        message: 'HSN/SAC must not exceed 140 characters' 
+      });
+    }
+
+    // 5. Validate defaults rows
+    defaults.forEach((row, index) => {
+      if (!row.company.trim()) {
+        allErrors.push({
+          field: `defaults[${index}].company`,
+          label: `Default Row ${index + 1} - Company`,
+          message: `Company is required in default row ${index + 1}`
+        });
+      }
+      if (row.company && row.company.length > 140) {
+        allErrors.push({
+          field: `defaults[${index}].company`,
+          label: `Default Row ${index + 1} - Company`,
+          message: `Company must not exceed 140 characters in row ${index + 1}`
+        });
+      }
+      if (row.defaultWarehouse && row.defaultWarehouse.length > 140) {
+        allErrors.push({
+          field: `defaults[${index}].defaultWarehouse`,
+          label: `Default Row ${index + 1} - Warehouse`,
+          message: `Default warehouse must not exceed 140 characters in row ${index + 1}`
+        });
+      }
+      if (row.defaultPriceList && row.defaultPriceList.length > 140) {
+        allErrors.push({
+          field: `defaults[${index}].defaultPriceList`,
+          label: `Default Row ${index + 1} - Price List`,
+          message: `Default price list must not exceed 140 characters in row ${index + 1}`
+        });
+      }
+    });
+
+    // 6. Validate taxes rows
+    taxes.forEach((row, index) => {
+      if (!row.itemTaxTemplate.trim()) {
+        allErrors.push({
+          field: `taxes[${index}].itemTaxTemplate`,
+          label: `Tax Row ${index + 1} - Item Tax Template`,
+          message: `Item tax template is required in tax row ${index + 1}`
+        });
+      }
+      if (row.itemTaxTemplate && row.itemTaxTemplate.length > 140) {
+        allErrors.push({
+          field: `taxes[${index}].itemTaxTemplate`,
+          label: `Tax Row ${index + 1} - Item Tax Template`,
+          message: `Item tax template must not exceed 140 characters in row ${index + 1}`
+        });
+      }
+      if (row.taxCategory && row.taxCategory.length > 140) {
+        allErrors.push({
+          field: `taxes[${index}].taxCategory`,
+          label: `Tax Row ${index + 1} - Tax Category`,
+          message: `Tax category must not exceed 140 characters in row ${index + 1}`
+        });
+      }
+      if (row.validFrom && row.validFrom.length > 140) {
+        allErrors.push({
+          field: `taxes[${index}].validFrom`,
+          label: `Tax Row ${index + 1} - Valid From`,
+          message: `Valid from must not exceed 140 characters in row ${index + 1}`
+        });
+      }
+      if (row.minNetRate && row.minNetRate.length > 140) {
+        allErrors.push({
+          field: `taxes[${index}].minNetRate`,
+          label: `Tax Row ${index + 1} - Min Net Rate`,
+          message: `Min net rate must not exceed 140 characters in row ${index + 1}`
+        });
+      }
+      if (row.maxNetRate && row.maxNetRate.length > 140) {
+        allErrors.push({
+          field: `taxes[${index}].maxNetRate`,
+          label: `Tax Row ${index + 1} - Max Net Rate`,
+          message: `Max net rate must not exceed 140 characters in row ${index + 1}`
+        });
+      }
+      // Validate numeric fields
+      if (row.minNetRate && isNaN(Number(row.minNetRate))) {
+        allErrors.push({
+          field: `taxes[${index}].minNetRate`,
+          label: `Tax Row ${index + 1} - Min Net Rate`,
+          message: `Min net rate must be a number in row ${index + 1}`
+        });
+      }
+      if (row.maxNetRate && isNaN(Number(row.maxNetRate))) {
+        allErrors.push({
+          field: `taxes[${index}].maxNetRate`,
+          label: `Tax Row ${index + 1} - Max Net Rate`,
+          message: `Max net rate must be a number in row ${index + 1}`
+        });
+      }
+    });
+
     return allErrors;
+  };
+
+  // ─── Field Error Helper ────────────────────────────────────────────
+  const getFieldError = (field: string): string | undefined => {
+    // Only show errors if form has been submitted
+    if (!formSubmitted) {
+      return undefined;
+    }
+    return errors[field];
   };
 
   // ─── Handlers ────────────────────────────────────────────────────────
@@ -133,11 +264,26 @@ export default function ItemGroupForm() {
   const handleSave = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setApiError(null);
+    setFormSubmitted(true);
 
     const validationErrorsList = getAllValidationErrors();
     if (validationErrorsList.length > 0) {
-      setValidationErrors(validationErrorsList);
-      setShowValidationSummary(true);
+      // Set errors
+      const fieldErrors: { [key: string]: string } = {};
+      validationErrorsList.forEach(error => {
+        fieldErrors[error.field] = error.message;
+      });
+      setErrors(fieldErrors);
+      
+      // Scroll to first error field
+      const firstError = validationErrorsList[0];
+      const element = document.querySelector(`[data-field="${firstError.field}"]`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Focus on the first error field
+        const input = element as HTMLInputElement;
+        input.focus();
+      }
       return;
     }
 
@@ -148,9 +294,8 @@ export default function ItemGroupForm() {
         const payload = {
           item_group_name: itemGroupName.trim(),
           parent_item_group: parentItemGroup || "All Item Groups",
-          is_group: 0, // Always 0 as per requirement
-          owner: "Administrator",
-          modified_by: "Administrator"
+          is_group: isGroup ? 1 : 0,
+          modified_by: "Administrator",
         };
 
         const response = await api.post('/item-group', payload);
@@ -164,8 +309,13 @@ export default function ItemGroupForm() {
         }
       } else {
         // Update existing item group
-        // Note: You might need to implement PUT/PATCH endpoint for updates
-        console.log('Update mode - not implemented yet');
+        const payload = {
+          parent_item_group: parentItemGroup || "All Item Groups",
+          is_group: isGroup ? 1 : 0,
+          modified_by: "Administrator",
+        };
+        
+        console.log('Update mode - payload:', payload);
         setIsDirty(false);
         navigate('/item-group');
       }
@@ -190,57 +340,40 @@ export default function ItemGroupForm() {
     }
   };
 
-  const hasErrors = getAllValidationErrors().length > 0;
+  const hasErrors = formSubmitted && getAllValidationErrors().length > 0;
 
   return (
     <div className={`igf-page ${theme}`}>
       <div className="igf-inner">
 
-        {/* ─── Validation Summary Modal ────────────────────────────── */}
-        {showValidationSummary && validationErrors.length > 0 && (
-          <div className="modal-overlay" onClick={() => setShowValidationSummary(false)}>
-            <div className="validation-summary-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="modal-header">
-                <h2>
-                  <FaExclamationTriangle /> Missing Required Fields
-                </h2>
-                <button className="modal-close" onClick={() => setShowValidationSummary(false)}>×</button>
-              </div>
-              <div className="modal-body">
-                <p className="modal-description">
-                  Please fill in the following required fields before submitting:
-                </p>
-                <div className="validation-errors-list">
-                  {validationErrors.map((error, idx) => (
-                    <div key={idx} className="validation-error-item">
-                      <div className="error-header">
-                        <FaTimesCircle className="error-icon" />
-                        <strong>{error.label}</strong>
-                      </div>
-                      <div className="error-message">{error.message}</div>
-                    </div>
-                  ))}
-                </div>
-                <div className="validation-tip">
-                  <FaInfoCircle className="tip-icon" />
-                  Please fix the errors above before submitting
-                </div>
-              </div>
-              <div className="modal-footer">
-                <button className="btn-cancel" onClick={() => setShowValidationSummary(false)}>
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* ─── API Error Display ────────────────────────────────────── */}
         {apiError && (
-          <div className="igf-api-error">
-            <FaExclamationCircle className="error-icon" />
-            <span>{apiError}</span>
-            <button className="error-close" onClick={() => setApiError(null)}>×</button>
+          <div className="igf-api-error" style={{ 
+            background: '#fee', 
+            border: '1px solid #fcc', 
+            borderRadius: '4px', 
+            padding: '12px 16px',
+            marginBottom: '16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px'
+          }}>
+            <FaExclamationCircle style={{ color: '#dc3545' }} />
+            <span style={{ color: '#dc3545' }}>{apiError}</span>
+            <button 
+              className="error-close" 
+              onClick={() => setApiError(null)}
+              style={{ 
+                marginLeft: 'auto',
+                background: 'none',
+                border: 'none',
+                fontSize: '18px',
+                cursor: 'pointer',
+                color: '#dc3545'
+              }}
+            >
+              ×
+            </button>
           </div>
         )}
 
@@ -253,7 +386,16 @@ export default function ItemGroupForm() {
             <h1>{isNew ? 'Add New Item Group' : `Edit: ${itemGroupName}`}</h1>
           </div>
           {hasErrors && (
-            <div className="error-badge">
+            <div className="error-badge" style={{
+              background: '#dc3545',
+              color: 'white',
+              padding: '4px 10px',
+              borderRadius: '12px',
+              fontSize: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px'
+            }}>
               <FaExclamationTriangle size={12} />
               {getAllValidationErrors().length} missing field{getAllValidationErrors().length !== 1 ? 's' : ''}
             </div>
@@ -276,12 +418,26 @@ export default function ItemGroupForm() {
                 <input
                   type="text"
                   value={itemGroupName}
-                  onChange={(e) => { setItemGroupName(e.target.value); setIsDirty(true); }}
-                  className={`form-field${errors.itemGroupName ? ' field-error' : ''}`}
-                  placeholder="Enter item group name"
+                  onChange={(e) => { 
+                    setItemGroupName(e.target.value); 
+                    setIsDirty(true);
+                  }}
+                  className={`form-field${getFieldError('itemGroupName') ? ' field-error' : ''}`}
+                  placeholder="Enter item group name (max 140 characters)"
                   disabled={submitting}
+                  maxLength={140}
+                  data-field="itemGroupName"
                 />
-                {errors.itemGroupName && <span className="igf-error-msg"><FaExclamationCircle size={10} />{errors.itemGroupName}</span>}
+                {getFieldError('itemGroupName') && (
+                  <span className="igf-error-msg" style={{ color: 'red', fontSize: '12px', marginTop: '4px', display: 'block' }}>
+                    <FaExclamationCircle size={10} /> {getFieldError('itemGroupName')}
+                  </span>
+                )}
+                {itemGroupName.length > 0 && (
+                  <p className="igf-field-hint" style={{ fontSize: '11px', color: itemGroupName.length > 140 ? '#dc3545' : '#6c757d' }}>
+                    {itemGroupName.length}/140 characters
+                  </p>
+                )}
               </div>
             )}
 
@@ -291,11 +447,26 @@ export default function ItemGroupForm() {
                 <input
                   type="text"
                   value={parentItemGroup}
-                  onChange={(e) => { setParentItemGroup(e.target.value); setIsDirty(true); }}
-                  className="form-field"
-                  placeholder="Select parent group"
+                  onChange={(e) => { 
+                    setParentItemGroup(e.target.value); 
+                    setIsDirty(true);
+                  }}
+                  className={`form-field${getFieldError('parentItemGroup') ? ' field-error' : ''}`}
+                  placeholder="Select parent group (max 140 characters)"
                   disabled={submitting}
+                  maxLength={140}
+                  data-field="parentItemGroup"
                 />
+                {getFieldError('parentItemGroup') && (
+                  <span className="igf-error-msg" style={{ color: 'red', fontSize: '12px', marginTop: '4px', display: 'block' }}>
+                    <FaExclamationCircle size={10} /> {getFieldError('parentItemGroup')}
+                  </span>
+                )}
+                {parentItemGroup.length > 0 && (
+                  <p className="igf-field-hint" style={{ fontSize: '11px', color: parentItemGroup.length > 140 ? '#dc3545' : '#6c757d' }}>
+                    {parentItemGroup.length}/140 characters
+                  </p>
+                )}
               </div>
 
               <div className="igf-field">
@@ -303,14 +474,26 @@ export default function ItemGroupForm() {
                 <input
                   type="text"
                   value={hsnSac}
-                  onChange={(e) => { setHsnSac(e.target.value); setIsDirty(true); }}
-                  className="form-field"
-                  placeholder="Enter HSN/SAC code"
+                  onChange={(e) => { 
+                    setHsnSac(e.target.value); 
+                    setIsDirty(true);
+                  }}
+                  className={`form-field${getFieldError('hsnSac') ? ' field-error' : ''}`}
+                  placeholder="Enter HSN/SAC code (max 140 characters)"
                   disabled={submitting}
+                  maxLength={140}
+                  data-field="hsnSac"
                 />
-                <p className="igf-field-hint">
-                  You can search code by the description of the category.
-                </p>
+                {getFieldError('hsnSac') && (
+                  <span className="igf-error-msg" style={{ color: 'red', fontSize: '12px', marginTop: '4px', display: 'block' }}>
+                    <FaExclamationCircle size={10} /> {getFieldError('hsnSac')}
+                  </span>
+                )}
+                {hsnSac.length > 0 && (
+                  <p className="igf-field-hint" style={{ fontSize: '11px', color: hsnSac.length > 140 ? '#dc3545' : '#6c757d' }}>
+                    {hsnSac.length}/140 characters
+                  </p>
+                )}
               </div>
             </div>
 
@@ -319,7 +502,10 @@ export default function ItemGroupForm() {
                 type="checkbox"
                 id="isGroup"
                 checked={isGroup}
-                onChange={(e) => { setIsGroup(e.target.checked); setIsDirty(true); }}
+                onChange={(e) => { 
+                  setIsGroup(e.target.checked); 
+                  setIsDirty(true);
+                }}
                 className="igf-checkbox"
                 disabled={submitting}
               />
@@ -365,33 +551,76 @@ export default function ItemGroupForm() {
                         <td colSpan={6} className="igf-empty-row">No rows</td>
                       </tr>
                     ) : (
-                      defaults.map((row, i) => (
-                        <tr key={row.id} className="igf-itr">
-                          <td className="igf-itd"><input type="checkbox" className="igf-checkbox" disabled={submitting} /></td>
-                          <td className="igf-itd igf-itd-no">{i + 1}</td>
-                          <td className="igf-itd">
-                            <input className="igf-cell-input" value={row.company} onChange={(e) => {
-                              setDefaults(defaults.map(r => r.id === row.id ? { ...r, company: e.target.value } : r));
-                              setIsDirty(true);
-                            }} disabled={submitting} />
-                          </td>
-                          <td className="igf-itd">
-                            <input className="igf-cell-input" value={row.defaultWarehouse} onChange={(e) => {
-                              setDefaults(defaults.map(r => r.id === row.id ? { ...r, defaultWarehouse: e.target.value } : r));
-                              setIsDirty(true);
-                            }} disabled={submitting} />
-                          </td>
-                          <td className="igf-itd">
-                            <input className="igf-cell-input" value={row.defaultPriceList} onChange={(e) => {
-                              setDefaults(defaults.map(r => r.id === row.id ? { ...r, defaultPriceList: e.target.value } : r));
-                              setIsDirty(true);
-                            }} disabled={submitting} />
-                          </td>
-                          <td className="igf-itd">
-                            <button className="igf-remove-row" onClick={() => removeDefaultRow(row.id)} type="button" disabled={submitting}>×</button>
-                          </td>
-                        </tr>
-                      ))
+                      defaults.map((row, i) => {
+                        const companyError = getFieldError(`defaults[${i}].company`);
+                        const warehouseError = getFieldError(`defaults[${i}].defaultWarehouse`);
+                        const priceListError = getFieldError(`defaults[${i}].defaultPriceList`);
+                        
+                        return (
+                          <tr key={row.id} className="igf-itr">
+                            <td className="igf-itd"><input type="checkbox" className="igf-checkbox" disabled={submitting} /></td>
+                            <td className="igf-itd igf-itd-no">{i + 1}</td>
+                            <td className="igf-itd">
+                              <input 
+                                className={`igf-cell-input${companyError ? ' field-error' : ''}`} 
+                                value={row.company} 
+                                onChange={(e) => {
+                                  setDefaults(defaults.map(r => r.id === row.id ? { ...r, company: e.target.value } : r));
+                                  setIsDirty(true);
+                                }} 
+                                disabled={submitting}
+                                maxLength={140}
+                                placeholder="Required"
+                                data-field={`defaults[${i}].company`}
+                              />
+                              {companyError && (
+                                <span className="igf-error-msg" style={{ color: 'red', fontSize: '11px', marginTop: '2px', display: 'block' }}>
+                                  <FaExclamationCircle size={10} /> {companyError}
+                                </span>
+                              )}
+                            </td>
+                            <td className="igf-itd">
+                              <input 
+                                className={`igf-cell-input${warehouseError ? ' field-error' : ''}`} 
+                                value={row.defaultWarehouse} 
+                                onChange={(e) => {
+                                  setDefaults(defaults.map(r => r.id === row.id ? { ...r, defaultWarehouse: e.target.value } : r));
+                                  setIsDirty(true);
+                                }} 
+                                disabled={submitting}
+                                maxLength={140}
+                                data-field={`defaults[${i}].defaultWarehouse`}
+                              />
+                              {warehouseError && (
+                                <span className="igf-error-msg" style={{ color: 'red', fontSize: '11px', marginTop: '2px', display: 'block' }}>
+                                  <FaExclamationCircle size={10} /> {warehouseError}
+                                </span>
+                              )}
+                            </td>
+                            <td className="igf-itd">
+                              <input 
+                                className={`igf-cell-input${priceListError ? ' field-error' : ''}`} 
+                                value={row.defaultPriceList} 
+                                onChange={(e) => {
+                                  setDefaults(defaults.map(r => r.id === row.id ? { ...r, defaultPriceList: e.target.value } : r));
+                                  setIsDirty(true);
+                                }} 
+                                disabled={submitting}
+                                maxLength={140}
+                                data-field={`defaults[${i}].defaultPriceList`}
+                              />
+                              {priceListError && (
+                                <span className="igf-error-msg" style={{ color: 'red', fontSize: '11px', marginTop: '2px', display: 'block' }}>
+                                  <FaExclamationCircle size={10} /> {priceListError}
+                                </span>
+                              )}
+                            </td>
+                            <td className="igf-itd">
+                              <button className="igf-remove-row" onClick={() => removeDefaultRow(row.id)} type="button" disabled={submitting}>×</button>
+                            </td>
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
@@ -399,6 +628,7 @@ export default function ItemGroupForm() {
               <button className="igf-add-row" onClick={addDefaultRow} type="button" disabled={submitting}>
                 <FaPlus size={10} /> Add row
               </button>
+              <p className="igf-field-hint">All fields are limited to 140 characters</p>
             </div>
 
             <div className="igf-divider" />
@@ -433,45 +663,116 @@ export default function ItemGroupForm() {
                         <td colSpan={8} className="igf-empty-row">No rows</td>
                       </tr>
                     ) : (
-                      taxes.map((row, i) => (
-                        <tr key={row.id} className="igf-itr">
-                          <td className="igf-itd"><input type="checkbox" className="igf-checkbox" disabled={submitting} /></td>
-                          <td className="igf-itd igf-itd-no">{i + 1}</td>
-                          <td className="igf-itd">
-                            <input className="igf-cell-input" value={row.itemTaxTemplate} onChange={(e) => {
-                              setTaxes(taxes.map(r => r.id === row.id ? { ...r, itemTaxTemplate: e.target.value } : r));
-                              setIsDirty(true);
-                            }} disabled={submitting} />
-                          </td>
-                          <td className="igf-itd">
-                            <input className="igf-cell-input" value={row.taxCategory} onChange={(e) => {
-                              setTaxes(taxes.map(r => r.id === row.id ? { ...r, taxCategory: e.target.value } : r));
-                              setIsDirty(true);
-                            }} disabled={submitting} />
-                          </td>
-                          <td className="igf-itd">
-                            <input className="igf-cell-input" value={row.validFrom} onChange={(e) => {
-                              setTaxes(taxes.map(r => r.id === row.id ? { ...r, validFrom: e.target.value } : r));
-                              setIsDirty(true);
-                            }} disabled={submitting} />
-                          </td>
-                          <td className="igf-itd">
-                            <input className="igf-cell-input" value={row.minNetRate} onChange={(e) => {
-                              setTaxes(taxes.map(r => r.id === row.id ? { ...r, minNetRate: e.target.value } : r));
-                              setIsDirty(true);
-                            }} disabled={submitting} />
-                          </td>
-                          <td className="igf-itd">
-                            <input className="igf-cell-input" value={row.maxNetRate} onChange={(e) => {
-                              setTaxes(taxes.map(r => r.id === row.id ? { ...r, maxNetRate: e.target.value } : r));
-                              setIsDirty(true);
-                            }} disabled={submitting} />
-                          </td>
-                          <td className="igf-itd">
-                            <button className="igf-remove-row" onClick={() => removeTaxRow(row.id)} type="button" disabled={submitting}>×</button>
-                          </td>
-                        </tr>
-                      ))
+                      taxes.map((row, i) => {
+                        const templateError = getFieldError(`taxes[${i}].itemTaxTemplate`);
+                        const categoryError = getFieldError(`taxes[${i}].taxCategory`);
+                        const validFromError = getFieldError(`taxes[${i}].validFrom`);
+                        const minRateError = getFieldError(`taxes[${i}].minNetRate`);
+                        const maxRateError = getFieldError(`taxes[${i}].maxNetRate`);
+                        
+                        return (
+                          <tr key={row.id} className="igf-itr">
+                            <td className="igf-itd"><input type="checkbox" className="igf-checkbox" disabled={submitting} /></td>
+                            <td className="igf-itd igf-itd-no">{i + 1}</td>
+                            <td className="igf-itd">
+                              <input 
+                                className={`igf-cell-input${templateError ? ' field-error' : ''}`} 
+                                value={row.itemTaxTemplate} 
+                                onChange={(e) => {
+                                  setTaxes(taxes.map(r => r.id === row.id ? { ...r, itemTaxTemplate: e.target.value } : r));
+                                  setIsDirty(true);
+                                }} 
+                                disabled={submitting}
+                                maxLength={140}
+                                placeholder="Required"
+                                data-field={`taxes[${i}].itemTaxTemplate`}
+                              />
+                              {templateError && (
+                                <span className="igf-error-msg" style={{ color: 'red', fontSize: '11px', marginTop: '2px', display: 'block' }}>
+                                  <FaExclamationCircle size={10} /> {templateError}
+                                </span>
+                              )}
+                            </td>
+                            <td className="igf-itd">
+                              <input 
+                                className={`igf-cell-input${categoryError ? ' field-error' : ''}`} 
+                                value={row.taxCategory} 
+                                onChange={(e) => {
+                                  setTaxes(taxes.map(r => r.id === row.id ? { ...r, taxCategory: e.target.value } : r));
+                                  setIsDirty(true);
+                                }} 
+                                disabled={submitting}
+                                maxLength={140}
+                                data-field={`taxes[${i}].taxCategory`}
+                              />
+                              {categoryError && (
+                                <span className="igf-error-msg" style={{ color: 'red', fontSize: '11px', marginTop: '2px', display: 'block' }}>
+                                  <FaExclamationCircle size={10} /> {categoryError}
+                                </span>
+                              )}
+                            </td>
+                            <td className="igf-itd">
+                              <input 
+                                className={`igf-cell-input${validFromError ? ' field-error' : ''}`} 
+                                value={row.validFrom} 
+                                onChange={(e) => {
+                                  setTaxes(taxes.map(r => r.id === row.id ? { ...r, validFrom: e.target.value } : r));
+                                  setIsDirty(true);
+                                }} 
+                                disabled={submitting}
+                                maxLength={140}
+                                data-field={`taxes[${i}].validFrom`}
+                              />
+                              {validFromError && (
+                                <span className="igf-error-msg" style={{ color: 'red', fontSize: '11px', marginTop: '2px', display: 'block' }}>
+                                  <FaExclamationCircle size={10} /> {validFromError}
+                                </span>
+                              )}
+                            </td>
+                            <td className="igf-itd">
+                              <input 
+                                className={`igf-cell-input${minRateError ? ' field-error' : ''}`} 
+                                value={row.minNetRate} 
+                                onChange={(e) => {
+                                  setTaxes(taxes.map(r => r.id === row.id ? { ...r, minNetRate: e.target.value } : r));
+                                  setIsDirty(true);
+                                }} 
+                                disabled={submitting}
+                                maxLength={140}
+                                placeholder="Number"
+                                data-field={`taxes[${i}].minNetRate`}
+                              />
+                              {minRateError && (
+                                <span className="igf-error-msg" style={{ color: 'red', fontSize: '11px', marginTop: '2px', display: 'block' }}>
+                                  <FaExclamationCircle size={10} /> {minRateError}
+                                </span>
+                              )}
+                            </td>
+                            <td className="igf-itd">
+                              <input 
+                                className={`igf-cell-input${maxRateError ? ' field-error' : ''}`} 
+                                value={row.maxNetRate} 
+                                onChange={(e) => {
+                                  setTaxes(taxes.map(r => r.id === row.id ? { ...r, maxNetRate: e.target.value } : r));
+                                  setIsDirty(true);
+                                }} 
+                                disabled={submitting}
+                                maxLength={140}
+                                placeholder="Number"
+                                data-field={`taxes[${i}].maxNetRate`}
+                              />
+                              {maxRateError && (
+                                <span className="igf-error-msg" style={{ color: 'red', fontSize: '11px', marginTop: '2px', display: 'block' }}>
+                                  <FaExclamationCircle size={10} /> {maxRateError}
+                                </span>
+                              )}
+                            </td>
+                            <td className="igf-itd">
+                              <button className="igf-remove-row" onClick={() => removeTaxRow(row.id)} type="button" disabled={submitting}>×</button>
+                            </td>
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
@@ -479,6 +780,7 @@ export default function ItemGroupForm() {
               <button className="igf-add-row" onClick={addTaxRow} type="button" disabled={submitting}>
                 <FaPlus size={10} /> Add row
               </button>
+              <p className="igf-field-hint">All fields are limited to 140 characters. Min/Max Net Rate should be numbers.</p>
             </div>
 
             {/* ─── Comments & Activity (only for existing records) ─── */}
@@ -495,6 +797,7 @@ export default function ItemGroupForm() {
                     value={commentText}
                     onChange={(e) => setCommentText(e.target.value)}
                     disabled={submitting}
+                    maxLength={140}
                   />
                 </div>
 
