@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import ReactDOM from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   FaArrowLeft, FaSave, FaSpinner, FaPlus,
@@ -6,7 +7,7 @@ import {
   FaBarcode, FaTag,
   FaTimes, FaExclamationTriangle, FaInfoCircle,
   FaUser, FaCreditCard, FaCalendarAlt,
-   FaHands // Added icons for Items/Services
+  FaHands // Added icons for Items/Services
 } from 'react-icons/fa';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import './CreateQuotation.css';
@@ -36,11 +37,11 @@ interface PaymentScheduleRow {
 }
 
 interface QuotationForm {
-  type: string;           
+  type: string;
   date: string;
   validTill: string;
-  customer: string;      
-  customerName: string;  
+  customer: string;
+  customerName: string;
   status: string;
   items: QuotationItem[];
   totalQuantity: number;
@@ -168,7 +169,7 @@ export default function CreateQuotation() {
   } catch (error) {
     console.log('Using default light theme');
   }
-
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number; width: number } | null>(null);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [saving, setSaving] = useState(false);
   const [loadingRecord, setLoadingRecord] = useState(false);
@@ -298,7 +299,7 @@ export default function CreateQuotation() {
   // ─── Handle Type Change (Items/Services) ──────────────────────
   const handleTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const value = e.target.value;
-    
+
     // Clear existing items when switching type
     setFormData((prev) => ({
       ...prev,
@@ -313,11 +314,11 @@ export default function CreateQuotation() {
       grandTotal: 0,
       roundedTotal: 0
     }));
-    
+
     // Clear item suggestions when type changes
     setItemSuggestions({});
     setOpenItemDropdown(null);
-    
+
     // Show toast notification
     toast.success(`Switched to ${value}`);
   };
@@ -367,7 +368,29 @@ export default function CreateQuotation() {
     if (!itemSuggestions[index]) {
       fetchItemOptions(index, formData.items[index].itemCode);
     }
+    const el = itemInputRefs.current[`item_${index}_itemCode`];
+    if (el) {
+      const rect = el.getBoundingClientRect();
+      setDropdownPos({ top: rect.bottom + 2, left: rect.left, width: Math.max(rect.width, 220) });
+    }
   };
+
+  useEffect(() => {
+    if (openItemDropdown === null) return;
+    const updatePos = () => {
+      const el = itemInputRefs.current[`item_${openItemDropdown}_itemCode`];
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        setDropdownPos({ top: rect.bottom + 2, left: rect.left, width: Math.max(rect.width, 220) });
+      }
+    };
+    window.addEventListener('scroll', updatePos, true);
+    window.addEventListener('resize', updatePos);
+    return () => {
+      window.removeEventListener('scroll', updatePos, true);
+      window.removeEventListener('resize', updatePos);
+    };
+  }, [openItemDropdown]);
 
   const handleItemCodeBlur = () => {
     setTimeout(() => setOpenItemDropdown(null), 150);
@@ -1229,24 +1252,28 @@ export default function CreateQuotation() {
                         />
                         {errors[`item_${index}_code`] && <span className="error-text">{errors[`item_${index}_code`]}</span>}
 
-                        {openItemDropdown === index && (
-                          <div className="cq-item-suggest-dropdown">
-                            {itemSuggestLoading[index] && (
+                        {openItemDropdown !== null && dropdownPos && ReactDOM.createPortal(
+                          <div
+                            className="cq-item-suggest-dropdown"
+                            style={{ position: 'fixed', top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}
+                          >
+                            {itemSuggestLoading[openItemDropdown] && (
                               <div className="cq-item-suggest-loading"><FaSpinner className="spinning" size={11} /> Searching...</div>
                             )}
-                            {!itemSuggestLoading[index] && (itemSuggestions[index]?.length ?? 0) === 0 && (
+                            {!itemSuggestLoading[openItemDropdown] && (itemSuggestions[openItemDropdown]?.length ?? 0) === 0 && (
                               <div className="cq-item-suggest-empty">No {formData.type.toLowerCase()} found</div>
                             )}
-                            {!itemSuggestLoading[index] && itemSuggestions[index]?.map((rec, ri) => (
+                            {!itemSuggestLoading[openItemDropdown] && itemSuggestions[openItemDropdown]?.map((rec, ri) => (
                               <div
                                 key={ri}
                                 className="cq-item-suggest-row"
-                                onMouseDown={() => selectItemSuggestion(index, rec)}
+                                onMouseDown={() => selectItemSuggestion(openItemDropdown, rec)}
                               >
                                 {itemOptionLabel(rec)}
                               </div>
                             ))}
-                          </div>
+                          </div>,
+                          document.body
                         )}
                       </td>
                       <td>

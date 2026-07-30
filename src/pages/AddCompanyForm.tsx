@@ -3,8 +3,8 @@ import type { ChangeEvent, FormEvent } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import {
   FaArrowLeft, FaSave, FaSpinner, FaInfoCircle, FaExclamationTriangle,
-  FaTimesCircle, FaFileAlt, FaShoppingCart, FaIndustry, FaPercentage,
-  FaUniversity, FaArrowRight, FaFileInvoiceDollar, FaCheckCircle,
+  FaTimesCircle, FaFileAlt, FaShoppingCart, FaPercentage,
+  FaUniversity, FaArrowRight, FaCheckCircle,
 } from "react-icons/fa";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -60,6 +60,30 @@ interface ValidationError {
 
 type SectionKey = "details" | "buy-sell" | "stock" | "bank";
 
+interface CompanyBankAccount {
+  _key: string;
+  recordId: number | string | null;
+  docName: string | null;
+  account_holder_name: string;
+  account_type: string;
+  bank_name: string;
+  branch_name: string;
+  account_number: string;
+  ifsc_code: string;
+  micr_code: string;
+  swift_code: string;
+  iban: string;
+  upi_id: string;
+  currency: string;
+  cancelled_cheque: string;
+  passbook_copy: string;
+  verified: boolean;
+  verified_by: string;
+  verified_on: string;
+  is_primary: boolean;
+  remarks: string;
+}
+
 const GST_CATEGORY_OPTIONS = [
   "Unregistered", "Registered Regular", "Registered Composition", "SEZ",
   "Overseas", "Deemed Export", "UIN Holders", "Tax Deductor", "Tax Collector",
@@ -111,6 +135,81 @@ const formatDateForApi = (date: Date): string => {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 };
 
+const mapApiCompanyToForm = (c: any): Partial<CompanyFormData> => ({
+  company: c.company_name || c.company || "",
+  default_letter_head: c.default_letter_head || "",
+  abbr: c.abbr || "",
+  tax_id: c.tax_id || "",
+  default_currency: c.default_currency || "",
+  domain: c.domain || "",
+  country: c.country || "",
+  date_of_establishment: c.date_of_establishment ? new Date(c.date_of_establishment) : null,
+  default_gst_rate: c.default_gst_rate ?? 18,
+  parent_company: c.parent_company || "",
+  is_group: c.is_group === 1 || c.is_group === true,
+  default_holiday_list: c.default_holiday_list || "",
+  gstin_uin: c.gstin_uin || "",
+  gst_category: c.gst_category || "Unregistered",
+  pan: c.pan || "",
+  registration_details: c.registration_details || "",
+
+  default_buying_terms: c.default_buying_terms || "",
+  default_selling_terms: c.default_selling_terms || "",
+  monthly_sales_target: c.monthly_sales_target || 0,
+  default_sales_contact: c.default_sales_contact || "",
+  default_warehouse_for_sales_return: c.default_warehouse_for_sales_return || "",
+  purchase_expense_account: c.purchase_expense_account || "",
+  purchase_expense_contra_account: c.purchase_expense_contra_account || "",
+  service_expense_account: c.service_expense_account || "",
+
+  default_operating_cost_account: c.default_operating_cost_account || "",
+  default_work_in_progress_warehouse: c.default_work_in_progress_warehouse || "",
+  default_finished_goods_warehouse: c.default_finished_goods_warehouse || "",
+  default_scrap_warehouse: c.default_scrap_warehouse || "",
+});
+
+const buildBankAccountSignature = (row: any): string => {
+  const parts = [
+    row.account_number,
+    row.ifsc_code,
+    row.iban,
+    row.upi_id,
+    row.bank_name,
+    row.account_holder_name,
+  ]
+    .map((v) => (v == null ? "" : String(v).trim().toLowerCase()))
+    .join("|");
+  return `sig-${parts}`;
+};
+
+const mapCompanyBankAccountRow = (row: any): CompanyBankAccount => ({
+  _key: row.id
+    ? `saved-${row.id}`
+    : row.recordId
+      ? `saved-${row.recordId}`
+      : row._key || buildBankAccountSignature(row),
+  recordId: row.id ?? row.recordId ?? null,
+  docName: row.docName ?? row.name ?? null,
+  account_holder_name: row.account_holder_name || "",
+  account_type: row.account_type || "Savings",
+  bank_name: row.bank_name || "",
+  branch_name: row.branch_name || "",
+  account_number: row.account_number || "",
+  ifsc_code: row.ifsc_code || "",
+  micr_code: row.micr_code || "",
+  swift_code: row.swift_code || "",
+  iban: row.iban || "",
+  upi_id: row.upi_id || "",
+  currency: row.currency || "INR",
+  cancelled_cheque: row.cancelled_cheque || "",
+  passbook_copy: row.passbook_copy || "",
+  verified: row.verified === 1 || row.verified === true,
+  verified_by: row.verified_by || "",
+  verified_on: row.verified_on || "",
+  is_primary: row.is_primary === 1 || row.is_primary === true,
+  remarks: row.remarks || "",
+});
+
 const AddCompanyForm: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -121,6 +220,7 @@ const AddCompanyForm: React.FC = () => {
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [saving, setSaving] = useState(false);
+  const [fetching, setFetching] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
 
   const [showValidationSummary, setShowValidationSummary] = useState(false);
@@ -128,15 +228,8 @@ const AddCompanyForm: React.FC = () => {
 
   const [formData, setFormData] = useState<CompanyFormData>(defaultFormData());
 
-  // Bank accounts collected via the "Manage Bank Account" sub-flow. These
-  // travel with the company payload on submit rather than being saved
-  // independently — see the embedContext handoff below.
-  const [bankAccounts, setBankAccounts] = useState<Record<string, any>[]>([]);
+  const [bankAccounts, setBankAccounts] = useState<CompanyBankAccount[]>([]);
 
-  // Draft cache key — same pattern as AddSupplier. Navigating to
-  // /bank-details/... and back unmounts this component, which would wipe
-  // React state; we persist to localStorage right before leaving and
-  // restore it when we detect we've come back.
   const [formDraftKey, setFormDraftKey] = useState<string>("");
 
   const sectionRefs = useRef<Record<SectionKey, HTMLDivElement | null>>({
@@ -146,8 +239,9 @@ const AddCompanyForm: React.FC = () => {
     bank: null,
   });
 
-  // ─── set up the draft key, and load company data (from nav state,
-  //     from a saved draft, or start fresh) ──────────────────────────────
+  const processedBankStateRef = useRef<unknown>(null);
+
+  
   useEffect(() => {
     if (isEditMode && id) {
       const formKey = `company_form_draft_edit_${id}`;
@@ -159,31 +253,7 @@ const AddCompanyForm: React.FC = () => {
         restoreFormDraft(formKey);
         return;
       }
-
-      const state = location.state as { company?: any };
-      if (state?.company) {
-        loadCompanyIntoForm(state.company);
-        // Seed the draft immediately — router state gets replaced the
-        // moment we come back from Bank Details, so this is what a
-        // subsequent round trip will restore from.
-        try {
-          localStorage.setItem(
-            formKey,
-            JSON.stringify({
-              formData: {
-                ...state.company,
-                date_of_establishment: state.company.date_of_establishment || null,
-              },
-            })
-          );
-        } catch {
-          /* ignore quota errors etc. */
-        }
-      } else {
-        // No company passed via nav state — fall back to whatever was
-        // last saved to the draft for this company id, if anything.
-        restoreFormDraft(formKey);
-      }
+      fetchCompany(id, formKey);
     } else {
       const returningFromBankDetails = !!(location.state as any)?.bankAccountsUpdated;
       const oldDraftId = sessionStorage.getItem("new_company_draft_id");
@@ -195,7 +265,6 @@ const AddCompanyForm: React.FC = () => {
         return;
       }
 
-      // Fresh "New Company" visit — clear any stale draft and start over.
       const oldDraftIdToClear = sessionStorage.getItem("new_company_draft_id");
       if (oldDraftIdToClear) {
         localStorage.removeItem(`company_form_draft_new_${oldDraftIdToClear}`);
@@ -210,7 +279,6 @@ const AddCompanyForm: React.FC = () => {
       setFormData(defaultFormData());
       setBankAccounts([]);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, isEditMode]);
 
   // ─── pick up bank accounts handed back from the Bank Details sub-flow ───
@@ -218,12 +286,16 @@ const AddCompanyForm: React.FC = () => {
     const state = location.state as { bankAccountsUpdated?: boolean; updatedAccounts?: any[] } | undefined;
     if (!state?.bankAccountsUpdated) return;
 
+    if (processedBankStateRef.current === state) return;
+    processedBankStateRef.current = state;
+
     if (Array.isArray(state.updatedAccounts) && state.updatedAccounts.length > 0) {
       setBankAccounts((prev) => {
         const merged = [...prev];
         let primaryKeepIdx: number | null = null;
 
-        state.updatedAccounts!.forEach((row) => {
+        state.updatedAccounts!.forEach((raw) => {
+          const row = mapCompanyBankAccountRow(raw);
           const existingIdx =
             row.recordId != null
               ? merged.findIndex((a) => a.recordId === row.recordId)
@@ -247,10 +319,43 @@ const AddCompanyForm: React.FC = () => {
       });
     }
 
-    // Clear the flag so navigating away and back doesn't re-trigger this.
     navigate(location.pathname, { replace: true, state: {} });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state]);
+
+
+  const fetchCompany = async (companyId: string, formKey: string) => {
+    setFetching(true);
+    setApiError(null);
+    try {
+      const response = await api.get(`/company/${companyId}?_=${Date.now()}`);
+      if (response.data && response.data.success === 1) {
+        const data = response.data.data;
+        loadCompanyIntoForm(data);
+
+        try {
+          const stored = JSON.parse(localStorage.getItem(formKey) || "null");
+          if (stored?.formData) {
+            setFormData((prev) => ({
+              ...prev,
+              ...stored.formData,
+              date_of_establishment: stored.formData.date_of_establishment
+                ? new Date(stored.formData.date_of_establishment)
+                : null,
+            }));
+          }
+        } catch {
+          /* ignore */
+        }
+      } else {
+        setApiError(response.data?.message || "Failed to fetch company details");
+      }
+    } catch (err: any) {
+      console.error("Error fetching company:", err);
+      setApiError(err.response?.data?.message || "Failed to fetch company details");
+    } finally {
+      setFetching(false);
+    }
+  };
 
   const restoreFormDraft = (formKey: string) => {
     try {
@@ -263,6 +368,9 @@ const AddCompanyForm: React.FC = () => {
             ? new Date(stored.formData.date_of_establishment)
             : null,
         }));
+      }
+      if (Array.isArray(stored?.bankAccounts)) {
+        setBankAccounts(stored.bankAccounts);
       }
     } catch {
       /* ignore */
@@ -281,6 +389,7 @@ const AddCompanyForm: React.FC = () => {
               ? formatDateForApi(formData.date_of_establishment)
               : null,
           },
+          bankAccounts,
         })
       );
     } catch {
@@ -291,11 +400,10 @@ const AddCompanyForm: React.FC = () => {
   const loadCompanyIntoForm = (c: any) => {
     setFormData((prev) => ({
       ...prev,
-      ...c,
-      date_of_establishment: c.date_of_establishment ? new Date(c.date_of_establishment) : null,
+      ...mapApiCompanyToForm(c),
     }));
     if (Array.isArray(c.bank_details)) {
-      setBankAccounts(c.bank_details);
+      setBankAccounts(c.bank_details.map(mapCompanyBankAccountRow));
     }
   };
 
@@ -352,8 +460,7 @@ const AddCompanyForm: React.FC = () => {
   // ─── bank details sub-flow ─────────────────────────────────────────────
 
   const openBankDetails = () => {
-    // Save what's on screen right now — navigating away unmounts this
-    // component, so React state alone won't survive the round trip.
+
     persistFormDraft();
 
     navigate("/bank-details", {
@@ -469,6 +576,7 @@ const AddCompanyForm: React.FC = () => {
 
     if (isEditMode && id) {
       payload.id = Number(id);
+      payload.company_id = Number(id);
     }
 
     return payload;
@@ -493,8 +601,8 @@ const AddCompanyForm: React.FC = () => {
     const payload = buildCompanyApiPayload();
 
     try {
-      if (isEditMode) {
-        const response = await api.put("/company", payload, {
+      if (isEditMode && id) {
+        const response = await api.put(`/company`, payload, {
           headers: { "Content-Type": "application/json" },
         });
         if (response.data?.success !== undefined && response.data.success !== 1) {
@@ -546,6 +654,17 @@ const AddCompanyForm: React.FC = () => {
   const setSectionRef = (key: SectionKey) => (el: HTMLDivElement | null) => {
     sectionRefs.current[key] = el;
   };
+
+  if (fetching) {
+    return (
+      <div className={`acf-page ${theme}`}>
+        <div className="acf-loading">
+          <FaSpinner className="acf-spinning" size={32} />
+          <p>Loading company details...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`acf-page ${theme}`}>
@@ -615,7 +734,7 @@ const AddCompanyForm: React.FC = () => {
             </div>
           )}
 
-          
+
         </div>
       </div>
 
@@ -779,23 +898,23 @@ const AddCompanyForm: React.FC = () => {
                   <label className="acf-label">Default Warehouse for Sales Return</label>
                   <input type="text" name="default_warehouse_for_sales_return" value={formData.default_warehouse_for_sales_return} onChange={handleInputChange} placeholder="Optional" className="acf-input" />
                 </div>
-                <div>
+                {/* <div>
                   <label className="acf-label">Purchase Expense Account</label>
                   <input type="text" name="purchase_expense_account" value={formData.purchase_expense_account} onChange={handleInputChange} placeholder="Optional" className="acf-input" />
                 </div>
-              </div>
+              </div> */}
 
-              <div className="acf-section-title"><FaFileInvoiceDollar size={12} /> Purchase &amp; Service Expense</div>
+              {/* <div className="acf-section-title"><FaFileInvoiceDollar size={12} /> Purchase &amp; Service Expense</div>
               <div className="acf-grid-3">
                 <div>
-                  <label className="acf-label">Purchase Expense Contra Account</label>
+                  <label className="acf-label">Purchase Expense Account</label>
                   <input type="text" name="purchase_expense_contra_account" value={formData.purchase_expense_contra_account} onChange={handleInputChange} placeholder="Optional" className="acf-input" />
                 </div>
                 <div>
                   <label className="acf-label">Service Expense Account</label>
                   <input type="text" name="service_expense_account" value={formData.service_expense_account} onChange={handleInputChange} placeholder="Optional" className="acf-input" />
                   <span className="acf-field-note">For service item</span>
-                </div>
+                </div> */}
               </div>
             </div>
 

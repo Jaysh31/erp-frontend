@@ -2,10 +2,11 @@
 .cl-page {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  min-height: 100%;
+  height: auto;
   background: var(--layout-bg, #fff);
   border-radius: 8px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 /* ── Stats Cards ─────────────────────────────── */
@@ -361,6 +362,58 @@
   gap: 8px;
 }
 
+/* ── Bank Accounts Column (table cell buttons) ────────────
+   Same look & behavior as SupplierList's supplier-bank-badge /
+   supplier-bank-add-btn. */
+.cl-bank-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  background: #e0e7ff;
+  color: #3730a3;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+
+.cl-bank-badge:hover {
+  background: var(--primary-color, #6366f1);
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px color-mix(in srgb, var(--primary-color) 30%, transparent);
+}
+
+.cl-bank-badge svg {
+  flex-shrink: 0;
+}
+
+.cl-bank-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  background: transparent;
+  color: var(--primary-color, #6366f1);
+  border: 1.5px dashed color-mix(in srgb, var(--primary-color) 45%, var(--border-color));
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+
+.cl-bank-add-btn:hover {
+  background: color-mix(in srgb, var(--primary-color) 8%, transparent);
+  border-color: var(--primary-color, #6366f1);
+  transform: translateY(-1px);
+}
+
 /* ── Meta Buttons ──────────────────────────────────── */
 .cl-ago {
   font-size: 12px;
@@ -568,6 +621,20 @@
   width: 100%;
   box-shadow: 0 20px 40px var(--shadow-color, rgba(0,0,0,0.15));
   border: 1px solid var(--border-color, #e5e7eb);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.cl-modal-bank {
+  max-width: 640px;
+}
+
+.cl-modal-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary, #111827);
 }
 
 .cl-modal-header {
@@ -576,6 +643,7 @@
   align-items: center;
   padding: 20px 24px;
   border-bottom: 1px solid var(--border-color, #e5e7eb);
+  flex-shrink: 0;
 }
 
 .cl-modal-header h3 {
@@ -606,6 +674,17 @@
 .cl-modal-body {
   padding: 24px;
   text-align: center;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.cl-modal-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.cl-modal-body::-webkit-scrollbar-thumb {
+  background: var(--border-color, #e5e7eb);
+  border-radius: 3px;
 }
 
 .cl-modal-body p {
@@ -633,6 +712,8 @@
   gap: 12px;
   padding: 16px 24px;
   border-top: 1px solid var(--border-color, #e5e7eb);
+  flex-shrink: 0;
+  background: var(--layout-bg, #f9fafb);
 }
 
 .cl-modal-btn-cancel {
@@ -648,6 +729,8 @@
 
 .cl-modal-btn-cancel:hover {
   background: var(--nav-hover, #f9fafb);
+  border-color: var(--danger-color, #ef4444);
+  color: var(--danger-color, #ef4444);
 }
 
 .cl-modal-btn-delete {
@@ -666,6 +749,526 @@
 
 .cl-modal-btn-delete:hover {
   background: #dc2626;
+}
+
+.cl-btn-edit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 20px;
+  border: none;
+  border-radius: 8px;
+  background: var(--primary-color, #6366f1);
+  color: white;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.cl-btn-edit:hover {
+  background: var(--primary-hover, #4f46e5);
+}
+
+/* ── Bank Accounts Modal — header, cards, rows ─────────────
+   Mirrors SupplierList's supplier-bank-modal-* / supplier-bank-card-* */
+.cl-bank-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  flex-shrink: 0;
+  background:
+    radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--primary-color) 10%, transparent) 0%, transparent 55%),
+    var(--card-bg, #fff);
+  position: relative;
+}
+
+.cl-bank-modal-header-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--primary-color, #6366f1);
+  color: #fff;
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--primary-color) 35%, transparent);
+}
+
+.cl-bank-modal-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  padding-right: 24px;
+}
+
+.cl-edit-subtitle {
+  font-size: 12.5px;
+  color: var(--text-secondary, #6b7280);
+}
+
+.cl-bank-modal-header .cl-modal-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+}
+
+.cl-bank-modal-body {
+  gap: 14px;
+  background: var(--card-bg, #fff);
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
+
+.cl-bank-card {
+  display: flex;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 14px;
+  background: var(--layout-bg, #f9fafb);
+  transition: border-color 0.15s;
+}
+
+.cl-bank-card:hover {
+  border-color: color-mix(in srgb, var(--primary-color) 35%, var(--border-color));
+}
+
+.cl-bank-card-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--primary-color) 14%, transparent);
+  color: var(--primary-color, #6366f1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.cl-bank-card-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.cl-bank-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cl-bank-card-top strong {
+  font-size: 14px;
+  color: var(--text-primary, #111827);
+}
+
+.cl-bank-card-badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.cl-bank-badge-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 10px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 500;
+  height: 20px;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+.cl-bank-badge-primary {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.cl-bank-badge-verified {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.cl-bank-badge-unverified {
+  background: #f9dcdc;
+  color: #b91c1c;
+}
+
+.cl-bank-card-rows {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 18px;
+}
+
+.cl-bank-card-row {
+  display: flex;
+  font-size: 12.5px;
+  gap: 6px;
+  min-width: 0;
+}
+
+.cl-bank-card-row-full {
+  grid-column: 1 / -1;
+}
+
+.cl-bank-card-row label {
+  color: var(--text-secondary, #6b7280);
+  font-weight: 500;
+  min-width: 82px;
+  flex-shrink: 0;
+}
+
+.cl-bank-card-row span {
+  color: var(--text-primary, #374151);
+  overflow-wrap: anywhere;
+}
+
+.cl-bank-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 40px 20px;
+  color: var(--text-secondary, #6b7280);
+  text-align: center;
+}
+
+.cl-bank-empty svg {
+  color: var(--text-secondary, #9ca3af);
+}
+
+/* ══════════════════════════════════════════════════════════
+   Single Company — detail view shown instead of the list/table
+   when there is exactly one company on file.
+   ══════════════════════════════════════════════════════════ */
+
+.cl-single {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.cl-single-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.cl-single-toolbar-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary, #6b7280);
+}
+
+.cl-single-toolbar-info svg {
+  color: var(--primary-color, #6366f1);
+}
+
+/* Shared card shell used across the detail view */
+.cl-single-card {
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px var(--shadow-color, rgba(0,0,0,0.05));
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  animation: cl-fade-in 0.35s ease both;
+}
+
+.cl-single-card:hover {
+  box-shadow: 0 6px 20px var(--shadow-color, rgba(0,0,0,0.08));
+  border-color: color-mix(in srgb, var(--primary-color) 20%, var(--border-color));
+}
+
+@keyframes cl-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.cl-single-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary, #111827);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--primary-color) 6%, transparent), transparent),
+    var(--layout-bg, #f9fafb);
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.cl-single-card-header svg {
+  color: var(--primary-color, #6366f1);
+}
+
+.cl-single-card-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--primary-color) 6%, transparent), transparent),
+    var(--layout-bg, #f9fafb);
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
+}
+
+.cl-single-card-header-row .cl-single-card-header {
+  padding: 0;
+  background: none;
+  border: none;
+}
+
+.cl-single-card-body {
+  padding: 18px;
+}
+
+.cl-single-count-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 9px;
+  background: var(--primary-color, #6366f1);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  margin-left: 4px;
+}
+
+/* Profile / header card */
+.cl-single-profile {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 24px;
+  background:
+    radial-gradient(140% 160% at 100% 0%, color-mix(in srgb, var(--primary-color) 7%, transparent) 0%, transparent 60%),
+    var(--card-bg, #fff);
+}
+
+.cl-single-logo {
+  width: 68px;
+  height: 68px;
+  border-radius: 16px;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--primary-color) 88%, #000 12%), color-mix(in srgb, var(--primary-color) 40%, #000 60%));
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  overflow: hidden;
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--primary-color) 35%, transparent), inset 0 0 0 1px rgba(255,255,255,0.12);
+}
+
+.cl-single-logo span {
+  text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+}
+
+.cl-single-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cl-single-profile-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cl-single-profile-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.cl-single-profile-top h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary, #111827);
+}
+
+.cl-single-abbr-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  background: color-mix(in srgb, var(--primary-color) 14%, transparent);
+  color: var(--primary-color, #6366f1);
+}
+
+.cl-single-profile-badges {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cl-single-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.cl-single-badge-good {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.cl-single-badge-accent {
+  background: color-mix(in srgb, var(--primary-color) 16%, transparent);
+  color: var(--primary-color, #6366f1);
+}
+
+.cl-single-badge-muted {
+  background: var(--layout-bg, #f3f4f6);
+  color: var(--text-secondary, #6b7280);
+  border: 1px solid var(--border-color, #e5e7eb);
+}
+
+.cl-single-desc {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--text-secondary, #6b7280);
+  line-height: 1.5;
+}
+
+.cl-single-profile-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* Two-column grid: main details + side stack */
+.cl-single-grid {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.cl-single-grid-full {
+  grid-template-columns: 1fr;
+}
+
+.cl-single-side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.cl-single-details-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 24px;
+}
+
+.cl-single-details-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.cl-detail-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border-color, #f3f4f6);
+}
+
+.cl-single-details-grid .cl-detail-row:last-child,
+.cl-single-details-list .cl-detail-row:last-child {
+  border-bottom: none;
+}
+
+.cl-detail-label {
+  font-size: 12.5px;
+  color: var(--text-secondary, #6b7280);
+  flex-shrink: 0;
+}
+
+.cl-detail-value {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary, #111827);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+/* Bank accounts section on the single-company view */
+.cl-single-bank-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Used instead of the flex stack when a company has more than one bank
+   account on file, so cards pair up two-per-row rather than stacking
+   the full width of the card. */
+.cl-single-bank-list-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.cl-single-bank-list-grid .cl-bank-card-rows {
+  grid-template-columns: 1fr;
+}
+
+.cl-single-footer-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 4px 0;
+  font-size: 12px;
+  color: var(--text-secondary, #9ca3af);
 }
 
 /* ── Dark Theme Overrides ──────────────────────────── */
@@ -736,12 +1339,19 @@
 
 .dark-theme .cl-modal-footer {
   border-color: var(--border-color, #334155);
+  background: var(--layout-bg, #0f172a);
 }
 
 .dark-theme .cl-modal-btn-cancel {
   background: var(--card-bg, #1e293b);
   border-color: var(--border-color, #334155);
   color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .cl-modal-btn-cancel:hover {
+  background: var(--nav-hover, rgba(255,255,255,0.05));
+  border-color: var(--danger-color, #ef4444);
+  color: var(--danger-color, #ef4444);
 }
 
 .dark-theme .cl-active-filters {
@@ -775,10 +1385,152 @@
   background: var(--primary-hover, #2563eb);
 }
 
+.dark-theme .cl-btn-edit {
+  background: var(--primary-color, #3b82f6);
+}
+
+.dark-theme .cl-btn-edit:hover {
+  background: var(--primary-hover, #2563eb);
+}
+
+/* ── Bank Accounts — Dark Theme ───────────────────────────── */
+.dark-theme .cl-bank-badge {
+  background: rgba(99, 102, 241, 0.2);
+  color: #a5b4fc;
+}
+
+.dark-theme .cl-bank-badge:hover {
+  background: var(--primary-color, #3b82f6);
+  color: #fff;
+}
+
+.dark-theme .cl-bank-add-btn {
+  color: var(--primary-color, #60a5fa);
+  border-color: color-mix(in srgb, var(--primary-color) 35%, var(--border-color));
+}
+
+.dark-theme .cl-bank-add-btn:hover {
+  background: color-mix(in srgb, var(--primary-color) 14%, transparent);
+}
+
+.dark-theme .cl-bank-modal-header {
+  background:
+    radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--primary-color) 18%, transparent) 0%, transparent 55%),
+    var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+}
+
+.dark-theme .cl-bank-modal-body {
+  background: var(--card-bg, #1e293b);
+}
+
+.dark-theme .cl-bank-card {
+  background: var(--layout-bg, #0f172a);
+  border-color: var(--border-color, #334155);
+}
+
+.dark-theme .cl-bank-card-top strong {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .cl-bank-card-row label {
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .cl-bank-card-row span {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .cl-bank-badge-primary {
+  background: rgba(99, 102, 241, 0.2);
+  color: #818cf8;
+}
+
+.dark-theme .cl-bank-badge-verified {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+}
+
+.dark-theme .cl-bank-badge-unverified {
+  background: rgba(239, 68, 68, 0.18);
+  color: #f87171;
+}
+
+.dark-theme .cl-bank-empty {
+  color: var(--text-secondary, #94a3b8);
+}
+
+/* ── Single Company — Dark Theme ─────────────────────────── */
+.dark-theme .cl-single-toolbar-info {
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .cl-single-card {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+}
+
+.dark-theme .cl-single-card-header,
+.dark-theme .cl-single-card-header-row {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--primary-color) 12%, transparent), transparent),
+    var(--layout-bg, #0f172a);
+  border-color: var(--border-color, #334155);
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .cl-single-profile-top h2 {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .cl-single-badge-muted {
+  background: var(--layout-bg, #0f172a);
+  border-color: var(--border-color, #334155);
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .cl-single-badge-good {
+  background: rgba(16, 185, 129, 0.18);
+  color: #34d399;
+}
+
+.dark-theme .cl-single-badge-accent {
+  background: rgba(99, 102, 241, 0.2);
+  color: #a5b4fc;
+}
+
+.dark-theme .cl-single-desc {
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .cl-detail-row {
+  border-color: var(--border-color, #334155);
+}
+
+.dark-theme .cl-detail-label {
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .cl-detail-value {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .cl-single-footer-meta {
+  color: var(--text-secondary, #64748b);
+}
+
 /* ── Responsive ──────────────────────────────────────── */
 @media (max-width: 1024px) {
   .cl-stats-container {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .cl-single-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cl-single-bank-list-grid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -856,6 +1608,49 @@
   .cl-stat-value {
     font-size: 18px;
   }
+
+  .cl-modal {
+    max-width: 95vw;
+  }
+
+  .cl-modal-bank {
+    max-width: 95vw;
+  }
+
+  .cl-modal-body {
+    padding: 16px 20px;
+  }
+
+  .cl-modal-footer {
+    flex-wrap: wrap;
+  }
+
+  .cl-modal-btn-cancel,
+  .cl-modal-btn-delete,
+  .cl-btn-edit {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .cl-bank-card {
+    flex-direction: column;
+  }
+
+  .cl-bank-card-rows {
+    grid-template-columns: 1fr;
+  }
+
+  .cl-single-profile {
+    flex-direction: column;
+  }
+
+  .cl-single-profile-actions {
+    align-self: flex-end;
+  }
+
+  .cl-single-details-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 480px) {
@@ -897,5 +1692,62 @@
   .cl-pagination-center {
     flex-wrap: wrap;
     justify-content: center;
+  }
+
+  .cl-modal,
+  .cl-modal-bank {
+    max-width: 98vw;
+    border-radius: 12px;
+  }
+
+  .cl-modal-body {
+    padding: 14px 16px;
+  }
+
+  .cl-modal-title {
+    font-size: 14px;
+  }
+
+  .cl-modal-header,
+  .cl-bank-modal-header {
+    padding: 14px 16px;
+  }
+
+  .cl-modal-footer {
+    flex-direction: column-reverse;
+    gap: 8px;
+  }
+
+  .cl-modal-footer button {
+    width: 100%;
+  }
+
+  .cl-bank-badge,
+  .cl-bank-add-btn {
+    padding: 4px 9px;
+    font-size: 11px;
+  }
+
+  .cl-single-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .cl-single-toolbar .cl-btn-primary {
+    justify-content: center;
+  }
+
+  .cl-single-logo {
+    width: 56px;
+    height: 56px;
+    font-size: 18px;
+  }
+
+  .cl-single-profile-top h2 {
+    font-size: 17px;
+  }
+
+  .cl-single-card-body {
+    padding: 14px;
   }
 }
