@@ -1,7 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AdminThemeProvider } from './admin-theme/AdminThemeContext';
 import { ModuleProvider } from './context/ModuleContext'; // Import ModuleProvider
-
 import LoginPage from "./pages/LoginPage";
 import MainLayout from "./layouts/MainLayout";
 import DashboardPage from "./pages/DashboardPages/DashboardPage";
@@ -24,23 +23,16 @@ import JobCardManagement from "./pages/Manufacturing/JobCardManagement";
 import JobCardForm from "./pages/Manufacturing/JobCardForm";
 import Stockentry from "./pages/Manufacturing/Stockentry";
 // import StockentryForm from "./pages/StockentryForm";
-
-
 import HomePage from "./pages/HomePage";
-
 import SalesOrder from "./pages/Sales/SalesOrder";
 import CreateSalesOrder from './pages/Sales/CreateSalesOrder';
 import SalesInvoice from "./pages/Sales/SalesInvoice";
-
-
 import CompanyList from "./pages/CompanyList";
 import AddCompanyForm from "./pages/AddCompanyForm";
 import LetterHeadList from "./pages/LetterHeadList";
 import AddLetterHeadForm from "./pages/AddLetterHeadForm";
 import QuotationPage from "./pages/Sales/QuotationPage";
 import CreateQuotationPage from "./pages/Sales/CreateQuotation";
-
-
 import PriceList from "./pages/PriceList";
 import ItemPrice from "./pages/ItemPrice";
 import PricingRule from "./pages/PricingRule";
@@ -109,6 +101,8 @@ import AddCustomer from "./pages/AddCustomer";
 import Customer from "./pages/Customer";
 import SupplierBillForm from "./pages/accounts/SupplierBillForm";
 import InputShowcase from "./pages/accounts/InputShowcase";
+import CustomerInvoices from "./pages/Sales/customerinvoices";
+import SupplierBills from "./pages/Sales/supplierbills";
 
 
 function App() {
@@ -141,9 +135,9 @@ function App() {
               <Route path="/supplier-group" element={<SupplierGroup />} />
               <Route path="/contacts" element={<Contacts />} />
 
-<Route path="/contacts/new" element={<ContactForm />} />
-<Route path="/contacts/edit/:id" element={<ContactForm />} />
-<Route path="/contacts/view/:id" element={<ContactForm />} />
+              <Route path="/contacts/new" element={<ContactForm />} />
+              <Route path="/contacts/edit/:id" element={<ContactForm />} />
+              <Route path="/contacts/view/:id" element={<ContactForm />} />
               <Route path="/material-request" element={<MaterialRequest />} />
               <Route path="/purchase-order" element={<PurchaseOrder />} />
               <Route path="/request-for-quotation" element={<RequestForQuotation />} />
@@ -153,11 +147,11 @@ function App() {
               <Route path="/purchase-invoice/new" element={<PurchaseInvoiceForm />} />
               {/* <
               /* <Route path="/sales" element={<SalesPage />} /> */}
-          {/* Customer Routes */}
-<Route path="/customer" element={<Customer />} />
-<Route path="/customer/add" element={<AddCustomer />} />
-<Route path="/customer/edit/:id" element={<AddCustomer />} />
-<Route path="/customer/view/:id" element={<AddCustomer />} />
+              {/* Customer Routes */}
+              <Route path="/customer" element={<Customer />} />
+              <Route path="/customer/add" element={<AddCustomer />} />
+              <Route path="/customer/edit/:id" element={<AddCustomer />} />
+              <Route path="/customer/view/:id" element={<AddCustomer />} />
 
               {/* Sales Bill Routes - Added /edit and /view routes */}
               <Route path="/sales-bill" element={<SalesInvoice />} />
@@ -167,11 +161,11 @@ function App() {
 
 
               {/* Customer Routes */}
-<Route path="/customer" element={<Customer />} />
-<Route path="/customer/add" element={<AddCustomer />} />
-<Route path="/customer/edit/:id" element={<AddCustomer />} />
-<Route path="/customer/view/:id" element={<AddCustomer />} />
-          
+              <Route path="/customer" element={<Customer />} />
+              <Route path="/customer/add" element={<AddCustomer />} />
+              <Route path="/customer/edit/:id" element={<AddCustomer />} />
+              <Route path="/customer/view/:id" element={<AddCustomer />} />
+
 
 
 
@@ -217,7 +211,9 @@ function App() {
               <Route path="/delivery-challan/new" element={<DeliveryChallanForm />} />
               <Route path="/outstanding-receivables" element={<OutstandingDashboard />} />
               <Route path="/customer-payments" element={<CustomerPayments />} />
-
+              <Route path="/customer-invoices" element={<CustomerInvoices />} />
+              {/* <Route path="/customer-invoices/:id" element={<CustomerInvoices />} /> */}
+              <Route path="/payables/supplier-bills" element={<SupplierBills />} />
 
               <Route path="/job-card" element={<JobCardManagement />} />
               <Route path="/job-cards/new" element={<JobCardForm />} />
@@ -340,7 +336,7 @@ function App() {
               {/* New Account setup */}
               SupplierBillForm
               <Route path="/CompanyAccountingSetup" element={<InputShowcase />} />
-              <Route path="/payables/supplier-bills" element={<SupplierBillForm />} />
+              <Route path="/supplier-bills" element={<SupplierBillForm />} />
 
 
               {/* Quality Inspection */}

@@ -78,7 +78,7 @@ interface UOM {
   symbol: string;
   common_code: string;
   category: string;
-  enabled?: number; // Made optional since it might not exist
+  enabled?: number;
   must_be_whole_number: number;
   creation: string;
 }
@@ -166,7 +166,7 @@ function Field({
       </label>
       {children}
       {hint && !error && <p className="itf-hint">{hint}</p>}
-      {error && <p className="itf-field-error">{error}</p>}
+      {error && <p className="itf-field-error" style={{ color: 'red', fontSize: '12px', marginTop: '4px' }}>{error}</p>}
     </div>
   );
 }
@@ -360,12 +360,14 @@ function SelectInput({
   options,
   placeholder = "Search or select...",
   loading = false,
+  error,
 }: {
   value: string;
   onChange?: (v: string) => void;
   options: { label: string; value: string }[];
   placeholder?: string;
   loading?: boolean;
+  error?: string;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -389,63 +391,65 @@ function SelectInput({
   }, []);
 
   return (
-    <div className="itf-select-container" ref={dropdownRef}>
-      <div
-        className={`itf-select-wrapper ${isOpen ? "itf-select-wrapper-open" : ""}`}
-        onClick={() => setIsOpen(!isOpen)}
-      >
-        {isOpen ? (
-          <input
-            autoFocus
-            type="text"
-            className="itf-select-display itf-select-search"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder={selectedOption?.label || placeholder}
-          />
-        ) : (
-          <span className={`itf-select-display ${!selectedOption ? "itf-select-placeholder" : ""}`}>
-            {selectedOption?.label || placeholder}
+    <div>
+      <div className="itf-select-container" ref={dropdownRef}>
+        <div
+          className={`itf-select-wrapper ${isOpen ? "itf-select-wrapper-open" : ""} ${error ? "itf-select-wrapper-error" : ""}`}
+          onClick={() => setIsOpen(!isOpen)}
+        >
+          {isOpen ? (
+            <input
+              autoFocus
+              type="text"
+              className="itf-select-display itf-select-search"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder={selectedOption?.label || placeholder}
+            />
+          ) : (
+            <span className={`itf-select-display ${!selectedOption ? "itf-select-placeholder" : ""}`}>
+              {selectedOption?.label || placeholder}
+            </span>
+          )}
+          <span className="itf-select-arrow">
+            {loading ? (
+              <FaSpinner className="itf-spin" size={12} />
+            ) : (
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className={isOpen ? "itf-chevron-up" : ""}>
+                <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
           </span>
-        )}
-        <span className="itf-select-arrow">
-          {loading ? (
-            <FaSpinner className="itf-spin" size={12} />
-          ) : (
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className={isOpen ? "itf-chevron-up" : ""}>
-              <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          )}
-        </span>
-      </div>
-
-      {isOpen && (
-        <div className="itf-select-dropdown">
-          {loading ? (
-            <div className="itf-select-loading">
-              <FaSpinner className="itf-spin" size={14} />
-              <span>Loading…</span>
-            </div>
-          ) : filteredOptions.length === 0 ? (
-            <div className="itf-select-empty">No options found</div>
-          ) : (
-            filteredOptions.map((opt) => (
-              <div
-                key={opt.value}
-                className={`itf-select-option ${opt.value === value ? "itf-select-option-selected" : ""}`}
-                onClick={() => {
-                  onChange?.(opt.value);
-                  setSearchTerm("");
-                  setIsOpen(false);
-                }}
-              >
-                {opt.label}
-                {opt.value === value && <FaCheck className="itf-select-check" size={11} />}
-              </div>
-            ))
-          )}
         </div>
-      )}
+
+        {isOpen && (
+          <div className="itf-select-dropdown">
+            {loading ? (
+              <div className="itf-select-loading">
+                <FaSpinner className="itf-spin" size={14} />
+                <span>Loading…</span>
+              </div>
+            ) : filteredOptions.length === 0 ? (
+              <div className="itf-select-empty">No options found</div>
+            ) : (
+              filteredOptions.map((opt) => (
+                <div
+                  key={opt.value}
+                  className={`itf-select-option ${opt.value === value ? "itf-select-option-selected" : ""}`}
+                  onClick={() => {
+                    onChange?.(opt.value);
+                    setSearchTerm("");
+                    setIsOpen(false);
+                  }}
+                >
+                  {opt.label}
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+      {error && <p className="itf-field-error" style={{ color: 'red', fontSize: '12px', marginTop: '4px' }}>{error}</p>}
     </div>
   );
 }
@@ -792,8 +796,8 @@ export default function ItemForm() {
     sellingPrice: "0.00",
     profitMargin: "10",
     image: null as string | null,
-    isSalesItem: true,
-    isPurchaseItem: true,
+    isSalesItem: false,
+    isPurchaseItem: false,
     isStockItem: true,
     safetyStock: "20",
     lastPurchaseRate: "0.00",
@@ -887,12 +891,11 @@ export default function ItemForm() {
     setLoadingUoms(true);
     try {
       const response = await api.get("/uom");
-      console.log("UOM Response:", response.data); // Debug log
+      console.log("UOM Response:", response.data);
       
       if (response.data.success === 1) {
-        // The data is nested inside data.records
         const uomRecords = response.data.data?.records || response.data.data || [];
-        console.log("UOM Records:", uomRecords); // Debug log
+        console.log("UOM Records:", uomRecords);
         setUoms(uomRecords);
       }
     } catch (err) {
@@ -907,7 +910,7 @@ export default function ItemForm() {
     const fetchLookups = async () => {
       setLoadingGroups(true);
       try {
-        const response = await api.get("/item-group?type=parent");
+        const response = await api.get("/item-group?type=Input%20Material");
         if (response.data.success === 1) setItemGroups(response.data.data);
       } catch (err) {
         console.error("Error fetching item groups:", err);
@@ -915,7 +918,6 @@ export default function ItemForm() {
         setLoadingGroups(false);
       }
 
-      // Fetch UOMs using the updated function
       await fetchUoms();
 
       setLoadingTaxes(true);
@@ -1080,7 +1082,6 @@ export default function ItemForm() {
     value: group.item_group_name,
   }));
 
-  // ─── UOM Options - Include all UOMs (no enabled filter) ────────────
   const uomOptions = uoms.map((uom) => ({
     label: uom.uom_name + (uom.symbol ? ` (${uom.symbol})` : ""),
     value: uom.uom_name,
@@ -1095,7 +1096,6 @@ export default function ItemForm() {
   useEffect(() => {
     if (warehouses.length === 0) return;
 
-    // Don't overwrite when editing an existing item
     if (form.warehouseId) return;
 
     const rawMaterialWarehouse = warehouses.find(
@@ -1114,17 +1114,108 @@ export default function ItemForm() {
     value: w.id.toString(),
   }));
 
+  // ─── Validation Function ─────────────────────────────────────────────
   const getValidationErrors = () => {
     const errors: { field: string; label: string; message: string }[] = [];
-    if (!form.itemName.trim()) errors.push({ field: "itemName", label: "Item Name", message: "Item name is required" });
-    if (!form.itemGroup.trim()) errors.push({ field: "itemGroup", label: "Item Group", message: "Item group is required" });
-    if (!form.defaultUOM.trim()) errors.push({ field: "defaultUOM", label: "Default UOM", message: "Default unit of measure is required" });
-    if (form.isStockItem && !form.warehouseId)
+
+    // 1. item_name - REQUIRED (varchar(140), NOT NULL)
+    if (!form.itemName.trim()) {
+      errors.push({ field: "itemName", label: "Item Name", message: "Item name is required" });
+    } else if (form.itemName.length > 140) {
+      errors.push({ field: "itemName", label: "Item Name", message: "Item name must be 140 characters or less" });
+    }
+
+    // 2. item_code - OPTIONAL but if provided, must be valid (varchar(140), UNIQUE)
+    if (form.itemCode && form.itemCode.length > 140) {
+      errors.push({ field: "itemCode", label: "Item Code", message: "Item code must be 140 characters or less" });
+    }
+
+    // 3. item_group - REQUIRED (varchar(140), NOT NULL)
+    if (!form.itemGroup.trim()) {
+      errors.push({ field: "itemGroup", label: "Item Group", message: "Item group is required" });
+    } else if (form.itemGroup.length > 140) {
+      errors.push({ field: "itemGroup", label: "Item Group", message: "Item group must be 140 characters or less" });
+    }
+
+    // 4. stock_uom - REQUIRED (varchar(140), NOT NULL)
+    if (!form.defaultUOM.trim()) {
+      errors.push({ field: "defaultUOM", label: "Default UOM", message: "Default unit of measure is required" });
+    } else if (form.defaultUOM.length > 140) {
+      errors.push({ field: "defaultUOM", label: "Default UOM", message: "UOM must be 140 characters or less" });
+    }
+
+    // 5. HSN - OPTIONAL (varchar(45), nullable)
+    if (form.hsn && form.hsn.length > 45) {
+      errors.push({ field: "hsn", label: "HSN Code", message: "HSN code must be 45 characters or less" });
+    }
+
+    // 6. brand - OPTIONAL (varchar(140), nullable)
+    if (form.brand && form.brand.length > 140) {
+      errors.push({ field: "brand", label: "Brand", message: "Brand must be 140 characters or less" });
+    }
+
+    // 7. description - OPTIONAL (longtext, nullable)
+    // No length validation needed for longtext
+
+    // 8. disabled - REQUIRED (tinyint, NOT NULL, default 0)
+    // Already has default, validation not needed
+
+    // 9. tax_id - OPTIONAL (int, nullable) - but we require it in UI
+    if (!form.taxId) {
+      errors.push({ field: "taxId", label: "Tax Type", message: "Tax type is required" });
+    }
+
+    // 10. is_stock_item - REQUIRED (tinyint, NOT NULL, default 1)
+    // Already has default, validation not needed
+
+    // 11. standard_rate - REQUIRED (decimal(21,9), NOT NULL, default 0.000000000)
+    const standardRate = parseFloat(form.standardRate);
+    if (isNaN(standardRate) || standardRate < 0) {
+      errors.push({ field: "standardRate", label: "Standard Rate", message: "Standard rate must be a valid number" });
+    }
+
+    // 12. selling_price - OPTIONAL (decimal(21,9), nullable, default 0.000000000)
+    const sellingPrice = parseFloat(form.sellingPrice);
+    if (isNaN(sellingPrice) || sellingPrice < 0) {
+      errors.push({ field: "sellingPrice", label: "Selling Price", message: "Selling price must be a valid number" });
+    }
+
+    // 13. safety_stock - OPTIONAL (decimal(21,9), nullable, default 0.000000000)
+    const safetyStock = parseFloat(form.safetyStock);
+    if (isNaN(safetyStock) || safetyStock < 0) {
+      errors.push({ field: "safetyStock", label: "Safety Stock", message: "Safety stock must be a valid number" });
+    }
+
+    // 14. warehouseId - REQUIRED for stock items
+    if (form.isStockItem && !form.warehouseId) {
       errors.push({ field: "warehouseId", label: "Warehouse", message: "Select a warehouse to track inventory for this item" });
+    }
+
+    // 22. profitMargin - Custom field, not in DB but used for calculation
+    const profitMargin = parseFloat(form.profitMargin);
+    if (isNaN(profitMargin) || profitMargin < 0) {
+      errors.push({ field: "profitMargin", label: "Profit Margin", message: "Profit margin must be a valid number" });
+    }
+
+    // 23. valuation_rate - REQUIRED (decimal(21,9), NOT NULL, default 0.000000000)
+    const valuationRate = parseFloat(form.valuationRate);
+    if (isNaN(valuationRate) || valuationRate < 0) {
+      errors.push({ field: "valuationRate", label: "Valuation Rate", message: "Valuation rate must be a valid number" });
+    }
+
+    // 24. last_purchase_rate - REQUIRED (decimal(21,9), NOT NULL, default 0.000000000)
+    const lastPurchaseRate = parseFloat(form.lastPurchaseRate);
+    if (isNaN(lastPurchaseRate) || lastPurchaseRate < 0) {
+      errors.push({ field: "lastPurchaseRate", label: "Last Purchase Rate", message: "Last purchase rate must be a valid number" });
+    }
+
     return errors;
   };
 
-  const fieldError = (field: string) => validationErrors.find((e) => e.field === field)?.message;
+  const fieldError = (field: string) => {
+    const error = validationErrors.find((e) => e.field === field);
+    return error?.message;
+  };
 
   const handleImageChange = async (file: File) => {
     setUploadingImage(true);
@@ -1152,7 +1243,7 @@ export default function ItemForm() {
     const errors = getValidationErrors();
     if (errors.length > 0) {
       setValidationErrors(errors);
-      toast.error("Please fill in all required fields");
+      toast.error("Please fix all validation errors");
       return;
     }
     setValidationErrors([]);
@@ -1175,7 +1266,7 @@ export default function ItemForm() {
         stock_uom: form.defaultUOM.trim(),
         image: existingImage, // will be updated after upload if new file
         disabled: form.disabled ? 1 : 0,
-        tax_id: parseInt(form.taxId),
+        tax_id: parseInt(form.taxId) || null,
         is_stock_item: form.isStockItem ? 1 : 0,
         is_fixed_asset: 0,
         auto_create_assets: 0,
@@ -1218,7 +1309,7 @@ export default function ItemForm() {
         variant_based_on: "Item Attribute",
         purchase_uom: null,
         min_order_qty: 0,
-        safety_stock: parseInt(form.safetyStock) || 20,
+        safety_stock: parseInt(form.safetyStock) || 0,
         lead_time_days: 0,
         last_purchase_rate: parseFloat(form.lastPurchaseRate) || 0,
         delivered_by_supplier: 0,
@@ -1238,7 +1329,7 @@ export default function ItemForm() {
         inspection_required_before_purchase: form.inspectionRequiredBeforePurchase ? 1 : 0,
         inspection_required_before_delivery: form.inspectionRequiredBeforeDelivery ? 1 : 0,
         quality_inspection_template: null,
-        HSN: form.hsn || "",
+        HSN: form.hsn || null,
       };
 
       // Include id if editing
@@ -1453,29 +1544,39 @@ export default function ItemForm() {
 
                 <div className="itf-grid-3">
                   <div className="itf-col">
-                    <Field label="Item name" required error={fieldError("itemName")}>
-                      <TextInput value={form.itemName} onChange={(v) => s("itemName", v)} placeholder="e.g. Cotton Yarn 40s" />
+                    <Field 
+                      label="Item name" 
+                      required 
+                      error={fieldError("itemName")}
+                    >
+                      <TextInput 
+                        value={form.itemName} 
+                        onChange={(v) => s("itemName", v)} 
+                        placeholder="e.g. Cotton Yarn 40s" 
+                      />
                     </Field>
                   </div>
                   <div className="itf-col">
-                    <Field label="Item group" required error={fieldError("itemGroup")}>
+                    <Field label="Item group" required>
                       <SelectInput
                         value={form.itemGroup}
                         onChange={(v) => s("itemGroup", v)}
                         options={groupOptions}
                         loading={loadingGroups}
                         placeholder="Search for an item group…"
+                        error={fieldError("itemGroup")}
                       />
                     </Field>
                   </div>
                   <div className="itf-col">
-                    <Field label="Default UOM" required error={fieldError("defaultUOM")}>
+                    <Field label="Default UOM" required>
                       <SelectInput
                         value={form.defaultUOM}
                         onChange={(v) => s("defaultUOM", v)}
                         options={uomOptions}
                         loading={loadingUoms}
                         placeholder="Search for a UOM…"
+                        error={fieldError("defaultUOM")}
                       />
                     </Field>
                   </div>
@@ -1483,17 +1584,17 @@ export default function ItemForm() {
 
                 <div className="itf-grid-3">
                   <div className="itf-col">
-                    <Field label="HSN Code" hint="Harmonized System of Nomenclature code">
+                    <Field label="HSN Code" hint="Harmonized System of Nomenclature code" error={fieldError("hsn")}>
                       <TextInput value={form.hsn} onChange={(v) => s("hsn", v)} placeholder="e.g. 87690" type="text" />
                     </Field>
                   </div>
                   <div className="itf-col">
-                    <Field label="Brand / company">
+                    <Field label="Brand / company" error={fieldError("brand")}>
                       <TextInput value={form.brand} onChange={(v) => s("brand", v)} placeholder="Enter brand or company name" />
                     </Field>
                   </div>
                   <div className="itf-col">
-                    <Field label="Safety stock" hint="Minimum stock level before reorder is triggered.">
+                    <Field label="Safety stock" hint="Minimum stock level before reorder is triggered." error={fieldError("safetyStock")}>
                       <NumberInput
                         value={form.safetyStock}
                         onChange={(v) => s("safetyStock", v)}
@@ -1550,7 +1651,7 @@ export default function ItemForm() {
                     </SectionTitle>
 
                     <div className="itf-grid-2">
-                      <Field label="Standard purchase rate (base price)" hint="The cost at which you purchase this item.">
+                      <Field label="Standard purchase rate (base price)" hint="The cost at which you purchase this item." error={fieldError("standardRate")}>
                         <NumberInput
                           value={form.standardRate}
                           onChange={(v) => s("standardRate", v)}
@@ -1560,7 +1661,7 @@ export default function ItemForm() {
                           prefix="₹"
                         />
                       </Field>
-                      <Field label="Profit margin (%)" hint="Margin applied on top of the base price.">
+                      <Field label="Profit margin (%)" hint="Margin applied on top of the base price." error={fieldError("profitMargin")}>
                         <NumberInput
                           value={form.profitMargin}
                           onChange={(v) => s("profitMargin", v)}
@@ -1573,7 +1674,7 @@ export default function ItemForm() {
                     </div>
 
                     <div className="itf-grid-2">
-                      <Field label="Valuation rate" hint="Auto-calculated: base price + profit.">
+                      <Field label="Valuation rate" hint="Auto-calculated: base price + profit." error={fieldError("valuationRate")}>
                         <NumberInput
                           value={form.valuationRate}
                           readOnly
@@ -1581,7 +1682,7 @@ export default function ItemForm() {
                           onChange={() => {}}
                         />
                       </Field>
-                      <Field label="Last purchase rate" hint="Auto-set to the current base price.">
+                      <Field label="Last purchase rate" hint="Auto-set to the current base price." error={fieldError("lastPurchaseRate")}>
                         <NumberInput
                           value={form.lastPurchaseRate}
                           readOnly
@@ -1598,6 +1699,7 @@ export default function ItemForm() {
                         options={taxOptions}
                         loading={loadingTaxes}
                         placeholder="Select tax type…"
+                        error={fieldError("taxId")}
                       />
                     </Field>
 
@@ -1643,6 +1745,7 @@ export default function ItemForm() {
                         options={warehouseOptions}
                         loading={loadingWarehouses}
                         placeholder="Select a warehouse…"
+                        error={fieldError("warehouseId")}
                       />
                     </Field>
 
@@ -1721,18 +1824,7 @@ export default function ItemForm() {
             </div>
           </div>
 
-          {validationErrors.length > 0 && (
-            <div className="itf-validation-errors">
-              {validationErrors.map((error) => (
-                <div key={error.field} className="itf-validation-error">
-                  <FaExclamationTriangle size={12} />
-                  <span>
-                    {error.label}: {error.message}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
+          {/* Removed bottom validation errors - now only showing field-level errors */}
         </form>
       </div>
     </div>

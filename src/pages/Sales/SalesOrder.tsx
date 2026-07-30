@@ -917,44 +917,7 @@ export default function SalesOrder() {
   return (
     <div className={`sales-order-page ${theme}-theme`}>
       {/* Stats Cards */}
-      <div className="qt-stats-container">
-        <div className="qt-stat-card" style={{ background: '#EFF6FF', borderLeft: '4px solid #3B82F6' }}>
-          <div className="qt-stat-icon" style={{ color: '#3B82F6' }}>
-            <FaClipboardList size={18} />
-          </div>
-          <div className="qt-stat-content">
-            <p className="qt-stat-title">Total Orders</p>
-            <p className="qt-stat-value">{totalOrders}</p>
-          </div>
-        </div>
-        <div className="qt-stat-card" style={{ background: '#ECFDF5', borderLeft: '4px solid #10B981' }}>
-          <div className="qt-stat-icon" style={{ color: '#10B981' }}>
-            <FaCheckCircle size={18} />
-          </div>
-          <div className="qt-stat-content">
-            <p className="qt-stat-title">Completed</p>
-            <p className="qt-stat-value">{getStatusCount('Completed')}</p>
-          </div>
-        </div>
-        <div className="qt-stat-card" style={{ background: '#FEF3C7', borderLeft: '4px solid #F59E0B' }}>
-          <div className="qt-stat-icon" style={{ color: '#F59E0B' }}>
-            <FaClock size={18} />
-          </div>
-          <div className="qt-stat-content">
-            <p className="qt-stat-title">Pending</p>
-            <p className="qt-stat-value">{getStatusCount('Draft') + getStatusCount('Confirmed') + getStatusCount('On Hold')}</p>
-          </div>
-        </div>
-        <div className="qt-stat-card" style={{ background: '#F5F3FF', borderLeft: '4px solid #8B5CF6' }}>
-          <div className="qt-stat-icon" style={{ color: '#8B5CF6' }}>
-            <FaDollarSign size={18} />
-          </div>
-          <div className="qt-stat-content">
-            <p className="qt-stat-title">Fulfillment Rate</p>
-            <p className="qt-stat-value">{fulfillmentRate}%</p>
-          </div>
-        </div>
-      </div>
+    
 
       {/* Search and Filter Bar */}
       <div className="qt-filter-bar">
