@@ -1,7 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AdminThemeProvider } from './admin-theme/AdminThemeContext';
 import { ModuleProvider } from './context/ModuleContext'; // Import ModuleProvider
-
 import LoginPage from "./pages/LoginPage";
 import MainLayout from "./layouts/MainLayout";
 import DashboardPage from "./pages/DashboardPages/DashboardPage";
@@ -24,23 +23,16 @@ import JobCardManagement from "./pages/Manufacturing/JobCardManagement";
 import JobCardForm from "./pages/Manufacturing/JobCardForm";
 import Stockentry from "./pages/Manufacturing/Stockentry";
 // import StockentryForm from "./pages/StockentryForm";
-
-
 import HomePage from "./pages/HomePage";
-
 import SalesOrder from "./pages/Sales/SalesOrder";
 import CreateSalesOrder from './pages/Sales/CreateSalesOrder';
 import SalesInvoice from "./pages/Sales/SalesInvoice";
-
-
 import CompanyList from "./pages/CompanyList";
 import AddCompanyForm from "./pages/AddCompanyForm";
 import LetterHeadList from "./pages/LetterHeadList";
 import AddLetterHeadForm from "./pages/AddLetterHeadForm";
 import QuotationPage from "./pages/Sales/QuotationPage";
 import CreateQuotationPage from "./pages/Sales/CreateQuotation";
-
-
 import PriceList from "./pages/PriceList";
 import ItemPrice from "./pages/ItemPrice";
 import PricingRule from "./pages/PricingRule";

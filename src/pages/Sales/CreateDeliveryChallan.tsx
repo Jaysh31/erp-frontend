@@ -337,7 +337,6 @@ class DeliveryChallanAPI {
   }
 
   async updateDeliveryNote(payload: DeliveryNotePayload): Promise<ApiResponse<any>> {
-    // ID is inside payload, not in URL
     return this.apiService.put('/delivery-note', payload);
   }
 
@@ -378,10 +377,10 @@ class DeliveryChallanAPI {
   }
 
   async getInventory(params?: { item_code?: string }): Promise<ApiResponse<any>> {
-    return this.apiService.get('/inventory', params);
+    return this.apiService.get('/inventory?limit=100', params);
   }
 
-  async updateInventory(id: number, data: any): Promise<ApiResponse<any>> {
+  async updateInventory(_id: number, data: any): Promise<ApiResponse<any>> {
     return this.apiService.put(`/inventory`, data);
   }
 }
@@ -659,14 +658,12 @@ const SalesOrderDropdown: React.FC<SalesOrderDropdownProps> = ({
 
   const menuPos = useDropdownPosition(isOpen, wrapperRef);
 
-  // Helper to extract tax rate from tax_type string (e.g., "GST18" -> 18)
   const extractTaxValue = (taxType: string): number => {
     if (!taxType) return 0;
     const match = taxType.match(/(\d+)/);
     return match ? parseInt(match[0], 10) : 0;
   };
 
-  // Get tax rate from tax_id using taxOptions
   const getTaxRateFromId = (taxId: number | string | undefined): number => {
     if (!taxId) return 0;
     const id = typeof taxId === 'string' ? parseInt(taxId, 10) : taxId;
@@ -782,12 +779,10 @@ const SalesOrderDropdown: React.FC<SalesOrderDropdownProps> = ({
     setSearchTerm('');
     setIsOpen(false);
     
-    // Process items with tax from taxOptions
     const processedOrder = {
       ...order,
       items: order.items?.map(item => ({
         ...item,
-        // If item has tax_id, get tax rate from it
         tax: item.tax_id ? getTaxRateFromId(item.tax_id) : item.tax || 0
       }))
     };
@@ -1250,10 +1245,8 @@ const NewDeliveryChallan: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { theme } = useAdminTheme();
 
-  // Determine if we're in edit mode
   const isEditMode = !!id;
   
-  // State for toggle
   const [hasSalesOrder, setHasSalesOrder] = useState<boolean>(true);
   
   const [selectedCustomer, setSelectedCustomer] = useState<string>('');
@@ -1285,11 +1278,7 @@ const NewDeliveryChallan: React.FC = () => {
   const [inventoryMap, setInventoryMap] = useState<{ [itemCode: string]: InventoryApiRecord[] }>({});
   const [, setLoadingInventory] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState<boolean>(false);
-  
-  // Status State
-  const [status, setStatus] = useState<string>('Draft');
 
-  // Success Modal State
   const [showSuccessModal, setShowSuccessModal] = useState<boolean>(false);
   const [successData, setSuccessData] = useState<{
     deliveryNote: string;
@@ -1415,15 +1404,12 @@ const NewDeliveryChallan: React.FC = () => {
       if (response.success && response.data) {
         const data = response.data.data || response.data;
         
-        // Set form fields
         if (data.customer_id) {
           setSelectedCustomer(String(data.customer_id));
-          // Fetch customer details
           const customer = customers.find(c => c.id === String(data.customer_id));
           if (customer) {
             setCustomerData(customer);
           } else {
-            // Try to find customer from the data
             if (data.customer_name) {
               setCustomerData({
                 id: String(data.customer_id),
@@ -1459,14 +1445,6 @@ const NewDeliveryChallan: React.FC = () => {
           setRemarks(data.instructions);
         }
         
-        if (data.status) {
-          setStatus(data.status);
-        }
-        
-        if (data.type === 'Services') {
-          setIsService(true);
-        }
-        
         if (data.name) {
           setDcNumber(data.name);
         }
@@ -1478,7 +1456,6 @@ const NewDeliveryChallan: React.FC = () => {
           setHasSalesOrder(false);
         }
         
-        // Set items
         if (data.items && Array.isArray(data.items) && data.items.length > 0) {
           const mappedItems: DeliveryChallanItem[] = data.items.map((item: any, index: number) => {
             const product = allProducts.find(p => p.itemCode === item.item_code);
@@ -1538,14 +1515,12 @@ const NewDeliveryChallan: React.FC = () => {
     fetchWarehouses();
   }, []);
 
-  // Load edit data after initial data is fetched
   useEffect(() => {
     if (isEditMode && id && customers.length > 0 && allProducts.length > 0 && taxOptions.length > 0) {
       fetchDeliveryChallanForEdit(id);
     }
   }, [isEditMode, id, customers.length, allProducts.length, taxOptions.length]);
 
-  // Update stock status when inventory changes
   useEffect(() => {
     if (Object.keys(inventoryMap).length === 0) return;
     setItems((prev) =>
@@ -1582,7 +1557,6 @@ const NewDeliveryChallan: React.FC = () => {
         const warehouseList: Warehouse[] = response.data.data.records;
         setWarehouses(warehouseList);
         
-        // Set "Finished Goods" as default only if not in edit mode
         if (!isEditMode) {
           const finishedGoods = warehouseList.find(
             w => w.warehouse_name.toLowerCase() === 'finished goods'
@@ -1728,7 +1702,6 @@ const NewDeliveryChallan: React.FC = () => {
       setCustomerData(customerData);
       setSelectedSalesOrder('');
       setSelectedOrderData(null);
-      // Only reset items if not in edit mode or if items are empty
       if (!isEditMode || items.length === 0) {
         setItems([{
           id: '1',
@@ -2073,7 +2046,7 @@ const NewDeliveryChallan: React.FC = () => {
       lr_date: null,
       sales_order_id: hasSalesOrder && selectedSalesOrder ? parseInt(selectedSalesOrder, 10) : null,
       instructions: remarks || '',
-      status: status,
+      status: 'Submitted',
       type: isService ? 'Services' : 'Products',
       items: items
         .filter(item => item.itemCode && item.quantity > 0)
@@ -2095,7 +2068,6 @@ const NewDeliveryChallan: React.FC = () => {
         }))
     };
 
-    // If in edit mode, add the id to payload
     if (isEditMode && id) {
       payload.id = id;
     }
@@ -2124,10 +2096,8 @@ const NewDeliveryChallan: React.FC = () => {
       
       let response;
       if (isEditMode && id) {
-        // UPDATE: Use PUT with payload containing id
         response = await deliveryChallanAPI.updateDeliveryNote(payload);
       } else {
-        // CREATE: Use POST
         response = await deliveryChallanAPI.createDeliveryNote(payload);
       }
       
@@ -2149,7 +2119,6 @@ const NewDeliveryChallan: React.FC = () => {
                      response.message || 
                      (isEditMode ? 'Delivery Note updated successfully.' : 'Delivery Note created successfully.');
       
-      // Only update inventory for new DCs, not for edits
       if (!isEditMode) {
         const itemsToDispatch = items.filter(item => item.itemCode && item.quantity > 0);
         if (itemsToDispatch.length > 0) {
@@ -2174,17 +2143,14 @@ const NewDeliveryChallan: React.FC = () => {
       });
       setShowSuccessModal(true);
       
-      // Only auto-submit for new DCs
-      if (!isEditMode && (status === 'Submitted' || status === 'Pending')) {
-        if (createdDC?.data?.delivery_note || createdDC?.name) {
-          const dcName = createdDC?.data?.delivery_note || createdDC?.name;
-          try {
-            await deliveryChallanAPI.submitDeliveryNote(dcName);
-            toast.success(`DC ${dcName} submitted!`);
-          } catch (submitError) {
-            console.warn('Submit failed but DC was created:', submitError);
-            toast('DC created but submission failed. Please submit manually.');
-          }
+      if (!isEditMode && (createdDC?.data?.delivery_note || createdDC?.name)) {
+        const dcName = createdDC?.data?.delivery_note || createdDC?.name;
+        try {
+          await deliveryChallanAPI.submitDeliveryNote(dcName);
+          toast.success(`DC ${dcName} submitted!`);
+        } catch (submitError) {
+          console.warn('Submit failed but DC was created:', submitError);
+          toast('DC created but submission failed. Please submit manually.');
         }
       }
     } catch (error: any) {
@@ -2308,6 +2274,20 @@ const NewDeliveryChallan: React.FC = () => {
           scrollbar-color: var(--text-secondary, #cbd5e1) var(--border-color, #f1f5f9);
         }
 
+        /* Grid for 3 columns in one line */
+        .ndc-grid-3 {
+          display: grid;
+          grid-template-columns: 1fr 1fr 1fr;
+          gap: 16px;
+          width: 100%;
+        }
+
+        .ndc-field {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+
         @media print {
           .ndc-form-footer, button { display: none !important; }
           body { padding: 0; }
@@ -2362,7 +2342,7 @@ const NewDeliveryChallan: React.FC = () => {
 
       {/* MAIN BOX */}
       <div className="ndc-main-box">
-        {/* Sales Order Toggle - GRN-style radio toggle */}
+        {/* Sales Order Toggle */}
         <div className="ndc-invoice-type-section">
           <label className="ndc-label" style={{ marginBottom: 8 }}>Create From</label>
           <div className="ndc-radio-group">
@@ -2407,7 +2387,6 @@ const NewDeliveryChallan: React.FC = () => {
             </div>
 
             {hasSalesOrder ? (
-              // With Sales Order - 2 columns
               <div className="ndc-field-row">
                 <div className="ndc-field-half">
                   <label className="ndc-label">
@@ -2440,7 +2419,6 @@ const NewDeliveryChallan: React.FC = () => {
                 </div>
               </div>
             ) : (
-              // Without Sales Order - Customer full width
               <div className="ndc-field-full">
                 <div className="ndc-field-full-width">
                   <label className="ndc-label">
@@ -2459,13 +2437,13 @@ const NewDeliveryChallan: React.FC = () => {
               </div>
             )}
 
-            {/* Delivery Challan Details - 4 columns in one row (added Status) */}
+            {/* Delivery Challan Details - 3 columns in one line */}
             <div className="ndc-section-header" style={{ marginTop: hasSalesOrder ? '0' : '0rem' }}>
               <FaBox className="ndc-section-icon" />
               <span>Challan Details</span>
             </div>
 
-            <div className="ndc-grid-4">
+            <div className="ndc-grid-3">
               <div className="ndc-field">
                 <label className="ndc-label">DC Number</label>
                 <div className="ndc-dc-number-display">{dcNumber}</div>
@@ -2524,29 +2502,11 @@ const NewDeliveryChallan: React.FC = () => {
                 {errors.warehouse && <span className="ndc-error-text">{errors.warehouse}</span>}
                 {isLoadingWarehouses && <span className="ndc-loading-text">Loading warehouses...</span>}
               </div>
-
-              {/* Status Dropdown */}
-              <div className="ndc-field">
-                <label className="ndc-label">
-                  Status <span className="ndc-required">*</span>
-                </label>
-                <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value)}
-                  className="ndc-select"
-                >
-                  <option value="Draft">Draft</option>
-                  <option value="Submitted">Submitted</option>
-                  <option value="Pending">Pending</option>
-                  <option value="Cancelled">Cancelled</option>
-                </select>
-              </div>
             </div>
           </div>
 
           {/* RIGHT COLUMN */}
           <div className="ndc-right-column">
-            {/* Customer Detail Card */}
             {customerData ? (
               <div className="ndc-detail-card">
                 <div className="ndc-card-header">
@@ -2736,11 +2696,9 @@ const NewDeliveryChallan: React.FC = () => {
           </div>
         </div>
 
-        {/* BOTTOM SECTION: Shipping + Remarks + Quality Inspection (Left) | Summary (Right) */}
+        {/* BOTTOM SECTION */}
         <div className="ndc-bottom-section">
-          {/* LEFT COLUMN: Shipping Details + Remarks + Quality Inspection */}
           <div className="ndc-bottom-left">
-            {/* Shipping Details */}
             <div className="ndc-shipping-bottom">
               <div className="ndc-section-header">
                 <FaTruck className="ndc-section-icon" />
@@ -2772,7 +2730,6 @@ const NewDeliveryChallan: React.FC = () => {
               </div>
             </div>
 
-            {/* Remarks */}
             <div className="ndc-field ndc-remarks-bottom">
               <label className="ndc-label">Remarks</label>
               <textarea
@@ -2784,7 +2741,6 @@ const NewDeliveryChallan: React.FC = () => {
               />
             </div>
 
-            {/* Quality Inspection Checkbox */}
             <div className="ndc-field ndc-quality-inspection-bottom">
               <label className="ndc-label ndc-checkbox-label-inline">
                 <input
@@ -2800,7 +2756,6 @@ const NewDeliveryChallan: React.FC = () => {
             </div>
           </div>
 
-          {/* RIGHT COLUMN: Financial Summary */}
           <div className="ndc-bottom-right">
             <div className="ndc-detail-card ndc-summary-card">
               <div className="ndc-card-header">

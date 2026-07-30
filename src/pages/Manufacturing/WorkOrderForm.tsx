@@ -1425,7 +1425,7 @@ export default function WorkOrderForm() {
   // Shared uploader — used both when a Work Order already exists (upload
   // fires immediately) and right after a brand-new Work Order is created
   // (fires once, using the fresh insertId).
-  const uploadMediaFiles = async (files: File[], workOrderId: number) => {
+  const uploadMediaFiles = async (files: File[], _workOrderId: number) => {
     if (files.length === 0) return;
     setUploadingMedia(true);
     const formData = new FormData();

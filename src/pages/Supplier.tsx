@@ -607,8 +607,8 @@ export default function SupplierList() {
                     </td>
                   </tr>
                 ) : (
-                  paginatedData.map((row, index) => {
-                    const serialNumber = (validCurrentPage - 1) * itemsPerPage + index + 1;
+                  paginatedData.map((row, _index) => {
+                    // const serialNumber = (validCurrentPage - 1) * itemsPerPage + index + 1;
                     const isExpanded = expandedRows.has(row.id);
                     const hasContacts = row.contacts && row.contacts.length > 0;
 
