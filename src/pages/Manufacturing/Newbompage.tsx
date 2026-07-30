@@ -831,16 +831,24 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
     if (!itemToManufacture.trim())
       errs.push({ field: "itemToManufacture", label: "Item to Manufacture", message: "Item to Manufacture is required" });
 
-    const filledComps = compRows.filter(r => r.itemCode.trim());
-    if (filledComps.length === 0)
-      errs.push({ field: "components", label: "Components", message: "At least one component with an Item Code is required" });
+    // Only validate components for Internal BOM
+    if (bomType === "Internal") {
+      const filledComps = compRows.filter(r => r.itemCode.trim());
+      if (filledComps.length === 0)
+        errs.push({ field: "components", label: "Components", message: "At least one component with an Item Code is required" });
 
-    compRows.forEach((r, i) => {
-      if (r.itemCode && !r.uom.trim())
-        errs.push({ field: `comp_uom_${i}`, label: `Component ${i + 1} UOM`, message: `UOM is required for component "${r.itemCode}"` });
-      if (r.itemCode && (!r.qty || parseFloat(r.qty) <= 0))
-        errs.push({ field: `comp_qty_${i}`, label: `Component ${i + 1} Qty`, message: `Valid quantity is required for component "${r.itemCode}"` });
-    });
+      compRows.forEach((r, i) => {
+        if (r.itemCode && !r.uom.trim())
+          errs.push({ field: `comp_uom_${i}`, label: `Component ${i + 1} UOM`, message: `UOM is required for component "${r.itemCode}"` });
+        if (r.itemCode && (!r.qty || parseFloat(r.qty) <= 0))
+          errs.push({ field: `comp_qty_${i}`, label: `Component ${i + 1} Qty`, message: `Valid quantity is required for component "${r.itemCode}"` });
+      });
+    }
+
+    // For External BOM, operations are required
+    if (bomType === "External" && !withOperations) {
+      errs.push({ field: "operations", label: "Operations", message: "Operations are required for External/Service BOM" });
+    }
 
     if (withOperations) {
       opRows.forEach((r, i) => {
@@ -930,133 +938,132 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
       setBomId(insertId);
       const parentRef = insertId;
 
-      // ─── Handle Components ──────────────────────────────────────────────────────
+      // ─── Handle Components (only for Internal BOM) ────────────────────────────
+      if (bomType === "Internal") {
+        // Get existing component IDs from edit data
+        const existingComponentIds = editData?.items?.map((item: any) => item.id) || [];
 
-      // Get existing component IDs from edit data
-      const existingComponentIds = editData?.items?.map((item: any) => item.id) || [];
-
-      // Get current component IDs from the rows (excluding new ones)
-      const currentComponentIds = compRows
-        .filter(row => !row.isNew && row.id)
-        .map(row => row.id);
-
-      // Find components to delete (existing ones not in current list)
-      const componentsToDelete = existingComponentIds.filter(
-        id => !currentComponentIds.includes(id)
-      );
-
-      // Delete removed components
-      for (const deleteId of componentsToDelete) {
-        try {
-          await api.delete(`/bom-item/${deleteId}`);
-        } catch (err) {
-          console.error('Error deleting component:', err);
-        }
-      }
-
-      // Update or create components
-      for (const comp of compRows) {
-        if (!comp.itemCode.trim()) continue;
-
-        // Components are sourced from the raw-materials list (type=raw)
-        const compItem = rawItems.find(i => i.item_code === comp.itemCode);
-        const qty = parseFloat(comp.qty) || 0;
-        const rate = parseFloat(comp.rate) || compItem?.standard_rate || compItem?.valuation_rate || 0;
-        const amount = qty * rate;
-
-        const itemPayload: BOMItemData = {
-          item_Id: compItem?.id,
-          item_code: comp.itemCode,
-          item_name: compItem?.item_name || comp.itemCode,
-          bom_no: parentRef,
-          qty: qty,
-          uom: comp.uom || compItem?.stock_uom || "Nos",
-          stock_qty: qty,
-          stock_uom: comp.uom || compItem?.stock_uom || "Nos",
-          conversion_factor: 1,
-          rate: rate,
-          amount: amount,
-          parent: parentRef,
-          parentfield: "items",
-          parenttype: "BOM",
-          owner: "Administrator",
-          modified_by: "Administrator"
-        };
-
-        if (comp.isNew) {
-          // Create new component
-          await api.post('/bom-item', itemPayload);
-        } else {
-          // Update existing component
-          await api.put(`/bom-item`, {
-            id: comp.id,
-            ...itemPayload
-          });
-        }
-      }
-
-      // ─── Handle Operations ─────────────────────────────────────────────────────
-
-      if (withOperations) {
-        // Get existing operation IDs from edit data
-        const existingOperationIds = editData?.operations?.map((op: any) => op.id) || [];
-
-        // Get current operation IDs from the rows (excluding new ones)
-        const currentOperationIds = opRows
+        // Get current component IDs from the rows (excluding new ones)
+        const currentComponentIds = compRows
           .filter(row => !row.isNew && row.id)
           .map(row => row.id);
 
-        // Find operations to delete
-        const operationsToDelete = existingOperationIds.filter(
-          id => !currentOperationIds.includes(id)
+        // Find components to delete (existing ones not in current list)
+        const componentsToDelete = existingComponentIds.filter(
+          id => !currentComponentIds.includes(id)
         );
 
-        // Delete removed operations
-        for (const deleteId of operationsToDelete) {
+        // Delete removed components
+        for (const deleteId of componentsToDelete) {
           try {
-            await api.delete(`/bom-operation/${deleteId}`);
+            await api.delete(`/bom-item/${deleteId}`);
           } catch (err) {
-            console.error('Error deleting operation:', err);
+            console.error('Error deleting component:', err);
           }
         }
 
-        // Update or create operations
-        for (const op of opRows) {
-          if (!op.operation.trim()) continue;
+        // Update or create components
+        for (const comp of compRows) {
+          if (!comp.itemCode.trim()) continue;
 
-          const hourRate = parseFloat(op.hourRate) || 0;
-          const timeInMins = parseFloat(op.timeInMins) || 0;
-          const operatingCost = (hourRate * timeInMins) / 60;
+          // Components are sourced from the raw-materials list (type=raw)
+          const compItem = rawItems.find(i => i.item_code === comp.itemCode);
+          const qty = parseFloat(comp.qty) || 0;
+          const rate = parseFloat(comp.rate) || compItem?.standard_rate || compItem?.valuation_rate || 0;
+          const amount = qty * rate;
 
-          const opPayload: BOMOperationData = {
-            operation: op.operation,
-            sequence_id: parseInt(op.sequenceId) || 0,
+          const itemPayload: BOMItemData = {
+            item_Id: compItem?.id,
+            item_code: comp.itemCode,
+            item_name: compItem?.item_name || comp.itemCode,
             bom_no: parentRef,
-            finished_good: itemToManufacture,
-            finished_good_qty: parseFloat(quantity) || 1,
-            workstation: op.workstation,
-            workstation_type: op.workstationType || "Machine",
-            time_in_mins: timeInMins,
-            hour_rate: hourRate,
-            operating_cost: operatingCost,
-            quality_inspection_required: op.qualityInspectionRequired ? 1 : 0,
+            qty: qty,
+            uom: comp.uom || compItem?.stock_uom || "Nos",
+            stock_qty: qty,
+            stock_uom: comp.uom || compItem?.stock_uom || "Nos",
+            conversion_factor: 1,
+            rate: rate,
+            amount: amount,
             parent: parentRef,
-            parentfield: "operations",
+            parentfield: "items",
             parenttype: "BOM",
             owner: "Administrator",
             modified_by: "Administrator"
           };
 
-          if (op.isNew) {
-            // Create new operation
-            await api.post('/bom-operation', opPayload);
+          if (comp.isNew) {
+            // Create new component
+            await api.post('/bom-item', itemPayload);
           } else {
-            // Update existing operation
-            await api.put(`/bom-operation`, {
-              id: op.id,
-              ...opPayload
+            // Update existing component
+            await api.put(`/bom-item`, {
+              id: comp.id,
+              ...itemPayload
             });
           }
+        }
+      }
+
+      // ─── Handle Operations ─────────────────────────────────────────────────────
+
+      // Get existing operation IDs from edit data
+      const existingOperationIds = editData?.operations?.map((op: any) => op.id) || [];
+
+      // Get current operation IDs from the rows (excluding new ones)
+      const currentOperationIds = opRows
+        .filter(row => !row.isNew && row.id)
+        .map(row => row.id);
+
+      // Find operations to delete
+      const operationsToDelete = existingOperationIds.filter(
+        id => !currentOperationIds.includes(id)
+      );
+
+      // Delete removed operations
+      for (const deleteId of operationsToDelete) {
+        try {
+          await api.delete(`/bom-operation/${deleteId}`);
+        } catch (err) {
+          console.error('Error deleting operation:', err);
+        }
+      }
+
+      // Update or create operations
+      for (const op of opRows) {
+        if (!op.operation.trim()) continue;
+
+        const hourRate = parseFloat(op.hourRate) || 0;
+        const timeInMins = parseFloat(op.timeInMins) || 0;
+        const operatingCost = (hourRate * timeInMins) / 60;
+
+        const opPayload: BOMOperationData = {
+          operation: op.operation,
+          sequence_id: parseInt(op.sequenceId) || 0,
+          bom_no: parentRef,
+          finished_good: itemToManufacture,
+          finished_good_qty: parseFloat(quantity) || 1,
+          workstation: op.workstation,
+          workstation_type: op.workstationType || "Machine",
+          time_in_mins: timeInMins,
+          hour_rate: hourRate,
+          operating_cost: operatingCost,
+          quality_inspection_required: op.qualityInspectionRequired ? 1 : 0,
+          parent: parentRef,
+          parentfield: "operations",
+          parenttype: "BOM",
+          owner: "Administrator",
+          modified_by: "Administrator"
+        };
+
+        if (op.isNew) {
+          // Create new operation
+          await api.post('/bom-operation', opPayload);
+        } else {
+          // Update existing operation
+          await api.put(`/bom-operation`, {
+            id: op.id,
+            ...opPayload
+          });
         }
       }
 
@@ -1073,6 +1080,14 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
       setSaving(false);
     }
   };
+
+  // Auto-enable operations for External BOM
+  useEffect(() => {
+    if (bomType === "External") {
+      setWithOperations(true);
+    }
+  }, [bomType]);
+
   return (
     <div className="nbom-page">
 
@@ -1144,107 +1159,255 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
       {/* Body - Single Page Layout */}
       <div className="nbom-body">
 
-       {/* BOM Type Radio */}
-<div className="nbom-card">
-  <div className="nbom-card__body">
-    <div className="nbom-bom-type-row">
+        {/* BOM Type Radio */}
+        <div className="nbom-card">
+          <div className="nbom-card__body">
+            <div className="nbom-bom-type-row">
+              <label className="nbom-bom-type-title">
+                BOM Type
+              </label>
+              <div className="nbom-radio-options">
+                <label className="nbom-radio-option">
+                  <input
+                    type="radio"
+                    name="bomType"
+                    value="Internal"
+                    checked={bomType === "Internal"}
+                    onChange={() => setBomType("Internal")}
+                  />
+                  <span className="nbom-radio-option-label">Product</span>
+                </label>
+                <label className="nbom-radio-option">
+                  <input
+                    type="radio"
+                    name="bomType"
+                    value="External"
+                    checked={bomType === "External"}
+                    onChange={() => setBomType("External")}
+                  />
+                  <span className="nbom-radio-option-label">Service</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
 
-      <label className="nbom-bom-type-title">
-        BOM Type
-      </label>
-
-      <div className="nbom-radio-options">
-        <label className="nbom-radio-option">
-          <input
-            type="radio"
-            name="bomType"
-            value="Internal"
-            checked={bomType === "Internal"}
-            onChange={() => setBomType("Internal")}
-          />
-          <span className="nbom-radio-option-label">Product</span>
-        </label>
-
-        <label className="nbom-radio-option">
-          <input
-            type="radio"
-            name="bomType"
-            value="External"
-            checked={bomType === "External"}
-            onChange={() => setBomType("External")}
-          />
-          <span className="nbom-radio-option-label">Service</span>
-        </label>
-      </div>
-
-    </div>
-  </div>
-</div>
         {/* Item to Manufacture with Quantity */}
         <div className="nbom-card">
-  <div className="nbom-card__body nbom-two-column">
+          <div className="nbom-card__body nbom-two-column">
+            {/* Item */}
+            <div className="nbom-field nbom-flex-item">
+              <Label text="Item to Manufacture" required info />
+              <select
+                className={`nbom-input ${hasFieldError('itemToManufacture') ? 'nbom-input--error' : ''}`}
+                value={itemToManufacture}
+                onChange={e => setItemToManufacture(e.target.value)}
+                disabled={itemsLoading}
+              >
+                <option value="">
+                  {itemsLoading ? 'Loading items...' : 'Select an item...'}
+                </option>
+                {items.map(item => (
+                  <option key={item.id} value={item.item_code}>
+                    {item.item_code} - {item.item_name} ({item.item_group})
+                  </option>
+                ))}
+              </select>
+              {hasFieldError('itemToManufacture') && (
+                <span className="nbom-error-text">
+                  Item to Manufacture is required
+                </span>
+              )}
+            </div>
 
-    {/* Item */}
-    <div className="nbom-field nbom-flex-item">
-      <Label text="Item to Manufacture" required info />
-      <select
-        className={`nbom-input ${hasFieldError('itemToManufacture') ? 'nbom-input--error' : ''}`}
-        value={itemToManufacture}
-        onChange={e => setItemToManufacture(e.target.value)}
-        disabled={itemsLoading}
-      >
-        <option value="">
-          {itemsLoading ? 'Loading items...' : 'Select an item...'}
-        </option>
+            {/* Quantity */}
+            <div className="nbom-field nbom-qty-field">
+              <Label text="Quantity" required />
+              <DigitInput
+                value={quantity}
+                onChange={(val) => setQuantity(val)}
+                placeholder="Enter quantity"
+                maxLength={10}
+                className="nbom-digit-input"
+              />
+            </div>
+          </div>
+        </div>
 
-        {items.map(item => (
-          <option key={item.id} value={item.item_code}>
-            {item.item_code} - {item.item_name} ({item.item_group})
-          </option>
-        ))}
-      </select>
-
-      {hasFieldError('itemToManufacture') && (
-        <span className="nbom-error-text">
-          Item to Manufacture is required
-        </span>
-      )}
-    </div>
-
-    {/* Quantity */}
-    <div className="nbom-field nbom-qty-field">
-      <Label text="Quantity" required />
-      <DigitInput
-        value={quantity}
-        onChange={(val) => setQuantity(val)}
-        placeholder="Enter quantity"
-        maxLength={10}
-        className="nbom-digit-input"
-      />
-    </div>
-
-  </div>
-</div>
-
-
+        {/* Components - Only show for Internal BOM */}
+        {bomType === "Internal" && (
+          <div className="nbom-card">
+            <div className="nbom-card__body">
+              <div className="nbom-card__title" style={{ marginBottom: 14 }}>
+                <span className="nbom-card__title-dot" />Components
+              </div>
+              <div className="nbom-table-wrap">
+                <table className="nbom-table">
+                  <thead>
+                    <tr>
+                      <th className="nbom-table-no">No.</th>
+                      <th>Item Code <span style={{ color: "var(--c-danger)" }}>*</span></th>
+                      <th>Item Name</th>
+                      <th>Item Group</th>
+                      <th>Qty <span style={{ color: "var(--c-danger)" }}>*</span></th>
+                      <th>UOM <span style={{ color: "var(--c-danger)" }}>*</span></th>
+                      <th>Rate</th>
+                      <th>Amount</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {compRows.map((row, idx) => (
+                      <tr key={row.id}>
+                        <td className="nbom-table-no">{idx + 1}</td>
+                        <td>
+                          <select
+                            className="nbom-table-select"
+                            value={row.itemCode}
+                            onChange={e => {
+                              const selectedItem = rawItems.find(i => i.item_code === e.target.value);
+                              const rate = selectedItem?.standard_rate ?? selectedItem?.valuation_rate ?? 0;
+                              setCompRows(rs => rs.map((r, i) => i === idx ? {
+                                ...r,
+                                itemCode: e.target.value,
+                                itemName: selectedItem?.item_name || '',
+                                itemGroup: selectedItem?.item_group || '',
+                                uom: selectedItem?.stock_uom || r.uom,
+                                rate: String(rate),
+                                valuationRate: selectedItem?.valuation_rate || 0,
+                                standardRate: selectedItem?.standard_rate || 0,
+                                amount: `₹ ${(rate * (parseFloat(r.qty) || 0)).toFixed(2)}`
+                              } : r));
+                            }}
+                            disabled={rawItemsLoading}
+                          >
+                            <option value="">
+                              {rawItemsLoading ? 'Loading...' : 'Select item...'}
+                            </option>
+                            {rawItems.map(item => (
+                              <option key={item.id} value={item.item_code}>
+                                {item.item_code} - {item.item_name}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td>
+                          <input
+                            className="nbom-table-input"
+                            value={row.itemName}
+                            readOnly
+                            style={{ background: "var(--c-bg-muted)" }}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            className="nbom-table-input"
+                            value={row.itemGroup}
+                            readOnly
+                            style={{ background: "var(--c-bg-muted)", width: 120 }}
+                          />
+                        </td>
+                        <td>
+                          <DigitInput
+                            value={row.qty}
+                            onChange={(val) => {
+                              const qty = parseFloat(val) || 0;
+                              const rate = parseFloat(row.rate) || 0;
+                              setCompRows(rs => rs.map((r, i) => i === idx ? {
+                                ...r,
+                                qty: val,
+                                amount: `₹ ${(rate * qty).toFixed(2)}`
+                              } : r));
+                            }}
+                            placeholder="0"
+                            maxLength={10}
+                            className={`nbom-digit-input ${hasFieldError(`comp_qty_${idx}`) ? 'nbom-input--error' : ''}`}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            className={`nbom-table-input ${hasFieldError(`comp_uom_${idx}`) ? 'nbom-input--error' : ''}`}
+                            value={row.uom}
+                            onChange={e => setCompRows(rs => rs.map((r, i) => i === idx ? { ...r, uom: e.target.value } : r))}
+                            style={{ width: 80 }}
+                          />
+                        </td>
+                        <td>
+                          <DigitInput
+                            value={row.rate}
+                            onChange={(val) => {
+                              const rate = parseFloat(val) || 0;
+                              const qty = parseFloat(row.qty) || 0;
+                              setCompRows(rs => rs.map((r, i) => i === idx ? {
+                                ...r,
+                                rate: val,
+                                amount: `₹ ${(rate * qty).toFixed(2)}`
+                              } : r));
+                            }}
+                            placeholder="0"
+                            maxLength={10}
+                            className="nbom-digit-input"
+                          />
+                        </td>
+                        <td className="nbom-table-val">{row.amount}</td>
+                        <td style={{ textAlign: "center" }}>
+                          <button
+                            className="nbom-edit-btn nbom-edit-btn--delete"
+                            onClick={() => openDeleteModal('component', row.id, row.itemCode || `Row ${idx + 1}`, row.id)}
+                            title="Delete row"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="nbom-table-footer">
+                <div className="nbom-table-footer__left">
+                  <button className="nbom-btn-link" onClick={addCompRow}>
+                    <Plus size={12} /> Add Component
+                  </button>
+                </div>
+                <div className="nbom-table-footer__right">
+                  <button className="nbom-btn-ghost">Download</button>
+                  <button className="nbom-btn-ghost">Upload</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Operations with Drag & Drop */}
         <div className="nbom-card">
-          <div className="nbom-card__header" onClick={() => setOpsPanelOpen(o => !o)}>
-            <span className="nbom-card__title"><span className="nbom-card__title-dot" />Operations</span>
-            <ChevronRight size={15} className={`nbom-card__chev ${opsPanelOpen ? "nbom-card__chev--open" : ""}`} />
+          <div className="nbom-card__header" onClick={() => bomType === "Internal" && setOpsPanelOpen(o => !o)}>
+            <span className="nbom-card__title">
+              <span className="nbom-card__title-dot" />Operations
+            </span>
+            {bomType === "Internal" && (
+              <ChevronRight size={15} className={`nbom-card__chev ${opsPanelOpen ? "nbom-card__chev--open" : ""}`} />
+            )}
           </div>
-          {opsPanelOpen && (
+          {((bomType === "External") || (bomType === "Internal" && opsPanelOpen)) && (
             <div className="nbom-card__body">
-              <Checkbox
-                label="With Operations"
-                hint="Manage cost of operations. Drag rows to reorder."
-                checked={withOperations}
-                onChange={() => setWithOperations(v => !v)}
-              />
+              {bomType === "Internal" && (
+                <Checkbox
+                  label="With Operations"
+                  hint="Manage cost of operations. Drag rows to reorder."
+                  checked={withOperations}
+                  onChange={() => setWithOperations(v => !v)}
+                />
+              )}
 
-              {withOperations && (
-                <div style={{ marginTop: 16 }}>
+              {(bomType === "External" || withOperations) && (
+                <div style={{ marginTop: bomType === "Internal" ? 16 : 0 }}>
+                  {bomType === "External" && (
+                    <div className="nbom-info-banner" style={{ marginBottom: 16 }}>
+                      <InfoIcon size={14} />
+                      <span>External/Service BOM requires operations to define the service workflow.</span>
+                    </div>
+                  )}
                   <div className="nbom-table-wrap">
                     <table className="nbom-table">
                       <thead>
@@ -1348,7 +1511,6 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                                 style={{ width: 80, background: "var(--c-bg-muted)" }}
                               />
                             </td>
-
                             <td style={{ textAlign: "center" }}>
                               <button
                                 className="nbom-edit-btn nbom-edit-btn--delete"
@@ -1376,150 +1538,8 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
           )}
         </div>
 
-        {/* Components */}
+        {/* Default Warehouse */}
         <div className="nbom-card">
-          <div className="nbom-card__body">
-            <div className="nbom-card__title" style={{ marginBottom: 14 }}>
-              <span className="nbom-card__title-dot" />Components
-            </div>
-            <div className="nbom-table-wrap">
-              <table className="nbom-table">
-                <thead>
-                  <tr>
-                    <th className="nbom-table-no">No.</th>
-                    <th>Item Code <span style={{ color: "var(--c-danger)" }}>*</span></th>
-                    <th>Item Name</th>
-                    <th>Item Group</th>
-                    <th>Qty <span style={{ color: "var(--c-danger)" }}>*</span></th>
-                    <th>UOM <span style={{ color: "var(--c-danger)" }}>*</span></th>
-                    <th>Rate</th>
-                    <th>Amount</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {compRows.map((row, idx) => (
-                    <tr key={row.id}>
-                      <td className="nbom-table-no">{idx + 1}</td>
-                      <td>
-                        <select
-                          className="nbom-table-select"
-                          value={row.itemCode}
-                          onChange={e => {
-                            const selectedItem = rawItems.find(i => i.item_code === e.target.value);
-                            const rate = selectedItem?.standard_rate ?? selectedItem?.valuation_rate ?? 0;
-                            setCompRows(rs => rs.map((r, i) => i === idx ? {
-                              ...r,
-                              itemCode: e.target.value,
-                              itemName: selectedItem?.item_name || '',
-                              itemGroup: selectedItem?.item_group || '',
-                              uom: selectedItem?.stock_uom || r.uom,
-                              rate: String(rate),
-                              valuationRate: selectedItem?.valuation_rate || 0,
-                              standardRate: selectedItem?.standard_rate || 0,
-                              amount: `₹ ${(rate * (parseFloat(r.qty) || 0)).toFixed(2)}`
-                            } : r));
-                          }}
-                          disabled={rawItemsLoading}
-                        >
-                          <option value="">
-                            {rawItemsLoading ? 'Loading...' : 'Select item...'}
-                          </option>
-                          {rawItems.map(item => (
-                            <option key={item.id} value={item.item_code}>
-                              {item.item_code} - {item.item_name}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td>
-                        <input
-                          className="nbom-table-input"
-                          value={row.itemName}
-                          readOnly
-                          style={{ background: "var(--c-bg-muted)" }}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          className="nbom-table-input"
-                          value={row.itemGroup}
-                          readOnly
-                          style={{ background: "var(--c-bg-muted)", width: 120 }}
-                        />
-                      </td>
-                      <td>
-                        <DigitInput
-                          value={row.qty}
-                          onChange={(val) => {
-                            const qty = parseFloat(val) || 0;
-                            const rate = parseFloat(row.rate) || 0;
-                            setCompRows(rs => rs.map((r, i) => i === idx ? {
-                              ...r,
-                              qty: val,
-                              amount: `₹ ${(rate * qty).toFixed(2)}`
-                            } : r));
-                          }}
-                          placeholder="0"
-                          maxLength={10}
-                          className={`nbom-digit-input ${hasFieldError(`comp_qty_${idx}`) ? 'nbom-input--error' : ''}`}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          className={`nbom-table-input ${hasFieldError(`comp_uom_${idx}`) ? 'nbom-input--error' : ''}`}
-                          value={row.uom}
-                          onChange={e => setCompRows(rs => rs.map((r, i) => i === idx ? { ...r, uom: e.target.value } : r))}
-                          style={{ width: 80 }}
-                        />
-                      </td>
-                      <td>
-                        <DigitInput
-                          value={row.rate}
-                          onChange={(val) => {
-                            const rate = parseFloat(val) || 0;
-                            const qty = parseFloat(row.qty) || 0;
-                            setCompRows(rs => rs.map((r, i) => i === idx ? {
-                              ...r,
-                              rate: val,
-                              amount: `₹ ${(rate * qty).toFixed(2)}`
-                            } : r));
-                          }}
-                          placeholder="0"
-                          maxLength={10}
-                          className="nbom-digit-input"
-                        />
-                      </td>
-                      <td className="nbom-table-val">{row.amount}</td>
-                      <td style={{ textAlign: "center" }}>
-                        <button
-                          className="nbom-edit-btn nbom-edit-btn--delete"
-                          onClick={() => openDeleteModal('component', row.id, row.itemCode || `Row ${idx + 1}`, row.id)}
-                          title="Delete row"
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="nbom-table-footer">
-              <div className="nbom-table-footer__left">
-                <button className="nbom-btn-link" onClick={addCompRow}>
-                  <Plus size={12} /> Add Component
-                </button>
-              </div>
-              <div className="nbom-table-footer__right">
-                <button className="nbom-btn-ghost">Download</button>
-                <button className="nbom-btn-ghost">Upload</button>
-              </div>
-            </div>
-          </div>
-        </div>
-{/* Default Warehouse */}
-<div className="nbom-card">
           <div className="nbom-card__body">
             <div className="nbom-config-section">
               <div className="nbom-config-section__title">Default Warehouse</div>
@@ -1558,16 +1578,19 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
             </div>
           </div>
         </div>
+
         {/* Cost Summary */}
         <div className="nbom-cost-summary">
-          <div className="nbom-cost-card nbom-cost-card--material">
-            <div className="nbom-cost-card__icon">
-              <Box size={18} />
+          {bomType === "Internal" && (
+            <div className="nbom-cost-card nbom-cost-card--material">
+              <div className="nbom-cost-card__icon">
+                <Box size={18} />
+              </div>
+              <div className="nbom-cost-card__label">Raw Material Cost</div>
+              <div className="nbom-cost-card__value">₹{calculateTotalCost().totalComponentCost}</div>
+              <div className="nbom-cost-card__subtitle">Total component cost</div>
             </div>
-            <div className="nbom-cost-card__label">Raw Material Cost</div>
-            <div className="nbom-cost-card__value">₹{calculateTotalCost().totalComponentCost}</div>
-            <div className="nbom-cost-card__subtitle">Total component cost</div>
-          </div>
+          )}
 
           <div className="nbom-cost-card nbom-cost-card--operation">
             <div className="nbom-cost-card__icon">
@@ -1584,7 +1607,9 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
             </div>
             <div className="nbom-cost-card__label">Total BOM Cost</div>
             <div className="nbom-cost-card__value">₹{calculateTotalCost().totalCost}</div>
-            <div className="nbom-cost-card__subtitle">Material + Operations</div>
+            <div className="nbom-cost-card__subtitle">
+              {bomType === "Internal" ? "Material + Operations" : "Operations Cost"}
+            </div>
           </div>
         </div>
       </div>
