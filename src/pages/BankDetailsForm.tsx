@@ -1185,7 +1185,7 @@ const [accounts, setAccounts] = useState<BankAccountEntry[]>(() => {
 
       remarks: account.remarks || null,
 
-      contact_person_name: account.contact_person_name.trim() || null,
+      // contact_person_name: account.contact_person_name.trim() || null,
       contact_person_last_name: account.contact_person_last_name.trim() || null,
       contact_person_phone: account.contact_person_phone.trim() || null,
       contact_person_email: account.contact_person_email.trim() || null,

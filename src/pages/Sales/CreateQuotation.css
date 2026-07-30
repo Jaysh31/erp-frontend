@@ -1085,17 +1085,13 @@ kbd {
 }
 
 .cq-item-suggest-dropdown {
-  position: absolute;
-  top: calc(100% + 2px);
-  left: 0;
-  min-width: 220px;
   max-height: 220px;
   overflow-y: auto;
   background: var(--card-bg, #ffffff);
   border: 1px solid var(--border-color, #e5e7eb);
   border-radius: 6px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-  z-index: 50;
+  z-index: 9999;
 }
 
 .cq-item-suggest-row {
