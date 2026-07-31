@@ -1507,3 +1507,206 @@
     padding: 3px 8px;
   }
 }
+/* WorkOrder.css - Tabs & Type Badge Styles */
+
+/* ── Tabs ────────────────────────────────────────────────── */
+.wo-tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 10px;
+  padding: 4px;
+  flex-shrink: 0;
+}
+
+.wo-tab {
+  flex: 1;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: transparent;
+  color: var(--text-secondary, #6b7280);
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.wo-tab:hover {
+  background: var(--nav-hover, #f9fafb);
+  color: var(--text-primary, #1f2433);
+}
+
+.wo-tab--active {
+  background: var(--primary-color, #6366f1);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+}
+
+.wo-tab--active:hover {
+  background: var(--primary-hover, #4f46e5);
+  color: #ffffff;
+}
+
+.wo-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  margin-left: 4px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.wo-tab--active .wo-tab-count {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* ── Type Badge ──────────────────────────────────────────── */
+.wo-type-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 12px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.wo-type--internal {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.wo-type--external {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+/* ── Active Filters ──────────────────────────────────────── */
+.wo-active-filters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: color-mix(in srgb, var(--primary-color) 8%, transparent);
+  border-radius: 8px;
+  font-size: 12px;
+  flex-wrap: wrap;
+  border: 1px solid var(--border-color, #e5e7eb);
+  flex-shrink: 0;
+}
+
+.wo-active-filters span {
+  color: var(--text-primary, #111827);
+}
+
+.wo-clear-filters {
+  margin-left: auto;
+  padding: 4px 12px;
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-secondary, #6b7280);
+  transition: all 0.15s;
+}
+
+.wo-clear-filters:hover {
+  background: var(--layout-bg, #f9fafb);
+}
+
+/* ── Dark Theme Overrides ────────────────────────────────── */
+.dark-theme .wo-tabs,
+.dashboard.dark .wo-tabs {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+}
+
+.dark-theme .wo-tab,
+.dashboard.dark .wo-tab {
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .wo-tab:hover,
+.dashboard.dark .wo-tab:hover {
+  background: var(--nav-hover, rgba(255, 255, 255, 0.05));
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .wo-tab--active,
+.dashboard.dark .wo-tab--active {
+  background: var(--primary-color, #3b82f6);
+  color: #ffffff;
+}
+
+.dark-theme .wo-type--internal,
+.dashboard.dark .wo-type--internal {
+  background: rgba(59, 130, 246, 0.15);
+  color: #93c5fd;
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.dark-theme .wo-type--external,
+.dashboard.dark .wo-type--external {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fcd34d;
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.dark-theme .wo-active-filters,
+.dashboard.dark .wo-active-filters {
+  background: rgba(99, 102, 241, 0.08);
+  border-color: var(--border-color, #334155);
+}
+
+.dark-theme .wo-active-filters span,
+.dashboard.dark .wo-active-filters span {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .wo-clear-filters,
+.dashboard.dark .wo-clear-filters {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+  color: var(--text-secondary, #94a3b8);
+}
+
+/* ── Responsive ──────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .wo-tabs {
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .wo-tab {
+    justify-content: flex-start;
+    padding: 8px 12px;
+  }
+
+  .wo-type-badge {
+    font-size: 10px;
+    padding: 0 8px;
+    height: 22px;
+  }
+}
