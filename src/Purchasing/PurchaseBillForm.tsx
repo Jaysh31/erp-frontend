@@ -95,7 +95,14 @@ interface GRNSummary {
 }
 
 interface InvoiceItem {
-  id?: string;
+  // NOTE: `id` is now ALWAYS populated (for every construction path — manual,
+  // GRN-derived, PO-only, and loaded-from-existing-invoice rows) and is the
+  // ONLY thing used to target a specific row for edits/removal/selection.
+  // Never use array index to look up or mutate a row — indexes shift when
+  // rows are added/removed/reordered and were the root cause of a row
+  // picking up another row's item_id (e.g. item_code "COOLANT" going out
+  // with item_Id belonging to a different catalog item).
+  id: string;
   db_item_id?: number;
   po_item_id?: number;
   grn_item_id?: number;
@@ -155,6 +162,12 @@ interface ValidationError { field: string; label: string; message: string; }
 const statusOptions = ['Draft', 'Submitted', 'Partially Paid', 'Fully Paid', 'Overdue', 'Cancelled'];
 const billSourceOptions = ['GRN', 'Without GRN'] as const;
 type BillSource = typeof billSourceOptions[number];
+
+// Small helper: generates a unique, stable id for a new row. Using this
+// everywhere a row is created guarantees every InvoiceItem.id is unique and
+// present, which is what lets all the row-lookup functions below key off
+// `id` instead of index.
+const makeRowId = () => `row-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -232,11 +245,16 @@ export default function PurchaseInvoiceForm() {
   const [, setLoadingItems] = useState(false);
   const [itemSearch, setItemSearch] = useState('');
   const [showItemDropdown, setShowItemDropdown] = useState(false);
-  const [selectedItemIndex, setSelectedItemIndex] = useState<number | null>(null);
+  // FIX: was `selectedItemIndex: number | null`. Array index is not a safe
+  // row identifier — it can point at the wrong row if items are added,
+  // removed, or if two dropdown interactions race each other. Track the
+  // row's stable `id` instead.
+  const [selectedItemRowId, setSelectedItemRowId] = useState<string | null>(null);
   const itemSearchRef = useRef<HTMLDivElement>(null);
 
   // ── Note popover state ───────────────────────────────────────────────────────
-  const [notePopoverIndex, setNotePopoverIndex] = useState<number | null>(null);
+  // FIX: same reasoning as selectedItemRowId — key off the row's stable id.
+  const [notePopoverRowId, setNotePopoverRowId] = useState<string | null>(null);
 
   // ── Tax state ───────────────────────────────────────────────────────────────
   const [taxes, setTaxes] = useState<Tax[]>([]);
@@ -631,6 +649,8 @@ export default function PurchaseInvoiceForm() {
         });
       });
 
+      // FIX: every row now gets a stable `id` at creation time (makeRowId()),
+      // used by every downstream lookup/mutation instead of array index.
       const invoiceRows: InvoiceItem[] = (poDetail.items || []).map(pi => {
         const rec = receivedMap[pi.id] || { qty: 0, grnNums: [], grnItemId: undefined };
         const totalReceived = rec.qty;
@@ -644,6 +664,7 @@ export default function PurchaseInvoiceForm() {
         });
 
         return {
+          id: makeRowId(),
           po_item_id: pi.id,
           grn_item_id: rec.grnItemId,
           item_id: pi.item_id,
@@ -678,6 +699,7 @@ export default function PurchaseInvoiceForm() {
         if (!merged[key]) {
           const tax = (taxes || []).find(t => t.tax_id === 1);
           merged[key] = {
+            id: makeRowId(),
             grn_item_id: gi.id,
             item_id: gi.item_id,
             item_code: gi.item_code || '',
@@ -716,6 +738,7 @@ export default function PurchaseInvoiceForm() {
       const taxRate = parseFloat(pi.item_tax_rate || '0') || 0;
       const tax = (taxes || []).find(t => parseInt((t.tax_type || '').replace('GST', '')) === taxRate);
       return {
+        id: makeRowId(),
         po_item_id: pi.id,
         item_id: pi.item_id,
         item_code: pi.item_code || '',
@@ -740,7 +763,7 @@ export default function PurchaseInvoiceForm() {
   // ─── Manual entry functions ────────────────────────────────────────────────
   const handleAddManualItem = () => {
     const newItem: InvoiceItem = {
-      id: Date.now().toString(),
+      id: makeRowId(),
       item_code: '',
       item_name: '',
       uom: 'Nos',
@@ -765,13 +788,20 @@ export default function PurchaseInvoiceForm() {
     }, 100);
   };
 
-  const handleRemoveManualItem = (index: number) => {
-    setItems(items.filter((_, i) => i !== index));
+  // FIX: was `(index: number)`. Removing by index is unsafe if the array
+  // was mutated between render and click (e.g. a GRN rebuild firing while
+  // the user has a row's remove button focused). Removing by `id` is
+  // unambiguous no matter what else changed.
+  const handleRemoveManualItem = (rowId: string) => {
+    setItems(prev => prev.filter(item => item.id !== rowId));
   };
 
-  const handleItemFieldChange = (index: number, field: keyof InvoiceItem, value: any) => {
-    setItems(prev => prev.map((item, i) => {
-      if (i !== index) return item;
+  // FIX: was `(index: number, field, value)`. This is the function that sets
+  // `rate`/`bill_qty`/etc. — keying it by `id` means a field edit can never
+  // land on a different row than the one the user is typing into.
+  const handleItemFieldChange = (rowId: string, field: keyof InvoiceItem, value: any) => {
+    setItems(prev => prev.map(item => {
+      if (item.id !== rowId) return item;
       const updated = { ...item, [field]: value };
       if (field === 'bill_qty' || field === 'rate') {
         updated.amount = (updated.bill_qty || 0) * (updated.rate || 0);
@@ -780,12 +810,19 @@ export default function PurchaseInvoiceForm() {
     }));
   };
 
-  const handleSelectItem = (item: Item, index: number) => {
+  // FIX: was `(item: Item, index: number)`. THIS is the function most
+  // directly responsible for the bug you hit — it's what writes item_id,
+  // item_code, rate, etc. onto a row all in the same object spread. Keying
+  // it by the row's stable `id` (instead of an `index` that can go stale
+  // between when the dropdown opened and when the user clicked an option)
+  // guarantees item_id and item_code can never end up describing two
+  // different catalog items.
+  const handleSelectItem = (item: Item, rowId: string) => {
     const tax = (taxes || []).find(t => t.tax_id === item.tax_id);
     const taxRate = tax ? parseInt((tax.tax_type || '').replace('GST', '')) : 0;
 
-    setItems(prev => prev.map((row, i) => {
-      if (i !== index) return row;
+    setItems(prev => prev.map(row => {
+      if (row.id !== rowId) return row;
       return {
         ...row,
         item_id: item.id,
@@ -802,12 +839,13 @@ export default function PurchaseInvoiceForm() {
     }));
     setShowItemDropdown(false);
     setItemSearch('');
-    setSelectedItemIndex(null);
+    setSelectedItemRowId(null);
   };
 
-  const handleBillQtyChange = (index: number, val: number) => {
-    setItems(prev => prev.map((row, i) => {
-      if (i !== index) return row;
+  // FIX: was `(index: number, val: number)`.
+  const handleBillQtyChange = (rowId: string, val: number) => {
+    setItems(prev => prev.map(row => {
+      if (row.id !== rowId) return row;
       const safeQty = Math.min(Math.max(0, val), row.unbilled_qty || 0);
       return {
         ...row,
@@ -861,7 +899,7 @@ export default function PurchaseInvoiceForm() {
 
         if (inv.items?.length) {
           const rows: InvoiceItem[] = inv.items.map((it: any) => ({
-            id: it.id ? String(it.id) : Date.now().toString(),
+            id: makeRowId(),
             db_item_id: it.id ? Number(it.id) : undefined,
             po_item_id: it.po_detail || undefined,
             item_id: it.item_id || undefined,
@@ -1065,6 +1103,21 @@ export default function PurchaseInvoiceForm() {
   const syncManualInventory = async (billableItems: InvoiceItem[]) => {
     const warehouseId = selectedWarehouseId === '' ? 0 : selectedWarehouseId;
     await Promise.all((billableItems || []).map(async (item) => {
+      // FIX: hard guard against exactly the bug you hit — item_code and
+      // item_id silently belonging to two different catalog rows. If the
+      // catalog id doesn't exist, or exists but its item_code doesn't match
+      // what's on this row, refuse to sync rather than posting bad stock
+      // data, and surface it clearly instead of failing silently.
+      const catalogMatch = itemsList.find(i => i.id === item.item_id);
+      if (!item.item_id || !catalogMatch || catalogMatch.item_code !== item.item_code) {
+        console.error(
+          'Inventory sync skipped — item_id/item_code mismatch:',
+          { item_id: item.item_id, item_code: item.item_code, catalogMatch }
+        );
+        toast.error(`Item id mismatch for "${item.item_code || item.item_name}" — please re-select it from the catalog and try again.`);
+        return;
+      }
+
       const invPayload = {
         item_Id: item.item_id || 0,
         item_code: item.item_code || '',
@@ -1360,7 +1413,7 @@ export default function PurchaseInvoiceForm() {
             </thead>
             <tbody>
               {items.map((item, i) => (
-                <tr key={i}>
+                <tr key={item.id}>
                   <td>{i + 1}</td>
                   <td>{item.item_code || ''}</td>
                   <td>{item.item_name || ''}</td>
@@ -2016,7 +2069,7 @@ export default function PurchaseInvoiceForm() {
                     </thead>
                     <tbody>
                       {items.map((row, i) => (
-                        <tr key={row.id || i} className={`pif-itr ${(row.unbilled_qty || 0) === 0 ? 'pif-itr--zero' : ''}`}>
+                        <tr key={row.id} className={`pif-itr ${(row.unbilled_qty || 0) === 0 ? 'pif-itr--zero' : ''}`}>
                           <td className="pif-itd pif-itd-no">{i + 1}</td>
                           <td className="pif-itd" style={{ position: 'relative', overflow: 'visible' }}>
                             {isManual ? (
@@ -2026,12 +2079,12 @@ export default function PurchaseInvoiceForm() {
                                   value={row.item_code || ''}
                                   onChange={e => {
                                     setItemSearch(e.target.value);
-                                    setSelectedItemIndex(i);
+                                    setSelectedItemRowId(row.id);
                                     setShowItemDropdown(true);
-                                    handleItemFieldChange(i, 'item_code', e.target.value);
+                                    handleItemFieldChange(row.id, 'item_code', e.target.value);
                                   }}
                                   onFocus={() => {
-                                    setSelectedItemIndex(i);
+                                    setSelectedItemRowId(row.id);
                                     setShowItemDropdown(true);
                                     setItemSearch(row.item_code || '');
                                   }}
@@ -2044,7 +2097,7 @@ export default function PurchaseInvoiceForm() {
                                   placeholder="Search item..."
                                   autoComplete="off"
                                 />
-                                {showItemDropdown && selectedItemIndex === i && (
+                                {showItemDropdown && selectedItemRowId === row.id && (
                                   <div className="pif-dropdown-wrapper">
                                     <div className="pif-dropdown-down">
                                       {filteredItems.length > 0 ? (
@@ -2055,7 +2108,7 @@ export default function PurchaseInvoiceForm() {
                                               className="pif-dropdown-item"
                                               onMouseDown={(e) => {
                                                 e.preventDefault();
-                                                handleSelectItem(item, i);
+                                                handleSelectItem(item, row.id);
                                               }}
                                             >
                                               <div className="pif-dropdown-item-code">
@@ -2083,7 +2136,7 @@ export default function PurchaseInvoiceForm() {
                               <input
                                 type="text"
                                 value={row.item_code || ''}
-                                onChange={e => handleItemFieldChange(i, 'item_code', e.target.value)}
+                                onChange={e => handleItemFieldChange(row.id, 'item_code', e.target.value)}
                                 className="pif-cell-input"
                                 placeholder="Item code"
                               />
@@ -2093,7 +2146,7 @@ export default function PurchaseInvoiceForm() {
                             <input
                               type="text"
                               value={row.item_name || ''}
-                              onChange={e => handleItemFieldChange(i, 'item_name', e.target.value)}
+                              onChange={e => handleItemFieldChange(row.id, 'item_name', e.target.value)}
                               className="pif-cell-input"
                               placeholder="Item name"
                             />
@@ -2102,7 +2155,7 @@ export default function PurchaseInvoiceForm() {
                             <input
                               type="text"
                               value={row.HSN || ''}
-                              onChange={e => handleItemFieldChange(i, 'HSN', e.target.value)}
+                              onChange={e => handleItemFieldChange(row.id, 'HSN', e.target.value)}
                               className="pif-cell-input"
                               placeholder="HSN"
                             />
@@ -2118,7 +2171,7 @@ export default function PurchaseInvoiceForm() {
                               <input
                                 type="number"
                                 value={row.bill_qty || 0}
-                                onChange={e => handleItemFieldChange(i, 'bill_qty', parseFloat(e.target.value) || 0)}
+                                onChange={e => handleItemFieldChange(row.id, 'bill_qty', parseFloat(e.target.value) || 0)}
                                 className="pif-cell-input pif-cell-number"
                                 min="0"
                                 step="any"
@@ -2131,7 +2184,7 @@ export default function PurchaseInvoiceForm() {
                                 min={0}
                                 max={row.unbilled_qty || 0}
                                 step="any"
-                                onChange={e => handleBillQtyChange(i, Number(e.target.value))}
+                                onChange={e => handleBillQtyChange(row.id, Number(e.target.value))}
                                 disabled={(row.unbilled_qty || 0) === 0}
                                 title={(row.unbilled_qty || 0) === 0 ? 'Already fully billed' : `Max: ${row.unbilled_qty || 0}`}
                               />
@@ -2140,7 +2193,7 @@ export default function PurchaseInvoiceForm() {
                           <td className="pif-itd">
                             <select
                               value={row.uom || 'Nos'}
-                              onChange={e => handleItemFieldChange(i, 'uom', e.target.value)}
+                              onChange={e => handleItemFieldChange(row.id, 'uom', e.target.value)}
                               className="pif-cell-input"
                             >
                               <option value="Nos">Nos</option>
@@ -2161,7 +2214,7 @@ export default function PurchaseInvoiceForm() {
                             <input
                               type="number"
                               value={row.rate || 0}
-                              onChange={e => handleItemFieldChange(i, 'rate', parseFloat(e.target.value) || 0)}
+                              onChange={e => handleItemFieldChange(row.id, 'rate', parseFloat(e.target.value) || 0)}
                               className="pif-cell-input pif-cell-number"
                               min="0"
                               step="0.01"
@@ -2173,7 +2226,7 @@ export default function PurchaseInvoiceForm() {
                           <td className="pif-itd pif-itd-num">
                             <select
                               value={row.tax_rate || 0}
-                              onChange={e => handleItemFieldChange(i, 'tax_rate', parseFloat(e.target.value) || 0)}
+                              onChange={e => handleItemFieldChange(row.id, 'tax_rate', parseFloat(e.target.value) || 0)}
                               className="pif-cell-input"
                             >
                               {(taxes || []).map(tax => {
@@ -2191,18 +2244,18 @@ export default function PurchaseInvoiceForm() {
                             <button
                               type="button"
                               className={`pif-note-btn ${row.note ? 'pif-note-btn--filled' : ''}`}
-                              onClick={() => setNotePopoverIndex(notePopoverIndex === i ? null : i)}
+                              onClick={() => setNotePopoverRowId(notePopoverRowId === row.id ? null : row.id)}
                               title={row.note || 'Add note'}
                             >
                               <FaStickyNote size={12} />
                             </button>
-                            {notePopoverIndex === i && (
+                            {notePopoverRowId === row.id && (
                               <div className="pif-note-popover">
                                 <textarea
                                   className="pif-note-textarea"
                                   value={row.note || ''}
-                                  onChange={e => handleItemFieldChange(i, 'note', e.target.value)}
-                                  onBlur={() => setTimeout(() => setNotePopoverIndex(null), 150)}
+                                  onChange={e => handleItemFieldChange(row.id, 'note', e.target.value)}
+                                  onBlur={() => setTimeout(() => setNotePopoverRowId(null), 150)}
                                   placeholder="e.g. Received 100kg metal of 3 roll"
                                   rows={3}
                                   autoFocus
@@ -2214,7 +2267,7 @@ export default function PurchaseInvoiceForm() {
                             <td className="pif-itd">
                               <button
                                 type="button"
-                                onClick={() => handleRemoveManualItem(i)}
+                                onClick={() => handleRemoveManualItem(row.id)}
                                 className="pif-remove-item-btn"
                               >
                                 <FaTrash />

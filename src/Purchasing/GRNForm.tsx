@@ -749,11 +749,48 @@ export default function GRNForm() {
     return {};
   };
 
+  // ─── Resolve the actual Item Master id for a GRN item ────────────────
+  // IMPORTANT: `item.itemId` coming from a Purchase Order line is NOT
+  // guaranteed to be the Item Master's id (it can be the PO line/item id).
+  // The Item Master id is only reliable when the item was picked from the
+  // item-master search (handleItemMasterSelect) or when we look it up by
+  // item_code against the loaded itemsMaster list. This helper is the
+  // single source of truth used whenever we need to send `item_Id` to
+  // another API (e.g. /inventory).
+  const resolveItemMasterId = (item: GRNItem): number | undefined => {
+    // 1. item_code is authoritative — always prefer matching on it first.
+    //    This protects against a stale/wrong `itemId` that happens to match
+    //    a *different* record in itemsMaster (e.g. itemId=94 left over from
+    //    an earlier row selection, while itemCode was later changed to
+    //    "COOLANT" — itemId=94 is "Valve Guide", not Coolant).
+    if (item.itemCode) {
+      const matchByCode = itemsMaster.find(
+        im => (im.item_code || '').trim().toLowerCase() === item.itemCode.trim().toLowerCase()
+      );
+      if (matchByCode) return matchByCode.id;
+    }
+    // 2. Only fall back to the stored itemId if no code match was found
+    //    AND that id actually exists in itemsMaster.
+    if (item.itemId) {
+      const matchById = itemsMaster.find(im => im.id === item.itemId);
+      if (matchById) return matchById.id;
+    }
+    // 3. Last resort: whatever was on the item (may be wrong, but better than nothing).
+    return item.itemId;
+  };
+
   // ─── Populate GRN from PO ──────────────────────────────────────────
   const populateGRNFromPO = (poDetail: PurchaseOrderDetail) => {
     const items: GRNItem[] = (poDetail.items || []).map((item, index) => {
       const taxInfo = resolveTaxInfo(item);
-      
+
+      // Try to resolve the real Item Master id right away by matching item_code.
+      // (itemsMaster may not have loaded yet — that's fine, resolveItemMasterId()
+      // is called again at save/post time as the authoritative check.)
+      const masterMatch = itemsMaster.find(
+        im => (im.item_code || '').toLowerCase() === (item.item_code || '').toLowerCase()
+      );
+
       return {
         id: `po-${poDetail.id}-${index}-${Date.now()}`,
         itemCode: item.item_code || '',
@@ -764,8 +801,8 @@ export default function GRNForm() {
         uom: item.uom || '',
         rate: item.rate || 0,
         remarks: '',
-        poItemId: item.id,
-        itemId: item.id,
+        poItemId: item.id,                 // PO line id — used only for PO reference, never for inventory item_Id
+        itemId: masterMatch?.id,            // real Item Master id (may be undefined until resolved later)
         taxId: taxInfo.taxId,
         taxType: taxInfo.taxType,
         taxRate: taxInfo.taxRate || 0,
@@ -961,6 +998,35 @@ export default function GRNForm() {
     }
   }, [showPODropdown, poCurrentPage, formData.supplierId]);
 
+  // ─── Once Item Master finishes loading, backfill itemId on any items ──
+  // (PO-sourced items, or items loaded in edit mode) that don't have a
+  // confirmed Item Master id yet, by matching on item_code.
+  useEffect(() => {
+    if (itemsMaster.length === 0) return;
+    setFormData(prev => {
+      let changed = false;
+      const items = prev.items.map(it => {
+        // Always re-check against item_code — this catches the case where
+        // itemId is "valid" (exists in itemsMaster) but belongs to a
+        // different item_code than the one currently on the row.
+        const codeMatch = itemsMaster.find(
+          im => (im.item_code || '').trim().toLowerCase() === (it.itemCode || '').trim().toLowerCase()
+        );
+        if (codeMatch) {
+          if (codeMatch.id !== it.itemId) {
+            changed = true;
+            return { ...it, itemId: codeMatch.id };
+          }
+          return it;
+        }
+        // No code match available (e.g. itemCode not typed yet) — leave as-is.
+        return it;
+      });
+      return changed ? { ...prev, items } : prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemsMaster]);
+
   // ─── Fetch GRN Data for Edit ──────────────────────────────────────
   const fetchGRNData = async (grnId: string) => {
     setLoading(true);
@@ -982,7 +1048,14 @@ export default function GRNForm() {
         
         const items: GRNItem[] = (data.items || []).map((item, index) => {
           const taxInfo = resolveTaxInfo(item);
-          
+
+          // Resolve real Item Master id: prefer explicit item_id from the API,
+          // but verify/backfill via item_code against itemsMaster (handled again
+          // by the useEffect above once itemsMaster has loaded).
+          const masterMatch = itemsMaster.find(
+            im => (im.item_code || '').toLowerCase() === (item.item_code || '').toLowerCase()
+          );
+
           return {
             id: item.id?.toString() || `item-${index}-${Date.now()}`,
             itemCode: item.item_code || '',
@@ -994,7 +1067,7 @@ export default function GRNForm() {
             rate: item.rate || 0,
             remarks: item.remarks || '',
             poItemId: item.po_item_id || item.id,
-            itemId: item.item_id || item.id,
+            itemId: masterMatch?.id || item.item_id,
             taxId: taxInfo.taxId || item.tax_id,
             taxType: taxInfo.taxType || item.tax_type,
             taxRate: taxInfo.taxRate || 0,
@@ -1334,40 +1407,51 @@ export default function GRNForm() {
   const grandTotal = billTotals.itemsTotal + deliveryChargeAmount;
 
   // ─── Inventory Sync ───────────────────────────────────────────────────
-// ─── Inventory Sync ───────────────────────────────────────────────────
-const postInventoryForItems = async (items: GRNItem[]) => {
-  const inventoryType = formData.isService ? 'External' : 'Internal';
-  const role = getUserRole();
-  
-  // Get GRN ID and GRN number for existing GRNs (edit mode)
-  const grnId = isEditMode && id ? parseInt(id) : undefined;
-  const grnNumber = isEditMode ? formData.grn_number : undefined;
-  
-  const results = await Promise.allSettled(
-    items.map((item) => {
-      const payload = {
-        item_Id: item.itemId ?? item.poItemId,
-        item_code: item.itemCode,
-        warehouse_Id: formData.warehouseId,
-        actual_qty: item.receivedQty || 0,
-        ordered_qty: item.orderedQty || item.receivedQty || 0,
-        stock_uom: item.uom,
-        company: company,
-        valuation_rate: item.rate || 0,
-        modified_by: role?.name,
-        type: inventoryType,
-        grn_id: grnId,           // GRN ID for reference
-        grn_number: grnNumber,   // GRN Number for reference
-      };
-      return api.post('/inventory', payload);
-    })
-  );
+  const postInventoryForItems = async (items: GRNItem[]) => {
+    const inventoryType = formData.isService ? 'External' : 'Internal';
+    const role = getUserRole();
 
-  const failed = results.filter(r => r.status === 'rejected');
-  if (failed.length > 0) {
-    console.error(`Failed to post ${failed.length} of ${items.length} inventory entries`, failed);
-  }
-};
+    // Get GRN ID and GRN number for existing GRNs (edit mode)
+    const grnId = isEditMode && id ? parseInt(id) : undefined;
+    const grnNumber = isEditMode ? formData.grn_number : undefined;
+
+    const results = await Promise.allSettled(
+      items.map((item) => {
+        // IMPORTANT: item_Id must be the Item Master's id (e.g. Coolant -> 97),
+        // never the PO line id / GRN item id. resolveItemMasterId() looks it up
+        // by id first, falling back to a match on item_code.
+        const resolvedItemId = resolveItemMasterId(item);
+
+        const payload = {
+          item_Id: resolvedItemId,
+          item_code: item.itemCode,
+          warehouse_Id: formData.warehouseId,
+          actual_qty: item.receivedQty || 0,
+          ordered_qty: item.orderedQty || item.receivedQty || 0,
+          stock_uom: item.uom,
+          company: company,
+          valuation_rate: item.rate || 0,
+          modified_by: role?.name,
+          type: inventoryType,
+          grn_id: grnId,           // GRN ID for reference
+          grn_number: grnNumber,   // GRN Number for reference
+        };
+
+        if (!resolvedItemId) {
+          console.warn(
+            `Could not resolve Item Master id for item_code "${item.itemCode}" — sending inventory entry without item_Id.`
+          );
+        }
+
+        return api.post('/inventory', payload);
+      })
+    );
+
+    const failed = results.filter(r => r.status === 'rejected');
+    if (failed.length > 0) {
+      console.error(`Failed to post ${failed.length} of ${items.length} inventory entries`, failed);
+    }
+  };
 
   // ─── Print ────────────────────────────────────────────────────────────
   const handlePrint = () => {
@@ -1535,7 +1619,7 @@ const postInventoryForItems = async (items: GRNItem[]) => {
             rate: item.rate || 0,
             purchase_rate: item.rate,
             remarks: item.remarks || null,
-            item_id: item.itemId || item.poItemId || undefined,
+            item_id: resolveItemMasterId(item),
             tax_id: item.taxId,
             tax_type: item.taxType,
             item_tax_template: item.taxType || item.taxRate ? `${item.taxType || 'GST'} ${item.taxRate || 0}%` : '',
