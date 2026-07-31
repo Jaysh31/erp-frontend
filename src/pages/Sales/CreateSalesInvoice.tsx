@@ -526,7 +526,7 @@ class SalesBillAPI {
   }
 
   async getInventory(params?: { item_code?: string }): Promise<ApiResponse<any>> {
-    return this.apiService.get('/inventory', params);
+    return this.apiService.get('/inventory?limit=1000', params);
   }
 
   async updateInventory(_id: number, data: any): Promise<ApiResponse<any>> {
@@ -2736,25 +2736,29 @@ const CreateSalesBill: React.FC = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async () => {
-    if (!validateForm()) return;
-    setIsSubmitting(true);
-    const toastId = toast.loading('Creating sales bill...');
-    try {
-      const payload = buildPayload('Submitted');
-      const createResponse = await salesBillAPI.createSalesBill(payload);
-      
-      if (!createResponse.success) {
-        throw new Error(createResponse.message || 'Failed to create');
-      }
-      
-      const responseData = createResponse.data;
-      const salesBillName = responseData?.data?.name || responseData?.name || billNumber;
-      const totalItemsCount = responseData?.data?.total_items || items.filter(i => i.itemCode && i.quantity > 0).length;
-      const message = responseData?.data?.message || responseData?.message || createResponse.message || 'Sales Invoice created successfully.';
-      const totalAmount = getGrandTotalWithRound();
+const handleSubmit = async () => {
+  if (!validateForm()) return;
+  setIsSubmitting(true);
+  const toastId = toast.loading('Creating sales bill...');
+  try {
+    const payload = buildPayload('Submitted');
+    const createResponse = await salesBillAPI.createSalesBill(payload);
+    
+    if (!createResponse.success) {
+      throw new Error(createResponse.message || 'Failed to create');
+    }
+    
+    const responseData = createResponse.data;
+    const salesBillName = responseData?.data?.name || responseData?.name || billNumber;
+    const totalItemsCount = responseData?.data?.total_items || items.filter(i => i.itemCode && i.quantity > 0).length;
+    const message = responseData?.data?.message || responseData?.message || createResponse.message || 'Sales Invoice created successfully.';
+    const totalAmount = getGrandTotalWithRound();
 
-      // Update inventory for the items
+    // ===== FIX: Only update inventory if NOT from Delivery Challan =====
+    const isFromDeliveryChallan = selectedDeliveryChallans.length > 0;
+    
+    if (!isFromDeliveryChallan) {
+      // Only update inventory if NOT from Delivery Challan
       const itemsToDispatch = items.filter(item => item.itemCode && item.quantity > 0 && item.type !== 'service');
       if (itemsToDispatch.length > 0) {
         toast.loading('Updating inventory...', { id: toastId });
@@ -2766,33 +2770,37 @@ const CreateSalesBill: React.FC = () => {
           toast.success('Inventory updated successfully!', { id: toastId });
         }
       }
-
-      toast.success('Created!', { id: toastId });
-
-      setSuccessData({
-        salesBill: salesBillName,
-        totalItems: totalItemsCount,
-        message: message,
-        customerName: customerData?.name,
-        totalAmount: totalAmount
-      });
-      setShowSuccessModal(true);
-
-      if (salesBillName && salesBillName !== billNumber) {
-        try {
-          await salesBillAPI.submitSalesBill(salesBillName);
-          toast.success(`Bill ${salesBillName} submitted!`);
-        } catch (submitError) {
-          console.warn('Submit failed but SB was created:', submitError);
-          toast('SB created but submission failed. Please submit manually.');
-        }
-      }
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to create', { id: toastId });
-    } finally {
-      setIsSubmitting(false);
+    } else {
+      // Skip inventory update when from Delivery Challan
+      toast.success('Sales Bill created from Delivery Challan - Inventory not updated (already deducted at DC level)', { id: toastId });
     }
-  };
+
+    toast.success('Created!', { id: toastId });
+
+    setSuccessData({
+      salesBill: salesBillName,
+      totalItems: totalItemsCount,
+      message: message,
+      customerName: customerData?.name,
+      totalAmount: totalAmount
+    });
+    setShowSuccessModal(true);
+
+    if (salesBillName && salesBillName !== billNumber) {
+      try {
+        await salesBillAPI.submitSalesBill(salesBillName);
+        toast.success(`Bill ${salesBillName} submitted!`);
+      } catch (submitError) {
+        console.warn('Submit failed but SB was created:', submitError);
+        toast('SB created but submission failed. Please submit manually.');
+      }
+    }
+  } catch (error: any) {
+    toast.error(error.message || 'Failed to create', { id: toastId });
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   const handleSaveDraft = async () => {
     if (!validateForm()) return;

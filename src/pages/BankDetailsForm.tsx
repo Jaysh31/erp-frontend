@@ -1005,23 +1005,6 @@ const [accounts, setAccounts] = useState<BankAccountEntry[]>(() => {
   };
 
   // ── contact person modal ─────────────────────────────────────────────
-
-  const openContactModal = (idx: number) => {
-    const acc = accounts[idx];
-    setContactModal({
-      idx,
-      firstName: acc.contact_person_name,
-      lastName: acc.contact_person_last_name,
-      phone: acc.contact_person_phone,
-      email: acc.contact_person_email,
-      department: acc.contact_person_department,
-      remarks: acc.contact_person_remarks,
-      isPrimary: acc.contact_person_name ? acc.contact_is_primary : true,
-      isBilling: acc.contact_is_billing,
-      isPurchase: acc.contact_is_purchase,
-    });
-  };
-
   const closeContactModal = () => setContactModal(null);
 
   const handleContactModalTextChange = (
@@ -1064,38 +1047,6 @@ const [accounts, setAccounts] = useState<BankAccountEntry[]>(() => {
       contact_is_purchase: contactModal.isPurchase,
     });
     setContactModal(null);
-  };
-
-  const removeContactPerson = (idx: number) => {
-    updateAccount(idx, {
-      contact_person_name: "",
-      contact_person_last_name: "",
-      contact_person_phone: "",
-      contact_person_email: "",
-      contact_person_department: "",
-      contact_person_remarks: "",
-      contact_is_primary: true,
-      contact_is_billing: false,
-      contact_is_purchase: false,
-    });
-  };
-
-  const CONTACT_AVATAR_COLORS = [
-    "#6366f1", "#ec4899", "#f59e0b", "#10b981",
-    "#3b82f6", "#8b5cf6", "#ef4444", "#14b8a6",
-  ];
-
-  const getContactInitials = (name: string): string => {
-    const parts = name.trim().split(/\s+/).filter(Boolean);
-    if (parts.length === 0) return "?";
-    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-  };
-
-  const getContactAvatarColor = (name: string): string => {
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    return CONTACT_AVATAR_COLORS[Math.abs(hash) % CONTACT_AVATAR_COLORS.length];
   };
 
   // ── file handlers (upload happens immediately via /uploadmedia) ────
@@ -1420,7 +1371,7 @@ const [accounts, setAccounts] = useState<BankAccountEntry[]>(() => {
   const renderAccountFields = (idx: number) => {
     const account = accounts[idx];
     const accountId = resolveAccountId(account);
-    const contactFullName = `${account.contact_person_name} ${account.contact_person_last_name}`.trim();
+    // const contactFullName = `${account.contact_person_name} ${account.contact_person_last_name}`.trim();
 
     return (
       <>
