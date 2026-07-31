@@ -49,7 +49,7 @@ export default function ItemAttributeForm() {
   const [comment, setComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
-  const [validationErrors] = useState<ValidationError[]>([]);
+  // const [validationErrors] = useState<ValidationError[]>([]);
   const [formSubmitted, setFormSubmitted] = useState(false);
 
   const addRow = () => {
