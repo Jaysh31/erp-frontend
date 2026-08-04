@@ -411,7 +411,7 @@ const JobCardForm: React.FC = () => {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isStartingJob, setIsStartingJob] = useState(false);
   const [woDetails, setWoDetails] = useState<any>(null);
-  const [loadingWoDetails, setLoadingWoDetails] = useState(false);
+  const [, setLoadingWoDetails] = useState(false);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
 
   useEffect(() => {

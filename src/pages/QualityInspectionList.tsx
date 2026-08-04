@@ -14,7 +14,7 @@ import api from '../../src/services/api';
 /* ─────────────────────────── Types ─────────────────────────── */
 
 export interface InspectionListItem {
-  id: string;
+  id: string | number;
   reportNo: string;
   docNo: string;
   partProductName: string;
@@ -23,18 +23,23 @@ export interface InspectionListItem {
   date: string;
   sampleCount: number;
   outOfSpecCount: number;
+  status: string;
+  overallResult: string;
 }
 
+// Updated to match actual API response
 interface InspectionApiRecord {
-  name: string;
-  report_no?: string;
-  doc_no?: string;
-  part_product_name?: string;
-  part_no?: string;
-  customer_name?: string;
-  transaction_date?: string;
-  sample_count?: number;
-  out_of_spec_count?: number;
+  id: number;
+  inspection_no: string;
+  inspection_date: string;
+  inspection_type: string;
+  reference_type: string;
+  item_id: number;
+  inspection_qty: number;
+  accepted_qty: number;
+  rejected_qty: number;
+  status: string;
+  overall_result: string;
 }
 
 /** Normalizes a list-style API response: { success, data: { records, total } } or { success, data: [...] } */
@@ -83,15 +88,17 @@ export default function QualityInspectionList() {
       const all: InspectionApiRecord[] = extractRecords(response.data);
 
       const transformed: InspectionListItem[] = all.map((r) => ({
-        id: r.name,
-        reportNo: r.report_no || r.name,
-        docNo: r.doc_no || '',
-        partProductName: r.part_product_name || '',
-        partNo: r.part_no || '',
-        customerName: r.customer_name || '',
-        date: r.transaction_date || '',
-        sampleCount: r.sample_count ?? 0,
-        outOfSpecCount: r.out_of_spec_count ?? 0,
+        id: r.id,
+        reportNo: r.inspection_no || `QI-${r.id}`,
+        docNo: r.reference_type || '',
+        partProductName: `Item ${r.item_id}`, // You might want to fetch actual item name from another API
+        partNo: r.item_id?.toString() || '',
+        customerName: 'N/A', // This field isn't in the API response
+        date: r.inspection_date || '',
+        sampleCount: r.inspection_qty ?? 0,
+        outOfSpecCount: r.rejected_qty ?? 0,
+        status: r.status || '',
+        overallResult: r.overall_result || ''
       }));
 
       setReports(transformed);
@@ -107,21 +114,27 @@ export default function QualityInspectionList() {
     fetchReports();
   }, []);
 
+  // Fixed filter - now checking against actual data
   const filteredReports = reports.filter((r) => {
-    const matchesSearch =
-      r.reportNo.toLowerCase().includes(filterText.toLowerCase()) ||
-      r.partProductName.toLowerCase().includes(filterText.toLowerCase()) ||
-      r.customerName.toLowerCase().includes(filterText.toLowerCase());
+    const searchText = filterText.toLowerCase().trim();
+    const matchesSearch = searchText === '' ||
+      (r.reportNo && r.reportNo.toLowerCase().includes(searchText)) ||
+      (r.partProductName && r.partProductName.toLowerCase().includes(searchText)) ||
+      (r.customerName && r.customerName.toLowerCase().includes(searchText)) ||
+      (r.docNo && r.docNo.toLowerCase().includes(searchText)) ||
+      (r.status && r.status.toLowerCase().includes(searchText));
+    
     const matchesResult =
       selectedResult === 'All' ||
-      (selectedResult === 'Pass' && r.outOfSpecCount === 0) ||
-      (selectedResult === 'Fail' && r.outOfSpecCount > 0);
+      (selectedResult === 'Pass' && r.overallResult?.toLowerCase() === 'pass') ||
+      (selectedResult === 'Fail' && r.overallResult?.toLowerCase() === 'fail');
+    
     return matchesSearch && matchesResult;
   });
 
   const totalReports = reports.length;
-  const passedCount = reports.filter((r) => r.outOfSpecCount === 0).length;
-  const failedCount = reports.filter((r) => r.outOfSpecCount > 0).length;
+  const passedCount = reports.filter((r) => r.overallResult?.toLowerCase() === 'pass').length;
+  const failedCount = reports.filter((r) => r.overallResult?.toLowerCase() === 'fail').length;
   const passRate = totalReports > 0 ? Math.round((passedCount / totalReports) * 100) : 0;
 
   const handleView = (report: InspectionListItem) => {
@@ -215,7 +228,7 @@ export default function QualityInspectionList() {
             <FaSearch className="qi-search-icon" />
             <input
               type="text"
-              placeholder="Search by Report #, Part, or Customer..."
+              placeholder="Search by Inspection #, Type, or Status..."
               value={filterText}
               onChange={(e) => setFilterText(e.target.value)}
               className="qi-search-input"
@@ -296,11 +309,12 @@ export default function QualityInspectionList() {
             <table className="qi-table">
               <thead>
                 <tr>
-                  <th className="qi-th">Report #</th>
-                  <th className="qi-th">Part / Product</th>
-                  <th className="qi-th">Customer</th>
+                  <th className="qi-th">Inspection #</th>
+                  <th className="qi-th">Type</th>
+                  <th className="qi-th">Reference</th>
                   <th className="qi-th">Date</th>
                   <th className="qi-th qi-text-center">Samples</th>
+                  <th className="qi-th">Status</th>
                   <th className="qi-th">Result</th>
                   <th className="qi-th qi-th-meta">Actions</th>
                 </tr>
@@ -309,23 +323,27 @@ export default function QualityInspectionList() {
                 {filteredReports.map((report) => (
                   <tr key={report.id} className="qi-tr">
                     <td className="qi-td qi-td-id">{report.reportNo}</td>
-                    <td className="qi-td">
-                      <div>
-                        <div className="qi-td-link">{report.partProductName || '-'}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{report.partNo}</div>
-                      </div>
-                    </td>
-                    <td className="qi-td">{report.customerName || '-'}</td>
+                    <td className="qi-td">{report.docNo || '-'}</td>
+                    <td className="qi-td">{report.partProductName || '-'}</td>
                     <td className="qi-td">{report.date ? new Date(report.date).toLocaleDateString() : '-'}</td>
                     <td className="qi-td qi-text-center">{report.sampleCount}</td>
                     <td className="qi-td">
-                      {report.outOfSpecCount === 0 ? (
+                      <span className={`qi-status-badge qi-status-${report.status?.toLowerCase().replace(' ', '-') || 'unknown'}`}>
+                        {report.status || 'Unknown'}
+                      </span>
+                    </td>
+                    <td className="qi-td">
+                      {report.overallResult?.toLowerCase() === 'pass' ? (
                         <span className="qi-status-badge qi-status-pass">
                           <FaCheckCircle size={10} /> Pass
                         </span>
-                      ) : (
+                      ) : report.overallResult?.toLowerCase() === 'fail' ? (
                         <span className="qi-status-badge qi-status-fail">
-                          <FaTimesCircle size={10} /> {report.outOfSpecCount} out of spec
+                          <FaTimesCircle size={10} /> Fail ({report.outOfSpecCount} rejected)
+                        </span>
+                      ) : (
+                        <span className="qi-status-badge qi-status-unknown">
+                          {report.overallResult || 'Unknown'}
                         </span>
                       )}
                     </td>

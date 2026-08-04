@@ -24,7 +24,7 @@ import {
   FaQuestionCircle,
   FaCalendarAlt,
 } from 'react-icons/fa';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
@@ -147,6 +147,7 @@ interface DeliveryNotePayload {
   lr_no: string | null;
   lr_date: string | null;
   sales_order_id: number | null;
+  grand_total: number;
   instructions: string;
   status: string;
   type: string;
@@ -596,7 +597,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
             width: '100%',
             padding: '4px 8px',
             paddingRight: '30px',
-            border: error ? '0.5px solid var(--danger-color, #ef4444)' : '0.5px solid var(--border-color, #e2e8f0)',
+            border: error ? '1.5px solid #ef4444' : '0.5px solid var(--border-color, #e2e8f0)',
             borderRadius: '4px',
             background: disabled ? 'var(--input-bg, #f3f4f6)' : 'var(--input-bg, #f8fafc)',
             color: 'var(--text-primary, #0f172a)',
@@ -891,7 +892,7 @@ const SalesOrderDropdown: React.FC<SalesOrderDropdownProps> = ({
             width: '100%',
             padding: '6px 10px',
             paddingRight: '35px',
-            border: error ? '0.5px solid var(--danger-color, #ef4444)' : '0.5px solid var(--border-color, #e2e8f0)',
+            border: error ? '1.5px solid #ef4444' : '0.5px solid var(--border-color, #e2e8f0)',
             borderRadius: '6px',
             background: isDisabled ? 'var(--input-bg, #f3f4f6)' : 'var(--input-bg, #f8fafc)',
             color: 'var(--text-primary, #0f172a)',
@@ -1150,7 +1151,7 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
             width: '100%',
             padding: '6px 10px',
             paddingRight: '35px',
-            border: error ? '0.5px solid var(--danger-color, #ef4444)' : '0.5px solid var(--border-color, #e2e8f0)',
+            border: error ? '1.5px solid #ef4444' : '0.5px solid var(--border-color, #e2e8f0)',
             borderRadius: '6px',
             background: disabled ? 'var(--input-bg, #f3f4f6)' : 'var(--input-bg, #f8fafc)',
             color: 'var(--text-primary, #0f172a)',
@@ -1243,9 +1244,12 @@ const SuccessModal: React.FC<SuccessModalProps> = ({
 const NewDeliveryChallan: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
   const { theme } = useAdminTheme();
 
   const isEditMode = !!id;
+  const isViewMode = location.pathname.includes('/view/');
+  // const isReadOnly = isViewMode;
   
   const [hasSalesOrder, setHasSalesOrder] = useState<boolean>(true);
   
@@ -1395,7 +1399,7 @@ const NewDeliveryChallan: React.FC = () => {
     };
   };
 
-  // ===== FETCH DELIVERY CHALLAN FOR EDIT =====
+  // ===== FETCH DELIVERY CHALLAN FOR EDIT/VIEW =====
   const fetchDeliveryChallanForEdit = async (challanId: string) => {
     setIsLoadingData(true);
     try {
@@ -1493,7 +1497,7 @@ const NewDeliveryChallan: React.FC = () => {
           setItems(mappedItems);
         }
         
-        toast.success('Delivery Challan loaded for editing');
+        toast.success(isViewMode ? 'Delivery Challan loaded' : 'Delivery Challan loaded for editing');
       } else {
         toast.error('Failed to load delivery challan');
         navigate('/delivery-challan');
@@ -1516,10 +1520,10 @@ const NewDeliveryChallan: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (isEditMode && id && customers.length > 0 && allProducts.length > 0 && taxOptions.length > 0) {
+    if ((isEditMode || isViewMode) && id && customers.length > 0 && allProducts.length > 0 && taxOptions.length > 0) {
       fetchDeliveryChallanForEdit(id);
     }
-  }, [isEditMode, id, customers.length, allProducts.length, taxOptions.length]);
+  }, [isEditMode, isViewMode, id, customers.length, allProducts.length, taxOptions.length]);
 
   useEffect(() => {
     if (Object.keys(inventoryMap).length === 0) return;
@@ -1557,7 +1561,7 @@ const NewDeliveryChallan: React.FC = () => {
         const warehouseList: Warehouse[] = response.data.data.records;
         setWarehouses(warehouseList);
         
-        if (!isEditMode) {
+        if (!isEditMode && !isViewMode) {
           const finishedGoods = warehouseList.find(
             w => w.warehouse_name.toLowerCase() === 'finished goods'
           );
@@ -1628,7 +1632,7 @@ const NewDeliveryChallan: React.FC = () => {
           hsn: item.HSN || item.hsn || '',
           description: item.description || item.item_name || '',
           unit: item.stock_uom || 'pcs',
-          rate: item.standard_rate || 0,
+          rate: item.selling_price  || 0,
           tax: item.gst_rate || item.tax_rate || 0,
           type: 'product' as 'product' | 'service',
           stockUom: item.stock_uom,
@@ -1672,7 +1676,7 @@ const NewDeliveryChallan: React.FC = () => {
           hsn: item.HSN || item.hsn || '',
           description: item.description || item.item_name || '',
           unit: item.stock_uom || 'pcs',
-          rate: item.standard_rate || 0,
+          rate: item.selling_price || 0,
           tax: item.gst_rate || item.tax_rate || 0,
           type: 'product' as 'product' | 'service',
           stockUom: item.stock_uom,
@@ -1702,7 +1706,7 @@ const NewDeliveryChallan: React.FC = () => {
       setCustomerData(customerData);
       setSelectedSalesOrder('');
       setSelectedOrderData(null);
-      if (!isEditMode || items.length === 0) {
+      if (!isEditMode && !isViewMode || items.length === 0) {
         setItems([{
           id: '1',
           itemCode: '',
@@ -1726,6 +1730,7 @@ const NewDeliveryChallan: React.FC = () => {
   };
 
   const handleCustomerChange = (customerId: string, customerData?: Customer) => {
+    if (isViewMode) return;
     setSelectedCustomer(customerId);
     if (customerId && customerData) {
       loadCustomerData(customerId, customerData);
@@ -1826,6 +1831,7 @@ const NewDeliveryChallan: React.FC = () => {
   };
 
   const handleSalesOrderChange = (soId: string, orderData?: SalesOrder) => {
+    if (isViewMode) return;
     setSelectedSalesOrder(soId);
     if (soId && orderData) {
       loadSalesOrder(soId, orderData);
@@ -1835,6 +1841,7 @@ const NewDeliveryChallan: React.FC = () => {
   };
 
   const addItem = () => {
+    if (isViewMode) return;
     const newItem: DeliveryChallanItem = {
       id: Date.now().toString(),
       itemCode: '',
@@ -1856,6 +1863,7 @@ const NewDeliveryChallan: React.FC = () => {
   };
 
   const removeItem = (id: string) => {
+    if (isViewMode) return;
     if (items.length <= 1) {
       toast.error('At least one item is required');
       return;
@@ -1864,6 +1872,7 @@ const NewDeliveryChallan: React.FC = () => {
   };
 
   const updateItem = (id: string, field: keyof DeliveryChallanItem, value: any) => {
+    if (isViewMode) return;
     setItems(prevItems =>
       prevItems.map(item => {
         if (item.id === id) {
@@ -2045,6 +2054,7 @@ const NewDeliveryChallan: React.FC = () => {
       lr_no: null,
       lr_date: null,
       sales_order_id: hasSalesOrder && selectedSalesOrder ? parseInt(selectedSalesOrder, 10) : null,
+      grand_total: getGrandTotal(),
       instructions: remarks || '',
       status: 'Submitted',
       type: isService ? 'Services' : 'Products',
@@ -2076,19 +2086,155 @@ const NewDeliveryChallan: React.FC = () => {
   };
 
   const validateForm = (): boolean => {
+    if (isViewMode) return true;
     const newErrors: { [key: string]: string } = {};
-    if (!selectedCustomer) newErrors.customer = 'Please select a customer';
-    if (hasSalesOrder && !selectedSalesOrder) newErrors.salesOrder = 'Please select a sales order';
-    if (!dcDate) newErrors.dcDate = 'DC Date is required';
-    if (!warehouse) newErrors.warehouse = 'Warehouse is required';
+    
+    // Customer validation
+    if (!selectedCustomer) {
+      newErrors.customer = 'Please select a customer';
+    }
+    
+    // Sales Order validation
+    if (hasSalesOrder && !selectedSalesOrder) {
+      newErrors.salesOrder = 'Please select a sales order';
+    }
+    
+    // DC Date validation
+    if (!dcDate) {
+      newErrors.dcDate = 'DC Date is required';
+    }
+    
+    // Warehouse validation
+    if (!warehouse) {
+      newErrors.warehouse = 'Warehouse is required';
+    }
+    
+    // Items validation
     const hasItems = items.some(item => item.itemCode && item.quantity > 0);
-    if (!hasItems) newErrors.items = 'At least one item is required';
+    if (!hasItems) {
+      newErrors.items = 'At least one item is required';
+    }
+    
+    // Check each item for required fields
+    items.forEach((item, index) => {
+      if (!item.itemCode) {
+        newErrors[`item_${index}_code`] = 'Item code is required';
+      }
+      if (!item.itemName) {
+        newErrors[`item_${index}_name`] = 'Item name is required';
+      }
+      if (item.quantity <= 0) {
+        newErrors[`item_${index}_qty`] = 'Quantity must be greater than 0';
+      }
+    });
+    
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
+  const scrollToFirstError = () => {
+    // Get all error keys and sort them by their order in the form
+    const errorKeys = Object.keys(errors);
+    if (errorKeys.length === 0) return;
+    
+    // Priority order for errors (top to bottom in form)
+    const priorityOrder = ['customer', 'salesOrder', 'dcDate', 'warehouse', 'items'];
+    
+    // Sort error keys by priority order first, then by string order
+    const sortedErrorKeys = errorKeys.sort((a, b) => {
+      const indexA = priorityOrder.indexOf(a);
+      const indexB = priorityOrder.indexOf(b);
+      if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+      if (indexA !== -1) return -1;
+      if (indexB !== -1) return 1;
+      return a.localeCompare(b);
+    });
+    
+    const firstErrorKey = sortedErrorKeys[0];
+    if (!firstErrorKey) return;
+    
+    // Find the element with the error
+    let element: Element | null = null;
+    
+    // Strategy 1: Look for data-error-key attribute
+    element = document.querySelector(`[data-error-key="${firstErrorKey}"]`);
+    
+    // Strategy 2: If it's an item error, find the corresponding input
+    if (!element && firstErrorKey.startsWith('item_')) {
+      const match = firstErrorKey.match(/item_(\d+)_(code|name|qty)/);
+      if (match) {
+        const index = parseInt(match[1]);
+        const field = match[2];
+        // Find the item row and scroll to it
+        const rows = document.querySelectorAll('.ndc-items-table tbody tr');
+        if (rows[index]) {
+          element = rows[index];
+          // If field is code, try to find the searchable select input
+          if (field === 'code') {
+            const input = rows[index].querySelector('.ndc-col-code input');
+            if (input) {
+              element = input;
+            }
+          } else if (field === 'name') {
+            const input = rows[index].querySelector('.ndc-col-name input');
+            if (input) {
+              element = input;
+            }
+          } else if (field === 'qty') {
+            const input = rows[index].querySelector('.ndc-col-qty input');
+            if (input) {
+              element = input;
+            }
+          }
+        }
+      }
+    }
+    
+    // Strategy 3: Look for any element with error class
+    if (!element) {
+      const errorElements = document.querySelectorAll('.ndc-input-error, .ndc-select-error, .ndc-table-input.ndc-input-error');
+      if (errorElements.length > 0) {
+        element = errorElements[0];
+      }
+    }
+    
+    // Strategy 4: If still not found, look for any field with error text
+    if (!element) {
+      const errorTexts = document.querySelectorAll('.ndc-error-text');
+      if (errorTexts.length > 0) {
+        const parent = errorTexts[0].closest('.ndc-field, .ndc-field-half, .ndc-field-full, .ndc-col-code, .ndc-col-name, .ndc-col-qty');
+        if (parent) {
+          element = parent;
+        }
+      }
+    }
+    
+    if (element) {
+      // Scroll to the element
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      
+      // If it's an input, focus it
+      const input = element.querySelector('input, select, textarea') || element;
+      if (input && typeof (input as HTMLElement).focus === 'function') {
+        setTimeout(() => {
+          (input as HTMLElement).focus();
+          if ((input as HTMLInputElement).select) {
+            (input as HTMLInputElement).select();
+          }
+        }, 350);
+      }
+    } else {
+      // Fallback: scroll to top
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
   const handleSubmit = async () => {
-    if (!validateForm()) return;
+    if (isViewMode) return;
+    if (!validateForm()) {
+      scrollToFirstError();
+      return;
+    }
     setIsSubmitting(true);
     const toastId = toast.loading(isEditMode ? 'Updating delivery challan...' : 'Creating delivery challan...');
     try {
@@ -2162,7 +2308,11 @@ const NewDeliveryChallan: React.FC = () => {
   };
 
   const handleSaveDraft = async () => {
-    if (!validateForm()) return;
+    if (isViewMode) return;
+    if (!validateForm()) {
+      scrollToFirstError();
+      return;
+    }
     setIsSubmitting(true);
     const toastId = toast.loading(isEditMode ? 'Updating draft...' : 'Saving draft...');
     try {
@@ -2193,6 +2343,10 @@ const NewDeliveryChallan: React.FC = () => {
   };
 
   const handleCancel = () => {
+    if (isViewMode) {
+      navigate('/delivery-challan');
+      return;
+    }
     if (window.confirm('Are you sure? Unsaved data will be lost.')) {
       navigate('/delivery-challan');
     }
@@ -2209,7 +2363,7 @@ const NewDeliveryChallan: React.FC = () => {
   };
 
   useEffect(() => {
-    if (items.length === 0) {
+    if (items.length === 0 && !isViewMode) {
       setItems([{
         id: '1',
         itemCode: '',
@@ -2228,7 +2382,7 @@ const NewDeliveryChallan: React.FC = () => {
         inventoryId: undefined,
       }]);
     }
-  }, [isService]);
+  }, [isService, isViewMode]);
 
   const totalItems = items.filter(i => i.itemCode && i.quantity > 0).length;
   const totalQuantity = getTotalQty();
@@ -2288,6 +2442,39 @@ const NewDeliveryChallan: React.FC = () => {
           gap: 4px;
         }
 
+        .ndc-view-badge {
+          background: var(--primary-color, #2563eb);
+          color: white;
+          padding: 2px 12px;
+          border-radius: 12px;
+          font-size: 11px;
+          font-weight: 500;
+          margin-left: 12px;
+        }
+
+        /* Red asterisk for required fields - IMPORTANT */
+        .ndc-required-star {
+          color: #ef4444 !important;
+          font-weight: 700 !important;
+          margin-left: 2px;
+          font-size: 14px;
+        }
+
+        /* Error border for inputs */
+        .ndc-input-error,
+        .ndc-select-error,
+        .ndc-table-input.ndc-input-error {
+          border-color: #ef4444 !important;
+          border-width: 1.5px !important;
+        }
+
+        .ndc-error-text {
+          color: #ef4444 !important;
+          font-size: 11px;
+          margin-top: 2px;
+          display: block;
+        }
+
         @media print {
           .ndc-form-footer, button { display: none !important; }
           body { padding: 0; }
@@ -2313,9 +2500,12 @@ const NewDeliveryChallan: React.FC = () => {
           </button>
           <div className="ndc-header-divider" />
           <h1 className="ndc-header-title">
-            {isEditMode ? 'Edit Delivery Challan' : 'Create Delivery Challan'}
+            {isViewMode ? 'View Delivery Challan' : isEditMode ? 'Edit Delivery Challan' : 'Create Delivery Challan'}
           </h1>
-          {isEditMode && id && (
+          {isViewMode && (
+            <span className="ndc-view-badge">View Only</span>
+          )}
+          {id && (
             <span style={{ fontSize: '12px', color: 'var(--text-secondary)', marginLeft: '8px' }}>
               #{id}
             </span>
@@ -2327,6 +2517,7 @@ const NewDeliveryChallan: React.FC = () => {
               type="checkbox"
               checked={isService}
               onChange={(e) => {
+                if (isViewMode) return;
                 setIsService(e.target.checked);
                 setItems(items.map(item => ({
                   ...item,
@@ -2334,6 +2525,7 @@ const NewDeliveryChallan: React.FC = () => {
                 })));
               }}
               className="ndc-checkbox"
+              disabled={isViewMode}
             />
             <span>IsService</span>
           </label>
@@ -2353,7 +2545,7 @@ const NewDeliveryChallan: React.FC = () => {
                 value="with"
                 checked={hasSalesOrder === true}
                 onChange={() => setHasSalesOrder(true)}
-                disabled={isEditMode}
+                disabled={isEditMode || isViewMode}
               />
               With Sales Order
             </label>
@@ -2364,14 +2556,14 @@ const NewDeliveryChallan: React.FC = () => {
                 value="without"
                 checked={hasSalesOrder === false}
                 onChange={() => setHasSalesOrder(false)}
-                disabled={isEditMode}
+                disabled={isEditMode || isViewMode}
               />
               Without Sales Order
             </label>
           </div>
-          {isEditMode && (
+          {(isEditMode || isViewMode) && (
             <span style={{ fontSize: '11px', color: 'var(--text-secondary)', marginLeft: '8px' }}>
-              (Source type cannot be changed in edit mode)
+              (Source type cannot be changed in {isViewMode ? 'view' : 'edit'} mode)
             </span>
           )}
         </div>
@@ -2388,30 +2580,30 @@ const NewDeliveryChallan: React.FC = () => {
 
             {hasSalesOrder ? (
               <div className="ndc-field-row">
-                <div className="ndc-field-half">
+                <div className="ndc-field-half" data-error-key="customer">
                   <label className="ndc-label">
-                    Customer <span className="ndc-required">*</span>
+                    Customer <span className="ndc-required-star">*</span>
                   </label>
                   <CustomerDropdown
                     value={selectedCustomer}
                     onChange={handleCustomerChange}
                     placeholder="Search Customer..."
-                    disabled={isLoading || isEditMode}
+                    disabled={isLoading || isEditMode || isViewMode}
                     error={!!errors.customer}
                   />
                   {errors.customer && <span className="ndc-error-text">{errors.customer}</span>}
                 </div>
 
-                <div className="ndc-field-half">
+                <div className="ndc-field-half" data-error-key="salesOrder">
                   <label className="ndc-label">
-                    Sales Order <span className="ndc-required">*</span>
+                    Sales Order <span className="ndc-required-star">*</span>
                   </label>
                   <SalesOrderDropdown
                     value={selectedSalesOrder}
                     onChange={handleSalesOrderChange}
                     customerId={selectedCustomer}
                     placeholder="Search or select sales order..."
-                    disabled={!selectedCustomer || isEditMode}
+                    disabled={!selectedCustomer || isEditMode || isViewMode}
                     error={!!errors.salesOrder}
                     taxOptions={taxOptions}
                   />
@@ -2419,16 +2611,16 @@ const NewDeliveryChallan: React.FC = () => {
                 </div>
               </div>
             ) : (
-              <div className="ndc-field-full">
+              <div className="ndc-field-full" data-error-key="customer">
                 <div className="ndc-field-full-width">
                   <label className="ndc-label">
-                    Customer <span className="ndc-required">*</span>
+                    Customer <span className="ndc-required-star">*</span>
                   </label>
                   <CustomerDropdown
                     value={selectedCustomer}
                     onChange={handleCustomerChange}
                     placeholder="Search Customer..."
-                    disabled={isLoading || isEditMode}
+                    disabled={isLoading || isEditMode || isViewMode}
                     error={!!errors.customer}
                     fullWidth={true}
                   />
@@ -2449,9 +2641,9 @@ const NewDeliveryChallan: React.FC = () => {
                 <div className="ndc-dc-number-display">{dcNumber}</div>
               </div>
 
-              <div className="ndc-field">
+              <div className="ndc-field" data-error-key="dcDate">
                 <label className="ndc-label">
-                  DC Date <span className="ndc-required">*</span>
+                  DC Date <span className="ndc-required-star">*</span>
                 </label>
                 <div className="ndc-date-field">
                   <input
@@ -2459,12 +2651,13 @@ const NewDeliveryChallan: React.FC = () => {
                     value={dcDate}
                     onChange={(e) => setDcDate(e.target.value)}
                     className={`ndc-input ${errors.dcDate ? 'ndc-input-error' : ''}`}
-                    disabled={isEditMode}
+                    disabled={isEditMode || isViewMode}
                   />
                   <button
                     type="button"
                     className="ndc-date-icon-btn"
                     onClick={() => {
+                      if (isViewMode) return;
                       const el = document.querySelector('input[type="date"]') as HTMLInputElement;
                       if (el) {
                         if (typeof (el as any).showPicker === 'function') {
@@ -2475,21 +2668,23 @@ const NewDeliveryChallan: React.FC = () => {
                       }
                     }}
                     tabIndex={-1}
+                    disabled={isViewMode}
                   >
                     <FaCalendarAlt size={13} />
                   </button>
                 </div>
+                {errors.dcDate && <span className="ndc-error-text">{errors.dcDate}</span>}
               </div>
 
-              <div className="ndc-field">
+              <div className="ndc-field" data-error-key="warehouse">
                 <label className="ndc-label">
-                  Warehouse <span className="ndc-required">*</span>
+                  Warehouse <span className="ndc-required-star">*</span>
                 </label>
                 <select
                   value={warehouse}
                   onChange={(e) => setWarehouse(e.target.value)}
                   className={`ndc-select ${errors.warehouse ? 'ndc-select-error' : ''}`}
-                  disabled={isLoadingWarehouses || isEditMode}
+                  disabled={isLoadingWarehouses || isEditMode || isViewMode}
                 >
                   <option value="">Select Warehouse</option>
                   {warehouses.map(w => (
@@ -2572,7 +2767,7 @@ const NewDeliveryChallan: React.FC = () => {
             <span className="ndc-items-title">
               <FaClipboardList className="ndc-items-icon" /> {isService ? 'Services' : 'Products'}
             </span>
-            <button onClick={addItem} className="ndc-add-btn">
+            <button onClick={addItem} className="ndc-add-btn" disabled={isViewMode}>
               <FaPlus size={9} /> Add
             </button>
           </div>
@@ -2584,10 +2779,10 @@ const NewDeliveryChallan: React.FC = () => {
               <thead>
                 <tr>
                   <th className="ndc-col-sno">#</th>
-                  <th className="ndc-col-code">Item Code <span className="ndc-required">*</span></th>
-                  <th className="ndc-col-name">Item Name <span className="ndc-required">*</span></th>
+                  <th className="ndc-col-code">Item Code <span className="ndc-required-star">*</span></th>
+                  <th className="ndc-col-name">Item Name <span className="ndc-required-star">*</span></th>
                   <th className="ndc-col-hsn">HSN</th>
-                  <th className="ndc-col-qty">Qty <span className="ndc-required">*</span></th>
+                  <th className="ndc-col-qty">Qty <span className="ndc-required-star">*</span></th>
                   <th className="ndc-col-unit">UOM</th>
                   <th className="ndc-col-rate">Rate</th>
                   <th className="ndc-col-tax">Tax</th>
@@ -2598,9 +2793,9 @@ const NewDeliveryChallan: React.FC = () => {
               </thead>
               <tbody>
                 {items.map((item, index) => (
-                  <tr key={item.id}>
+                  <tr key={item.id} data-item-index={index}>
                     <td className="ndc-col-sno">{index + 1}</td>
-                    <td className="ndc-col-code">
+                    <td className="ndc-col-code" data-error-key={`item_${index}_code`}>
                       <SearchableSelect
                         value={item.itemCode}
                         onChange={(value) => updateItem(item.id, 'itemCode', value)}
@@ -2610,16 +2805,20 @@ const NewDeliveryChallan: React.FC = () => {
                         loading={isLoadingItems}
                         error={!!errors[`item_${index}_code`]}
                         stockInfo={{ status: item.stockStatus || 'unknown', availableQty: item.availableQty }}
+                        disabled={isViewMode}
                       />
+                      {errors[`item_${index}_code`] && <span className="ndc-error-text">{errors[`item_${index}_code`]}</span>}
                     </td>
-                    <td className="ndc-col-name">
+                    <td className="ndc-col-name" data-error-key={`item_${index}_name`}>
                       <input
                         type="text"
                         value={item.itemName}
                         onChange={(e) => updateItem(item.id, 'itemName', e.target.value)}
                         placeholder="Item Name"
-                        className="ndc-table-input ndc-table-input-text"
+                        className={`ndc-table-input ndc-table-input-text ${errors[`item_${index}_name`] ? 'ndc-input-error' : ''}`}
+                        disabled={isViewMode}
                       />
+                      {errors[`item_${index}_name`] && <span className="ndc-error-text">{errors[`item_${index}_name`]}</span>}
                     </td>
                     <td className="ndc-col-hsn">
                       <input
@@ -2628,22 +2827,26 @@ const NewDeliveryChallan: React.FC = () => {
                         onChange={(e) => updateItem(item.id, 'hsn', e.target.value)}
                         placeholder="HSN"
                         className="ndc-table-input ndc-table-input-text"
+                        disabled={isViewMode}
                       />
                     </td>
-                    <td className="ndc-col-qty">
+                    <td className="ndc-col-qty" data-error-key={`item_${index}_qty`}>
                       <input
                         type="number"
                         value={item.quantity}
                         onChange={(e) => updateItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
                         min="1"
-                        className="ndc-table-input"
+                        className={`ndc-table-input ${errors[`item_${index}_qty`] ? 'ndc-input-error' : ''}`}
+                        disabled={isViewMode}
                       />
+                      {errors[`item_${index}_qty`] && <span className="ndc-error-text">{errors[`item_${index}_qty`]}</span>}
                     </td>
                     <td className="ndc-col-unit">
                       <select
                         value={item.unit}
                         onChange={(e) => updateItem(item.id, 'unit', e.target.value)}
                         className="ndc-table-input"
+                        disabled={isViewMode}
                       >
                         <option value="pcs">Pcs</option>
                         <option value="kg">Kg</option>
@@ -2661,6 +2864,7 @@ const NewDeliveryChallan: React.FC = () => {
                         min="0"
                         step="0.01"
                         className="ndc-table-input"
+                        disabled={isViewMode}
                       />
                     </td>
                     <td className="ndc-col-tax">
@@ -2668,7 +2872,7 @@ const NewDeliveryChallan: React.FC = () => {
                         value={item.tax}
                         onChange={(e) => updateItem(item.id, 'tax', parseFloat(e.target.value) || 0)}
                         className="ndc-table-input"
-                        disabled={loadingTaxOptions}
+                        disabled={loadingTaxOptions || isViewMode}
                       >
                         <option value={0}>0%</option>
                         {taxOptions.map((tax) => (
@@ -2685,7 +2889,7 @@ const NewDeliveryChallan: React.FC = () => {
                       <span className="ndc-table-value">₹{item.totalAmount.toFixed(2)}</span>
                     </td>
                     <td className="ndc-col-action">
-                      <button onClick={() => removeItem(item.id)} className="ndc-remove-btn">
+                      <button onClick={() => removeItem(item.id)} className="ndc-remove-btn" disabled={isViewMode}>
                         <FaTrash size={12} />
                       </button>
                     </td>
@@ -2714,6 +2918,7 @@ const NewDeliveryChallan: React.FC = () => {
                     value={transporter}
                     onChange={(e) => setTransporter(e.target.value)}
                     className="ndc-input"
+                    disabled={isViewMode}
                   />
                 </div>
 
@@ -2725,6 +2930,7 @@ const NewDeliveryChallan: React.FC = () => {
                     value={vehicleNumber}
                     onChange={(e) => setVehicleNumber(e.target.value)}
                     className="ndc-input"
+                    disabled={isViewMode}
                   />
                 </div>
               </div>
@@ -2738,6 +2944,7 @@ const NewDeliveryChallan: React.FC = () => {
                 onChange={(e) => setRemarks(e.target.value)}
                 className="ndc-textarea ndc-textarea-large"
                 rows={2}
+                disabled={isViewMode}
               />
             </div>
 
@@ -2748,6 +2955,7 @@ const NewDeliveryChallan: React.FC = () => {
                   checked={qualityInspection}
                   onChange={(e) => setQualityInspection(e.target.checked)}
                   className="ndc-checkbox ndc-quality-checkbox"
+                  disabled={isViewMode}
                 />
                 <span className="ndc-checkbox-text">
                   Quality Inspection Required
@@ -2788,6 +2996,7 @@ const NewDeliveryChallan: React.FC = () => {
                         value={roundOff.toFixed(2)}
                         onChange={(e) => setRoundOff(parseFloat(e.target.value) || 0)}
                         className="ndc-roundoff-input"
+                        disabled={isViewMode}
                       />
                     </div>
                   </div>
@@ -2807,14 +3016,18 @@ const NewDeliveryChallan: React.FC = () => {
         <button onClick={() => window.print()} className="ndc-btn ndc-btn-print">
           <FaPrint size={11} /> Print
         </button>
-        <button onClick={handleSaveDraft} disabled={isSubmitting} className="ndc-btn ndc-btn-draft">
-          {isSubmitting ? <FaSpinner className="ndc-spinning" size={11} /> : <FaSave size={11} />} {isEditMode ? 'Update Draft' : 'Draft'}
-        </button>
-        <button onClick={handleSubmit} disabled={isSubmitting} className="ndc-btn ndc-btn-submit">
-          {isSubmitting ? <FaSpinner className="ndc-spinning" size={11} /> : <FaPaperPlane size={11} />} {isEditMode ? 'Update' : 'Submit'}
-        </button>
+        {!isViewMode && (
+          <>
+            <button onClick={handleSaveDraft} disabled={isSubmitting} className="ndc-btn ndc-btn-draft">
+              {isSubmitting ? <FaSpinner className="ndc-spinning" size={11} /> : <FaSave size={11} />} {isEditMode ? 'Update Draft' : 'Draft'}
+            </button>
+            <button onClick={handleSubmit} disabled={isSubmitting} className="ndc-btn ndc-btn-submit">
+              {isSubmitting ? <FaSpinner className="ndc-spinning" size={11} /> : <FaPaperPlane size={11} />} {isEditMode ? 'Update' : 'Submit'}
+            </button>
+          </>
+        )}
         <button onClick={handleCancel} className="ndc-btn ndc-btn-cancel">
-          <FaTimes size={11} /> Cancel
+          <FaTimes size={11} /> {isViewMode ? 'Back' : 'Cancel'}
         </button>
       </div>
     </div>

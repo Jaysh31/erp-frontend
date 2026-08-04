@@ -907,7 +907,7 @@ export default function CreateQuotation() {
   const fetchAllItems = async () => {
     setIsLoadingItems(true);
     try {
-      const typeFilter = formData.isService ? 'service' : 'item';
+      // const typeFilter = formData.isService ? 'service' : 'item';
       const response = await api.get(`/item?type=product&page=1&limit=100`);
       const records = extractRecords(response.data);
       const mappedProducts: Product[] = records.map((item: any) => ({
@@ -917,7 +917,7 @@ export default function CreateQuotation() {
         hsn: item.HSN || item.hsn || '',
         description: item.description || item.item_name || '',
         unit: item.stock_uom || 'pcs',
-        rate: item.standard_rate || item.rate || 0,
+        rate: item.selling_price || item.rate || 0,
         tax: item.gst_rate || item.tax_rate || 0,
         type: formData.isService ? 'service' : 'product',
         stockUom: item.stock_uom,
@@ -941,7 +941,7 @@ export default function CreateQuotation() {
       return;
     }
 
-    const typeFilter = formData.isService ? 'service' : 'item';
+    // const typeFilter = formData.isService ? 'service' : 'item';
     try {
       const response = await api.get(`/item?type=product&page=1&limit=50&search=${encodeURIComponent(searchTerm)}`);
       const records = extractRecords(response.data);
@@ -952,7 +952,7 @@ export default function CreateQuotation() {
         hsn: item.HSN || item.hsn || '',
         description: item.description || item.item_name || '',
         unit: item.stock_uom || 'pcs',
-        rate: item.standard_rate || item.rate || 0,
+        rate: item.selling_price || item.rate || 0,
         tax: item.gst_rate || item.tax_rate || 0,
         type: formData.isService ? 'service' : 'product',
         stockUom: item.stock_uom,

@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
-  FaArrowLeft, FaSave, FaPrint,  FaPlus, FaTrash,
-  FaExclamationTriangle, FaClipboardCheck, FaSpinner
+  FaArrowLeft, FaSave, FaPrint, FaPlus, FaTrash,
+  FaExclamationTriangle, FaClipboardCheck, FaSpinner, FaSearch
 } from 'react-icons/fa';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import './QualityInspectionForm.css';
@@ -14,71 +14,42 @@ import api from '../services/api';
 interface ParameterRow {
   id: string;
   parameter: string;
-  specification: string;   // e.g. "9±0.2"
+  specification: string;
   inspectionMethod: string;
-  observations: string[];  // one entry per sample column, kept as strings for free typing
+  observations: string[];
 }
 
 interface InspectionForm {
   companyName: string;
   reportTitle: string;
   docNo: string;
-
   partProductName: string;
   partNo: string;
   drawingNo: string;
   revNo: string;
   customerName: string;
-
   date: string;
   invoiceNo: string;
   invoiceQty: string;
   challanNoDate: string;
   reportNo: string;
-
   parameters: ParameterRow[];
   sampleCount: number;
-
   allDimensionsNote: string;
   samplesNote: string;
   supplierRemarks: string;
-
   footerRevNo: string;
   footerRevDate: string;
   inspectedBy: string;
   reviewedBy: string;
 }
 
-/** Shape returned by GET /quality-inspection/:id (matches the POST/PUT payload). */
-interface InspectionApiRecord {
-  name: string;
-  doc_no?: string;
-  company_name?: string;
-  report_title?: string;
-  part_product_name?: string;
-  part_no?: string;
-  drawing_no?: string;
-  rev_no?: string;
-  customer_name?: string;
-  transaction_date?: string;
-  invoice_no?: string;
-  invoice_qty?: string;
-  challan_no_date?: string;
-  report_no?: string;
-  sample_count?: number;
-  parameters?: Array<{
-    parameter?: string;
-    specification?: string;
-    inspection_method?: string;
-    observations?: string[];
-  }>;
-  all_dimensions_note?: string;
-  samples_note?: string;
-  supplier_remarks?: string;
-  footer_rev_no?: string;
-  footer_rev_date?: string;
-  inspected_by?: string;
-  reviewed_by?: string;
+interface ItemSuggestion {
+  id: number;
+  item_code: string;
+  item_name: string;
+  item_group: string;
+  description: string;
 }
 
 /* ─────────────────────────── Helpers ─────────────────────────── */
@@ -86,7 +57,6 @@ interface InspectionApiRecord {
 let rowSeq = 0;
 const nextId = () => `p${Date.now().toString(36)}${(rowSeq++).toString(36)}`;
 
-/** Parses a "9±0.2" / "9 ± 0.2" / "9+-0.2" style spec into [min, max]. Returns null if it can't parse. */
 const parseSpecRange = (spec: string): [number, number] | null => {
   if (!spec) return null;
   const cleaned = spec.replace(/\s+/g, '');
@@ -131,56 +101,243 @@ const DEFAULT_SAMPLE_COUNT = 10;
 
 const defaultFormData = (): InspectionForm => ({
   companyName: 'CHANDRATARA INDUSTRIES',
-  // Chandratara Industries
   reportTitle: 'FINAL INSPECTION REPORT',
   docNo: '',
-
   partProductName: '',
   partNo: '',
   drawingNo: '',
   revNo: '00',
   customerName: '',
-
   date: new Date().toISOString().split('T')[0],
   invoiceNo: '',
   invoiceQty: '',
   challanNoDate: '',
   reportNo: '',
-
   parameters: buildDefaultParameters(DEFAULT_SAMPLE_COUNT),
   sampleCount: DEFAULT_SAMPLE_COUNT,
-
   allDimensionsNote: 'ALL DIMENSIONS ARE IN MM',
   samplesNote: 'ALL SAMPLES ARE CHECKED RANDOMLY',
   supplierRemarks: 'Visually Accepted',
-
   footerRevNo: '00',
   footerRevDate: '',
   inspectedBy: '',
   reviewedBy: '',
 });
 
-// const csvEscape = (value: string): string => {
-//   if (value == null) return '';
-//   const str = String(value);
-//   return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
-// };
-
 const unwrapDate = (value?: string | null): string => {
   if (!value) return '';
   return value.split('T')[0];
 };
 
-/** Normalizes a list-style API response: { success, data: { records, total } } or { success, data: [...] } */
-const extractRecords = (payload: any): any[] => {
-  if (!payload) return [];
-  const data = payload.success === 1 || payload.success === 0 ? payload.data : payload;
-  if (Array.isArray(data?.records)) return data.records;
-  if (Array.isArray(data)) return data;
-  return [];
+/* ─────────────────── Autocomplete Component ─────────────────── */
+
+interface AutocompleteInputProps {
+  value: string;
+  onChange: (value: string) => void;
+  onSelect: (item: ItemSuggestion) => void;
+  placeholder?: string;
+  className?: string;
+  error?: boolean;
+  disabled?: boolean;
+}
+
+const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
+  value,
+  onChange,
+  onSelect,
+  placeholder = 'Search items...',
+  className = '',
+  error = false,
+  disabled = false
+}) => {
+  const [suggestions, setSuggestions] = useState<ItemSuggestion[]>([]);
+  const [isOpen, setIsOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const fetchSuggestions = async (searchTerm: string) => {
+    if (!searchTerm.trim()) {
+      setSuggestions([]);
+      setIsOpen(false);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await api.get('/item', {
+        params: {
+          page: 1,
+          limit: 10,
+          search: searchTerm.trim()
+        }
+      });
+
+      if (response.data.success === 1) {
+        const items = Array.isArray(response.data.data) ? response.data.data : [];
+        setSuggestions(items);
+        setIsOpen(items.length > 0);
+      } else {
+        setSuggestions([]);
+        setIsOpen(false);
+      }
+    } catch (error) {
+      console.error('Error fetching item suggestions:', error);
+      setSuggestions([]);
+      setIsOpen(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    onChange(newValue);
+
+    // Clear previous debounce timer
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current);
+    }
+
+    // Debounce API calls
+    debounceTimer.current = setTimeout(() => {
+      fetchSuggestions(newValue);
+    }, 300);
+  };
+
+  const handleSuggestionClick = (item: ItemSuggestion) => {
+    onSelect(item);
+    setIsOpen(false);
+    setSuggestions([]);
+    setHighlightedIndex(-1);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!isOpen || suggestions.length === 0) return;
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setHighlightedIndex((prev) => (prev + 1) % suggestions.length);
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setHighlightedIndex((prev) => (prev - 1 + suggestions.length) % suggestions.length);
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (highlightedIndex >= 0 && highlightedIndex < suggestions.length) {
+          handleSuggestionClick(suggestions[highlightedIndex]);
+        }
+        break;
+      case 'Escape':
+        setIsOpen(false);
+        setHighlightedIndex(-1);
+        break;
+    }
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+        setHighlightedIndex(-1);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimer.current) {
+        clearTimeout(debounceTimer.current);
+      }
+    };
+  }, []);
+
+  return (
+    <div className="autocomplete-wrapper" ref={wrapperRef} style={{ position: 'relative', width: '100%' }}>
+      <div style={{ position: 'relative' }}>
+        <input
+          ref={inputRef}
+          type="text"
+          value={value}
+          onChange={handleInputChange}
+          onKeyDown={handleKeyDown}
+          onFocus={() => {
+            if (value.trim()) {
+              fetchSuggestions(value);
+            }
+          }}
+          placeholder={placeholder}
+          className={`${className} ${error ? 'qir-input-error' : ''}`}
+          disabled={disabled}
+          autoComplete="off"
+        />
+        {loading && (
+          <div style={{ 
+            position: 'absolute', 
+            right: '10px', 
+            top: '50%', 
+            transform: 'translateY(-50%)',
+            display: 'flex',
+            alignItems: 'center'
+          }}>
+            <FaSpinner className="spinning" size={14} />
+          </div>
+        )}
+      </div>
+      
+      {isOpen && suggestions.length > 0 && (
+        <ul className="autocomplete-dropdown" style={{
+          position: 'absolute',
+          top: '100%',
+          left: 0,
+          right: 0,
+          maxHeight: '200px',
+          overflowY: 'auto',
+          backgroundColor: 'white',
+          border: '1px solid #d1d5db',
+          borderRadius: '4px',
+          marginTop: '2px',
+          padding: 0,
+          listStyle: 'none',
+          zIndex: 1000,
+          boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+        }}>
+          {suggestions.map((item, index) => (
+            <li
+              key={item.id}
+              onClick={() => handleSuggestionClick(item)}
+              onMouseEnter={() => setHighlightedIndex(index)}
+              style={{
+                padding: '8px 12px',
+                cursor: 'pointer',
+                backgroundColor: index === highlightedIndex ? '#f3f4f6' : 'white',
+                borderBottom: '1px solid #f3f4f6'
+              }}
+            >
+              <div style={{ fontWeight: 500 }}>{item.item_name}</div>
+              <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                Code: {item.item_code} | Group: {item.item_group}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 };
 
 /* ─────────────────────────── Component ─────────────────────────── */
+
 export default function QualityInspectionForm() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -211,29 +368,21 @@ export default function QualityInspectionForm() {
 
   /* ─── load existing record when editing ─────────────────────── */
 
-  const findInspectionRecord = async (recordId: string): Promise<InspectionApiRecord | null> => {
-    const response = await api.get('/quality-inspection');
-    const payload = response.data;
-    if (payload && payload.success === 0) return null;
-    const records = extractRecords(payload);
-    return records.find((r) => r && (r.name === recordId || String(r.id) === String(recordId))) || null;
-  };
-
-  const loadRecordIntoForm = (record: InspectionApiRecord) => {
-    setRecordName(record.name ?? null);
-    const sampleCount = record.sample_count ?? DEFAULT_SAMPLE_COUNT;
-    const parameters: ParameterRow[] =
-      Array.isArray(record.parameters) && record.parameters.length > 0
-        ? record.parameters.map((p) => ({
-            id: nextId(),
-            parameter: p.parameter || '',
-            specification: p.specification || '',
-            inspectionMethod: p.inspection_method || '',
-            observations: Array.isArray(p.observations) && p.observations.length > 0
-              ? p.observations
-              : Array.from({ length: sampleCount }, () => ''),
-          }))
-        : buildDefaultParameters(sampleCount);
+  const loadRecordIntoForm = (record: any) => {
+    setRecordName(record.inspection_no ?? null);
+    const sampleCount = record.details?.[0]?.observations?.length || DEFAULT_SAMPLE_COUNT;
+    
+    const parameters: ParameterRow[] = Array.isArray(record.details) && record.details.length > 0
+      ? record.details.map((d: any) => ({
+          id: nextId(),
+          parameter: d.parameter_name || `Parameter ${d.parameter_id}`,
+          specification: d.specification || '',
+          inspectionMethod: d.inspection_method_name || '',
+          observations: Array.isArray(d.observations) && d.observations.length > 0
+            ? d.observations.map((obs: any) => obs.observed_value || '')
+            : Array.from({ length: sampleCount }, () => ''),
+        }))
+      : buildDefaultParameters(sampleCount);
 
     setFormData((prev) => ({
       ...prev,
@@ -243,9 +392,9 @@ export default function QualityInspectionForm() {
       partProductName: record.part_product_name || prev.partProductName,
       partNo: record.part_no || prev.partNo,
       drawingNo: record.drawing_no || prev.drawingNo,
-      revNo: record.rev_no || prev.revNo,
+      revNo: record.revision_no || prev.revNo,
       customerName: record.customer_name || prev.customerName,
-      date: unwrapDate(record.transaction_date) || prev.date,
+      date: unwrapDate(record.inspection_date) || prev.date,
       invoiceNo: record.invoice_no || prev.invoiceNo,
       invoiceQty: record.invoice_qty || prev.invoiceQty,
       challanNoDate: record.challan_no_date || prev.challanNoDate,
@@ -266,9 +415,9 @@ export default function QualityInspectionForm() {
     setLoadingRecord(true);
     setApiError(null);
     try {
-      const record = await findInspectionRecord(recordId);
-      if (record) {
-        loadRecordIntoForm(record);
+      const response = await api.get(`/quality-inspection/${recordId}`);
+      if (response.data.success === 1 && response.data.data) {
+        loadRecordIntoForm(response.data.data);
       } else {
         setApiError('Inspection report not found');
       }
@@ -303,6 +452,22 @@ export default function QualityInspectionForm() {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
     if (errors[name]) setErrors(prev => ({ ...prev, [name]: '' }));
+  };
+
+  /* ─── Part/Product Name handlers ────────────────────────────── */
+
+  const handlePartProductNameChange = (value: string) => {
+    setFormData(prev => ({ ...prev, partProductName: value }));
+    if (errors.partProductName) setErrors(prev => ({ ...prev, partProductName: '' }));
+  };
+
+  const handlePartProductSelect = (item: ItemSuggestion) => {
+    setFormData(prev => ({
+      ...prev,
+      partProductName: item.item_name,
+      partNo: item.item_code // Auto-fill part number with item code
+    }));
+    if (errors.partProductName) setErrors(prev => ({ ...prev, partProductName: '' }));
   };
 
   /* ─── parameter row handlers ─────────────────────────────────── */
@@ -369,17 +534,6 @@ export default function QualityInspectionForm() {
 
   /* ─── export / print ─────────────────────────────────────────── */
 
-  /**
-   * Builds a fully standalone HTML document for the report and prints it
-   * from a detached iframe. We deliberately don't call window.print() on
-   * the live page: this app's dashboard shell wraps the form in a
-   * scrollable panel, and browsers only print what's laid out in the
-   * current document flow — content clipped by an ancestor's
-   * overflow/height gets cut off. Rendering into an isolated iframe with
-   * its own document sidesteps that entirely, so the whole form (every
-   * parameter row, notes, and sign-off) always prints, not just what's
-   * currently visible on screen.
-   */
   const buildPrintHtml = (): string => {
     const sampleHeaderCells = Array.from({ length: formData.sampleCount }, (_, i) => `<th class="obs">${i + 1}</th>`).join('');
 
@@ -537,7 +691,6 @@ export default function QualityInspectionForm() {
         console.error('Print failed:', err);
         toast.error('Could not open the print dialog');
       }
-      // Give the print dialog time to open before removing the iframe.
       setTimeout(cleanup, 1000);
     };
 
@@ -551,26 +704,6 @@ export default function QualityInspectionForm() {
     doc.write(html);
     doc.close();
   };
-
-  // const handleExportCsv = () => {
-  //   const header = ['Sr No', 'Parameter', 'Specification', 'Inspection Method', ...(formData.parameters[0]?.observations.map((_, i) => `Sample ${i + 1}`) || [])];
-  //   const lines = [header.map(csvEscape).join(',')];
-  //   formData.parameters.forEach((row, idx) => {
-  //     const line = [String(idx + 1), row.parameter, row.specification, row.inspectionMethod, ...row.observations];
-  //     lines.push(line.map(csvEscape).join(','));
-  //   });
-  //   const csvContent = lines.join('\n');
-  //   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  //   const url = URL.createObjectURL(blob);
-  //   const link = document.createElement('a');
-  //   link.href = url;
-  //   link.download = `${formData.reportNo || 'inspection-report'}.csv`;
-  //   document.body.appendChild(link);
-  //   link.click();
-  //   document.body.removeChild(link);
-  //   URL.revokeObjectURL(url);
-  //   toast.success('CSV exported');
-  // };
 
   /* ─── validation ─────────────────────────────────────────────── */
 
@@ -592,46 +725,99 @@ export default function QualityInspectionForm() {
     return true;
   };
 
-  /* ─── save ───────────────────────────────────────────────────── */
+  /* ─── Build API payload matching backend expectations ─────────── */
 
-  const generateRecordName = (): string => {
-    if (formData.reportNo.trim()) return `QIR-${formData.reportNo.trim()}`;
-    const year = new Date().getFullYear();
-    const suffix = Date.now().toString(36).toUpperCase().slice(-6);
-    return `QIR-${year}-${suffix}`;
+  const buildApiPayload = () => {
+    // Generate inspection number if not exists
+    const inspectionNo = isEditMode && recordName ? recordName : `QIR-${Date.now().toString(36).toUpperCase()}`;
+    
+    // Determine overall result
+    const overallResult = outOfSpecCount > 0 ? 'Fail' : 'Pass';
+    
+    // Build details array
+    const details = formData.parameters.map((param, index) => {
+      // Calculate result for this parameter
+      const paramOutOfSpec = param.observations.some(v => isObservationOutOfSpec(param.specification, v));
+      const paramResult = paramOutOfSpec ? 'Fail' : 'Pass';
+      
+      // Build observations array
+      const observations = param.observations.map((value, obsIndex) => ({
+        sample_no: obsIndex + 1,
+        observed_value: value || null,
+        result: value && isObservationOutOfSpec(param.specification, value) ? 'Fail' : 'Pass',
+        remarks: null
+      }));
+
+      return {
+        parameter_id: index + 1,
+        inspection_method_id: 1,
+        specification: param.specification || null,
+        result: paramResult,
+        remarks: null,
+        observations: observations
+      };
+    });
+
+    // ENUM mapping for inspection_type
+    const inspectionTypeMap: { [key: string]: string } = {
+      'Incoming Inspection': 'Incoming',
+      'In Process Inspection': 'In Process',
+      'Final Inspection': 'Final',
+      'Dispatch Inspection': 'Dispatch'
+    };
+
+    // Get the mapped value or default to 'Final'
+    const inspectionType = inspectionTypeMap['Final Inspection'] || 'Final';
+
+    // Determine status based on the inspection state
+    // Since this is a completed inspection, we'll use 'Accepted' 
+    // which is one of the allowed ENUM values
+    const status = outOfSpecCount > 0 ? 'Rejected' : 'Accepted';
+
+    return {
+      inspection_no: inspectionNo,
+      company_id: 1,
+      inspection_date: formData.date || null,
+      inspection_type: inspectionType, // Now sends 'Final' instead of 'Final Inspection'
+      reference_type: 'Purchase Order', // Changed from 'PO' to match ENUM
+      reference_id: 0,
+      item_id: 22,
+      quality_template_id: null,
+      warehouse_id: null,
+      batch_id: null,
+      customer_id: 0,
+      supplier_id: 0,
+      drawing_no: formData.drawingNo || null,
+      revision_no: formData.revNo || null,
+      inspection_qty: parseInt(formData.invoiceQty) || 0,
+      accepted_qty: outOfSpecCount > 0 ? 0 : (parseInt(formData.invoiceQty) || 0),
+      rejected_qty: outOfSpecCount || 0,
+      status: status, // Now sends 'Accepted' or 'Rejected' instead of 'Completed'
+      overall_result: overallResult,
+      remarks: formData.supplierRemarks || null,
+      inspected_by: formData.inspectedBy || null,
+      reviewed_by: formData.reviewedBy || null,
+      approved_by: null,
+      // Additional fields for your specific UI
+      doc_no: formData.docNo,
+      company_name: formData.companyName,
+      report_title: formData.reportTitle,
+      part_product_name: formData.partProductName,
+      part_no: formData.partNo,
+      customer_name: formData.customerName,
+      invoice_no: formData.invoiceNo,
+      invoice_qty: formData.invoiceQty,
+      challan_no_date: formData.challanNoDate,
+      report_no: formData.reportNo,
+      all_dimensions_note: formData.allDimensionsNote,
+      samples_note: formData.samplesNote,
+      footer_rev_no: formData.footerRevNo,
+      footer_rev_date: formData.footerRevDate,
+      details: details
+    };
   };
 
-  const buildApiPayload = () => ({
-    name: isEditMode && recordName ? recordName : generateRecordName(),
-    doc_no: formData.docNo,
-    company_name: formData.companyName,
-    report_title: formData.reportTitle,
-    part_product_name: formData.partProductName,
-    part_no: formData.partNo,
-    drawing_no: formData.drawingNo,
-    rev_no: formData.revNo,
-    customer_name: formData.customerName,
-    transaction_date: formData.date,
-    invoice_no: formData.invoiceNo,
-    invoice_qty: formData.invoiceQty,
-    challan_no_date: formData.challanNoDate,
-    report_no: formData.reportNo,
-    sample_count: formData.sampleCount,
-    parameters: formData.parameters.map((row) => ({
-      parameter: row.parameter,
-      specification: row.specification,
-      inspection_method: row.inspectionMethod,
-      observations: row.observations,
-    })),
-    out_of_spec_count: outOfSpecCount,
-    all_dimensions_note: formData.allDimensionsNote,
-    samples_note: formData.samplesNote,
-    supplier_remarks: formData.supplierRemarks,
-    footer_rev_no: formData.footerRevNo,
-    footer_rev_date: formData.footerRevDate,
-    inspected_by: formData.inspectedBy,
-    reviewed_by: formData.reviewedBy,
-  });
+  /* ─── Save ───────────────────────────────────────────────────── */
 
   const handleSave = async () => {
     if (!validate()) {
@@ -646,7 +832,7 @@ export default function QualityInspectionForm() {
 
       let response;
       if (isEditMode && recordName) {
-        response = await api.put('/quality-inspection', payload);
+        response = await api.put(`/quality-inspection`, { ...payload, id: parseInt(id!) });
       } else {
         response = await api.post('/quality-inspection', payload);
       }
@@ -705,9 +891,6 @@ export default function QualityInspectionForm() {
           )}
 
           <div className="qir-header-actions">
-            {/* <button type="button" className="qir-btn-secondary" onClick={handleExportCsv}>
-              <FaFileCsv size={12} /> Export CSV
-            </button> */}
             <button type="button" className="qir-btn-secondary" onClick={handlePrint}>
               <FaPrint size={12} /> Print
             </button>
@@ -764,11 +947,25 @@ export default function QualityInspectionForm() {
             <tr>
               <td className="qir-meta-label">Part / Product Name :-</td>
               <td className="qir-meta-value" colSpan={2}>
-                <input name="partProductName" value={formData.partProductName} onChange={handleFieldChange} placeholder="Component name" className={errors.partProductName ? 'qir-input-error' : ''} ref={setRef('partProductName')} />
+                <AutocompleteInput
+                  value={formData.partProductName}
+                  onChange={handlePartProductNameChange}
+                  onSelect={handlePartProductSelect}
+                  placeholder="Search and select item..."
+                  className={errors.partProductName ? 'qir-input-error' : ''}
+                />
               </td>
               <td className="qir-meta-label">Part No :-</td>
               <td className="qir-meta-value" colSpan={2}>
-                <input name="partNo" value={formData.partNo} onChange={handleFieldChange} placeholder="Part number" ref={setRef('partNo')} />
+                <input 
+                  name="partNo" 
+                  value={formData.partNo} 
+                  onChange={handleFieldChange} 
+                  placeholder="Part number" 
+                  ref={setRef('partNo')}
+                  readOnly
+                  style={{ backgroundColor: '#f9fafb', cursor: 'not-allowed' }}
+                />
               </td>
               <td className="qir-meta-label">Date :</td>
               <td className="qir-meta-value">

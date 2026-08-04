@@ -1083,6 +1083,7 @@ const getTaxIdFromRate = (taxRate: number, taxOptions: TaxOption[]): number | un
 };
 
 /* ═════ SUCCESS MODAL COMPONENT ═════ */
+/* ═════ SUCCESS MODAL COMPONENT ═════ */
 interface SuccessModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -1135,7 +1136,7 @@ const SuccessModal: React.FC<SuccessModalProps> = ({
         </div>
         
         <div className="so-modal-actions">
-          <button onClick={onClose} className="so-modal-btn so-modal-btn-primary">
+          <button onClick={onViewDetails || onClose} className="so-modal-btn so-modal-btn-primary">
             View Sales Order
           </button>
           <button onClick={onClose} className="so-modal-btn so-modal-btn-secondary">
@@ -1433,7 +1434,7 @@ export default function CreateSalesOrder() {
         hsn: item.HSN || item.hsn || '',
         description: item.description || item.item_name || '',
         unit: item.stock_uom || 'Nos',
-        rate: item.standard_rate || 0,
+        rate: item.selling_price  || 0,
         tax: item.tax_rate || 0,
         stockUom: item.stock_uom,
         standardRate: item.standard_rate,
@@ -1480,7 +1481,7 @@ export default function CreateSalesOrder() {
         hsn: item.HSN || item.hsn || '',
         description: item.description || item.item_name || '',
         unit: item.stock_uom || 'Nos',
-        rate: item.standard_rate || 0,
+        rate: item.selling_price || 0,
         tax: item.tax_rate || 0,
         stockUom: item.stock_uom,
         standardRate: item.standard_rate,
