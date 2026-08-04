@@ -210,12 +210,6 @@ interface JobCardFormData {
   serial_no: string;
 }
 
-interface ValidationError {
-  field: string;
-  label: string;
-  message: string;
-}
-
 // ─── Completion Modal Props ─────────────────────────────────────────────
 
 interface CompletionModalProps {
@@ -442,9 +436,6 @@ const JobCardForm: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
 
-  const [showValidationSummary, setShowValidationSummary] = useState(false);
-  const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
-
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
 
@@ -633,19 +624,148 @@ const JobCardForm: React.FC = () => {
 
   // ─── validation ────────────────────────────────────────────────────────
 
-  const getAllValidationErrors = (): ValidationError[] => {
-    const allErrors: ValidationError[] = [];
+  const validateField = (field: string, value: any): string => {
+    switch (field) {
+      case 'work_order':
+        return !value?.trim() ? 'Work Order is required' : '';
+      
+      case 'qty_to_manufacture':
+        if (value === undefined || value === null || value === '') return 'Quantity to manufacture is required';
+        const qty = Number(value);
+        if (isNaN(qty) || qty < 0) return 'Quantity must be a positive number';
+        if (qty === 0) return 'Quantity must be greater than 0';
+        return '';
+      
+      case 'posting_date':
+        return !value ? 'Posting date is required' : '';
+      
+      case 'company':
+        return !value?.trim() ? 'Company is required' : '';
+      
+      case 'status':
+        return !value?.trim() ? 'Status is required' : '';
+      
+      case 'for_quantity':
+        if (value === undefined || value === null || value === '') return 'For quantity is required';
+        const fqty = Number(value);
+        if (isNaN(fqty) || fqty < 0) return 'For quantity must be a positive number';
+        if (fqty === 0) return 'For quantity must be greater than 0';
+        return '';
+      
+      case 'pending_qty':
+        const pqty = Number(value);
+        if (pqty < 0) return 'Pending quantity cannot be negative';
+        return '';
+      
+      case 'total_completed_qty':
+        const tqty = Number(value);
+        if (tqty < 0) return 'Total completed quantity cannot be negative';
+        return '';
+      
+      case 'process_loss_qty':
+        const lqty = Number(value);
+        if (lqty < 0) return 'Process loss quantity cannot be negative';
+        return '';
+      
+      case 'hour_rate':
+        const hr = Number(value);
+        if (hr < 0) return 'Hour rate cannot be negative';
+        return '';
+      
+      case 'source_warehouse':
+        if (!value?.trim()) return 'Source warehouse is required';
+        return '';
+      
+      case 'wip_warehouse':
+        if (!value?.trim()) return 'WIP warehouse is required';
+        return '';
+      
+      case 'target_warehouse':
+        if (!value?.trim()) return 'Target warehouse is required';
+        return '';
+      
+      case 'expected_start_date':
+        return !value ? 'Expected start date is required' : '';
+      
+      case 'expected_end_date':
+        return !value ? 'Expected end date is required' : '';
+      
+      case 'item_name':
+        return !value?.trim() ? 'Item name is required' : '';
+      
+      case 'production_item':
+        return !value?.trim() ? 'Production item is required' : '';
+      
+      case 'operation':
+        return !value?.trim() ? 'Operation is required' : '';
+      
+      case 'workstation_type':
+        return !value?.trim() ? 'Workstation type is required' : '';
+      
+      case 'workstation':
+        return !value?.trim() ? 'Workstation is required' : '';
+      
+      case 'bom_no':
+        return !value?.trim() ? 'BOM number is required' : '';
+      
+      case 'finished_good':
+        return !value?.trim() ? 'Finished good is required' : '';
+      
+      default:
+        return '';
+    }
+  };
 
-    if (!formData.work_order.trim())
-      allErrors.push({ field: "work_order", label: "Work Order", message: "Work Order is required" });
+  const validateAllFields = (): { [key: string]: string } => {
+    const newErrors: { [key: string]: string } = {};
+    
+    // Required fields from table schema
+    const requiredFields = [
+      'work_order',
+      'qty_to_manufacture',
+      'posting_date',
+      'company',
+      'status',
+      'for_quantity',
+      'pending_qty',
+      'total_completed_qty',
+      'process_loss_qty',
+      'hour_rate',
+      'source_warehouse',
+      'wip_warehouse',
+      'target_warehouse',
+      'expected_start_date',
+      'expected_end_date',
+      'item_name',
+      'production_item',
+      'operation',
+      'workstation_type',
+      'workstation',
+      'bom_no',
+      'finished_good'
+    ];
 
+    requiredFields.forEach(field => {
+      const error = validateField(field, formData[field as keyof JobCardFormData]);
+      if (error) {
+        newErrors[field] = error;
+      }
+    });
+
+    // Cross-field validation
     if (formData.expected_start_date && formData.expected_end_date) {
       if (formData.expected_end_date < formData.expected_start_date) {
-        allErrors.push({ field: "expected_end_date", label: "Expected End Date", message: "End date cannot be before start date" });
+        newErrors.expected_end_date = 'End date cannot be before start date';
       }
     }
 
-    return allErrors;
+    // Validate that total completed + loss doesn't exceed quantity
+    const totalProcessed = (formData.total_completed_qty || 0) + (formData.process_loss_qty || 0);
+    if (totalProcessed > (formData.qty_to_manufacture || 0)) {
+      newErrors.total_completed_qty = 'Total completed + loss cannot exceed quantity to manufacture';
+    }
+
+    return newErrors;
   };
 
   // ─── field handlers ────────────────────────────────────────────────────
@@ -659,13 +779,19 @@ const JobCardForm: React.FC = () => {
       processedValue = value === "" ? 0 : parseFloat(value) || 0;
     }
     setFormData((prev) => ({ ...prev, [name]: processedValue }));
-    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
+    
+    // Validate field on change
+    const error = validateField(name, processedValue);
+    setErrors((prev) => ({ ...prev, [name]: error }));
   };
 
   const handleNumberChange = (field: keyof JobCardFormData, value: string) => {
     const numValue = value === '' ? 0 : parseFloat(value) || 0;
     setFormData((prev) => ({ ...prev, [field]: numValue }));
-    if (errors[field]) setErrors((prev) => ({ ...prev, [field]: "" }));
+    
+    // Validate field on change
+    const error = validateField(field, numValue);
+    setErrors((prev) => ({ ...prev, [field]: error }));
   };
 
   const handleDateChange = (
@@ -674,6 +800,10 @@ const JobCardForm: React.FC = () => {
   ) => {
     const value = Array.isArray(date) ? date[0] : date;
     setFormData((prev) => ({ ...prev, [field]: value }));
+    
+    // Validate field on change
+    const error = validateField(field, value);
+    setErrors((prev) => ({ ...prev, [field]: error }));
   };
 
   // ─── work order select ──────────────────────────────────────────────
@@ -694,7 +824,9 @@ const JobCardForm: React.FC = () => {
       item_name: wo?.item_name || prev.item_name,
     }));
     
-    if (errors.work_order) setErrors((prev) => ({ ...prev, work_order: "" }));
+    // Validate work_order
+    const error = validateField('work_order', value);
+    setErrors((prev) => ({ ...prev, work_order: error }));
     
     if (value) {
       fetchWorkOrderDetails(value);
@@ -790,11 +922,18 @@ const JobCardForm: React.FC = () => {
   }, [timerRunning]);
 
   const jobStarted = !!formData.actual_start_date;
-  const jobCompleted = formData.status === "In Process";
+  const jobCompleted = formData.status === "Completed";
   const hasAssignedEmployees = formData.assigned_employees.length > 0;
 
   // ─── handleStartJob function ─────────────────────────────────────
   const handleStartJob = async () => {
+    // Validate required fields before starting
+    const allErrors = validateAllFields();
+    if (Object.keys(allErrors).length > 0) {
+      setErrors(allErrors);
+      return;
+    }
+    
     // If no employees assigned, open the assignment modal first
     if (!hasAssignedEmployees) {
       openEmployeeModal();
@@ -886,6 +1025,12 @@ const JobCardForm: React.FC = () => {
   // ─── Handle Complete Job with Modal ──────────────────────────────────
 
   const handleCompleteJobClick = () => {
+    // Validate before showing completion modal
+    const allErrors = validateAllFields();
+    if (Object.keys(allErrors).length > 0) {
+      setErrors(allErrors);
+      return;
+    }
     setShowCompletionModal(true);
   };
 
@@ -942,10 +1087,9 @@ const JobCardForm: React.FC = () => {
 
   // ─── handleUpdate function ──────────────────────────────────────────
   const handleUpdate = async () => {
-    const allErrors = getAllValidationErrors();
-    if (allErrors.length > 0) {
-      setValidationErrors(allErrors);
-      setShowValidationSummary(true);
+    const allErrors = validateAllFields();
+    if (Object.keys(allErrors).length > 0) {
+      setErrors(allErrors);
       return;
     }
 
@@ -1065,10 +1209,9 @@ const JobCardForm: React.FC = () => {
       return;
     }
 
-    const allErrors = getAllValidationErrors();
-    if (allErrors.length > 0) {
-      setValidationErrors(allErrors);
-      setShowValidationSummary(true);
+    const allErrors = validateAllFields();
+    if (Object.keys(allErrors).length > 0) {
+      setErrors(allErrors);
       return;
     }
 
@@ -1100,9 +1243,6 @@ const JobCardForm: React.FC = () => {
       setSaving(false);
     }
   };
-
-  const allValidationErrors = getAllValidationErrors();
-  const hasAnyErrors = allValidationErrors.length > 0;
 
   // Get selected employee details for display
   const getSelectedEmployeeDetails = () => {
@@ -1136,43 +1276,6 @@ const JobCardForm: React.FC = () => {
         currentCompletedQty={formData.total_completed_qty || 0}
         currentLossQty={formData.process_loss_qty || 0}
       />
-
-      {/* Validation Summary Modal */}
-      {showValidationSummary && validationErrors.length > 0 && (
-        <div className="jcf-modal-overlay" onClick={() => setShowValidationSummary(false)}>
-          <div className="jcf-validation-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="jcf-modal-header jcf-modal-header-warning">
-              <h2 className="jcf-modal-title-warning">
-                <FaExclamationTriangle /> Missing Required Fields
-              </h2>
-              <button className="jcf-modal-close" onClick={() => setShowValidationSummary(false)}>×</button>
-            </div>
-            <div className="jcf-modal-body">
-              <p className="jcf-modal-intro">
-                Please fill in the following required fields before submitting:
-              </p>
-              <div className="jcf-error-list">
-                {validationErrors.map((error, idx) => (
-                  <div key={idx} className="jcf-validation-error-item">
-                    <div className="jcf-error-header">
-                      <FaTimesCircle className="jcf-error-icon" />
-                      <strong className="jcf-error-label">{error.label}</strong>
-                    </div>
-                    <div className="jcf-error-message">{error.message}</div>
-                  </div>
-                ))}
-              </div>
-              <div className="jcf-hint-banner">
-                <FaInfoCircle className="jcf-hint-icon" />
-                Please fix the errors above before submitting
-              </div>
-            </div>
-            <div className="jcf-modal-footer">
-              <button className="jcf-btn-cancel" onClick={() => setShowValidationSummary(false)}>Close</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Assign Employee Modal */}
       {showEmployeeModal && (
@@ -1258,13 +1361,6 @@ const JobCardForm: React.FC = () => {
               {apiError}
             </div>
           )}
-
-          {hasAnyErrors && (
-            <div className="jcf-error-pill">
-              <FaExclamationTriangle size={11} />
-              {allValidationErrors.length} missing field(s)
-            </div>
-          )}
         </div>
       </div>
 
@@ -1280,71 +1376,71 @@ const JobCardForm: React.FC = () => {
 
                 {/* Row 1: Work Order, Qty, Posting Date */}
                 <div className="jcf-grid-3">
-                <div>
-  <label className="jcf-label">Work Order *</label>
-
-  {isEditMode ? (
-    <div
-      className="jcf-input"
-      style={{
-        display: "flex",
-        alignItems: "center",
-        minHeight: "42px",
-        background: "#f8f9fa",
-        cursor: "not-allowed",
-      }}
-    >
-      {formData.work_order}
-      {woDetails?.item_name && ` - ${woDetails.item_name}`}
-      {` (Qty: ${woDetails?.qty ?? formData.qty_to_manufacture ?? 0})`}
-    </div>
-  ) : (
-    <>
-      <select
-        name="work_order"
-        value={formData.work_order || ""}
-        onChange={handleWorkOrderSelect}
-        className={`jcf-input ${errors.work_order ? "jcf-input-error" : ""}`}
-      >
-        <option value="">
-          {loadingWorkOrders ? "Loading..." : "Select Work Order"}
-        </option>
-
-        {workOrders.map((wo) => (
-          <option key={wo.name} value={wo.name}>
-            {wo.name} - {wo.item_name || wo.production_item || ""}
-            {wo.qty ? ` (Qty: ${wo.qty})` : ""}
-          </option>
-        ))}
-
-        <option value="__create_new__">+ Create New Work Order</option>
-      </select>
-
-      {errors.work_order && (
-        <span className="jcf-error-text">{errors.work_order}</span>
-      )}
-
-      {loadingWoDetails && (
-        <span className="jcf-hint-text">Loading...</span>
-      )}
-
-      {woDetails && !loadingWoDetails && formData.work_order && (
-        <span
-          className="jcf-hint-text"
-          style={{
-            color: "var(--text-secondary)",
-            fontSize: "0.75rem",
-          }}
-        >
-          {woDetails.item_name || formData.item_name} · Qty:{" "}
-          {woDetails.qty || formData.qty_to_manufacture}
-        </span>
-      )}
-    </>
-  )}
-</div>
                   <div>
-                    <label className="jcf-label">Qty To Manufacture</label>
+                    <label className="jcf-label required-star">Work Order</label>
+
+                    {isEditMode ? (
+                      <div
+                        className="jcf-input"
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          minHeight: "42px",
+                          background: "#f8f9fa",
+                          cursor: "not-allowed",
+                        }}
+                      >
+                        {formData.work_order}
+                        {woDetails?.item_name && ` - ${woDetails.item_name}`}
+                        {` (Qty: ${woDetails?.qty ?? formData.qty_to_manufacture ?? 0})`}
+                      </div>
+                    ) : (
+                      <>
+                        <select
+                          name="work_order"
+                          value={formData.work_order || ""}
+                          onChange={handleWorkOrderSelect}
+                          className="jcf-input"
+                        >
+                          <option value="">
+                            {loadingWorkOrders ? "Loading..." : "Select Work Order"}
+                          </option>
+
+                          {workOrders.map((wo) => (
+                            <option key={wo.name} value={wo.name}>
+                              {wo.name} - {wo.item_name || wo.production_item || ""}
+                              {wo.qty ? ` (Qty: ${wo.qty})` : ""}
+                            </option>
+                          ))}
+
+                          <option value="__create_new__">+ Create New Work Order</option>
+                        </select>
+
+                        {errors.work_order && (
+                          <span className="jcf-error-text">{errors.work_order}</span>
+                        )}
+
+                        {loadingWoDetails && (
+                          <span className="jcf-hint-text">Loading...</span>
+                        )}
+
+                        {woDetails && !loadingWoDetails && formData.work_order && (
+                          <span
+                            className="jcf-hint-text"
+                            style={{
+                              color: "var(--text-secondary)",
+                              fontSize: "0.75rem",
+                            }}
+                          >
+                            {woDetails.item_name || formData.item_name} · Qty:{" "}
+                            {woDetails.qty || formData.qty_to_manufacture}
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </div>
+                  <div>
+                    <label className="jcf-label required-star">Qty To Manufacture</label>
                     <div className="input-group">
                       <DigitInput
                         value={String(formData.qty_to_manufacture)}
@@ -1354,22 +1450,28 @@ const JobCardForm: React.FC = () => {
                         disabled={isEditMode}
                       />
                     </div>
+                    {errors.qty_to_manufacture && (
+                      <span className="jcf-error-text">{errors.qty_to_manufacture}</span>
+                    )}
                   </div>
                   <div>
-                    <label className="jcf-label">Posting Date</label>
+                    <label className="jcf-label required-star">Posting Date</label>
                     <DatePicker
                       selected={formData.posting_date}
                       onChange={(date: Date | null) => handleDateChange("posting_date", date)}
                       dateFormat="dd-MM-yyyy"
                       className="jcf-date-input"
                     />
+                    {errors.posting_date && (
+                      <span className="jcf-error-text">{errors.posting_date}</span>
+                    )}
                   </div>
                 </div>
 
                 {/* Row 2: Pending Qty, Total Completed, Loss */}
                 <div className="jcf-grid-3 jcf-mb-20">
                   <div>
-                    <label className="jcf-label">Pending Qty</label>
+                    <label className="jcf-label required-star">Pending Qty</label>
                     <div className="input-group">
                       <DigitInput
                         value={String(formData.pending_qty)}
@@ -1379,9 +1481,12 @@ const JobCardForm: React.FC = () => {
                         disabled={!(formData.status === "On Hold" || formData.status === "Completed")}
                       />
                     </div>
+                    {errors.pending_qty && (
+                      <span className="jcf-error-text">{errors.pending_qty}</span>
+                    )}
                   </div>
                   <div>
-                    <label className="jcf-label">Total Completed Qty</label>
+                    <label className="jcf-label required-star">Total Completed Qty</label>
                     <div className="input-group">
                       <DigitInput
                         value={String(formData.total_completed_qty)}
@@ -1391,9 +1496,12 @@ const JobCardForm: React.FC = () => {
                         disabled={!(formData.status === "On Hold" || formData.status === "Completed")}
                       />
                     </div>
+                    {errors.total_completed_qty && (
+                      <span className="jcf-error-text">{errors.total_completed_qty}</span>
+                    )}
                   </div>
                   <div>
-                    <label className="jcf-label">Loss</label>
+                    <label className="jcf-label required-star">Loss</label>
                     <div className="input-group">
                       <DigitInput
                         value={String(formData.process_loss_qty)}
@@ -1403,6 +1511,9 @@ const JobCardForm: React.FC = () => {
                         disabled={!(formData.status === "On Hold" || formData.status === "Completed")}
                       />
                     </div>
+                    {errors.process_loss_qty && (
+                      <span className="jcf-error-text">{errors.process_loss_qty}</span>
+                    )}
                   </div>
                 </div>
 
@@ -1423,7 +1534,7 @@ const JobCardForm: React.FC = () => {
 
                 <div className="jcf-grid-4">
                   <div>
-                    <label className="jcf-label">Expected Start Date</label>
+                    <label className="jcf-label required-star">Expected Start Date</label>
                     <DatePicker
                       selected={formData.expected_start_date}
                       onChange={(date: Date | null) => handleDateChange("expected_start_date", date)}
@@ -1432,9 +1543,12 @@ const JobCardForm: React.FC = () => {
                       placeholderText="Select start"
                       className="jcf-date-input"
                     />
+                    {errors.expected_start_date && (
+                      <span className="jcf-error-text">{errors.expected_start_date}</span>
+                    )}
                   </div>
                   <div>
-                    <label className="jcf-label">Expected End Date</label>
+                    <label className="jcf-label required-star">Expected End Date</label>
                     <DatePicker
                       selected={formData.expected_end_date}
                       onChange={(date: Date | null) => handleDateChange("expected_end_date", date)}
@@ -1443,10 +1557,12 @@ const JobCardForm: React.FC = () => {
                       placeholderText="Select end"
                       className="jcf-date-input"
                     />
-                    {errors.expected_end_date && <span className="jcf-error-text">{errors.expected_end_date}</span>}
+                    {errors.expected_end_date && (
+                      <span className="jcf-error-text">{errors.expected_end_date}</span>
+                    )}
                   </div>
                   <div>
-                    <label className="jcf-label">For Quantity</label>
+                    <label className="jcf-label required-star">For Quantity</label>
                     <div className="input-group">
                       <DigitInput
                         value={String(formData.for_quantity)}
@@ -1455,6 +1571,9 @@ const JobCardForm: React.FC = () => {
                         maxLength={10}
                       />
                     </div>
+                    {errors.for_quantity && (
+                      <span className="jcf-error-text">{errors.for_quantity}</span>
+                    )}
                   </div>
                   
                 </div>
@@ -1490,7 +1609,7 @@ const JobCardForm: React.FC = () => {
 
                 <div className="jcf-grid-3">
                   <div>
-                    <label className="jcf-label">Source Warehouse</label>
+                    <label className="jcf-label required-star">Source Warehouse</label>
                     <input
                       type="text"
                       name="source_warehouse"
@@ -1500,9 +1619,12 @@ const JobCardForm: React.FC = () => {
                       className="jcf-input"
                       disabled={isEditMode}
                     />
+                    {errors.source_warehouse && (
+                      <span className="jcf-error-text">{errors.source_warehouse}</span>
+                    )}
                   </div>
                   <div>
-                    <label className="jcf-label">WIP Warehouse</label>
+                    <label className="jcf-label required-star">WIP Warehouse</label>
                     <input
                       type="text"
                       name="wip_warehouse"
@@ -1512,9 +1634,12 @@ const JobCardForm: React.FC = () => {
                       className="jcf-input"
                       disabled={isEditMode}
                     />
+                    {errors.wip_warehouse && (
+                      <span className="jcf-error-text">{errors.wip_warehouse}</span>
+                    )}
                   </div>
                   <div>
-                    <label className="jcf-label">Target Warehouse</label>
+                    <label className="jcf-label required-star">Target Warehouse</label>
                     <input
                       type="text"
                       name="target_warehouse"
@@ -1524,12 +1649,15 @@ const JobCardForm: React.FC = () => {
                       className="jcf-input"
                       disabled={isEditMode}
                     />
+                    {errors.target_warehouse && (
+                      <span className="jcf-error-text">{errors.target_warehouse}</span>
+                    )}
                   </div>
                 </div>
 
                 {/* Status selector */}
                 <div className="jcf-field-block jcf-mt-20">
-                  <label className="jcf-label">Status</label>
+                  <label className="jcf-label required-star">Status</label>
                   <select
                     name="status"
                     value={formData.status}
@@ -1543,6 +1671,9 @@ const JobCardForm: React.FC = () => {
                     <option value="Completed">Completed</option>
                     <option value="Cancelled">Cancelled</option>
                   </select>
+                  {errors.status && (
+                    <span className="jcf-error-text">{errors.status}</span>
+                  )}
                 </div>
 
                 {/* Remarks */}
@@ -1636,8 +1767,6 @@ const JobCardForm: React.FC = () => {
                     <FaUserPlus size={12} /> {hasAssignedEmployees ? "Manage Employees" : "Assign Employee"}
                   </button>
 
-                 
-
                   {/* Start / Resume / Pause / Complete buttons */}
                   {!jobStarted && !jobCompleted && (
                     <button
@@ -1705,8 +1834,8 @@ const JobCardForm: React.FC = () => {
                     </div>
                   )}
 
-                   {/* Update button – only for edit mode */}
-                   {isEditMode && (
+                  {/* Update button – only for edit mode */}
+                  {isEditMode && (
                     <button
                       type="button"
                       className="jcf-btn-primary jcf-btn-block"
