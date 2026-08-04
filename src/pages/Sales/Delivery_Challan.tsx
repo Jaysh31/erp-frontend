@@ -18,7 +18,6 @@ import {
   FaBan,
   FaPaperPlane,
   FaTruck,
-  FaCopy,
   FaSpinner,
   FaSync,
   FaTimes
@@ -29,23 +28,63 @@ import toast from 'react-hot-toast';
 
 // ===== INTERFACES =====
 
+interface DeliveryChallanItem {
+  id: number;
+  item_code: string;
+  item_name: string;
+  description: string;
+  qty: number;
+  stock_uom: string;
+  uom: string;
+  rate: number;
+  amount: number;
+  tax_id: number | null;
+  net_rate: number;
+  net_amount: number;
+  warehouse: string;
+  serial_no?: string;
+  batch_no?: string;
+}
+
 interface DeliveryChallan {
   id: string | number;
   name: string;
+  customer_id: number;
   customer_name: string;
   posting_date: string;
   status: string;
   grand_total: number;
-  currency: string;
+  currency: string | null;
   modified: string;
-  modified_by: string;
+  modified_by: string | null;
   creation: string;
-  invoiceNo?: string;
-  warehouse?: string;
-  vehicleNumber?: string;
-  deliveryStatus?: string;
-  totalDispatchQty?: number;
-  // Computed field for display
+  set_warehouse?: string;
+  transporter?: string;
+  vehicle_no?: string;
+  driver_name?: string;
+  instructions?: string;
+  sales_order_id?: number | null;
+  items?: DeliveryChallanItem[];
+  customer_details?: {
+    id: number;
+    customer_name: string;
+    customer_type: string;
+    customer_group: string;
+    territory: string;
+    mobile_no: string;
+    email_id: string;
+    primary_address: string;
+    tax_id: string | null;
+    default_currency: string | null;
+    payment_terms: string | null;
+    disabled: number;
+    gstin?: string;
+    address?: string;
+    shipping_address?: string;
+    state?: string;
+    state_code?: string;
+  };
+  payment_schedule?: any[];
   displayDcNumber?: string;
 }
 
@@ -59,12 +98,82 @@ interface ApiResponse {
   };
 }
 
+// ===== COMPANY DETAILS =====
+const companyDetails = {
+  name: 'Sculptor Tech Pvt Ltd',
+  address: 'c-1006, gc, Pune, Maharashtra 411028, India',
+  website: 'sculptortechpvtltd@gmail.com',
+  email: 'jayeshwakle@sculptortechpvtltd.com',
+  contact: '8668584275',
+  gstin: '',
+  stateName: 'Maharashtra',
+  stateCode: '27',
+  panNo: '',
+  bankName: '',
+  bankAccountNo: '',
+  bankBranchIfsc: '',
+  jurisdiction: 'PUNE',
+};
+
 // ===== FORMAT DC NUMBER =====
 const formatDcNumber = (id: string | number): string => {
-  // Convert to number and pad with zeros to 5 digits
   const numId = typeof id === 'string' ? parseInt(id, 10) : id;
   const paddedId = String(numId).padStart(5, '0');
   return `DC-${paddedId}`;
+};
+
+// ===== AMOUNT IN WORDS HELPER =====
+const ONES = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
+  'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+const TENS = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+const twoDigitWords = (n: number): string => {
+  if (n < 20) return ONES[n];
+  return TENS[Math.floor(n / 10)] + (n % 10 ? ' ' + ONES[n % 10] : '');
+};
+
+const threeDigitWords = (n: number): string => {
+  if (n >= 100) {
+    return ONES[Math.floor(n / 100)] + ' Hundred' + (n % 100 ? ' ' + twoDigitWords(n % 100) : '');
+  }
+  return twoDigitWords(n);
+};
+
+const numberToIndianWords = (value: number): string => {
+  let num = Math.round(Math.abs(value));
+  if (num === 0) return 'Zero';
+
+  const crore = Math.floor(num / 10000000); num %= 10000000;
+  const lakh = Math.floor(num / 100000); num %= 100000;
+  const thousand = Math.floor(num / 1000); num %= 1000;
+  const hundred = num;
+
+  let out = '';
+  if (crore) out += threeDigitWords(crore) + ' Crore ';
+  if (lakh) out += threeDigitWords(lakh) + ' Lakh ';
+  if (thousand) out += threeDigitWords(thousand) + ' Thousand ';
+  if (hundred) out += threeDigitWords(hundred);
+
+  return out.trim();
+};
+
+const formatPrintDate = (date: string): string => {
+  if (!date) return '';
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return date;
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = d.toLocaleString('en-US', { month: 'short' });
+  const year = String(d.getFullYear()).slice(-2);
+  return `${day}-${month}-${year}`;
+};
+
+const escapeHtml = (val: unknown): string => {
+  const s = val === null || val === undefined ? '' : String(val);
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 };
 
 // ===== STATUS BADGE =====
@@ -102,6 +211,7 @@ const DeliveryChallans: React.FC = () => {
   const [challans, setChallans] = useState<DeliveryChallan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [printLoadingId, setPrintLoadingId] = useState<string | null>(null);
 
   // ===== CLOSE MENU ON CLICK OUTSIDE =====
   useEffect(() => {
@@ -111,7 +221,6 @@ const DeliveryChallans: React.FC = () => {
       const target = event.target as Node;
       const menuContainer = menuRefs.current[showMoreMenu];
       
-      // Check if click is outside the menu container
       if (menuContainer && !menuContainer.contains(target)) {
         setShowMoreMenu(null);
       }
@@ -122,6 +231,26 @@ const DeliveryChallans: React.FC = () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [showMoreMenu]);
+
+  // ===== FETCH FULL DC DETAILS =====
+  const fetchFullDeliveryChallan = async (id: string | number): Promise<DeliveryChallan | null> => {
+    try {
+      const response = await api.get(`/delivery-note/${id}`);
+      if (response.data && response.data.success !== 0) {
+        const data = response.data.success === 1 ? response.data.data : response.data;
+        const record = Array.isArray(data) ? data[0] : (data?.record ?? data);
+        if (record && (record.name || record.id)) {
+          return {
+            ...record,
+            displayDcNumber: formatDcNumber(record.id || record.name)
+          } as DeliveryChallan;
+        }
+      }
+    } catch (err) {
+      console.warn('Direct fetch failed:', err);
+    }
+    return null;
+  };
 
   // ===== FETCH DATA =====
   const fetchChallans = async () => {
@@ -138,7 +267,6 @@ const DeliveryChallans: React.FC = () => {
       const response = await api.get<ApiResponse>(`/delivery-note${query}`);
       
       if (response.data?.data?.records) {
-        // Add display DC number to each record
         const recordsWithDisplayNumber = response.data.data.records.map((record) => ({
           ...record,
           displayDcNumber: formatDcNumber(record.id)
@@ -237,6 +365,229 @@ const DeliveryChallans: React.FC = () => {
     return Math.min(validCurrentPage * itemsPerPage, totalFilteredItems);
   };
 
+  // ===== BUILD PRINT HTML =====
+  const buildDeliveryChallanPrintHtml = (challan: DeliveryChallan): string => {
+    const items = challan.items || [];
+    const totalQty = items.reduce((sum, item) => sum + (item.qty || 0), 0);
+    const grandTotal = challan.grand_total || 0;
+
+    const itemRows = items.map((item, idx) => `
+      <tr>
+        <td class="pq-col-sl">${idx + 1}</td>
+        <td class="pq-col-desc">
+          ${escapeHtml(item.item_name || item.item_code || '')}
+          ${item.item_code ? `<div class="pq-item-sub">${escapeHtml(item.item_code)}</div>` : ''}
+          ${item.description ? `<div class="pq-item-desc">${escapeHtml(item.description)}</div>` : ''}
+        </td>
+        <td class="pq-col-qty">${item.qty || 0} ${escapeHtml(item.stock_uom || item.uom || 'Nos')}</td>
+        <td class="pq-col-rate">${(item.rate || 0).toFixed(2)}</td>
+        <td class="pq-col-amt">${(item.amount || 0).toFixed(2)}</td>
+      </tr>
+    `).join('');
+
+    const customer = challan.customer_details;
+
+    return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8" />
+<title>${escapeHtml(challan.displayDcNumber || challan.name || 'Delivery Challan')}</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #1a1a1a; margin: 0; padding: 24px; }
+  .pq-outer { border: 1.5px solid #000; }
+  .pq-title-row { display: flex; align-items: center; justify-content: center; position: relative; padding: 8px; border-bottom: 1.5px solid #000; }
+  .pq-title { font-size: 18px; font-weight: bold; letter-spacing: 1px; }
+  .pq-top { display: flex; border-bottom: 1px solid #000; }
+  .pq-company-box { flex: 1.3; padding: 8px; border-right: 1px solid #000; }
+  .pq-company-name { font-weight: bold; font-size: 14px; margin-bottom: 4px; }
+  .pq-company-box div { margin: 1px 0; }
+  .pq-meta-box { flex: 1.1; }
+  .pq-meta-row { display: flex; border-bottom: 1px solid #000; }
+  .pq-meta-row:last-child { border-bottom: none; }
+  .pq-meta-cell { flex: 1; padding: 4px 8px; border-right: 1px solid #000; }
+  .pq-meta-cell:last-child { border-right: none; }
+  .pq-meta-label { font-size: 10px; color: #444; }
+  .pq-meta-value { font-weight: 600; margin-top: 1px; min-height: 13px; }
+  .pq-parties { display: flex; border-bottom: 1px solid #000; }
+  .pq-party-box { flex: 1; padding: 8px; border-right: 1px solid #000; }
+  .pq-party-box:last-child { border-right: none; }
+  .pq-party-label { font-weight: bold; margin-bottom: 3px; }
+  .pq-party-box div { margin: 1px 0; }
+  table.pq-items { width: 100%; border-collapse: collapse; }
+  table.pq-items th, table.pq-items td { border-right: 1px solid #000; padding: 5px 6px; }
+  table.pq-items th:last-child, table.pq-items td:last-child { border-right: none; }
+  table.pq-items thead th { border-bottom: 1px solid #000; border-top: none; font-size: 11px; text-align: left; }
+  .pq-col-sl { width: 26px; text-align: center; }
+  .pq-col-desc { min-width: 200px; }
+  .pq-item-sub { font-size: 10px; color: #555; }
+  .pq-item-desc { font-size: 10px; color: #666; margin-top: 2px; }
+  .pq-col-qty { width: 80px; text-align: right; }
+  .pq-col-rate { width: 70px; text-align: right; }
+  .pq-col-amt { width: 90px; text-align: right; }
+  .pq-total-row td { border-top: 1px solid #000; font-weight: bold; padding: 6px; }
+  .pq-words { display: flex; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 6px 8px; justify-content: space-between; align-items: flex-start; }
+  .pq-words-label { font-size: 10px; color: #444; }
+  .pq-eoe { font-size: 11px; font-style: italic; white-space: nowrap; }
+  .pq-bottom { display: flex; border-top: 1px solid #000; }
+  .pq-decl-box { flex: 1; padding: 8px; border-right: 1px solid #000; }
+  .pq-sign-box { flex: 1; padding: 8px; display: flex; flex-direction: column; justify-content: space-between; }
+  .pq-signatory { text-align: right; margin-top: 24px; font-size: 11px; }
+  .pq-footer { text-align: center; padding: 8px; font-size: 10px; color: #444; border-top: 1px solid #000; }
+  .pq-footer div:first-child { font-weight: 600; letter-spacing: 0.5px; margin-bottom: 2px; }
+  .pq-status-badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 10px; font-weight: 600; }
+  .pq-status-Submitted { background: #dbeafe; color: #1e40af; }
+  .pq-status-Draft { background: #f3f4f6; color: #6b7280; }
+  .pq-status-Cancelled { background: #fee2e2; color: #991b1b; }
+  @media print {
+    body { padding: 0; }
+    @page { margin: 12mm; }
+  }
+</style>
+</head>
+<body>
+  <div class="pq-outer">
+
+    <div class="pq-title-row">
+      <div class="pq-title">DELIVERY CHALLAN</div>
+      <span style="position:absolute;right:12px;font-size:11px;color:#555;">
+        <span class="pq-status-badge pq-status-${escapeHtml(challan.status || 'Draft')}">${escapeHtml(challan.status || 'Draft')}</span>
+      </span>
+    </div>
+
+    <div class="pq-top">
+      <div class="pq-company-box">
+        <div class="pq-company-name">${escapeHtml(companyDetails.name)}</div>
+        <div>${escapeHtml(companyDetails.address)}</div>
+        <div>Phone: ${escapeHtml(companyDetails.contact)}</div>
+        ${companyDetails.email ? `<div>Email: ${escapeHtml(companyDetails.email)}</div>` : ''}
+        ${companyDetails.gstin ? `<div>GSTIN/UIN: ${escapeHtml(companyDetails.gstin)}</div>` : ''}
+        <div>State Name : ${escapeHtml(companyDetails.stateName)}, Code : ${escapeHtml(companyDetails.stateCode)}</div>
+      </div>
+      <div class="pq-meta-box">
+        <div class="pq-meta-row">
+          <div class="pq-meta-cell">
+            <div class="pq-meta-label">DC No.</div>
+            <div class="pq-meta-value">${escapeHtml(challan.displayDcNumber || challan.name || '')}</div>
+          </div>
+          <div class="pq-meta-cell" style="border-right:none;">
+            <div class="pq-meta-label">Date</div>
+            <div class="pq-meta-value">${escapeHtml(formatPrintDate(challan.posting_date))}</div>
+          </div>
+        </div>
+        <div class="pq-meta-row">
+          <div class="pq-meta-cell">
+            <div class="pq-meta-label">Warehouse</div>
+            <div class="pq-meta-value">${escapeHtml(challan.set_warehouse || '')}</div>
+          </div>
+          <div class="pq-meta-cell" style="border-right:none;">
+            <div class="pq-meta-label">Transporter</div>
+            <div class="pq-meta-value">${escapeHtml(challan.transporter || challan.driver_name || '')}</div>
+          </div>
+        </div>
+        <div class="pq-meta-row">
+          <div class="pq-meta-cell">
+            <div class="pq-meta-label">Vehicle No.</div>
+            <div class="pq-meta-value">${escapeHtml(challan.vehicle_no || '')}</div>
+          </div>
+          <div class="pq-meta-cell" style="border-right:none;">
+            <div class="pq-meta-label">Sales Order</div>
+            <div class="pq-meta-value">${challan.sales_order_id ? `#${escapeHtml(String(challan.sales_order_id))}` : 'N/A'}</div>
+          </div>
+        </div>
+        ${challan.instructions ? `
+        <div class="pq-meta-row">
+          <div class="pq-meta-cell" style="border-right:none;">
+            <div class="pq-meta-label">Instructions</div>
+            <div class="pq-meta-value">${escapeHtml(challan.instructions)}</div>
+          </div>
+        </div>` : ''}
+      </div>
+    </div>
+
+    <div class="pq-parties">
+      <div class="pq-party-box">
+        <div class="pq-party-label">Consignee (Ship to)</div>
+        <div><strong>${escapeHtml(challan.customer_name || '')}</strong></div>
+        ${customer?.primary_address ? `<div>${escapeHtml(customer.primary_address)}</div>` : ''}
+        ${customer?.mobile_no ? `<div>Phone: ${escapeHtml(customer.mobile_no)}</div>` : ''}
+        ${customer?.email_id ? `<div>Email: ${escapeHtml(customer.email_id)}</div>` : ''}
+        ${customer?.gstin ? `<div>GSTIN/UIN : ${escapeHtml(customer.gstin)}</div>` : ''}
+        ${customer?.state ? `<div>State: ${escapeHtml(customer.state)}${customer?.state_code ? ` (${escapeHtml(customer.state_code)})` : ''}</div>` : ''}
+      </div>
+      <div class="pq-party-box">
+        <div class="pq-party-label">Buyer (Bill to)</div>
+        <div><strong>${escapeHtml(challan.customer_name || '')}</strong></div>
+        ${customer?.primary_address ? `<div>${escapeHtml(customer.primary_address)}</div>` : ''}
+        ${customer?.mobile_no ? `<div>Phone: ${escapeHtml(customer.mobile_no)}</div>` : ''}
+        ${customer?.email_id ? `<div>Email: ${escapeHtml(customer.email_id)}</div>` : ''}
+        ${customer?.gstin ? `<div>GSTIN/UIN : ${escapeHtml(customer.gstin)}</div>` : ''}
+        ${customer?.state ? `<div>State: ${escapeHtml(customer.state)}${customer?.state_code ? ` (${escapeHtml(customer.state_code)})` : ''}</div>` : ''}
+      </div>
+    </div>
+
+    <table class="pq-items">
+      <thead>
+        <tr>
+          <th class="pq-col-sl">#</th>
+          <th class="pq-col-desc">Description of Goods</th>
+          <th class="pq-col-qty">Quantity</th>
+          <th class="pq-col-rate">Rate</th>
+          <th class="pq-col-amt">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemRows}
+        <tr class="pq-total-row">
+          <td colspan="2">Total</td>
+          <td class="pq-col-qty">${totalQty} ${items.length > 0 ? escapeHtml(items[0]?.stock_uom || items[0]?.uom || 'Nos') : 'Nos'}</td>
+          <td class="pq-col-rate"></td>
+          <td class="pq-col-amt">${grandTotal.toFixed(2)}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="pq-words">
+      <div>
+        <div class="pq-words-label">Amount Chargeable (in words)</div>
+        <div><strong>INR ${numberToIndianWords(grandTotal)} Only</strong></div>
+      </div>
+      <div class="pq-eoe">E.&amp;O.E</div>
+    </div>
+
+    <div class="pq-bottom">
+      <div class="pq-decl-box">
+        <strong>Declaration</strong>
+        <div style="margin-top:4px;">We declare that the goods described above are as per the delivery challan and all particulars are true and correct.</div>
+        ${companyDetails.panNo ? `<div style="margin-top:8px;">Company's PAN : ${escapeHtml(companyDetails.panNo)}</div>` : ''}
+      </div>
+      <div class="pq-sign-box">
+        <div>
+          <div><strong>Delivery Details</strong></div>
+          ${challan.transporter ? `<div>Transporter: ${escapeHtml(challan.transporter)}</div>` : ''}
+          ${challan.vehicle_no ? `<div>Vehicle No: ${escapeHtml(challan.vehicle_no)}</div>` : ''}
+          ${challan.driver_name ? `<div>Driver: ${escapeHtml(challan.driver_name)}</div>` : ''}
+        </div>
+        <div class="pq-signatory">
+          for ${escapeHtml(companyDetails.name)}<br /><br /><br />
+          Authorised Signatory
+        </div>
+      </div>
+    </div>
+
+    <div class="pq-footer">
+      ${companyDetails.jurisdiction ? `<div>SUBJECT TO ${escapeHtml(companyDetails.jurisdiction)} JURISDICTION</div>` : ''}
+      <div>This is a computer generated delivery challan. ${challan.status === 'Submitted' ? '✓ Submitted' : ''}</div>
+    </div>
+  </div>
+
+  <script>
+    window.onload = function () { window.print(); };
+  </script>
+</body>
+</html>`;
+  };
+
   // ===== ACTIONS =====
   const handleCreate = () => navigate('/delivery-challan/new');
   const handleRefresh = () => fetchChallans();
@@ -245,12 +596,43 @@ const DeliveryChallans: React.FC = () => {
     setShowMoreMenu(null);
     navigate(`/delivery-challan/edit/${id}`);
   };
-  const handleDuplicate = (id: string | number) => {
-    setShowMoreMenu(null);
-    navigate(`/delivery-challan/duplicate/${id}`);
+
+  const handlePrint = (challan: DeliveryChallan) => {
+    const printWindow = window.open('', '_blank', 'width=900,height=1000');
+    if (!printWindow) {
+      toast.error('Please allow pop-ups to print this delivery challan');
+      return;
+    }
+    printWindow.document.write('<p style="font-family:sans-serif;padding:24px;color:#374151;">Loading delivery challan…</p>');
+
+    setPrintLoadingId(String(challan.id));
+    
+    // Fetch full details if items are not already loaded
+    const loadAndPrint = async () => {
+      try {
+        let printData = challan;
+        if (!challan.items || challan.items.length === 0) {
+          const fullData = await fetchFullDeliveryChallan(challan.id);
+          if (fullData) {
+            printData = fullData;
+          }
+        }
+        printWindow.document.open();
+        printWindow.document.write(buildDeliveryChallanPrintHtml(printData));
+        printWindow.document.close();
+      } catch (err) {
+        console.error('Error printing delivery challan:', err);
+        printWindow.document.open();
+        printWindow.document.write(buildDeliveryChallanPrintHtml(challan));
+        printWindow.document.close();
+      } finally {
+        setPrintLoadingId(null);
+      }
+    };
+    
+    loadAndPrint();
   };
-  const handlePrint = () => window.print();
-  
+
   const handleCancel = async (id: string | number) => {
     if (!window.confirm('Are you sure you want to cancel this Delivery Challan?')) return;
     try {
@@ -1082,7 +1464,7 @@ const DeliveryChallans: React.FC = () => {
           <button className="qt-btn-secondary" onClick={handleRefresh}>
             <FaSync size={12} /> Refresh
           </button>
-          <button className="qt-btn-secondary" onClick={handlePrint}>
+          <button className="qt-btn-secondary" onClick={() => window.print()}>
             <FaPrint size={12} /> Print
           </button>
           <button className="qt-btn-new" onClick={handleCreate}>
@@ -1163,13 +1545,21 @@ const DeliveryChallans: React.FC = () => {
                   </td>
                   <td className="qt-td">{formatDate(item.posting_date)}</td>
                   <td className="qt-td qt-td-amount">
-                    {item.grand_total.toLocaleString()}
+                    ₹{item.grand_total?.toLocaleString() || '0'}
                   </td>
                   <td className="qt-td">
                     <StatusBadge status={item.status || 'Draft'} />
                   </td>
                   <td className="qt-td">
                     <div className="qt-action-buttons">
+                      <button 
+                        className="qt-action-btn" 
+                        onClick={() => handlePrint(item)} 
+                        title="Print"
+                        disabled={printLoadingId === String(item.id)}
+                      >
+                        {printLoadingId === String(item.id) ? <FaSpinner className="spinning" size={12} /> : <FaPrintIcon size={12} />}
+                      </button>
                       <div 
                         className="qt-more-menu-container" 
                         ref={(el) => { menuRefs.current[String(item.id)] = el }}
@@ -1196,11 +1586,7 @@ const DeliveryChallans: React.FC = () => {
                                 </button>
                               </>
                             )}
-                            <button onClick={() => handleDuplicate(item.id)}>
-                              <FaCopy size={12} /> Duplicate
-                            </button>
-                            <div className="menu-divider" />
-                            <button onClick={handlePrint}>
+                            <button onClick={() => handlePrint(item)} disabled={printLoadingId === String(item.id)}>
                               <FaPrintIcon size={12} /> Print
                             </button>
                             <button onClick={() => handleDownloadPDF(item.id)}>
@@ -1209,7 +1595,7 @@ const DeliveryChallans: React.FC = () => {
                             <button onClick={() => handleDownloadPDF(item.id)}>
                               <FaFileExcel size={12} /> Download Excel
                             </button>
-                            {item.status !== 'Cancelled' && (
+                            {item.status !== 'Cancelled' && item.status !== 'Submitted' && (
                               <button className="danger" onClick={() => handleCancel(item.id)}>
                                 <FaBan size={12} /> Cancel
                               </button>
@@ -1226,7 +1612,7 @@ const DeliveryChallans: React.FC = () => {
         )}
       </div>
 
-      {/* ===== PAGINATION - Always visible ===== */}
+      {/* ===== PAGINATION ===== */}
       {!loading && !error && (
         <div className="qt-pagination">
           <div className="qt-pagination-left">

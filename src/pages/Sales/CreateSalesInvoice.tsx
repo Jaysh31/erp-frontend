@@ -506,7 +506,7 @@ class SalesBillAPI {
   }
 
   async getItems(params?: { page?: number; limit?: number; search?: string }): Promise<ApiResponse<any>> {
-    return this.apiService.get('/item', params);
+    return this.apiService.get('/item?type=product', params);
   }
 
   async getDeliveryChallans(params?: { customer?: string; page?: number; limit?: number; search?: string }): Promise<ApiResponse<any>> {
@@ -2189,7 +2189,7 @@ const CreateSalesBill: React.FC = () => {
           hsn: item.HSN || item.hsn || '',
           description: item.description || item.item_name || '',
           unit: item.stock_uom || 'pcs',
-          rate: item.standard_rate || 0,
+          rate: item.selling_price  || 0,
           tax: item.gst_rate || item.tax_rate || 0,
           type: 'product' as 'product' | 'service',
           stockUom: item.stock_uom,
@@ -2273,7 +2273,7 @@ const CreateSalesBill: React.FC = () => {
           hsn: item.HSN || item.hsn || '',
           description: item.description || item.item_name || '',
           unit: item.stock_uom || 'pcs',
-          rate: item.standard_rate || 0,
+          rate: item.selling_price || 0,
           tax: item.gst_rate || item.tax_rate || 0,
           type: 'product' as 'product' | 'service',
           stockUom: item.stock_uom,
