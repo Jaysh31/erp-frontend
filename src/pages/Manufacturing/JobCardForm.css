@@ -1508,3 +1508,18 @@ select.jcf-input {
   opacity: 0.4;
   cursor: not-allowed;
 }
+/* ── Required field star in red ─────────────────────────────── */
+.jcf-label.required-star::after {
+  content: " *";
+  color: #dc2626;
+  font-weight: 700;
+}
+
+/* ── Error text in red ─────────────────────────────────────────── */
+.jcf-error-text {
+  color: #dc2626 !important;
+  font-size: 12px;
+  font-weight: 500;
+  display: block;
+  margin-top: 4px;
+}
