@@ -103,6 +103,7 @@ import SupplierBillForm from "./pages/accounts/SupplierBillForm";
 import InputShowcase from "./pages/accounts/InputShowcase";
 import CustomerInvoices from "./pages/Sales/customerinvoices";
 import SupplierBills from "./pages/Sales/supplierbills";
+import InventoryDetail from "./pages/Manufacturing/InventoryDetail";
 
 
 function App() {
@@ -233,7 +234,8 @@ function App() {
 
               {/* Inventory Routes */}
               <Route path="/InventoryList" element={<InventoryList />} />
-
+              // Add this to your router configuration
+              <Route path="/inventory/detail/:itemCode" element={<InventoryDetail />} />
               {/* Inventory Routes */}
 
 

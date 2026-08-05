@@ -1005,6 +1005,7 @@ const [accounts, setAccounts] = useState<BankAccountEntry[]>(() => {
   };
 
   // ── contact person modal ─────────────────────────────────────────────
+
   const closeContactModal = () => setContactModal(null);
 
   const handleContactModalTextChange = (
@@ -1371,7 +1372,6 @@ const [accounts, setAccounts] = useState<BankAccountEntry[]>(() => {
   const renderAccountFields = (idx: number) => {
     const account = accounts[idx];
     const accountId = resolveAccountId(account);
-    // const contactFullName = `${account.contact_person_name} ${account.contact_person_last_name}`.trim();
 
     return (
       <>

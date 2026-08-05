@@ -47,7 +47,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/request-for-quotation": "Request for Quotation",
   "/supplier-quotation": "Supplier Quotation",
   "/purchase-order": "Purchase Order",
-  "/purchase-invoice": "Purchase Invoice",
+  "/purchase-invoice": "Purchase Bill",
   "/supplier": "Supplier",
   "/supplier-group": "Supplier Group",
   "/price-list": "Price List",

@@ -4,8 +4,7 @@ import {
   FaSearch, FaPlus, FaEye, FaEdit, FaTrash, FaFilePdf, FaPrint,
   FaFilter, FaCheckCircle, FaClock, FaTimesCircle,
   FaFileAlt, FaExternalLinkAlt,
-  FaChartLine, FaTimes, FaSpinner,
-   FaBoxOpen, FaEnvelope, FaFileInvoice
+  FaChartLine, FaTimes, FaSpinner, FaBoxOpen, FaEnvelope
 } from 'react-icons/fa';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';

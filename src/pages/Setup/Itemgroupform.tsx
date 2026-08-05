@@ -1,4 +1,4 @@
-import { useState, type FormEvent,  } from "react";
+import { useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   FaArrowLeft,

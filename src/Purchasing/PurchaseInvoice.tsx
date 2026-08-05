@@ -306,6 +306,10 @@ export default function PurchaseInvoice() {
           <p>Loading purchase invoices...</p>
         </div>
       </div>
+
+
+
+
     );
   }
 
