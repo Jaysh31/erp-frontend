@@ -140,6 +140,7 @@
   box-shadow: 0 0 0 1px var(--qir-red) inset !important;
   border-radius: 3px;
 }
+
 .qir-docno-cell {
   width: 26%;
   white-space: nowrap;
@@ -183,6 +184,7 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+  position: relative;
 }
 
 .qir-sheet table {
@@ -291,6 +293,7 @@
   align-items: center;
   justify-content: space-between;
   margin-top: 4px;
+  margin-bottom: 8px;
 }
 
 .qir-toolbar-label {
@@ -330,17 +333,20 @@
   cursor: not-allowed;
 }
 
-/* ── Observation table ──────────────────────────────────────────── */
+/* ── Observation table wrapper (NO SCROLL) ────────────────────── */
 .qir-obs-table-wrapper {
-  overflow-x: auto;
+  overflow: visible;
   border: 1px solid var(--qir-border-strong);
   border-radius: 4px;
+  position: relative;
+  width: 100%;
 }
 
 .qir-obs-table {
-  min-width: 900px;
+  width: 100%;
   font-size: 12px;
   table-layout: fixed;
+  position: relative;
 }
 
 .qir-obs-table th {
@@ -361,25 +367,71 @@
   vertical-align: middle;
 }
 
+/* Style for cells containing autocomplete */
+.qir-obs-table td .autocomplete-wrapper {
+  position: relative;
+  z-index: 10;
+}
+
+/* Fix for autocomplete dropdown positioning */
+.qir-obs-table td .autocomplete-wrapper .autocomplete-dropdown {
+  position: fixed;
+  max-height: 200px;
+  overflow-y: auto;
+  background-color: white;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  margin-top: 2px;
+  padding: 0;
+  list-style: none;
+  z-index: 9999;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  min-width: 200px;
+}
+
+/* Alternative approach using absolute positioning with table cells */
+.qir-obs-table td {
+  position: relative;
+  z-index: 1;
+}
+
+.qir-obs-table td .autocomplete-wrapper {
+  position: relative;
+  z-index: 10;
+}
+
+.qir-obs-table td .autocomplete-wrapper .autocomplete-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  min-width: 200px;
+}
+
 .qir-col-sr {
   width: 40px;
   text-align: center;
+  z-index: 1;
 }
 
 .qir-col-param {
   width: 130px;
+  z-index: 10;
 }
 
 .qir-col-spec {
   width: 100px;
+  z-index: 1;
 }
 
 .qir-col-method {
   width: 130px;
+  z-index: 10;
 }
 
 .qir-col-obs {
   width: 62px;
+  z-index: 1;
 }
 
 .qir-col-obs input {
@@ -389,6 +441,7 @@
 .qir-col-del {
   width: 30px;
   text-align: center;
+  z-index: 1;
 }
 
 .qir-text-center {
@@ -478,6 +531,58 @@
   flex-shrink: 0;
 }
 
+/* ── Autocomplete dropdown enhancements ────────────────────────── */
+.autocomplete-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.autocomplete-wrapper .autocomplete-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  background-color: white;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  margin-top: 2px;
+  padding: 0;
+  list-style: none;
+  z-index: 9999;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  min-width: 200px;
+}
+
+/* ── Dark theme adjustments ────────────────────────────────────── */
+.dark-theme .autocomplete-wrapper .autocomplete-dropdown {
+  background-color: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+}
+
+.dark-theme .autocomplete-wrapper .autocomplete-dropdown li {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .autocomplete-wrapper .autocomplete-dropdown li:hover {
+  background-color: var(--layout-bg, #0f172a);
+}
+
+/* ── Fix for z-index layering in dark theme ───────────────────── */
+.dark-theme .qir-obs-table td .autocomplete-wrapper .autocomplete-dropdown {
+  background-color: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+}
+
+.dark-theme .qir-obs-table td .autocomplete-wrapper .autocomplete-dropdown li {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .qir-obs-table td .autocomplete-wrapper .autocomplete-dropdown li:hover {
+  background-color: var(--layout-bg, #0f172a);
+}
+
 /* ══════════════════════════ Print ══════════════════════════════ */
 
 @page {
@@ -557,7 +662,7 @@
   }
 
   .qir-obs-table {
-    min-width: 0 !important;
+    width: 100% !important;
   }
 
   .qir-out-of-spec {
@@ -566,6 +671,11 @@
   }
 
   .qir-header-wrap {
+    display: none !important;
+  }
+
+  /* Hide autocomplete dropdown in print */
+  .autocomplete-wrapper .autocomplete-dropdown {
     display: none !important;
   }
 }
@@ -593,6 +703,7 @@
   background: var(--layout-bg, #0f172a) !important;
   border-color: var(--border-color, #334155) !important;
 }
+
 .dark-theme.qir-page {
   background: var(--layout-bg, #0f172a);
 }
