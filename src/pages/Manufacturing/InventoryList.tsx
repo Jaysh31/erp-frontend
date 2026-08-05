@@ -176,7 +176,7 @@ export default function InventoryList() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(12);
 
-  const [selectedItem, setSelectedItem] = useState<InventoryDisplay | null>(null);
+  const [selectedItem] = useState<InventoryDisplay | null>(null);
   const [showItemDetails, setShowItemDetails] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedItemForDelete, setSelectedItemForDelete] = useState<InventoryDisplay | null>(null);
@@ -438,15 +438,7 @@ export default function InventoryList() {
     setDetailWarehouseId(null);
   };
 
-  const handleViewItem = (item: InventoryDisplay) => {
-    setSelectedItem(item);
-    setShowItemDetails(true);
-  };
 
-  const handleDeleteClick = (item: InventoryDisplay) => {
-    setSelectedItemForDelete(item);
-    setShowDeleteConfirm(true);
-  };
 
   const confirmDelete = async () => {
     if (selectedItemForDelete) {
@@ -770,15 +762,14 @@ export default function InventoryList() {
                       <td className="inv-td inv-td-amount">₹{item.stockValue.toLocaleString()}</td>
                       <td className="inv-td inv-td-meta">
                         <div className="inv-action-buttons">
-                          <button className="inv-action-btn inv-action-view" onClick={() => handleViewItem(item)} title="View">
-                            <FaEye size={12} />
-                          </button>
-                          <button className="inv-action-btn inv-action-edit" onClick={() => navigate(`/inventory/edit/${item.id}`)} title="Edit">
-                            <FaEdit size={12} />
-                          </button>
-                          <button className="inv-action-btn inv-action-delete" onClick={() => handleDeleteClick(item)} title="Delete">
-                            <FaTrash size={12} />
-                          </button>
+<button 
+  className="inv-action-btn inv-action-view" 
+  onClick={() => navigate(`/inventory/detail/${item.itemCode}`)} 
+  title="View Details"
+>
+  <FaEye size={12} />
+</button>
+                       
                         </div>
                       </td>
                     </tr>
@@ -865,11 +856,7 @@ export default function InventoryList() {
             <h1><FaClipboardList className="inv-header-icon" /> Inventory Management</h1>
             <span className="inv-subtitle">Track raw materials, work in progress, finished goods & scrap</span>
           </div>
-          <div className="inv-header-right">
-            <button className="inv-btn-primary" onClick={() => navigate("/inventory/new")}>
-              <FaPlus /> Add Item
-            </button>
-          </div>
+         
         </div>
 
         {/* ─── Loading State ─── */}

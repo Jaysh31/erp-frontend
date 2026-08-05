@@ -5,7 +5,6 @@ import {
   X,
   Trash2,
   AlertTriangle,
-  XCircle,
   InfoIcon,
   Save,
   Plus,
@@ -290,7 +289,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
   const [opsPanelOpen, setOpsPanelOpen] = useState(true);
   const [withOperations, setWithOperations] = useState(false);
   const [itemToManufacture, setItemToManufacture] = useState("");
-  const [quantity, setQuantity] = useState<string>(""); // Changed from "1" to ""
+  const [quantity, setQuantity] = useState<string>("1"); // Changed to "1"
   const [, setBomNo] = useState("");
   const [bomId, setBomId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
@@ -824,9 +823,6 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
     return fieldErrors[field];
   };
 
-  const hasFieldError = (field: string): boolean => {
-    return !!getFieldError(field);
-  };
 
   const handleSave = async () => {
     const { isValid, errors } = validateForm();

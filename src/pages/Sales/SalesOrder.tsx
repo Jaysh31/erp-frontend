@@ -4,8 +4,7 @@ import {
   FaSearch, FaPlus, FaEye, FaEdit, FaTrash, FaFilePdf, FaPrint,
   FaFilter, FaCheckCircle, FaClock, FaTimesCircle,
   FaFileAlt, FaExternalLinkAlt,
-  FaChartLine, FaTimes, FaSpinner,
-  FaClipboardList, FaDollarSign, FaBoxOpen, FaEnvelope
+  FaChartLine, FaTimes, FaSpinner, FaBoxOpen, FaEnvelope
 } from 'react-icons/fa';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
@@ -465,14 +464,11 @@ export default function SalesOrder() {
     return matchesSearch && matchesStatus && matchesOrderType;
   });
 
-  const getStatusCount = (status: string) => {
-    return salesOrders.filter(o => o.status === status).length;
-  };
 
   const totalAmount = salesOrders.reduce((sum, o) => sum + o.totalAmount, 0);
   const completedAmount = salesOrders.filter(o => o.status === 'Completed').reduce((sum, o) => sum + o.totalAmount, 0);
   const fulfillmentRate = totalAmount > 0 ? Math.round((completedAmount / totalAmount) * 100) : 0;
-  const totalOrders = salesOrders.length;
+  // const totalOrders = salesOrders.length;
 
   // View / Edit — both route to the CreateSalesOrder form (edit mode).
   const handleView = (order: SalesOrder) => {

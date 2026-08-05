@@ -207,14 +207,6 @@ const escapeHtml = (val: unknown): string => {
     .replace(/"/g, '&quot;');
 };
 
-/** Normalizes a list-style API response: { success, data: { records, total } } or { success, data: [...] } */
-const extractRecords = (payload: any): any[] => {
-  if (!payload) return [];
-  const data = payload.success === 1 || payload.success === 0 ? payload.data : payload;
-  if (Array.isArray(data?.records)) return data.records;
-  if (Array.isArray(data)) return data;
-  return [];
-};
 
 /** Maps a raw /sales-invoice API record's `items` child table into UI-shaped InvoiceItem[]. */
 const mapApiItemsToInvoiceItems = (record: InvoiceApiRecord | null | undefined): InvoiceItem[] => {

@@ -4,7 +4,6 @@ import {
   FaArrowLeft,
   FaSave,
   FaSpinner,
-  FaExclamationTriangle,
   FaPlus,
   FaTrash,
   FaTag,
@@ -23,11 +22,7 @@ import api, { baseURL } from "../../services/api";
 // ────────────────────────────────────────────────────────────────────────
 // Constants & Helpers for Image Handling
 // ────────────────────────────────────────────────────────────────────────
-// const IMAGE_BASE_URL = "https://erp.sculptortechpvtltd.com/api/getimage";
-
 const IMAGE_BASE_URL = `${baseURL}/getimage`;
-
-
 
 /**
  * Convert a full URL or relative path to a relative path (starting with /)
@@ -458,35 +453,6 @@ function SelectInput({
   );
 }
 
-function Checkbox({
-  label,
-  description,
-  checked,
-  onChange,
-}: {
-  label: string;
-  description?: string;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <label className={`itf-checkbox-card ${checked ? "itf-checkbox-card-active" : ""}`}>
-      <input
-        type="checkbox"
-        className="itf-checkbox-input"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-      />
-      <span className="itf-checkbox-box">
-        <FaCheck size={9} />
-      </span>
-      <span className="itf-checkbox-text">
-        <span className="itf-checkbox-label">{label}</span>
-        {description && <span className="itf-checkbox-desc">{description}</span>}
-      </span>
-    </label>
-  );
-}
 
 function ImageUpload({
   image,
@@ -734,11 +700,13 @@ function PricingSummary({
   profitMargin,
   taxPercentage,
   taxType,
+  isRawMaterial = false,
 }: {
   basePrice: number;
   profitMargin: number;
   taxPercentage: number;
   taxType: string;
+  isRawMaterial?: boolean;
 }) {
   const profitAmount = basePrice * (profitMargin / 100);
   const priceBeforeTax = basePrice + profitAmount;
@@ -747,7 +715,7 @@ function PricingSummary({
 
   const rows = [
     { label: "Base price (purchase rate)", value: basePrice },
-    { label: `Profit margin (${profitMargin || 0}%)`, value: profitAmount },
+    ...(isRawMaterial ? [] : [{ label: `Profit margin (${profitMargin || 0}%)`, value: profitAmount }]),
     { label: "Price before tax", value: priceBeforeTax, divider: true },
     { label: `${taxType} (${taxPercentage}%)`, value: taxAmount },
   ];
@@ -786,6 +754,8 @@ export default function ItemForm() {
   const [submitting, setSubmitting] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [validationErrors, setValidationErrors] = useState<{ field: string; label: string; message: string }[]>([]);
+  const [warehouseManuallyChanged, setWarehouseManuallyChanged] = useState(false);
+  const [previousItemGroup, setPreviousItemGroup] = useState<string>("");
 
   const [form, setFormRaw] = useState({
     id: 0,
@@ -836,6 +806,68 @@ export default function ItemForm() {
   const currentTax = taxes.find((t) => t.tax_id.toString() === form.taxId);
   const taxPercentage = currentTax ? parseFloat(currentTax.tax_type.replace("GST", "")) || 0 : 0;
 
+  // Helper function to check if item group is raw material
+  const isRawMaterialGroup = (groupName: string): boolean => {
+    if (!groupName) return false;
+    
+    const rawMaterialGroups = [
+      "raw material",
+      "raw materials",
+      "input material",
+      "raw material store",
+      "raw materials store",
+      "component",
+      "components",
+      "parts",
+      "sub assembly",
+      "sub-assembly",
+      "raw material -",
+      "raw materials -",
+    ];
+    
+    const lowerGroup = groupName.toLowerCase().trim();
+    return rawMaterialGroups.some(g => lowerGroup.includes(g));
+  };
+
+  // Function to get default warehouse based on item group
+  const getDefaultWarehouse = (itemGroup: string, warehouseList: Warehouse[]): Warehouse | null => {
+    if (!itemGroup || warehouseList.length === 0) return null;
+
+    if (isRawMaterialGroup(itemGroup)) {
+      // For raw materials, try different variations
+      let warehouse = warehouseList.find(
+        (w) => w.warehouse_name.toLowerCase() === "raw material store"
+      );
+      if (!warehouse) {
+        warehouse = warehouseList.find(
+          (w) => w.warehouse_name.toLowerCase().includes("raw material")
+        );
+      }
+      return warehouse || null;
+    } else {
+      // For finished goods/products, try different variations
+      let warehouse = warehouseList.find(
+        (w) => w.warehouse_name.toLowerCase() === "finished goods"
+      );
+      if (!warehouse) {
+        warehouse = warehouseList.find(
+          (w) => w.warehouse_name.toLowerCase() === "finished goods store"
+        );
+      }
+      if (!warehouse) {
+        warehouse = warehouseList.find(
+          (w) => w.warehouse_name.toLowerCase().includes("finished goods")
+        );
+      }
+      if (!warehouse) {
+        warehouse = warehouseList.find(
+          (w) => w.warehouse_name.toLowerCase().includes("finished")
+        );
+      }
+      return warehouse || null;
+    }
+  };
+
   const compressImage = (file: File, maxWidth = 600, maxHeight = 600, quality = 0.7): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -875,7 +907,7 @@ export default function ItemForm() {
   // Recalculate MRP / valuation whenever base price, margin or tax changes.
   useEffect(() => {
     const basePrice = parseFloat(form.standardRate) || 0;
-    const profitMargin = parseFloat(form.profitMargin) || 0;
+    const profitMargin = isRawMaterialGroup(form.itemGroup) ? 0 : parseFloat(form.profitMargin) || 0;
     const profitAmount = basePrice * (profitMargin / 100);
     const priceBeforeTax = basePrice + profitAmount;
     const taxAmount = priceBeforeTax * (taxPercentage / 100);
@@ -888,7 +920,7 @@ export default function ItemForm() {
       lastPurchaseRate: basePrice.toFixed(2),
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.standardRate, form.profitMargin, taxPercentage]);
+  }, [form.standardRate, form.profitMargin, taxPercentage, form.itemGroup]);
 
   // ─── Fetch UOMs ──────────────────────────────────────────────────────
   const fetchUoms = async () => {
@@ -1096,23 +1128,42 @@ export default function ItemForm() {
     value: tax.tax_id.toString(),
   }));
 
-  // Default to first warehouse if available
+  // Track item group changes and auto-select warehouse
   useEffect(() => {
-    if (warehouses.length === 0) return;
-
-    if (form.warehouseId) return;
-
-    const rawMaterialWarehouse = warehouses.find(
-      (w) => w.warehouse_name === "Raw Material Store"
-    );
-
-    if (rawMaterialWarehouse) {
-      setFormRaw((prev) => ({
-        ...prev,
-        warehouseId: rawMaterialWarehouse.id.toString(),
-      }));
+    // Check if item group changed
+    if (form.itemGroup && form.itemGroup !== previousItemGroup) {
+      setPreviousItemGroup(form.itemGroup);
+      
+      // Reset the manual flag when item group changes
+      setWarehouseManuallyChanged(false);
+      
+      // Auto-select warehouse based on new item group
+      if (warehouses.length > 0) {
+        const defaultWarehouse = getDefaultWarehouse(form.itemGroup, warehouses);
+        if (defaultWarehouse) {
+          setFormRaw((prev) => ({
+            ...prev,
+            warehouseId: defaultWarehouse.id.toString(),
+          }));
+        }
+      }
     }
-  }, [warehouses]);
+  }, [form.itemGroup, previousItemGroup, warehouses]);
+
+  // Initial auto-select when warehouses load and item group is set
+  useEffect(() => {
+    if (warehouses.length > 0 && form.itemGroup && !form.warehouseId && !warehouseManuallyChanged) {
+      const defaultWarehouse = getDefaultWarehouse(form.itemGroup, warehouses);
+      if (defaultWarehouse) {
+        setFormRaw((prev) => ({
+          ...prev,
+          warehouseId: defaultWarehouse.id.toString(),
+        }));
+        setPreviousItemGroup(form.itemGroup);
+      }
+    }
+  }, [warehouses, form.itemGroup, form.warehouseId, warehouseManuallyChanged]);
+
   const warehouseOptions = warehouses.map((w) => ({
     label: w.warehouse_name,
     value: w.id.toString(),
@@ -1196,9 +1247,12 @@ export default function ItemForm() {
     }
 
     // 22. profitMargin - Custom field, not in DB but used for calculation
-    const profitMargin = parseFloat(form.profitMargin);
-    if (isNaN(profitMargin) || profitMargin < 0) {
-      errors.push({ field: "profitMargin", label: "Profit Margin", message: "Profit margin must be a valid number" });
+    // Only validate if not raw material
+    if (!isRawMaterialGroup(form.itemGroup)) {
+      const profitMargin = parseFloat(form.profitMargin);
+      if (isNaN(profitMargin) || profitMargin < 0) {
+        errors.push({ field: "profitMargin", label: "Profit Margin", message: "Profit margin must be a valid number" });
+      }
     }
 
     // 23. valuation_rate - REQUIRED (decimal(21,9), NOT NULL, default 0.000000000)
@@ -1373,7 +1427,8 @@ export default function ItemForm() {
         uploadFormData.append("file", imageFile);
         uploadFormData.append("itemID", String(savedItemId));
         uploadFormData.append("type", "item");
-
+        uploadFormData.append("location", "azure");
+      
         try {
           const uploadResponse = await api.post("/uploadmedia", uploadFormData, {
             headers: { "Content-Type": "multipart/form-data" },
@@ -1505,6 +1560,9 @@ export default function ItemForm() {
     );
   }
 
+  // Check if current item group is raw material
+  const isRawMaterial = isRawMaterialGroup(form.itemGroup);
+
   return (
     <div className={`itf-page ${theme}`}>
       {/* Top Bar */}
@@ -1564,7 +1622,11 @@ export default function ItemForm() {
                     <Field label="Item group" required>
                       <SelectInput
                         value={form.itemGroup}
-                        onChange={(v) => s("itemGroup", v)}
+                        onChange={(v) => {
+                          s("itemGroup", v);
+                          // Reset manual flag when user changes item group
+                          setWarehouseManuallyChanged(false);
+                        }}
                         options={groupOptions}
                         loading={loadingGroups}
                         placeholder="Search for an item group…"
@@ -1617,32 +1679,7 @@ export default function ItemForm() {
 
                 <div className="itf-divider" />
 
-                <div className="itf-checkbox-grid">
-                  <Checkbox
-                    label="Sales item"
-                    description="Can be sold to customers"
-                    checked={form.isSalesItem}
-                    onChange={(v) => s("isSalesItem", v)}
-                  />
-                  <Checkbox
-                    label="Purchase item"
-                    description="Can be bought from suppliers"
-                    checked={form.isPurchaseItem}
-                    onChange={(v) => s("isPurchaseItem", v)}
-                  />
-                  <Checkbox
-                    label="Inspect before purchase"
-                    description="Raw material quality check"
-                    checked={form.inspectionRequiredBeforePurchase}
-                    onChange={(v) => s("inspectionRequiredBeforePurchase", v)}
-                  />
-                  <Checkbox
-                    label="Inspect before delivery"
-                    description="Finished product quality check"
-                    checked={form.inspectionRequiredBeforeDelivery}
-                    onChange={(v) => s("inspectionRequiredBeforeDelivery", v)}
-                  />
-                </div>
+                
               </div>
 
               {/* Pricing, Opening Stock, Warehouse - 50:50 split */}
@@ -1665,16 +1702,19 @@ export default function ItemForm() {
                           prefix="₹"
                         />
                       </Field>
-                      <Field label="Profit margin (%)" hint="Margin applied on top of the base price." error={fieldError("profitMargin")}>
-                        <NumberInput
-                          value={form.profitMargin}
-                          onChange={(v) => s("profitMargin", v)}
-                          placeholder="10"
-                          min={0}
-                          step={0.5}
-                          suffix="%"
-                        />
-                      </Field>
+                      {/* Conditionally show Profit Margin field - hide for raw materials */}
+                      {!isRawMaterial && (
+                        <Field label="Profit margin (%)" hint="Margin applied on top of the base price." error={fieldError("profitMargin")}>
+                          <NumberInput
+                            value={form.profitMargin}
+                            onChange={(v) => s("profitMargin", v)}
+                            placeholder="10"
+                            min={0}
+                            step={0.5}
+                            suffix="%"
+                          />
+                        </Field>
+                      )}
                     </div>
 
                     <div className="itf-grid-2">
@@ -1711,9 +1751,10 @@ export default function ItemForm() {
 
                     <PricingSummary
                       basePrice={parseFloat(form.standardRate) || 0}
-                      profitMargin={parseFloat(form.profitMargin) || 0}
+                      profitMargin={isRawMaterial ? 0 : parseFloat(form.profitMargin) || 0}
                       taxPercentage={taxPercentage}
                       taxType={currentTax?.tax_type || "GST"}
+                      isRawMaterial={isRawMaterial}
                     />
                   </div>
                 </div>
@@ -1740,17 +1781,35 @@ export default function ItemForm() {
                     <Field
                       label="Warehouse"
                       required={form.isStockItem}
-                      hint="Opening stock will be added to this warehouse."
+                      hint={!warehouseManuallyChanged && form.warehouseId ? 
+                        `Auto-selected: ${warehouses.find(w => w.id.toString() === form.warehouseId)?.warehouse_name || 'Selected warehouse'}` : 
+                        "Opening stock will be added to this warehouse."}
                       error={fieldError("warehouseId")}
                     >
                       <SelectInput
                         value={form.warehouseId}
-                        onChange={(v) => s("warehouseId", v)}
+                        onChange={(v) => {
+                          s("warehouseId", v);
+                          setWarehouseManuallyChanged(true);
+                        }}
                         options={warehouseOptions}
                         loading={loadingWarehouses}
                         placeholder="Select a warehouse…"
                         error={fieldError("warehouseId")}
                       />
+                      {!warehouseManuallyChanged && form.warehouseId && (
+                        <div style={{ 
+                          fontSize: '12px', 
+                          color: '#16a34a', 
+                          marginTop: '4px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}>
+                          <FaCheck size={10} />
+                          Auto-selected based on item type
+                        </div>
+                      )}
                     </Field>
 
                     {loadingInventory && (
