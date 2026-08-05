@@ -320,16 +320,6 @@ export default function Sidebar({
     },
 
     {
-      title: 'Customers',
-      module: 'sales',
-      icon: <CustomersIcon />,
-      items: [
-        { title: 'Customer List', icon: <CustomersIcon />, path: '/customer' },
-        { title: 'Add Customer', icon: <CustomersIcon />, path: '/customer/new' },
-      ]
-    },
-
-    {
       title: 'Banking',
       module: 'accounting',
       icon: <BankingIcon />,
@@ -341,6 +331,7 @@ export default function Sidebar({
 
       ]
     },
+    
     {
       title: 'Expenses',
       module: 'accounting',

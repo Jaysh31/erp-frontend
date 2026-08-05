@@ -8,7 +8,6 @@ import {
   FaEye,
   FaEdit,
   FaTrash,
-  FaPlus,
   FaBuilding,
   FaClipboardList,
   FaCheckCircle,
@@ -537,10 +536,7 @@ export default function JobCardManagement() {
             <option value="On Hold">On Hold</option>
             <option value="Cancelled">Cancelled</option>
           </select>
-          <button className="jc-btn-primary" onClick={() => navigate("/job-cards/new")}>
-            <FaPlus size={12} />
-            Add Job Card
-          </button>
+         
         </div>
       </div>
 

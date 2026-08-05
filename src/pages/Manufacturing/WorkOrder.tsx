@@ -22,7 +22,7 @@ import {
   FaFileAlt,
   FaTasks,
   FaBox,
-  FaTruck,
+  FaWrench,
   FaList,
 } from 'react-icons/fa';
 import "./WorkOrder.css";
@@ -46,7 +46,7 @@ interface WorkOrder {
   total_job_cards?: number;
   completed_job_cards?: number;
   job_card_progress?: string;
-  type?: string; // "Internal" or "External"
+  type?: string;
   selected_grn_id?: number;
 }
 
@@ -94,11 +94,20 @@ const STATUS_LABELS: Record<Status, string> = {
   Stopped: "Stopped",
 };
 
+const TYPE_LABELS: Record<string, string> = {
+  internal: "Product",
+  external: "Service",
+};
+
+const TYPE_ICONS: Record<string, React.ReactNode> = {
+  internal: <FaBox size={11} />,
+  external: <FaWrench size={11} />,
+};
+
 export default function WorkOrderList() {
   const navigate = useNavigate();
   const { theme } = useAdminTheme();
 
-  const [, setWorkOrders] = useState<WorkOrderDisplay[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -107,8 +116,6 @@ export default function WorkOrderList() {
   const [activeTab, setActiveTab] = useState<OrderType>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [totalItems, setTotalItems] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
   const [selectedItem, setSelectedItem] = useState<WorkOrderDisplay | null>(null);
@@ -126,7 +133,6 @@ export default function WorkOrderList() {
     { value: 'quarter', label: 'This Quarter' },
   ];
 
-  // Format date to relative time
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -144,20 +150,17 @@ export default function WorkOrderList() {
     return `${Math.floor(diffDays / 365)} y`;
   };
 
-  // Calculate progress based on job cards only
   const calculateJobCardProgress = (total: number = 0, completed: number = 0): number => {
     if (total === 0) return 0;
     return Math.min(Math.round((completed / total) * 100), 100);
   };
 
-  // Check if work order can be completed
   const canCompleteWorkOrder = (status: Status, totalJobCards: number, completedJobCards: number): boolean => {
     if (status === 'Completed' || status === 'Stopped') return false;
     if (totalJobCards === 0) return false;
     return completedJobCards >= totalJobCards;
   };
 
-  // Check if date falls within filter range
   const isDateInRange = (dateString: string, filter: string): boolean => {
     const date = new Date(dateString);
     const now = new Date();
@@ -184,7 +187,6 @@ export default function WorkOrderList() {
     }
   };
 
-  // Determine work order type
   const getWorkOrderType = (item: WorkOrder): OrderType => {
     if (item.selected_grn_id || (item.type && String(item.type).toLowerCase() === "external")) {
       return "external";
@@ -192,14 +194,6 @@ export default function WorkOrderList() {
     return "internal";
   };
 
-  // Calculate tab counts
-  const tabCounts = useMemo(() => {
-    const internal = allWorkOrders.filter(wo => wo.type === 'internal').length;
-    const external = allWorkOrders.filter(wo => wo.type === 'external').length;
-    return { internal, external, total: allWorkOrders.length };
-  }, [allWorkOrders]);
-
-  // Transform work order data
   const transformWorkOrder = (item: WorkOrder): WorkOrderDisplay => {
     const totalJobCards = item.total_job_cards || 0;
     const completedJobCards = item.completed_job_cards || 0;
@@ -225,47 +219,10 @@ export default function WorkOrderList() {
     };
   };
 
-  // Fetch work orders from API
-  const fetchWorkOrders = useCallback(async () => {
+  // Fetch all work orders for client-side filtering and pagination
+  const fetchAllWorkOrders = useCallback(async () => {
     setLoading(true);
     setError(null);
-    try {
-      const params = new URLSearchParams();
-      params.append('page', currentPage.toString());
-      params.append('limit', itemsPerPage.toString());
-      
-      if (searchTerm.trim()) {
-        params.append('search', searchTerm.trim());
-      }
-      
-      if (statusFilter !== 'all') {
-        params.append('status', statusFilter);
-      }
-
-      console.log(`Calling API: /work-order?${params.toString()}`);
-      const response = await api.get<ApiResponse>(`/work-order?${params.toString()}`);
-
-      if (response.data.success === 1) {
-        const { records, total, limit } = response.data.data;
-        setTotalItems(total);
-        const totalPagesCalc = Math.max(1, Math.ceil(total / limit));
-        setTotalPages(totalPagesCalc);
-
-        const transformedData: WorkOrderDisplay[] = records.map(transformWorkOrder);
-        setWorkOrders(transformedData);
-      } else {
-        setError('Failed to fetch work orders');
-      }
-    } catch (err) {
-      console.error('Error fetching work orders:', err);
-      setError('An error occurred while fetching work orders');
-    } finally {
-      setLoading(false);
-    }
-  }, [currentPage, itemsPerPage, searchTerm, statusFilter]);
-
-  // Fetch all work orders for filtering (client-side)
-  const fetchAllWorkOrders = useCallback(async () => {
     try {
       const params = new URLSearchParams();
       params.append('page', '1');
@@ -284,49 +241,91 @@ export default function WorkOrderList() {
         const { records } = response.data.data;
         const transformedData: WorkOrderDisplay[] = records.map(transformWorkOrder);
         setAllWorkOrders(transformedData);
+      } else {
+        setError('Failed to fetch work orders');
       }
     } catch (err) {
-      console.error('Error fetching all work orders:', err);
+      console.error('Error fetching work orders:', err);
+      setError('An error occurred while fetching work orders');
+    } finally {
+      setLoading(false);
     }
   }, [searchTerm, statusFilter]);
 
-  // Reset to page 1 when search/filter changes
+  // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, statusFilter, dateFilter, activeTab]);
 
-  // Fetch when page, itemsPerPage, search, or status changes
-  useEffect(() => {
-    fetchWorkOrders();
-  }, [fetchWorkOrders]);
-
-  // Fetch all data for filtering
+  // Fetch data on mount and when filters change
   useEffect(() => {
     fetchAllWorkOrders();
   }, [fetchAllWorkOrders]);
 
-  const goToFirstPage = () => {
-    if (totalPages > 0) {
+  // ─── Client-side filtering ────────────────────────────────────────────
+  const filteredData = useMemo(() => {
+    let filtered = allWorkOrders.filter(item => {
+      // Filter by tab
+      if (activeTab !== 'all' && item.type !== activeTab) return false;
+      
+      const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            item.productionItem.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesStatus = statusFilter === 'all' || item.status === statusFilter;
+      const matchesDate = dateFilter === 'all' || isDateInRange(item.plannedStartDate, dateFilter);
+      return matchesSearch && matchesStatus && matchesDate;
+    });
+
+    return filtered;
+  }, [allWorkOrders, activeTab, searchTerm, statusFilter, dateFilter]);
+
+  // ─── Client-side pagination ───────────────────────────────────────────
+  const displayTotalItems = filteredData.length;
+  const displayTotalPages = Math.max(1, Math.ceil(displayTotalItems / itemsPerPage));
+
+  // Fix current page if it exceeds available pages
+  useEffect(() => {
+    if (currentPage > displayTotalPages && displayTotalPages > 0) {
       setCurrentPage(1);
     }
+  }, [displayTotalPages, currentPage]);
+
+  const paginatedData = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredData.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredData, currentPage, itemsPerPage]);
+
+  // ─── Tab counts ───────────────────────────────────────────────────────
+  const tabCounts = useMemo(() => {
+    const internal = allWorkOrders.filter(wo => wo.type === 'internal').length;
+    const external = allWorkOrders.filter(wo => wo.type === 'external').length;
+    return { internal, external, total: allWorkOrders.length };
+  }, [allWorkOrders]);
+
+  // ─── Pagination helpers ───────────────────────────────────────────────
+  const getStartIndex = () => {
+    if (displayTotalItems === 0) return 0;
+    return (currentPage - 1) * itemsPerPage + 1;
   };
 
-  const goToLastPage = () => {
-    if (totalPages > 0) {
-      setCurrentPage(totalPages);
-    }
+  const getEndIndex = () => {
+    return Math.min(currentPage * itemsPerPage, displayTotalItems);
   };
 
-  const goToNextPage = () => {
-    if (currentPage < totalPages) {
-      setCurrentPage(currentPage + 1);
-    }
-  };
+  const goToFirstPage = () => { if (displayTotalPages > 0) setCurrentPage(1); };
+  const goToLastPage = () => { if (displayTotalPages > 0) setCurrentPage(displayTotalPages); };
+  const goToNextPage = () => { if (currentPage < displayTotalPages) setCurrentPage(currentPage + 1); };
+  const goToPrevPage = () => { if (currentPage > 1) setCurrentPage(currentPage - 1); };
 
-  const goToPrevPage = () => {
-    if (currentPage > 1) {
-      setCurrentPage(currentPage - 1);
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisible = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+    let endPage = Math.min(displayTotalPages, startPage + maxVisible - 1);
+    if (endPage - startPage + 1 < maxVisible) {
+      startPage = Math.max(1, endPage - maxVisible + 1);
     }
+    for (let i = startPage; i <= endPage; i++) pages.push(i);
+    return pages;
   };
 
   const handlePageSizeChange = (newSize: number) => {
@@ -334,12 +333,12 @@ export default function WorkOrderList() {
     setCurrentPage(1);
   };
 
-  // Handle tab change
   const handleTabChange = (tab: OrderType) => {
     setActiveTab(tab);
     setCurrentPage(1);
   };
 
+  // ─── Actions ──────────────────────────────────────────────────────────
   const handleDelete = (item: WorkOrderDisplay, e: React.MouseEvent) => {
     e.stopPropagation();
     setSelectedItem(item);
@@ -355,7 +354,6 @@ export default function WorkOrderList() {
         setShowDeleteConfirm(false);
         setSelectedItem(null);
         setDeletingId(null);
-        fetchWorkOrders();
         fetchAllWorkOrders();
       }
     } catch (err) {
@@ -365,7 +363,6 @@ export default function WorkOrderList() {
     }
   };
 
-  // Handle complete work order
   const handleCompleteWorkOrder = (item: WorkOrderDisplay, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!item.canComplete) {
@@ -394,7 +391,6 @@ export default function WorkOrderList() {
         setShowCompleteConfirm(false);
         setSelectedItem(null);
         setCompletingId(null);
-        fetchWorkOrders();
         fetchAllWorkOrders();
         alert(`Work Order ${selectedItem.name} has been completed successfully!`);
       } else {
@@ -408,13 +404,11 @@ export default function WorkOrderList() {
     }
   };
 
-  // Navigate to job cards for work order
   const handleViewJobCards = (item: WorkOrderDisplay, e: React.MouseEvent) => {
     e.stopPropagation();
     navigate(`/job-card?work_order=${item.id}`);
   };
 
-  // Navigate to edit form (view mode)
   const handleRowClick = (item: WorkOrderDisplay) => {
     navigate(`/work-order/${encodeURIComponent(item.id)}`);
   };
@@ -437,43 +431,17 @@ export default function WorkOrderList() {
     setCurrentPage(1);
   };
 
-  const getStartIndex = () => {
-    return (currentPage - 1) * itemsPerPage + 1;
-  };
-
-  const getEndIndex = () => {
-    return Math.min(currentPage * itemsPerPage, totalItems);
-  };
-
-  // Filter data from all work orders for display
-  const filteredData = allWorkOrders.filter(item => {
-    // Filter by tab
-    if (activeTab !== 'all' && item.type !== activeTab) return false;
-    
-    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          item.productionItem.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || item.status === statusFilter;
-    const matchesDate = dateFilter === 'all' || isDateInRange(item.plannedStartDate, dateFilter);
-    return matchesSearch && matchesStatus && matchesDate;
-  });
-
-  // Get status icon
+  // ─── Status helpers ───────────────────────────────────────────────────
   const getStatusIcon = (status: Status) => {
     switch (status) {
-      case 'Completed':
-        return <FaCheckCircle size={14} />;
-      case 'In Process':
-        return <FaClock size={14} />;
-      case 'Not Started':
-        return <FaPlay size={14} />;
-      case 'Stopped':
-        return <FaStop size={14} />;
-      default:
-        return <FaFileAlt size={14} />;
+      case 'Completed': return <FaCheckCircle size={14} />;
+      case 'In Process': return <FaClock size={14} />;
+      case 'Not Started': return <FaPlay size={14} />;
+      case 'Stopped': return <FaStop size={14} />;
+      default: return <FaFileAlt size={14} />;
     }
   };
 
-  // Get progress color based on percentage
   const getProgressColor = (progress: number) => {
     if (progress >= 100) return '#22c55e';
     if (progress >= 70) return '#3b82f6';
@@ -498,15 +466,15 @@ export default function WorkOrderList() {
           onClick={() => handleTabChange('internal')}
         >
           <FaBox size={14} />
-          Internal
+          Products
           <span className="wo-tab-count">{tabCounts.internal}</span>
         </button>
         <button
           className={`wo-tab ${activeTab === 'external' ? 'wo-tab--active' : ''}`}
           onClick={() => handleTabChange('external')}
         >
-          <FaTruck size={14} />
-          External
+          <FaWrench size={14} />
+          Services
           <span className="wo-tab-count">{tabCounts.external}</span>
         </button>
       </div>
@@ -518,7 +486,7 @@ export default function WorkOrderList() {
             <FaSearch className="wo-search-icon" />
             <input
               type="text"
-              placeholder={`Search ${activeTab !== 'all' ? activeTab + ' ' : ''}work orders by name or item...`}
+              placeholder={`Search ${activeTab !== 'all' ? (activeTab === 'internal' ? 'product' : 'service') + ' ' : ''}work orders by name or item...`}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="wo-search-input"
@@ -568,7 +536,7 @@ export default function WorkOrderList() {
           <span style={{ color: 'var(--text-primary)' }}>Active filters:</span>
           {activeTab !== 'all' && (
             <span style={{ color: 'var(--text-primary)' }}>
-              <strong>Type:</strong> {activeTab === 'internal' ? 'Internal' : 'External'}
+              <strong>Type:</strong> {activeTab === 'internal' ? 'Products' : 'Services'}
             </span>
           )}
           {searchTerm && (
@@ -586,10 +554,7 @@ export default function WorkOrderList() {
               <strong>Date:</strong> {dateFilterOptions.find(o => o.value === dateFilter)?.label}
             </span>
           )}
-          <button
-            onClick={clearFilters}
-            className="wo-clear-filters"
-          >
+          <button onClick={clearFilters} className="wo-clear-filters">
             <FaTimes size={10} /> Clear All
           </button>
         </div>
@@ -607,9 +572,7 @@ export default function WorkOrderList() {
       {error && (
         <div className="wo-error">
           <p>{error}</p>
-          <button onClick={fetchWorkOrders} className="wo-retry-btn">
-            Retry
-          </button>
+          <button onClick={fetchAllWorkOrders} className="wo-retry-btn">Retry</button>
         </div>
       )}
 
@@ -629,13 +592,13 @@ export default function WorkOrderList() {
                   <th className="wo-th">Status</th>
                   <th className="wo-th">Planned Dates</th>
                   <th className="wo-th wo-th-meta">
-                    <span className="wo-count-label">{filteredData.length} of {totalItems}</span>
+                    <span className="wo-count-label">{displayTotalItems} total</span>
                     <FaTasks size={14} style={{ color: 'var(--text-secondary, #9ca3af)' }} />
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {filteredData.length === 0 ? (
+                {paginatedData.length === 0 ? (
                   <tr>
                     <td colSpan={9} className="wo-empty-state">
                       <div className="wo-empty-content">
@@ -646,13 +609,13 @@ export default function WorkOrderList() {
                           <line x1="16" y1="17" x2="8" y2="17"/>
                           <polyline points="10 9 9 9 8 9"/>
                         </svg>
-                        <p>No {activeTab !== 'all' ? activeTab + ' ' : ''}work orders found</p>
+                        <p>No {activeTab !== 'all' ? (activeTab === 'internal' ? 'product' : 'service') + ' ' : ''}work orders found</p>
                         <span>Try adjusting your search criteria</span>
                       </div>
                     </td>
                   </tr>
                 ) : (
-                  filteredData.map((row) => (
+                  paginatedData.map((row) => (
                     <tr
                       key={row.id}
                       className="wo-tr"
@@ -662,11 +625,8 @@ export default function WorkOrderList() {
                       <td className="wo-td wo-td-id">{row.name}</td>
                       <td className="wo-td">
                         <span className={`wo-type-badge ${row.type === 'internal' ? 'wo-type--internal' : 'wo-type--external'}`}>
-                          {row.type === 'internal' ? (
-                            <><FaBox size={11} /> Internal</>
-                          ) : (
-                            <><FaTruck size={11} /> External</>
-                          )}
+                          {TYPE_ICONS[row.type]}
+                          {TYPE_LABELS[row.type]}
                         </span>
                       </td>
                       <td className="wo-td wo-td-link">{row.productionItem}</td>
@@ -795,31 +755,37 @@ export default function WorkOrderList() {
             <div className="wo-pagination-center">
               <button
                 onClick={goToFirstPage}
-                disabled={currentPage === 1 || totalPages === 0}
+                disabled={currentPage === 1 || displayTotalPages === 0}
                 className="wo-page-btn"
               >
                 <FaAngleDoubleLeft size={12} />
               </button>
               <button
                 onClick={goToPrevPage}
-                disabled={totalPages === 0}
+                disabled={currentPage === 1 || displayTotalPages === 0}
                 className="wo-page-btn"
               >
                 <FaChevronLeft size={12} />
               </button>
-              <button className="wo-page-btn wo-page-btn-active">
-                {currentPage}
-              </button>
+              {getPageNumbers().map(page => (
+                <button
+                  key={page}
+                  onClick={() => setCurrentPage(page)}
+                  className={`wo-page-btn ${currentPage === page ? 'wo-page-btn-active' : ''}`}
+                >
+                  {page}
+                </button>
+              ))}
               <button
                 onClick={goToNextPage}
-                disabled={totalPages === 0}
+                disabled={currentPage >= displayTotalPages || displayTotalPages === 0}
                 className="wo-page-btn"
               >
                 <FaChevronRight size={12} />
               </button>
               <button
                 onClick={goToLastPage}
-                disabled={currentPage === totalPages || totalPages === 0}
+                disabled={currentPage >= displayTotalPages || displayTotalPages === 0}
                 className="wo-page-btn"
               >
                 <FaAngleDoubleRight size={12} />
@@ -827,8 +793,8 @@ export default function WorkOrderList() {
             </div>
             <div className="wo-pagination-right">
               <span className="wo-pagination-info">
-                {totalItems > 0
-                  ? `Showing ${getStartIndex()} to ${getEndIndex()} of ${totalItems} entries`
+                {displayTotalItems > 0
+                  ? `Showing ${getStartIndex()} to ${getEndIndex()} of ${displayTotalItems} entries`
                   : 'No entries to show'}
               </span>
             </div>
@@ -937,268 +903,6 @@ export default function WorkOrderList() {
           </div>
         </div>
       )}
-
-      <style>{`
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-        .spinning {
-          animation: spin 1s linear infinite;
-        }
-
-        /* Tabs Styles */
-        .wo-tabs {
-          display: flex;
-          gap: 4px;
-          background: var(--card-bg, #ffffff);
-          border: 1px solid var(--border-color, #e5e7eb);
-          border-radius: 10px;
-          padding: 4px;
-          flex-shrink: 0;
-        }
-
-        .wo-tab {
-          flex: 1;
-          padding: 10px 20px;
-          border: none;
-          border-radius: 8px;
-          font-size: 13px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s ease;
-          background: transparent;
-          color: var(--text-secondary, #6b7280);
-          white-space: nowrap;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 6px;
-        }
-
-        .wo-tab:hover {
-          background: var(--nav-hover, #f9fafb);
-          color: var(--text-primary, #1f2433);
-        }
-
-        .wo-tab--active {
-          background: var(--primary-color, #6366f1);
-          color: #ffffff;
-          box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
-        }
-
-        .wo-tab--active:hover {
-          background: var(--primary-hover, #4f46e5);
-          color: #ffffff;
-        }
-
-        .wo-tab-count {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          min-width: 20px;
-          height: 20px;
-          padding: 0 6px;
-          margin-left: 4px;
-          border-radius: 999px;
-          font-size: 11px;
-          font-weight: 600;
-          background: rgba(0, 0, 0, 0.1);
-        }
-
-        .wo-tab--active .wo-tab-count {
-          background: rgba(255, 255, 255, 0.25);
-        }
-
-        /* Type Badge */
-        .wo-type-badge {
-          display: inline-flex;
-          align-items: center;
-          gap: 4px;
-          height: 24px;
-          padding: 0 10px;
-          border-radius: 6px;
-          font-size: 11px;
-          font-weight: 600;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-          white-space: nowrap;
-        }
-
-        .wo-type--internal {
-          background: #eff6ff;
-          color: #1d4ed8;
-          border: 1px solid #bfdbfe;
-        }
-
-        .wo-type--external {
-          background: #fef3c7;
-          color: #92400e;
-          border: 1px solid #fde68a;
-        }
-
-        /* Job Card Styles */
-        .wo-job-card-info {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-
-        .wo-job-card-text {
-          font-size: 13px;
-          font-weight: 600;
-          color: var(--text-primary, #111827);
-          min-width: 40px;
-        }
-
-        .wo-job-card-bar {
-          width: 50px;
-          height: 4px;
-          background: var(--bg-secondary, #e5e7eb);
-          border-radius: 2px;
-          overflow: hidden;
-          flex-shrink: 0;
-        }
-
-        .wo-job-card-fill {
-          height: 100%;
-          border-radius: 2px;
-          transition: width 0.3s ease;
-        }
-
-        .wo-job-card-btn {
-          background: none;
-          border: none;
-          color: var(--text-secondary, #6b7280);
-          cursor: pointer;
-          padding: 4px;
-          border-radius: 4px;
-          transition: all 0.2s;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .wo-job-card-btn:hover {
-          background: var(--bg-secondary, #f3f4f6);
-          color: var(--primary-color, #3b82f6);
-        }
-
-        /* Active filters */
-        .wo-active-filters {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 8px 16px;
-          background: color-mix(in srgb, var(--primary-color) 8%, transparent);
-          border-radius: 8px;
-          font-size: 12px;
-          flex-wrap: wrap;
-          border: 1px solid var(--border-color, #e5e7eb);
-          flex-shrink: 0;
-        }
-
-        .wo-active-filters span {
-          color: var(--text-primary, #111827);
-        }
-
-        .wo-clear-filters {
-          margin-left: auto;
-          padding: 4px 12px;
-          background: var(--card-bg, #ffffff);
-          border: 1px solid var(--border-color, #e5e7eb);
-          border-radius: 6px;
-          cursor: pointer;
-          font-size: 11px;
-          display: flex;
-          align-items: center;
-          gap: 4px;
-          color: var(--text-secondary, #6b7280);
-          transition: all 0.15s;
-        }
-
-        .wo-clear-filters:hover {
-          background: var(--layout-bg, #f9fafb);
-        }
-
-        /* Dark mode styles */
-        .dashboard.dark .wo-tabs {
-          background: var(--card-bg, #1e293b);
-          border-color: var(--border-color, #334155);
-        }
-
-        .dashboard.dark .wo-tab {
-          color: var(--text-secondary, #94a3b8);
-        }
-
-        .dashboard.dark .wo-tab:hover {
-          background: var(--nav-hover, rgba(255, 255, 255, 0.05));
-          color: var(--text-primary, #f8fafc);
-        }
-
-        .dashboard.dark .wo-tab--active {
-          background: var(--primary-color, #3b82f6);
-          color: #ffffff;
-        }
-
-        .dashboard.dark .wo-type--internal {
-          background: rgba(59, 130, 246, 0.15);
-          color: #93c5fd;
-          border-color: rgba(59, 130, 246, 0.3);
-        }
-
-        .dashboard.dark .wo-type--external {
-          background: rgba(245, 158, 11, 0.15);
-          color: #fcd34d;
-          border-color: rgba(245, 158, 11, 0.3);
-        }
-
-        .dashboard.dark .wo-job-card-text {
-          color: #f3f4f6;
-        }
-
-        .dashboard.dark .wo-job-card-bar {
-          background: #374151;
-        }
-
-        .dashboard.dark .wo-job-card-btn:hover {
-          background: #374151;
-        }
-
-        .dashboard.dark .wo-active-filters {
-          background: rgba(99, 102, 241, 0.08);
-          border-color: var(--border-color, #334155);
-        }
-
-        .dashboard.dark .wo-active-filters span {
-          color: var(--text-primary, #f8fafc);
-        }
-
-        .dashboard.dark .wo-clear-filters {
-          background: var(--card-bg, #1e293b);
-          border-color: var(--border-color, #334155);
-          color: var(--text-secondary, #94a3b8);
-        }
-
-        /* Responsive tabs */
-        @media (max-width: 768px) {
-          .wo-tabs {
-            flex-direction: column;
-            gap: 2px;
-          }
-
-          .wo-tab {
-            justify-content: flex-start;
-            padding: 8px 12px;
-          }
-
-          .wo-type-badge {
-            font-size: 10px;
-            padding: 0 6px;
-            height: 20px;
-          }
-        }
-      `}</style>
     </div>
   );
 }

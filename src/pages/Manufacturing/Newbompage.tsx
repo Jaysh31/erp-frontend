@@ -5,7 +5,7 @@ import {
   X,
   Trash2,
   AlertTriangle,
-  XCircle,
+  
   InfoIcon,
   Save,
   Plus,
@@ -822,10 +822,6 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
   const getFieldError = (field: string): string | undefined => {
     if (!showValidationErrors) return undefined;
     return fieldErrors[field];
-  };
-
-  const hasFieldError = (field: string): boolean => {
-    return !!getFieldError(field);
   };
 
   const handleSave = async () => {

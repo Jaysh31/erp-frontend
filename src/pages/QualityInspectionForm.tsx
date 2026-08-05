@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   FaArrowLeft, FaSave, FaPrint, FaPlus, FaTrash,
-  FaExclamationTriangle, FaClipboardCheck, FaSpinner
+  FaExclamationTriangle, FaClipboardCheck, FaSpinner, FaSearch
 } from 'react-icons/fa';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import './QualityInspectionForm.css';
@@ -11,109 +11,46 @@ import api from '../services/api';
 
 /* ─────────────────────────── Types ─────────────────────────── */
 
-interface MasterData {
-  companies: Array<{ id: string | number; name: string }>;
-  items: Array<{ id: string | number; name: string; part_no?: string; item_code?: string }>;
-  customers: Array<{ id: string | number; name: string }>;
-  suppliers: Array<{ id: string | number; name: string }>;
-  warehouses: Array<{ id: string | number; name: string }>;
-  employees: Array<{ id: string | number; name: string }>;
-  qualityTemplates: Array<{ id: string | number; name: string }>;
-}
-
-interface QualityTemplateDetail {
-  id: string | number;
-  name: string;
-  parameters: Array<{
-    id: string | number;
-    parameter_name: string;
-    specification: string;
-    inspection_method_id: string | number;
-    inspection_method_name: string;
-  }>;
-}
-
-// interface ParameterRow {
-//   id: string;
-//   parameter_id: string | number;
-//   parameter_name: string;
-//   specification: string;
-//   inspection_method_id: string | number;
-//   inspection_method_name: string;
-//   observations: string[];
-//   result: string;
-//   remarks: string;
-// }
-
-interface ObservationDetail {
-  sample_no: number;
-  observed_value: string;
-  result: string;
-  remarks: string;
-}
-
-interface InspectionDetail {
-  parameter_id: string | number;
-  inspection_method_id: string | number;
+interface ParameterRow {
+  id: string;
+  parameter: string;
   specification: string;
-  result: string;
-  remarks: string;
-  observations: ObservationDetail[];
+  inspectionMethod: string;
+  observations: string[];
 }
 
 interface InspectionForm {
-  inspection_no: string;
-  company_id: string | number;
-  inspection_date: string;
-  inspection_type: string;
-  reference_type: string;
-  reference_id: string;
-  item_id: string | number;
-  quality_template_id: string | number;
-  warehouse_id: string | number;
-  customer_id: string | number;
-  supplier_id: string | number;
-  drawing_no: string;
-  revision_no: string;
-  inspection_qty: number;
-  accepted_qty: number;
-  rejected_qty: number;
-  status: string;
-  overall_result: string;
-  remarks: string;
-  inspected_by: string | number;
-  reviewed_by: string | number;
-  approved_by: string | number;
-  details: InspectionDetail[];
+  companyName: string;
+  reportTitle: string;
+  docNo: string;
+  partProductName: string;
+  partNo: string;
+  drawingNo: string;
+  revNo: string;
+  customerName: string;
+  date: string;
+  invoiceNo: string;
+  invoiceQty: string;
+  challanNoDate: string;
+  reportNo: string;
+  parameters: ParameterRow[];
   sampleCount: number;
+  allDimensionsNote: string;
+  samplesNote: string;
+  supplierRemarks: string;
+  footerRevNo: string;
+  footerRevDate: string;
+  inspectedBy: string;
+  reviewedBy: string;
 }
 
-const defaultFormData = (): InspectionForm => ({
-  inspection_no: '',
-  company_id: '',
-  inspection_date: new Date().toISOString().split('T')[0],
-  inspection_type: 'INCOMING',
-  reference_type: 'PO',
-  reference_id: '',
-  item_id: '',
-  quality_template_id: '',
-  warehouse_id: '',
-  customer_id: '',
-  supplier_id: '',
-  drawing_no: '',
-  revision_no: '00',
-  inspection_qty: 0,
-  accepted_qty: 0,
-  rejected_qty: 0,
-  status: 'DRAFT',
-  overall_result: 'PENDING',
-  remarks: '',
-  inspected_by: '',
-  reviewed_by: '',
-  approved_by: '',
-  details: [],
-  sampleCount: 10,
-});
+interface ItemSuggestion {
+  id: number;
+  item_code: string;
+  item_name: string;
+  item_group: string;
+  description: string;
+}
 
 /* ─────────────────────────── Helpers ─────────────────────────── */
 
@@ -149,6 +86,256 @@ const escapeHtml = (value: string): string => {
     .replace(/"/g, '&quot;');
 };
 
+const buildDefaultParameters = (sampleCount: number): ParameterRow[] => {
+  const blanks = () => Array.from({ length: sampleCount }, () => '');
+  return [
+    { id: nextId(), parameter: 'Total Length', specification: '9±0.2', inspectionMethod: 'Vernier Caliper', observations: blanks() },
+    { id: nextId(), parameter: 'O.D.', specification: '13±0.2', inspectionMethod: 'Vernier Caliper', observations: blanks() },
+    { id: nextId(), parameter: 'HOLE', specification: '6.5±0.1', inspectionMethod: 'Vernier Caliper', observations: blanks() },
+    { id: nextId(), parameter: 'STEP OD', specification: '10±0.2', inspectionMethod: 'Vernier Caliper', observations: blanks() },
+    { id: nextId(), parameter: 'LENGTH', specification: '6±0.1', inspectionMethod: 'Vernier Caliper', observations: blanks() },
+  ];
+};
+
+const DEFAULT_SAMPLE_COUNT = 10;
+
+const defaultFormData = (): InspectionForm => ({
+  companyName: 'CHANDRATARA INDUSTRIES',
+  reportTitle: 'FINAL INSPECTION REPORT',
+  docNo: '',
+  partProductName: '',
+  partNo: '',
+  drawingNo: '',
+  revNo: '00',
+  customerName: '',
+  date: new Date().toISOString().split('T')[0],
+  invoiceNo: '',
+  invoiceQty: '',
+  challanNoDate: '',
+  reportNo: '',
+  parameters: buildDefaultParameters(DEFAULT_SAMPLE_COUNT),
+  sampleCount: DEFAULT_SAMPLE_COUNT,
+  allDimensionsNote: 'ALL DIMENSIONS ARE IN MM',
+  samplesNote: 'ALL SAMPLES ARE CHECKED RANDOMLY',
+  supplierRemarks: 'Visually Accepted',
+  footerRevNo: '00',
+  footerRevDate: '',
+  inspectedBy: '',
+  reviewedBy: '',
+});
+
+const unwrapDate = (value?: string | null): string => {
+  if (!value) return '';
+  return value.split('T')[0];
+};
+
+/* ─────────────────── Autocomplete Component ─────────────────── */
+
+interface AutocompleteInputProps {
+  value: string;
+  onChange: (value: string) => void;
+  onSelect: (item: ItemSuggestion) => void;
+  placeholder?: string;
+  className?: string;
+  error?: boolean;
+  disabled?: boolean;
+}
+
+const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
+  value,
+  onChange,
+  onSelect,
+  placeholder = 'Search items...',
+  className = '',
+  error = false,
+  disabled = false
+}) => {
+  const [suggestions, setSuggestions] = useState<ItemSuggestion[]>([]);
+  const [isOpen, setIsOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const fetchSuggestions = async (searchTerm: string) => {
+    if (!searchTerm.trim()) {
+      setSuggestions([]);
+      setIsOpen(false);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await api.get('/item', {
+        params: {
+          page: 1,
+          limit: 10,
+          search: searchTerm.trim()
+        }
+      });
+
+      if (response.data.success === 1) {
+        const items = Array.isArray(response.data.data) ? response.data.data : [];
+        setSuggestions(items);
+        setIsOpen(items.length > 0);
+      } else {
+        setSuggestions([]);
+        setIsOpen(false);
+      }
+    } catch (error) {
+      console.error('Error fetching item suggestions:', error);
+      setSuggestions([]);
+      setIsOpen(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    onChange(newValue);
+
+    // Clear previous debounce timer
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current);
+    }
+
+    // Debounce API calls
+    debounceTimer.current = setTimeout(() => {
+      fetchSuggestions(newValue);
+    }, 300);
+  };
+
+  const handleSuggestionClick = (item: ItemSuggestion) => {
+    onSelect(item);
+    setIsOpen(false);
+    setSuggestions([]);
+    setHighlightedIndex(-1);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!isOpen || suggestions.length === 0) return;
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setHighlightedIndex((prev) => (prev + 1) % suggestions.length);
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setHighlightedIndex((prev) => (prev - 1 + suggestions.length) % suggestions.length);
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (highlightedIndex >= 0 && highlightedIndex < suggestions.length) {
+          handleSuggestionClick(suggestions[highlightedIndex]);
+        }
+        break;
+      case 'Escape':
+        setIsOpen(false);
+        setHighlightedIndex(-1);
+        break;
+    }
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+        setHighlightedIndex(-1);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimer.current) {
+        clearTimeout(debounceTimer.current);
+      }
+    };
+  }, []);
+
+  return (
+    <div className="autocomplete-wrapper" ref={wrapperRef} style={{ position: 'relative', width: '100%' }}>
+      <div style={{ position: 'relative' }}>
+        <input
+          ref={inputRef}
+          type="text"
+          value={value}
+          onChange={handleInputChange}
+          onKeyDown={handleKeyDown}
+          onFocus={() => {
+            if (value.trim()) {
+              fetchSuggestions(value);
+            }
+          }}
+          placeholder={placeholder}
+          className={`${className} ${error ? 'qir-input-error' : ''}`}
+          disabled={disabled}
+          autoComplete="off"
+        />
+        {loading && (
+          <div style={{ 
+            position: 'absolute', 
+            right: '10px', 
+            top: '50%', 
+            transform: 'translateY(-50%)',
+            display: 'flex',
+            alignItems: 'center'
+          }}>
+            <FaSpinner className="spinning" size={14} />
+          </div>
+        )}
+      </div>
+      
+      {isOpen && suggestions.length > 0 && (
+        <ul className="autocomplete-dropdown" style={{
+          position: 'absolute',
+          top: '100%',
+          left: 0,
+          right: 0,
+          maxHeight: '200px',
+          overflowY: 'auto',
+          backgroundColor: 'white',
+          border: '1px solid #d1d5db',
+          borderRadius: '4px',
+          marginTop: '2px',
+          padding: 0,
+          listStyle: 'none',
+          zIndex: 1000,
+          boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+        }}>
+          {suggestions.map((item, index) => (
+            <li
+              key={item.id}
+              onClick={() => handleSuggestionClick(item)}
+              onMouseEnter={() => setHighlightedIndex(index)}
+              style={{
+                padding: '8px 12px',
+                cursor: 'pointer',
+                backgroundColor: index === highlightedIndex ? '#f3f4f6' : 'white',
+                borderBottom: '1px solid #f3f4f6'
+              }}
+            >
+              <div style={{ fontWeight: 500 }}>{item.item_name}</div>
+              <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                Code: {item.item_code} | Group: {item.item_group}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+};
+
 /* ─────────────────────────── Component ─────────────────────────── */
 
 export default function QualityInspectionForm() {
@@ -168,277 +355,69 @@ export default function QualityInspectionForm() {
   }
 
   const [formData, setFormData] = useState<InspectionForm>(defaultFormData());
-  const [masterData, setMasterData] = useState<MasterData>({
-    companies: [],
-    items: [],
-    customers: [],
-    suppliers: [],
-    warehouses: [],
-    employees: [],
-    qualityTemplates: [],
-  });
-  const [templateDetails, setTemplateDetails] = useState<QualityTemplateDetail | null>(null);
+  const [recordName, setRecordName] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [loadingRecord, setLoadingRecord] = useState(false);
-  const [loadingMasterData, setLoadingMasterData] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
-  const inputRefs = useRef<{ [key: string]: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null }>({});
-  const setRef = (key: string) => (el: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null) => {
+  const inputRefs = useRef<{ [key: string]: HTMLInputElement | HTMLTextAreaElement | null }>({});
+  const setRef = (key: string) => (el: HTMLInputElement | HTMLTextAreaElement | null) => {
     inputRefs.current[key] = el;
   };
 
-  /* ─── Helper to extract data from API response ───────────────── */
-
-  const extractData = (response: any): any[] => {
-    if (!response) return [];
-    
-    console.log('extractData - raw response:', response);
-    
-    // If response has success field
-    if (response.success !== undefined) {
-      // If success is 0 or false, return empty array
-      if (response.success === 0 || response.success === false) {
-        return [];
-      }
-      
-      const data = response.data;
-      if (!data) return [];
-      
-      // If data is an array, return it directly
-      if (Array.isArray(data)) {
-        console.log('extractData - data is array, length:', data.length);
-        return data;
-      }
-      
-      // If data has a data property that is an array (nested like { data: { data: [...] } })
-      if (data.data && Array.isArray(data.data)) {
-        console.log('extractData - data.data is array, length:', data.data.length);
-        return data.data;
-      }
-      
-      // If data has records property (pagination)
-      if (data.records && Array.isArray(data.records)) {
-        console.log('extractData - data.records is array, length:', data.records.length);
-        return data.records;
-      }
-      
-      // If data has other array property
-      for (const key of Object.keys(data)) {
-        if (Array.isArray(data[key])) {
-          console.log('extractData - data.' + key + ' is array, length:', data[key].length);
-          return data[key];
-        }
-      }
-      
-      // If data is a single object, wrap it in array
-      if (typeof data === 'object' && data !== null && !Array.isArray(data)) {
-        console.log('extractData - data is single object');
-        return [data];
-      }
-    }
-    
-    // If response itself is an array
-    if (Array.isArray(response)) {
-      console.log('extractData - response is array, length:', response.length);
-      return response;
-    }
-    
-    // If response has records
-    if (response.records && Array.isArray(response.records)) {
-      console.log('extractData - response.records is array, length:', response.records.length);
-      return response.records;
-    }
-    
-    // If response is a single object with id
-    if (response && typeof response === 'object' && response.id !== undefined) {
-      console.log('extractData - response is single object');
-      return [response];
-    }
-    
-    console.log('extractData - returning empty array');
-    return [];
-  };
-
-  const extractSingleData = (response: any): any => {
-    if (!response) return null;
-    
-    if (response.success !== undefined) {
-      if (response.success === 0 || response.success === false) {
-        return null;
-      }
-      return response.data || null;
-    }
-    
-    return response;
-  };
-
-  /* ─── Load Master Data ─────────────────────────────────────── */
-
-  const loadMasterData = async () => {
-    setLoadingMasterData(true);
-    try {
-      // Try to load each API individually to handle 404s gracefully
-      const endpoints = [
-        { key: 'companies', url: '/company' },
-        { key: 'items', url: '/item' },
-        { key: 'customers', url: '/customer' },
-        { key: 'suppliers', url: '/supplier' },
-        { key: 'warehouses', url: '/warehouse' },
-        { key: 'employees', url: '/employee' },
-        { key: 'qualityTemplates', url: '/quality-template' },
-      ];
-
-      const results: any = {};
-
-      for (const endpoint of endpoints) {
-        try {
-          const response = await api.get(endpoint.url);
-          const data = extractData(response.data);
-          results[endpoint.key] = data;
-          console.log(`Loaded ${endpoint.key}:`, data.length, 'items');
-        } catch (err: any) {
-          console.warn(`Failed to load ${endpoint.key}:`, err.message);
-          results[endpoint.key] = [];
-        }
-      }
-
-      setMasterData({
-        companies: results.companies.map((c: any) => ({ 
-          id: c.id, 
-          name: c.company_name || c.name || c.company || '' 
-        })),
-        items: results.items.map((i: any) => ({ 
-          id: i.id, 
-          name: i.item_name || i.name || '', 
-          part_no: i.item_code || i.part_no || '' 
-        })),
-        customers: results.customers.map((c: any) => ({ 
-          id: c.id, 
-          name: c.customer_name || c.name || '' 
-        })),
-        suppliers: results.suppliers.map((s: any) => ({ 
-          id: s.id, 
-          name: s.supplier_name || s.name || '' 
-        })),
-        warehouses: results.warehouses.map((w: any) => ({ 
-          id: w.id, 
-          name: w.warehouse_name || w.name || '' 
-        })),
-        employees: results.employees.map((e: any) => ({ 
-          id: e.id, 
-          name: e.employee_name || e.name || (e.first_name ? e.first_name + ' ' + (e.last_name || '') : '') || '' 
-        })),
-        qualityTemplates: results.qualityTemplates.map((t: any) => ({ 
-          id: t.id, 
-          name: t.template_name || t.name || '' 
-        })),
-      });
-
-      console.log('Final Master Data:', masterData);
-    } catch (err: any) {
-      console.error('Error loading master data:', err);
-      toast.error('Failed to load some master data');
-    } finally {
-      setLoadingMasterData(false);
-    }
-  };
-
-  useEffect(() => {
-    loadMasterData();
-  }, []);
-
-  /* ─── Load Quality Template Details ────────────────────────── */
-
-  const loadTemplateDetails = async (templateId: string | number) => {
-    if (!templateId) {
-      setTemplateDetails(null);
-      return;
-    }
-
-    try {
-      const response = await api.get(`/quality-template/${templateId}`);
-      const data = extractSingleData(response.data);
-
-      console.log('Template Details:', data);
-
-      if (data && data.parameters && data.parameters.length > 0) {
-        setTemplateDetails(data);
-
-        const sampleCount = formData.sampleCount || 10;
-        const details: InspectionDetail[] = data.parameters.map((param: any) => ({
-          parameter_id: param.id || param.parameter_id,
-          inspection_method_id: param.inspection_method_id || '',
-          specification: param.specification || '',
-          result: '',
-          remarks: '',
-          observations: Array.from({ length: sampleCount }, (_, i) => ({
-            sample_no: i + 1,
-            observed_value: '',
-            result: '',
-            remarks: '',
-          })),
-        }));
-
-        setFormData(prev => ({
-          ...prev,
-          quality_template_id: templateId,
-          details,
-        }));
-      } else {
-        toast('No parameters found in this template');
-      }
-    } catch (err: any) {
-      console.error('Error loading template details:', err);
-      toast.error('Failed to load quality template details');
-    }
-  };
-
   /* ─── load existing record when editing ─────────────────────── */
+
+  const loadRecordIntoForm = (record: any) => {
+    setRecordName(record.inspection_no ?? null);
+    const sampleCount = record.details?.[0]?.observations?.length || DEFAULT_SAMPLE_COUNT;
+    
+    const parameters: ParameterRow[] = Array.isArray(record.details) && record.details.length > 0
+      ? record.details.map((d: any) => ({
+          id: nextId(),
+          parameter: d.parameter_name || `Parameter ${d.parameter_id}`,
+          specification: d.specification || '',
+          inspectionMethod: d.inspection_method_name || '',
+          observations: Array.isArray(d.observations) && d.observations.length > 0
+            ? d.observations.map((obs: any) => obs.observed_value || '')
+            : Array.from({ length: sampleCount }, () => ''),
+        }))
+      : buildDefaultParameters(sampleCount);
+
+    setFormData((prev) => ({
+      ...prev,
+      companyName: record.company_name || prev.companyName,
+      reportTitle: record.report_title || prev.reportTitle,
+      docNo: record.doc_no ?? prev.docNo,
+      partProductName: record.part_product_name || prev.partProductName,
+      partNo: record.part_no || prev.partNo,
+      drawingNo: record.drawing_no || prev.drawingNo,
+      revNo: record.revision_no || prev.revNo,
+      customerName: record.customer_name || prev.customerName,
+      date: unwrapDate(record.inspection_date) || prev.date,
+      invoiceNo: record.invoice_no || prev.invoiceNo,
+      invoiceQty: record.invoice_qty || prev.invoiceQty,
+      challanNoDate: record.challan_no_date || prev.challanNoDate,
+      reportNo: record.report_no || prev.reportNo,
+      parameters,
+      sampleCount,
+      allDimensionsNote: record.all_dimensions_note || prev.allDimensionsNote,
+      samplesNote: record.samples_note || prev.samplesNote,
+      supplierRemarks: record.supplier_remarks || prev.supplierRemarks,
+      footerRevNo: record.footer_rev_no || prev.footerRevNo,
+      footerRevDate: unwrapDate(record.footer_rev_date) || prev.footerRevDate,
+      inspectedBy: record.inspected_by || prev.inspectedBy,
+      reviewedBy: record.reviewed_by || prev.reviewedBy,
+    }));
+  };
 
   const fetchInspectionById = async (recordId: string) => {
     setLoadingRecord(true);
     setApiError(null);
     try {
       const response = await api.get(`/quality-inspection/${recordId}`);
-      const record = extractSingleData(response.data);
-
-      console.log('Inspection Record:', record);
-
-      if (record) {
-        // Set form data with ids
-        setFormData({
-          inspection_no: record.inspection_no || '',
-          company_id: record.company_id || '',
-          inspection_date: record.inspection_date ? record.inspection_date.split('T')[0] : new Date().toISOString().split('T')[0],
-          inspection_type: record.inspection_type || 'INCOMING',
-          reference_type: record.reference_type || 'PO',
-          reference_id: record.reference_id || '',
-          item_id: record.item_id || '',
-          quality_template_id: record.quality_template_id || '',
-          warehouse_id: record.warehouse_id || '',
-          customer_id: record.customer_id || '',
-          supplier_id: record.supplier_id || '',
-          drawing_no: record.drawing_no || '',
-          revision_no: record.revision_no || '00',
-          inspection_qty: record.inspection_qty || 0,
-          accepted_qty: record.accepted_qty || 0,
-          rejected_qty: record.rejected_qty || 0,
-          status: record.status || 'DRAFT',
-          overall_result: record.overall_result || 'PENDING',
-          remarks: record.remarks || '',
-          inspected_by: record.inspected_by || '',
-          reviewed_by: record.reviewed_by || '',
-          approved_by: record.approved_by || '',
-          details: record.details || [],
-          sampleCount: record.details?.[0]?.observations?.length || 10,
-        });
-
-        // Load template details if template_id exists
-        if (record.quality_template_id) {
-          await loadTemplateDetails(record.quality_template_id);
-        }
+      if (response.data.success === 1 && response.data.data) {
+        loadRecordIntoForm(response.data.data);
       } else {
         setApiError('Inspection report not found');
       }
@@ -469,69 +448,62 @@ export default function QualityInspectionForm() {
 
   /* ─── header field handlers ──────────────────────────────────── */
 
-  const handleFieldChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  const handleFieldChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
     if (errors[name]) setErrors(prev => ({ ...prev, [name]: '' }));
   };
 
-  const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-    if (errors[name]) setErrors(prev => ({ ...prev, [name]: '' }));
+  /* ─── Part/Product Name handlers ────────────────────────────── */
 
-    // Load template details when quality_template_id changes
-    if (name === 'quality_template_id' && value) {
-      loadTemplateDetails(value);
-    }
+  const handlePartProductNameChange = (value: string) => {
+    setFormData(prev => ({ ...prev, partProductName: value }));
+    if (errors.partProductName) setErrors(prev => ({ ...prev, partProductName: '' }));
+  };
+
+  const handlePartProductSelect = (item: ItemSuggestion) => {
+    setFormData(prev => ({
+      ...prev,
+      partProductName: item.item_name,
+      partNo: item.item_code // Auto-fill part number with item code
+    }));
+    if (errors.partProductName) setErrors(prev => ({ ...prev, partProductName: '' }));
   };
 
   /* ─── parameter row handlers ─────────────────────────────────── */
 
-  const handleParameterFieldChange = (rowIndex: number, field: 'specification' | 'result' | 'remarks', value: string) => {
+  const handleParameterFieldChange = (rowIndex: number, field: 'parameter' | 'specification' | 'inspectionMethod', value: string) => {
     setFormData(prev => {
-      const details = [...prev.details];
-      details[rowIndex] = { ...details[rowIndex], [field]: value };
-      return { ...prev, details };
+      const parameters = [...prev.parameters];
+      parameters[rowIndex] = { ...parameters[rowIndex], [field]: value };
+      return { ...prev, parameters };
     });
   };
 
   const handleObservationChange = (rowIndex: number, colIndex: number, value: string) => {
     setFormData(prev => {
-      const details = [...prev.details];
-      const observations = [...details[rowIndex].observations];
-      observations[colIndex] = { ...observations[colIndex], observed_value: value };
-      details[rowIndex] = { ...details[rowIndex], observations };
-      return { ...prev, details };
+      const parameters = [...prev.parameters];
+      const observations = [...parameters[rowIndex].observations];
+      observations[colIndex] = value;
+      parameters[rowIndex] = { ...parameters[rowIndex], observations };
+      return { ...prev, parameters };
     });
   };
 
   const addParameterRow = () => {
     setFormData(prev => ({
       ...prev,
-      details: [
-        ...prev.details,
-        {
-          parameter_id: '',
-          inspection_method_id: '',
-          specification: '',
-          result: '',
-          remarks: '',
-          observations: Array.from({ length: prev.sampleCount }, (_, i) => ({
-            sample_no: i + 1,
-            observed_value: '',
-            result: '',
-            remarks: '',
-          })),
-        },
+      parameters: [
+        ...prev.parameters,
+        { id: nextId(), parameter: '', specification: '', inspectionMethod: '', observations: Array.from({ length: prev.sampleCount }, () => '') },
       ],
     }));
   };
 
   const removeParameterRow = (rowIndex: number) => {
     setFormData(prev => {
-      if (prev.details.length <= 1) return prev;
-      return { ...prev, details: prev.details.filter((_, i) => i !== rowIndex) };
+      if (prev.parameters.length <= 1) return prev;
+      return { ...prev, parameters: prev.parameters.filter((_, i) => i !== rowIndex) };
     });
   };
 
@@ -539,13 +511,7 @@ export default function QualityInspectionForm() {
     setFormData(prev => ({
       ...prev,
       sampleCount: prev.sampleCount + 1,
-      details: prev.details.map(row => ({
-        ...row,
-        observations: [
-          ...row.observations,
-          { sample_no: prev.sampleCount + 1, observed_value: '', result: '', remarks: '' }
-        ],
-      })),
+      parameters: prev.parameters.map(row => ({ ...row, observations: [...row.observations, ''] })),
     }));
   };
 
@@ -555,18 +521,15 @@ export default function QualityInspectionForm() {
       return {
         ...prev,
         sampleCount: prev.sampleCount - 1,
-        details: prev.details.map(row => ({
-          ...row,
-          observations: row.observations.slice(0, -1),
-        })),
+        parameters: prev.parameters.map(row => ({ ...row, observations: row.observations.slice(0, -1) })),
       };
     });
   };
 
   /* ─── out-of-spec summary ────────────────────────────────────── */
 
-  const outOfSpecCount = formData.details.reduce((count, row) => {
-    return count + row.observations.filter(v => isObservationOutOfSpec(row.specification, v.observed_value)).length;
+  const outOfSpecCount = formData.parameters.reduce((count, row) => {
+    return count + row.observations.filter(v => isObservationOutOfSpec(row.specification, v)).length;
   }, 0);
 
   /* ─── export / print ─────────────────────────────────────────── */
@@ -574,49 +537,26 @@ export default function QualityInspectionForm() {
   const buildPrintHtml = (): string => {
     const sampleHeaderCells = Array.from({ length: formData.sampleCount }, (_, i) => `<th class="obs">${i + 1}</th>`).join('');
 
-    const getParameterName = (paramId: string | number) => {
-      if (templateDetails) {
-        const param = templateDetails.parameters.find(p => String(p.id) === String(paramId));
-        if (param) return param.parameter_name;
-      }
-      return String(paramId);
-    };
-
-    const getInspectionMethodName = (methodId: string | number) => {
-      if (templateDetails) {
-        const param = templateDetails.parameters.find(p => String(p.inspection_method_id) === String(methodId));
-        if (param) return param.inspection_method_name;
-      }
-      return String(methodId);
-    };
-
-    const parameterRows = formData.details.map((row, rowIndex) => {
+    const parameterRows = formData.parameters.map((row, rowIndex) => {
       const obsCells = row.observations.map((value) => {
-        const outOfSpec = isObservationOutOfSpec(row.specification, value.observed_value);
-        return `<td class="obs${outOfSpec ? ' out-of-spec' : ''}">${escapeHtml(value.observed_value)}</td>`;
+        const outOfSpec = isObservationOutOfSpec(row.specification, value);
+        return `<td class="obs${outOfSpec ? ' out-of-spec' : ''}">${escapeHtml(value)}</td>`;
       }).join('');
       return `
         <tr>
           <td class="sr">${rowIndex + 1}</td>
-          <td>${escapeHtml(getParameterName(row.parameter_id))}</td>
+          <td>${escapeHtml(row.parameter)}</td>
           <td>${escapeHtml(row.specification)}</td>
-          <td>${escapeHtml(getInspectionMethodName(row.inspection_method_id))}</td>
+          <td>${escapeHtml(row.inspectionMethod)}</td>
           ${obsCells}
         </tr>`;
     }).join('');
-
-    const companyName = masterData.companies.find(c => String(c.id) === String(formData.company_id))?.name || '';
-    const customerName = masterData.customers.find(c => String(c.id) === String(formData.customer_id))?.name || '';
-    const itemName = masterData.items.find(i => String(i.id) === String(formData.item_id))?.name || '';
-    const itemPartNo = masterData.items.find(i => String(i.id) === String(formData.item_id))?.part_no || '';
-    const inspectedByName = masterData.employees.find(e => String(e.id) === String(formData.inspected_by))?.name || '';
-    const reviewedByName = masterData.employees.find(e => String(e.id) === String(formData.reviewed_by))?.name || '';
 
     return `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8" />
-<title>${escapeHtml(formData.inspection_no || 'Inspection Report')}</title>
+<title>${escapeHtml(formData.reportNo || 'Inspection Report')}</title>
 <style>
   @page { size: A4 landscape; margin: 10mm; }
   * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -648,36 +588,36 @@ export default function QualityInspectionForm() {
   <div class="sheet">
     <table class="letterhead">
       <tr>
-        <td class="company">${escapeHtml(companyName)}</td>
-        <td class="report-title">FINAL INSPECTION REPORT</td>
-        <td class="docno">DOC. NO: ${escapeHtml(formData.inspection_no)}</td>
+        <td class="company">${escapeHtml(formData.companyName)}</td>
+        <td class="report-title">${escapeHtml(formData.reportTitle)}</td>
+        <td class="docno">DOC. NO: ${escapeHtml(formData.docNo)}</td>
       </tr>
     </table>
 
     <table class="meta">
       <tr>
         <td class="label">Part / Product Name :-</td>
-        <td colspan="2">${escapeHtml(itemName)}</td>
+        <td colspan="2">${escapeHtml(formData.partProductName)}</td>
         <td class="label">Part No :-</td>
-        <td colspan="2">${escapeHtml(itemPartNo)}</td>
+        <td colspan="2">${escapeHtml(formData.partNo)}</td>
         <td class="label">Date :</td>
-        <td>${escapeHtml(formData.inspection_date)}</td>
+        <td>${escapeHtml(formData.date)}</td>
       </tr>
       <tr>
         <td class="label">Drawing No :-</td>
-        <td colspan="2">${escapeHtml(formData.drawing_no)}</td>
+        <td colspan="2">${escapeHtml(formData.drawingNo)}</td>
         <td class="label">Rev. No :</td>
-        <td colspan="2">${escapeHtml(formData.revision_no)}</td>
+        <td colspan="2">${escapeHtml(formData.revNo)}</td>
         <td class="label">Invoice No :</td>
-        <td>${escapeHtml(formData.reference_id)}</td>
+        <td>${escapeHtml(formData.invoiceNo)}</td>
       </tr>
       <tr>
         <td class="label">Customer Name :</td>
-        <td colspan="2">${escapeHtml(customerName)}</td>
+        <td colspan="2">${escapeHtml(formData.customerName)}</td>
         <td class="label">Challan No / Date :</td>
-        <td colspan="2">${escapeHtml('')}</td>
+        <td colspan="2">${escapeHtml(formData.challanNoDate)}</td>
         <td class="label">Invoice Qty :</td>
-        <td>${escapeHtml(String(formData.inspection_qty))}</td>
+        <td>${escapeHtml(formData.invoiceQty)}</td>
       </tr>
       <tr>
         <td class="label"></td>
@@ -685,7 +625,7 @@ export default function QualityInspectionForm() {
         <td class="label"></td>
         <td colspan="2"></td>
         <td class="label">Report No :</td>
-        <td>${escapeHtml(formData.inspection_no)}</td>
+        <td>${escapeHtml(formData.reportNo)}</td>
       </tr>
     </table>
 
@@ -706,19 +646,19 @@ export default function QualityInspectionForm() {
     </table>
 
     <table class="notes">
-      <tr><td>ALL DIMENSIONS ARE IN MM</td></tr>
-      <tr><td>ALL SAMPLES ARE CHECKED RANDOMLY</td></tr>
-      <tr><td class="remarks"><span class="label-inline">Supplier Remarks: -</span>${escapeHtml(formData.remarks)}</td></tr>
+      <tr><td>${escapeHtml(formData.allDimensionsNote)}</td></tr>
+      <tr><td>${escapeHtml(formData.samplesNote)}</td></tr>
+      <tr><td class="remarks"><span class="label-inline">Supplier Remarks: -</span>${escapeHtml(formData.supplierRemarks)}</td></tr>
     </table>
 
     <table class="signoff">
       <tr>
         <td class="rev-cell">
-          <div><span class="label-inline">Rev. No:</span>${escapeHtml(formData.revision_no)}</div>
-          <div><span class="label-inline">Rev. Date:</span>${escapeHtml(formData.inspection_date)}</div>
+          <div><span class="label-inline">Rev. No:</span>${escapeHtml(formData.footerRevNo)}</div>
+          <div><span class="label-inline">Rev. Date:</span>${escapeHtml(formData.footerRevDate)}</div>
         </td>
-        <td class="name-cell"><span class="label-inline">Inspected By:</span>${escapeHtml(inspectedByName)}</td>
-        <td class="name-cell"><span class="label-inline">Reviewed By:</span>${escapeHtml(reviewedByName)}</td>
+        <td class="name-cell"><span class="label-inline">Inspected By:</span>${escapeHtml(formData.inspectedBy)}</td>
+        <td class="name-cell"><span class="label-inline">Reviewed By:</span>${escapeHtml(formData.reviewedBy)}</td>
       </tr>
     </table>
   </div>
@@ -769,12 +709,11 @@ export default function QualityInspectionForm() {
 
   const validate = (): boolean => {
     const newErrors: { [key: string]: string } = {};
-    if (!formData.company_id) newErrors.company_id = 'Company is required';
-    if (!formData.item_id) newErrors.item_id = 'Item is required';
-    if (!formData.customer_id) newErrors.customer_id = 'Customer is required';
-    if (!formData.quality_template_id) newErrors.quality_template_id = 'Quality Template is required';
-    if (!formData.inspection_date) newErrors.inspection_date = 'Date is required';
-    if (!formData.inspected_by) newErrors.inspected_by = 'Inspected By is required';
+    if (!formData.docNo.trim()) newErrors.docNo = 'Doc No is required';
+    if (!formData.reportNo.trim()) newErrors.reportNo = 'Report No is required';
+    if (!formData.partProductName.trim()) newErrors.partProductName = 'Part / Product Name is required';
+    if (!formData.customerName.trim()) newErrors.customerName = 'Customer Name is required';
+    if (!formData.date) newErrors.date = 'Date is required';
 
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) {
@@ -786,45 +725,99 @@ export default function QualityInspectionForm() {
     return true;
   };
 
-  /* ─── save ───────────────────────────────────────────────────── */
+  /* ─── Build API payload matching backend expectations ─────────── */
 
-  const buildApiPayload = () => ({
-    inspection_no: formData.inspection_no || `QIR-${Date.now().toString(36).toUpperCase()}`,
-    company_id: formData.company_id,
-    inspection_date: formData.inspection_date,
-    inspection_type: formData.inspection_type,
-    reference_type: formData.reference_type,
-    reference_id: formData.reference_id,
-    item_id: formData.item_id,
-    quality_template_id: formData.quality_template_id,
-    warehouse_id: formData.warehouse_id,
-    customer_id: formData.customer_id,
-    supplier_id: formData.supplier_id,
-    drawing_no: formData.drawing_no,
-    revision_no: formData.revision_no,
-    inspection_qty: formData.inspection_qty,
-    accepted_qty: formData.accepted_qty,
-    rejected_qty: formData.rejected_qty,
-    status: formData.status,
-    overall_result: formData.overall_result,
-    remarks: formData.remarks,
-    inspected_by: formData.inspected_by,
-    reviewed_by: formData.reviewed_by,
-    approved_by: formData.approved_by,
-    details: formData.details.map(detail => ({
-      parameter_id: detail.parameter_id,
-      inspection_method_id: detail.inspection_method_id,
-      specification: detail.specification,
-      result: detail.result,
-      remarks: detail.remarks,
-      observations: detail.observations.map(obs => ({
-        sample_no: obs.sample_no,
-        observed_value: obs.observed_value,
-        result: obs.result,
-        remarks: obs.remarks,
-      })),
-    })),
-  });
+  const buildApiPayload = () => {
+    // Generate inspection number if not exists
+    const inspectionNo = isEditMode && recordName ? recordName : `QIR-${Date.now().toString(36).toUpperCase()}`;
+    
+    // Determine overall result
+    const overallResult = outOfSpecCount > 0 ? 'Fail' : 'Pass';
+    
+    // Build details array
+    const details = formData.parameters.map((param, index) => {
+      // Calculate result for this parameter
+      const paramOutOfSpec = param.observations.some(v => isObservationOutOfSpec(param.specification, v));
+      const paramResult = paramOutOfSpec ? 'Fail' : 'Pass';
+      
+      // Build observations array
+      const observations = param.observations.map((value, obsIndex) => ({
+        sample_no: obsIndex + 1,
+        observed_value: value || null,
+        result: value && isObservationOutOfSpec(param.specification, value) ? 'Fail' : 'Pass',
+        remarks: null
+      }));
+
+      return {
+        parameter_id: index + 1,
+        inspection_method_id: 1,
+        specification: param.specification || null,
+        result: paramResult,
+        remarks: null,
+        observations: observations
+      };
+    });
+
+    // ENUM mapping for inspection_type
+    const inspectionTypeMap: { [key: string]: string } = {
+      'Incoming Inspection': 'Incoming',
+      'In Process Inspection': 'In Process',
+      'Final Inspection': 'Final',
+      'Dispatch Inspection': 'Dispatch'
+    };
+
+    // Get the mapped value or default to 'Final'
+    const inspectionType = inspectionTypeMap['Final Inspection'] || 'Final';
+
+    // Determine status based on the inspection state
+    // Since this is a completed inspection, we'll use 'Accepted' 
+    // which is one of the allowed ENUM values
+    const status = outOfSpecCount > 0 ? 'Rejected' : 'Accepted';
+
+    return {
+      inspection_no: inspectionNo,
+      company_id: 1,
+      inspection_date: formData.date || null,
+      inspection_type: inspectionType, // Now sends 'Final' instead of 'Final Inspection'
+      reference_type: 'Purchase Order', // Changed from 'PO' to match ENUM
+      reference_id: 0,
+      item_id: 22,
+      quality_template_id: null,
+      warehouse_id: null,
+      batch_id: null,
+      customer_id: 0,
+      supplier_id: 0,
+      drawing_no: formData.drawingNo || null,
+      revision_no: formData.revNo || null,
+      inspection_qty: parseInt(formData.invoiceQty) || 0,
+      accepted_qty: outOfSpecCount > 0 ? 0 : (parseInt(formData.invoiceQty) || 0),
+      rejected_qty: outOfSpecCount || 0,
+      status: status, // Now sends 'Accepted' or 'Rejected' instead of 'Completed'
+      overall_result: overallResult,
+      remarks: formData.supplierRemarks || null,
+      inspected_by: formData.inspectedBy || null,
+      reviewed_by: formData.reviewedBy || null,
+      approved_by: null,
+      // Additional fields for your specific UI
+      doc_no: formData.docNo,
+      company_name: formData.companyName,
+      report_title: formData.reportTitle,
+      part_product_name: formData.partProductName,
+      part_no: formData.partNo,
+      customer_name: formData.customerName,
+      invoice_no: formData.invoiceNo,
+      invoice_qty: formData.invoiceQty,
+      challan_no_date: formData.challanNoDate,
+      report_no: formData.reportNo,
+      all_dimensions_note: formData.allDimensionsNote,
+      samples_note: formData.samplesNote,
+      footer_rev_no: formData.footerRevNo,
+      footer_rev_date: formData.footerRevDate,
+      details: details
+    };
+  };
+
+  /* ─── Save ───────────────────────────────────────────────────── */
 
   const handleSave = async () => {
     if (!validate()) {
@@ -838,8 +831,8 @@ export default function QualityInspectionForm() {
       const payload = buildApiPayload();
 
       let response;
-      if (isEditMode && id) {
-        response = await api.put('/quality-inspection', payload);
+      if (isEditMode && recordName) {
+        response = await api.put(`/quality-inspection`, { ...payload, id: parseInt(id!) });
       } else {
         response = await api.post('/quality-inspection', payload);
       }
@@ -891,7 +884,7 @@ export default function QualityInspectionForm() {
             </div>
           )}
 
-          {(loadingRecord || loadingMasterData) && (
+          {loadingRecord && (
             <div className="qir-error-pill">
               <FaSpinner className="spinning" size={11} /> Loading...
             </div>
@@ -915,42 +908,38 @@ export default function QualityInspectionForm() {
           <tbody>
             <tr>
               <td className="qir-company-cell">
-                <select
+                <input
                   className="qir-company-input"
-                  name="company_id"
-                  value={String(formData.company_id)}
-                  onChange={handleSelectChange}
-                  ref={setRef('company_id')}
-                >
-                  <option value="">Select Company</option>
-                  {masterData.companies.map(company => (
-                    <option key={String(company.id)} value={String(company.id)}>{company.name}</option>
-                  ))}
-                </select>
-                {errors.company_id && <span className="qir-error-text qir-no-print">{errors.company_id}</span>}
+                  name="companyName"
+                  value={formData.companyName}
+                  onChange={handleFieldChange}
+                  ref={setRef('companyName')}
+                />
               </td>
               <td className="qir-report-title-cell">
                 <input
                   className="qir-report-title-input"
                   name="reportTitle"
-                  value="FINAL INSPECTION REPORT"
-                  readOnly
+                  value={formData.reportTitle}
+                  onChange={handleFieldChange}
+                  ref={setRef('reportTitle')}
                 />
               </td>
               <td className="qir-docno-cell">
                 <span className="qir-label-inline">DOC. NO:</span>
                 <input
-                  className={`qir-inline-input ${errors.inspection_no ? 'qir-input-error' : ''}`}
-                  name="inspection_no"
-                  value={formData.inspection_no}
+                  className={`qir-inline-input ${errors.docNo ? 'qir-input-error' : ''}`}
+                  name="docNo"
+                  value={formData.docNo}
                   onChange={handleFieldChange}
-                  placeholder="e.g. QIR-2024-001"
-                  ref={setRef('inspection_no')}
+                  placeholder="e.g. AI / QA / 04"
+                  ref={setRef('docNo')}
                 />
               </td>
             </tr>
           </tbody>
         </table>
+        {errors.docNo && <span className="qir-error-text qir-no-print">{errors.docNo}</span>}
 
         {/* ── Meta info grid ────────────────────────────────────── */}
         <table className="qir-meta-table">
@@ -958,121 +947,67 @@ export default function QualityInspectionForm() {
             <tr>
               <td className="qir-meta-label">Part / Product Name :-</td>
               <td className="qir-meta-value" colSpan={2}>
-                <select
-                  name="item_id"
-                  value={String(formData.item_id)}
-                  onChange={handleSelectChange}
-                  className={errors.item_id ? 'qir-input-error' : ''}
-                  ref={setRef('item_id')}
-                >
-                  <option value="">Select Item</option>
-                  {masterData.items.map(item => (
-                    <option key={String(item.id)} value={String(item.id)}>{item.name}</option>
-                  ))}
-                </select>
+                <AutocompleteInput
+                  value={formData.partProductName}
+                  onChange={handlePartProductNameChange}
+                  onSelect={handlePartProductSelect}
+                  placeholder="Search and select item..."
+                  className={errors.partProductName ? 'qir-input-error' : ''}
+                />
               </td>
               <td className="qir-meta-label">Part No :-</td>
               <td className="qir-meta-value" colSpan={2}>
-                <input
-                  name="partNo"
-                  value={masterData.items.find(i => String(i.id) === String(formData.item_id))?.part_no || ''}
+                <input 
+                  name="partNo" 
+                  value={formData.partNo} 
+                  onChange={handleFieldChange} 
+                  placeholder="Part number" 
+                  ref={setRef('partNo')}
                   readOnly
-                  placeholder="Part number"
+                  style={{ backgroundColor: '#f9fafb', cursor: 'not-allowed' }}
                 />
               </td>
               <td className="qir-meta-label">Date :</td>
               <td className="qir-meta-value">
-                <input type="date" name="inspection_date" value={formData.inspection_date} onChange={handleFieldChange} className={errors.inspection_date ? 'qir-input-error' : ''} ref={setRef('inspection_date')} />
+                <input type="date" name="date" value={formData.date} onChange={handleFieldChange} className={errors.date ? 'qir-input-error' : ''} ref={setRef('date')} />
               </td>
             </tr>
             <tr>
               <td className="qir-meta-label">Drawing No :-</td>
               <td className="qir-meta-value" colSpan={2}>
-                <input name="drawing_no" value={formData.drawing_no} onChange={handleFieldChange} placeholder="Drawing number" ref={setRef('drawing_no')} />
+                <input name="drawingNo" value={formData.drawingNo} onChange={handleFieldChange} placeholder="Drawing number" ref={setRef('drawingNo')} />
               </td>
               <td className="qir-meta-label">Rev. No :</td>
               <td className="qir-meta-value" colSpan={2}>
-                <input name="revision_no" value={formData.revision_no} onChange={handleFieldChange} ref={setRef('revision_no')} />
+                <input name="revNo" value={formData.revNo} onChange={handleFieldChange} ref={setRef('revNo')} />
               </td>
               <td className="qir-meta-label">Invoice No :</td>
               <td className="qir-meta-value">
-                <input name="reference_id" value={formData.reference_id} onChange={handleFieldChange} ref={setRef('reference_id')} />
+                <input name="invoiceNo" value={formData.invoiceNo} onChange={handleFieldChange} ref={setRef('invoiceNo')} />
               </td>
             </tr>
             <tr>
               <td className="qir-meta-label">Customer Name :</td>
               <td className="qir-meta-value" colSpan={2}>
-                <select
-                  name="customer_id"
-                  value={String(formData.customer_id)}
-                  onChange={handleSelectChange}
-                  className={errors.customer_id ? 'qir-input-error' : ''}
-                  ref={setRef('customer_id')}
-                >
-                  <option value="">Select Customer</option>
-                  {masterData.customers.map(customer => (
-                    <option key={String(customer.id)} value={String(customer.id)}>{customer.name}</option>
-                  ))}
-                </select>
+                <input name="customerName" value={formData.customerName} onChange={handleFieldChange} placeholder="Customer name" className={errors.customerName ? 'qir-input-error' : ''} ref={setRef('customerName')} />
               </td>
               <td className="qir-meta-label">Challan No / Date :</td>
               <td className="qir-meta-value" colSpan={2}>
-                <input name="challanNoDate" value="" onChange={handleFieldChange} ref={setRef('challanNoDate')} />
+                <input name="challanNoDate" value={formData.challanNoDate} onChange={handleFieldChange} ref={setRef('challanNoDate')} />
               </td>
               <td className="qir-meta-label">Invoice Qty :</td>
               <td className="qir-meta-value">
-                <input name="inspection_qty" type="number" value={formData.inspection_qty} onChange={handleFieldChange} placeholder="Nos" ref={setRef('inspection_qty')} />
+                <input name="invoiceQty" value={formData.invoiceQty} onChange={handleFieldChange} placeholder="Nos" ref={setRef('invoiceQty')} />
               </td>
             </tr>
             <tr>
-              <td className="qir-meta-label">Supplier :</td>
-              <td className="qir-meta-value" colSpan={2}>
-                <select
-                  name="supplier_id"
-                  value={String(formData.supplier_id)}
-                  onChange={handleSelectChange}
-                  ref={setRef('supplier_id')}
-                >
-                  <option value="">Select Supplier</option>
-                  {masterData.suppliers.map(supplier => (
-                    <option key={String(supplier.id)} value={String(supplier.id)}>{supplier.name}</option>
-                  ))}
-                </select>
-              </td>
-              <td className="qir-meta-label">Warehouse :</td>
-              <td className="qir-meta-value" colSpan={2}>
-                <select
-                  name="warehouse_id"
-                  value={String(formData.warehouse_id)}
-                  onChange={handleSelectChange}
-                  ref={setRef('warehouse_id')}
-                >
-                  <option value="">Select Warehouse</option>
-                  {masterData.warehouses.map(warehouse => (
-                    <option key={String(warehouse.id)} value={String(warehouse.id)}>{warehouse.name}</option>
-                  ))}
-                </select>
-              </td>
+              <td className="qir-meta-label"></td>
+              <td className="qir-meta-value" colSpan={2}></td>
+              <td className="qir-meta-label"></td>
+              <td className="qir-meta-value" colSpan={2}></td>
               <td className="qir-meta-label">Report No :</td>
               <td className="qir-meta-value">
-                <input name="inspection_no" value={formData.inspection_no} onChange={handleFieldChange} className={errors.inspection_no ? 'qir-input-error' : ''} ref={setRef('inspection_no')} />
-              </td>
-            </tr>
-            <tr>
-              <td className="qir-meta-label">Quality Template :</td>
-              <td className="qir-meta-value" colSpan={7}>
-                <select
-                  name="quality_template_id"
-                  value={String(formData.quality_template_id)}
-                  onChange={handleSelectChange}
-                  className={errors.quality_template_id ? 'qir-input-error' : ''}
-                  ref={setRef('quality_template_id')}
-                >
-                  <option value="">Select Quality Template</option>
-                  {masterData.qualityTemplates.map(template => (
-                    <option key={String(template.id)} value={String(template.id)}>{template.name}</option>
-                  ))}
-                </select>
+                <input name="reportNo" value={formData.reportNo} onChange={handleFieldChange} className={errors.reportNo ? 'qir-input-error' : ''} ref={setRef('reportNo')} />
               </td>
             </tr>
           </tbody>
@@ -1112,56 +1047,52 @@ export default function QualityInspectionForm() {
               </tr>
             </thead>
             <tbody>
-              {formData.details.map((row, rowIndex) => {
-                const paramName = templateDetails?.parameters?.find(p => String(p.id) === String(row.parameter_id))?.parameter_name || '';
-                const methodName = templateDetails?.parameters?.find(p => String(p.inspection_method_id) === String(row.inspection_method_id))?.inspection_method_name || '';
-                return (
-                  <tr key={nextId()}>
-                    <td className="qir-col-sr qir-text-center">{rowIndex + 1}</td>
-                    <td className="qir-col-param">
-                      <input
-                        value={paramName}
-                        readOnly
-                        placeholder="Parameter"
-                      />
-                    </td>
-                    <td className="qir-col-spec">
-                      <input
-                        value={row.specification}
-                        onChange={(e) => handleParameterFieldChange(rowIndex, 'specification', e.target.value)}
-                        placeholder="e.g. 9±0.2"
-                      />
-                    </td>
-                    <td className="qir-col-method">
-                      <input
-                        value={methodName}
-                        readOnly
-                        placeholder="Vernier Caliper"
-                      />
-                    </td>
-                    {row.observations.map((value, colIndex) => {
-                      const outOfSpec = isObservationOutOfSpec(row.specification, value.observed_value);
-                      return (
-                        <td key={colIndex} className="qir-col-obs">
-                          <input
-                            value={value.observed_value}
-                            onChange={(e) => handleObservationChange(rowIndex, colIndex, e.target.value)}
-                            className={outOfSpec ? 'qir-out-of-spec' : ''}
-                            title={outOfSpec ? 'Reading is outside the specification tolerance' : undefined}
-                          />
-                        </td>
-                      );
-                    })}
-                    <td className="qir-col-del qir-no-print">
-                      {formData.details.length > 1 && (
-                        <button type="button" className="qir-remove-btn" onClick={() => removeParameterRow(rowIndex)} title="Delete row">
-                          <FaTrash size={10} />
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
+              {formData.parameters.map((row, rowIndex) => (
+                <tr key={row.id}>
+                  <td className="qir-col-sr qir-text-center">{rowIndex + 1}</td>
+                  <td className="qir-col-param">
+                    <input
+                      value={row.parameter}
+                      onChange={(e) => handleParameterFieldChange(rowIndex, 'parameter', e.target.value)}
+                      placeholder="Parameter"
+                    />
+                  </td>
+                  <td className="qir-col-spec">
+                    <input
+                      value={row.specification}
+                      onChange={(e) => handleParameterFieldChange(rowIndex, 'specification', e.target.value)}
+                      placeholder="e.g. 9±0.2"
+                    />
+                  </td>
+                  <td className="qir-col-method">
+                    <input
+                      value={row.inspectionMethod}
+                      onChange={(e) => handleParameterFieldChange(rowIndex, 'inspectionMethod', e.target.value)}
+                      placeholder="Vernier Caliper"
+                    />
+                  </td>
+                  {row.observations.map((value, colIndex) => {
+                    const outOfSpec = isObservationOutOfSpec(row.specification, value);
+                    return (
+                      <td key={colIndex} className="qir-col-obs">
+                        <input
+                          value={value}
+                          onChange={(e) => handleObservationChange(rowIndex, colIndex, e.target.value)}
+                          className={outOfSpec ? 'qir-out-of-spec' : ''}
+                          title={outOfSpec ? 'Reading is outside the specification tolerance' : undefined}
+                        />
+                      </td>
+                    );
+                  })}
+                  <td className="qir-col-del qir-no-print">
+                    {formData.parameters.length > 1 && (
+                      <button type="button" className="qir-remove-btn" onClick={() => removeParameterRow(rowIndex)} title="Delete row">
+                        <FaTrash size={10} />
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
@@ -1171,18 +1102,18 @@ export default function QualityInspectionForm() {
           <tbody>
             <tr>
               <td>
-                <input name="allDimensionsNote" value="ALL DIMENSIONS ARE IN MM" readOnly />
+                <input name="allDimensionsNote" value={formData.allDimensionsNote} onChange={handleFieldChange} />
               </td>
             </tr>
             <tr>
               <td>
-                <input name="samplesNote" value="ALL SAMPLES ARE CHECKED RANDOMLY" readOnly />
+                <input name="samplesNote" value={formData.samplesNote} onChange={handleFieldChange} />
               </td>
             </tr>
             <tr>
               <td className="qir-remarks-row">
                 <span className="qir-label-inline">Supplier Remarks: -</span>
-                <input name="remarks" value={formData.remarks} onChange={handleFieldChange} />
+                <input name="supplierRemarks" value={formData.supplierRemarks} onChange={handleFieldChange} />
               </td>
             </tr>
           </tbody>
@@ -1194,40 +1125,19 @@ export default function QualityInspectionForm() {
             <tr>
               <td className="qir-signoff-rev">
                 <div><span className="qir-label-inline">Rev. No:</span>
-                  <input name="revision_no" value={formData.revision_no} onChange={handleFieldChange} />
+                  <input name="footerRevNo" value={formData.footerRevNo} onChange={handleFieldChange} />
                 </div>
                 <div><span className="qir-label-inline">Rev. Date:</span>
-                  <input type="date" name="inspection_date" value={formData.inspection_date} onChange={handleFieldChange} />
+                  <input type="date" name="footerRevDate" value={formData.footerRevDate} onChange={handleFieldChange} />
                 </div>
               </td>
               <td className="qir-signoff-name">
                 <span className="qir-label-inline">Inspected By:</span>
-                <select
-                  name="inspected_by"
-                  value={String(formData.inspected_by)}
-                  onChange={handleSelectChange}
-                  className={errors.inspected_by ? 'qir-input-error' : ''}
-                  ref={setRef('inspected_by')}
-                >
-                  <option value="">Select Employee</option>
-                  {masterData.employees.map(employee => (
-                    <option key={String(employee.id)} value={String(employee.id)}>{employee.name}</option>
-                  ))}
-                </select>
+                <input name="inspectedBy" value={formData.inspectedBy} onChange={handleFieldChange} />
               </td>
               <td className="qir-signoff-name">
                 <span className="qir-label-inline">Reviewed By:</span>
-                <select
-                  name="reviewed_by"
-                  value={String(formData.reviewed_by)}
-                  onChange={handleSelectChange}
-                  ref={setRef('reviewed_by')}
-                >
-                  <option value="">Select Employee</option>
-                  {masterData.employees.map(employee => (
-                    <option key={String(employee.id)} value={String(employee.id)}>{employee.name}</option>
-                  ))}
-                </select>
+                <input name="reviewedBy" value={formData.reviewedBy} onChange={handleFieldChange} />
               </td>
             </tr>
           </tbody>

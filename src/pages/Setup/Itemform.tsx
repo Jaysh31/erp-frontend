@@ -4,7 +4,6 @@ import {
   FaArrowLeft,
   FaSave,
   FaSpinner,
-  FaExclamationTriangle,
   FaPlus,
   FaTrash,
   FaTag,

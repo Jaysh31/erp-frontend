@@ -24,6 +24,7 @@ import {
   FaUser,
   FaStar,
   FaGlobe,
+  FaUniversity,
 } from 'react-icons/fa';
 import "./Supplier.css";
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
@@ -49,6 +50,33 @@ interface Contact {
   remarks: string;
 }
 
+interface BankDetail {
+  id: number;
+  supplier_id?: number;
+  account_holder_name: string;
+  account_type: string;
+  bank_name: string;
+  branch_name: string;
+  account_number: string;
+  ifsc_code: string;
+  micr_code?: string;
+  swift_code?: string;
+  iban?: string;
+  upi_id?: string;
+  currency: string;
+  address?: string;
+  city?: string;
+  district?: string;
+  state?: string;
+  country?: string;
+  pincode?: string;
+  verified: number;
+  verified_by?: string;
+  verified_on?: string;
+  is_primary: number;
+  remarks?: string;
+}
+
 interface SupplierDisplay {
   id: string;
   supplierName: string;
@@ -65,6 +93,7 @@ interface SupplierDisplay {
   updatedAt: string;
   website: string;
   contacts: Contact[];
+  bankDetails: BankDetail[];
 }
 
 interface ApiResponse {
@@ -135,6 +164,10 @@ export default function SupplierList() {
   const [showViewModal, setShowViewModal] = useState(false);
   const [viewSupplier, setViewSupplier] = useState<SupplierDisplay | null>(null);
 
+  // ─── Bank Accounts Modal State ────────────────────────────────────────
+  const [showBankModal, setShowBankModal] = useState(false);
+  const [bankModalSupplier, setBankModalSupplier] = useState<SupplierDisplay | null>(null);
+
   const supplierTypes = ['Company', 'Individual', 'Partnership', 'Proprietorship', 'LLP', 'Trust', 'Society'];
   const countries = ['India', 'USA', 'UK', 'Germany', 'China', 'Japan', 'UAE', 'Singapore'];
   const taxCategories = ['Registered Regular', 'Registered Composition', 'Unregistered', 'SEZ', 'Export Oriented'];
@@ -195,6 +228,7 @@ export default function SupplierList() {
           updatedAt: item.updated_at || '',
           website: item.website || '',
           contacts: item.contacts || [],
+          bankDetails: item.bank_details || [],
         }));
 
         setSuppliers(transformedData);
@@ -424,6 +458,28 @@ export default function SupplierList() {
     setShowViewModal(true);
   };
 
+  // Opens the read-only "Bank Accounts" details popup for a supplier that
+  // already has one or more accounts on file.
+  const handleViewBankAccounts = (supplier: SupplierDisplay) => {
+    setBankModalSupplier(supplier);
+    setShowBankModal(true);
+  };
+
+  // Sends the user to the bank-details form, pre-wired to attach the new
+  // account to this supplier, for suppliers that have none yet.
+  const handleAddBankAccount = (supplier: SupplierDisplay) => {
+    navigate('/bank-details', {
+      state: {
+        embedContext: {
+          returnPath: '/supplier',
+          partyType: 'Supplier',
+          partyId: supplier.id,
+          supplierName: supplier.supplierName,
+        },
+      },
+    });
+  };
+
   const clearFilters = () => {
     setSearchTerm('');
     setStatusFilter('all');
@@ -586,6 +642,7 @@ export default function SupplierList() {
                   <th className="supplier-th">Supplier Name</th>
                   <th className="supplier-th">Contact</th>
                   <th className="supplier-th">Group</th>
+                  <th className="supplier-th">Bank Accounts</th>
                   <th className="supplier-th">Status</th>
                   <th className="supplier-th supplier-th-meta">
                     <span className="supplier-count-label">{totalFilteredItems} of {totalSuppliers}</span>
@@ -598,7 +655,7 @@ export default function SupplierList() {
               <tbody>
                 {paginatedData.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="supplier-empty-state">
+                    <td colSpan={7} className="supplier-empty-state">
                       <div className="supplier-empty-content">
                         <FaBuilding size={48} />
                         <p>No suppliers found</p>
@@ -611,6 +668,7 @@ export default function SupplierList() {
                     // const serialNumber = (validCurrentPage - 1) * itemsPerPage + index + 1;
                     const isExpanded = expandedRows.has(row.id);
                     const hasContacts = row.contacts && row.contacts.length > 0;
+                    const hasBankAccounts = row.bankDetails && row.bankDetails.length > 0;
 
                     return (
                       <React.Fragment key={row.id}>
@@ -672,6 +730,28 @@ export default function SupplierList() {
                           <td className="supplier-td">
                             <span className="supplier-group-badge">{row.supplierGroup}</span>
                           </td>
+                          <td className="supplier-td" onClick={(e) => e.stopPropagation()}>
+                            {hasBankAccounts ? (
+                              <button
+                                type="button"
+                                className="supplier-bank-badge"
+                                onClick={() => handleViewBankAccounts(row)}
+                                title="View bank account details"
+                              >
+                                <FaUniversity size={11} />
+                                {row.bankDetails.length} Account{row.bankDetails.length > 1 ? 's' : ''}
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                className="supplier-bank-add-btn"
+                                onClick={() => handleAddBankAccount(row)}
+                                title="Add a bank account for this supplier"
+                              >
+                                <FaPlus size={10} /> Add Account
+                              </button>
+                            )}
+                          </td>
                           <td className="supplier-td">{getStatusBadge(row.status)}</td>
                           <td className="supplier-td supplier-td-meta">
                             <div className="supplier-action-buttons">
@@ -701,7 +781,7 @@ export default function SupplierList() {
                         </tr>
                         {isExpanded && hasContacts && (
                           <tr className="supplier-expanded-row">
-                            <td colSpan={6}>
+                            <td colSpan={7}>
                               <div className="supplier-expanded-content">
                                 <div className="supplier-contact-table-wrap">
                                   <table className="supplier-contact-table">
@@ -893,6 +973,7 @@ export default function SupplierList() {
                   <div className="supplier-view-row"><label>Transporter:</label><span>{viewSupplier.isTransporter ? 'Yes' : 'No'}</span></div>
                   <div className="supplier-view-row"><label>Internal Supplier:</label><span>{viewSupplier.isInternalSupplier ? 'Yes' : 'No'}</span></div>
                   <div className="supplier-view-row"><label>On Hold:</label><span>{viewSupplier.onHold ? 'Yes' : 'No'}</span></div>
+                  <div className="supplier-view-row"><label>Bank Accounts:</label><span>{viewSupplier.bankDetails?.length || 0}</span></div>
                   <div className="supplier-view-row"><label>Created:</label><span>{formatDate(viewSupplier.createdAt)}</span></div>
                   <div className="supplier-view-row"><label>Updated:</label><span>{formatDate(viewSupplier.updatedAt)}</span></div>
                 </div>
@@ -904,6 +985,114 @@ export default function SupplierList() {
               </button>
               <button className="supplier-btn-edit" onClick={() => { setShowViewModal(false); handleEdit(viewSupplier); }}>
                 <FaEdit size={12} /> Edit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bank Accounts Modal — shown when clicking the account-count badge */}
+      {showBankModal && bankModalSupplier && (
+        <div className="supplier-modal-overlay" onClick={() => setShowBankModal(false)}>
+          <div className="supplier-modal supplier-modal-bank" onClick={(e) => e.stopPropagation()}>
+            <div className="supplier-bank-modal-header">
+              <div className="supplier-bank-modal-header-icon">
+                <FaUniversity size={16} />
+              </div>
+              <div className="supplier-bank-modal-header-text">
+                <span className="supplier-modal-title">Bank Accounts</span>
+                <span className="supplier-edit-subtitle">{bankModalSupplier.supplierName}</span>
+              </div>
+              <button className="supplier-modal-close" onClick={() => setShowBankModal(false)}>
+                <FaTimes size={16} />
+              </button>
+            </div>
+            <div className="supplier-modal-body supplier-bank-modal-body">
+              {bankModalSupplier.bankDetails && bankModalSupplier.bankDetails.length > 0 ? (
+                bankModalSupplier.bankDetails.map((acc, idx) => (
+                  <div key={acc.id || idx} className="supplier-bank-card">
+                    <div className="supplier-bank-card-icon">
+                      <FaUniversity size={16} />
+                    </div>
+                    <div className="supplier-bank-card-info">
+                      <div className="supplier-bank-card-top">
+                        <strong>{acc.bank_name || 'Bank account'}</strong>
+                        <div className="supplier-bank-card-badges">
+                          {acc.is_primary === 1 && (
+                            <span className="supplier-bank-badge-tag supplier-bank-badge-primary">
+                              <FaStar size={8} /> Primary
+                            </span>
+                          )}
+                          {acc.verified === 1 ? (
+                            <span className="supplier-bank-badge-tag supplier-bank-badge-verified">
+                              <FaCheckCircle size={9} /> Verified
+                            </span>
+                          ) : (
+                            <span className="supplier-bank-badge-tag supplier-bank-badge-unverified">
+                              <FaTimesCircle size={9} /> Unverified
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="supplier-bank-card-rows">
+                        <div className="supplier-bank-card-row">
+                          <label>Holder</label><span>{acc.account_holder_name || 'N/A'}</span>
+                        </div>
+                        <div className="supplier-bank-card-row">
+                          <label>Account No.</label><span>{acc.account_number || 'N/A'}</span>
+                        </div>
+                        <div className="supplier-bank-card-row">
+                          <label>IFSC Code</label><span>{acc.ifsc_code || 'N/A'}</span>
+                        </div>
+                        <div className="supplier-bank-card-row">
+                          <label>Branch</label><span>{acc.branch_name || 'N/A'}</span>
+                        </div>
+                        <div className="supplier-bank-card-row">
+                          <label>Account Type</label><span>{acc.account_type || 'N/A'}</span>
+                        </div>
+                        <div className="supplier-bank-card-row">
+                          <label>Currency</label><span>{acc.currency || 'INR'}</span>
+                        </div>
+                        {acc.swift_code && (
+                          <div className="supplier-bank-card-row">
+                            <label>SWIFT</label><span>{acc.swift_code}</span>
+                          </div>
+                        )}
+                        {acc.iban && (
+                          <div className="supplier-bank-card-row">
+                            <label>IBAN</label><span>{acc.iban}</span>
+                          </div>
+                        )}
+                        {acc.upi_id && (
+                          <div className="supplier-bank-card-row">
+                            <label>UPI ID</label><span>{acc.upi_id}</span>
+                          </div>
+                        )}
+                        {acc.remarks && (
+                          <div className="supplier-bank-card-row supplier-bank-card-row-full">
+                            <label>Remarks</label><span>{acc.remarks}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="supplier-bank-empty">
+                  <FaUniversity size={32} />
+                  <p>No bank accounts on file for this supplier.</p>
+                </div>
+              )}
+            </div>
+            <div className="supplier-modal-footer">
+              <button className="supplier-btn-cancel" onClick={() => setShowBankModal(false)}>
+                Close
+              </button>
+              <button
+                className="supplier-btn-edit"
+                onClick={() => { setShowBankModal(false); handleAddBankAccount(bankModalSupplier); }}
+              >
+                <FaPlus size={12} /> Add Another
               </button>
             </div>
           </div>

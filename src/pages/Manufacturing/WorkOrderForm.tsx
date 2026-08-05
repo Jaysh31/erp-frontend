@@ -2,7 +2,7 @@ import { useState, type FormEvent, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   FaArrowLeft, FaSave, FaSpinner, FaExclamationTriangle,
-  FaInfoCircle, FaTimesCircle, FaPlus, FaTrash,
+  FaInfoCircle,  FaPlus, FaTrash,
    FaSearch,  FaBuilding, FaTruck,
   FaImage,  FaCalendarAlt,
   FaCheckCircle, FaBoxOpen, FaCogs,
@@ -974,7 +974,7 @@ export default function WorkOrderForm() {
   // const [newComment, setNewComment] = useState("");
   const [apiError, setApiError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<{ field: string; label: string; message: string }[]>([]);
-  const [showValidation, setShowValidation] = useState(false);
+  // const [showValidation, setShowValidation] = useState(false);
 
   // Stock Warning Modal state
   const [stockWarningModal, setStockWarningModal] = useState<{
@@ -1027,7 +1027,7 @@ export default function WorkOrderForm() {
   const [materialAvailability, setMaterialAvailability] = useState<
     { item_code: string; item_name: string; received_qty: number; uom: string; warehouse: string }[]
   >([]);
-  const [availabilityWarehouse, setAvailabilityWarehouse] = useState<string>("");
+  const [, setAvailabilityWarehouse] = useState<string>("");
 
   // BOM state (Internal WO)
   const [selectedBomLabel, setSelectedBomLabel] = useState("");
