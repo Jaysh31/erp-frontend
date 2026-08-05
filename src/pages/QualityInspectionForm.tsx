@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   FaArrowLeft, FaSave, FaPrint, FaPlus, FaTrash,
-  FaExclamationTriangle, FaClipboardCheck, FaSpinner, FaSearch
+  FaExclamationTriangle, FaClipboardCheck, FaSpinner, 
 } from 'react-icons/fa';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import './QualityInspectionForm.css';
@@ -14,9 +14,14 @@ import api from '../services/api';
 interface ParameterRow {
   id: string;
   parameter: string;
+  parameterId?: number;
   specification: string;
   inspectionMethod: string;
+  inspectionMethodId?: number;
   observations: string[];
+  isMandatory?: number;
+  remarks?: string;
+  detailId?: number;
 }
 
 interface InspectionForm {
@@ -42,6 +47,7 @@ interface InspectionForm {
   footerRevDate: string;
   inspectedBy: string;
   reviewedBy: string;
+  qualityTemplateId?: number | null;
 }
 
 interface ItemSuggestion {
@@ -50,6 +56,62 @@ interface ItemSuggestion {
   item_name: string;
   item_group: string;
   description: string;
+}
+
+interface CustomerSuggestion {
+  id: number;
+  customer_name: string;
+  customer_type: string;
+  customer_group: string;
+  mobile_no: string;
+  email_id: string;
+  contacts?: Array<{
+    id: number;
+    contact_name: string;
+    mobile_no: string;
+    email_id: string;
+  }>;
+}
+
+interface ParameterSuggestion {
+  id: number;
+  parameter_name: string;
+  parameter_code: string;
+  parameter_group_id: number;
+  default_method_id: number;
+  unit: string | null;
+  is_mandatory: number;
+  is_active: number;
+}
+
+interface MethodSuggestion {
+  id: number;
+  method_name: string;
+  description: string;
+  is_active: number;
+  created_at: string;
+}
+
+interface TemplateInfo {
+  id: number;
+  template_name: string;
+  template_code: string;
+  company_id: number;
+  item_id: number;
+  description: string;
+  is_default: number;
+  is_active: number;
+  parameters: Array<{
+    parameter_id: number;
+    parameter_name: string;
+    parameter_code: string;
+    inspection_method_id: number;
+    inspection_method_name: string;
+    specification: string;
+    sequence_no: number;
+    is_mandatory: number;
+    remarks: string | null;
+  }>;
 }
 
 /* ─────────────────────────── Helpers ─────────────────────────── */
@@ -86,16 +148,14 @@ const escapeHtml = (value: string): string => {
     .replace(/"/g, '&quot;');
 };
 
-const buildDefaultParameters = (sampleCount: number): ParameterRow[] => {
-  const blanks = () => Array.from({ length: sampleCount }, () => '');
-  return [
-    { id: nextId(), parameter: 'Total Length', specification: '9±0.2', inspectionMethod: 'Vernier Caliper', observations: blanks() },
-    { id: nextId(), parameter: 'O.D.', specification: '13±0.2', inspectionMethod: 'Vernier Caliper', observations: blanks() },
-    { id: nextId(), parameter: 'HOLE', specification: '6.5±0.1', inspectionMethod: 'Vernier Caliper', observations: blanks() },
-    { id: nextId(), parameter: 'STEP OD', specification: '10±0.2', inspectionMethod: 'Vernier Caliper', observations: blanks() },
-    { id: nextId(), parameter: 'LENGTH', specification: '6±0.1', inspectionMethod: 'Vernier Caliper', observations: blanks() },
-  ];
-};
+// Create a single blank parameter row
+const createBlankParameterRow = (sampleCount: number): ParameterRow => ({
+  id: nextId(),
+  parameter: '',
+  specification: '',
+  inspectionMethod: '',
+  observations: Array.from({ length: sampleCount }, () => ''),
+});
 
 const DEFAULT_SAMPLE_COUNT = 10;
 
@@ -113,7 +173,7 @@ const defaultFormData = (): InspectionForm => ({
   invoiceQty: '',
   challanNoDate: '',
   reportNo: '',
-  parameters: buildDefaultParameters(DEFAULT_SAMPLE_COUNT),
+  parameters: [createBlankParameterRow(DEFAULT_SAMPLE_COUNT)],
   sampleCount: DEFAULT_SAMPLE_COUNT,
   allDimensionsNote: 'ALL DIMENSIONS ARE IN MM',
   samplesNote: 'ALL SAMPLES ARE CHECKED RANDOMLY',
@@ -122,6 +182,7 @@ const defaultFormData = (): InspectionForm => ({
   footerRevDate: '',
   inspectedBy: '',
   reviewedBy: '',
+  qualityTemplateId: null,
 });
 
 const unwrapDate = (value?: string | null): string => {
@@ -129,28 +190,38 @@ const unwrapDate = (value?: string | null): string => {
   return value.split('T')[0];
 };
 
-/* ─────────────────── Autocomplete Component ─────────────────── */
+/* ─────────────── Autocomplete Components ─────────────────── */
 
 interface AutocompleteInputProps {
   value: string;
   onChange: (value: string) => void;
-  onSelect: (item: ItemSuggestion) => void;
+  onSelect: (item: any) => void;
   placeholder?: string;
   className?: string;
   error?: boolean;
   disabled?: boolean;
+  apiEndpoint: string;
+  displayField: string;
+  labelField?: string;
+  subLabelField?: string;
+  searchParam?: string;
 }
 
 const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
   value,
   onChange,
   onSelect,
-  placeholder = 'Search items...',
+  placeholder = 'Search...',
   className = '',
   error = false,
-  disabled = false
+  disabled = false,
+  apiEndpoint,
+  displayField,
+  labelField,
+  subLabelField,
+  searchParam = 'search'
 }) => {
-  const [suggestions, setSuggestions] = useState<ItemSuggestion[]>([]);
+  const [suggestions, setSuggestions] = useState<any[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
@@ -167,16 +238,25 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
 
     setLoading(true);
     try {
-      const response = await api.get('/item', {
+      const response = await api.get(apiEndpoint, {
         params: {
           page: 1,
           limit: 10,
-          search: searchTerm.trim()
+          [searchParam]: searchTerm.trim()
         }
       });
 
       if (response.data.success === 1) {
-        const items = Array.isArray(response.data.data) ? response.data.data : [];
+        let items = [];
+        if (Array.isArray(response.data.data)) {
+          items = response.data.data;
+        } else if (response.data.data?.records) {
+          items = response.data.data.records;
+        } else if (response.data.data?.data) {
+          items = response.data.data.data;
+        } else {
+          items = [];
+        }
         setSuggestions(items);
         setIsOpen(items.length > 0);
       } else {
@@ -184,7 +264,7 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
         setIsOpen(false);
       }
     } catch (error) {
-      console.error('Error fetching item suggestions:', error);
+      console.error(`Error fetching ${apiEndpoint} suggestions:`, error);
       setSuggestions([]);
       setIsOpen(false);
     } finally {
@@ -196,18 +276,16 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
     const newValue = e.target.value;
     onChange(newValue);
 
-    // Clear previous debounce timer
     if (debounceTimer.current) {
       clearTimeout(debounceTimer.current);
     }
 
-    // Debounce API calls
     debounceTimer.current = setTimeout(() => {
       fetchSuggestions(newValue);
     }, 300);
   };
 
-  const handleSuggestionClick = (item: ItemSuggestion) => {
+  const handleSuggestionClick = (item: any) => {
     onSelect(item);
     setIsOpen(false);
     setSuggestions([]);
@@ -253,7 +331,6 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
     };
   }, []);
 
-  // Cleanup debounce timer on unmount
   useEffect(() => {
     return () => {
       if (debounceTimer.current) {
@@ -261,6 +338,24 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
       }
     };
   }, []);
+
+  const getDisplayValue = (item: any) => {
+    return item[displayField] || '';
+  };
+
+  const getLabelValue = (item: any) => {
+    if (labelField) {
+      return item[labelField] || '';
+    }
+    return '';
+  };
+
+  const getSubLabelValue = (item: any) => {
+    if (subLabelField) {
+      return item[subLabelField] || '';
+    }
+    return '';
+  };
 
   return (
     <div className="autocomplete-wrapper" ref={wrapperRef} style={{ position: 'relative', width: '100%' }}>
@@ -314,7 +409,7 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
         }}>
           {suggestions.map((item, index) => (
             <li
-              key={item.id}
+              key={item.id || index}
               onClick={() => handleSuggestionClick(item)}
               onMouseEnter={() => setHighlightedIndex(index)}
               style={{
@@ -324,14 +419,227 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
                 borderBottom: '1px solid #f3f4f6'
               }}
             >
-              <div style={{ fontWeight: 500 }}>{item.item_name}</div>
-              <div style={{ fontSize: '12px', color: '#6b7280' }}>
-                Code: {item.item_code} | Group: {item.item_group}
-              </div>
+              <div style={{ fontWeight: 500 }}>{getDisplayValue(item)}</div>
+              {getLabelValue(item) && (
+                <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                  {getLabelValue(item)}
+                  {getSubLabelValue(item) && ` | ${getSubLabelValue(item)}`}
+                </div>
+              )}
             </li>
           ))}
         </ul>
       )}
+    </div>
+  );
+};
+
+/* ─────────────── Popup 1: Template Creation Modal ──────────────────────── */
+
+interface TemplateCreationModalProps {
+  isOpen: boolean;
+  onConfirm: () => void;
+  onSkip: () => void;
+}
+
+const TemplateCreationModal: React.FC<TemplateCreationModalProps> = ({
+  isOpen,
+  onConfirm,
+  onSkip
+}) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="modal-overlay" style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 9999
+    }}>
+      <div className="modal-content" style={{
+        backgroundColor: 'white',
+        borderRadius: '8px',
+        padding: '32px',
+        maxWidth: '450px',
+        width: '90%',
+        boxShadow: '0 4px 20px rgba(0,0,0,0.2)'
+      }}>
+        <h2 style={{
+          margin: '0 0 12px 0',
+          fontSize: '20px',
+          fontWeight: '600',
+          color: '#1f2937'
+        }}>
+          Create Quality Template
+        </h2>
+
+        <p style={{ margin: '0 0 20px 0', color: '#6b7280', lineHeight: '1.6' }}>
+          No Quality Template exists for this Item.<br />
+          Would you like to create one using this inspection?
+        </p>
+
+        <div style={{
+          display: 'flex',
+          gap: '12px',
+          justifyContent: 'flex-end',
+          borderTop: '1px solid #e5e7eb',
+          paddingTop: '20px'
+        }}>
+          <button
+            onClick={onSkip}
+            style={{
+              padding: '8px 20px',
+              backgroundColor: 'transparent',
+              color: '#6b7280',
+              border: '1px solid #d1d5db',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '500'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#f9fafb';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent';
+            }}
+          >
+            Skip
+          </button>
+          <button
+            onClick={onConfirm}
+            style={{
+              padding: '8px 20px',
+              backgroundColor: '#2563eb',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '500'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#1d4ed8';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = '#2563eb';
+            }}
+          >
+            Create Template
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ─────────────── Popup 2: Template Update Modal ──────────────────────── */
+
+interface TemplateUpdateModalProps {
+  isOpen: boolean;
+  onConfirm: () => void;
+  onSkip: () => void;
+}
+
+const TemplateUpdateModal: React.FC<TemplateUpdateModalProps> = ({
+  isOpen,
+  onConfirm,
+  onSkip
+}) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="modal-overlay" style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 9999
+    }}>
+      <div className="modal-content" style={{
+        backgroundColor: 'white',
+        borderRadius: '8px',
+        padding: '32px',
+        maxWidth: '450px',
+        width: '90%',
+        boxShadow: '0 4px 20px rgba(0,0,0,0.2)'
+      }}>
+        <h2 style={{
+          margin: '0 0 12px 0',
+          fontSize: '20px',
+          fontWeight: '600',
+          color: '#1f2937'
+        }}>
+          Template Modified
+        </h2>
+
+        <p style={{ margin: '0 0 20px 0', color: '#6b7280', lineHeight: '1.6' }}>
+          Inspection template has changed.<br />
+          Would you like to update the template?
+        </p>
+
+        <div style={{
+          display: 'flex',
+          gap: '12px',
+          justifyContent: 'flex-end',
+          borderTop: '1px solid #e5e7eb',
+          paddingTop: '20px'
+        }}>
+          <button
+            onClick={onSkip}
+            style={{
+              padding: '8px 20px',
+              backgroundColor: 'transparent',
+              color: '#6b7280',
+              border: '1px solid #d1d5db',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '500'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#f9fafb';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent';
+            }}
+          >
+            Don't Update
+          </button>
+          <button
+            onClick={onConfirm}
+            style={{
+              padding: '8px 20px',
+              backgroundColor: '#2563eb',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '500'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#1d4ed8';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = '#2563eb';
+            }}
+          >
+            Update
+          </button>
+        </div>
+      </div>
     </div>
   );
 };
@@ -358,12 +666,152 @@ export default function QualityInspectionForm() {
   const [recordName, setRecordName] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [loadingRecord, setLoadingRecord] = useState(false);
+  const [loadingTemplate, setLoadingTemplate] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
+  
+  // Template state management
+  const [currentTemplate, setCurrentTemplate] = useState<TemplateInfo | null>(null);
+  const [originalTemplateRows, setOriginalTemplateRows] = useState<ParameterRow[]>([]);
+  const [templateLoaded, setTemplateLoaded] = useState(false);
+  
+  // Popup 1 state (Template Creation)
+  const [showTemplateCreationModal, setShowTemplateCreationModal] = useState(false);
+  
+  // Popup 2 state (Template Update)
+  const [showTemplateUpdateModal, setShowTemplateUpdateModal] = useState(false);
 
   const inputRefs = useRef<{ [key: string]: HTMLInputElement | HTMLTextAreaElement | null }>({});
   const setRef = (key: string) => (el: HTMLInputElement | HTMLTextAreaElement | null) => {
     inputRefs.current[key] = el;
+  };
+
+  /* ─── Comparison Functions ────────────────────────────────────── */
+
+  const compareParameters = (templateParams: any[], formParams: ParameterRow[]): boolean => {
+    if (templateParams.length !== formParams.length) {
+      return true;
+    }
+
+    const sortedTemplate = [...templateParams].sort((a, b) => a.parameter_id - b.parameter_id);
+    const sortedForm = [...formParams].sort((a, b) => (a.parameterId || 0) - (b.parameterId || 0));
+
+    for (let i = 0; i < sortedTemplate.length; i++) {
+      const t = sortedTemplate[i];
+      const f = sortedForm[i];
+
+      if (t.parameter_id !== f.parameterId) return true;
+      if (t.inspection_method_id !== f.inspectionMethodId) return true;
+      if (t.specification !== f.specification) return true;
+      if ((t.remarks || '') !== (f.remarks || '')) return true;
+      if ((t.is_mandatory || 1) !== (f.isMandatory || 1)) return true;
+    }
+
+    return false;
+  };
+
+  /* ─── Load Quality Template when Item is selected ──────────── */
+
+  const loadQualityTemplate = async (itemId: number) => {
+    setLoadingTemplate(true);
+    setTemplateLoaded(false);
+    
+    try {
+      const response = await api.get(`/quality-template/by-item/${itemId}`);
+      
+      if (response.data.success === 1 && response.data.data) {
+        const templateData = response.data.data;
+        
+        setCurrentTemplate({
+          id: templateData.id,
+          template_name: templateData.template_name,
+          template_code: templateData.template_code,
+          company_id: templateData.company_id,
+          item_id: templateData.item_id,
+          description: templateData.description,
+          is_default: templateData.is_default,
+          is_active: templateData.is_active,
+          parameters: templateData.parameters
+        });
+
+        const sampleCount = formData.sampleCount || 5;
+        const blanks = () => Array.from({ length: sampleCount }, () => '');
+        
+        const parameters: ParameterRow[] = templateData.parameters.map((param: any) => ({
+          id: nextId(),
+          parameter: param.parameter_name,
+          parameterId: param.parameter_id,
+          specification: param.specification,
+          inspectionMethod: param.inspection_method_name,
+          inspectionMethodId: param.inspection_method_id,
+          observations: blanks(),
+          isMandatory: param.is_mandatory,
+          remarks: param.remarks,
+          detailId: param.detail_id
+        }));
+
+        setOriginalTemplateRows(JSON.parse(JSON.stringify(parameters)));
+
+        setFormData(prev => ({
+          ...prev,
+          parameters: parameters,
+          qualityTemplateId: templateData.id,
+          partProductName: prev.partProductName || templateData.template_name,
+          partNo: prev.partNo || templateData.template_code,
+        }));
+
+        setTemplateLoaded(true);
+        toast.success(`Loaded template: ${templateData.template_name}`);
+      } else if (response.data.success === 0) {
+        setCurrentTemplate(null);
+        setOriginalTemplateRows([]);
+        setTemplateLoaded(false);
+        
+        const emptyParameters: ParameterRow[] = [
+          createBlankParameterRow(formData.sampleCount || 5)
+        ];
+        
+        setFormData(prev => ({
+          ...prev,
+          parameters: emptyParameters,
+          qualityTemplateId: null,
+        }));
+        
+        toast('No Quality Template found for this item. Starting with empty grid.');
+      }
+    } catch (error: any) {
+      console.error('Error loading quality template:', error);
+      setCurrentTemplate(null);
+      setOriginalTemplateRows([]);
+      setTemplateLoaded(false);
+      
+      const emptyParameters: ParameterRow[] = [
+        createBlankParameterRow(formData.sampleCount || 5)
+      ];
+      
+      setFormData(prev => ({
+        ...prev,
+        parameters: emptyParameters,
+        qualityTemplateId: null,
+      }));
+      
+      toast('Could not load Quality Template. Starting with empty grid.');
+    } finally {
+      setLoadingTemplate(false);
+    }
+  };
+
+  /* ─── Clear template data ────────────────────────────────────── */
+
+  const clearTemplateData = () => {
+    setCurrentTemplate(null);
+    setOriginalTemplateRows([]);
+    setTemplateLoaded(false);
+    setFormData(prev => ({
+      ...prev,
+      qualityTemplateId: null,
+    }));
   };
 
   /* ─── load existing record when editing ─────────────────────── */
@@ -376,13 +824,28 @@ export default function QualityInspectionForm() {
       ? record.details.map((d: any) => ({
           id: nextId(),
           parameter: d.parameter_name || `Parameter ${d.parameter_id}`,
+          parameterId: d.parameter_id,
           specification: d.specification || '',
           inspectionMethod: d.inspection_method_name || '',
+          inspectionMethodId: d.inspection_method_id,
           observations: Array.isArray(d.observations) && d.observations.length > 0
             ? d.observations.map((obs: any) => obs.observed_value || '')
             : Array.from({ length: sampleCount }, () => ''),
+          isMandatory: d.is_mandatory,
+          remarks: d.remarks,
         }))
-      : buildDefaultParameters(sampleCount);
+      : [createBlankParameterRow(sampleCount)];
+
+    if (record.item_id) {
+      setSelectedItemId(record.item_id);
+      
+      if (record.quality_template_id) {
+        setFormData(prev => ({
+          ...prev,
+          qualityTemplateId: record.quality_template_id,
+        }));
+      }
+    }
 
     setFormData((prev) => ({
       ...prev,
@@ -408,6 +871,7 @@ export default function QualityInspectionForm() {
       footerRevDate: unwrapDate(record.footer_rev_date) || prev.footerRevDate,
       inspectedBy: record.inspected_by || prev.inspectedBy,
       reviewedBy: record.reviewed_by || prev.reviewedBy,
+      qualityTemplateId: record.quality_template_id || prev.qualityTemplateId,
     }));
   };
 
@@ -417,7 +881,15 @@ export default function QualityInspectionForm() {
     try {
       const response = await api.get(`/quality-inspection/${recordId}`);
       if (response.data.success === 1 && response.data.data) {
-        loadRecordIntoForm(response.data.data);
+        const record = response.data.data;
+        loadRecordIntoForm(record);
+        
+        if (record.quality_template_id && record.item_id) {
+          setFormData(prev => ({
+            ...prev,
+            qualityTemplateId: record.quality_template_id,
+          }));
+        }
       } else {
         setApiError('Inspection report not found');
       }
@@ -458,16 +930,38 @@ export default function QualityInspectionForm() {
 
   const handlePartProductNameChange = (value: string) => {
     setFormData(prev => ({ ...prev, partProductName: value }));
+    if (selectedItemId !== null) {
+      setSelectedItemId(null);
+      clearTemplateData();
+    }
     if (errors.partProductName) setErrors(prev => ({ ...prev, partProductName: '' }));
   };
 
-  const handlePartProductSelect = (item: ItemSuggestion) => {
+  const handlePartProductSelect = async (item: ItemSuggestion) => {
     setFormData(prev => ({
       ...prev,
       partProductName: item.item_name,
-      partNo: item.item_code // Auto-fill part number with item code
+      partNo: item.item_code
     }));
+    setSelectedItemId(item.id);
     if (errors.partProductName) setErrors(prev => ({ ...prev, partProductName: '' }));
+    
+    await loadQualityTemplate(item.id);
+  };
+
+  /* ─── Customer handlers ────────────────────────────────────── */
+
+  const handleCustomerNameChange = (value: string) => {
+    setFormData(prev => ({ ...prev, customerName: value }));
+    if (errors.customerName) setErrors(prev => ({ ...prev, customerName: '' }));
+  };
+
+  const handleCustomerSelect = (item: CustomerSuggestion) => {
+    setFormData(prev => ({
+      ...prev,
+      customerName: item.customer_name
+    }));
+    if (errors.customerName) setErrors(prev => ({ ...prev, customerName: '' }));
   };
 
   /* ─── parameter row handlers ─────────────────────────────────── */
@@ -476,6 +970,60 @@ export default function QualityInspectionForm() {
     setFormData(prev => {
       const parameters = [...prev.parameters];
       parameters[rowIndex] = { ...parameters[rowIndex], [field]: value };
+      if (field === 'parameter') {
+        parameters[rowIndex].parameterId = undefined;
+      }
+      if (field === 'inspectionMethod') {
+        parameters[rowIndex].inspectionMethodId = undefined;
+      }
+      return { ...prev, parameters };
+    });
+  };
+
+  const handleParameterSelect = (rowIndex: number, item: ParameterSuggestion) => {
+    setFormData(prev => {
+      const parameters = [...prev.parameters];
+      parameters[rowIndex] = { 
+        ...parameters[rowIndex], 
+        parameter: item.parameter_name,
+        parameterId: item.id
+      };
+      return { ...prev, parameters };
+    });
+  };
+
+  const handleMethodSelect = (rowIndex: number, item: MethodSuggestion) => {
+    setFormData(prev => {
+      const parameters = [...prev.parameters];
+      parameters[rowIndex] = { 
+        ...parameters[rowIndex], 
+        inspectionMethod: item.method_name,
+        inspectionMethodId: item.id
+      };
+      return { ...prev, parameters };
+    });
+  };
+
+  const handleParameterNameChange = (rowIndex: number, value: string) => {
+    setFormData(prev => {
+      const parameters = [...prev.parameters];
+      parameters[rowIndex] = { 
+        ...parameters[rowIndex], 
+        parameter: value,
+        parameterId: undefined
+      };
+      return { ...prev, parameters };
+    });
+  };
+
+  const handleMethodNameChange = (rowIndex: number, value: string) => {
+    setFormData(prev => {
+      const parameters = [...prev.parameters];
+      parameters[rowIndex] = { 
+        ...parameters[rowIndex], 
+        inspectionMethod: value,
+        inspectionMethodId: undefined
+      };
       return { ...prev, parameters };
     });
   };
@@ -495,7 +1043,7 @@ export default function QualityInspectionForm() {
       ...prev,
       parameters: [
         ...prev.parameters,
-        { id: nextId(), parameter: '', specification: '', inspectionMethod: '', observations: Array.from({ length: prev.sampleCount }, () => '') },
+        createBlankParameterRow(prev.sampleCount),
       ],
     }));
   };
@@ -715,6 +1263,15 @@ export default function QualityInspectionForm() {
     if (!formData.customerName.trim()) newErrors.customerName = 'Customer Name is required';
     if (!formData.date) newErrors.date = 'Date is required';
 
+    formData.parameters.forEach((row, index) => {
+      if (!row.parameter.trim()) {
+        newErrors[`parameter_${index}`] = 'Parameter name is required';
+      }
+      if (!row.inspectionMethod.trim()) {
+        newErrors[`method_${index}`] = 'Inspection method is required';
+      }
+    });
+
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) {
       const firstKey = Object.keys(newErrors)[0];
@@ -725,22 +1282,386 @@ export default function QualityInspectionForm() {
     return true;
   };
 
+  /* ─── Detect New Parameters and Methods ──────────────────────── */
+
+  const detectNewParametersAndMethods = () => {
+    const parameterNames = formData.parameters
+      .map(row => row.parameter.trim())
+      .filter(name => name.length > 0);
+
+    const methodNames = formData.parameters
+      .map(row => row.inspectionMethod.trim())
+      .filter(name => name.length > 0);
+
+    const newParameters = formData.parameters
+      .filter(row => {
+        const hasNoId = !row.parameterId;
+        const hasName = row.parameter.trim().length > 0;
+        return hasNoId && hasName;
+      })
+      .map(row => row.parameter.trim())
+      .filter((name, index, self) => self.indexOf(name) === index);
+
+    const newMethods = formData.parameters
+      .filter(row => {
+        const hasNoId = !row.inspectionMethodId;
+        const hasName = row.inspectionMethod.trim().length > 0;
+        return hasNoId && hasName;
+      })
+      .map(row => row.inspectionMethod.trim())
+      .filter((name, index, self) => self.indexOf(name) === index);
+
+    return {
+      newParameters,
+      newMethods,
+      allParameterNames: parameterNames,
+      allMethodNames: methodNames
+    };
+  };
+
+  /* ─── Save Missing Masters ────────────────────────────────────── */
+
+  const saveMissingMasters = async (newParameters: string[], newMethods: string[]) => {
+    console.log('Saving missing masters...');
+    console.log('New Parameters to save:', newParameters);
+    console.log('New Methods to save:', newMethods);
+    
+    const savedParameters: { [key: string]: number } = {};
+    const savedMethods: { [key: string]: number } = {};
+
+    for (const paramName of newParameters) {
+      try {
+        const response = await api.post('/quality-parameter', {
+          parameter_name: paramName,
+          parameter_code: paramName.substring(0, 10).toUpperCase().replace(/\s+/g, '_'),
+          parameter_group_id: 1,
+          default_method_id: null,
+          unit: null,
+          description: `Auto-created from inspection form`,
+          is_mandatory: 0,
+          is_active: 1
+        });
+
+        if (response.data.success === 1 && response.data.data) {
+          const paramData = response.data.data;
+          const id = paramData.id || paramData.insertId;
+          if (id) {
+            savedParameters[paramName] = id;
+            console.log(`Parameter "${paramName}" saved with ID: ${id}`);
+          }
+        }
+      } catch (error) {
+        console.error(`Failed to save parameter "${paramName}":`, error);
+        throw new Error(`Failed to save parameter: ${paramName}`);
+      }
+    }
+
+    for (const methodName of newMethods) {
+      try {
+        const response = await api.post('/inspection-method', {
+          method_name: methodName,
+          description: `Auto-created from inspection form`,
+          is_active: 1
+        });
+
+        if (response.data.success === 1 && response.data.data) {
+          const methodData = response.data.data;
+          const id = methodData.id || methodData.insertId;
+          if (id) {
+            savedMethods[methodName] = id;
+            console.log(`Method "${methodName}" saved with ID: ${id}`);
+          }
+        }
+      } catch (error) {
+        console.error(`Failed to save method "${methodName}":`, error);
+        throw new Error(`Failed to save method: ${methodName}`);
+      }
+    }
+
+    return { savedParameters, savedMethods };
+  };
+
+  /* ─── Template Save Functions ─────────────────────────────────── */
+
+  const createTemplateFromForm = async () => {
+    try {
+      // Detect new parameters and methods
+      const { newParameters, newMethods } = detectNewParametersAndMethods();
+      
+      let savedParameters: { [key: string]: number } = {};
+      let savedMethods: { [key: string]: number } = {};
+
+      // Automatically save new parameters and methods if they exist
+      if (newParameters.length > 0 || newMethods.length > 0) {
+        const result = await saveMissingMasters(newParameters, newMethods);
+        savedParameters = result.savedParameters;
+        savedMethods = result.savedMethods;
+      }
+
+      // Build template payload with updated IDs
+      const templatePayload = {
+        template_name: `${formData.partProductName || 'Inspection'} Template`,
+        template_code: `TEMP-${(formData.partNo || 'INSP').toUpperCase()}-${Date.now().toString(36).toUpperCase()}`,
+        company_id: 1,
+        item_id: selectedItemId || 22,
+        description: `Created from inspection ${recordName || 'QIR'}`,
+        is_default: 1,
+        is_active: 1,
+        parameters: formData.parameters.map((row, index) => {
+          let parameterId = row.parameterId;
+          if (!parameterId && row.parameter.trim()) {
+            const paramName = row.parameter.trim();
+            if (savedParameters[paramName]) {
+              parameterId = savedParameters[paramName];
+            }
+          }
+          
+          let methodId = row.inspectionMethodId;
+          if (!methodId && row.inspectionMethod.trim()) {
+            const methodName = row.inspectionMethod.trim();
+            if (savedMethods[methodName]) {
+              methodId = savedMethods[methodName];
+            }
+          }
+
+          return {
+            parameter_id: parameterId || (index + 1),
+            inspection_method_id: methodId || 1,
+            specification: row.specification || '',
+            sequence_no: index + 1,
+            is_mandatory: row.isMandatory ?? 1,
+            remarks: row.remarks || null
+          };
+        })
+      };
+
+      const response = await api.post('/quality-template', templatePayload);
+      
+      if (response.data.success === 1) {
+        toast.success('Quality Template created successfully!');
+        return true;
+      } else {
+        throw new Error(response.data.message || 'Failed to create template');
+      }
+    } catch (err: any) {
+      console.error('Error creating template:', err);
+      const message = err.response?.data?.message || err.message || 'Failed to create template';
+      toast.error(message);
+      return false;
+    }
+  };
+
+  const updateTemplateFromForm = async () => {
+    if (!currentTemplate) {
+      toast.error('No template to update');
+      return false;
+    }
+
+    try {
+      // Detect new parameters and methods
+      const { newParameters, newMethods } = detectNewParametersAndMethods();
+      
+      let savedParameters: { [key: string]: number } = {};
+      let savedMethods: { [key: string]: number } = {};
+
+      // Automatically save new parameters and methods if they exist
+      if (newParameters.length > 0 || newMethods.length > 0) {
+        const result = await saveMissingMasters(newParameters, newMethods);
+        savedParameters = result.savedParameters;
+        savedMethods = result.savedMethods;
+      }
+
+      // Build template payload with updated IDs
+      const templatePayload = {
+        id: currentTemplate.id,
+        template_name: currentTemplate.template_name,
+        template_code: currentTemplate.template_code,
+        company_id: currentTemplate.company_id,
+        item_id: currentTemplate.item_id,
+        description: currentTemplate.description || `Updated from inspection ${recordName || 'QIR'}`,
+        is_default: currentTemplate.is_default,
+        is_active: 1,
+        parameters: formData.parameters.map((row, index) => {
+          let parameterId = row.parameterId;
+          if (!parameterId && row.parameter.trim()) {
+            const paramName = row.parameter.trim();
+            if (savedParameters[paramName]) {
+              parameterId = savedParameters[paramName];
+            }
+          }
+          
+          let methodId = row.inspectionMethodId;
+          if (!methodId && row.inspectionMethod.trim()) {
+            const methodName = row.inspectionMethod.trim();
+            if (savedMethods[methodName]) {
+              methodId = savedMethods[methodName];
+            }
+          }
+
+          return {
+            id: row.detailId || undefined,
+            parameter_id: parameterId || (index + 1),
+            inspection_method_id: methodId || 1,
+            specification: row.specification || '',
+            sequence_no: index + 1,
+            is_mandatory: row.isMandatory ?? 1,
+            remarks: row.remarks || null
+          };
+        })
+      };
+
+      const response = await api.put('/quality-template', templatePayload);
+      
+      if (response.data.success === 1) {
+        toast.success('Quality Template updated successfully!');
+        return true;
+      } else {
+        throw new Error(response.data.message || 'Failed to update template');
+      }
+    } catch (err: any) {
+      console.error('Error updating template:', err);
+      const message = err.response?.data?.message || err.message || 'Failed to update template';
+      toast.error(message);
+      return false;
+    }
+  };
+
+  /* ─── Save ───────────────────────────────────────────────────── */
+
+  const performSave = async (payload: any) => {
+    try {
+      let response;
+      if (isEditMode && recordName) {
+        response = await api.put(`/quality-inspection`, { ...payload, id: parseInt(id!) });
+      } else {
+        response = await api.post('/quality-inspection', payload);
+      }
+
+      if (response.data.success !== 1) {
+        throw new Error(response.data?.message || 'Failed to save inspection report');
+      }
+
+      const inspectionId = response.data.data?.id || response.data.data?.inspection_id;
+
+      toast.success(isEditMode ? 'Inspection report updated!' : 'Inspection report saved!');
+
+      // After successful save, check template status
+      if (formData.qualityTemplateId) {
+        // Template exists - check if it was modified
+        if (currentTemplate) {
+          const hasChanges = compareParameters(currentTemplate.parameters, formData.parameters);
+          if (hasChanges) {
+            // Show Popup 2: Template Update Modal
+            setShowTemplateUpdateModal(true);
+            return { success: true, inspectionId, templateChanged: true };
+          }
+        }
+        // No changes - navigate back
+        navigate('/quality-inspection');
+      } else {
+        // No template exists - show Popup 1: Template Creation Modal
+        setShowTemplateCreationModal(true);
+      }
+
+      return { success: true, inspectionId, templateExists: !!formData.qualityTemplateId };
+    } catch (err: any) {
+      console.error('Error saving inspection report:', err);
+      let message = 'Failed to save inspection report';
+      if (err.response) {
+        message = err.response.data?.message || `Server error: ${err.response.status}`;
+      } else if (err.request) {
+        message = 'Network error. Please check your connection.';
+      } else if (err.message) {
+        message = err.message;
+      }
+      setApiError(message);
+      toast.error(message);
+      throw err;
+    }
+  };
+
+  const handleSave = async () => {
+    if (!validate()) {
+      toast.error('Please fill in the required fields');
+      return;
+    }
+
+    setSaving(true);
+    setApiError(null);
+
+    try {
+      // Build payload and save inspection directly
+      const payload = buildApiPayload();
+      await performSave(payload);
+    } catch (err) {
+      // Error already handled in performSave
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /* ─── Popup 1 Handlers ──────────────────────────────────────────── */
+
+  const handleCreateTemplate = async () => {
+    setShowTemplateCreationModal(false);
+    setSaving(true);
+    
+    try {
+      const success = await createTemplateFromForm();
+      if (success) {
+        navigate('/quality-inspection');
+      } else {
+        navigate('/quality-inspection');
+      }
+    } catch (err) {
+      console.error('Error in template creation:', err);
+      navigate('/quality-inspection');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSkipTemplateCreation = () => {
+    setShowTemplateCreationModal(false);
+    navigate('/quality-inspection');
+  };
+
+  /* ─── Popup 2 Handlers ──────────────────────────────────────────── */
+
+  const handleUpdateTemplate = async () => {
+    setShowTemplateUpdateModal(false);
+    setSaving(true);
+    
+    try {
+      const success = await updateTemplateFromForm();
+      if (success) {
+        navigate('/quality-inspection');
+      } else {
+        navigate('/quality-inspection');
+      }
+    } catch (err) {
+      console.error('Error in template update:', err);
+      navigate('/quality-inspection');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSkipTemplateUpdate = () => {
+    setShowTemplateUpdateModal(false);
+    navigate('/quality-inspection');
+  };
+
   /* ─── Build API payload matching backend expectations ─────────── */
 
   const buildApiPayload = () => {
-    // Generate inspection number if not exists
     const inspectionNo = isEditMode && recordName ? recordName : `QIR-${Date.now().toString(36).toUpperCase()}`;
-    
-    // Determine overall result
     const overallResult = outOfSpecCount > 0 ? 'Fail' : 'Pass';
     
-    // Build details array
     const details = formData.parameters.map((param, index) => {
-      // Calculate result for this parameter
       const paramOutOfSpec = param.observations.some(v => isObservationOutOfSpec(param.specification, v));
       const paramResult = paramOutOfSpec ? 'Fail' : 'Pass';
       
-      // Build observations array
       const observations = param.observations.map((value, obsIndex) => ({
         sample_no: obsIndex + 1,
         observed_value: value || null,
@@ -749,8 +1670,8 @@ export default function QualityInspectionForm() {
       }));
 
       return {
-        parameter_id: index + 1,
-        inspection_method_id: 1,
+        parameter_id: param.parameterId || (index + 1),
+        inspection_method_id: param.inspectionMethodId || 1,
         specification: param.specification || null,
         result: paramResult,
         remarks: null,
@@ -758,7 +1679,6 @@ export default function QualityInspectionForm() {
       };
     });
 
-    // ENUM mapping for inspection_type
     const inspectionTypeMap: { [key: string]: string } = {
       'Incoming Inspection': 'Incoming',
       'In Process Inspection': 'In Process',
@@ -766,23 +1686,18 @@ export default function QualityInspectionForm() {
       'Dispatch Inspection': 'Dispatch'
     };
 
-    // Get the mapped value or default to 'Final'
     const inspectionType = inspectionTypeMap['Final Inspection'] || 'Final';
-
-    // Determine status based on the inspection state
-    // Since this is a completed inspection, we'll use 'Accepted' 
-    // which is one of the allowed ENUM values
     const status = outOfSpecCount > 0 ? 'Rejected' : 'Accepted';
 
     return {
       inspection_no: inspectionNo,
       company_id: 1,
       inspection_date: formData.date || null,
-      inspection_type: inspectionType, // Now sends 'Final' instead of 'Final Inspection'
-      reference_type: 'Purchase Order', // Changed from 'PO' to match ENUM
+      inspection_type: inspectionType,
+      reference_type: 'Purchase Order',
       reference_id: 0,
-      item_id: 22,
-      quality_template_id: null,
+      item_id: selectedItemId || 22,
+      quality_template_id: formData.qualityTemplateId || null,
       warehouse_id: null,
       batch_id: null,
       customer_id: 0,
@@ -792,13 +1707,12 @@ export default function QualityInspectionForm() {
       inspection_qty: parseInt(formData.invoiceQty) || 0,
       accepted_qty: outOfSpecCount > 0 ? 0 : (parseInt(formData.invoiceQty) || 0),
       rejected_qty: outOfSpecCount || 0,
-      status: status, // Now sends 'Accepted' or 'Rejected' instead of 'Completed'
+      status: status,
       overall_result: overallResult,
       remarks: formData.supplierRemarks || null,
       inspected_by: formData.inspectedBy || null,
       reviewed_by: formData.reviewedBy || null,
       approved_by: null,
-      // Additional fields for your specific UI
       doc_no: formData.docNo,
       company_name: formData.companyName,
       report_title: formData.reportTitle,
@@ -817,49 +1731,6 @@ export default function QualityInspectionForm() {
     };
   };
 
-  /* ─── Save ───────────────────────────────────────────────────── */
-
-  const handleSave = async () => {
-    if (!validate()) {
-      toast.error('Please fill in the required fields');
-      return;
-    }
-
-    setSaving(true);
-    setApiError(null);
-    try {
-      const payload = buildApiPayload();
-
-      let response;
-      if (isEditMode && recordName) {
-        response = await api.put(`/quality-inspection`, { ...payload, id: parseInt(id!) });
-      } else {
-        response = await api.post('/quality-inspection', payload);
-      }
-
-      if (response.data.success !== 1) {
-        throw new Error(response.data?.message || 'Failed to save inspection report');
-      }
-
-      toast.success(isEditMode ? 'Inspection report updated!' : 'Inspection report saved!');
-      navigate('/quality-inspection');
-    } catch (err: any) {
-      console.error('Error saving inspection report:', err);
-      let message = 'Failed to save inspection report';
-      if (err.response) {
-        message = err.response.data?.message || `Server error: ${err.response.status}`;
-      } else if (err.request) {
-        message = 'Network error. Please check your connection.';
-      } else if (err.message) {
-        message = err.message;
-      }
-      setApiError(message);
-      toast.error(message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
   /* ─────────────────────────── Render ─────────────────────────── */
 
   return (
@@ -874,6 +1745,18 @@ export default function QualityInspectionForm() {
           {apiError && (
             <div className="qir-error-pill">
               <FaExclamationTriangle size={11} /> {apiError}
+            </div>
+          )}
+
+          {loadingTemplate && (
+            <div className="qir-error-pill">
+              <FaSpinner className="spinning" size={11} /> Loading template...
+            </div>
+          )}
+
+          {templateLoaded && currentTemplate && (
+            <div className="qir-error-pill" style={{ backgroundColor: '#d1fae5', color: '#065f46' }}>
+              <FaClipboardCheck size={11} /> Template: {currentTemplate.template_name}
             </div>
           )}
 
@@ -953,6 +1836,10 @@ export default function QualityInspectionForm() {
                   onSelect={handlePartProductSelect}
                   placeholder="Search and select item..."
                   className={errors.partProductName ? 'qir-input-error' : ''}
+                  apiEndpoint="/item"
+                  displayField="item_name"
+                  labelField="item_code"
+                  subLabelField="item_group"
                 />
               </td>
               <td className="qir-meta-label">Part No :-</td>
@@ -989,7 +1876,17 @@ export default function QualityInspectionForm() {
             <tr>
               <td className="qir-meta-label">Customer Name :</td>
               <td className="qir-meta-value" colSpan={2}>
-                <input name="customerName" value={formData.customerName} onChange={handleFieldChange} placeholder="Customer name" className={errors.customerName ? 'qir-input-error' : ''} ref={setRef('customerName')} />
+                <AutocompleteInput
+                  value={formData.customerName}
+                  onChange={handleCustomerNameChange}
+                  onSelect={handleCustomerSelect}
+                  placeholder="Search and select customer..."
+                  className={errors.customerName ? 'qir-input-error' : ''}
+                  apiEndpoint="/customer"
+                  displayField="customer_name"
+                  labelField="customer_type"
+                  subLabelField="customer_group"
+                />
               </td>
               <td className="qir-meta-label">Challan No / Date :</td>
               <td className="qir-meta-value" colSpan={2}>
@@ -1013,7 +1910,7 @@ export default function QualityInspectionForm() {
           </tbody>
         </table>
 
-        {/* ── Observation table ───────────────────────────────── */}
+        {/* ── Observation table toolbar (ABOVE the table) ─────── */}
         <div className="qir-table-toolbar qir-no-print">
           <span className="qir-toolbar-label">Observation</span>
           <div className="qir-toolbar-actions">
@@ -1029,6 +1926,7 @@ export default function QualityInspectionForm() {
           </div>
         </div>
 
+        {/* ── Observation table (NO INTERNAL SCROLL) ──────────── */}
         <div className="qir-obs-table-wrapper">
           <table className="qir-obs-table">
             <thead>
@@ -1051,11 +1949,22 @@ export default function QualityInspectionForm() {
                 <tr key={row.id}>
                   <td className="qir-col-sr qir-text-center">{rowIndex + 1}</td>
                   <td className="qir-col-param">
-                    <input
-                      value={row.parameter}
-                      onChange={(e) => handleParameterFieldChange(rowIndex, 'parameter', e.target.value)}
-                      placeholder="Parameter"
-                    />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <AutocompleteInput
+                        value={row.parameter}
+                        onChange={(value) => handleParameterNameChange(rowIndex, value)}
+                        onSelect={(item) => handleParameterSelect(rowIndex, item)}
+                        placeholder="Search parameter..."
+                        apiEndpoint="/quality-parameter"
+                        displayField="parameter_name"
+                        labelField="parameter_code"
+                        subLabelField="unit"
+                        searchParam="search"
+                      />
+                      {row.isMandatory === 1 && (
+                        <span style={{ color: '#dc2626', fontSize: '14px', fontWeight: 'bold' }} title="Mandatory parameter">*</span>
+                      )}
+                    </div>
                   </td>
                   <td className="qir-col-spec">
                     <input
@@ -1065,10 +1974,15 @@ export default function QualityInspectionForm() {
                     />
                   </td>
                   <td className="qir-col-method">
-                    <input
+                    <AutocompleteInput
                       value={row.inspectionMethod}
-                      onChange={(e) => handleParameterFieldChange(rowIndex, 'inspectionMethod', e.target.value)}
-                      placeholder="Vernier Caliper"
+                      onChange={(value) => handleMethodNameChange(rowIndex, value)}
+                      onSelect={(item) => handleMethodSelect(rowIndex, item)}
+                      placeholder="Search method..."
+                      apiEndpoint="/inspection-method"
+                      displayField="method_name"
+                      labelField="description"
+                      searchParam="search"
                     />
                   </td>
                   {row.observations.map((value, colIndex) => {
@@ -1144,6 +2058,20 @@ export default function QualityInspectionForm() {
         </table>
 
       </div>
+
+      {/* ── Popup 1: Template Creation Modal ─────────────────────── */}
+      <TemplateCreationModal
+        isOpen={showTemplateCreationModal}
+        onConfirm={handleCreateTemplate}
+        onSkip={handleSkipTemplateCreation}
+      />
+
+      {/* ── Popup 2: Template Update Modal ───────────────────────── */}
+      <TemplateUpdateModal
+        isOpen={showTemplateUpdateModal}
+        onConfirm={handleUpdateTemplate}
+        onSkip={handleSkipTemplateUpdate}
+      />
     </div>
   );
 }

@@ -1094,3 +1094,21 @@
     width: 100%;
   }
 }
+
+/* ── Proforma Invoice Action Button ── */
+.qt-action-proforma {
+  color: #8b5cf6;
+}
+
+.qt-action-proforma:hover {
+  background: rgba(139, 92, 246, 0.1);
+}
+
+/* Dark theme support */
+.dark-theme .qt-action-proforma {
+  color: #a78bfa;
+}
+
+.dark-theme .qt-action-proforma:hover {
+  background: rgba(139, 92, 246, 0.15);
+}

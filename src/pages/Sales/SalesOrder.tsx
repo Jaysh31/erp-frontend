@@ -5,7 +5,7 @@ import {
   FaFilter, FaCheckCircle, FaClock, FaTimesCircle,
   FaFileAlt, FaExternalLinkAlt,
   FaChartLine, FaTimes, FaSpinner,
-   FaBoxOpen, FaEnvelope
+   FaBoxOpen, FaEnvelope, FaFileInvoice
 } from 'react-icons/fa';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
@@ -251,6 +251,7 @@ export default function SalesOrder() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [printLoadingId, setPrintLoadingId] = useState<string | null>(null);
+  const [proformaLoadingId, setProformaLoadingId] = useState<string | null>(null);
 
   const [salesOrders, setSalesOrders] = useState<SalesOrder[]>([]);
 
@@ -887,6 +888,349 @@ export default function SalesOrder() {
 </html>`;
   };
 
+  /* ─────────────────────── Proforma Invoice ─────────────────────── */
+
+  const buildProformaInvoiceHtml = (order: SalesOrder): string => {
+    const validItems = order.items || [];
+
+    const baseTotal = validItems.reduce((sum, it) => sum + (it.amount || 0), 0);
+    const cgstAmount = validItems.reduce((sum, it) => sum + ((it.amount || 0) * (it.cgst || 0)) / 100, 0);
+    const sgstAmount = validItems.reduce((sum, it) => sum + ((it.amount || 0) * (it.sgst || 0)) / 100, 0);
+    const totalQty = validItems.reduce((sum, it) => sum + (it.quantity || 0), 0);
+    const grandTotal = order.totalAmount || (baseTotal + cgstAmount + sgstAmount);
+
+    const itemRows = validItems.map((item, idx) => `
+      <tr>
+        <td class="pq-col-sl">${idx + 1}</td>
+        <td class="pq-col-desc">
+          ${escapeHtml(item.itemName || item.itemCode || '')}
+          ${item.itemCode ? `<div class="pq-item-sub">${escapeHtml(item.itemCode)}</div>` : ''}
+        </td>
+        <td class="pq-col-hsn">${escapeHtml(item.hsnCode || '')}</td>
+        <td class="pq-col-qty">${item.quantity} ${escapeHtml(item.stockUom || 'Nos')}</td>
+        <td class="pq-col-rate">${item.rate.toFixed(2)}</td>
+        <td class="pq-col-per">${escapeHtml(item.stockUom || 'Nos')}</td>
+        <td class="pq-col-cgst">${item.cgst ? item.cgst + '%' : ''}</td>
+        <td class="pq-col-sgst">${item.sgst ? item.sgst + '%' : ''}</td>
+        <td class="pq-col-amt">${item.amount.toFixed(2)}</td>
+      </tr>
+    `).join('');
+
+    const cgstRate = validItems.find(it => (it.cgst || 0) > 0)?.cgst || 0;
+    const sgstRate = validItems.find(it => (it.sgst || 0) > 0)?.sgst || 0;
+
+    const taxLines: string[] = [];
+    if (cgstAmount > 0) {
+      taxLines.push(`
+        <tr>
+          <td colspan="8" class="pq-tax-label">Output CGST ${cgstRate}%</td>
+          <td class="pq-col-amt">${cgstAmount.toFixed(2)}</td>
+        </tr>
+      `);
+    }
+    if (sgstAmount > 0) {
+      taxLines.push(`
+        <tr>
+          <td colspan="8" class="pq-tax-label">Output SGST ${sgstRate}%</td>
+          <td class="pq-col-amt">${sgstAmount.toFixed(2)}</td>
+        </tr>
+      `);
+    }
+
+    const hsnGroups = new Map<string, { taxable: number; cgstRate: number; sgstRate: number; cgstAmt: number; sgstAmt: number }>();
+    validItems.forEach((it) => {
+      const key = it.hsnCode || '—';
+      const taxable = it.amount || 0;
+      const itCgstAmt = (taxable * (it.cgst || 0)) / 100;
+      const itSgstAmt = (taxable * (it.sgst || 0)) / 100;
+      const existing = hsnGroups.get(key);
+      if (existing) {
+        existing.taxable += taxable;
+        existing.cgstAmt += itCgstAmt;
+        existing.sgstAmt += itSgstAmt;
+      } else {
+        hsnGroups.set(key, {
+          taxable,
+          cgstRate: it.cgst || 0,
+          sgstRate: it.sgst || 0,
+          cgstAmt: itCgstAmt,
+          sgstAmt: itSgstAmt,
+        });
+      }
+    });
+
+    const hasTax = cgstAmount > 0 || sgstAmount > 0;
+    const hsnSummaryRows = Array.from(hsnGroups.entries()).map(([hsn, g]) => `
+      <tr>
+        <td>${escapeHtml(hsn === '—' ? '' : hsn)}</td>
+        <td>${g.taxable.toFixed(2)}</td>
+        ${cgstAmount > 0 ? `<td>${g.cgstRate ? g.cgstRate + '%' : ''}</td><td>${g.cgstAmt.toFixed(2)}</td>` : ''}
+        ${sgstAmount > 0 ? `<td>${g.sgstRate ? g.sgstRate + '%' : ''}</td><td>${g.sgstAmt.toFixed(2)}</td>` : ''}
+        <td>${(g.cgstAmt + g.sgstAmt).toFixed(2)}</td>
+      </tr>
+    `).join('');
+
+    const paymentTerms = order.paymentTermsTemplate || '';
+
+    return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8" />
+<title>PROFORMA INVOICE - ${escapeHtml(order.salesOrderNumber)}</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #1a1a1a; margin: 0; padding: 24px; }
+  .pq-outer { border: 1.5px solid #000; }
+  .pq-title-row { display: flex; align-items: center; justify-content: center; position: relative; padding: 8px; border-bottom: 1.5px solid #000; background: #f8f9fa; }
+  .pq-title { font-size: 18px; font-weight: bold; letter-spacing: 1px; color: #1a1a1a; }
+  .pq-title-sub { font-size: 11px; color: #666; margin-top: 2px; text-align: center; }
+  .pq-top { display: flex; border-bottom: 1px solid #000; }
+  .pq-company-box { flex: 1.3; padding: 8px; border-right: 1px solid #000; }
+  .pq-company-name { font-weight: bold; font-size: 14px; margin-bottom: 4px; }
+  .pq-company-box div { margin: 1px 0; }
+  .pq-meta-box { flex: 1.1; }
+  .pq-meta-row { display: flex; border-bottom: 1px solid #000; }
+  .pq-meta-row:last-child { border-bottom: none; }
+  .pq-meta-cell { flex: 1; padding: 4px 8px; border-right: 1px solid #000; }
+  .pq-meta-cell:last-child { border-right: none; }
+  .pq-meta-label { font-size: 10px; color: #444; }
+  .pq-meta-value { font-weight: 600; margin-top: 1px; min-height: 13px; }
+  .pq-parties { display: flex; border-bottom: 1px solid #000; }
+  .pq-party-box { flex: 1; padding: 8px; border-right: 1px solid #000; }
+  .pq-party-box:last-child { border-right: none; }
+  .pq-party-label { font-weight: bold; margin-bottom: 3px; }
+  .pq-party-box div { margin: 1px 0; }
+  table.pq-items { width: 100%; border-collapse: collapse; }
+  table.pq-items th, table.pq-items td { border-right: 1px solid #000; padding: 5px 6px; }
+  table.pq-items th:last-child, table.pq-items td:last-child { border-right: none; }
+  table.pq-items thead th { border-bottom: 1px solid #000; border-top: none; font-size: 11px; text-align: left; background: #f8f9fa; }
+  .pq-col-sl { width: 26px; text-align: center; }
+  .pq-col-desc { min-width: 170px; }
+  .pq-item-sub { font-size: 10px; color: #555; }
+  .pq-col-hsn { width: 62px; }
+  .pq-col-qty { width: 74px; text-align: right; }
+  .pq-col-rate { width: 62px; text-align: right; }
+  .pq-col-per { width: 42px; }
+  .pq-col-cgst { width: 54px; text-align: right; }
+  .pq-col-sgst { width: 54px; text-align: right; }
+  .pq-col-amt { width: 92px; text-align: right; }
+  .pq-tax-label { text-align: right; font-style: italic; padding-right: 10px; }
+  .pq-total-row td { border-top: 1px solid #000; font-weight: bold; padding: 6px; background: #f8f9fa; }
+  .pq-words { display: flex; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 6px 8px; justify-content: space-between; align-items: flex-start; }
+  .pq-words-label { font-size: 10px; color: #444; }
+  .pq-eoe { font-size: 11px; font-style: italic; white-space: nowrap; }
+  table.pq-summary { width: 100%; border-collapse: collapse; }
+  table.pq-summary th, table.pq-summary td { border: 1px solid #000; padding: 4px 8px; font-size: 11px; text-align: right; }
+  table.pq-summary th:first-child, table.pq-summary td:first-child { text-align: left; }
+  table.pq-summary th { background: #f8f9fa; }
+  .pq-tax-words { border-top: 1px solid #000; padding: 6px 8px; }
+  .pq-bottom { display: flex; border-top: 1px solid #000; }
+  .pq-pan-decl-box { flex: 1; padding: 8px; border-right: 1px solid #000; display: flex; flex-direction: column; justify-content: space-between; }
+  .pq-bank-sign-box { flex: 1; padding: 8px; display: flex; flex-direction: column; justify-content: space-between; }
+  .pq-signatory { text-align: right; margin-top: 24px; font-size: 11px; }
+  .pq-footer { text-align: center; padding: 8px; font-size: 10px; color: #444; border-top: 1px solid #000; }
+  .pq-footer div:first-child { font-weight: 600; letter-spacing: 0.5px; margin-bottom: 2px; }
+  .pq-proforma-note { background: #fff3cd; padding: 6px 10px; border-bottom: 1px solid #000; font-size: 11px; color: #856404; text-align: center; }
+  @media print {
+    body { padding: 0; }
+    @page { margin: 12mm; }
+  }
+</style>
+</head>
+<body>
+  <div class="pq-outer">
+
+    <div class="pq-title-row">
+      <div>
+        <div class="pq-title">PROFORMA INVOICE</div>
+        <div class="pq-title-sub">(This is not a tax invoice)</div>
+      </div>
+    </div>
+
+    <div class="pq-proforma-note">
+      ⚠️ This is a proforma invoice for quotation/estimation purposes only. Final tax invoice will be issued upon order confirmation.
+    </div>
+
+    <div class="pq-top">
+      <div class="pq-company-box">
+        <div class="pq-company-name">${escapeHtml(companyDetails.name)}</div>
+        <div>${escapeHtml(companyDetails.address)}</div>
+        <div>Phone: ${escapeHtml(companyDetails.contact)}</div>
+        ${companyDetails.email ? `<div>Email: ${escapeHtml(companyDetails.email)}</div>` : ''}
+        ${companyPrintDetails.gstin ? `<div>GSTIN/UIN: ${escapeHtml(companyPrintDetails.gstin)}</div>` : ''}
+        <div>State Name : ${escapeHtml(companyPrintDetails.stateName)}, Code : ${escapeHtml(companyPrintDetails.stateCode)}</div>
+      </div>
+      <div class="pq-meta-box">
+        <div class="pq-meta-row">
+          <div class="pq-meta-cell">
+            <div class="pq-meta-label">Proforma Invoice No.</div>
+            <div class="pq-meta-value">PI-${escapeHtml(order.salesOrderNumber)}</div>
+          </div>
+          <div class="pq-meta-cell" style="border-right:none;">
+            <div class="pq-meta-label">Dated</div>
+            <div class="pq-meta-value">${escapeHtml(formatPrintDate(order.date))}</div>
+          </div>
+        </div>
+        <div class="pq-meta-row">
+          <div class="pq-meta-cell">
+            <div class="pq-meta-label">Sales Order No.</div>
+            <div class="pq-meta-value">${escapeHtml(order.salesOrderNumber)}</div>
+          </div>
+          <div class="pq-meta-cell" style="border-right:none;">
+            <div class="pq-meta-label">Valid Until</div>
+            <div class="pq-meta-value">${escapeHtml(formatPrintDate(order.deliveryDate || ''))}</div>
+          </div>
+        </div>
+        <div class="pq-meta-row">
+          <div class="pq-meta-cell" style="border-right:none;">
+            <div class="pq-meta-label">Mode/Terms of Payment</div>
+            <div class="pq-meta-value">${escapeHtml(paymentTerms)}</div>
+          </div>
+        </div>
+        <div class="pq-meta-row">
+          <div class="pq-meta-cell">
+            <div class="pq-meta-label">Buyer's Order No.</div>
+            <div class="pq-meta-value">${escapeHtml(order.buyersOrderNo || '')}</div>
+          </div>
+          <div class="pq-meta-cell" style="border-right:none;">
+            <div class="pq-meta-label">Dated</div>
+            <div class="pq-meta-value">${escapeHtml(formatPrintDate(order.buyersOrderDate || ''))}</div>
+          </div>
+        </div>
+        <div class="pq-meta-row">
+          <div class="pq-meta-cell">
+            <div class="pq-meta-label">Order Type</div>
+            <div class="pq-meta-value">${escapeHtml(order.orderType || '')}</div>
+          </div>
+          <div class="pq-meta-cell" style="border-right:none;">
+            <div class="pq-meta-label">Delivery Date</div>
+            <div class="pq-meta-value">${escapeHtml(formatPrintDate(order.deliveryDate || ''))}</div>
+          </div>
+        </div>
+        ${order.status ? `
+        <div class="pq-meta-row">
+          <div class="pq-meta-cell" style="border-right:none;">
+            <div class="pq-meta-label">Status</div>
+            <div class="pq-meta-value">${escapeHtml(order.status)}</div>
+          </div>
+        </div>` : ''}
+      </div>
+    </div>
+
+    <div class="pq-parties">
+      <div class="pq-party-box">
+        <div class="pq-party-label">Consignee (Ship to)</div>
+        <div><strong>${escapeHtml(order.customerName)}</strong></div>
+        ${order.customerAddress ? `<div>${escapeHtml(order.customerAddress)}</div>` : ''}
+        ${order.customerGstin ? `<div>GSTIN/UIN : ${escapeHtml(order.customerGstin)}</div>` : ''}
+        ${order.customerState ? `<div>State Name : ${escapeHtml(order.customerState)}${order.customerStateCode ? `, Code : ${escapeHtml(order.customerStateCode)}` : ''}</div>` : ''}
+      </div>
+      <div class="pq-party-box">
+        <div class="pq-party-label">Buyer (Bill to)</div>
+        <div><strong>${escapeHtml(order.customerName)}</strong></div>
+        ${order.customerAddress ? `<div>${escapeHtml(order.customerAddress)}</div>` : ''}
+        ${order.customerGstin ? `<div>GSTIN/UIN : ${escapeHtml(order.customerGstin)}</div>` : ''}
+        ${order.customerState ? `<div>State Name : ${escapeHtml(order.customerState)}${order.customerStateCode ? `, Code : ${escapeHtml(order.customerStateCode)}` : ''}</div>` : ''}
+        ${order.customerEmail ? `<div>Email : ${escapeHtml(order.customerEmail)}</div>` : ''}
+        ${order.customerPhone ? `<div>Phone : ${escapeHtml(order.customerPhone)}</div>` : ''}
+      </div>
+    </div>
+
+    <table class="pq-items">
+      <thead>
+        <tr>
+          <th class="pq-col-sl">Sl</th>
+          <th class="pq-col-desc">Description of Goods</th>
+          <th class="pq-col-hsn">HSN/SAC</th>
+          <th class="pq-col-qty">Quantity</th>
+          <th class="pq-col-rate">Rate</th>
+          <th class="pq-col-per">per</th>
+          <th class="pq-col-cgst">CGST</th>
+          <th class="pq-col-sgst">SGST</th>
+          <th class="pq-col-amt">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemRows}
+        ${taxLines.join('')}
+        <tr class="pq-total-row">
+          <td colspan="3">Total</td>
+          <td class="pq-col-qty">${totalQty} Nos.</td>
+          <td colspan="4"></td>
+          <td class="pq-col-amt">${grandTotal.toFixed(2)}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="pq-words">
+      <div>
+        <div class="pq-words-label">Amount Chargeable (in words)</div>
+        <div><strong>${order.currency || 'INR'} ${numberToIndianWords(grandTotal)} Only</strong></div>
+      </div>
+      <div class="pq-eoe">E.&amp;O.E</div>
+    </div>
+
+    ${hasTax ? `
+    <table class="pq-summary">
+      <thead>
+        <tr>
+          <th>HSN/SAC</th>
+          <th>Taxable Value</th>
+          ${cgstAmount > 0 ? `<th>CGST Rate</th><th>CGST Amount</th>` : ''}
+          ${sgstAmount > 0 ? `<th>SGST Rate</th><th>SGST Amount</th>` : ''}
+          <th>Total Tax Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${hsnSummaryRows}
+        <tr style="font-weight:600;">
+          <td>Total</td>
+          <td>${baseTotal.toFixed(2)}</td>
+          ${cgstAmount > 0 ? `<td></td><td>${cgstAmount.toFixed(2)}</td>` : ''}
+          ${sgstAmount > 0 ? `<td></td><td>${sgstAmount.toFixed(2)}</td>` : ''}
+          <td>${(cgstAmount + sgstAmount).toFixed(2)}</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="pq-tax-words">
+      Tax Amount (in words) : <strong>${order.currency || 'INR'} ${numberToIndianWords(cgstAmount + sgstAmount)} Only</strong>
+    </div>` : ''}
+
+    <div class="pq-bottom">
+      <div class="pq-pan-decl-box">
+        <div>
+          <strong>Declaration</strong>
+          <div>We declare that this proforma invoice shows the estimated price of the goods described and that all particulars are true and correct.</div>
+        </div>
+        ${companyPrintDetails.panNo ? `<div style="margin-top:8px;">Company's PAN : ${escapeHtml(companyPrintDetails.panNo)}</div>` : ''}
+      </div>
+      <div class="pq-bank-sign-box">
+        <div>
+          <div><strong>Company's Bank Details</strong></div>
+          ${companyPrintDetails.bankName ? `<div>Bank Name : ${escapeHtml(companyPrintDetails.bankName)}</div>` : ''}
+          ${companyPrintDetails.bankAccountNo ? `<div>A/c No. : ${escapeHtml(companyPrintDetails.bankAccountNo)}</div>` : ''}
+          ${companyPrintDetails.bankBranchIfsc ? `<div>Branch &amp; IFS Code : ${escapeHtml(companyPrintDetails.bankBranchIfsc)}</div>` : ''}
+        </div>
+        <div class="pq-signatory">
+          for ${escapeHtml(companyDetails.name)}<br /><br /><br />
+          Authorised Signatory
+        </div>
+      </div>
+    </div>
+
+    <div class="pq-footer">
+      ${companyPrintDetails.jurisdiction ? `<div>SUBJECT TO ${escapeHtml(companyPrintDetails.jurisdiction)} JURISDICTION</div>` : ''}
+      <div>This is a computer generated proforma invoice.</div>
+    </div>
+  </div>
+
+  <script>
+    window.onload = function () { window.print(); };
+  </script>
+</body>
+</html>`;
+  };
+
   const handlePrintOrder = async (order: SalesOrder) => {
     const printWindow = window.open('', '_blank', 'width=900,height=1000');
     if (!printWindow) {
@@ -908,6 +1252,38 @@ export default function SalesOrder() {
       printWindow.document.close();
     } finally {
       setPrintLoadingId(null);
+    }
+  };
+
+  const handleProformaInvoice = async (order: SalesOrder) => {
+    // Check if order is confirmed or completed before generating proforma invoice
+    if (order.status === 'Draft') {
+      toast('Please confirm the sales order before generating a proforma invoice');
+      return;
+    }
+
+    const printWindow = window.open('', '_blank', 'width=900,height=1000');
+    if (!printWindow) {
+      toast.error('Please allow pop-ups to generate proforma invoice');
+      return;
+    }
+    printWindow.document.write('<p style="font-family:sans-serif;padding:24px;color:#374151;">Loading proforma invoice…</p>');
+
+    setProformaLoadingId(order.id);
+    try {
+      const printable = await buildPrintableOrder(order);
+      printWindow.document.open();
+      printWindow.document.write(buildProformaInvoiceHtml(printable));
+      printWindow.document.close();
+      toast.success('Proforma Invoice generated successfully!');
+    } catch (err) {
+      console.error('Error generating proforma invoice:', err);
+      printWindow.document.open();
+      printWindow.document.write(buildProformaInvoiceHtml(order));
+      printWindow.document.close();
+      toast.error('Error generating proforma invoice. Please try again.');
+    } finally {
+      setProformaLoadingId(null);
     }
   };
 
@@ -1067,14 +1443,19 @@ export default function SalesOrder() {
                         <button
                           className="qt-action-btn qt-action-print"
                           onClick={() => handlePrintOrder(order)}
-                          title="Print"
+                          title="Print Sales Order"
                           disabled={printLoadingId === order.id}
                         >
                           {printLoadingId === order.id ? <FaSpinner className="spinning" size={12} /> : <FaPrint size={12} />}
                         </button>
-                        {/* <button className="qt-action-btn qt-action-pdf" onClick={() => handlePdfView(order)} title="PDF">
-                          <FaFilePdf size={12} />
-                        </button> */}
+                        <button
+                          className="qt-action-btn qt-action-proforma"
+                          onClick={() => handleProformaInvoice(order)}
+                          title="Proforma Invoice"
+                          disabled={proformaLoadingId === order.id || order.status === 'Draft'}
+                        >
+                          {proformaLoadingId === order.id ? <FaSpinner className="spinning" size={12} /> : <FaFileInvoice size={12} />}
+                        </button>
                         <button className="qt-action-btn qt-action-edit" onClick={() => handleEdit(order)} title="Edit">
                           <FaEdit size={12} />
                         </button>
