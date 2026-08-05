@@ -1459,3 +1459,17 @@
     background: white;
   }
 }
+
+/* Red asterisk for required fields */
+.ndc-required-star {
+  color: #ef4444;
+  font-weight: 700;
+  margin-left: 2px;
+}
+
+/* Red asterisk for required fields */
+.ndc-required-star {
+  color: #ef4444 !important;
+  font-weight: 700;
+  margin-left: 2px;
+}

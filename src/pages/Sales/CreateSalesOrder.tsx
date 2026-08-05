@@ -219,6 +219,7 @@ interface QuotationApiRecord {
   terms?: string | null;
   payment_schedule?: any[];
   items?: Array<{
+    id?: number;
     item_code?: string;
     item_name?: string;
     hsn?: string;
@@ -227,6 +228,7 @@ interface QuotationApiRecord {
     stock_uom?: string;
     tax_rate?: number;
     tax_id?: number;
+    item_tax_id?: number;  // Added this field to match the API response
     amount?: number;
     creation?: string;
     modified?: string;
@@ -1081,6 +1083,7 @@ const getTaxIdFromRate = (taxRate: number, taxOptions: TaxOption[]): number | un
 };
 
 /* ═════ SUCCESS MODAL COMPONENT ═════ */
+/* ═════ SUCCESS MODAL COMPONENT ═════ */
 interface SuccessModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -1431,7 +1434,7 @@ export default function CreateSalesOrder() {
         hsn: item.HSN || item.hsn || '',
         description: item.description || item.item_name || '',
         unit: item.stock_uom || 'Nos',
-        rate: item.standard_rate || 0,
+        rate: item.selling_price  || 0,
         tax: item.tax_rate || 0,
         stockUom: item.stock_uom,
         standardRate: item.standard_rate,
@@ -1478,7 +1481,7 @@ export default function CreateSalesOrder() {
         hsn: item.HSN || item.hsn || '',
         description: item.description || item.item_name || '',
         unit: item.stock_uom || 'Nos',
-        rate: item.standard_rate || 0,
+        rate: item.selling_price || 0,
         tax: item.tax_rate || 0,
         stockUom: item.stock_uom,
         standardRate: item.standard_rate,
@@ -1505,7 +1508,7 @@ export default function CreateSalesOrder() {
   const fetchInventory = async () => {
     setLoadingInventory(true);
     try {
-      const response = await api.get('/inventory');
+      const response = await api.get('/inventory?limit=1000');
       const records: InventoryApiRecord[] = extractRecords(response.data);
       const map: { [itemCode: string]: InventoryApiRecord } = {};
       records.forEach((r) => {
@@ -1682,11 +1685,39 @@ export default function CreateSalesOrder() {
         const itemName = it.item_name || master?.item_name || '';
         const hsn = it.hsn || master?.HSN || master?.hsn || '';
         const stockUom = it.stock_uom || master?.stock_uom || 'Nos';
-        const tax = it.tax_rate ?? 0;
-        const tax_id = it.tax_id || getTaxIdFromRate(tax, taxOptions);
+        
+        // ===== FIX: Properly bind item_tax_id to tax field =====
+        // Check for both tax_id and item_tax_id from the API response
+        let tax_id: number | undefined = it.tax_id ? Number(it.tax_id) : undefined;
+        if (!tax_id && it.item_tax_id) {
+          tax_id = Number(it.item_tax_id);
+        }
+        let tax = 0;
+        
+        // If tax_id is provided, get the tax rate from tax options
+        if (tax_id) {
+          tax = getTaxValueFromId(tax_id, taxOptions);
+        } 
+        // If only tax_rate is provided but no tax_id, try to find matching tax_id
+        else if (it.tax_rate && it.tax_rate > 0) {
+          tax = it.tax_rate;
+          tax_id = getTaxIdFromRate(tax, taxOptions);
+        }
+        // If no tax info at all, check master item
+        else if (master) {
+          const masterTax = master.tax_rate || 0;
+          if (masterTax > 0) {
+            tax = masterTax;
+            tax_id = getTaxIdFromRate(masterTax, taxOptions);
+          }
+        }
+        
         const amount = it.amount ?? quantity * rate;
         const taxAmount = (amount * tax) / 100;
         const { status, availableQty } = getStockStatus(itemCode, quantity);
+        
+        console.log(`Item ${itemCode}: tax_id=${tax_id}, tax=${tax}`); // Debug log
+        
         return {
           id: String(idx + 1),
           itemCode,
@@ -1915,6 +1946,7 @@ export default function CreateSalesOrder() {
             let tax = it.tax_rate ?? 0;
             let tax_id: number | undefined = it.tax_id ? Number(it.tax_id) : undefined;
             
+            // ===== FIX: Properly bind tax_id to tax field =====
             if (!tax_id && parentTaxId) {
               tax_id = parentTaxId;
               tax = getTaxValueFromId(parentTaxId, taxOptions);
@@ -2383,7 +2415,8 @@ export default function CreateSalesOrder() {
       rounded_total: formData.roundedTotal,
       status: formData.status,
       items: validItems.map((item) => {
-        // const itemTaxId = item.tax_id || getTaxIdFromRate(item.tax, taxOptions) || taxId;
+        // ===== FIX: Include tax_id in item payload =====
+        const itemTaxId = item.tax_id || getTaxIdFromRate(item.tax, taxOptions) || taxId;
         
         return {
           fg_item: item.fg_item || 0,
@@ -2399,6 +2432,8 @@ export default function CreateSalesOrder() {
           amount: item.amount,
           net_rate: item.net_rate || item.rate,
           net_amount: item.net_amount || item.amount,
+          tax_id: itemTaxId,
+          tax_rate: item.tax || 0,
           warehouse: 1,
         };
       }),

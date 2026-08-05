@@ -207,7 +207,6 @@ const escapeHtml = (val: unknown): string => {
     .replace(/"/g, '&quot;');
 };
 
-
 /** Maps a raw /sales-invoice API record's `items` child table into UI-shaped InvoiceItem[]. */
 const mapApiItemsToInvoiceItems = (record: InvoiceApiRecord | null | undefined): InvoiceItem[] => {
   if (!record || !Array.isArray(record.items)) return [];

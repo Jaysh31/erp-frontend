@@ -1,5 +1,3 @@
-// NewWorkstation.tsx - Fixed Holiday Picker
-
 import React, { useState, useEffect, useRef } from "react";
 import {
   Home,
@@ -23,7 +21,7 @@ interface WorkstationFormData {
   workstation_name: string;
   workstation_type: string;
   plant_floor: string;
-  // disabled: number;
+  disabled: number;
   production_capacity: number;
   warehouse: string;
   status: string;
@@ -36,12 +34,6 @@ interface WorkstationFormData {
   _assign: string;
   _liked_by: string;
   custom_holidays?: string[];
-}
-
-interface ValidationError {
-  field: string;
-  label: string;
-  message: string;
 }
 
 interface Warehouse {
@@ -74,9 +66,10 @@ interface NewWorkstationProps {
 const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => {
   const [saving, setSaving] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
-  const [showValidation, setShowValidation] = useState(false);
-  const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [isEditMode, setIsEditMode] = useState(false);
+  
+  // ─── Errors state ──────────────────────────────────────────────────────────
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
   
   // ─── Dynamic lists state ──────────────────────────────────────────────────
   const [workstationTypes, setWorkstationTypes] = useState<string[]>([
@@ -123,8 +116,8 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
     workstation_name: "",
     workstation_type: "",
     plant_floor: "Ground Floor",
-    // disabled: 0,
-    production_capacity: 0,
+    disabled: 0,
+    production_capacity: 1,
     warehouse: "",
     status: "Active",
     hour_rate: 0,
@@ -202,6 +195,73 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // ─── Validation Functions ──────────────────────────────────────────────────
+
+  const validateField = (field: string, value: any): string => {
+    switch (field) {
+      case 'workstation_name':
+        return !value?.trim() ? 'Workstation name is required' : '';
+      
+      case 'workstation_type':
+        return !value?.trim() ? 'Workstation type is required' : '';
+      
+      case 'plant_floor':
+        return !value?.trim() ? 'Plant floor is required' : '';
+      
+      case 'production_capacity':
+        const cap = Number(value);
+        if (cap < 1) return 'Production capacity must be at least 1';
+        return '';
+      
+      case 'hour_rate':
+        const rate = Number(value);
+        if (rate < 0) return 'Hour rate cannot be negative';
+        return '';
+      
+      case 'total_working_hours':
+        const hours = Number(value);
+        if (hours < 0) return 'Working hours cannot be negative';
+        if (hours === 0) return 'Working hours must be greater than 0';
+        return '';
+      
+      case 'warehouse':
+        return !value?.trim() ? 'Warehouse is required' : '';
+      
+      case 'status':
+        return !value?.trim() ? 'Status is required' : '';
+      
+      case 'description':
+        return ''; // Optional field
+      
+      default:
+        return '';
+    }
+  };
+
+  const validateAllFields = (): { [key: string]: string } => {
+    const newErrors: { [key: string]: string } = {};
+    
+    const requiredFields = [
+      'workstation_name',
+      'workstation_type',
+      'plant_floor',
+      'production_capacity',
+      'warehouse',
+      'status',
+      'hour_rate',
+      'total_working_hours'
+    ];
+
+    requiredFields.forEach(field => {
+      const error = validateField(field, formData[field as keyof WorkstationFormData]);
+      if (error) {
+        newErrors[field] = error;
+      }
+    });
+
+    return newErrors;
+  };
+
   // ─── Form handlers ──────────────────────────────────────────────────────
 
   const handleChange = (field: keyof WorkstationFormData) => (
@@ -215,6 +275,10 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
       ...prev,
       [field]: value,
     }));
+    
+    // Validate field on change
+    const error = validateField(field, value);
+    setErrors(prev => ({ ...prev, [field]: error }));
   };
 
   // ─── Add new workstation type ────────────────────────────────────────────
@@ -223,6 +287,8 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
     if (newType.trim() && !workstationTypes.includes(newType.trim())) {
       setWorkstationTypes(prev => [...prev, newType.trim()]);
       setFormData(prev => ({ ...prev, workstation_type: newType.trim() }));
+      // Clear error for workstation_type
+      setErrors(prev => ({ ...prev, workstation_type: '' }));
       setNewType('');
       setShowNewTypeInput(false);
     }
@@ -234,6 +300,8 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
     if (newFloor.trim() && !plantFloors.includes(newFloor.trim())) {
       setPlantFloors(prev => [...prev, newFloor.trim()]);
       setFormData(prev => ({ ...prev, plant_floor: newFloor.trim() }));
+      // Clear error for plant_floor
+      setErrors(prev => ({ ...prev, plant_floor: '' }));
       setNewFloor('');
       setShowNewFloorInput(false);
     }
@@ -270,42 +338,12 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
     setShowHolidayPicker(!showHolidayPicker);
   };
 
-  // ─── Validation ──────────────────────────────────────────────────────────
-
-  const validateForm = (): ValidationError[] => {
-    const errors: ValidationError[] = [];
-
-    if (!formData.workstation_name.trim()) {
-      errors.push({ field: 'workstation_name', label: 'Workstation Name', message: 'Workstation name is required' });
-    }
-    if (!formData.workstation_type.trim()) {
-      errors.push({ field: 'workstation_type', label: 'Workstation Type', message: 'Workstation type is required' });
-    }
-    if (!formData.plant_floor.trim()) {
-      errors.push({ field: 'plant_floor', label: 'Plant Floor', message: 'Plant floor is required' });
-    }
-    if (formData.production_capacity < 0) {
-      errors.push({ field: 'production_capacity', label: 'Production Capacity', message: 'Capacity cannot be negative' });
-    }
-    if (formData.hour_rate < 0) {
-      errors.push({ field: 'hour_rate', label: 'Hour Rate', message: 'Hour rate cannot be negative' });
-    }
-    if (formData.total_working_hours < 0) {
-      errors.push({ field: 'total_working_hours', label: 'Total Working Hours', message: 'Working hours cannot be negative' });
-    }
-
-    return errors;
-  };
-
-  const hasErrors = validateForm().length > 0;
-
   // ─── Save handler ─────────────────────────────────────────────────────────
 
   const handleSave = async () => {
-    const errors = validateForm();
-    if (errors.length > 0) {
-      setValidationErrors(errors);
-      setShowValidation(true);
+    const allErrors = validateAllFields();
+    if (Object.keys(allErrors).length > 0) {
+      setErrors(allErrors);
       return;
     }
 
@@ -317,9 +355,9 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
         workstation_name: formData.workstation_name.trim(),
         workstation_type: formData.workstation_type,
         plant_floor: formData.plant_floor,
-        // disabled: formData.disabled || 0,
-        production_capacity: formData.production_capacity || 0,
-        warehouse: formData.warehouse ,
+        disabled: formData.disabled || 0,
+        production_capacity: formData.production_capacity || 1,
+        warehouse: formData.warehouse,
         status: formData.status || "Active",
         hour_rate: formData.hour_rate || 0,
         description: formData.description || "",
@@ -360,48 +398,12 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
     }
   };
 
+  const hasErrors = Object.keys(validateAllFields()).length > 0;
+
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
     <div className="nws-page">
-      {/* ── Validation Modal ───────────────────────────────────── */}
-      {showValidation && (
-        <div className="nws-modal-overlay" onClick={() => setShowValidation(false)}>
-          <div className="nws-validation-modal" onClick={e => e.stopPropagation()}>
-            <div className="nws-modal-header">
-              <h2 className="nws-modal-title">
-                <AlertTriangle size={16} />
-                Missing Required Fields
-              </h2>
-              <button className="nws-modal-close" onClick={() => setShowValidation(false)}>
-                <X size={18} />
-              </button>
-            </div>
-            <div className="nws-modal-body">
-              <p className="nws-modal-intro">
-                Please fill in the following required fields before saving:
-              </p>
-              <div className="nws-error-list">
-                {validationErrors.map((err, i) => (
-                  <div key={i} className="nws-validation-error-item">
-                    <div className="nws-error-header">
-                      <XCircle size={14} className="nws-error-icon" />
-                      <strong className="nws-error-label">{err.label}</strong>
-                    </div>
-                    <div className="nws-error-message">{err.message}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="nws-modal-footer">
-              <button className="nws-btn-cancel" onClick={() => setShowValidation(false)}>
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* ── Topbar ────────────────────────────────────────────── */}
       <div className="nws-topbar">
         <nav className="nws-breadcrumb" aria-label="Breadcrumb">
@@ -442,14 +444,10 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
           {hasErrors && (
             <div className="nws-error-pill">
               <AlertTriangle size={11} />
-              {validateForm().length} missing field{validateForm().length > 1 ? "s" : ""}
+              {Object.keys(validateAllFields()).length} missing field{Object.keys(validateAllFields()).length > 1 ? "s" : ""}
             </div>
           )}
           <span className="nws-badge--unsaved">Not Saved</span>
-          {/* <button className="nws-btn-save" onClick={handleSave} disabled={saving}>
-            <Save size={13} />
-            {saving ? 'Saving...' : 'Save'}
-          </button> */}
         </div>
       </div>
 
@@ -466,21 +464,20 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
           <div className="nws-card__body">
             <div className="nws-form-grid">
               <div className="nws-field">
-                <label className="nws-label">
-                  Workstation Name <span className="nws-label__req">*</span>
-                </label>
+                <label className="nws-label required-star">Workstation Name</label>
                 <input
                   className="nws-input"
                   value={formData.workstation_name}
                   onChange={handleChange('workstation_name')}
                   placeholder="Enter workstation name..."
                 />
+                {errors.workstation_name && (
+                  <span className="nws-error-text">{errors.workstation_name}</span>
+                )}
               </div>
               
               <div className="nws-field">
-                <label className="nws-label">
-                  Workstation Type <span className="nws-label__req">*</span>
-                </label>
+                <label className="nws-label required-star">Workstation Type</label>
                 <div className="nws-select-with-add">
                   <select
                     className="nws-input"
@@ -521,12 +518,13 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
                     </div>
                   )}
                 </div>
+                {errors.workstation_type && (
+                  <span className="nws-error-text">{errors.workstation_type}</span>
+                )}
               </div>
               
               <div className="nws-field">
-                <label className="nws-label">
-                  Plant Floor <span className="nws-label__req">*</span>
-                </label>
+                <label className="nws-label required-star">Plant Floor</label>
                 <div className="nws-select-with-add">
                   <select
                     className="nws-input"
@@ -566,10 +564,13 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
                     </div>
                   )}
                 </div>
+                {errors.plant_floor && (
+                  <span className="nws-error-text">{errors.plant_floor}</span>
+                )}
               </div>
               
               <div className="nws-field">
-                <label className="nws-label">Status</label>
+                <label className="nws-label required-star">Status</label>
                 <select
                   className="nws-input"
                   value={formData.status}
@@ -579,6 +580,9 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
                     <option key={status} value={status}>{status}</option>
                   ))}
                 </select>
+                {errors.status && (
+                  <span className="nws-error-text">{errors.status}</span>
+                )}
               </div>
             </div>
           </div>
@@ -595,18 +599,21 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
           <div className="nws-card__body">
             <div className="nws-form-grid">
               <div className="nws-field">
-                <label className="nws-label">Production Capacity</label>
+                <label className="nws-label required-star">Production Capacity</label>
                 <input
                   className="nws-input"
                   type="number"
                   value={formData.production_capacity}
                   onChange={handleChange('production_capacity')}
-                  min="0"
+                  min="1"
                   placeholder="Enter production capacity..."
                 />
+                {errors.production_capacity && (
+                  <span className="nws-error-text">{errors.production_capacity}</span>
+                )}
               </div>
               <div className="nws-field">
-                <label className="nws-label">Hour Rate (₹)</label>
+                <label className="nws-label required-star">Hour Rate (₹)</label>
                 <input
                   className="nws-input"
                   type="number"
@@ -616,9 +623,12 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
                   step="0.01"
                   placeholder="0.00"
                 />
+                {errors.hour_rate && (
+                  <span className="nws-error-text">{errors.hour_rate}</span>
+                )}
               </div>
               <div className="nws-field">
-                <label className="nws-label">Total Working Hours (per day)</label>
+                <label className="nws-label required-star">Total Working Hours (per day)</label>
                 <input
                   className="nws-input"
                   type="number"
@@ -628,6 +638,9 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
                   step="0.5"
                   placeholder="8"
                 />
+                {errors.total_working_hours && (
+                  <span className="nws-error-text">{errors.total_working_hours}</span>
+                )}
               </div>
             </div>
           </div>
@@ -644,12 +657,11 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
           <div className="nws-card__body">
             <div className="nws-form-grid">
               <div className="nws-field">
-                <label className="nws-label">Warehouse</label>
+                <label className="nws-label required-star">Warehouse</label>
                 <select
                   className="nws-input"
                   value={formData.warehouse}
                   onChange={handleChange('warehouse')}
-                  // disabled={warehousesLoading}
                 >
                   <option value="">Select warehouse...</option>
                   {warehouses.map(warehouse => (
@@ -667,6 +679,9 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
                     placeholder="Enter warehouse name..."
                     style={{ marginTop: 8 }}
                   />
+                )}
+                {errors.warehouse && (
+                  <span className="nws-error-text">{errors.warehouse}</span>
                 )}
               </div>
               <div className="nws-field">

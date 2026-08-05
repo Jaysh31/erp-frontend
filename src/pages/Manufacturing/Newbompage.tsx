@@ -5,6 +5,7 @@ import {
   X,
   Trash2,
   AlertTriangle,
+
   InfoIcon,
   Save,
   Plus,
@@ -822,7 +823,6 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
     if (!showValidationErrors) return undefined;
     return fieldErrors[field];
   };
-
 
   const handleSave = async () => {
     const { isValid, errors } = validateForm();

@@ -1006,7 +1006,6 @@ const [accounts, setAccounts] = useState<BankAccountEntry[]>(() => {
 
   // ── contact person modal ─────────────────────────────────────────────
 
-
   const closeContactModal = () => setContactModal(null);
 
   const handleContactModalTextChange = (
@@ -1050,10 +1049,6 @@ const [accounts, setAccounts] = useState<BankAccountEntry[]>(() => {
     });
     setContactModal(null);
   };
-
-
-
-
 
   // ── file handlers (upload happens immediately via /uploadmedia) ────
 

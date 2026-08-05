@@ -983,3 +983,29 @@ select.nws-input {
     flex-wrap: wrap;
   }
 }
+/* ─── Required field star in red ─────────────────────────────── */
+.nws-label.required-star::after {
+  content: " *";
+  color: #dc2626;
+  font-weight: 700;
+}
+
+/* ─── Error text in red ─────────────────────────────────────────── */
+.nws-error-text {
+  color: #dc2626 !important;
+  font-size: 12px;
+  font-weight: 500;
+  display: block;
+  margin-top: 4px;
+}
+
+/* ─── Remove any error borders from inputs ────────────────────── */
+.nws-input.nws-input-error {
+  border-color: inherit !important;
+  background: inherit !important;
+}
+
+.nws-input.nws-input-error:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
+}

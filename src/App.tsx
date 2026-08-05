@@ -210,6 +210,7 @@ function App() {
               <Route path="/delivery-challan" element={<DeliveryChallan />} />
               <Route path="/delivery-challan/edit/:id" element={<DeliveryChallanForm />} />
               <Route path="/delivery-challan/new" element={<DeliveryChallanForm />} />
+              <Route path="/delivery-challan/view/:id" element={<DeliveryChallanForm />} />
               <Route path="/outstanding-receivables" element={<OutstandingDashboard />} />
               <Route path="/customer-payments" element={<CustomerPayments />} />
               <Route path="/customer-invoices" element={<CustomerInvoices />} />
