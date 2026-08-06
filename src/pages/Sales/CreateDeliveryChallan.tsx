@@ -23,6 +23,7 @@ import {
   FaExclamationCircle,
   FaQuestionCircle,
   FaCalendarAlt,
+  FaClipboardCheck,
 } from 'react-icons/fa';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import api from '../../services/api';
@@ -582,7 +583,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
 
   return (
     <div ref={wrapperRef} style={{ position: 'relative', width: '100%' }}>
-      <div style={{ position: 'relative' }}>
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '4px' }}>
         <input
           ref={inputRef}
           type="text"
@@ -594,7 +595,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
           autoComplete="off"
           className="ndc-table-input"
           style={{
-            width: '100%',
+            flex: 1,
             padding: '4px 8px',
             paddingRight: '30px',
             border: error ? '1.5px solid #ef4444' : '0.5px solid var(--border-color, #e2e8f0)',
@@ -1965,6 +1966,47 @@ const NewDeliveryChallan: React.FC = () => {
     );
   };
 
+// ===== NAVIGATE TO QUALITY INSPECTION =====
+const navigateToQualityInspection = () => {
+  // Check if there are items to inspect
+  const hasItems = items.some(item => item.itemCode && item.quantity > 0);
+  if (!hasItems) {
+    toast.error('Please add at least one item before creating a Quality Inspection');
+    return;
+  }
+
+  // Build the URL for the Quality Inspection form
+  const baseUrl = '/quality-inspection/new';
+  
+  // Get the first item's name and code for the inspection
+  const firstItem = items.find(item => item.itemCode && item.quantity > 0);
+  const partProductName = encodeURIComponent(firstItem?.itemName || firstItem?.itemCode || '');
+  const partNo = encodeURIComponent(firstItem?.itemCode || '');
+  
+  // Use the delivery challan number as the doc no
+  const docNo = encodeURIComponent(dcNumber || '');
+  
+  // Get customer name
+  const customerName = encodeURIComponent(customerData?.name || '');
+  
+  // Use challan number as challanNoDate (or you can use date)
+  const challanNoDate = encodeURIComponent(dcNumber || '');
+  
+  // Invoice Qty - total quantity of all items
+  const invoiceQty = encodeURIComponent(String(getTotalQty()));
+  
+  // Report No - can use the delivery challan number or generate one
+  const reportNo = encodeURIComponent(`QIR-${dcNumber || Date.now()}`);
+  
+  // Construct the URL with all query parameters
+  const url = `${baseUrl}?docNo=${docNo}&sourceType=delivery_challan&sourceId=${id || ''}&partProductName=${partProductName}&partNo=${partNo}&customerName=${customerName}&challanNoDate=${challanNoDate}&invoiceQty=${invoiceQty}&reportNo=${reportNo}`;
+  
+  // Navigate to the Quality Inspection form
+  navigate(url);
+  
+  toast(`Opening Quality Inspection for this delivery challan`);
+};
+
   const getTotalQty = () => items.reduce((sum, item) => sum + (item.quantity || 0), 0);
   const getTotalAmount = () => items.reduce((sum, item) => sum + (item.amount || 0), 0);
   const getTotalTax = () => items.reduce((sum, item) => sum + (item.taxAmount || 0), 0);
@@ -2452,7 +2494,6 @@ const NewDeliveryChallan: React.FC = () => {
           margin-left: 12px;
         }
 
-        /* Red asterisk for required fields - IMPORTANT */
         .ndc-required-star {
           color: #ef4444 !important;
           font-weight: 700 !important;
@@ -2460,7 +2501,6 @@ const NewDeliveryChallan: React.FC = () => {
           font-size: 14px;
         }
 
-        /* Error border for inputs */
         .ndc-input-error,
         .ndc-select-error,
         .ndc-table-input.ndc-input-error {
@@ -2473,6 +2513,61 @@ const NewDeliveryChallan: React.FC = () => {
           font-size: 11px;
           margin-top: 2px;
           display: block;
+        }
+
+        /* QI Button in bottom section */
+        .ndc-qi-action-btn {
+          display: inline-flex !important;
+          align-items: center !important;
+          gap: 6px !important;
+          background: var(--primary-color, #2563eb) !important;
+          color: #fff !important;
+          border: none !important;
+          border-radius: 6px !important;
+          padding: 6px 14px !important;
+          cursor: pointer !important;
+          font-size: 12px !important;
+          font-weight: 500 !important;
+          transition: all 0.2s !important;
+          min-height: 32px !important;
+          text-decoration: none !important;
+          white-space: nowrap !important;
+        }
+
+        .ndc-qi-action-btn:hover {
+          background: color-mix(in srgb, var(--primary-color, #2563eb) 85%, #000) !important;
+          transform: translateY(-1px);
+          box-shadow: 0 2px 8px color-mix(in srgb, var(--primary-color) 30%, transparent);
+        }
+
+        .ndc-qi-action-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+          transform: none !important;
+        }
+
+        .dark-theme .ndc-qi-action-btn {
+          background: var(--primary-color, #3b82f6) !important;
+        }
+
+        .dark-theme .ndc-qi-action-btn:hover {
+          background: color-mix(in srgb, var(--primary-color, #3b82f6) 85%, #000) !important;
+        }
+
+        .ndc-qi-section {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          flex-wrap: wrap;
+          padding: 8px 0 4px 0;
+          border-top: 1px solid var(--border-color, #e2e8f0);
+          margin-top: 4px;
+        }
+
+        .ndc-qi-label {
+          font-size: 12px;
+          font-weight: 500;
+          color: var(--text-secondary, #64748b);
         }
 
         @media print {
@@ -2948,19 +3043,27 @@ const NewDeliveryChallan: React.FC = () => {
               />
             </div>
 
-            <div className="ndc-field ndc-quality-inspection-bottom">
-              <label className="ndc-label ndc-checkbox-label-inline">
-                <input
-                  type="checkbox"
-                  checked={qualityInspection}
-                  onChange={(e) => setQualityInspection(e.target.checked)}
-                  className="ndc-checkbox ndc-quality-checkbox"
-                  disabled={isViewMode}
-                />
-                <span className="ndc-checkbox-text">
-                  Quality Inspection Required
+            {/* Quality Inspection Section - Replaces checkbox with button */}
+            <div className="ndc-qi-section">
+              <span className="ndc-qi-label">
+                <FaClipboardCheck size={14} style={{ marginRight: '6px' }} />
+                Quality Inspection
+              </span>
+              <button
+                type="button"
+                onClick={navigateToQualityInspection}
+                className="ndc-qi-action-btn"
+                disabled={isViewMode || items.every(item => !item.itemCode || item.quantity <= 0)}
+                title={items.every(item => !item.itemCode || item.quantity <= 0) ? 'Add at least one item first' : 'Create Quality Inspection'}
+              >
+                <FaClipboardCheck size={14} />
+                Create Inspection
+              </button>
+              {qualityInspection && (
+                <span style={{ fontSize: '11px', color: 'var(--success-color, #22c55e)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <FaCheckCircle size={12} /> Inspection created
                 </span>
-              </label>
+              )}
             </div>
           </div>
 

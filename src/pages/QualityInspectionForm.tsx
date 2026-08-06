@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   FaArrowLeft, FaSave, FaPrint, FaPlus, FaTrash,
-  FaExclamationTriangle, FaClipboardCheck, FaSpinner, 
+  FaExclamationTriangle, FaClipboardCheck, FaSpinner,
+  FaCalendarAlt, FaUserMinus,
 } from 'react-icons/fa';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import './QualityInspectionForm.css';
@@ -48,6 +49,8 @@ interface InspectionForm {
   inspectedBy: string;
   reviewedBy: string;
   qualityTemplateId?: number | null;
+  sourceType?: string;
+  sourceId?: number;
 }
 
 interface ItemSuggestion {
@@ -114,6 +117,358 @@ interface TemplateInfo {
   }>;
 }
 
+/* ─────────────────────────── DatePicker Component ─────────────────────────── */
+
+interface DatePickerProps {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  className?: string;
+  error?: boolean;
+  disabled?: boolean;
+  name?: string;
+  label?: string;
+}
+
+const DatePicker: React.FC<DatePickerProps> = ({
+  value,
+  onChange,
+  placeholder = 'Select date',
+  className = '',
+  error = false,
+  disabled = false,
+  name,
+  label,
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [viewDate, setViewDate] = useState(() => {
+    if (value) {
+      const d = new Date(value + 'T00:00:00');
+      if (!isNaN(d.getTime())) return d;
+    }
+    return new Date();
+  });
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const currentMonth = viewDate.getMonth();
+  const currentYear = viewDate.getFullYear();
+
+  const prevMonth = () => {
+    setViewDate(new Date(currentYear, currentMonth - 1, 1));
+  };
+
+  const nextMonth = () => {
+    setViewDate(new Date(currentYear, currentMonth + 1, 1));
+  };
+
+  const handleDateSelect = (day: number) => {
+    const selected = new Date(currentYear, currentMonth, day);
+    const formatted = selected.toISOString().split('T')[0];
+    onChange(formatted);
+    setIsOpen(false);
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    onChange(val);
+    if (val.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      const d = new Date(val + 'T00:00:00');
+      if (!isNaN(d.getTime())) {
+        setViewDate(d);
+      }
+    }
+  };
+
+  const handleInputBlur = () => {
+    if (value && !value.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      // If not a valid date format, keep as is
+    }
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const getDaysInMonth = (year: number, month: number) => {
+    return new Date(year, month + 1, 0).getDate();
+  };
+
+  const getFirstDayOfMonth = (year: number, month: number) => {
+    return new Date(year, month, 1).getDay();
+  };
+
+  const daysInMonth = getDaysInMonth(currentYear, currentMonth);
+  const firstDay = getFirstDayOfMonth(currentYear, currentMonth);
+
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const dayNames = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+
+  const isToday = (day: number) => {
+    const d = new Date(currentYear, currentMonth, day);
+    return d.toISOString().split('T')[0] === todayStr;
+  };
+
+  const isSelected = (day: number) => {
+    if (!value) return false;
+    const d = new Date(currentYear, currentMonth, day);
+    return d.toISOString().split('T')[0] === value;
+  };
+
+  const displayValue = value ? new Date(value + 'T00:00:00').toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  }) : '';
+
+  return (
+    <div className="date-picker-wrapper" ref={wrapperRef}>
+      {label && <label className="date-picker-label">{label}</label>}
+      <div className="date-picker-input-wrapper">
+        <input
+          ref={inputRef}
+          type="text"
+          value={value}
+          onChange={handleInputChange}
+          onBlur={handleInputBlur}
+          onFocus={() => setIsOpen(true)}
+          placeholder={placeholder}
+          className={`date-picker-input ${className} ${error ? 'qir-input-error' : ''}`}
+          disabled={disabled}
+          name={name}
+          autoComplete="off"
+        />
+        <button
+          type="button"
+          className="date-picker-toggle"
+          onClick={() => setIsOpen(!isOpen)}
+          disabled={disabled}
+        >
+          <FaCalendarAlt size={14} />
+        </button>
+        {value && (
+          <span className="date-picker-display">{displayValue}</span>
+        )}
+      </div>
+
+      {isOpen && !disabled && (
+        <div className="date-picker-dropdown">
+          <div className="date-picker-header">
+            <button type="button" className="date-picker-nav" onClick={prevMonth}>‹</button>
+            <span className="date-picker-month-year">
+              {monthNames[currentMonth]} {currentYear}
+            </span>
+            <button type="button" className="date-picker-nav" onClick={nextMonth}>›</button>
+          </div>
+          <div className="date-picker-weekdays">
+            {dayNames.map(day => (
+              <span key={day} className="date-picker-weekday">{day}</span>
+            ))}
+          </div>
+          <div className="date-picker-days">
+            {Array.from({ length: firstDay }, (_, i) => (
+              <span key={`empty-${i}`} className="date-picker-day-empty"></span>
+            ))}
+            {Array.from({ length: daysInMonth }, (_, i) => {
+              const day = i + 1;
+              const isTodayDate = isToday(day);
+              const isSelectedDate = isSelected(day);
+              return (
+                <button
+                  key={day}
+                  type="button"
+                  className={`date-picker-day ${isTodayDate ? 'date-picker-day-today' : ''} ${isSelectedDate ? 'date-picker-day-selected' : ''}`}
+                  onClick={() => handleDateSelect(day)}
+                >
+                  {day}
+                </button>
+              );
+            })}
+          </div>
+          <div className="date-picker-footer">
+            <button
+              type="button"
+              className="date-picker-today-btn"
+              onClick={() => {
+                const todayStr = new Date().toISOString().split('T')[0];
+                onChange(todayStr);
+                setViewDate(new Date());
+                setIsOpen(false);
+              }}
+            >
+              Today
+            </button>
+            {value && (
+              <button
+                type="button"
+                className="date-picker-clear-btn"
+                onClick={() => {
+                  onChange('');
+                  setIsOpen(false);
+                }}
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+/* ─────────────────────────── Specification Input Component ─────────────────── */
+
+interface SpecificationInputProps {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  className?: string;
+  error?: boolean;
+  disabled?: boolean;
+}
+
+const SpecificationInput: React.FC<SpecificationInputProps> = ({
+  value,
+  onChange,
+  placeholder = 'e.g. 9±0.2',
+  className = '',
+  error = false,
+  disabled = false,
+}) => {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [showHelper, setShowHelper] = useState(false);
+
+  const insertSymbol = (symbol: string) => {
+    const input = inputRef.current;
+    if (!input) return;
+
+    const start = input.selectionStart || 0;
+    const end = input.selectionEnd || 0;
+    const newValue = value.substring(0, start) + symbol + value.substring(end);
+    onChange(newValue);
+
+    setTimeout(() => {
+      input.focus();
+      const newCursorPos = start + symbol.length;
+      input.setSelectionRange(newCursorPos, newCursorPos);
+    }, 0);
+
+    setShowHelper(false);
+  };
+
+  const insertTolerance = (format: string) => {
+    switch (format) {
+      case '±':
+        insertSymbol('±');
+        break;
+      case '±0.1':
+        insertSymbol('±0.1');
+        break;
+      case '±0.2':
+        insertSymbol('±0.2');
+        break;
+      case '±0.5':
+        insertSymbol('±0.5');
+        break;
+      case '±1.0':
+        insertSymbol('±1.0');
+        break;
+      default:
+        insertSymbol('±');
+    }
+  };
+
+  return (
+    <div className="specification-input-wrapper">
+      <div className="specification-input-container">
+        <input
+          ref={inputRef}
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          className={`specification-input ${className} ${error ? 'qir-input-error' : ''}`}
+          disabled={disabled}
+        />
+        <button
+          type="button"
+          className="specification-tolerance-btn"
+          onClick={() => setShowHelper(!showHelper)}
+          disabled={disabled}
+          title="Insert ± tolerance"
+        >
+          <FaUserMinus size={14} />
+        </button>
+      </div>
+
+      {showHelper && !disabled && (
+        <div className="specification-helper-dropdown">
+          <div className="specification-helper-header">
+            <span>Insert Tolerance</span>
+            <button
+              type="button"
+              className="specification-helper-close"
+              onClick={() => setShowHelper(false)}
+            >
+              ×
+            </button>
+          </div>
+          <div className="specification-helper-grid">
+            <button
+              type="button"
+              className="specification-helper-btn"
+              onClick={() => insertTolerance('±')}
+            >
+              ±
+            </button>
+            <button
+              type="button"
+              className="specification-helper-btn"
+              onClick={() => insertTolerance('±0.1')}
+            >
+              ±0.1
+            </button>
+            <button
+              type="button"
+              className="specification-helper-btn"
+              onClick={() => insertTolerance('±0.2')}
+            >
+              ±0.2
+            </button>
+            <button
+              type="button"
+              className="specification-helper-btn"
+              onClick={() => insertTolerance('±0.5')}
+            >
+              ±0.5
+            </button>
+            <button
+              type="button"
+              className="specification-helper-btn"
+              onClick={() => insertTolerance('±1.0')}
+            >
+              ±1.0
+            </button>
+          </div>
+          <div className="specification-helper-examples">
+            <span>Examples: 9±0.2, 25±0.5, 100±1.0</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 /* ─────────────────────────── Helpers ─────────────────────────── */
 
 let rowSeq = 0;
@@ -148,7 +503,6 @@ const escapeHtml = (value: string): string => {
     .replace(/"/g, '&quot;');
 };
 
-// Create a single blank parameter row
 const createBlankParameterRow = (sampleCount: number): ParameterRow => ({
   id: nextId(),
   parameter: '',
@@ -183,6 +537,8 @@ const defaultFormData = (): InspectionForm => ({
   inspectedBy: '',
   reviewedBy: '',
   qualityTemplateId: null,
+  sourceType: undefined,
+  sourceId: undefined,
 });
 
 const unwrapDate = (value?: string | null): string => {
@@ -377,10 +733,10 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
           autoComplete="off"
         />
         {loading && (
-          <div style={{ 
-            position: 'absolute', 
-            right: '10px', 
-            top: '50%', 
+          <div style={{
+            position: 'absolute',
+            right: '10px',
+            top: '50%',
             transform: 'translateY(-50%)',
             display: 'flex',
             alignItems: 'center'
@@ -389,7 +745,7 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
           </div>
         )}
       </div>
-      
+
       {isOpen && suggestions.length > 0 && (
         <ul className="autocomplete-dropdown" style={{
           position: 'absolute',
@@ -670,16 +1026,12 @@ export default function QualityInspectionForm() {
   const [apiError, setApiError] = useState<string | null>(null);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
-  
-  // Template state management
+
   const [currentTemplate, setCurrentTemplate] = useState<TemplateInfo | null>(null);
-  const [originalTemplateRows, setOriginalTemplateRows] = useState<ParameterRow[]>([]);
+  const [, setOriginalTemplateRows] = useState<ParameterRow[]>([]);
   const [templateLoaded, setTemplateLoaded] = useState(false);
-  
-  // Popup 1 state (Template Creation)
+
   const [showTemplateCreationModal, setShowTemplateCreationModal] = useState(false);
-  
-  // Popup 2 state (Template Update)
   const [showTemplateUpdateModal, setShowTemplateUpdateModal] = useState(false);
 
   const inputRefs = useRef<{ [key: string]: HTMLInputElement | HTMLTextAreaElement | null }>({});
@@ -687,7 +1039,133 @@ export default function QualityInspectionForm() {
     inputRefs.current[key] = el;
   };
 
-  /* ─── Comparison Functions ────────────────────────────────────── */
+  // Check if coming from a source (Delivery Challan, Sales Invoice, etc.)
+  const isFromSource = !!formData.sourceType;
+
+  /* ─── Read query parameters ────────────────────────────────────── */
+
+/* ─── Read query parameters ────────────────────────────────────── */
+
+useEffect(() => {
+  // Get all query params
+  const docNoParam = searchParams.get('docNo');
+  const sourceType = searchParams.get('sourceType');
+  const sourceId = searchParams.get('sourceId');
+  const partProductNameParam = searchParams.get('partProductName');
+  const partNoParam = searchParams.get('partNo');
+  const customerNameParam = searchParams.get('customerName');
+  const challanNoDateParam = searchParams.get('challanNoDate');
+  const invoiceQtyParam = searchParams.get('invoiceQty');
+  const reportNoParam = searchParams.get('reportNo');
+  
+  // Set docNo, sourceType, sourceId
+  if (docNoParam) {
+    setFormData(prev => ({
+      ...prev,
+      docNo: docNoParam,
+      sourceType: sourceType || undefined,
+      sourceId: sourceId ? parseInt(sourceId, 10) : undefined,
+    }));
+  }
+
+  // Auto-populate partProductName and partNo from URL params
+  if (partProductNameParam) {
+    const decodedName = decodeURIComponent(partProductNameParam);
+    setFormData(prev => ({
+      ...prev,
+      partProductName: decodedName,
+    }));
+  }
+
+  if (partNoParam) {
+    const decodedPartNo = decodeURIComponent(partNoParam);
+    setFormData(prev => ({
+      ...prev,
+      partNo: decodedPartNo,
+    }));
+  }
+
+  // Auto-populate customer name
+  if (customerNameParam) {
+    const decodedCustomerName = decodeURIComponent(customerNameParam);
+    setFormData(prev => ({
+      ...prev,
+      customerName: decodedCustomerName,
+    }));
+  }
+
+  // Auto-populate challan no / date
+  if (challanNoDateParam) {
+    const decodedChallanNoDate = decodeURIComponent(challanNoDateParam);
+    setFormData(prev => ({
+      ...prev,
+      challanNoDate: decodedChallanNoDate,
+    }));
+  }
+
+  // Auto-populate invoice qty
+  if (invoiceQtyParam) {
+    const decodedInvoiceQty = decodeURIComponent(invoiceQtyParam);
+    setFormData(prev => ({
+      ...prev,
+      invoiceQty: decodedInvoiceQty,
+    }));
+  }
+
+  // Auto-populate report no
+  if (reportNoParam) {
+    const decodedReportNo = decodeURIComponent(reportNoParam);
+    setFormData(prev => ({
+      ...prev,
+      reportNo: decodedReportNo,
+    }));
+  }
+
+  // If we have partProductName, try to find the item and load its template
+  if (partProductNameParam) {
+    const decodedName = decodeURIComponent(partProductNameParam);
+    // Search for the item by name
+    const searchItemAndLoadTemplate = async () => {
+      try {
+        const response = await api.get('/item', {
+          params: {
+            page: 1,
+            limit: 10,
+            search: decodedName
+          }
+        });
+
+        if (response.data.success === 1) {
+          let items = [];
+          if (Array.isArray(response.data.data)) {
+            items = response.data.data;
+          } else if (response.data.data?.records) {
+            items = response.data.data.records;
+          } else if (response.data.data?.data) {
+            items = response.data.data.data;
+          }
+
+          // Find exact match by name
+          const matchedItem = items.find(
+            (item: any) => item.item_name === decodedName || item.item_code === partNoParam
+          );
+
+          if (matchedItem) {
+            setSelectedItemId(matchedItem.id);
+            // Load the quality template for this item
+            await loadQualityTemplate(matchedItem.id);
+            toast.success(`Loaded item: ${matchedItem.item_name}`);
+          }
+        }
+      } catch (error) {
+        console.error('Error searching for item:', error);
+        // Don't show error toast - just use the name as provided
+      }
+    };
+
+    searchItemAndLoadTemplate();
+  }
+}, [searchParams]);
 
   const compareParameters = (templateParams: any[], formParams: ParameterRow[]): boolean => {
     if (templateParams.length !== formParams.length) {
@@ -711,18 +1189,16 @@ export default function QualityInspectionForm() {
     return false;
   };
 
-  /* ─── Load Quality Template when Item is selected ──────────── */
-
   const loadQualityTemplate = async (itemId: number) => {
     setLoadingTemplate(true);
     setTemplateLoaded(false);
-    
+
     try {
       const response = await api.get(`/quality-template/by-item/${itemId}`);
-      
+
       if (response.data.success === 1 && response.data.data) {
         const templateData = response.data.data;
-        
+
         setCurrentTemplate({
           id: templateData.id,
           template_name: templateData.template_name,
@@ -737,7 +1213,7 @@ export default function QualityInspectionForm() {
 
         const sampleCount = formData.sampleCount || 5;
         const blanks = () => Array.from({ length: sampleCount }, () => '');
-        
+
         const parameters: ParameterRow[] = templateData.parameters.map((param: any) => ({
           id: nextId(),
           parameter: param.parameter_name,
@@ -767,17 +1243,17 @@ export default function QualityInspectionForm() {
         setCurrentTemplate(null);
         setOriginalTemplateRows([]);
         setTemplateLoaded(false);
-        
+
         const emptyParameters: ParameterRow[] = [
           createBlankParameterRow(formData.sampleCount || 5)
         ];
-        
+
         setFormData(prev => ({
           ...prev,
           parameters: emptyParameters,
           qualityTemplateId: null,
         }));
-        
+
         toast('No Quality Template found for this item. Starting with empty grid.');
       }
     } catch (error: any) {
@@ -785,24 +1261,22 @@ export default function QualityInspectionForm() {
       setCurrentTemplate(null);
       setOriginalTemplateRows([]);
       setTemplateLoaded(false);
-      
+
       const emptyParameters: ParameterRow[] = [
         createBlankParameterRow(formData.sampleCount || 5)
       ];
-      
+
       setFormData(prev => ({
         ...prev,
         parameters: emptyParameters,
         qualityTemplateId: null,
       }));
-      
+
       toast('Could not load Quality Template. Starting with empty grid.');
     } finally {
       setLoadingTemplate(false);
     }
   };
-
-  /* ─── Clear template data ────────────────────────────────────── */
 
   const clearTemplateData = () => {
     setCurrentTemplate(null);
@@ -814,12 +1288,10 @@ export default function QualityInspectionForm() {
     }));
   };
 
-  /* ─── load existing record when editing ─────────────────────── */
-
   const loadRecordIntoForm = (record: any) => {
     setRecordName(record.inspection_no ?? null);
     const sampleCount = record.details?.[0]?.observations?.length || DEFAULT_SAMPLE_COUNT;
-    
+
     const parameters: ParameterRow[] = Array.isArray(record.details) && record.details.length > 0
       ? record.details.map((d: any) => ({
           id: nextId(),
@@ -838,7 +1310,7 @@ export default function QualityInspectionForm() {
 
     if (record.item_id) {
       setSelectedItemId(record.item_id);
-      
+
       if (record.quality_template_id) {
         setFormData(prev => ({
           ...prev,
@@ -883,7 +1355,7 @@ export default function QualityInspectionForm() {
       if (response.data.success === 1 && response.data.data) {
         const record = response.data.data;
         loadRecordIntoForm(record);
-        
+
         if (record.quality_template_id && record.item_id) {
           setFormData(prev => ({
             ...prev,
@@ -908,8 +1380,6 @@ export default function QualityInspectionForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  /* ─── auto-print when opened from the listing page's Print action ── */
-
   useEffect(() => {
     if (autoPrint && !loadingRecord) {
       const timer = setTimeout(() => handlePrint(), 400);
@@ -918,15 +1388,16 @@ export default function QualityInspectionForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoPrint, loadingRecord]);
 
-  /* ─── header field handlers ──────────────────────────────────── */
-
   const handleFieldChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
     if (errors[name]) setErrors(prev => ({ ...prev, [name]: '' }));
   };
 
-  /* ─── Part/Product Name handlers ────────────────────────────── */
+  const handleDateChange = (name: string, value: string) => {
+    setFormData(prev => ({ ...prev, [name]: value }));
+    if (errors[name]) setErrors(prev => ({ ...prev, [name]: '' }));
+  };
 
   const handlePartProductNameChange = (value: string) => {
     setFormData(prev => ({ ...prev, partProductName: value }));
@@ -945,11 +1416,9 @@ export default function QualityInspectionForm() {
     }));
     setSelectedItemId(item.id);
     if (errors.partProductName) setErrors(prev => ({ ...prev, partProductName: '' }));
-    
+
     await loadQualityTemplate(item.id);
   };
-
-  /* ─── Customer handlers ────────────────────────────────────── */
 
   const handleCustomerNameChange = (value: string) => {
     setFormData(prev => ({ ...prev, customerName: value }));
@@ -963,8 +1432,6 @@ export default function QualityInspectionForm() {
     }));
     if (errors.customerName) setErrors(prev => ({ ...prev, customerName: '' }));
   };
-
-  /* ─── parameter row handlers ─────────────────────────────────── */
 
   const handleParameterFieldChange = (rowIndex: number, field: 'parameter' | 'specification' | 'inspectionMethod', value: string) => {
     setFormData(prev => {
@@ -983,8 +1450,8 @@ export default function QualityInspectionForm() {
   const handleParameterSelect = (rowIndex: number, item: ParameterSuggestion) => {
     setFormData(prev => {
       const parameters = [...prev.parameters];
-      parameters[rowIndex] = { 
-        ...parameters[rowIndex], 
+      parameters[rowIndex] = {
+        ...parameters[rowIndex],
         parameter: item.parameter_name,
         parameterId: item.id
       };
@@ -995,8 +1462,8 @@ export default function QualityInspectionForm() {
   const handleMethodSelect = (rowIndex: number, item: MethodSuggestion) => {
     setFormData(prev => {
       const parameters = [...prev.parameters];
-      parameters[rowIndex] = { 
-        ...parameters[rowIndex], 
+      parameters[rowIndex] = {
+        ...parameters[rowIndex],
         inspectionMethod: item.method_name,
         inspectionMethodId: item.id
       };
@@ -1007,8 +1474,8 @@ export default function QualityInspectionForm() {
   const handleParameterNameChange = (rowIndex: number, value: string) => {
     setFormData(prev => {
       const parameters = [...prev.parameters];
-      parameters[rowIndex] = { 
-        ...parameters[rowIndex], 
+      parameters[rowIndex] = {
+        ...parameters[rowIndex],
         parameter: value,
         parameterId: undefined
       };
@@ -1019,8 +1486,8 @@ export default function QualityInspectionForm() {
   const handleMethodNameChange = (rowIndex: number, value: string) => {
     setFormData(prev => {
       const parameters = [...prev.parameters];
-      parameters[rowIndex] = { 
-        ...parameters[rowIndex], 
+      parameters[rowIndex] = {
+        ...parameters[rowIndex],
         inspectionMethod: value,
         inspectionMethodId: undefined
       };
@@ -1074,13 +1541,9 @@ export default function QualityInspectionForm() {
     });
   };
 
-  /* ─── out-of-spec summary ────────────────────────────────────── */
-
   const outOfSpecCount = formData.parameters.reduce((count, row) => {
     return count + row.observations.filter(v => isObservationOutOfSpec(row.specification, v)).length;
   }, 0);
-
-  /* ─── export / print ─────────────────────────────────────────── */
 
   const buildPrintHtml = (): string => {
     const sampleHeaderCells = Array.from({ length: formData.sampleCount }, (_, i) => `<th class="obs">${i + 1}</th>`).join('');
@@ -1253,8 +1716,6 @@ export default function QualityInspectionForm() {
     doc.close();
   };
 
-  /* ─── validation ─────────────────────────────────────────────── */
-
   const validate = (): boolean => {
     const newErrors: { [key: string]: string } = {};
     if (!formData.docNo.trim()) newErrors.docNo = 'Doc No is required';
@@ -1281,8 +1742,6 @@ export default function QualityInspectionForm() {
     }
     return true;
   };
-
-  /* ─── Detect New Parameters and Methods ──────────────────────── */
 
   const detectNewParametersAndMethods = () => {
     const parameterNames = formData.parameters
@@ -1319,13 +1778,11 @@ export default function QualityInspectionForm() {
     };
   };
 
-  /* ─── Save Missing Masters ────────────────────────────────────── */
-
   const saveMissingMasters = async (newParameters: string[], newMethods: string[]) => {
     console.log('Saving missing masters...');
     console.log('New Parameters to save:', newParameters);
     console.log('New Methods to save:', newMethods);
-    
+
     const savedParameters: { [key: string]: number } = {};
     const savedMethods: { [key: string]: number } = {};
 
@@ -1381,24 +1838,19 @@ export default function QualityInspectionForm() {
     return { savedParameters, savedMethods };
   };
 
-  /* ─── Template Save Functions ─────────────────────────────────── */
-
   const createTemplateFromForm = async () => {
     try {
-      // Detect new parameters and methods
       const { newParameters, newMethods } = detectNewParametersAndMethods();
-      
+
       let savedParameters: { [key: string]: number } = {};
       let savedMethods: { [key: string]: number } = {};
 
-      // Automatically save new parameters and methods if they exist
       if (newParameters.length > 0 || newMethods.length > 0) {
         const result = await saveMissingMasters(newParameters, newMethods);
         savedParameters = result.savedParameters;
         savedMethods = result.savedMethods;
       }
 
-      // Build template payload with updated IDs
       const templatePayload = {
         template_name: `${formData.partProductName || 'Inspection'} Template`,
         template_code: `TEMP-${(formData.partNo || 'INSP').toUpperCase()}-${Date.now().toString(36).toUpperCase()}`,
@@ -1415,7 +1867,7 @@ export default function QualityInspectionForm() {
               parameterId = savedParameters[paramName];
             }
           }
-          
+
           let methodId = row.inspectionMethodId;
           if (!methodId && row.inspectionMethod.trim()) {
             const methodName = row.inspectionMethod.trim();
@@ -1436,7 +1888,7 @@ export default function QualityInspectionForm() {
       };
 
       const response = await api.post('/quality-template', templatePayload);
-      
+
       if (response.data.success === 1) {
         toast.success('Quality Template created successfully!');
         return true;
@@ -1458,20 +1910,17 @@ export default function QualityInspectionForm() {
     }
 
     try {
-      // Detect new parameters and methods
       const { newParameters, newMethods } = detectNewParametersAndMethods();
-      
+
       let savedParameters: { [key: string]: number } = {};
       let savedMethods: { [key: string]: number } = {};
 
-      // Automatically save new parameters and methods if they exist
       if (newParameters.length > 0 || newMethods.length > 0) {
         const result = await saveMissingMasters(newParameters, newMethods);
         savedParameters = result.savedParameters;
         savedMethods = result.savedMethods;
       }
 
-      // Build template payload with updated IDs
       const templatePayload = {
         id: currentTemplate.id,
         template_name: currentTemplate.template_name,
@@ -1489,7 +1938,7 @@ export default function QualityInspectionForm() {
               parameterId = savedParameters[paramName];
             }
           }
-          
+
           let methodId = row.inspectionMethodId;
           if (!methodId && row.inspectionMethod.trim()) {
             const methodName = row.inspectionMethod.trim();
@@ -1511,7 +1960,7 @@ export default function QualityInspectionForm() {
       };
 
       const response = await api.put('/quality-template', templatePayload);
-      
+
       if (response.data.success === 1) {
         toast.success('Quality Template updated successfully!');
         return true;
@@ -1525,8 +1974,6 @@ export default function QualityInspectionForm() {
       return false;
     }
   };
-
-  /* ─── Save ───────────────────────────────────────────────────── */
 
   const performSave = async (payload: any) => {
     try {
@@ -1545,21 +1992,16 @@ export default function QualityInspectionForm() {
 
       toast.success(isEditMode ? 'Inspection report updated!' : 'Inspection report saved!');
 
-      // After successful save, check template status
       if (formData.qualityTemplateId) {
-        // Template exists - check if it was modified
         if (currentTemplate) {
           const hasChanges = compareParameters(currentTemplate.parameters, formData.parameters);
           if (hasChanges) {
-            // Show Popup 2: Template Update Modal
             setShowTemplateUpdateModal(true);
             return { success: true, inspectionId, templateChanged: true };
           }
         }
-        // No changes - navigate back
         navigate('/quality-inspection');
       } else {
-        // No template exists - show Popup 1: Template Creation Modal
         setShowTemplateCreationModal(true);
       }
 
@@ -1590,7 +2032,6 @@ export default function QualityInspectionForm() {
     setApiError(null);
 
     try {
-      // Build payload and save inspection directly
       const payload = buildApiPayload();
       await performSave(payload);
     } catch (err) {
@@ -1600,12 +2041,10 @@ export default function QualityInspectionForm() {
     }
   };
 
-  /* ─── Popup 1 Handlers ──────────────────────────────────────────── */
-
   const handleCreateTemplate = async () => {
     setShowTemplateCreationModal(false);
     setSaving(true);
-    
+
     try {
       const success = await createTemplateFromForm();
       if (success) {
@@ -1626,12 +2065,10 @@ export default function QualityInspectionForm() {
     navigate('/quality-inspection');
   };
 
-  /* ─── Popup 2 Handlers ──────────────────────────────────────────── */
-
   const handleUpdateTemplate = async () => {
     setShowTemplateUpdateModal(false);
     setSaving(true);
-    
+
     try {
       const success = await updateTemplateFromForm();
       if (success) {
@@ -1652,16 +2089,14 @@ export default function QualityInspectionForm() {
     navigate('/quality-inspection');
   };
 
-  /* ─── Build API payload matching backend expectations ─────────── */
-
   const buildApiPayload = () => {
     const inspectionNo = isEditMode && recordName ? recordName : `QIR-${Date.now().toString(36).toUpperCase()}`;
     const overallResult = outOfSpecCount > 0 ? 'Fail' : 'Pass';
-    
+
     const details = formData.parameters.map((param, index) => {
       const paramOutOfSpec = param.observations.some(v => isObservationOutOfSpec(param.specification, v));
       const paramResult = paramOutOfSpec ? 'Fail' : 'Pass';
-      
+
       const observations = param.observations.map((value, obsIndex) => ({
         sample_no: obsIndex + 1,
         observed_value: value || null,
@@ -1689,7 +2124,7 @@ export default function QualityInspectionForm() {
     const inspectionType = inspectionTypeMap['Final Inspection'] || 'Final';
     const status = outOfSpecCount > 0 ? 'Rejected' : 'Accepted';
 
-    return {
+    const payload: any = {
       inspection_no: inspectionNo,
       company_id: 1,
       inspection_date: formData.date || null,
@@ -1729,6 +2164,14 @@ export default function QualityInspectionForm() {
       footer_rev_date: formData.footerRevDate,
       details: details
     };
+
+    // Add source info if coming from another module
+    if (formData.sourceType && formData.sourceId) {
+      payload.source_type = formData.sourceType;
+      payload.source_id = formData.sourceId;
+    }
+
+    return payload;
   };
 
   /* ─────────────────────────── Render ─────────────────────────── */
@@ -1817,6 +2260,8 @@ export default function QualityInspectionForm() {
                   onChange={handleFieldChange}
                   placeholder="e.g. AI / QA / 04"
                   ref={setRef('docNo')}
+                  readOnly={!!formData.sourceType}
+                  style={formData.sourceType ? { backgroundColor: '#f0f0f0', cursor: 'not-allowed' } : {}}
                 />
               </td>
             </tr>
@@ -1844,11 +2289,11 @@ export default function QualityInspectionForm() {
               </td>
               <td className="qir-meta-label">Part No :-</td>
               <td className="qir-meta-value" colSpan={2}>
-                <input 
-                  name="partNo" 
-                  value={formData.partNo} 
-                  onChange={handleFieldChange} 
-                  placeholder="Part number" 
+                <input
+                  name="partNo"
+                  value={formData.partNo}
+                  onChange={handleFieldChange}
+                  placeholder="Part number"
                   ref={setRef('partNo')}
                   readOnly
                   style={{ backgroundColor: '#f9fafb', cursor: 'not-allowed' }}
@@ -1856,23 +2301,32 @@ export default function QualityInspectionForm() {
               </td>
               <td className="qir-meta-label">Date :</td>
               <td className="qir-meta-value">
-                <input type="date" name="date" value={formData.date} onChange={handleFieldChange} className={errors.date ? 'qir-input-error' : ''} ref={setRef('date')} />
+                <DatePicker
+                  value={formData.date}
+                  onChange={(value) => handleDateChange('date', value)}
+                  className={errors.date ? 'qir-input-error' : ''}
+                  error={!!errors.date}
+                  name="date"
+                />
               </td>
             </tr>
-            <tr>
-              <td className="qir-meta-label">Drawing No :-</td>
-              <td className="qir-meta-value" colSpan={2}>
-                <input name="drawingNo" value={formData.drawingNo} onChange={handleFieldChange} placeholder="Drawing number" ref={setRef('drawingNo')} />
-              </td>
-              <td className="qir-meta-label">Rev. No :</td>
-              <td className="qir-meta-value" colSpan={2}>
-                <input name="revNo" value={formData.revNo} onChange={handleFieldChange} ref={setRef('revNo')} />
-              </td>
-              <td className="qir-meta-label">Invoice No :</td>
-              <td className="qir-meta-value">
-                <input name="invoiceNo" value={formData.invoiceNo} onChange={handleFieldChange} ref={setRef('invoiceNo')} />
-              </td>
-            </tr>
+            {/* ── Hide these fields when coming from a source ── */}
+            {!isFromSource && (
+              <tr>
+                <td className="qir-meta-label">Drawing No :-</td>
+                <td className="qir-meta-value" colSpan={2}>
+                  <input name="drawingNo" value={formData.drawingNo} onChange={handleFieldChange} placeholder="Drawing number" ref={setRef('drawingNo')} />
+                </td>
+                <td className="qir-meta-label">Rev. No :</td>
+                <td className="qir-meta-value" colSpan={2}>
+                  <input name="revNo" value={formData.revNo} onChange={handleFieldChange} ref={setRef('revNo')} />
+                </td>
+                <td className="qir-meta-label">Invoice No :</td>
+                <td className="qir-meta-value">
+                  <input name="invoiceNo" value={formData.invoiceNo} onChange={handleFieldChange} ref={setRef('invoiceNo')} />
+                </td>
+              </tr>
+            )}
             <tr>
               <td className="qir-meta-label">Customer Name :</td>
               <td className="qir-meta-value" colSpan={2}>
@@ -1967,9 +2421,9 @@ export default function QualityInspectionForm() {
                     </div>
                   </td>
                   <td className="qir-col-spec">
-                    <input
+                    <SpecificationInput
                       value={row.specification}
-                      onChange={(e) => handleParameterFieldChange(rowIndex, 'specification', e.target.value)}
+                      onChange={(value) => handleParameterFieldChange(rowIndex, 'specification', value)}
                       placeholder="e.g. 9±0.2"
                     />
                   </td>
@@ -2042,7 +2496,11 @@ export default function QualityInspectionForm() {
                   <input name="footerRevNo" value={formData.footerRevNo} onChange={handleFieldChange} />
                 </div>
                 <div><span className="qir-label-inline">Rev. Date:</span>
-                  <input type="date" name="footerRevDate" value={formData.footerRevDate} onChange={handleFieldChange} />
+                  <DatePicker
+                    value={formData.footerRevDate}
+                    onChange={(value) => handleDateChange('footerRevDate', value)}
+                    name="footerRevDate"
+                  />
                 </div>
               </td>
               <td className="qir-signoff-name">
