@@ -296,9 +296,7 @@ const sanitizeAccountField = (name: string, value: string): string => {
   }
 };
 
-// Sanitization for the fields inside the Contact Person modal — kept
-// separate from sanitizeAccountField since these aren't top-level
-// account inputs and a couple of names overlap in meaning but not rules.
+
 const sanitizeContactField = (
   field: "firstName" | "lastName" | "phone" | "email" | "department" | "remarks",
   value: string
@@ -657,8 +655,7 @@ const [accounts, setAccounts] = useState<BankAccountEntry[]>(() => {
   const [showValidationSummary, setShowValidationSummary] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
 
-  // Contact-person modal: holds a draft copy of the fields for whichever
-  // account index is currently being edited, or null when closed.
+
   const [contactModal, setContactModal] = useState<{
     idx: number;
     firstName: string;
@@ -710,7 +707,7 @@ const [accounts, setAccounts] = useState<BankAccountEntry[]>(() => {
 
   const fetchBankDetailsById = async (bankDetailsId: string) => {
     try {
-      const response = await api.get(`/bank-detail/${bankDetailsId}?_=${Date.now()}`);
+      const response = await api.get(`/bank-detail/${bankDetailsId}`);
       console.log("Bank Detail response:", response.data);
 
       const record =
@@ -811,8 +808,7 @@ const [accounts, setAccounts] = useState<BankAccountEntry[]>(() => {
   const getAllValidationErrors = (): ValidationError[] => {
     const allErrors: ValidationError[] = [];
 
-    // Company/party linkage is not editable (or required) in embedded mode —
-    // the linkage is already known (embedContext.partyId / embedContext.companyId).
+    
     if (!embedContext) {
       TOP_LEVEL_VALIDATABLE_FIELDS.forEach((field) => {
         const value = field === "company_id" ? companyId : "";
@@ -823,8 +819,7 @@ const [accounts, setAccounts] = useState<BankAccountEntry[]>(() => {
       });
     }
 
-    // Every bank account row gets validated — embedded mode now supports
-    // adding more than one account for the supplier in a single visit.
+
     accounts.forEach((account, idx) => {
       ACCOUNT_VALIDATABLE_FIELDS.forEach((field) => {
         const value = (account as any)[field] as string;
@@ -1096,7 +1091,6 @@ const [accounts, setAccounts] = useState<BankAccountEntry[]>(() => {
     updateAccount(idx, { [field]: "", [errorKey]: null } as any);
   };
 
-  // ── payload builders ────────────────────────────────────────────────
   const buildAccountApiPayload = (account: BankAccountEntry) => {
     const trimmedPartyId = partyId.trim() ? Number(partyId.trim()) : (embedContext?.partyId ? Number(embedContext.partyId) : null);
     const resolvedCompanyId = embedContext ? (embedContext.companyId ?? getDefaultCompanyId()) : (companyId ? Number(companyId) : null);
@@ -1137,21 +1131,7 @@ const [accounts, setAccounts] = useState<BankAccountEntry[]>(() => {
 
       remarks: account.remarks || null,
 
-      // contact_person_name: account.contact_person_name.trim() || null,
-      contact_person_last_name: account.contact_person_last_name.trim() || null,
-      contact_person_phone: account.contact_person_phone.trim() || null,
-      contact_person_email: account.contact_person_email.trim() || null,
-      contact_person_department: account.contact_person_department.trim() || null,
-      contact_person_remarks: account.contact_person_remarks.trim() || null,
-      contact_is_primary: account.contact_person_name ? (account.contact_is_primary ? 1 : 0) : 0,
-      contact_is_billing: account.contact_is_billing ? 1 : 0,
-      contact_is_purchase: account.contact_is_purchase ? 1 : 0,
-
-      cash_in_hand: account.cash_in_hand.trim() ? Number(account.cash_in_hand.trim()) : 0,
-      cash_in_account: account.cash_in_account.trim() ? Number(account.cash_in_account.trim()) : 0,
-
-      // created_by: 1,
-      // updated_by: 1,
+     
     };
 
     if (account.docName) {
@@ -1190,19 +1170,6 @@ const [accounts, setAccounts] = useState<BankAccountEntry[]>(() => {
     is_primary: account.is_primary ? 1 : 0,
     is_deleted: 0,
     remarks: account.remarks || null,
-
-    contact_person_name: account.contact_person_name.trim() || null,
-    contact_person_last_name: account.contact_person_last_name.trim() || null,
-    contact_person_phone: account.contact_person_phone.trim() || null,
-    contact_person_email: account.contact_person_email.trim() || null,
-    contact_person_department: account.contact_person_department.trim() || null,
-    contact_person_remarks: account.contact_person_remarks.trim() || null,
-    contact_is_primary: account.contact_person_name ? (account.contact_is_primary ? 1 : 0) : 0,
-    contact_is_billing: account.contact_is_billing ? 1 : 0,
-    contact_is_purchase: account.contact_is_purchase ? 1 : 0,
-
-    cash_in_hand: account.cash_in_hand.trim() ? Number(account.cash_in_hand.trim()) : 0,
-    cash_in_account: account.cash_in_account.trim() ? Number(account.cash_in_account.trim()) : 0,
   });
   
   const buildBatchCreatePayload = (accountsToSave: BankAccountEntry[]) => {
@@ -1217,9 +1184,8 @@ const [accounts, setAccounts] = useState<BankAccountEntry[]>(() => {
       : (companyId ? Number(companyId) : getDefaultCompanyId());
 
     const payload: any = {
+      modified_by: "Administrator",
       company_id: resolvedCompanyId,
-      created_by: 1,
-      updated_by: 1,
       bank_details: accountsToSave.map(buildBankDetailEntry),
     };
 
@@ -1421,75 +1387,6 @@ const [accounts, setAccounts] = useState<BankAccountEntry[]>(() => {
             </select>
           </div>
         </div>
-
-        {/* <div className="bdf-section-title">
-          <FaUser size={12} /> Contact Persons
-        </div>
-
-        <div className="bdf-contacts-row">
-          {!account.contact_person_name && (
-            <button
-              type="button"
-              className="bdf-contact-add-circle"
-              onClick={() => openContactModal(idx)}
-            >
-              <span className="bdf-contact-add-circle-icon">
-                <FaPlus size={16} />
-              </span>
-              <span className="bdf-contact-add-circle-label">Add</span>
-            </button>
-          )}
-
-          {account.contact_person_name && (
-            <div className="bdf-contact-item">
-              <div
-                className="bdf-contact-avatar-wrap"
-                onClick={() => openContactModal(idx)}
-                title="Click to edit"
-              >
-                <div
-                  className="bdf-contact-avatar-circle"
-                  style={{ background: getContactAvatarColor(contactFullName) }}
-                >
-                  {getContactInitials(contactFullName)}
-                </div>
-                {account.contact_is_primary && (
-                  <span className="bdf-contact-primary-check" title="Primary contact">
-                    <FaCheckCircle size={11} />
-                  </span>
-                )}
-                <button
-                  type="button"
-                  className="bdf-contact-remove-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    removeContactPerson(idx);
-                  }}
-                  title="Remove contact"
-                >
-                  ×
-                </button>
-              </div>
-              <span className="bdf-contact-name-label" title={contactFullName}>
-                {contactFullName}
-              </span>
-            </div>
-          )}
-        </div>
-
-        {!account.contact_person_name && (
-          <div className="bdf-contact-empty-state">
-            <FaUser className="bdf-contact-empty-icon" />
-            <span>No contact person added. Click &quot;Add&quot; to add one.</span>
-          </div>
-        )}
-
-        {account.contact_person_name && (
-          <div className="bdf-contact-hint-row">
-            <FaInfoCircle size={11} />
-            Click the avatar to edit this contact, or use the × to remove it.
-          </div>
-        )} */}
 
         <div className="bdf-section-title">
           <FaUniversity size={12} /> Bank &amp; Account
