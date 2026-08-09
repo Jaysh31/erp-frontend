@@ -35,7 +35,7 @@ export default function Sidebar({
       'Setup': false,
       'Tools': false,
       'Reports': false,
-      'System': false,
+      'Theme': false,
       'Purchase Documents': false,
       'Suppliers & Contacts': false,
       'Pricing & Lists': false,
@@ -159,13 +159,12 @@ export default function Sidebar({
         { title: 'Tax Invoice/Sale Bill', icon: <InvoiceIcon />, path: '/sales-bill' }
       ]
     },
-    // ===== CUSTOMERS SECTION - MOVED HERE =====
     {
       title: 'Customers',
       module: 'sales',
       icon: <CustomersIcon />,
       items: [
-        { title: 'Customer List', icon: <CustomersIcon />, path: '/customer' },
+        { title: 'Customers', icon: <CustomersIcon />, path: '/customer' },
         // { title: 'Add Customer', icon: <CustomersIcon />, path: '/customer/new' },
       ]
     },
@@ -342,8 +341,8 @@ export default function Sidebar({
       ]
     },
     {
-      title: 'System',
-      module: 'system',
+      title: 'Theme',
+      module: 'theme',
       icon: <SettingsIcon />,
       items: [
         { title: 'Settings', icon: <SettingsIcon />, path: '/settings' }
@@ -355,13 +354,13 @@ export default function Sidebar({
   const getFilteredCategories = () => {
     if (currentModule === 'home') {
       return allMenuCategories.filter(cat =>
-        cat.module === 'home' || cat.module === 'system'
+        cat.module === 'home' || cat.module === 'theme'
       );
     } else {
       return allMenuCategories.filter(cat =>
         cat.module === 'home' ||
         cat.module === currentModule ||
-        cat.module === 'system'
+        cat.module === 'theme'
       );
     }
   };
@@ -379,7 +378,7 @@ export default function Sidebar({
       'organization': 'Organization',
       'tools': 'Tools',
       'reports': 'Reports',
-      'system': 'System',
+      'theme': 'Theme',
       'accounting': 'Accounting'
     };
     return names[currentModule] || 'Home';
@@ -416,48 +415,75 @@ export default function Sidebar({
 
         {/* Navigation */}
         <div className="sidebar-nav">
-          {menuCategories.map((category, idx) => (
-            <div key={idx} className="nav-category">
-              <div 
-                className="category-header"
-                onClick={() => toggleCategory(category.title)}
-              >
-                <div className="category-header-left">
-                  <span className="category-icon">{category.icon}</span>
-                  <span className="category-title">{category.title}</span>
-                </div>
-                <span className="category-toggle">
-                  {expandedCategories[category.title] ? 
-                    <ChevronUpIcon /> : 
-                    <ChevronDownIcon />
+          {menuCategories.map((category, idx) => {
+            // If a category has only a single menu item, render it directly
+            // as a nav link instead of a collapsible dropdown.
+            if (category.items.length === 1) {
+              const item = category.items[0];
+              return (
+                <NavLink
+                  key={item.path}
+                  to={item.path}
+                  className={({ isActive }) =>
+                    `nav-item single-category-item ${isActive ? 'active' : ''}`
                   }
-                </span>
-              </div>
-              <div className={`category-items-wrapper ${expandedCategories[category.title] ? 'expanded' : 'collapsed'}`}>
-                <div className="category-items">
-                  {category.items.map((item) => (
-                    <NavLink
-                      key={item.path}
-                      to={item.path}
-                      className={({ isActive }) => 
-                        `nav-item ${isActive ? 'active' : ''}`
-                      }
-                      onClick={handleNavClick}
-                    >
-                      <span className="nav-icon">{item.icon}</span>
-                      <span className="nav-text">{item.title}</span>
-                      {isMinimized && (
-                        <span className="nav-tooltip">
-                          {item.title}
-                          <span className="tooltip-shortcut">Click to expand</span>
-                        </span>
-                      )}
-                    </NavLink>
-                  ))}
+                  onClick={handleNavClick}
+                >
+                  <span className="nav-icon">{category.icon}</span>
+                  <span className="nav-text">{category.title}</span>
+                  {isMinimized && (
+                    <span className="nav-tooltip">
+                      {category.title}
+                      <span className="tooltip-shortcut">Click to expand</span>
+                    </span>
+                  )}
+                </NavLink>
+              );
+            }
+
+            return (
+              <div key={idx} className="nav-category">
+                <div 
+                  className="category-header"
+                  onClick={() => toggleCategory(category.title)}
+                >
+                  <div className="category-header-left">
+                    <span className="category-icon">{category.icon}</span>
+                    <span className="category-title">{category.title}</span>
+                  </div>
+                  <span className="category-toggle">
+                    {expandedCategories[category.title] ? 
+                      <ChevronUpIcon /> : 
+                      <ChevronDownIcon />
+                    }
+                  </span>
+                </div>
+                <div className={`category-items-wrapper ${expandedCategories[category.title] ? 'expanded' : 'collapsed'}`}>
+                  <div className="category-items">
+                    {category.items.map((item) => (
+                      <NavLink
+                        key={item.path}
+                        to={item.path}
+                        className={({ isActive }) => 
+                          `nav-item ${isActive ? 'active' : ''}`
+                        }
+                        onClick={handleNavClick}
+                      >
+                        <span className="nav-icon">{item.icon}</span>
+                        <span className="nav-text">{item.title}</span>
+                        {isMinimized && (
+                          <span className="nav-tooltip">
+                            {item.title}
+                            <span className="tooltip-shortcut">Click to expand</span>
+                          </span>
+                        )}
+                      </NavLink>
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           {/* Getting Started Card - Only show in Home module */}
           {currentModule === 'home' && (

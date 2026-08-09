@@ -11,7 +11,7 @@ import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
 import './SalesOrder.css';
 import api from '../../services/api';
-import { FaFileInvoice } from 'react-icons/fa6';
+// import { FaFileInvoice } from 'react-icons/fa6';
 
 interface SalesOrderItem {
   id: string;
