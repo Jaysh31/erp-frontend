@@ -175,7 +175,6 @@ export default function SupplierList() {
   const priceLists = ['Standard Buying', 'Export Pricing', 'Wholesale', 'Distributor'];
   const statusOptions = ['Active', 'Inactive'];
 
-  // Format date to "X h" or "X d" format
   const formatDate = (dateString: string) => {
     if (!dateString) return 'N/A';
     const date = new Date(dateString);
@@ -200,7 +199,7 @@ export default function SupplierList() {
     setError(null);
     try {
       const response = await api.get<ApiResponse>(
-        `/supplier?page=${currentPage}&limit=${itemsPerPage}&_=${Date.now()}`
+        `/supplier?page=${currentPage}&limit=${itemsPerPage}`
       );
 
       if (response.data && response.data.success === 1) {
@@ -458,23 +457,22 @@ export default function SupplierList() {
     setShowViewModal(true);
   };
 
-  // Opens the read-only "Bank Accounts" details popup for a supplier that
-  // already has one or more accounts on file.
+ 
   const handleViewBankAccounts = (supplier: SupplierDisplay) => {
     setBankModalSupplier(supplier);
     setShowBankModal(true);
   };
 
-  // Sends the user to the bank-details form, pre-wired to attach the new
-  // account to this supplier, for suppliers that have none yet.
+  // ─── FIX ────────────────────────────────────────────────────────────
   const handleAddBankAccount = (supplier: SupplierDisplay) => {
     navigate('/bank-details', {
       state: {
         embedContext: {
-          returnPath: '/supplier',
+          returnPath: `/supplier/${supplier.id}`,
           partyType: 'Supplier',
           partyId: supplier.id,
           supplierName: supplier.supplierName,
+          isPendingSupplier: true,
         },
       },
     });

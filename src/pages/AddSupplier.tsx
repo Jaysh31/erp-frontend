@@ -35,10 +35,6 @@ interface SupplierForm {
   status: 'Active' | 'Inactive';
 }
 
-// Mirrors the `contacts[]` shape expected by the /supplier API payload
-// (first_name, last_name, contact_name, designation, department, mobile_no,
-// alternate_mobile, email_id, telephone, extension, is_primary,
-// is_billing_contact, is_purchase_contact, remarks).
 interface ContactPerson {
   id?: string;
   first_name: string;
@@ -86,6 +82,12 @@ interface SupplierBankAccount {
   remarks: string;
 }
 
+interface FormDraft {
+  formData?: Partial<SupplierForm>;
+  contactPersons?: ContactPerson[];
+  bankAccounts?: SupplierBankAccount[];
+}
+
 // Helper icon component with proper sizing
 function FaGlobeIcon(props: any) {
   return (
@@ -125,7 +127,6 @@ const parsePrimaryAddress = (addr: string) => {
 
 const toMysqlDatetime = (value: string | null | undefined): string | null => {
   if (!value) return null;
-  // Already in "YYYY-MM-DD HH:MM:SS" (or just "YYYY-MM-DD") form — leave as-is.
   if (/^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}:\d{2})?$/.test(value) && !value.includes('T')) {
     return value;
   }
@@ -159,8 +160,46 @@ const mapBankAccountRow = (row: any): SupplierBankAccount => ({
   remarks: row.remarks || '',
 });
 
-// Maps a contact row coming from a locally-cached form draft (already in
-// our internal ContactPerson shape or close to it).
+const mergeBankAccounts = (
+  existing: SupplierBankAccount[],
+  updates: any[]
+): SupplierBankAccount[] => {
+  const merged = [...existing];
+  let primaryKeepIdx: number | null = null;
+
+  updates.forEach((raw) => {
+    const row = mapBankAccountRow(raw);
+    const existingIdx = row.recordId != null
+      ? merged.findIndex(a => a.recordId === row.recordId)
+      : merged.findIndex(a => a._key === row._key);
+
+    let idx: number;
+    if (existingIdx >= 0) {
+      merged[existingIdx] = row;
+      idx = existingIdx;
+    } else {
+      merged.push(row);
+      idx = merged.length - 1;
+    }
+
+    if (row.is_primary) primaryKeepIdx = idx;
+  });
+
+  if (primaryKeepIdx === null) return merged;
+  const keepIdx: number = primaryKeepIdx;
+  return merged.map((acc, i) => (i !== keepIdx && acc.is_primary ? { ...acc, is_primary: false } : acc));
+};
+
+
+const readFormDraft = (formKey: string): FormDraft | null => {
+  try {
+    return JSON.parse(localStorage.getItem(formKey) || 'null');
+  } catch {
+    return null;
+  }
+};
+
+
 const mapContactPersonRow = (row: any, index: number): ContactPerson => ({
   id: row.id ?? row.name ?? undefined,
   first_name: row.first_name || '',
@@ -257,16 +296,13 @@ export default function AddSupplier() {
   const [apiError, setApiError] = useState<string | null>(null);
   const [, setIsDirty] = useState(false);
 
-  // ── Delete confirmation modal (shared by bank accounts + contact persons) ──
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ type: 'bank' | 'contact'; index: number } | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
 
   const [supplierId, setSupplierId] = useState<number | null>(null);
 
   const [bankAccounts, setBankAccounts] = useState<SupplierBankAccount[]>([]);
 
-  // ── Contact Persons (multi-contact management, same pattern as AddCustomer) ──
   const [contactPersons, setContactPersons] = useState<ContactPerson[]>([emptyContact(true)]);
   const [showContactModal, setShowContactModal] = useState<boolean>(false);
   const [editingContactIndex, setEditingContactIndex] = useState<number | null>(null);
@@ -326,166 +362,108 @@ export default function AddSupplier() {
     '122001': { city: 'Gurgaon', state: 'Haryana', country: 'India' }
   };
 
-  // ── Set up the form-draft cache key and load whatever's there ──────────
   useEffect(() => {
+    const state = location.state as { bankAccountsUpdated?: boolean; updatedAccounts?: any[] } | undefined;
+    const returningFromBankDetails = !!state?.bankAccountsUpdated;
+    const updatesFromBankForm = Array.isArray(state?.updatedAccounts) ? state!.updatedAccounts! : [];
+
+    const applyDraft = (formKey: string) => {
+      const draft = readFormDraft(formKey);
+      const draftAccounts: SupplierBankAccount[] = Array.isArray(draft?.bankAccounts) ? draft!.bankAccounts! : [];
+      const finalAccounts = updatesFromBankForm.length > 0
+        ? mergeBankAccounts(draftAccounts, updatesFromBankForm)
+        : draftAccounts;
+
+      if (draft?.formData) {
+        setFormData(prev => ({ ...prev, ...draft.formData }));
+      }
+      if (Array.isArray(draft?.contactPersons) && draft!.contactPersons!.length > 0) {
+        setContactPersons(draft!.contactPersons!);
+      }
+      setBankAccounts(finalAccounts);
+    };
+
     if (isEditMode && id) {
       const formKey = `supplier_form_draft_edit_${id}`;
       setFormDraftKey(formKey);
       setSupplierId(Number(id));
-      fetchSupplier(id, formKey);
-    } else {
-      
-      const returningFromBankDetails = !!(location.state as any)?.bankAccountsUpdated;
-      const oldDraftId = sessionStorage.getItem('new_supplier_draft_id');
 
-      if (returningFromBankDetails && oldDraftId) {
-        const formKey = `supplier_form_draft_new_${oldDraftId}`;
-        setFormDraftKey(formKey);
-        setSupplierId(null);
+      const draft = readFormDraft(formKey);
+      const hasLocalDraft = !!(draft && (draft.formData || (draft.contactPersons && draft.contactPersons.length) || (draft.bankAccounts && draft.bankAccounts.length)));
 
-        try {
-          const stored = JSON.parse(localStorage.getItem(formKey) || 'null');
-          if (stored) {
-            if (stored.formData) setFormData(prev => ({ ...prev, ...stored.formData }));
-            if (Array.isArray(stored.contactPersons) && stored.contactPersons.length > 0) {
-              setContactPersons(stored.contactPersons);
-            }
-          }
-        } catch {
-          /* ignore */
-        }
-        
-        return;
+      if (returningFromBankDetails && hasLocalDraft) {
+        applyDraft(formKey);
+      } else {
+        fetchSupplier(id, formKey, updatesFromBankForm);
       }
 
-      const oldDraftIdToClear = sessionStorage.getItem('new_supplier_draft_id');
-      if (oldDraftIdToClear) {
-        localStorage.removeItem(`supplier_form_draft_new_${oldDraftIdToClear}`);
+      if (returningFromBankDetails) {
+        navigate(location.pathname, { replace: true, state: {} });
       }
-
-      const draftId = `tmp-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
-      sessionStorage.setItem('new_supplier_draft_id', draftId);
-
-      const formKey = `supplier_form_draft_new_${draftId}`;
-      setFormDraftKey(formKey);
-
-
-      setFormData({
-        supplierName: '',
-        supplierType: 'Company',
-        supplierGroup: '',
-        country: 'India',
-        defaultCurrency: 'INR',
-        language: 'en',
-        addressLine1: '',
-        addressLine2: '',
-        city: '',
-        state: '',
-        pincode: '',
-        taxId: '',
-        taxCategory: 'Registered Regular',
-        paymentTerms: '30 Days',
-        defaultPriceList: 'Standard Buying',
-        website: '',
-        supplierDetails: '',
-        isTransporter: false,
-        isInternalSupplier: false,
-        onHold: false,
-        status: 'Active'
-      });
-      setContactPersons([emptyContact(true)]);
-      setBankAccounts([]);
-      setSupplierId(null);
+      return;
     }
+
+    // ─── New supplier ───
+    const oldDraftId = sessionStorage.getItem('new_supplier_draft_id');
+
+    if (returningFromBankDetails && oldDraftId) {
+      const formKey = `supplier_form_draft_new_${oldDraftId}`;
+      setFormDraftKey(formKey);
+      setSupplierId(null);
+      applyDraft(formKey);
+      navigate(location.pathname, { replace: true, state: {} });
+      return;
+    }
+
+    const oldDraftIdToClear = sessionStorage.getItem('new_supplier_draft_id');
+    if (oldDraftIdToClear) {
+      localStorage.removeItem(`supplier_form_draft_new_${oldDraftIdToClear}`);
+    }
+
+    const draftId = `tmp-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+    sessionStorage.setItem('new_supplier_draft_id', draftId);
+
+    const formKey = `supplier_form_draft_new_${draftId}`;
+    setFormDraftKey(formKey);
+
+    setFormData({
+      supplierName: '',
+      supplierType: 'Company',
+      supplierGroup: '',
+      country: 'India',
+      defaultCurrency: 'INR',
+      language: 'en',
+      addressLine1: '',
+      addressLine2: '',
+      city: '',
+      state: '',
+      pincode: '',
+      taxId: '',
+      taxCategory: 'Registered Regular',
+      paymentTerms: '30 Days',
+      defaultPriceList: 'Standard Buying',
+      website: '',
+      supplierDetails: '',
+      isTransporter: false,
+      isInternalSupplier: false,
+      onHold: false,
+      status: 'Active'
+    });
+    setContactPersons([emptyContact(true)]);
+    setBankAccounts([]);
+    setSupplierId(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, isEditMode]);
 
-  // ── Handle returning from the embedded bank-details form ───────────────
-
-  useEffect(() => {
-    const state = location.state as {
-      bankAccountsUpdated?: boolean;
-      updatedAccounts?: any[];
-    } | undefined;
-
-    if (state?.bankAccountsUpdated) {
-      const demoted: SupplierBankAccount[] = [];
-
-      if (Array.isArray(state.updatedAccounts) && state.updatedAccounts.length > 0) {
-        setBankAccounts(prev => {
-          const merged = [...prev];
-          let primaryKeepIdx: number | null = null;
-
-          state.updatedAccounts!.forEach(row => {
-            const mapped = mapBankAccountRow(row);
-            
-            const existingIdx = mapped.recordId != null
-              ? merged.findIndex(a => a.recordId === mapped.recordId)
-              : merged.findIndex(a => a._key === mapped._key);
-
-            let idx: number;
-            if (existingIdx >= 0) {
-              merged[existingIdx] = mapped;
-              idx = existingIdx;
-            } else {
-              merged.push(mapped);
-              idx = merged.length - 1;
-            }
-
-            if (mapped.is_primary) {
-              primaryKeepIdx = idx;
-            }
-          });
-
-          if (primaryKeepIdx === null) {
-            return merged;
-          }
-
-          const keepIdx: number = primaryKeepIdx;
-          return merged.map((acc, i) => {
-            if (i !== keepIdx && acc.is_primary) {
-              demoted.push(acc);
-              return { ...acc, is_primary: false };
-            }
-            return acc;
-          });
-        });
-      }
-
-      const targetId = String(supplierId || id || '');
-      const hasRealSupplierId = !!targetId && targetId !== 'undefined' && targetId !== 'new';
-      const demotedSavedAccounts = demoted.filter(acc => acc.recordId);
-
-      if (hasRealSupplierId && demotedSavedAccounts.length > 0) {
-        
-        Promise.all(
-          demotedSavedAccounts.map(acc =>
-            api
-              .put(
-                `/bank-detail/${acc.docName || acc.recordId}`,
-                { is_primary: 0 },
-                { headers: { 'Content-Type': 'application/json' } }
-              )
-              .catch(err => console.error('Error demoting previous primary bank account:', err))
-          )
-        ).finally(() => {
-          refreshBankAccounts(targetId);
-        });
-      } else if (hasRealSupplierId) {
-        refreshBankAccounts(targetId);
-      }
-
-      // Clear the flag so navigating away and back doesn't re-trigger it.
-      navigate(location.pathname, { replace: true, state: {} });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.state]);
-
-  const fetchSupplier = async (supplierIdParam: string, formKey?: string) => {
+  const fetchSupplier = async (
+    supplierIdParam: string,
+    formKey?: string,
+    updatesFromBankForm: any[] = []
+  ) => {
     setFetching(true);
     setApiError(null);
     try {
-      const response = await api.get(`/supplier/${supplierIdParam}?_=${Date.now()}`);
+      const response = await api.get(`/supplier/${supplierIdParam}`);
       if (response.data && response.data.success === 1) {
         const data = response.data.data;
         setSupplierId(data.id || null);
@@ -521,7 +499,7 @@ export default function AddSupplier() {
           status: data.disabled === 1 ? 'Inactive' : 'Active'
         });
 
-        
+
         if (Array.isArray(data.contacts) && data.contacts.length > 0) {
           setContactPersons(data.contacts.map(mapApiContactRow));
         } else if (Array.isArray(data.contact_persons) && data.contact_persons.length > 0) {
@@ -550,7 +528,13 @@ export default function AddSupplier() {
           }
         }
 
-        setBankAccountsFromApiRows(data.bank_details);
+        const apiBankAccounts: SupplierBankAccount[] = Array.isArray(data.bank_details)
+          ? data.bank_details.map(mapBankAccountRow)
+          : [];
+        const finalBankAccounts = updatesFromBankForm.length > 0
+          ? mergeBankAccounts(apiBankAccounts, updatesFromBankForm)
+          : apiBankAccounts;
+        setBankAccounts(finalBankAccounts);
       } else {
         setApiError(response.data?.message || 'Failed to fetch supplier details');
       }
@@ -560,22 +544,6 @@ export default function AddSupplier() {
     } finally {
       setFetching(false);
     }
-  };
-
-  const refreshBankAccounts = async (supplierIdParam: string) => {
-    try {
-      const response = await api.get(`/supplier/${supplierIdParam}?_=${Date.now()}`);
-      if (response.data && response.data.success === 1) {
-        setBankAccountsFromApiRows(response.data.data.bank_details);
-      }
-    } catch (err) {
-      console.error('Error refreshing bank accounts:', err);
-    }
-  };
-
-  const setBankAccountsFromApiRows = (bankDetails: any) => {
-    const list = Array.isArray(bankDetails) ? bankDetails : [];
-    setBankAccounts(list.map(mapBankAccountRow));
   };
 
   // ── Contact person modal handlers (mirrors AddCustomer) ────────────────
@@ -665,9 +633,7 @@ export default function AddSupplier() {
   const isBlankContact = (c: ContactPerson) =>
     !c.first_name.trim() && !c.last_name.trim() && !c.email.trim() && !c.phone.trim();
 
-  // Ignores fully-blank placeholder entries (e.g. the default contact row
-  // that's never actually filled in) so they don't trip validation or get
-  // sent to the API.
+
   const getEffectiveContacts = (): ContactPerson[] =>
     contactPersons.filter(c => !isBlankContact(c));
 
@@ -800,7 +766,7 @@ export default function AddSupplier() {
   const persistFormDraft = () => {
     if (formDraftKey) {
       try {
-        localStorage.setItem(formDraftKey, JSON.stringify({ formData, contactPersons }));
+        localStorage.setItem(formDraftKey, JSON.stringify({ formData, contactPersons, bankAccounts }));
       } catch {
         /* ignore quota errors etc. */
       }
@@ -830,8 +796,11 @@ export default function AddSupplier() {
   };
 
 
+  // ── FIX ──────────────────────────────────────────────────────────────
   const buildBankDetailsPayload = () => {
     return bankAccounts.map((acc) => ({
+      ...(acc.recordId ? { id: Number(acc.recordId) } : {}),
+      ...(acc.docName ? { name: acc.docName } : {}),
       account_holder_name: acc.account_holder_name || '',
       account_type: acc.account_type || 'Savings',
       bank_name: acc.bank_name || '',
@@ -924,29 +893,12 @@ export default function AddSupplier() {
 
     const account = typeof editIndex === 'number' ? bankAccounts[editIndex] : undefined;
 
-    if (supplierId) {
-      navigate('/bank-details', {
-        state: {
-          embedContext: {
-            returnPath: `/supplier/${supplierId}`,
-            partyType: 'Supplier',
-            partyId: String(supplierId),
-            companyId: getDefaultCompanyId(),
-            supplierName: formData.supplierName,
-            editIndex,
-            prefill: account,
-          },
-        },
-      });
-      return;
-    }
-
     navigate('/bank-details', {
       state: {
         embedContext: {
           returnPath: location.pathname,
           partyType: 'Supplier',
-          partyId: '',
+          partyId: supplierId ? String(supplierId) : '',
           companyId: getDefaultCompanyId(),
           supplierName: formData.supplierName,
           editIndex,
@@ -958,30 +910,12 @@ export default function AddSupplier() {
   };
 
   const handleRemoveBankAccount = (idx: number) => {
-    const acc = bankAccounts[idx];
-    if (!acc?.recordId) return;
-
     setDeleteTarget({ type: 'bank', index: idx });
     setShowDeleteModal(true);
   };
 
-  const handleRemoveBankAccountConfirmed = async (idx: number) => {
-    const acc = bankAccounts[idx];
-    if (!acc?.recordId) return;
-
-    setIsDeleting(true);
-    try {
-      await api.delete(`/bank-detail/${acc.docName || acc.recordId}`);
-      toast.success('Bank account removed');
-      setBankAccounts(prev => prev.filter((_, i) => i !== idx));
-      setShowDeleteModal(false);
-      setDeleteTarget(null);
-    } catch (err) {
-      console.error('Error removing bank account:', err);
-      toast.error('Failed to remove bank account');
-    } finally {
-      setIsDeleting(false);
-    }
+  const removeBankAccountConfirmed = (idx: number) => {
+    setBankAccounts(prev => prev.filter((_, i) => i !== idx));
   };
 
   const confirmDeleteTarget = () => {
@@ -989,13 +923,11 @@ export default function AddSupplier() {
 
     if (deleteTarget.type === 'contact') {
       removeContactPersonConfirmed(deleteTarget.index);
-      setShowDeleteModal(false);
-      setDeleteTarget(null);
-      return;
+    } else {
+      removeBankAccountConfirmed(deleteTarget.index);
     }
-
-    // Bank account deletion hits the API, so it manages its own modal close/spinner.
-    handleRemoveBankAccountConfirmed(deleteTarget.index);
+    setShowDeleteModal(false);
+    setDeleteTarget(null);
   };
 
   const handleSubmit = async (e: FormEvent) => {
@@ -1148,50 +1080,6 @@ export default function AddSupplier() {
                       placeholder="Enter phone number"
                     />
                   </div>
-                  {/* <div className="contact-form-field">
-                    <label className="contact-form-label">Alternate Mobile</label>
-                    <input
-                      type="tel"
-                      name="alternate_mobile"
-                      value={tempContact.alternate_mobile}
-                      onChange={handleTempContactChange}
-                      className="form-field"
-                      placeholder="Enter alternate mobile"
-                    />
-                  </div>
-                  <div className="contact-form-field">
-                    <label className="contact-form-label">Telephone</label>
-                    <input
-                      type="tel"
-                      name="telephone"
-                      value={tempContact.telephone}
-                      onChange={handleTempContactChange}
-                      className="form-field"
-                      placeholder="Enter landline number"
-                    />
-                  </div> */}
-                  {/* <div className="contact-form-field">
-                    <label className="contact-form-label">Extension</label>
-                    <input
-                      type="text"
-                      name="extension"
-                      value={tempContact.extension}
-                      onChange={handleTempContactChange}
-                      className="form-field"
-                      placeholder="Enter extension"
-                    />
-                  </div>
-                  <div className="contact-form-field">
-                    <label className="contact-form-label">Designation</label>
-                    <input
-                      type="text"
-                      name="designation"
-                      value={tempContact.designation}
-                      onChange={handleTempContactChange}
-                      className="form-field"
-                      placeholder="Enter designation"
-                    />
-                  </div> */}
                   <div className="contact-form-field">
                     <label className="contact-form-label">Department</label>
                     <input
@@ -1272,7 +1160,7 @@ export default function AddSupplier() {
               <div className="qt-modal-body">
                 {deleteTarget.type === 'bank' ? (
                   <>
-                    <p>Are you sure you want to delete this bank account?</p>
+                    <p>Are you sure you want to remove this bank account?</p>
                     <p className="qt-modal-item-name">
                       <strong>{bankAccounts[deleteTarget.index]?.bank_name || 'Bank account'}</strong>
                       {bankAccounts[deleteTarget.index]?.account_number
@@ -1290,12 +1178,15 @@ export default function AddSupplier() {
                     </p>
                   </>
                 )}
-                <p className="qt-modal-warning">This action cannot be undone.</p>
+                <p className="qt-modal-warning">
+                  {deleteTarget.type === 'bank'
+                    ? 'This will be removed when you save the supplier.'
+                    : 'This action cannot be undone.'}
+                </p>
               </div>
               <div className="qt-modal-footer">
                 <button className="qt-btn-cancel" onClick={() => { setShowDeleteModal(false); setDeleteTarget(null); }}>Cancel</button>
-                <button className="qt-btn-delete" onClick={confirmDeleteTarget} disabled={isDeleting}>
-                  {isDeleting && <FaSpinner className="spinning" />}
+                <button className="qt-btn-delete" onClick={confirmDeleteTarget}>
                   <FaTrash size={12} /> Delete
                 </button>
               </div>
@@ -1714,9 +1605,7 @@ export default function AddSupplier() {
               </button>
               <p className="as-field-hint">
                 <FaInfoCircle className="hint-icon" />
-                {supplierId
-                  ? 'Bank accounts are saved immediately as you add them.'
-                  : 'Bank account details are saved together when you save the supplier.'}
+                Bank account details are saved together when you save the supplier.
               </p>
             </div>
           </div>
