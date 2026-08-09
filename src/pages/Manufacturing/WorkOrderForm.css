@@ -11,6 +11,56 @@
   max-width: 1100px;
   margin: 0 auto;
 }
+/* ─── Drag and Drop Styles ─── */
+
+.wof-draggable-row {
+  cursor: grab;
+  transition: background-color 0.15s ease;
+}
+
+.wof-draggable-row:hover {
+  background-color: #f8fafc;
+}
+
+.wof-draggable-row.wof-drag-over {
+  background-color: #e0f2fe !important;
+  border-bottom: 2px solid #3b82f6;
+}
+
+.wof-draggable-row.wof-dragging {
+  opacity: 0.4;
+  background-color: #f1f5f9;
+}
+
+.wof-drag-handle {
+  color: #94a3b8;
+  cursor: grab;
+  transition: color 0.15s ease;
+}
+
+.wof-drag-handle:hover {
+  color: #475569;
+}
+
+.wof-col-drag {
+  width: 30px;
+  padding: 4px 6px;
+  text-align: center;
+  vertical-align: middle;
+  user-select: none;
+}
+
+/* ─── Drag handle cell alignment ─── */
+.wof-editable-table tbody tr .wof-col-drag {
+  display: table-cell;
+  vertical-align: middle;
+  text-align: center;
+}
+
+/* ─── Row hover effect for drag handle ─── */
+.wof-draggable-row:hover .wof-drag-handle {
+  color: #2563eb;
+}
 
 /* ─── Header ──────────────────────────────────────────────────────────── */
 .wof-header {
@@ -2512,3 +2562,7 @@ select.form-field {
     padding: 14px 16px 12px 16px;
   }
 }
+
+
+
+

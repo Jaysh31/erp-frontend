@@ -11,7 +11,7 @@ import {
   FaEye,
   FaEdit,
   FaTrash,
-  FaPlus,
+  
   FaBoxes,
   FaWarehouse,
   FaClipboardList,

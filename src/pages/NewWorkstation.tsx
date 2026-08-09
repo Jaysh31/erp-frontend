@@ -5,7 +5,7 @@ import {
   X,
   Save,
   AlertTriangle,
-  XCircle,
+  
   Plus,
   Trash2,
   Calendar,
