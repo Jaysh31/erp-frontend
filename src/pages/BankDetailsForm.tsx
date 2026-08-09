@@ -1170,6 +1170,19 @@ const [accounts, setAccounts] = useState<BankAccountEntry[]>(() => {
     is_primary: account.is_primary ? 1 : 0,
     is_deleted: 0,
     remarks: account.remarks || null,
+    // contact_person_name: account.contact_person_name.trim() || null,
+    contact_person_last_name: account.contact_person_last_name.trim() || null,
+    contact_person_phone: account.contact_person_phone.trim() || null,
+    contact_person_email: account.contact_person_email.trim() || null,
+    contact_person_department: account.contact_person_department.trim() || null,
+    contact_person_remarks: account.contact_person_remarks.trim() || null,
+    contact_is_primary: account.contact_person_name ? (account.contact_is_primary ? 1 : 0) : 0,
+    contact_is_billing: account.contact_is_billing ? 1 : 0,
+    contact_is_purchase: account.contact_is_purchase ? 1 : 0,
+
+    cash_in_hand: account.cash_in_hand.trim() ? Number(account.cash_in_hand.trim()) : 0,
+    cash_in_account: account.cash_in_account.trim() ? Number(account.cash_in_account.trim()) : 0,
+
   });
   
   const buildBatchCreatePayload = (accountsToSave: BankAccountEntry[]) => {

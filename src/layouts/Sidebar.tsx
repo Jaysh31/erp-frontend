@@ -151,6 +151,8 @@ export default function Sidebar({
         { title: 'Lead', icon: <GiHumanCannonball />, path: '/lead'},
         { title: 'Quotation', icon: <QuotationIcon />, path: '/quotation' },
         { title: 'Sales Order', icon: <SalesOrderIcon />, path: '/sales-order' },
+        { title: 'Proforma Invoice', icon: <SalesOrderIcon />, path: '/proforma-invoice' },
+
         {
           title: 'Delivery Challans',
           icon: <ReceiptIcon />,

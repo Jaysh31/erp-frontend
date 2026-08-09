@@ -104,6 +104,8 @@ import InputShowcase from "./pages/accounts/InputShowcase";
 import CustomerInvoices from "./pages/Sales/customerinvoices";
 import SupplierBills from "./pages/Sales/supplierbills";
 import InventoryDetail from "./pages/Manufacturing/InventoryDetail";
+import ProformaInvoice from "./pages/Sales/ProformaInvoice";
+import CreateProformaInvoice from "./pages/Sales/CreateProformaInvoice";
 
 
 function App() {
@@ -255,7 +257,10 @@ function App() {
               <Route path="/purchase-order/new" element={<PurchaseOrderForm />} />
               <Route path="/purchase-order/edit/:id" element={<PurchaseOrderForm />} />
               <Route path="/purchase-order/view/:id" element={<PurchaseOrderForm />} />
+              <Route path="/proforma-invoice" element={<ProformaInvoice />} />
+              <Route path="/proforma-invoice/new" element={<CreateProformaInvoice />} />
 
+              
               {/* Organization Routes */}
               <Route path="/company" element={<CompanyList />} />
               <Route path="/company/new" element={<AddCompanyForm />} />
