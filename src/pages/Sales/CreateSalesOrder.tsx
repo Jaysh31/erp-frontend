@@ -255,6 +255,13 @@ interface InventoryApiRecord {
   company?: string;
 }
 
+// ===== SHARED: prevent mouse-wheel from changing a focused number input's value =====
+// Number inputs natively change value on scroll when focused; this blurs the input
+// on wheel so scrolling the page never mutates the value.
+const preventWheelChange = (e: React.WheelEvent<HTMLInputElement>) => {
+  e.currentTarget.blur();
+};
+
 // ===== SHARED: portal-based dropdown menu position hook =====
 function useDropdownPosition(isOpen: boolean, triggerRef: React.RefObject<HTMLDivElement | null>) {
   const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
@@ -1945,16 +1952,25 @@ export default function CreateSalesOrder() {
             
             let tax = it.tax_rate ?? 0;
             let tax_id: number | undefined = it.tax_id ? Number(it.tax_id) : undefined;
-            
-            // ===== FIX: Properly bind tax_id to tax field =====
-            if (!tax_id && parentTaxId) {
-              tax_id = parentTaxId;
-              tax = getTaxValueFromId(parentTaxId, taxOptions);
-            } else if (tax_id && tax === 0) {
-              tax = getTaxValueFromId(tax_id, taxOptions);
-            } else if (tax > 0 && !tax_id) {
+
+            // ===== FIX: Trust the line's own saved tax_rate/tax_id first.
+            // Only fall back to the order-level parentTaxId when the line itself
+            // has NEITHER a tax_id NOR a tax_rate saved — previously a missing
+            // tax_id alone was enough to clobber a correctly-saved tax_rate with
+            // the order-level default (which is always the first tax option,
+            // e.g. GST18), which is why every item showed GST18 after reload.
+            if (tax_id) {
+              // Line has its own tax_id — trust it. Only derive the % from it
+              // if no explicit tax_rate was saved for this line.
+              if (!tax || tax <= 0) {
+                tax = getTaxValueFromId(tax_id, taxOptions);
+              }
+            } else if (tax > 0) {
+              // No tax_id on the line, but a real tax_rate was saved — find the
+              // matching tax option by rate instead of using the order default.
               tax_id = getTaxIdFromRate(tax, taxOptions);
-            } else if (tax === 0 && !tax_id && parentTaxId) {
+            } else if (parentTaxId) {
+              // Nothing usable on the line itself — last-resort fallback only.
               tax_id = parentTaxId;
               tax = getTaxValueFromId(parentTaxId, taxOptions);
             }
@@ -2394,7 +2410,14 @@ export default function CreateSalesOrder() {
 
     const customerId = customerData?.id || selectedCustomer?.id || formData.customer || '';
 
-    const taxId = taxOptions.length > 0 ? taxOptions[0].tax_id : null;
+    // ===== FIX: Don't hard-code the order-level tax_id to the first tax option
+    // (e.g. GST18). Use the tax_id actually selected on an item, if any, so the
+    // saved order-level value reflects what the user picked instead of always
+    // pointing at the same default — this was the root cause of every item
+    // showing GST18 after reopening a saved order that used a different rate.
+    const firstItemWithTax = validItems.find((item) => item.tax_id);
+    const taxId = firstItemWithTax?.tax_id
+      ?? (taxOptions.length > 0 ? taxOptions[0].tax_id : null);
 
     const payload: any = {
       company: 1,
@@ -2995,6 +3018,7 @@ export default function CreateSalesOrder() {
                         type="number"
                         value={item.quantity}
                         onChange={(e) => handleItemChange(index, 'quantity', Number(e.target.value) || 0)}
+                        onWheel={preventWheelChange}
                         min="1"
                         className={`so-table-input ${errors[`item_${index}_quantity`] ? 'so-input-error' : ''}`}
                         ref={setItemRef(`item_${index}_quantity`)}
@@ -3020,6 +3044,7 @@ export default function CreateSalesOrder() {
                         type="number"
                         value={item.rate}
                         onChange={(e) => handleItemChange(index, 'rate', Number(e.target.value) || 0)}
+                        onWheel={preventWheelChange}
                         min="0"
                         step="0.01"
                         className={`so-table-input ${errors[`item_${index}_rate`] ? 'so-input-error' : ''}`}
@@ -3149,6 +3174,7 @@ export default function CreateSalesOrder() {
                           type="number"
                           value={schedule.durationDays}
                           onChange={(e) => handlePaymentDurationChange(index, Number(e.target.value))}
+                          onWheel={preventWheelChange}
                           min="0"
                           className="so-table-input"
                         />
@@ -3158,6 +3184,7 @@ export default function CreateSalesOrder() {
                           type="number"
                           value={schedule.invoicePortion}
                           onChange={(e) => updatePaymentRow(index, { invoicePortion: Number(e.target.value) })}
+                          onWheel={preventWheelChange}
                           min="0"
                           max="100"
                           className="so-table-input"

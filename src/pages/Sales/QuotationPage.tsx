@@ -914,7 +914,7 @@ export default function QuotationPage() {
   return (
     <div className={`quotation-page ${theme}`}>
       {/* Stats Cards */}
-      <div className="qt-stats-container">
+      {/* <div className="qt-stats-container">
         <div className="qt-stat-card" style={{ background: '#EFF6FF', borderLeft: '4px solid #3B82F6' }}>
           <div className="qt-stat-icon" style={{ color: '#3B82F6' }}>
             <FaClipboardList size={18} />
@@ -951,7 +951,7 @@ export default function QuotationPage() {
             <p className="qt-stat-value">{conversionRate}%</p>
           </div>
         </div>
-      </div>
+      </div> */}
 
       {/* Search and Filter Bar */}
       <div className="qt-filter-bar">
