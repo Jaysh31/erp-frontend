@@ -253,7 +253,6 @@ const CompletionModal: React.FC<CompletionModalProps> = ({
   onConfirm,
   totalQty,
   currentCompletedQty,
-  currentLossQty,
   remainingQty,
   existingRemarks = "",
 }) => {

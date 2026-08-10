@@ -102,7 +102,7 @@ export default function CompanyList() {
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [allChecked, setAllChecked] = useState(false);
+  const [] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [groupFilter, setGroupFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
