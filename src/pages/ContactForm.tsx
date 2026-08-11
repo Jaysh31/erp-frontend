@@ -67,6 +67,243 @@ interface ValidationError {
   message: string;
 }
 
+// ─── AlphabetOnlyInput Component ──────────────────────────────────────
+interface AlphabetOnlyInputProps {
+  label?: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  maxLength?: number;
+  disabled?: boolean;
+  className?: string;
+  required?: boolean;
+  icon?: React.ReactNode;
+}
+
+const AlphabetOnlyInput: React.FC<AlphabetOnlyInputProps> = ({
+  label,
+  value,
+  onChange,
+  placeholder = "Enter text",
+  maxLength = 50,
+  disabled = false,
+  className = "",
+  required = false,
+  icon,
+}) => {
+  const [displayValue, setDisplayValue] = useState<string>(value || '');
+
+  useEffect(() => {
+    setDisplayValue(value || '');
+  }, [value]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    // Allow empty string
+    if (raw === '') {
+      setDisplayValue('');
+      onChange('');
+      return;
+    }
+    // Only allow alphabets (A-Z, a-z) and spaces
+    const alphabets = raw.replace(/[^A-Za-z\s]/g, '');
+    if (alphabets.length <= maxLength) {
+      setDisplayValue(alphabets);
+      onChange(alphabets);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Prevent non-alphabet characters
+    if (e.key.length === 1 && !/[A-Za-z\s]/.test(e.key)) {
+      e.preventDefault();
+    }
+  };
+
+  return (
+    <div className={`cf-field ${className}`}>
+      {label && (
+        <label className="cf-label">
+          {icon && <span className="cf-label-icon">{icon}</span>}
+          {label}
+          {required && <span className="cf-required">*</span>}
+        </label>
+      )}
+      <input
+        type="text"
+        value={displayValue}
+        onChange={handleChange}
+        onKeyDown={handleKeyDown}
+        placeholder={placeholder}
+        disabled={disabled}
+        maxLength={maxLength}
+        className="form-field"
+        autoComplete="off"
+      />
+    </div>
+  );
+};
+
+// ─── DigitOnlyInput Component ─────────────────────────────────────────
+interface DigitOnlyInputProps {
+  label?: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  maxLength?: number;
+  disabled?: boolean;
+  className?: string;
+  required?: boolean;
+  icon?: React.ReactNode;
+}
+
+const DigitOnlyInput: React.FC<DigitOnlyInputProps> = ({
+  label,
+  value,
+  onChange,
+  placeholder = "Enter number",
+  maxLength = 10,
+  disabled = false,
+  className = "",
+  required = false,
+  icon,
+}) => {
+  const [displayValue, setDisplayValue] = useState<string>(value || '');
+
+  useEffect(() => {
+    setDisplayValue(value || '');
+  }, [value]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    // Allow empty string
+    if (raw === '') {
+      setDisplayValue('');
+      onChange('');
+      return;
+    }
+    // Only allow digits
+    const digits = raw.replace(/[^0-9]/g, '');
+    if (digits.length <= maxLength) {
+      setDisplayValue(digits);
+      onChange(digits);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Prevent non-digit characters
+    if (e.key === 'e' || e.key === 'E' || e.key === '-' || e.key === '+' || e.key === '.') {
+      e.preventDefault();
+    }
+  };
+
+  return (
+    <div className={`cf-field ${className}`}>
+      {label && (
+        <label className="cf-label">
+          {icon && <span className="cf-label-icon">{icon}</span>}
+          {label}
+          {required && <span className="cf-required">*</span>}
+        </label>
+      )}
+      <input
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        value={displayValue}
+        onChange={handleChange}
+        onKeyDown={handleKeyDown}
+        placeholder={placeholder}
+        disabled={disabled}
+        maxLength={maxLength}
+        className="form-field"
+        autoComplete="off"
+      />
+    </div>
+  );
+};
+
+// ─── EmailInput Component ─────────────────────────────────────────────
+interface EmailInputProps {
+  label?: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  className?: string;
+  required?: boolean;
+  icon?: React.ReactNode;
+}
+
+const EmailInput: React.FC<EmailInputProps> = ({
+  label,
+  value,
+  onChange,
+  placeholder = "Enter email address",
+  disabled = false,
+  className = "",
+  required = false,
+  icon,
+}) => {
+  const [displayValue, setDisplayValue] = useState<string>(value || '');
+  const [isValid, setIsValid] = useState<boolean>(true);
+
+  useEffect(() => {
+    setDisplayValue(value || '');
+  }, [value]);
+
+  const validateEmail = (email: string): boolean => {
+    if (email === '') return true; // Empty is valid for optional fields
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    return emailRegex.test(email);
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    setDisplayValue(raw);
+    onChange(raw);
+    setIsValid(validateEmail(raw));
+  };
+
+  const handleBlur = () => {
+    if (displayValue !== '') {
+      setIsValid(validateEmail(displayValue));
+    }
+  };
+
+  return (
+    <div className={`cf-field ${className}`}>
+      {label && (
+        <label className="cf-label">
+          {icon && <span className="cf-label-icon">{icon}</span>}
+          {label}
+          {required && <span className="cf-required">*</span>}
+        </label>
+      )}
+      <div className="email-input-wrapper">
+        <input
+          type="email"
+          value={displayValue}
+          onChange={handleChange}
+          onBlur={handleBlur}
+          placeholder={placeholder}
+          disabled={disabled}
+          className={`form-field ${!isValid && displayValue !== '' ? 'cf-field-error' : ''}`}
+          autoComplete="off"
+        />
+        {!isValid && displayValue !== '' && (
+          <span className="cf-field-error-icon">
+            <FaExclamationCircle size={14} />
+          </span>
+        )}
+      </div>
+      {!isValid && displayValue !== '' && (
+        <span className="cf-field-error-message">Please enter a valid email address</span>
+      )}
+    </div>
+  );
+};
+
 // Mock contacts data - in real app, this would come from API
 const mockContacts: Contact[] = [
   {
@@ -234,11 +471,27 @@ export default function ContactForm() {
     }
     if (!formData.email.trim()) {
       errors.push({ field: 'email', label: 'Email', message: 'Email is required' });
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+    } else if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(formData.email)) {
       errors.push({ field: 'email', label: 'Email', message: 'Please enter a valid email address' });
     }
     if (!formData.phone.trim() && !formData.mobile.trim()) {
       errors.push({ field: 'phone', label: 'Phone', message: 'At least one contact number is required' });
+    }
+    // Validate phone if provided - must be digits only, max 10 digits
+    if (formData.phone.trim() && !/^[0-9]{10}$/.test(formData.phone.replace(/[^0-9]/g, ''))) {
+      errors.push({ field: 'phone', label: 'Phone', message: 'Phone must be exactly 10 digits' });
+    }
+    // Validate mobile if provided - must be digits only, max 10 digits
+    if (formData.mobile.trim() && !/^[0-9]{10}$/.test(formData.mobile.replace(/[^0-9]/g, ''))) {
+      errors.push({ field: 'mobile', label: 'Mobile', message: 'Mobile must be exactly 10 digits' });
+    }
+    // Validate city - alphabets only
+    if (formData.city.trim() && !/^[A-Za-z\s]+$/.test(formData.city)) {
+      errors.push({ field: 'city', label: 'City', message: 'City must contain only alphabets' });
+    }
+    // Validate pincode - digits only
+    if (formData.pincode.trim() && !/^[0-9]+$/.test(formData.pincode)) {
+      errors.push({ field: 'pincode', label: 'Pincode', message: 'Pincode must contain only digits' });
     }
 
     return errors;
@@ -396,49 +649,42 @@ export default function ContactForm() {
             <span className="cf-section-title">Personal Information</span>
 
             <div className="cf-grid-2">
-              <div className="cf-field">
-                <label className="cf-label">
-                  <FaUser className="cf-label-icon" />First Name <span className="cf-required">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.firstName}
-                  onChange={(e) => setFormData(prev => ({ ...prev, firstName: e.target.value }))}
-                  className="form-field"
-                  placeholder="Enter first name"
-                  disabled={submitting}
-                />
-              </div>
+              {/* First Name - Alphabet Only */}
+              <AlphabetOnlyInput
+                label="First Name"
+                value={formData.firstName}
+                onChange={(val) => setFormData(prev => ({ ...prev, firstName: val }))}
+                placeholder="Enter first name"
+                maxLength={50}
+                required={true}
+                icon={<FaUser />}
+                disabled={submitting}
+              />
 
-              <div className="cf-field">
-                <label className="cf-label">
-                  <FaUser className="cf-label-icon" />Last Name
-                </label>
-                <input
-                  type="text"
-                  value={formData.lastName}
-                  onChange={(e) => setFormData(prev => ({ ...prev, lastName: e.target.value }))}
-                  className="form-field"
-                  placeholder="Enter last name"
-                  disabled={submitting}
-                />
-              </div>
+              {/* Last Name - Alphabet Only */}
+              <AlphabetOnlyInput
+                label="Last Name"
+                value={formData.lastName}
+                onChange={(val) => setFormData(prev => ({ ...prev, lastName: val }))}
+                placeholder="Enter last name"
+                maxLength={50}
+                required={false}
+                icon={<FaUser />}
+                disabled={submitting}
+              />
             </div>
 
             <div className="cf-grid-2">
-              <div className="cf-field">
-                <label className="cf-label">
-                  <FaEnvelope className="cf-label-icon" />Email <span className="cf-required">*</span>
-                </label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                  className="form-field"
-                  placeholder="Enter email address"
-                  disabled={submitting}
-                />
-              </div>
+              {/* Email - Email Validation */}
+              <EmailInput
+                label="Email"
+                value={formData.email}
+                onChange={(val) => setFormData(prev => ({ ...prev, email: val }))}
+                placeholder="Enter email address"
+                required={true}
+                icon={<FaEnvelope />}
+                disabled={submitting}
+              />
 
               <div className="cf-field">
                 <label className="cf-label">
@@ -454,33 +700,29 @@ export default function ContactForm() {
             </div>
 
             <div className="cf-grid-2">
-              <div className="cf-field">
-                <label className="cf-label">
-                  <FaPhone className="cf-label-icon" />Phone <span className="cf-required">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.phone}
-                  onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
-                  className="form-field"
-                  placeholder="Enter phone number"
-                  disabled={submitting}
-                />
-              </div>
+              {/* Phone - Exactly 10 Digits */}
+              <DigitOnlyInput
+                label="Phone"
+                value={formData.phone}
+                onChange={(val) => setFormData(prev => ({ ...prev, phone: val }))}
+                placeholder="Enter phone number (10 digits)"
+                maxLength={10}
+                required={true}
+                icon={<FaPhone />}
+                disabled={submitting}
+              />
 
-              <div className="cf-field">
-                <label className="cf-label">
-                  <FaPhone className="cf-label-icon" />Mobile
-                </label>
-                <input
-                  type="text"
-                  value={formData.mobile}
-                  onChange={(e) => setFormData(prev => ({ ...prev, mobile: e.target.value }))}
-                  className="form-field"
-                  placeholder="Enter mobile number"
-                  disabled={submitting}
-                />
-              </div>
+              {/* Mobile - Exactly 10 Digits */}
+              <DigitOnlyInput
+                label="Mobile"
+                value={formData.mobile}
+                onChange={(val) => setFormData(prev => ({ ...prev, mobile: val }))}
+                placeholder="Enter mobile number (10 digits)"
+                maxLength={10}
+                required={false}
+                icon={<FaPhone />}
+                disabled={submitting}
+              />
             </div>
 
             <div className="cf-divider" />
@@ -566,17 +808,16 @@ export default function ContactForm() {
             </div>
 
             <div className="cf-grid-2">
-              <div className="cf-field">
-                <label className="cf-label">City</label>
-                <input
-                  type="text"
-                  value={formData.city}
-                  onChange={(e) => setFormData(prev => ({ ...prev, city: e.target.value }))}
-                  className="form-field"
-                  placeholder="Enter city"
-                  disabled={submitting}
-                />
-              </div>
+              {/* City - Alphabet Only */}
+              <AlphabetOnlyInput
+                label="City"
+                value={formData.city}
+                onChange={(val) => setFormData(prev => ({ ...prev, city: val }))}
+                placeholder="Enter city"
+                maxLength={50}
+                required={false}
+                disabled={submitting}
+              />
 
               <div className="cf-field">
                 <label className="cf-label">State</label>
@@ -605,17 +846,16 @@ export default function ContactForm() {
                 </select>
               </div>
 
-              <div className="cf-field">
-                <label className="cf-label">Pincode</label>
-                <input
-                  type="text"
-                  value={formData.pincode}
-                  onChange={(e) => setFormData(prev => ({ ...prev, pincode: e.target.value }))}
-                  className="form-field"
-                  placeholder="Enter pincode"
-                  disabled={submitting}
-                />
-              </div>
+              {/* Pincode - Digits Only */}
+              <DigitOnlyInput
+                label="Pincode"
+                value={formData.pincode}
+                onChange={(val) => setFormData(prev => ({ ...prev, pincode: val }))}
+                placeholder="Enter pincode"
+                maxLength={10}
+                required={false}
+                disabled={submitting}
+              />
             </div>
           </div>
 

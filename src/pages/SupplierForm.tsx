@@ -27,6 +27,243 @@ import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 
+// ─── AlphabetOnlyInput Component ──────────────────────────────────────
+interface AlphabetOnlyInputProps {
+  label?: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  maxLength?: number;
+  disabled?: boolean;
+  className?: string;
+  required?: boolean;
+  icon?: React.ReactNode;
+}
+
+const AlphabetOnlyInput: React.FC<AlphabetOnlyInputProps> = ({
+  label,
+  value,
+  onChange,
+  placeholder = "Enter text",
+  maxLength = 50,
+  disabled = false,
+  className = "",
+  required = false,
+  icon,
+}) => {
+  const [displayValue, setDisplayValue] = useState<string>(value || '');
+
+  useEffect(() => {
+    setDisplayValue(value || '');
+  }, [value]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    // Allow empty string
+    if (raw === '') {
+      setDisplayValue('');
+      onChange('');
+      return;
+    }
+    // Only allow alphabets (A-Z, a-z) and spaces
+    const alphabets = raw.replace(/[^A-Za-z\s]/g, '');
+    if (alphabets.length <= maxLength) {
+      setDisplayValue(alphabets);
+      onChange(alphabets);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Prevent non-alphabet characters
+    if (e.key.length === 1 && !/[A-Za-z\s]/.test(e.key)) {
+      e.preventDefault();
+    }
+  };
+
+  return (
+    <div className={`igf-field ${className}`}>
+      {label && (
+        <label className="igf-label">
+          {icon && <span className="igf-label-icon">{icon}</span>}
+          {label}
+          {required && <span className="igf-required">*</span>}
+        </label>
+      )}
+      <input
+        type="text"
+        value={displayValue}
+        onChange={handleChange}
+        onKeyDown={handleKeyDown}
+        placeholder={placeholder}
+        disabled={disabled}
+        maxLength={maxLength}
+        className={`form-field ${className}`}
+        autoComplete="off"
+      />
+    </div>
+  );
+};
+
+// ─── DigitOnlyInput Component ─────────────────────────────────────────
+interface DigitOnlyInputProps {
+  label?: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  maxLength?: number;
+  disabled?: boolean;
+  className?: string;
+  required?: boolean;
+  icon?: React.ReactNode;
+}
+
+const DigitOnlyInput: React.FC<DigitOnlyInputProps> = ({
+  label,
+  value,
+  onChange,
+  placeholder = "Enter number",
+  maxLength = 10,
+  disabled = false,
+  className = "",
+  required = false,
+  icon,
+}) => {
+  const [displayValue, setDisplayValue] = useState<string>(value || '');
+
+  useEffect(() => {
+    setDisplayValue(value || '');
+  }, [value]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    // Allow empty string
+    if (raw === '') {
+      setDisplayValue('');
+      onChange('');
+      return;
+    }
+    // Only allow digits
+    const digits = raw.replace(/[^0-9]/g, '');
+    if (digits.length <= maxLength) {
+      setDisplayValue(digits);
+      onChange(digits);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Prevent non-digit characters
+    if (e.key === 'e' || e.key === 'E' || e.key === '-' || e.key === '+' || e.key === '.') {
+      e.preventDefault();
+    }
+  };
+
+  return (
+    <div className={`igf-field ${className}`}>
+      {label && (
+        <label className="igf-label">
+          {icon && <span className="igf-label-icon">{icon}</span>}
+          {label}
+          {required && <span className="igf-required">*</span>}
+        </label>
+      )}
+      <input
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        value={displayValue}
+        onChange={handleChange}
+        onKeyDown={handleKeyDown}
+        placeholder={placeholder}
+        disabled={disabled}
+        maxLength={maxLength}
+        className={`form-field ${className}`}
+        autoComplete="off"
+      />
+    </div>
+  );
+};
+
+// ─── EmailInput Component ─────────────────────────────────────────────
+interface EmailInputProps {
+  label?: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  className?: string;
+  required?: boolean;
+  icon?: React.ReactNode;
+}
+
+const EmailInput: React.FC<EmailInputProps> = ({
+  label,
+  value,
+  onChange,
+  placeholder = "Enter email address",
+  disabled = false,
+  className = "",
+  required = false,
+  icon,
+}) => {
+  const [displayValue, setDisplayValue] = useState<string>(value || '');
+  const [isValid, setIsValid] = useState<boolean>(true);
+
+  useEffect(() => {
+    setDisplayValue(value || '');
+  }, [value]);
+
+  const validateEmail = (email: string): boolean => {
+    if (email === '') return true; // Empty is valid for optional fields
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    return emailRegex.test(email);
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    setDisplayValue(raw);
+    onChange(raw);
+    setIsValid(validateEmail(raw));
+  };
+
+  const handleBlur = () => {
+    if (displayValue !== '') {
+      setIsValid(validateEmail(displayValue));
+    }
+  };
+
+  return (
+    <div className={`igf-field ${className}`}>
+      {label && (
+        <label className="igf-label">
+          {icon && <span className="igf-label-icon">{icon}</span>}
+          {label}
+          {required && <span className="igf-required">*</span>}
+        </label>
+      )}
+      <div className="email-input-wrapper">
+        <input
+          type="email"
+          value={displayValue}
+          onChange={handleChange}
+          onBlur={handleBlur}
+          placeholder={placeholder}
+          disabled={disabled}
+          className={`form-field ${!isValid && displayValue !== '' ? 'field-error' : ''}`}
+          autoComplete="off"
+        />
+        {!isValid && displayValue !== '' && (
+          <span className="igf-field-error-icon">
+            <FaExclamationCircle size={14} />
+          </span>
+        )}
+      </div>
+      {!isValid && displayValue !== '' && (
+        <span className="igf-error-msg">Please enter a valid email address</span>
+      )}
+    </div>
+  );
+};
+
 interface ValidationError {
   field: string;
   label: string;
@@ -161,8 +398,21 @@ export default function SupplierForm() {
   const getAllValidationErrors = (): ValidationError[] => {
     const allErrors: ValidationError[] = [];
 
+    // Supplier Name validation
     if (!formData.supplierName.trim()) {
       allErrors.push({ field: 'supplierName', label: 'Supplier Name', message: 'Supplier name is required' });
+    } else if (!/^[A-Za-z\s]+$/.test(formData.supplierName.trim())) {
+      allErrors.push({ field: 'supplierName', label: 'Supplier Name', message: 'Supplier name must contain only alphabets' });
+    }
+
+    // Email validation - only if provided
+    if (formData.email.trim() && !/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(formData.email)) {
+      allErrors.push({ field: 'email', label: 'Email', message: 'Please enter a valid email address' });
+    }
+
+    // Phone validation - exactly 10 digits
+    if (formData.phone.trim() && !/^[0-9]{10}$/.test(formData.phone.replace(/[^0-9]/g, ''))) {
+      allErrors.push({ field: 'phone', label: 'Phone', message: 'Phone must be exactly 10 digits' });
     }
 
     return allErrors;
@@ -348,21 +598,19 @@ export default function SupplierForm() {
             {/* General Settings */}
             <span className="igf-section-title">General Settings</span>
 
-            <div className="igf-field">
-              <label className="igf-label">
-                <FaBuilding className="igf-label-icon" />Supplier Name <span className="igf-required">*</span>
-              </label>
-              <input
-                type="text"
-                value={formData.supplierName}
-                onChange={(e) => handleChange('supplierName', e.target.value)}
-                className={`form-field${errors.supplierName ? ' field-error' : ''}`}
-                placeholder="Enter supplier name"
-                disabled={submitting}
-                autoFocus
-              />
-              {errors.supplierName && <span className="igf-error-msg"><FaExclamationCircle size={10} />{errors.supplierName}</span>}
-            </div>
+            {/* Supplier Name - Alphabet Only */}
+            <AlphabetOnlyInput
+              label="Supplier Name"
+              value={formData.supplierName}
+              onChange={(val) => handleChange('supplierName', val)}
+              placeholder="Enter supplier name"
+              maxLength={100}
+              required={true}
+              icon={<FaBuilding />}
+              disabled={submitting}
+              className={errors.supplierName ? 'field-error' : ''}
+            />
+            {errors.supplierName && <span className="igf-error-msg"><FaExclamationCircle size={10} />{errors.supplierName}</span>}
 
             <div className="igf-grid-2">
               <div className="igf-field">
@@ -461,29 +709,28 @@ export default function SupplierForm() {
             <span className="igf-section-title">Contact Details</span>
 
             <div className="igf-grid-2">
-              <div className="igf-field">
-                <label className="igf-label"><FaEnvelope className="igf-label-icon" />Email</label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => handleChange('email', e.target.value)}
-                  className="form-field"
-                  placeholder="Enter email address"
-                  disabled={submitting}
-                />
-              </div>
+              {/* Email - Email Validation */}
+              <EmailInput
+                label="Email"
+                value={formData.email}
+                onChange={(val) => handleChange('email', val)}
+                placeholder="Enter email address"
+                required={false}
+                icon={<FaEnvelope />}
+                disabled={submitting}
+              />
 
-              <div className="igf-field">
-                <label className="igf-label"><FaPhone className="igf-label-icon" />Phone</label>
-                <input
-                  type="text"
-                  value={formData.phone}
-                  onChange={(e) => handleChange('phone', e.target.value)}
-                  className="form-field"
-                  placeholder="Enter phone number"
-                  disabled={submitting}
-                />
-              </div>
+              {/* Phone - Exactly 10 Digits */}
+              <DigitOnlyInput
+                label="Phone"
+                value={formData.phone}
+                onChange={(val) => handleChange('phone', val)}
+                placeholder="Enter phone number (10 digits)"
+                maxLength={10}
+                required={false}
+                icon={<FaPhone />}
+                disabled={submitting}
+              />
             </div>
 
             <div className="igf-divider" />
@@ -504,41 +751,38 @@ export default function SupplierForm() {
             </div>
 
             <div className="igf-grid-3">
-              <div className="igf-field">
-                <label className="igf-label">City</label>
-                <input
-                  type="text"
-                  value={formData.city}
-                  onChange={(e) => handleChange('city', e.target.value)}
-                  className="form-field"
-                  placeholder="Enter city"
-                  disabled={submitting}
-                />
-              </div>
+              {/* City - Alphabet Only */}
+              <AlphabetOnlyInput
+                label="City"
+                value={formData.city}
+                onChange={(val) => handleChange('city', val)}
+                placeholder="Enter city"
+                maxLength={50}
+                required={false}
+                disabled={submitting}
+              />
 
-              <div className="igf-field">
-                <label className="igf-label">State</label>
-                <input
-                  type="text"
-                  value={formData.state}
-                  onChange={(e) => handleChange('state', e.target.value)}
-                  className="form-field"
-                  placeholder="Enter state"
-                  disabled={submitting}
-                />
-              </div>
+              {/* State - Alphabet Only */}
+              <AlphabetOnlyInput
+                label="State"
+                value={formData.state}
+                onChange={(val) => handleChange('state', val)}
+                placeholder="Enter state"
+                maxLength={50}
+                required={false}
+                disabled={submitting}
+              />
 
-              <div className="igf-field">
-                <label className="igf-label">Pincode</label>
-                <input
-                  type="text"
-                  value={formData.pincode}
-                  onChange={(e) => handleChange('pincode', e.target.value)}
-                  className="form-field"
-                  placeholder="Enter pincode"
-                  disabled={submitting}
-                />
-              </div>
+              {/* Pincode - Digits Only */}
+              <DigitOnlyInput
+                label="Pincode"
+                value={formData.pincode}
+                onChange={(val) => handleChange('pincode', val)}
+                placeholder="Enter pincode"
+                maxLength={10}
+                required={false}
+                disabled={submitting}
+              />
             </div>
 
             <div className="igf-divider" />

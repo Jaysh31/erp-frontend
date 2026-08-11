@@ -486,63 +486,8 @@ export default function Stockentry() {
 
   return (
     <div className={`se-page ${theme}`}>
-      {/* ─── Stats Bar ─── */}
-      <div className="se-stats-bar">
-        <div className="se-stat-item">
-          <div className="se-stat-icon blue">
-            <FaBoxes />
-          </div>
-          <div className="se-stat-content">
-            <span className="se-stat-value">{stats.total}</span>
-            <span className="se-stat-label">Total Entries</span>
-          </div>
-        </div>
-        <div className="se-stat-item">
-          <div className="se-stat-icon green">
-            <FaDollarSign />
-          </div>
-          <div className="se-stat-content">
-            <span className="se-stat-value">{formatCurrency(stats.totalValue)}</span>
-            <span className="se-stat-label">Total Value</span>
-          </div>
-        </div>
-        <div className="se-stat-item">
-          <div className="se-stat-icon purple">
-            <FaIndustry />
-          </div>
-          <div className="se-stat-content">
-            <span className="se-stat-value">{stats.manufacture}</span>
-            <span className="se-stat-label">Manufacture</span>
-          </div>
-        </div>
-        <div className="se-stat-item">
-          <div className="se-stat-icon orange">
-            <FaTruck />
-          </div>
-          <div className="se-stat-content">
-            <span className="se-stat-value">{stats.transfer}</span>
-            <span className="se-stat-label">Transfers</span>
-          </div>
-        </div>
-        <div className="se-stat-item">
-          <div className="se-stat-icon teal">
-            <FaArrowLeftIcon />
-          </div>
-          <div className="se-stat-content">
-            <span className="se-stat-value">{stats.receipt}</span>
-            <span className="se-stat-label">Receipts</span>
-          </div>
-        </div>
-        <div className="se-stat-item">
-          <div className="se-stat-icon red">
-            <FaArrowRight />
-          </div>
-          <div className="se-stat-content">
-            <span className="se-stat-value">{stats.issue}</span>
-            <span className="se-stat-label">Issues</span>
-          </div>
-        </div>
-      </div>
+     
+
 
       {/* ─── Search and Filter Bar ─── */}
       <div className="se-filter-bar">
