@@ -1,6 +1,6 @@
 // InventoryDetail.tsx
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
   FaArrowLeft,
   FaBoxes,
@@ -79,7 +79,7 @@ interface CurrentInventory {
   valuation_rate: number;
   stock_uom: string;
   company: string;
-  type: string;
+  type: "Internal" | "External";
   last_updated: string;
 }
 
@@ -102,6 +102,7 @@ interface GRNHistory {
   warehouse_name: string;
   created_on: string;
   created_by: string;
+  type?: "Internal" | "External";
   transaction_type: string;
 }
 
@@ -158,6 +159,11 @@ export default function InventoryDetail() {
   const { itemCode } = useParams<{ itemCode: string }>();
   const navigate = useNavigate();
   const { theme } = useAdminTheme();
+  const [searchParams] = useSearchParams();
+
+  // ─── Type filter (passed in from the list page via ?type=Internal|External) ──
+  // If absent (e.g. someone deep-links straight to this page), we show everything.
+  const filterType = searchParams.get("type") as "Internal" | "External" | null;
 
   const [data, setData] = useState<InventoryDetailResponse['data'] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -221,8 +227,6 @@ export default function InventoryDetail() {
     const rawMaterialGroups = ["Raw Material", "Raw Materials", "Input Material", "RM"];
     return rawMaterialGroups.some(g => itemGroup.toLowerCase().includes(g.toLowerCase()));
   };
-
-  // Group inventory entries by warehouse
 
   // Format date
   const formatDate = (dateString: string) => {
@@ -301,16 +305,51 @@ export default function InventoryDetail() {
     );
   }
 
-  const { item_details, purchase_order_history, sales_invoice_history, grn_history, summary } = data;
-  
-  // Calculate Total Stock Value using standard_rate * current_stock
-  const totalStockValue = item_details.standard_rate * summary.current_stock;
+  const {
+    item_details,
+    purchase_order_history,
+    sales_invoice_history,
+    grn_history,
+    summary,
+    current_inventory,
+  } = data;
+
+  // ─── Type-filtered records ──────────────────────────────────────────
+  // current_inventory and grn_history each carry a `type` field per record
+  // (Internal / External). When the user arrived here from a specific row
+  // on the list page (via ?type=...), we only show records matching that type.
+  // purchase_order_history / sales_invoice_history don't carry a per-record
+  // type in the API response, so they are left unfiltered.
+  const filteredCurrentInventory = filterType
+    ? current_inventory.filter((inv) => inv.type === filterType)
+    : current_inventory;
+
+  const filteredGrnHistory = filterType
+    ? grn_history.filter((grn) => grn.type === filterType)
+    : grn_history;
+
+  // Recompute stock figures from the filtered set so the header numbers
+  // match what's actually shown below (rather than using the type-agnostic
+  // `summary.current_stock`, which sums across both types).
+  const filteredCurrentStock = filteredCurrentInventory.reduce(
+    (sum, inv) => sum + inv.actual_qty,
+    0
+  );
+  const filteredStockValueFromInventory = filteredCurrentInventory.reduce(
+    (sum, inv) => sum + inv.stock_value,
+    0
+  );
+
+  // Calculate Total Stock Value using standard_rate * filtered current_stock
+  const totalStockValue = item_details.standard_rate * filteredCurrentStock;
   // Use standard_rate for valuation rate display
   const displayValuationRate = item_details.standard_rate;
-  
+
   // Check if item is Product or Raw Material
   const isProductItem = isProduct(item_details.item_group);
   const isRawMaterialItem = isRawMaterial(item_details.item_group);
+
+  const clearTypeFilter = () => navigate(`/inventory/detail/${itemCode}`);
 
   return (
     <div className={`inv-detail-page ${theme}`}>
@@ -320,6 +359,21 @@ export default function InventoryDetail() {
           <button className="inv-detail-back-btn" onClick={() => navigate(-1)}>
             <FaArrowLeft /> Back to Inventory
           </button>
+
+          {/* Active type-filter banner */}
+          {filterType && (
+            <div className="inv-type-filter-banner">
+              <span className={`inv-type-badge ${filterType.toLowerCase()}`}>
+                {filterType === "Internal" ? <FaIndustry size={10} /> : <FaTruck size={10} />}
+                {filterType}
+              </span>
+              <span>Showing {filterType} stock only</span>
+              <button className="inv-link-btn" onClick={clearTypeFilter}>
+                Show all
+              </button>
+            </div>
+          )}
+
           <div className="inv-detail-header-content">
             <div className="inv-detail-header-left">
               <div className="inv-detail-icon-wrapper">
@@ -350,7 +404,7 @@ export default function InventoryDetail() {
               <div className="inv-detail-stat">
                 <label>Current Stock</label>
                 <span className="inv-detail-stat-value">
-                  {summary.current_stock} {item_details.stock_uom}
+                  {filteredCurrentStock} {item_details.stock_uom}
                 </span>
               </div>
             </div>
@@ -365,7 +419,7 @@ export default function InventoryDetail() {
             </div>
             <div className="inv-detail-stat-info">
               <label>Current Stock</label>
-              <span>{summary.current_stock} {item_details.stock_uom}</span>
+              <span>{filteredCurrentStock} {item_details.stock_uom}</span>
             </div>
           </div>
           
@@ -395,7 +449,7 @@ export default function InventoryDetail() {
             </div>
             <div className="inv-detail-stat-info">
               <label>Total Transactions</label>
-              <span>{purchase_order_history.length + grn_history.length + sales_invoice_history.length}</span>
+              <span>{purchase_order_history.length + filteredGrnHistory.length + sales_invoice_history.length}</span>
             </div>
           </div>
         </div>
@@ -456,6 +510,88 @@ export default function InventoryDetail() {
                   <span>{item_details.description || "No description available"}</span>
                 </div>
               </div>
+            </div>
+          )}
+        </div>
+
+        {/* Current Inventory Section — filtered by type */}
+        <div className="inv-detail-section">
+          <div
+            className="inv-detail-section-header"
+            onClick={() => toggleSection('currentInventory')}
+          >
+            <h2>
+              <FaWarehouse size={18} /> Current Inventory ({filteredCurrentInventory.length})
+            </h2>
+            <button className="inv-detail-toggle">
+              {expandedSections.currentInventory !== false ? <FaChevronUp /> : <FaChevronDown />}
+            </button>
+          </div>
+
+          {expandedSections.currentInventory !== false && (
+            <div className="inv-detail-section-content">
+              {filteredCurrentInventory.length === 0 ? (
+                <div className="inv-detail-empty">
+                  <FaWarehouse size={40} />
+                  <p>No {filterType ? `${filterType.toLowerCase()} ` : ""}inventory records found</p>
+                </div>
+              ) : (
+                <div className="inv-table-wrap">
+                  <table className="inv-table">
+                    <thead>
+                      <tr>
+                        <th>Warehouse</th>
+                        <th>Type</th>
+                        <th>Actual Qty</th>
+                        <th>Projected Qty</th>
+                        <th>Ordered Qty</th>
+                        <th>Reserved Qty</th>
+                        <th>Valuation Rate</th>
+                        <th>Stock Value</th>
+                        <th>Last Updated</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredCurrentInventory.map((inv) => (
+                        <tr key={inv.id}>
+                          <td>
+                            <span className="inv-warehouse-badge">
+                              <FaWarehouse size={10} /> {inv.warehouse_name}
+                            </span>
+                          </td>
+                          <td>
+                            <span className={`inv-type-badge ${inv.type.toLowerCase()}`}>
+                              {inv.type === "Internal" ? <FaIndustry size={10} /> : <FaTruck size={10} />}
+                              {inv.type}
+                            </span>
+                          </td>
+                          <td>{inv.actual_qty} {inv.stock_uom}</td>
+                          <td>{inv.projected_qty} {inv.stock_uom}</td>
+                          <td>{inv.ordered_qty} {inv.stock_uom}</td>
+                          <td>{inv.reserved_qty} {inv.stock_uom}</td>
+                          <td>{formatCurrency(inv.valuation_rate)}</td>
+                          <td className="inv-td-amount">{formatCurrency(inv.stock_value)}</td>
+                          <td>{formatDate(inv.last_updated)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr>
+                        <td colSpan={2} className="inv-table-footer-label">Total</td>
+                        <td>
+                          <strong>{filteredCurrentStock} {item_details.stock_uom}</strong>
+                        </td>
+                        <td colSpan={3}></td>
+                        <td></td>
+                        <td className="inv-td-amount">
+                          <strong>{formatCurrency(filteredStockValueFromInventory)}</strong>
+                        </td>
+                        <td></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -530,7 +666,7 @@ export default function InventoryDetail() {
           </div>
         )}
 
-        {/* GRN History Section - Only for Raw Materials */}
+        {/* GRN History Section - Only for Raw Materials — filtered by type */}
         {isRawMaterialItem && (
           <div className="inv-detail-section">
             <div 
@@ -538,7 +674,7 @@ export default function InventoryDetail() {
               onClick={() => toggleSection('grnHistory')}
             >
               <h2>
-                <FaTruck size={18} /> GRN History ({grn_history.length})
+                <FaTruck size={18} /> GRN History ({filteredGrnHistory.length})
               </h2>
               <button className="inv-detail-toggle">
                 {expandedSections.grnHistory !== false ? <FaChevronUp /> : <FaChevronDown />}
@@ -547,10 +683,10 @@ export default function InventoryDetail() {
             
             {expandedSections.grnHistory !== false && (
               <div className="inv-detail-section-content">
-                {grn_history.length === 0 ? (
+                {filteredGrnHistory.length === 0 ? (
                   <div className="inv-detail-empty">
                     <FaTruck size={40} />
-                    <p>No GRN records found</p>
+                    <p>No {filterType ? `${filterType.toLowerCase()} ` : ""}GRN records found</p>
                   </div>
                 ) : (
                   <div className="inv-table-wrap">
@@ -559,6 +695,7 @@ export default function InventoryDetail() {
                         <tr>
                           <th>GRN Number</th>
                           <th>Date</th>
+                          <th>Type</th>
                           <th>Supplier</th>
                           <th>Quantity</th>
                           <th>Accepted</th>
@@ -570,7 +707,7 @@ export default function InventoryDetail() {
                         </tr>
                       </thead>
                       <tbody>
-                        {grn_history.map((grn) => {
+                        {filteredGrnHistory.map((grn) => {
                           const status = getGRNStatus(grn);
                           const statusColors = {
                             completed: { bg: '#10b98120', color: '#10b981', label: 'Completed' },
@@ -584,6 +721,14 @@ export default function InventoryDetail() {
                             <tr key={grn.grn_id}>
                               <td className="inv-td-code">{grn.grn_number}</td>
                               <td>{formatDate(grn.transaction_date)}</td>
+                              <td>
+                                {grn.type && (
+                                  <span className={`inv-type-badge ${grn.type.toLowerCase()}`}>
+                                    {grn.type === "Internal" ? <FaIndustry size={10} /> : <FaTruck size={10} />}
+                                    {grn.type}
+                                  </span>
+                                )}
+                              </td>
                               <td>
                                 <div className="inv-supplier-info">
                                   <FaBuilding size={12} />
