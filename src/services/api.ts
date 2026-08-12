@@ -3,8 +3,7 @@ import type { AxiosInstance, InternalAxiosRequestConfig } from "axios";
 import { storage } from "../utils/storage";
  
 //export baseURL separately
-// export const baseURL = 'http://localhost:7200/api';
- 
+// export const baseURL = 'http://56.152.66.148.host.secureserver.net:8500/api'
 export const baseURL = 'https://erp.sculptortechpvtltd.com/api';
  
 export const imageBaseURL = `${baseURL}/getmedia/`;

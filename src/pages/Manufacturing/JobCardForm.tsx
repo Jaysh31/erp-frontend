@@ -160,6 +160,32 @@ interface EmployeeOption {
   [key: string]: any;
 }
 
+interface SupplierContact {
+  id: number;
+  supplier_id: number;
+  first_name?: string;
+  last_name?: string;
+  contact_name?: string;
+  mobile_no?: string;
+  email_id?: string;
+  is_primary?: number;
+  [key: string]: any;
+}
+
+interface SupplierOption {
+  id: number;
+  name: string;
+  supplier_name: string;
+  supplier_type?: string;
+  supplier_group?: string;
+  primary_address?: string;
+  mobile_no?: string;
+  email_id?: string;
+  default_currency?: string;
+  contacts?: SupplierContact[];
+  [key: string]: any;
+}
+
 interface SubcontractingItem {
   id: string;
   item_code: string;
@@ -208,6 +234,7 @@ interface JobCardFormData {
   sequence_id: number;
   serial_no: string;
   job_type: 'internal' | 'subcontracting';
+  supplier_id: string;
   subcontractor_name: string;
   subcontractor_contact: string;
   subcontractor_address: string;
@@ -664,6 +691,105 @@ const SuccessModal: React.FC<SuccessModalProps> = ({
   );
 };
 
+// ─── Subcontract Confirm Modal ─────────────────────────────────────────
+
+interface SubcontractConfirmModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: (reasonKey: string, reasonLabel: string, note: string) => void;
+  loading: boolean;
+}
+
+const SUBCONTRACT_REASON_OPTIONS: { key: string; label: string; icon: React.ComponentType<{ size?: number }> }[] = [
+  { key: 'machine_failure', label: 'Machine Failure', icon: FaTools },
+  { key: 'no_machine', label: 'No Machine Available', icon: FaTimesCircle },
+  { key: 'capacity_overflow', label: 'Capacity Overflow', icon: FaBoxes },
+  { key: 'specialized_process', label: 'Specialized Process', icon: FaIndustry },
+  { key: 'other', label: 'Other Reason', icon: FaFileAlt },
+];
+
+const SubcontractConfirmModal: React.FC<SubcontractConfirmModalProps> = ({
+  isOpen,
+  onClose,
+  onConfirm,
+  loading,
+}) => {
+  const [reasonKey, setReasonKey] = useState<string>('');
+  const [note, setNote] = useState<string>('');
+  const [error, setError] = useState<string>('');
+
+  useEffect(() => {
+    if (isOpen) {
+      setReasonKey('');
+      setNote('');
+      setError('');
+    }
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  const handleConfirm = () => {
+    if (!reasonKey) {
+      setError('Please select a reason for subcontracting');
+      return;
+    }
+    const reasonObj = SUBCONTRACT_REASON_OPTIONS.find((r) => r.key === reasonKey);
+    onConfirm(reasonKey, reasonObj?.label || reasonKey, note);
+  };
+
+  return (
+    <div className="jcf-modal-overlay" onClick={() => !loading && onClose()}>
+      <div className="jcf-validation-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "550px" }}>
+        <div className="jcf-modal-header jcf-modal-header-warning">
+          <h2 className="jcf-modal-title-warning">
+            <FaExchangeAlt style={{ marginRight: "8px" }} />
+            Convert this Job Card to Subcontracting?
+          </h2>
+          <button className="jcf-modal-close" onClick={onClose} disabled={loading}>×</button>
+        </div>
+        <div className="jcf-modal-body">
+          <p className="jcf-modal-intro">
+            This will mark the job card as subcontracted. Please select a reason — it will be recorded in the job card remarks.
+          </p>
+          <div className="jcf-reason-grid">
+            {SUBCONTRACT_REASON_OPTIONS.map(({ key, label, icon: Icon }) => (
+              <button
+                key={key}
+                type="button"
+                className={`jcf-reason-btn ${reasonKey === key ? 'selected' : ''}`}
+                onClick={() => { setReasonKey(key); setError(''); }}
+                disabled={loading}
+              >
+                <Icon size={20} /> {label}
+              </button>
+            ))}
+          </div>
+          <div style={{ marginTop: "16px" }}>
+            <label className="jcf-label">Additional Note (optional)</label>
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              className="jcf-input jcf-textarea"
+              placeholder="Any extra detail about why this job is being subcontracted..."
+              rows={2}
+              disabled={loading}
+            />
+          </div>
+          {error && (
+            <div style={{ marginTop: "8px", color: "var(--danger-color)", fontSize: "13px" }}>{error}</div>
+          )}
+        </div>
+        <div className="jcf-modal-footer">
+          <button className="jcf-btn-cancel" onClick={onClose} disabled={loading}>Cancel</button>
+          <button className="jcf-btn-primary" onClick={handleConfirm} disabled={loading}>
+            {loading ? <FaSpinner className="jcf-spinning" /> : <FaExchangeAlt size={12} />} Confirm Subcontracting
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const defaultFormData = (): JobCardFormData => ({
   work_order: "", qty_to_manufacture: 0, posting_date: new Date(),
   pending_qty: 0, total_completed_qty: 0, process_loss_qty: 0,
@@ -676,6 +802,7 @@ const defaultFormData = (): JobCardFormData => ({
   item_name: "", project: "", operation_row_id: 1, operation_row_number: 1,
   operation_id: "", sequence_id: 1, serial_no: "",
   job_type: 'internal',
+  supplier_id: '',
   subcontractor_name: '',
   subcontractor_contact: '',
   subcontractor_address: '',
@@ -716,8 +843,8 @@ const JobCardForm: React.FC = () => {
   const [successMessage, setSuccessMessage] = useState("");
   const [formData, setFormData] = useState<JobCardFormData>(defaultFormData());
   const [, setJobCardDocName] = useState<string>("");
-  const [workOrders, setWorkOrders] = useState<WorkOrderOption[]>([]);
-  const [loadingWorkOrders, setLoadingWorkOrders] = useState(false);
+  const [workOrders] = useState<WorkOrderOption[]>([]);
+  const [loadingWorkOrders] = useState(false);
   const [employees, setEmployees] = useState<EmployeeOption[]>([]);
   const [loadingEmployees, setLoadingEmployees] = useState(false);
   const [showEmployeeModal, setShowEmployeeModal] = useState(false);
@@ -726,31 +853,85 @@ const JobCardForm: React.FC = () => {
   const [timerRunning, setTimerRunning] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isStartingJob, setIsStartingJob] = useState(false);
-  const [woDetails, setWoDetails] = useState<any>(null);
-  const [, setLoadingWoDetails] = useState(false);
+  const [woDetails] = useState<any>(null);
+  const [] = useState(false);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [selectedJobType, setSelectedJobType] = useState<'internal' | 'subcontracting'>('internal');
   const [subcontractingStep, setSubcontractingStep] = useState<1 | 2 | 3 | 4>(1);
+
+  // ── Subcontracting flag + confirm modal state ──────────────────────
+  const [isSubcontracted, setIsSubcontracted] = useState(false);
+  const [showSubcontractConfirm, setShowSubcontractConfirm] = useState(false);
+  const [creatingSubcontract, setCreatingSubcontract] = useState(false);
+  const [creatingSCO, setCreatingSCO] = useState(false);
+
+  // ── Suppliers (vendors for subcontracting) ──────────────────────────
+  const [suppliers, setSuppliers] = useState<SupplierOption[]>([]);
+  const [loadingSuppliers, setLoadingSuppliers] = useState(false);
 
   const getRemainingQty = () => {
     return Math.max(0, (formData.qty_to_manufacture || formData.for_quantity || 0) -
       (formData.total_completed_qty || 0) - (formData.process_loss_qty || 0));
   };
 
+
+
+  // ── Fetch suppliers list (for the subcontracting Vendor dropdown) ──────
+  const fetchSuppliers = async (): Promise<SupplierOption[]> => {
+    try {
+      const response = await api.get("/supplier");
+      const raw = response.data;
+      let list: SupplierOption[] = [];
+      if (raw?.data?.records && Array.isArray(raw.data.records)) list = raw.data.records;
+      else if (raw?.data && Array.isArray(raw.data)) list = raw.data;
+      else if (Array.isArray(raw)) list = raw;
+      return list;
+    } catch (err) {
+      console.error("Error fetching suppliers:", err);
+      return [];
+    }
+  };
+
   useEffect(() => {
-    const fetchWorkOrders = async () => {
-      setLoadingWorkOrders(true);
-      try {
-        const response = await api.get("/work-order");
-        const raw = response.data;
-        let list: any = raw?.data?.records ?? raw?.data ?? raw?.work_orders ?? raw?.results ?? raw;
-        if (!Array.isArray(list)) list = [];
-        setWorkOrders(list);
-      } catch (err) { console.error("Error fetching work orders:", err); setWorkOrders([]); }
-      finally { setLoadingWorkOrders(false); }
-    };
-    fetchWorkOrders();
-  }, []);
+    // Load suppliers once the Subcontracting tab is opened (lazy load)
+    if (selectedJobType === 'subcontracting' && suppliers.length === 0 && !loadingSuppliers) {
+      setLoadingSuppliers(true);
+      fetchSuppliers().then((list) => {
+        setSuppliers(list);
+        setLoadingSuppliers(false);
+      });
+    }
+  }, [selectedJobType]);
+
+  const getSupplierPrimaryContact = (supplier: SupplierOption): SupplierContact | undefined => {
+    if (!supplier.contacts || supplier.contacts.length === 0) return undefined;
+    return supplier.contacts.find((c) => c.is_primary === 1) || supplier.contacts[0];
+  };
+
+  const handleSupplierSelect = (e: ChangeEvent<HTMLSelectElement>) => {
+    const supplierId = e.target.value;
+    if (!supplierId) {
+      setFormData((prev) => ({
+        ...prev,
+        supplier_id: '',
+        subcontractor_name: '',
+        subcontractor_contact: '',
+        subcontractor_address: '',
+      }));
+      return;
+    }
+    const supplier = suppliers.find((s) => String(s.id) === supplierId);
+    if (!supplier) return;
+    const primaryContact = getSupplierPrimaryContact(supplier);
+    const contactNumber = primaryContact?.mobile_no || supplier.mobile_no || '';
+    setFormData((prev) => ({
+      ...prev,
+      supplier_id: String(supplier.id),
+      subcontractor_name: supplier.supplier_name || supplier.name || '',
+      subcontractor_contact: contactNumber,
+      subcontractor_address: supplier.primary_address || '',
+    }));
+  };
 
   const getEmployeeCode = (emp: EmployeeOption): string => {
     if (emp.employee && emp.employee.trim()) return emp.employee.trim();
@@ -778,31 +959,7 @@ const JobCardForm: React.FC = () => {
     } catch (err) { console.error("Error fetching employees:", err); return []; }
   };
 
-  const fetchWorkOrderDetails = async (woId: string) => {
-    if (!woId) return;
-    setLoadingWoDetails(true);
-    try {
-      const response = await api.get(`/work-order/${woId}`);
-      if (response.data.success === 1) {
-        const woData = response.data.data;
-        setWoDetails(woData);
-        setFormData(prev => ({
-          ...prev,
-          company: woData.company || prev.company,
-          qty_to_manufacture: woData.qty || prev.qty_to_manufacture,
-          for_quantity: woData.qty || prev.for_quantity,
-          hour_rate: woData.planned_operating_cost || prev.hour_rate,
-          expected_start_date: woData.planned_start_date ? new Date(woData.planned_start_date) : prev.expected_start_date,
-          expected_end_date: woData.planned_end_date ? new Date(woData.planned_end_date) : prev.expected_end_date,
-          source_warehouse: woData.source_warehouse || "", wip_warehouse: woData.wip_warehouse || "",
-          target_warehouse: woData.fg_warehouse || "", item_name: woData.item_name || prev.item_name,
-          production_item: woData.production_item || prev.production_item,
-        }));
-      }
-    } catch (err) { console.error("Error fetching Work Order details:", err); }
-    finally { setLoadingWoDetails(false); }
-  };
-
+  
   useEffect(() => {
     if (isEditMode && id) {
       const state = location.state as { jobCard?: any };
@@ -826,6 +983,12 @@ const JobCardForm: React.FC = () => {
   const loadJobCardIntoForm = async (jc: any) => {
     setRecordId(jc.id ?? null);
     setJobCardDocName(jc.name || jc.job_card_id || "");
+
+    // ── Determine subcontracted flag from API (is_subcontracted: 0 | 1) ──
+    const subcontractedFlag = jc.is_subcontracted === 1 || jc.is_subcontracted === true;
+    setIsSubcontracted(subcontractedFlag);
+    setSelectedJobType(subcontractedFlag ? 'subcontracting' : 'internal');
+
     setFormData((prev) => ({
       ...prev,
       work_order: jc.work_order || "", qty_to_manufacture: jc.requested_qty ?? jc.for_quantity ?? 0,
@@ -849,6 +1012,7 @@ const JobCardForm: React.FC = () => {
       operation_row_number: parseInt(jc.operation_row_number) || 1,
       operation_id: jc.operation_id || "", sequence_id: jc.sequence_id || 1,
       serial_no: jc.serial_no || "", assigned_employees: [],
+      job_type: subcontractedFlag ? 'subcontracting' : 'internal',
     }));
 
     const employeeListFromJc: any[] = Array.isArray(jc.employees)
@@ -873,16 +1037,66 @@ const JobCardForm: React.FC = () => {
       } catch (err) { console.error("Error loading assigned employee(s):", err); }
     }
 
-    if (jc.work_order) fetchWorkOrderDetails(jc.work_order);
+    
     if (jc.actual_start_date && !jc.actual_end_date) {
       setElapsedSeconds(Math.max(0, Math.floor((Date.now() - new Date(jc.actual_start_date).getTime()) / 1000)));
       setTimerRunning(jc.status === "Work In Progress");
     }
   };
 
+  // ── Job type tab switching: gate "Subcontracting" behind a confirmation ──
   const handleJobTypeChange = (type: 'internal' | 'subcontracting') => {
+    if (type === 'subcontracting' && !isSubcontracted) {
+      // Not yet subcontracted -> ask for confirmation + reason before switching
+      setShowSubcontractConfirm(true);
+      return;
+    }
     setSelectedJobType(type);
     setFormData(prev => ({ ...prev, job_type: type }));
+  };
+
+  // ── Confirm handler: marks job card as subcontracted (is_subcontracted = 1)
+  //    and appends the selected reason into the job card remarks ──────────
+  const handleSubcontractConfirm = async (reasonKey: string, reasonLabel: string, note: string) => {
+    setCreatingSubcontract(true);
+    setApiError(null);
+    try {
+      const timestamp = new Date().toLocaleString('en-IN', {
+        day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true
+      });
+      const remarkLine = `[${timestamp}] Converted to Subcontracting - Reason: ${reasonLabel}${note.trim() ? ` - ${note.trim()}` : ''}`;
+      const updatedRemarks = formData.remarks ? `${formData.remarks}\n${remarkLine}` : remarkLine;
+
+      if (isEditMode && currentJobCardId) {
+        const payload = buildApiPayload();
+        payload.id = currentJobCardId;
+        payload.is_subcontracted = 1;
+        payload.remarks = updatedRemarks;
+        const response = await api.put("/job-card", payload);
+        if (response.data.success !== 1) {
+          throw new Error(response.data?.message || "Failed to mark job card as subcontracted");
+        }
+      }
+
+      setFormData((prev) => ({
+        ...prev,
+        job_type: 'subcontracting',
+        subcontract_reason: reasonKey,
+        remarks: updatedRemarks,
+      }));
+      setIsSubcontracted(true);
+      setSelectedJobType('subcontracting');
+      setSubcontractingStep(1);
+      setShowSubcontractConfirm(false);
+      setSuccessMessage("Job card marked as subcontracted.");
+      setShowSuccessModal(true);
+
+      if (isEditMode && id) fetchJobCardById(id);
+    } catch (err: any) {
+      setApiError(err.response?.data?.message || err.message || "Failed to mark job card as subcontracted");
+    } finally {
+      setCreatingSubcontract(false);
+    }
   };
 
   const getAllValidationErrors = (): ValidationError[] => {
@@ -914,7 +1128,7 @@ const JobCardForm: React.FC = () => {
     const wo = workOrders.find((w) => w.name === value);
     setFormData((prev) => ({ ...prev, work_order: value, company: wo?.company ?? prev.company, qty_to_manufacture: wo?.qty ?? prev.qty_to_manufacture, item_name: wo?.item_name || prev.item_name }));
     if (errors.work_order) setErrors((prev) => ({ ...prev, work_order: "" }));
-    if (value) fetchWorkOrderDetails(value);
+    
   };
 
   const openEmployeeModal = async () => {
@@ -1151,6 +1365,7 @@ const JobCardForm: React.FC = () => {
       item_name: formData.item_name || "", 
       requested_qty: formData.qty_to_manufacture,
       is_paused: formData.status === "On Hold" ? 1 : 0,
+      is_subcontracted: isSubcontracted ? 1 : 0,
       track_semi_finished_goods: 0, 
       project: formData.project || "", 
       remarks: formData.remarks || "",
@@ -1249,6 +1464,73 @@ const JobCardForm: React.FC = () => {
     return getMaterialTotal() + formData.service_charge + formData.transport_cost + formData.other_charges;
   };
 
+  // ── Build & submit the /api/subcontracting-order payload ───────────────
+  const buildSubcontractingOrderPayload = () => {
+    return {
+      title: `Subcontracting Order - ${formData.subcontractor_name || formData.item_name || 'Job Card'}`,
+      work_order_id: formData.work_order || null,
+      job_card_id: currentJobCardId,
+      naming_series: "SCO-.YYYY.-",
+      supplier_id: formData.supplier_id ? Number(formData.supplier_id) : null,
+      supplier_name: formData.subcontractor_name || "",
+      supplier_warehouse: formData.subcontractor_address || "",
+      company: formData.company || "",
+      transaction_date: formatDateOnly(new Date()),
+      schedule_date: formatDateOnly(formData.expected_return_date) || formatDateOnly(formData.expected_end_date),
+      set_warehouse: formData.source_warehouse || "",
+      set_reserve_warehouse: formData.wip_warehouse || "",
+      reserve_stock: 1,
+      distribute_additional_costs_based_on: "Qty",
+      total_additional_costs: (formData.transport_cost || 0) + (formData.other_charges || 0),
+      status: "Draft",
+      remark: formData.subcontracting_notes && formData.subcontracting_notes.trim()
+        ? formData.subcontracting_notes
+        : `Subcontracting for job card ${currentJobCardId ?? ""}${formData.subcontract_reason ? ` - Reason: ${formData.subcontract_reason}` : ""}`,
+      items: formData.material_sent_items.map((item) => ({
+        item_code: item.item_code,
+        item_name: item.item_name,
+        qty: item.quantity,
+        received_qty: 0,
+        returned_qty: 0,
+        stock_uom: item.uom,
+        uom: item.uom,
+        conversion_factor: 1,
+        rate: item.rate,
+        amount: item.amount,
+        warehouse: item.warehouse || formData.source_warehouse || "",
+        job_card: currentJobCardId,
+      })),
+    };
+  };
+
+  const handleCreateSCO = async () => {
+    if (!formData.supplier_id || !formData.subcontractor_name.trim()) {
+      setApiError("Please select a Vendor / Supplier before creating the Subcontracting Order");
+      return;
+    }
+    if (formData.material_sent_items.length === 0) {
+      setApiError("Please add at least one material item before creating the Subcontracting Order");
+      return;
+    }
+    setCreatingSCO(true);
+    setApiError(null);
+    try {
+      const payload = buildSubcontractingOrderPayload();
+      const response = await api.post("/subcontracting-order", payload);
+      if (response.data?.success === 0) {
+        throw new Error(response.data?.message || "Failed to create Subcontracting Order");
+      }
+      const scoName = response.data?.data?.name || response.data?.name;
+      setFormData((prev) => ({ ...prev, po_created: true, po_number: scoName || prev.po_number }));
+      setSuccessMessage(`Subcontracting Order ${scoName ? scoName + " " : ""}created successfully!`);
+      setShowSuccessModal(true);
+    } catch (err: any) {
+      setApiError(err.response?.data?.message || err.message || "Failed to create Subcontracting Order");
+    } finally {
+      setCreatingSCO(false);
+    }
+  };
+
   const renderSubcontractingSection = () => {
     if (selectedJobType !== 'subcontracting') return null;
 
@@ -1308,15 +1590,22 @@ const JobCardForm: React.FC = () => {
           </div>
           <div className="jcf-grid-3">
             <div>
-              <label className="jcf-label">Vendor Name *</label>
-              <input
-                type="text"
-                name="subcontractor_name"
-                value={formData.subcontractor_name}
-                onChange={handleInputChange}
+              <label className="jcf-label">Vendor / Supplier *</label>
+              <select
+                value={formData.supplier_id}
+                onChange={handleSupplierSelect}
                 className="jcf-input"
-                placeholder="e.g. Precision Works Pvt Ltd"
-              />
+              >
+                <option value="">{loadingSuppliers ? "Loading suppliers..." : "Select Supplier"}</option>
+                {suppliers.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.supplier_name || s.name}{s.supplier_group ? ` (${s.supplier_group})` : ""}
+                  </option>
+                ))}
+              </select>
+              {!loadingSuppliers && suppliers.length === 0 && (
+                <span className="jcf-error-text">No suppliers found. Please add one in Suppliers first.</span>
+              )}
             </div>
             <div>
               <label className="jcf-label">Contact</label>
@@ -1473,6 +1762,25 @@ const JobCardForm: React.FC = () => {
               </tfoot>
             </table>
           </div>
+        </div>
+
+        {/* ── Subcontracting Order (SCO) creation card ── */}
+        <div className="jcf-card jcf-sco-card">
+          <div className="jcf-card-header">
+            <FaShoppingCart size={14} /> Subcontracting Order (SCO)
+          </div>
+          <p style={{ fontSize: '13px', color: '#555', marginBottom: '12px' }}>
+            Create a Subcontracting Order to send the materials above to the vendor. This calls the
+            Subcontracting Order API and links it to this job card{formData.work_order ? ` and work order ${formData.work_order}` : ''}.
+          </p>
+          <button
+            type="button"
+            className="jcf-btn-primary"
+            onClick={handleCreateSCO}
+            disabled={creatingSCO}
+          >
+            {creatingSCO ? <FaSpinner className="jcf-spinning" /> : <FaShoppingCart size={12} />} Create Subcontracting Order
+          </button>
         </div>
 
         <div className="jcf-card jcf-charges-card">
@@ -1678,6 +1986,12 @@ const JobCardForm: React.FC = () => {
         remainingQty={remainingQty}
         existingRemarks={formData.remarks}
       />
+      <SubcontractConfirmModal
+        isOpen={showSubcontractConfirm}
+        onClose={() => setShowSubcontractConfirm(false)}
+        onConfirm={handleSubcontractConfirm}
+        loading={creatingSubcontract}
+      />
 
       {showValidationSummary && validationErrors.length > 0 && (
         <div className="jcf-modal-overlay" onClick={() => setShowValidationSummary(false)}>
@@ -1721,6 +2035,11 @@ const JobCardForm: React.FC = () => {
         <div className="jcf-header-row">
           <button type="button" onClick={() => navigate("/job-card")} className="jcf-back-btn"><FaArrowLeft size={12} /> Back</button>
           <h1 className="jcf-title">{isEditMode ? "Edit Job Card" : "New Job Card"}</h1>
+          {isSubcontracted && (
+            <span className="jcf-status-badge jcf-status-completed" style={{ marginLeft: "8px" }}>
+              <FaExchangeAlt size={10} /> Subcontracted
+            </span>
+          )}
           {apiError && <div className="jcf-error-pill"><FaExclamationTriangle size={11} />{apiError}</div>}
           {hasAnyErrors && <div className="jcf-error-pill"><FaExclamationTriangle size={11} />{allValidationErrors.length} missing field(s)</div>}
         </div>
