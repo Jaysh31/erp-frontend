@@ -4,7 +4,7 @@ import { useNavigate, useParams, useLocation } from "react-router-dom";
 import {
   FaArrowLeft, FaSave, FaSpinner, FaInfoCircle, FaExclamationTriangle,
   FaTimesCircle, FaFileAlt, FaShoppingCart, FaPercentage,
-  FaUniversity, FaArrowRight, FaCheckCircle,
+  FaUniversity, FaArrowRight, FaCheckCircle, FaTrash, FaTimes,
 } from "react-icons/fa";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -314,6 +314,14 @@ const AddCompanyForm: React.FC = () => {
 
   const [formDraftKey, setFormDraftKey] = useState<string>("");
 
+  // ─── bank account delete confirmation ──────────────────────────────
+  const [showDeleteBankConfirm, setShowDeleteBankConfirm] = useState(false);
+  const [bankAccountToDelete, setBankAccountToDelete] = useState<{
+    idx: number;
+    account: CompanyBankAccount;
+  } | null>(null);
+  const [deletingBankAccount, setDeletingBankAccount] = useState(false);
+
   const sectionRefs = useRef<Record<SectionKey, HTMLDivElement | null>>({
     details: null,
     "buy-sell": null,
@@ -538,8 +546,47 @@ const AddCompanyForm: React.FC = () => {
     });
   };
 
-  const removeBankAccount = (idx: number) => {
-    setBankAccounts((prev) => prev.filter((_, i) => i !== idx));
+  // Opens the confirmation modal instead of removing immediately.
+  const requestRemoveBankAccount = (idx: number) => {
+    const account = bankAccounts[idx];
+    if (!account) return;
+    setBankAccountToDelete({ idx, account });
+    setShowDeleteBankConfirm(true);
+  };
+
+  const closeDeleteBankConfirm = () => {
+    if (deletingBankAccount) return;
+    setShowDeleteBankConfirm(false);
+    setBankAccountToDelete(null);
+  };
+
+  // Called when the user confirms deletion in the modal.
+  const confirmRemoveBankAccount = async () => {
+    if (!bankAccountToDelete) return;
+    const { idx, account } = bankAccountToDelete;
+
+    // Not yet persisted (no recordId) — just drop it locally, no API call needed.
+    if (!account.recordId) {
+      setBankAccounts((prev) => prev.filter((_, i) => i !== idx));
+      setShowDeleteBankConfirm(false);
+      setBankAccountToDelete(null);
+      return;
+    }
+
+    setDeletingBankAccount(true);
+    try {
+      await api.delete(`/bank-detail/${account.recordId}`);
+      toast.success("Bank account deleted successfully.");
+      setBankAccounts((prev) => prev.filter((_, i) => i !== idx));
+      setShowDeleteBankConfirm(false);
+      setBankAccountToDelete(null);
+    } catch (err: any) {
+      console.error("Error deleting bank account:", err);
+      const message = err.response?.data?.message || err.message || "Failed to delete bank account";
+      toast.error(message);
+    } finally {
+      setDeletingBankAccount(false);
+    }
   };
 
   // ─── payload builder ────────────────────────────────────────────────────
@@ -723,6 +770,47 @@ const AddCompanyForm: React.FC = () => {
             </div>
             <div className="acf-modal-footer">
               <button className="acf-btn-cancel" onClick={() => setShowValidationSummary(false)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Bank Account Confirmation Modal */}
+      {showDeleteBankConfirm && bankAccountToDelete && (
+        <div className="acf-modal-overlay" onClick={closeDeleteBankConfirm}>
+          <div className="acf-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="acf-modal-header">
+              <h3>Confirm Delete</h3>
+              <button className="acf-modal-close" onClick={closeDeleteBankConfirm} disabled={deletingBankAccount}>
+                <FaTimes />
+              </button>
+            </div>
+            <div className="acf-modal-body">
+              <p>Are you sure you want to delete this bank account?</p>
+              <p className="acf-modal-item-name">
+                <strong>{bankAccountToDelete.account.bank_name || "Bank account"}</strong>
+                {bankAccountToDelete.account.account_number && (
+                  <> &middot; •••• {String(bankAccountToDelete.account.account_number).slice(-4)}</>
+                )}
+              </p>
+              <p className="acf-modal-warning">This action cannot be undone.</p>
+            </div>
+            <div className="acf-modal-footer">
+              <button
+                className="acf-modal-btn-cancel"
+                onClick={closeDeleteBankConfirm}
+                disabled={deletingBankAccount}
+              >
+                Cancel
+              </button>
+              <button
+                className="acf-modal-btn-delete"
+                onClick={confirmRemoveBankAccount}
+                disabled={deletingBankAccount}
+              >
+                {deletingBankAccount && <FaSpinner className="acf-spinning" size={12} />}
+                <FaTrash size={12} /> Delete
+              </button>
             </div>
           </div>
         </div>
@@ -974,7 +1062,7 @@ const AddCompanyForm: React.FC = () => {
                         <button
                           type="button"
                           className="acf-bank-remove-btn"
-                          onClick={(e) => { e.stopPropagation(); removeBankAccount(idx); }}
+                          onClick={(e) => { e.stopPropagation(); requestRemoveBankAccount(idx); }}
                           title="Remove"
                         >
                           <FaTimesCircle size={14} />

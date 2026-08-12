@@ -175,6 +175,7 @@ interface SalesOrderApiRecord {
     stock_uom?: string;
     tax_rate?: number;
     tax_id?: number;
+    item_tax_id?: number;
     amount?: number;
     creation?: string;
     modified?: string;
@@ -254,6 +255,13 @@ interface InventoryApiRecord {
   stock_uom?: string;
   company?: string;
 }
+
+// ===== SHARED: prevent mouse-wheel from changing a focused number input's value =====
+// Number inputs natively change value on scroll when focused; this blurs the input
+// on wheel so scrolling the page never mutates the value.
+const preventWheelChange = (e: React.WheelEvent<HTMLInputElement>) => {
+  e.currentTarget.blur();
+};
 
 // ===== SHARED: portal-based dropdown menu position hook =====
 function useDropdownPosition(isOpen: boolean, triggerRef: React.RefObject<HTMLDivElement | null>) {
@@ -1944,17 +1952,40 @@ export default function CreateSalesOrder() {
             const itemCode = it.item_code || '';
             
             let tax = it.tax_rate ?? 0;
-            let tax_id: number | undefined = it.tax_id ? Number(it.tax_id) : undefined;
-            
-            // ===== FIX: Properly bind tax_id to tax field =====
-            if (!tax_id && parentTaxId) {
-              tax_id = parentTaxId;
-              tax = getTaxValueFromId(parentTaxId, taxOptions);
-            } else if (tax_id && tax === 0) {
-              tax = getTaxValueFromId(tax_id, taxOptions);
-            } else if (tax > 0 && !tax_id) {
+            // ===== FIX: The backend's item child-table persists the per-line
+            // GST selection under `item_tax_id` (same field name/schema the
+            // Quotation module uses) — NOT `tax_id`. `tax_id` only exists at
+            // the order (parent) level. Previous versions of this screen read
+            // `it.tax_id` first, which is essentially always undefined on a
+            // fetched record, so every line silently fell through to the
+            // order-level `parentTaxId` fallback — and since that fallback is
+            // always the first tax option (GST18) when nothing else is set,
+            // every item on every reopened order showed GST18 regardless of
+            // what was actually chosen when the order was created (this is
+            // exactly the bug: correct GST at create time via a quotation,
+            // wrong GST — always GST18 — after edit/reload).
+            //
+            // Fix: read `item_tax_id` first (mirrors Quotation's working
+            // load logic), fall back to the legacy `tax_id` key for older
+            // records, then to a saved numeric tax_rate, and only use the
+            // order-level default as an absolute last resort.
+            let tax_id: number | undefined =
+              it.item_tax_id ? Number(it.item_tax_id) :
+              it.tax_id ? Number(it.tax_id) : undefined;
+
+            if (tax_id) {
+              // Line has its own saved tax id — trust it. Only derive the %
+              // from it if no explicit tax_rate was saved for this line.
+              if (!tax || tax <= 0) {
+                tax = getTaxValueFromId(tax_id, taxOptions);
+              }
+            } else if (tax > 0) {
+              // No tax id on the line, but a real tax_rate was saved — find
+              // the matching tax option by rate instead of using the order
+              // default.
               tax_id = getTaxIdFromRate(tax, taxOptions);
-            } else if (tax === 0 && !tax_id && parentTaxId) {
+            } else if (parentTaxId) {
+              // Nothing usable on the line itself — last-resort fallback only.
               tax_id = parentTaxId;
               tax = getTaxValueFromId(parentTaxId, taxOptions);
             }
@@ -2291,13 +2322,19 @@ export default function CreateSalesOrder() {
       updatedItems[index].availableQty = availableQty;
     }
 
-    if (field === 'tax') {
+    if (field === 'tax_id') {
+      // Selecting by tax_id (not by percentage) avoids ambiguity when two tax
+      // types share the same rate — e.g. GST18 and IGST18 are both "18%", so
+      // matching on the percentage alone always resolved to whichever of the
+      // two came first in the list (GST18), no matter which one was actually
+      // picked or saved. Binding the <select> to tax_id fixes that both when
+      // choosing a tax here and when re-displaying a saved item on edit.
       const amount = updatedItems[index].amount || 0;
-      const tax = Number(value);
-      const tax_id = getTaxIdFromRate(tax, taxOptions);
+      const taxIdValue = value === '' || value === undefined || value === null ? undefined : Number(value);
+      const tax = taxIdValue ? getTaxValueFromId(taxIdValue, taxOptions) : 0;
       const taxAmount = (amount * tax) / 100;
+      updatedItems[index].tax_id = taxIdValue;
       updatedItems[index].tax = tax;
-      updatedItems[index].tax_id = tax_id;
       updatedItems[index].taxAmount = taxAmount;
       updatedItems[index].totalAmount = amount + taxAmount;
     }
@@ -2394,7 +2431,14 @@ export default function CreateSalesOrder() {
 
     const customerId = customerData?.id || selectedCustomer?.id || formData.customer || '';
 
-    const taxId = taxOptions.length > 0 ? taxOptions[0].tax_id : null;
+    // ===== FIX: Don't hard-code the order-level tax_id to the first tax option
+    // (e.g. GST18). Use the tax_id actually selected on an item, if any, so the
+    // saved order-level value reflects what the user picked instead of always
+    // pointing at the same default — this was the root cause of every item
+    // showing GST18 after reopening a saved order that used a different rate.
+    const firstItemWithTax = validItems.find((item) => item.tax_id);
+    const taxId = firstItemWithTax?.tax_id
+      ?? (taxOptions.length > 0 ? taxOptions[0].tax_id : null);
 
     const payload: any = {
       company: 1,
@@ -2415,7 +2459,15 @@ export default function CreateSalesOrder() {
       rounded_total: formData.roundedTotal,
       status: formData.status,
       items: validItems.map((item) => {
-        // ===== FIX: Include tax_id in item payload =====
+        // ===== FIX: Persist the per-line GST under `item_tax_id` — the field
+        // name the backend's item child table actually stores per line (same
+        // schema the Quotation module saves to, which is why Quotation's
+        // edit view has always shown the correct GST per line). Previously
+        // only `tax_id` was sent, which the backend has no per-line column
+        // for, so it was silently dropped and every line fell back to the
+        // order-level default (GST18) as soon as the order was reopened.
+        // `tax_id` is still included for backward compatibility with any
+        // code path still reading the old key.
         const itemTaxId = item.tax_id || getTaxIdFromRate(item.tax, taxOptions) || taxId;
         
         return {
@@ -2432,6 +2484,7 @@ export default function CreateSalesOrder() {
           amount: item.amount,
           net_rate: item.net_rate || item.rate,
           net_amount: item.net_amount || item.amount,
+          item_tax_id: itemTaxId,
           tax_id: itemTaxId,
           tax_rate: item.tax || 0,
           warehouse: 1,
@@ -2995,6 +3048,7 @@ export default function CreateSalesOrder() {
                         type="number"
                         value={item.quantity}
                         onChange={(e) => handleItemChange(index, 'quantity', Number(e.target.value) || 0)}
+                        onWheel={preventWheelChange}
                         min="1"
                         className={`so-table-input ${errors[`item_${index}_quantity`] ? 'so-input-error' : ''}`}
                         ref={setItemRef(`item_${index}_quantity`)}
@@ -3020,6 +3074,7 @@ export default function CreateSalesOrder() {
                         type="number"
                         value={item.rate}
                         onChange={(e) => handleItemChange(index, 'rate', Number(e.target.value) || 0)}
+                        onWheel={preventWheelChange}
                         min="0"
                         step="0.01"
                         className={`so-table-input ${errors[`item_${index}_rate`] ? 'so-input-error' : ''}`}
@@ -3028,15 +3083,15 @@ export default function CreateSalesOrder() {
                     </td>
                     <td className="so-col-tax">
                       <select
-                        value={item.tax}
-                        onChange={(e) => handleItemChange(index, 'tax', Number(e.target.value) || 0)}
+                        value={item.tax_id ?? ''}
+                        onChange={(e) => handleItemChange(index, 'tax_id', e.target.value)}
                         className="so-table-input"
                         ref={setItemRef(`item_${index}_tax`)}
                         disabled={loadingTaxOptions}
                       >
-                        <option value={0}>0%</option>
+                        <option value="">0%</option>
                         {taxOptions.map((tax) => (
-                          <option key={tax.tax_id} value={extractTaxValue(tax.tax_type)}>
+                          <option key={tax.tax_id} value={tax.tax_id}>
                             {tax.tax_type}
                           </option>
                         ))}
@@ -3149,6 +3204,7 @@ export default function CreateSalesOrder() {
                           type="number"
                           value={schedule.durationDays}
                           onChange={(e) => handlePaymentDurationChange(index, Number(e.target.value))}
+                          onWheel={preventWheelChange}
                           min="0"
                           className="so-table-input"
                         />
@@ -3158,6 +3214,7 @@ export default function CreateSalesOrder() {
                           type="number"
                           value={schedule.invoicePortion}
                           onChange={(e) => updatePaymentRow(index, { invoicePortion: Number(e.target.value) })}
+                          onWheel={preventWheelChange}
                           min="0"
                           max="100"
                           className="so-table-input"

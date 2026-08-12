@@ -26,15 +26,15 @@ const Settings: React.FC = () => {
       navbarBg: '#ffffff',
       cardGradient: 'linear-gradient(135deg, #43a047 0%, #2e7d32 100%)',
     },
-    {
-      id: 'dark-theme',
-      name: 'Dark Theme',
-      description: 'Modern dark enterprise panel for reduced eye strain',
-      previewBg: '#0f172a',
-      sidebarBg: 'linear-gradient(135deg, #020617 0%, #0f172a 100%)',
-      navbarBg: '#1e293b',
-      cardGradient: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
-    },
+    // {
+    //   id: 'dark-theme',
+    //   name: 'Dark Theme',
+    //   description: 'Modern dark enterprise panel for reduced eye strain',
+    //   previewBg: '#0f172a',
+    //   sidebarBg: 'linear-gradient(135deg, #020617 0%, #0f172a 100%)',
+    //   navbarBg: '#1e293b',
+    //   cardGradient: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+    // },
   ];
 
   const handleThemeSelect = (themeId: AdminThemeType) => {
