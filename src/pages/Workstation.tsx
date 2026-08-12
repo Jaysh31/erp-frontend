@@ -181,36 +181,7 @@ export default function WorkstationList() {
 
   // ─── Stats ────────────────────────────────────────────────────────────────
 
-  const stats = [
-    { 
-      title: 'Total Workstations', 
-      value: workstations.length, 
-      icon: <FaClock />, 
-      color: '#3B82F6',
-      lightColor: '#EFF6FF'
-    },
-    { 
-      title: 'Active', 
-      value: workstations.filter(ws => ws.is_deleted === 0).length, 
-      icon: <FaCheckCircle />, 
-      color: '#10B981',
-      lightColor: '#ECFDF5'
-    },
-    { 
-      title: 'Disabled', 
-      value: workstations.filter(ws => ws.is_deleted === 1).length, 
-      icon: <FaExclamationTriangle />, 
-      color: '#EF4444',
-      lightColor: '#FEF2F2'
-    },
-    { 
-      title: 'Total Capacity', 
-      value: workstations.reduce((sum, ws) => sum + (ws.production_capacity || 0), 0), 
-      icon: <FaHourglassHalf />, 
-      color: '#F59E0B',
-      lightColor: '#FFFBEB'
-    },
-  ];
+ 
 
   // ─── Status colors ────────────────────────────────────────────────────────
 
@@ -364,27 +335,7 @@ export default function WorkstationList() {
       {!showNewWorkstation && (
         <div className={`wo-page ${theme}`}>
           {/* Stats Cards */}
-          <div className="wo-stats-container">
-            {stats.map((stat, index) => (
-              <div 
-                key={index} 
-                className="wo-stat-card" 
-                style={{ 
-                  background: stat.lightColor,
-                  borderLeft: `4px solid ${stat.color}`
-                }}
-              >
-                <div className="wo-stat-icon" style={{ color: stat.color }}>
-                  {stat.icon}
-                </div>
-                <div className="wo-stat-content">
-                  <p className="wo-stat-title">{stat.title}</p>
-                  <p className="wo-stat-value">{stat.value}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
+         
           {/* Search and Filter Bar */}
           <div className="wo-filter-bar">
             <div className="wo-filter-left">

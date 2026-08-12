@@ -30,7 +30,7 @@ interface Workstation {
   workstation_name: string;
   workstation_type: string;
   plant_floor: string;
-  is_deleted: number; // Changed from disabled to is_deleted
+  is_deleted: number;
   production_capacity: number;
   warehouse: string;
   status: string;
@@ -181,15 +181,36 @@ export default function OperationForm() {
           workstationList = [];
         }
         
-        // Filter workstations where is_deleted === 0 (active)
         const activeWorkstations = workstationList.filter(w => w.is_deleted === 0);
         setWorkstations(activeWorkstations);
         
-        console.log('Fetched workstations:', activeWorkstations); // Debug log
+        console.log('Fetched workstations:', activeWorkstations);
       }
     } catch (err) {
       console.error('Error fetching workstations:', err);
       setWorkstations([]);
+    }
+  };
+
+  // ─── Handle Text Input with Alphabet-Only Validation ────────────────
+  const handleTextInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    
+    // For Operation Name and Quality Inspection Template - only allow alphabets and spaces
+    if (name === 'name' || name === 'quality_inspection_template') {
+      // Allow only alphabets and spaces
+      if (value === '' || /^[a-zA-Z\s]*$/.test(value)) {
+        setFormData(prev => ({
+          ...prev,
+          [name]: value
+        }));
+      }
+    } else {
+      // For other text fields, allow all characters
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
     }
   };
 
@@ -205,10 +226,18 @@ export default function OperationForm() {
         workstation_name: selectedWs ? selectedWs.workstation_name : '',
         hour_rate: selectedWs ? selectedWs.hour_rate || null : null
       }));
+    } else if (type === 'number') {
+      setFormData(prev => ({
+        ...prev,
+        [name]: parseFloat(value) || 0
+      }));
+    } else if (type === 'text' || type === 'textarea') {
+      // Use the new handler for text inputs
+      handleTextInputChange(e as React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>);
     } else {
       setFormData(prev => ({
         ...prev,
-        [name]: type === 'number' ? parseFloat(value) || 0 : value
+        [name]: value
       }));
     }
   };
@@ -224,10 +253,24 @@ export default function OperationForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // ─── Validate Operation Name (Only Alphabets) ──────────────────
     if (!formData.name?.trim()) {
       setError('Operation name is required');
       return;
     }
+    if (!/^[a-zA-Z\s]+$/.test(formData.name.trim())) {
+      setError('Operation name must contain only alphabets and spaces');
+      return;
+    }
+    
+    // ─── Validate Quality Inspection Template (Only Alphabets) ────
+    if (formData.quality_inspection_template && formData.quality_inspection_template.trim()) {
+      if (!/^[a-zA-Z\s]+$/.test(formData.quality_inspection_template.trim())) {
+        setError('Quality Inspection Template must contain only alphabets and spaces');
+        return;
+      }
+    }
+    
     if (!formData.workstationId || formData.workstationId === 0) {
       setError('Workstation is required');
       return;
@@ -427,11 +470,14 @@ export default function OperationForm() {
                   name="name"
                   value={formData.name || ''}
                   onChange={handleChange}
-                  placeholder="Enter operation name"
+                  placeholder="Enter operation name (alphabets only)"
                   required
                   disabled={isViewMode}
                   className={isViewMode ? 'opf-disabled' : ''}
                 />
+                <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '4px' }}>
+                  Only alphabets and spaces are allowed
+                </small>
               </div>
 
               <div className="opf-form-group">
@@ -447,7 +493,7 @@ export default function OperationForm() {
                 >
                   <option value={0}>Select Workstation</option>
                   {workstations
-                    .filter(w => w.is_deleted === 0) // Filter active workstations
+                    .filter(w => w.is_deleted === 0)
                     .map(w => (
                       <option key={w.id} value={w.id}>
                         {w.workstation_name} - {w.workstation_type} (₹{w.hour_rate}/hr)
@@ -523,10 +569,13 @@ export default function OperationForm() {
                   name="quality_inspection_template"
                   value={formData.quality_inspection_template || ''}
                   onChange={handleChange}
-                  placeholder="Enter quality template name"
+                  placeholder="Enter quality template name (alphabets only)"
                   disabled={isViewMode}
                   className={isViewMode ? 'opf-disabled' : ''}
                 />
+                <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '4px' }}>
+                  Only alphabets and spaces are allowed
+                </small>
               </div>
 
               <div className="opf-form-checkboxes">

@@ -181,45 +181,7 @@ export default function QualityInspectionList() {
 
   return (
     <div className={`qi-list-page ${theme}`}>
-      {/* Stats Cards */}
-      <div className="qi-stats-container">
-        <div className="qi-stat-card" style={{ background: '#EFF6FF', borderLeft: '4px solid #3B82F6' }}>
-          <div className="qi-stat-icon" style={{ color: '#3B82F6' }}>
-            <FaClipboardList size={18} />
-          </div>
-          <div className="qi-stat-content">
-            <p className="qi-stat-title">Total Reports</p>
-            <p className="qi-stat-value">{totalReports}</p>
-          </div>
-        </div>
-        <div className="qi-stat-card" style={{ background: '#ECFDF5', borderLeft: '4px solid #10B981' }}>
-          <div className="qi-stat-icon" style={{ color: '#10B981' }}>
-            <FaCheckCircle size={18} />
-          </div>
-          <div className="qi-stat-content">
-            <p className="qi-stat-title">Passed</p>
-            <p className="qi-stat-value">{passedCount}</p>
-          </div>
-        </div>
-        <div className="qi-stat-card" style={{ background: '#FEF2F2', borderLeft: '4px solid #EF4444' }}>
-          <div className="qi-stat-icon" style={{ color: '#EF4444' }}>
-            <FaTimesCircle size={18} />
-          </div>
-          <div className="qi-stat-content">
-            <p className="qi-stat-title">Failed</p>
-            <p className="qi-stat-value">{failedCount}</p>
-          </div>
-        </div>
-        <div className="qi-stat-card" style={{ background: '#F5F3FF', borderLeft: '4px solid #8B5CF6' }}>
-          <div className="qi-stat-icon" style={{ color: '#8B5CF6' }}>
-            <FaPercentage size={18} />
-          </div>
-          <div className="qi-stat-content">
-            <p className="qi-stat-title">Pass Rate</p>
-            <p className="qi-stat-value">{passRate}%</p>
-          </div>
-        </div>
-      </div>
+     
 
       {/* Search and Filter Bar */}
       <div className="qi-filter-bar">

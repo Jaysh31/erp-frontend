@@ -23,6 +23,12 @@ interface QuickAddData {
   defaultUOM: string;
   maintainStock: boolean;
   isFixedAsset: boolean;
+  standardPurchaseRate: number | string;
+  safetyStock: number | string;
+  basePrice: number | string;
+  mrp: number | string;
+  profitMargin: number | string;
+  openingStock: number | string;
 }
 
 interface ItemGroup {
@@ -52,6 +58,12 @@ export default function ItemQuickAdd({ onClose, onEditFull }: ItemQuickAddProps)
     defaultUOM: "Nos",
     maintainStock: true,
     isFixedAsset: false,
+    standardPurchaseRate: "",
+    safetyStock: "",
+    basePrice: "",
+    mrp: "",
+    profitMargin: "",
+    openingStock: "",
   });
   const [saving, setSaving] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
@@ -74,7 +86,7 @@ export default function ItemQuickAdd({ onClose, onEditFull }: ItemQuickAddProps)
   const groupRef = useRef<HTMLDivElement>(null);
   const uomRef = useRef<HTMLDivElement>(null);
 
-  const set = (field: keyof QuickAddData, value: string | boolean) =>
+  const set = (field: keyof QuickAddData, value: string | boolean | number) =>
     setData((prev) => ({ ...prev, [field]: value }));
 
   // Fetch Item Groups
@@ -139,6 +151,50 @@ export default function ItemQuickAdd({ onClose, onEditFull }: ItemQuickAddProps)
     (uom.symbol && uom.symbol.toLowerCase().includes(uomSearchTerm.toLowerCase()))
   );
 
+  // Calculate MRP based on base price and profit margin
+  const calculateMRP = (basePrice: number, margin: number) => {
+    if (basePrice && margin) {
+      return basePrice + (basePrice * margin / 100);
+    }
+    return 0;
+  };
+
+  const handleBasePriceChange = (value: string) => {
+    set('basePrice', value);
+    const numValue = parseFloat(value);
+    const marginValue = parseFloat(data.profitMargin as string);
+    if (!isNaN(numValue) && !isNaN(marginValue) && value !== '' && value !== '0') {
+      const mrpValue = calculateMRP(numValue, marginValue);
+      set('mrp', mrpValue.toString());
+    } else {
+      set('mrp', '');
+    }
+  };
+
+  const handleProfitMarginChange = (value: string) => {
+    set('profitMargin', value);
+    const baseValue = parseFloat(data.basePrice as string);
+    const numValue = parseFloat(value);
+    if (!isNaN(baseValue) && !isNaN(numValue) && value !== '' && value !== '0') {
+      const mrpValue = calculateMRP(baseValue, numValue);
+      set('mrp', mrpValue.toString());
+    } else {
+      set('mrp', '');
+    }
+  };
+
+  const handleNumberChange = (field: keyof QuickAddData, value: string) => {
+    // If value is empty, keep it empty (show placeholder)
+    if (value === '') {
+      set(field, '');
+      return;
+    }
+    // Allow only numbers and decimal point
+    if (/^\d*\.?\d*$/.test(value)) {
+      set(field, value);
+    }
+  };
+
   const handleSave = async () => {
     // Validate required fields
     if (!data.itemCode.trim()) {
@@ -158,7 +214,7 @@ export default function ItemQuickAdd({ onClose, onEditFull }: ItemQuickAddProps)
     setApiError(null);
 
     try {
-      // Prepare payload for API - exactly as specified
+      // Prepare payload for API
       const payload = {
         item_code: data.itemCode.trim(),
         item_name: data.itemName.trim() || data.itemCode.trim(),
@@ -169,7 +225,14 @@ export default function ItemQuickAdd({ onClose, onEditFull }: ItemQuickAddProps)
         is_sales_item: 1,
         is_purchase_item: 1,
         brand: null,
-        valuation_method: "FIFO"
+        valuation_method: "FIFO",
+        standard_rate: parseFloat(data.standardPurchaseRate as string) || 0,
+        safety_stock: parseFloat(data.safetyStock as string) || 0,
+        last_purchase_rate: parseFloat(data.standardPurchaseRate as string) || 0,
+        base_price: parseFloat(data.basePrice as string) || 0,
+        mrp: parseFloat(data.mrp as string) || 0,
+        profit_margin: parseFloat(data.profitMargin as string) || 0,
+        opening_stock: parseFloat(data.openingStock as string) || 0,
       };
 
       const response = await api.post('/item', payload);
@@ -399,6 +462,139 @@ export default function ItemQuickAdd({ onClose, onEditFull }: ItemQuickAddProps)
                   )}
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Pricing Section */}
+          <div className="qad-section">
+            <div className="qad-section-title">Pricing</div>
+            
+            <div className="qad-field">
+              <label className="qad-label">Standard purchase rate (base price)</label>
+              <input
+                type="text"
+                className="qad-input"
+                value={data.standardPurchaseRate}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === '') {
+                    set("standardPurchaseRate", "");
+                  } else if (/^\d*\.?\d*$/.test(value)) {
+                    set("standardPurchaseRate", value);
+                  }
+                }}
+                onKeyPress={handleKeyPress}
+                placeholder="0.00"
+              />
+              <p className="qad-hint">The cost at which you purchase this item.</p>
+            </div>
+
+            <div className="qad-field">
+              <label className="qad-label">Base Price</label>
+              <input
+                type="text"
+                className="qad-input"
+                value={data.basePrice}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === '') {
+                    set("basePrice", "");
+                    set("mrp", "");
+                  } else if (/^\d*\.?\d*$/.test(value)) {
+                    handleBasePriceChange(value);
+                  }
+                }}
+                onKeyPress={handleKeyPress}
+                placeholder="0.00"
+              />
+              <p className="qad-hint">The cost at which you purchase this item.</p>
+            </div>
+
+            <div className="qad-field">
+              <label className="qad-label">Profit margin (%)</label>
+              <input
+                type="text"
+                className="qad-input"
+                value={data.profitMargin}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === '') {
+                    set("profitMargin", "");
+                    set("mrp", "");
+                  } else if (/^\d*\.?\d*$/.test(value)) {
+                    handleProfitMarginChange(value);
+                  }
+                }}
+                onKeyPress={handleKeyPress}
+                placeholder="0"
+              />
+              <p className="qad-hint">Margin applied on top of the base price.</p>
+            </div>
+
+            <div className="qad-field">
+              <label className="qad-label">MRP</label>
+              <input
+                type="text"
+                className="qad-input"
+                value={data.mrp}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === '') {
+                    set("mrp", "");
+                  } else if (/^\d*\.?\d*$/.test(value)) {
+                    set("mrp", value);
+                  }
+                }}
+                onKeyPress={handleKeyPress}
+                placeholder="0.00"
+                readOnly={!!(data.basePrice && data.profitMargin && data.basePrice !== "" && data.profitMargin !== "")}
+              />
+              <p className="qad-hint">Maximum Retail Price - auto-calculated from base price and margin.</p>
+            </div>
+          </div>
+
+          {/* Stock Section */}
+          <div className="qad-section">
+            <div className="qad-section-title">Stock Management</div>
+
+            <div className="qad-field">
+              <label className="qad-label">Safety stock</label>
+              <input
+                type="text"
+                className="qad-input"
+                value={data.safetyStock}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === '') {
+                    set("safetyStock", "");
+                  } else if (/^\d*\.?\d*$/.test(value)) {
+                    set("safetyStock", value);
+                  }
+                }}
+                onKeyPress={handleKeyPress}
+                placeholder="0"
+              />
+              <p className="qad-hint">Minimum stock level before reorder is triggered.</p>
+            </div>
+
+            <div className="qad-field">
+              <label className="qad-label">Opening stock</label>
+              <input
+                type="text"
+                className="qad-input"
+                value={data.openingStock}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === '') {
+                    set("openingStock", "");
+                  } else if (/^\d*\.?\d*$/.test(value)) {
+                    set("openingStock", value);
+                  }
+                }}
+                onKeyPress={handleKeyPress}
+                placeholder="0"
+              />
+              <p className="qad-hint">Record any stock on hand when this item is created.</p>
             </div>
           </div>
 

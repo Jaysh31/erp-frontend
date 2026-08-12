@@ -48,7 +48,8 @@ interface GRN {
   total_rejected_qty: number;
   remarks: string | null;
   total_items: number;
-  type?: string;   // "External" or "Internal"
+  type?: string;
+  creation?: string;  // ✅ CORRECT FIELD NAME from API
 }
 
 interface GRNDisplay {
@@ -69,9 +70,9 @@ interface GRNDisplay {
   acceptedQty: number;
   rejectedQty: number;
   createdAgo: string;
-  isService: boolean;   // true if type === 'External'
+  isService: boolean;
   isManual: boolean;
-  type: string;         // add type to display
+  type: string;
 }
 
 interface ApiResponse {
@@ -117,10 +118,16 @@ export default function GRNList() {
 
   // ── Helpers ────────────────────────────────────────────────────
 
+  // ✅ FIXED: Proper time ago calculation using creation timestamp
   const formatDateAgo = (dateString: string) => {
+    if (!dateString) return 'N/A';
     const date = new Date(dateString);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
+    
+    // Handle invalid dates or future dates
+    if (isNaN(date.getTime()) || diffMs < 0) return 'Just now';
+    
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
@@ -140,13 +147,12 @@ export default function GRNList() {
     return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
   };
 
-  // ─── Fetch ALL GRNs (client‑side pagination & filtering) ──────
+  // ─── Fetch ALL GRNs ──────────────────────────────────────────────
 
   const fetchGRNs = async () => {
     setLoading(true);
     setError(null);
     try {
-      // Fetch all records – use a large limit to get everything
       const params = new URLSearchParams();
       params.append('limit', '10000');
 
@@ -155,12 +161,20 @@ export default function GRNList() {
       if (response.data.success === 1) {
         const records = response.data.data.data || [];
         const transformed: GRNDisplay[] = records.map((item: GRN) => {
-          // Determine service based on type
           const isService = item.type === 'External';
           const isManual = item.purchase_order_id === null && item.customer_id === null;
           const partyName = isService
             ? (item.name || item.party_name || 'N/A')
             : (item.supplier_name || item.party_name || 'N/A');
+
+          // ✅ DEBUG: Log to see what fields are available
+          console.log('GRN Item:', {
+            id: item.id,
+            grn_number: item.grn_number,
+            grn_date: item.grn_date,
+            creation: item.creation,
+            type: item.type
+          });
 
           return {
             id: item.id.toString(),
@@ -179,10 +193,11 @@ export default function GRNList() {
             receivedQty: item.total_received_qty || 0,
             acceptedQty: item.total_accepted_qty || 0,
             rejectedQty: item.total_rejected_qty || 0,
-            createdAgo: formatDateAgo(item.grn_date || new Date().toISOString()),
+            // ✅ FIXED: Use creation field (not created_at)
+            createdAgo: formatDateAgo(item.creation || item.grn_date || new Date().toISOString()),
             isService,
             isManual,
-            type: item.type || '',   // store the raw type
+            type: item.type || '',
           };
         });
 
@@ -200,22 +215,19 @@ export default function GRNList() {
 
   // ─── Effects ────────────────────────────────────────────────────
 
-  // Initial fetch
   useEffect(() => {
     fetchGRNs();
   }, []);
 
-  // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, statusFilter, activeTab]);
 
-  // ─── Filtering (all client‑side) ─────────────────────────────
+  // ─── Filtering ─────────────────────────────────────────────
 
   const getFilteredGrns = (): GRNDisplay[] => {
     let filtered = allGrns;
 
-    // Search
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(g =>
@@ -225,18 +237,15 @@ export default function GRNList() {
       );
     }
 
-    // Status
     if (statusFilter !== 'all') {
       filtered = filtered.filter(g => g.status === statusFilter);
     }
 
-    // Tabs
     if (activeTab === 'po') {
       filtered = filtered.filter(g => g.purchaseOrderId !== null && g.purchaseOrderId > 0);
     } else if (activeTab === 'manual') {
       filtered = filtered.filter(g => g.purchaseOrderId === null && g.customerId === null);
     } else if (activeTab === 'service') {
-      // Filter by type === 'External' instead of customer_id
       filtered = filtered.filter(g => g.type === 'External');
     }
 
@@ -256,10 +265,10 @@ export default function GRNList() {
     all: allGrns.length,
     po: allGrns.filter(g => g.purchaseOrderId !== null && g.purchaseOrderId > 0).length,
     manual: allGrns.filter(g => g.purchaseOrderId === null && g.customerId === null).length,
-    service: allGrns.filter(g => g.type === 'External').length,   // updated
+    service: allGrns.filter(g => g.type === 'External').length,
   };
 
-  // ─── Pagination handlers (with loop) ──────────────────────────
+  // ─── Pagination handlers ──────────────────────────────────────────
 
   const goToPage = (page: number) => {
     if (page < 1) page = totalPages;
@@ -358,7 +367,7 @@ export default function GRNList() {
   return (
     <div className={`grn-page ${theme}`}>
 
-      {/* ─── Tabs (BOM style) ───────────────────────────────────── */}
+      {/* ─── Tabs ───────────────────────────────────── */}
       <div className="grn-tabs">
         {tabs.map((tab) => (
           <button
