@@ -170,6 +170,7 @@ function Field({
   );
 }
 
+// ─── TextInput with validation for alphabets only ───────────────────────
 function TextInput({
   value,
   onChange,
@@ -178,6 +179,9 @@ function TextInput({
   readOnly = false,
   min,
   prefix,
+  allowOnlyAlphabets = false,
+  allowOnlyDigits = false,
+  maxLength,
 }: {
   value: string;
   onChange?: (v: string) => void;
@@ -186,7 +190,28 @@ function TextInput({
   readOnly?: boolean;
   min?: string;
   prefix?: string;
+  allowOnlyAlphabets?: boolean;
+  allowOnlyDigits?: boolean;
+  maxLength?: number;
 }) {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let val = e.target.value;
+    
+    if (allowOnlyAlphabets) {
+      // Only allow alphabets, digits, and spaces (updated to allow digits)
+      val = val.replace(/[^a-zA-Z0-9\s]/g, "");
+    } else if (allowOnlyDigits) {
+      // Only allow digits
+      val = val.replace(/[^0-9]/g, "");
+      // Check max length for digits
+      if (maxLength && val.length > maxLength) {
+        val = val.slice(0, maxLength);
+      }
+    }
+    
+    onChange?.(val);
+  };
+
   return (
     <div className={`itf-input-wrap ${readOnly ? "itf-input-wrap-readonly" : ""}`}>
       {prefix && <span className="itf-input-prefix">{prefix}</span>}
@@ -194,161 +219,12 @@ function TextInput({
         className={`itf-input ${prefix ? "itf-input-has-prefix" : ""}`}
         type={type}
         value={value}
-        onChange={(e) => onChange?.(e.target.value)}
+        onChange={handleChange}
         placeholder={placeholder ?? ""}
         readOnly={readOnly}
         min={min}
+        maxLength={maxLength}
       />
-    </div>
-  );
-}
-
-// ────────────────────────────────────────────────────────────────────────
-// NumberInput Component - For numeric inputs with validation
-// ────────────────────────────────────────────────────────────────────────
-interface NumberInputProps {
-  value: string | number;
-  onChange: (value: string) => void;
-  placeholder?: string;
-  min?: number;
-  max?: number;
-  step?: number;
-  prefix?: string;
-  suffix?: string;
-  disabled?: boolean;
-  readOnly?: boolean;
-  className?: string;
-  allowDecimal?: boolean;
-  maxLength?: number;
-}
-
-function NumberInput({
-  value,
-  onChange,
-  placeholder = "0.00",
-  min,
-  max,
-  prefix,
-  suffix,
-  disabled = false,
-  readOnly = false,
-  className = "",
-  allowDecimal = true,
-  maxLength,
-}: NumberInputProps) {
-  const [displayValue, setDisplayValue] = useState<string>(String(value || ""));
-
-  // Sync external value changes
-  useEffect(() => {
-    if (value !== undefined && value !== null) {
-      setDisplayValue(String(value));
-    }
-  }, [value]);
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let rawValue = e.target.value;
-    
-    // Handle empty input
-    if (rawValue === "") {
-      setDisplayValue("");
-      onChange("");
-      return;
-    }
-
-    // Validate based on allowDecimal
-    if (!allowDecimal) {
-      // Only allow digits
-      rawValue = rawValue.replace(/[^0-9]/g, "");
-    } else {
-      // Allow digits and one decimal point
-      const parts = rawValue.split(".");
-      if (parts.length > 2) {
-        // More than one decimal point - keep only first two parts
-        rawValue = parts[0] + "." + parts.slice(1).join("");
-      }
-      // Only allow digits and a single decimal point
-      rawValue = rawValue.replace(/[^0-9.]/g, "");
-      // Ensure at most one decimal point
-      const decimalCount = (rawValue.match(/\./g) || []).length;
-      if (decimalCount > 1) {
-        const firstDecimalIndex = rawValue.indexOf(".");
-        rawValue = rawValue.substring(0, firstDecimalIndex + 1) + 
-                   rawValue.substring(firstDecimalIndex + 1).replace(/\./g, "");
-      }
-    }
-
-    // Check maxLength
-    if (maxLength && rawValue.replace(/\./g, "").length > maxLength) {
-      return;
-    }
-
-    setDisplayValue(rawValue);
-
-    // Parse and validate numeric value
-    if (rawValue === "" || rawValue === "-" || rawValue === ".") {
-      onChange(rawValue);
-      return;
-    }
-
-    const numValue = parseFloat(rawValue);
-    if (!isNaN(numValue)) {
-      if (min !== undefined && numValue < min) {
-        // Clamp to min
-        const clamped = min.toString();
-        setDisplayValue(clamped);
-        onChange(clamped);
-        return;
-      }
-      if (max !== undefined && numValue > max) {
-        // Clamp to max
-        const clamped = max.toString();
-        setDisplayValue(clamped);
-        onChange(clamped);
-        return;
-      }
-      onChange(rawValue);
-    }
-  };
-
-  const handleBlur = () => {
-    // Format on blur
-    if (displayValue === "" || displayValue === "." || displayValue === "-") {
-      setDisplayValue("");
-      onChange("");
-      return;
-    }
-    
-    const numValue = parseFloat(displayValue);
-    if (!isNaN(numValue)) {
-      // If allowDecimal is false, round to integer
-      const formatted = allowDecimal ? numValue.toString() : Math.round(numValue).toString();
-      setDisplayValue(formatted);
-      onChange(formatted);
-    }
-  };
-
-  const handleWheel = (e: React.WheelEvent<HTMLInputElement>) => {
-    // Prevent scroll wheel from changing value
-    e.preventDefault();
-  };
-
-  return (
-    <div className={`itf-input-wrap ${readOnly ? "itf-input-wrap-readonly" : ""} ${className}`}>
-      {prefix && <span className="itf-input-prefix">{prefix}</span>}
-      <input
-        type="text"
-        className={`itf-input ${prefix ? "itf-input-has-prefix" : ""}`}
-        value={displayValue}
-        onChange={handleChange}
-        onBlur={handleBlur}
-        onWheel={handleWheel}
-        placeholder={placeholder}
-        disabled={disabled}
-        readOnly={readOnly}
-        inputMode={allowDecimal ? "decimal" : "numeric"}
-        autoComplete="off"
-      />
-      {suffix && <span className="itf-input-suffix">{suffix}</span>}
     </div>
   );
 }
@@ -360,6 +236,7 @@ function SelectInput({
   placeholder = "Search or select...",
   loading = false,
   error,
+  allowOnlyAlphabets = false,
 }: {
   value: string;
   onChange?: (v: string) => void;
@@ -367,14 +244,20 @@ function SelectInput({
   placeholder?: string;
   loading?: boolean;
   error?: string;
+  allowOnlyAlphabets?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const filteredOptions = options.filter((opt) =>
-    opt.label.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Filter options with alphabet validation for search
+  const filteredOptions = options.filter((opt) => {
+    let search = searchTerm;
+    if (allowOnlyAlphabets) {
+      search = search.replace(/[^a-zA-Z0-9\s]/g, ""); // Updated to allow digits
+    }
+    return opt.label.toLowerCase().includes(search.toLowerCase());
+  });
 
   const selectedOption = options.find((opt) => opt.value === value);
 
@@ -389,6 +272,14 @@ function SelectInput({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let val = e.target.value;
+    if (allowOnlyAlphabets) {
+      val = val.replace(/[^a-zA-Z0-9\s]/g, ""); // Updated to allow digits
+    }
+    setSearchTerm(val);
+  };
+
   return (
     <div>
       <div className="itf-select-container" ref={dropdownRef}>
@@ -402,7 +293,7 @@ function SelectInput({
               type="text"
               className="itf-select-display itf-select-search"
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={handleSearchChange}
               placeholder={selectedOption?.label || placeholder}
             />
           ) : (
@@ -540,7 +431,7 @@ function ImageUpload({
             ) : (
               <>
                 <span className="itf-image-icon-wrap">
-                  <FaImage size={20} />
+                  <FaImage size={0} />
                 </span>
                 <p className="itf-image-dropzone-text">
                   <span className="itf-image-dropzone-bold">Click to upload</span> or drag and drop
@@ -567,7 +458,7 @@ function ImageUpload({
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// Opening Stock Table
+// Opening Stock Table - Single Row Only (UPDATED - Removed duplicate footer)
 // ────────────────────────────────────────────────────────────────────────
 function OpeningStockTable({
   entries,
@@ -576,41 +467,32 @@ function OpeningStockTable({
   entries: OpeningStockEntry[];
   onChange: (entries: OpeningStockEntry[]) => void;
 }) {
-  const handleAdd = () => {
-    const newId = entries.length > 0 ? Math.max(...entries.map((e) => e.id)) + 1 : 1;
-    onChange([...entries, { id: newId, quantity: 0, rate: 0, total: 0 }]);
+  // Ensure there's always exactly ONE row
+  useEffect(() => {
+    if (entries.length === 0) {
+      onChange([{ id: 1, quantity: 0, rate: 0, total: 0 }]);
+    }
+  }, [entries, onChange]);
+
+  const handleUpdate = (field: "quantity" | "rate", value: number) => {
+    // Only update the first (and only) entry
+    if (entries.length > 0) {
+      const entry = entries[0];
+      const updated = { ...entry, [field]: value };
+      updated.total = updated.quantity * updated.rate;
+      onChange([updated]);
+    }
   };
 
-  const handleRemove = (id: number) => {
-    onChange(entries.filter((e) => e.id !== id));
-  };
-
-  const handleUpdate = (id: number, field: "quantity" | "rate", value: number) => {
-    onChange(
-      entries.map((entry) => {
-        if (entry.id === id) {
-          const updated = { ...entry, [field]: value };
-          updated.total = updated.quantity * updated.rate;
-          return updated;
-        }
-        return entry;
-      })
-    );
-  };
-
-  const totalQuantity = entries.reduce((sum, e) => sum + e.quantity, 0);
-  const totalAmount = entries.reduce((sum, e) => sum + e.total, 0);
+  const entry = entries.length > 0 ? entries[0] : { id: 1, quantity: 0, rate: 0, total: 0 };
 
   return (
     <div className="itf-opening-stock">
       <div className="itf-opening-stock-header">
         <div>
-          <h4>Opening stock entries</h4>
-          <p className="itf-opening-stock-sub">Each row is a stock lot recorded at a specific cost.</p>
+          <h4>Opening stock entry</h4>
+          <p className="itf-opening-stock-sub">Record the stock on hand when this item is created.</p>
         </div>
-        <button type="button" onClick={handleAdd} className="itf-btn-add-row">
-          <FaPlus size={11} /> Add row
-        </button>
       </div>
 
       <div className="itf-table-wrapper">
@@ -621,71 +503,35 @@ function OpeningStockTable({
               <th>Quantity</th>
               <th>Rate (base price)</th>
               <th>Total</th>
-              <th className="itf-table-th-action" />
             </tr>
           </thead>
           <tbody>
-            {entries.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="itf-table-empty">
-                  <FaWarehouse size={20} className="itf-table-empty-icon" />
-                  <span>No opening stock entries yet. Click "Add row" to record one.</span>
-                </td>
-              </tr>
-            ) : (
-              entries.map((entry, index) => (
-                <tr key={entry.id}>
-                  <td className="itf-table-td-num">{index + 1}</td>
-                  <td>
-                    <NumberInput
-                      value={entry.quantity || ""}
-                      onChange={(v) => handleUpdate(entry.id, "quantity", parseFloat(v) || 0)}
-                      placeholder="0"
-                      min={0}
-                      step={1}
-                      allowDecimal={false}
-                    />
-                  </td>
-                  <td>
-                    <NumberInput
-                      value={entry.rate || ""}
-                      onChange={(v) => handleUpdate(entry.id, "rate", parseFloat(v) || 0)}
-                      placeholder="0.00"
-                      min={0}
-                      step={0.01}
-                      prefix="₹"
-                    />
-                  </td>
-                  <td className="itf-table-total">₹{entry.total.toFixed(2)}</td>
-                  <td>
-                    <button
-                      type="button"
-                      className="itf-btn-remove-row"
-                      onClick={() => handleRemove(entry.id)}
-                      aria-label="Remove row"
-                    >
-                      <FaTrash size={12} />
-                    </button>
-                  </td>
-                </tr>
-              ))
-            )}
+            <tr>
+              <td className="itf-table-td-num">1</td>
+              <td>
+                <NumberInput
+                  value={entry.quantity || ""}
+                  onChange={(v) => handleUpdate("quantity", parseFloat(v) || 0)}
+                  placeholder="0"
+                  min={0}
+                  step={1}
+                  allowDecimal={false}
+                />
+              </td>
+              <td>
+                <NumberInput
+                  value={entry.rate || ""}
+                  onChange={(v) => handleUpdate("rate", parseFloat(v) || 0)}
+                  placeholder="0.00"
+                  min={0}
+                  step={0.01}
+                  prefix="₹"
+                />
+              </td>
+              <td className="itf-table-total">₹{entry.total.toFixed(2)}</td>
+            </tr>
           </tbody>
-          {entries.length > 0 && (
-            <tfoot>
-              <tr>
-                <td className="itf-table-th-num" />
-                <td>
-                  <strong>{totalQuantity}</strong>
-                </td>
-                <td />
-                <td>
-                  <strong>₹{totalAmount.toFixed(2)}</strong>
-                </td>
-                <td />
-              </tr>
-            </tfoot>
-          )}
+          {/* REMOVED the duplicate tfoot section with quantity and total */}
         </table>
       </div>
     </div>
@@ -739,6 +585,156 @@ function PricingSummary({
 }
 
 // ────────────────────────────────────────────────────────────────────────
+// NumberInput Component - For numeric inputs with placeholder support
+// ────────────────────────────────────────────────────────────────────────
+interface NumberInputProps {
+  value: string | number;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  min?: number;
+  max?: number;
+  step?: number;
+  prefix?: string;
+  suffix?: string;
+  disabled?: boolean;
+  readOnly?: boolean;
+  className?: string;
+  allowDecimal?: boolean;
+  maxLength?: number;
+}
+
+function NumberInput({
+  value,
+  onChange,
+  placeholder = "0.00",
+  min,
+  max,
+  prefix,
+  suffix,
+  disabled = false,
+  readOnly = false,
+  className = "",
+  allowDecimal = true,
+  maxLength,
+}: NumberInputProps) {
+  const [displayValue, setDisplayValue] = useState<string>(String(value || ""));
+
+  // Sync external value changes
+  useEffect(() => {
+    if (value !== undefined && value !== null) {
+      setDisplayValue(String(value));
+    }
+  }, [value]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let rawValue = e.target.value;
+    
+    // Handle empty input - allow empty string to show placeholder
+    if (rawValue === "") {
+      setDisplayValue("");
+      onChange("");
+      return;
+    }
+
+    // Validate based on allowDecimal
+    if (!allowDecimal) {
+      // Only allow digits
+      rawValue = rawValue.replace(/[^0-9]/g, "");
+    } else {
+      // Allow digits and one decimal point
+      const parts = rawValue.split(".");
+      if (parts.length > 2) {
+        // More than one decimal point - keep only first two parts
+        rawValue = parts[0] + "." + parts.slice(1).join("");
+      }
+      // Only allow digits and a single decimal point
+      rawValue = rawValue.replace(/[^0-9.]/g, "");
+      // Ensure at most one decimal point
+      const decimalCount = (rawValue.match(/\./g) || []).length;
+      if (decimalCount > 1) {
+        const firstDecimalIndex = rawValue.indexOf(".");
+        rawValue = rawValue.substring(0, firstDecimalIndex + 1) + 
+                   rawValue.substring(firstDecimalIndex + 1).replace(/\./g, "");
+      }
+    }
+
+    // Check maxLength
+    if (maxLength && rawValue.replace(/\./g, "").length > maxLength) {
+      return;
+    }
+
+    setDisplayValue(rawValue);
+
+    // Parse and validate numeric value
+    if (rawValue === "" || rawValue === "-" || rawValue === ".") {
+      onChange(rawValue);
+      return;
+    }
+
+    const numValue = parseFloat(rawValue);
+    if (!isNaN(numValue)) {
+      if (min !== undefined && numValue < min) {
+        // Clamp to min
+        const clamped = min.toString();
+        setDisplayValue(clamped);
+        onChange(clamped);
+        return;
+      }
+      if (max !== undefined && numValue > max) {
+        // Clamp to max
+        const clamped = max.toString();
+        setDisplayValue(clamped);
+        onChange(clamped);
+        return;
+      }
+      onChange(rawValue);
+    }
+  };
+
+  const handleBlur = () => {
+    // Format on blur - if empty, keep empty (placeholder will show)
+    if (displayValue === "" || displayValue === "." || displayValue === "-") {
+      setDisplayValue("");
+      onChange("");
+      return;
+    }
+    
+    const numValue = parseFloat(displayValue);
+    if (!isNaN(numValue)) {
+      // If allowDecimal is false, round to integer
+      const formatted = allowDecimal ? numValue.toString() : Math.round(numValue).toString();
+      setDisplayValue(formatted);
+      onChange(formatted);
+    }
+  };
+
+  const handleWheel = (e: React.WheelEvent<HTMLInputElement>) => {
+    // Prevent scroll wheel from changing value
+    e.preventDefault();
+  };
+
+  return (
+    <div className={`itf-input-wrap ${readOnly ? "itf-input-wrap-readonly" : ""} ${className}`}>
+      {prefix && <span className="itf-input-prefix">{prefix}</span>}
+      <input
+        type="text"
+        className={`itf-input ${prefix ? "itf-input-has-prefix" : ""}`}
+        value={displayValue}
+        onChange={handleChange}
+        onBlur={handleBlur}
+        onWheel={handleWheel}
+        placeholder={placeholder}
+        disabled={disabled}
+        readOnly={readOnly}
+        inputMode={allowDecimal ? "decimal" : "numeric"}
+        autoComplete="off"
+      />
+      {suffix && <span className="itf-input-suffix">{suffix}</span>}
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────
 // Main Component
 // ────────────────────────────────────────────────────────────────────────
 export default function ItemForm() {
@@ -766,14 +762,14 @@ export default function ItemForm() {
     brand: "",
     description: "",
     disabled: false,
-    standardRate: "0.00",
+    standardRate: "",
     sellingPrice: "0.00",
-    profitMargin: "10",
+    profitMargin: "",
     image: null as string | null,
     isSalesItem: false,
     isPurchaseItem: false,
     isStockItem: true,
-    safetyStock: "20",
+    safetyStock: "",
     lastPurchaseRate: "0.00",
     valuationRate: "0.00",
     taxId: "1",
@@ -946,7 +942,7 @@ export default function ItemForm() {
     const fetchLookups = async () => {
       setLoadingGroups(true);
       try {
-        const response = await api.get("/item-group?type=Input%20Material");
+        const response = await api.get("/item-group?type=Input%0Material");
         if (response.data.success === 1) setItemGroups(response.data.data);
       } catch (err) {
         console.error("Error fetching item groups:", err);
@@ -1000,7 +996,7 @@ export default function ItemForm() {
         const derivedMargin =
           standardRate > 0 && valuationRate >= standardRate
             ? (((valuationRate - standardRate) / standardRate) * 100).toFixed(2)
-            : "10";
+            : "";
 
         setFormRaw({
           id: data.id || 0,
@@ -1011,14 +1007,14 @@ export default function ItemForm() {
           brand: data.brand || "",
           description: data.description || "",
           disabled: data.disabled === 1,
-          standardRate: String(standardRate),
+          standardRate: standardRate > 0 ? String(standardRate) : "",
           sellingPrice: String(data.selling_price || 0),
           profitMargin: derivedMargin,
           image: extractRelativePath(data.image),
           isSalesItem: data.is_sales_item === 1,
           isPurchaseItem: data.is_purchase_item === 1,
           isStockItem: data.is_stock_item === 1,
-          safetyStock: String(data.safety_stock ?? 20),
+          safetyStock: data.safety_stock ? String(data.safety_stock) : "",
           lastPurchaseRate: String(data.last_purchase_rate || 0),
           valuationRate: String(valuationRate),
           taxId: String(data.tax_id || 1),
@@ -1030,7 +1026,7 @@ export default function ItemForm() {
 
         const openingQty = Number(data.opening_stock) || 0;
         const openingRate = Number(data.opening_stock_rate) || 0;
-        if (openingQty > 0) {
+        if (openingQty > 0 || openingRate > 0) {
           setOpeningStockEntries([
             {
               id: 1,
@@ -1040,7 +1036,7 @@ export default function ItemForm() {
             },
           ]);
         } else {
-          setOpeningStockEntries([]);
+          setOpeningStockEntries([{ id: 1, quantity: 0, rate: 0, total: 0 }]);
         }
 
         setImageFile(null);
@@ -1169,15 +1165,26 @@ export default function ItemForm() {
     value: w.id.toString(),
   }));
 
-  // ─── Validation Function ─────────────────────────────────────────────
+  // ─── Validation Functions ─────────────────────────────────────────────
+  // UPDATED: Allow digits, alphabets, and spaces
+  const validateAlphabetsAndDigits = (value: string): boolean => {
+    return /^[a-zA-Z0-9\s]*$/.test(value);
+  };
+
+  const validateDigitsOnly = (value: string): boolean => {
+    return /^[0-9]*$/.test(value);
+  };
+
   const getValidationErrors = () => {
     const errors: { field: string; label: string; message: string }[] = [];
 
-    // 1. item_name - REQUIRED (varchar(140), NOT NULL)
+    // 1. item_name - REQUIRED - Alphabets, digits, and spaces allowed (UPDATED)
     if (!form.itemName.trim()) {
       errors.push({ field: "itemName", label: "Item Name", message: "Item name is required" });
     } else if (form.itemName.length > 140) {
       errors.push({ field: "itemName", label: "Item Name", message: "Item name must be 140 characters or less" });
+    } else if (!validateAlphabetsAndDigits(form.itemName)) {
+      errors.push({ field: "itemName", label: "Item Name", message: "Item name must contain only alphabets, digits, and spaces" });
     }
 
     // 2. item_code - OPTIONAL but if provided, must be valid (varchar(140), UNIQUE)
@@ -1185,28 +1192,36 @@ export default function ItemForm() {
       errors.push({ field: "itemCode", label: "Item Code", message: "Item code must be 140 characters or less" });
     }
 
-    // 3. item_group - REQUIRED (varchar(140), NOT NULL)
+    // 3. item_group - REQUIRED - Only alphabets and spaces
     if (!form.itemGroup.trim()) {
       errors.push({ field: "itemGroup", label: "Item Group", message: "Item group is required" });
     } else if (form.itemGroup.length > 140) {
       errors.push({ field: "itemGroup", label: "Item Group", message: "Item group must be 140 characters or less" });
+    } else if (!validateAlphabetsAndDigits(form.itemGroup)) {
+      errors.push({ field: "itemGroup", label: "Item Group", message: "Item group must contain only alphabets, digits, and spaces" });
     }
 
-    // 4. stock_uom - REQUIRED (varchar(140), NOT NULL)
+    // 4. stock_uom - REQUIRED - Only alphabets and spaces
     if (!form.defaultUOM.trim()) {
       errors.push({ field: "defaultUOM", label: "Default UOM", message: "Default unit of measure is required" });
     } else if (form.defaultUOM.length > 140) {
       errors.push({ field: "defaultUOM", label: "Default UOM", message: "UOM must be 140 characters or less" });
+    } else if (!validateAlphabetsAndDigits(form.defaultUOM)) {
+      errors.push({ field: "defaultUOM", label: "Default UOM", message: "UOM must contain only alphabets, digits, and spaces" });
     }
 
-    // 5. HSN - OPTIONAL (varchar(45), nullable)
+    // 5. HSN - OPTIONAL - Only digits
     if (form.hsn && form.hsn.length > 45) {
       errors.push({ field: "hsn", label: "HSN Code", message: "HSN code must be 45 characters or less" });
+    } else if (form.hsn && !validateDigitsOnly(form.hsn)) {
+      errors.push({ field: "hsn", label: "HSN Code", message: "HSN code must contain only digits" });
     }
 
-    // 6. brand - OPTIONAL (varchar(140), nullable)
+    // 6. brand - OPTIONAL - Only alphabets and spaces
     if (form.brand && form.brand.length > 140) {
       errors.push({ field: "brand", label: "Brand", message: "Brand must be 140 characters or less" });
+    } else if (form.brand && !validateAlphabetsAndDigits(form.brand)) {
+      errors.push({ field: "brand", label: "Brand", message: "Brand must contain only alphabets, digits, and spaces" });
     }
 
     // 7. description - OPTIONAL (longtext, nullable)
@@ -1225,7 +1240,7 @@ export default function ItemForm() {
 
     // 11. standard_rate - REQUIRED (decimal(21,9), NOT NULL, default 0.000000000)
     const standardRate = parseFloat(form.standardRate);
-    if (isNaN(standardRate) || standardRate < 0) {
+    if (form.standardRate !== "" && (isNaN(standardRate) || standardRate < 0)) {
       errors.push({ field: "standardRate", label: "Standard Rate", message: "Standard rate must be a valid number" });
     }
 
@@ -1235,9 +1250,12 @@ export default function ItemForm() {
       errors.push({ field: "sellingPrice", label: "Selling Price", message: "Selling price must be a valid number" });
     }
 
-    // 13. safety_stock - OPTIONAL (decimal(21,9), nullable, default 0.000000000)
+    // 13. safety_stock - OPTIONAL - Only digits
+    if (form.safetyStock && !validateDigitsOnly(form.safetyStock)) {
+      errors.push({ field: "safetyStock", label: "Safety Stock", message: "Safety stock must contain only digits" });
+    }
     const safetyStock = parseFloat(form.safetyStock);
-    if (isNaN(safetyStock) || safetyStock < 0) {
+    if (form.safetyStock !== "" && (isNaN(safetyStock) || safetyStock < 0)) {
       errors.push({ field: "safetyStock", label: "Safety Stock", message: "Safety stock must be a valid number" });
     }
 
@@ -1250,7 +1268,7 @@ export default function ItemForm() {
     // Only validate if not raw material
     if (!isRawMaterialGroup(form.itemGroup)) {
       const profitMargin = parseFloat(form.profitMargin);
-      if (isNaN(profitMargin) || profitMargin < 0) {
+      if (form.profitMargin !== "" && (isNaN(profitMargin) || profitMargin < 0)) {
         errors.push({ field: "profitMargin", label: "Profit Margin", message: "Profit margin must be a valid number" });
       }
     }
@@ -1615,11 +1633,15 @@ export default function ItemForm() {
                         value={form.itemName} 
                         onChange={(v) => s("itemName", v)} 
                         placeholder="e.g. Cotton Yarn 40s" 
+                        // UPDATED: Removed allowOnlyAlphabets to allow digits
                       />
+                      <p className="itf-hint" style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                        Alphabets, digits, and spaces are allowed
+                      </p>
                     </Field>
                   </div>
                   <div className="itf-col">
-                    <Field label="Item group" required>
+                    <Field label="Item group" required error={fieldError("itemGroup")}>
                       <SelectInput
                         value={form.itemGroup}
                         onChange={(v) => {
@@ -1631,11 +1653,15 @@ export default function ItemForm() {
                         loading={loadingGroups}
                         placeholder="Search for an item group…"
                         error={fieldError("itemGroup")}
+                        allowOnlyAlphabets={true}
                       />
+                      <p className="itf-hint" style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                        Only alphabets and spaces are allowed
+                      </p>
                     </Field>
                   </div>
                   <div className="itf-col">
-                    <Field label="Default UOM" required>
+                    <Field label="Default UOM" required error={fieldError("defaultUOM")}>
                       <SelectInput
                         value={form.defaultUOM}
                         onChange={(v) => s("defaultUOM", v)}
@@ -1643,32 +1669,45 @@ export default function ItemForm() {
                         loading={loadingUoms}
                         placeholder="Search for a UOM…"
                         error={fieldError("defaultUOM")}
+                        allowOnlyAlphabets={true}
                       />
+                      <p className="itf-hint" style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                        Only alphabets and spaces are allowed
+                      </p>
                     </Field>
                   </div>
                 </div>
 
                 <div className="itf-grid-3">
                   <div className="itf-col">
-                    <Field label="HSN Code" hint="Harmonized System of Nomenclature code" error={fieldError("hsn")}>
-                      <TextInput value={form.hsn} onChange={(v) => s("hsn", v)} placeholder="e.g. 87690" type="text" />
+                    <Field label="HSN Code" hint="Harmonized System of Nomenclature code - digits only" error={fieldError("hsn")}>
+                      <TextInput 
+                        value={form.hsn} 
+                        onChange={(v) => s("hsn", v)} 
+                        placeholder="e.g. 87690" 
+                        type="text"
+                        allowOnlyDigits={true}
+                        maxLength={45}
+                      />
+                      <p className="itf-hint" style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                        Only digits are allowed
+                      </p>
                     </Field>
                   </div>
-                  <div className="itf-col">
-                    <Field label="Brand / company" error={fieldError("brand")}>
-                      <TextInput value={form.brand} onChange={(v) => s("brand", v)} placeholder="Enter brand or company name" />
-                    </Field>
-                  </div>
+                  
                   <div className="itf-col">
                     <Field label="Safety stock" hint="Minimum stock level before reorder is triggered." error={fieldError("safetyStock")}>
                       <NumberInput
                         value={form.safetyStock}
                         onChange={(v) => s("safetyStock", v)}
-                        placeholder="20"
+                        placeholder="0"
                         min={0}
                         step={1}
                         allowDecimal={false}
                       />
+                      <p className="itf-hint" style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                        Only digits are allowed
+                      </p>
                     </Field>
                   </div>
                 </div>

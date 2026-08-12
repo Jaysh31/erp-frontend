@@ -5,7 +5,7 @@ import {
   X,
   Save,
   AlertTriangle,
-  
+  XCircle,
   Plus,
   Trash2,
   Calendar,
@@ -197,38 +197,77 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
 
   // ─── Validation Functions ──────────────────────────────────────────────────
 
+  // Only alphabets and spaces (for name fields)
+  const isValidAlphabetOnly = (value: string): boolean => {
+    return /^[A-Za-z\s]*$/.test(value);
+  };
+
+  // Only numbers (for numeric fields)
+  const isValidNumberOnly = (value: string): boolean => {
+    return /^\d*\.?\d*$/.test(value);
+  };
+
   const validateField = (field: string, value: any): string => {
     switch (field) {
       case 'workstation_name':
-        return !value?.trim() ? 'Workstation name is required' : '';
+        if (!value?.trim()) return 'Workstation name is required';
+        if (!isValidAlphabetOnly(value.trim())) {
+          return 'Workstation name should contain only alphabets and spaces';
+        }
+        return '';
       
       case 'workstation_type':
-        return !value?.trim() ? 'Workstation type is required' : '';
+        if (!value?.trim()) return 'Workstation type is required';
+        if (!isValidAlphabetOnly(value.trim())) {
+          return 'Workstation type should contain only alphabets and spaces';
+        }
+        return '';
       
       case 'plant_floor':
-        return !value?.trim() ? 'Plant floor is required' : '';
+        if (!value?.trim()) return 'Plant floor is required';
+        if (!isValidAlphabetOnly(value.trim())) {
+          return 'Plant floor should contain only alphabets and spaces';
+        }
+        return '';
       
       case 'production_capacity':
+        const capStr = String(value);
+        if (!capStr.trim()) return 'Production capacity is required';
+        if (!isValidNumberOnly(capStr.trim())) {
+          return 'Production capacity should contain only numbers';
+        }
         const cap = Number(value);
         if (cap < 1) return 'Production capacity must be at least 1';
         return '';
       
       case 'hour_rate':
+        const rateStr = String(value);
+        if (!rateStr.trim()) return 'Hour rate is required';
+        if (!isValidNumberOnly(rateStr.trim())) {
+          return 'Hour rate should contain only numbers';
+        }
         const rate = Number(value);
         if (rate < 0) return 'Hour rate cannot be negative';
         return '';
       
       case 'total_working_hours':
+        const hoursStr = String(value);
+        if (!hoursStr.trim()) return 'Working hours is required';
+        if (!isValidNumberOnly(hoursStr.trim())) {
+          return 'Working hours should contain only numbers';
+        }
         const hours = Number(value);
         if (hours < 0) return 'Working hours cannot be negative';
         if (hours === 0) return 'Working hours must be greater than 0';
         return '';
       
       case 'warehouse':
-        return !value?.trim() ? 'Warehouse is required' : '';
+        if (!value?.trim()) return 'Warehouse is required';
+        return '';
       
       case 'status':
-        return !value?.trim() ? 'Status is required' : '';
+        if (!value?.trim()) return 'Status is required';
+        return '';
       
       case 'description':
         return ''; // Optional field
@@ -271,6 +310,22 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
       ? (e.target as HTMLInputElement).checked ? 1 : 0
       : e.target.value;
     
+    // For numeric fields, only allow numbers
+    if (field === 'production_capacity' || field === 'hour_rate' || field === 'total_working_hours') {
+      const numValue = String(value);
+      if (numValue !== '' && !/^\d*\.?\d*$/.test(numValue)) {
+        return; // Don't update if not a valid number
+      }
+    }
+    
+    // For text fields, restrict to alphabets and spaces
+    if (field === 'workstation_name' || field === 'workstation_type' || field === 'plant_floor') {
+      const textValue = String(value);
+      if (textValue !== '' && !/^[A-Za-z\s]*$/.test(textValue)) {
+        return; // Don't update if not alphabets only
+      }
+    }
+    
     setFormData(prev => ({
       ...prev,
       [field]: value,
@@ -285,6 +340,10 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
 
   const handleAddType = () => {
     if (newType.trim() && !workstationTypes.includes(newType.trim())) {
+      if (!isValidAlphabetOnly(newType.trim())) {
+        alert('Workstation type should contain only alphabets and spaces');
+        return;
+      }
       setWorkstationTypes(prev => [...prev, newType.trim()]);
       setFormData(prev => ({ ...prev, workstation_type: newType.trim() }));
       // Clear error for workstation_type
@@ -298,6 +357,10 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
 
   const handleAddFloor = () => {
     if (newFloor.trim() && !plantFloors.includes(newFloor.trim())) {
+      if (!isValidAlphabetOnly(newFloor.trim())) {
+        alert('Plant floor should contain only alphabets and spaces');
+        return;
+      }
       setPlantFloors(prev => [...prev, newFloor.trim()]);
       setFormData(prev => ({ ...prev, plant_floor: newFloor.trim() }));
       // Clear error for plant_floor
@@ -470,6 +533,7 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
                   value={formData.workstation_name}
                   onChange={handleChange('workstation_name')}
                   placeholder="Enter workstation name..."
+                  maxLength={50}
                 />
                 {errors.workstation_name && (
                   <span className="nws-error-text">{errors.workstation_name}</span>
@@ -480,7 +544,7 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
                 <label className="nws-label required-star">Workstation Type</label>
                 <div className="nws-select-with-add">
                   <select
-                    className="nws-input"
+                    className="nws-input nws-select-no-arrow"
                     value={formData.workstation_type}
                     onChange={handleChange('workstation_type')}
                   >
@@ -505,6 +569,7 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
                         onChange={(e) => setNewType(e.target.value)}
                         placeholder="New type..."
                         onKeyDown={(e) => e.key === 'Enter' && handleAddType()}
+                        maxLength={50}
                       />
                       <button className="nws-add-confirm" onClick={handleAddType}>
                         <Save size={14} />
@@ -527,7 +592,7 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
                 <label className="nws-label required-star">Plant Floor</label>
                 <div className="nws-select-with-add">
                   <select
-                    className="nws-input"
+                    className="nws-input nws-select-no-arrow"
                     value={formData.plant_floor}
                     onChange={handleChange('plant_floor')}
                   >
@@ -551,6 +616,7 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
                         onChange={(e) => setNewFloor(e.target.value)}
                         placeholder="New floor..."
                         onKeyDown={(e) => e.key === 'Enter' && handleAddFloor()}
+                        maxLength={50}
                       />
                       <button className="nws-add-confirm" onClick={handleAddFloor}>
                         <Save size={14} />
@@ -572,7 +638,7 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
               <div className="nws-field">
                 <label className="nws-label required-star">Status</label>
                 <select
-                  className="nws-input"
+                  className="nws-input nws-select-no-arrow"
                   value={formData.status}
                   onChange={handleChange('status')}
                 >
@@ -602,10 +668,9 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
                 <label className="nws-label required-star">Production Capacity</label>
                 <input
                   className="nws-input"
-                  type="number"
+                  type="text"
                   value={formData.production_capacity}
                   onChange={handleChange('production_capacity')}
-                  min="1"
                   placeholder="Enter production capacity..."
                 />
                 {errors.production_capacity && (
@@ -616,11 +681,9 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
                 <label className="nws-label required-star">Hour Rate (₹)</label>
                 <input
                   className="nws-input"
-                  type="number"
+                  type="text"
                   value={formData.hour_rate}
                   onChange={handleChange('hour_rate')}
-                  min="0"
-                  step="0.01"
                   placeholder="0.00"
                 />
                 {errors.hour_rate && (
@@ -631,11 +694,9 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
                 <label className="nws-label required-star">Total Working Hours (per day)</label>
                 <input
                   className="nws-input"
-                  type="number"
+                  type="text"
                   value={formData.total_working_hours}
                   onChange={handleChange('total_working_hours')}
-                  min="0"
-                  step="0.5"
                   placeholder="8"
                 />
                 {errors.total_working_hours && (
@@ -659,7 +720,7 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
               <div className="nws-field">
                 <label className="nws-label required-star">Warehouse</label>
                 <select
-                  className="nws-input"
+                  className="nws-input nws-select-no-arrow"
                   value={formData.warehouse}
                   onChange={handleChange('warehouse')}
                 >

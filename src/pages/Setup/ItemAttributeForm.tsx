@@ -73,6 +73,9 @@ export default function ItemAttributeForm() {
       allErrors.push({ field: 'attributeName', label: 'Attribute Name', message: 'Attribute name is required' });
     } else if (form.attributeName.length > 140) {
       allErrors.push({ field: 'attributeName', label: 'Attribute Name', message: 'Attribute name must not exceed 140 characters' });
+    } else if (!/^[a-zA-Z\s]+$/.test(form.attributeName.trim())) {
+      // NEW: Only allow alphabets and spaces
+      allErrors.push({ field: 'attributeName', label: 'Attribute Name', message: 'Attribute name must contain only alphabets and spaces' });
     }
 
     // 2. Validate Attribute Values
@@ -128,6 +131,15 @@ export default function ItemAttributeForm() {
       return undefined;
     }
     return errors[field];
+  };
+
+  // ─── Handle Attribute Name Change with Alphabet Only Validation ────
+  const handleAttributeNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    // Allow only alphabets and spaces
+    if (value === '' || /^[a-zA-Z\s]*$/.test(value)) {
+      setForm({ ...form, attributeName: value });
+    }
   };
 
   const handleSave = async (e: FormEvent<HTMLFormElement>) => {
@@ -214,9 +226,9 @@ export default function ItemAttributeForm() {
               <input
                 type="text"
                 value={form.attributeName}
-                onChange={(e) => setForm({ ...form, attributeName: e.target.value })}
+                onChange={handleAttributeNameChange}
                 className={`form-field${getFieldError('attributeName') ? ' field-error' : ''}`}
-                placeholder="Enter attribute name (max 140 characters)"
+                placeholder="Enter attribute name (alphabets only, max 140 characters)"
                 maxLength={140}
                 data-field="attributeName"
               />
@@ -225,6 +237,9 @@ export default function ItemAttributeForm() {
                   <FaExclamationCircle size={10} /> {getFieldError('attributeName')}
                 </span>
               )}
+              <span className="iaf-hint" style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px', display: 'block' }}>
+                Only alphabets and spaces are allowed
+              </span>
             </div>
 
             <div className="iaf-field-check">

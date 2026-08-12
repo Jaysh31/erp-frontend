@@ -24,7 +24,6 @@ interface QuotationItem {
   sgst?: number;
 }
 
-
 export interface Quotation {
   id: string;
   quotationNumber: string;
@@ -89,7 +88,6 @@ interface PaymentSchedule {
   paymentAmount: number;
 }
 
-
 interface QuotationApiRecord {
   name: string;
   party_name?: string;
@@ -138,9 +136,7 @@ const companyDetails = {
   name: 'Chandratara Industries',
   address: '20/1,Hadapsar Industrial Estate, hadapsar, Pune-411013, Maharashtra',
   contact: '8888861441',
-
 };
-
 
 const companyPrintDetails = {
   gstin: '27AFFPC0269R1Z4',
@@ -347,7 +343,6 @@ export default function QuotationPage() {
     fetchQuotations();
   }, []);
 
-
   const fetchFullQuotationRecord = async (quotationId: string): Promise<QuotationApiRecord | null> => {
     try {
       const response = await api.get(`/quotation/${quotationId}`);
@@ -487,7 +482,7 @@ export default function QuotationPage() {
     navigate(`/quotation/${quote.id}`, { state: { quotation: quote } });
   };
 
-  // Delete Quotation — DELETE /quotation/:id
+  // ✅ FIXED: Delete Quotation with better error handling
   const handleDeleteClick = (quote: Quotation) => {
     setSelectedQuote(quote);
     setShowDeleteModal(true);
@@ -497,34 +492,56 @@ export default function QuotationPage() {
     if (!selectedQuote) return;
     setIsSubmitting(true);
     try {
+      // Log the delete URL for debugging
+      console.log(`Attempting to delete quotation: ${selectedQuote.id}`);
+      console.log(`DELETE URL: /quotation/${selectedQuote.id}`);
+      
       const response = await api.delete(`/quotation/${selectedQuote.id}`);
-      if (response.data.success !== 1) {
-        throw new Error(response.data?.message || 'Failed to delete quotation');
+      console.log('Delete response:', response);
+      
+      if (response.data && response.data.success === 1) {
+        setShowDeleteModal(false);
+        setSelectedQuote(null);
+        toast.success(response.data.message || 'Quotation deleted successfully!');
+        fetchQuotations();
+      } else {
+        const errorMsg = response.data?.message || 'Failed to delete quotation';
+        console.error('Delete failed:', errorMsg);
+        toast.error(errorMsg);
       }
-      setShowDeleteModal(false);
-      setSelectedQuote(null);
-      toast.success('Quotation deleted successfully!');
-      fetchQuotations();
     } catch (err: any) {
       console.error('Error deleting quotation:', err);
-      toast.error(err.response?.data?.message || 'Failed to delete quotation');
+      
+      // Detailed error logging
+      if (err.response) {
+        // Server responded with error
+        console.error('Error response status:', err.response.status);
+        console.error('Error response data:', err.response.data);
+        console.error('Error response headers:', err.response.headers);
+        
+        // Show specific error message based on status
+        if (err.response.status === 500) {
+          toast.error('Server error: The quotation may have related records (items, taxes) that need to be deleted first.');
+        } else if (err.response.status === 404) {
+          toast.error('Quotation not found. It may have already been deleted.');
+        } else if (err.response.status === 403) {
+          toast.error('You do not have permission to delete this quotation.');
+        } else {
+          toast.error(err.response.data?.message || 'Failed to delete quotation');
+        }
+      } else if (err.request) {
+        // No response received
+        console.error('No response received:', err.request);
+        toast.error('Network error - Please check your connection');
+      } else {
+        // Request setup error
+        console.error('Request setup error:', err.message);
+        toast.error('An unexpected error occurred');
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
-
-  // // PDF View for single quotation
-  // const handlePdfView = async (quote: Quotation) => {
-  //   setSelectedQuote(quote);
-  //   setShowPdfModal(true);
-  //   setPdfModalLoading(true);
-  //   try {
-  //     const printable = await buildPrintableQuote(quote);
-  //     setSelectedQuote(printable);
-  //   } finally {
-  //     setPdfModalLoading(false);
-  //   }
-  // };
 
   const getCompanyDetails = () => companyDetails;
 
@@ -535,7 +552,6 @@ export default function QuotationPage() {
   };
 
   /* ─────────────────────── Print (Tax-Invoice format) ─────────────────────── */
-
 
   const buildQuotationPrintHtml = (quote: Quotation): string => {
     const validItems = quote.items || [];
@@ -563,8 +579,6 @@ export default function QuotationPage() {
       </tr>
     `).join('');
 
-    // Representative rates for the tax lines below the item table (meaningful
-    // when items share one rate, which is the common case).
     const cgstRate = validItems.find(it => (it.cgst || 0) > 0)?.cgst || 0;
     const sgstRate = validItems.find(it => (it.sgst || 0) > 0)?.sgst || 0;
 
@@ -586,8 +600,6 @@ export default function QuotationPage() {
       `);
     }
 
-    // HSN/SAC-wise tax summary — one row per distinct HSN code present on the items,
-    // mirroring the "HSN/SAC | Taxable Value | Rate | Amount | Total Tax Amount" table.
     const hsnGroups = new Map<string, { taxable: number; cgstRate: number; sgstRate: number; cgstAmt: number; sgstAmt: number }>();
     validItems.forEach((it) => {
       const key = it.hsnCode || '—';
@@ -913,12 +925,6 @@ export default function QuotationPage() {
 
   return (
     <div className={`quotation-page ${theme}`}>
-    
-
-
-
-
-
       {/* Search and Filter Bar */}
       <div className="qt-filter-bar">
         <div className="qt-filter-left">
@@ -1063,9 +1069,6 @@ export default function QuotationPage() {
                         >
                           {printLoadingId === quote.id ? <FaSpinner className="spinning" size={12} /> : <FaPrint size={12} />}
                         </button>
-                        {/* <button className="qt-action-btn qt-action-pdf" onClick={() => handlePdfView(quote)} title="PDF">
-                          <FaFilePdf size={12} />
-                        </button> */}
                         <button className="qt-action-btn qt-action-edit" onClick={() => handleEdit(quote)} title="Edit">
                           <FaEdit size={12} />
                         </button>

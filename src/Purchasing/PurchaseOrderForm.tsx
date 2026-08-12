@@ -271,6 +271,10 @@ export default function PurchaseOrderForm() {
   // ─── Digit Input Values ──────────────────────────────────
   const [digitValues, setDigitValues] = useState<{ [key: number]: { quantity: string; rate: string } }>({});
 
+  // Refs for date fields to focus on validation error - only orderDate ref needed
+  const orderDateRef = useRef<HTMLDivElement>(null);
+  const deliveryDateRef = useRef<HTMLDivElement>(null);
+
   const [formData, setFormData] = useState<{
     poNumber: string;
     title: string;
@@ -1152,15 +1156,18 @@ export default function PurchaseOrderForm() {
   const getAllValidationErrors = (): ValidationError[] => {
     const errors: ValidationError[] = [];
 
-    if (!formData.title.trim()) {
-      errors.push({ field: 'title', label: 'Title', message: 'Title is required' });
-    }
+    // Title is no longer required - removed validation
     if (!formData.supplier.trim()) {
       errors.push({ field: 'supplier', label: 'Supplier', message: 'Supplier is required' });
     }
     if (!formData.orderDate) {
       errors.push({ field: 'orderDate', label: 'Order Date', message: 'Order date is required' });
     }
+    // ✅ FIXED: Delivery Date validation - ONLY check for field error, don't show in popup
+    // We check it but don't add to errors array - only visual red border will show
+    const hasDeliveryDateError = !formData.deliveryDate;
+    // Don't push to errors array - only use for visual validation
+    
     if (formData.items.some(item => !item.itemCode.trim() || !item.itemName.trim() || item.quantity <= 0 || (item.orderRate || item.rate) <= 0)) {
       errors.push({ field: 'items', label: 'Items', message: 'All items must have code, name, quantity > 0 and rate > 0' });
     }
@@ -1172,10 +1179,45 @@ export default function PurchaseOrderForm() {
   const handleSubmit = async () => {
     setApiError(null);
     
+    // ✅ FIXED: Check delivery date separately, don't add to validation errors
+    const hasDeliveryDateError = !formData.deliveryDate;
     const validationErrorsList = getAllValidationErrors();
-    if (validationErrorsList.length > 0) {
-      setValidationErrors(validationErrorsList);
-      setShowValidationSummary(true);
+    
+    if (validationErrorsList.length > 0 || hasDeliveryDateError) {
+      // Show validation summary only for non-delivery date errors
+      if (validationErrorsList.length > 0) {
+        setValidationErrors(validationErrorsList);
+        setShowValidationSummary(true);
+      } else {
+        setValidationErrors([]);
+        setShowValidationSummary(false);
+      }
+      
+      // Only scroll to the first error field (excluding deliveryDate)
+      const firstError = validationErrorsList[0];
+      if (firstError?.field === 'orderDate' && orderDateRef.current) {
+        orderDateRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => {
+          const datePickerInput = orderDateRef.current?.querySelector('input');
+          if (datePickerInput) {
+            datePickerInput.focus();
+          }
+        }, 300);
+      } else if (firstError?.field === 'supplier' && supplierInputRef.current) {
+        supplierInputRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => {
+          supplierInputRef.current?.focus();
+        }, 300);
+      } else if (hasDeliveryDateError && deliveryDateRef.current) {
+        // ✅ FIXED: Just scroll to delivery date field for visual red border
+        deliveryDateRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => {
+          const datePickerInput = deliveryDateRef.current?.querySelector('input');
+          if (datePickerInput) {
+            datePickerInput.focus();
+          }
+        }, 300);
+      }
       return;
     }
 
@@ -1370,7 +1412,7 @@ export default function PurchaseOrderForm() {
     navigate('/purchase-order');
   };
 
-  const hasErrors = getAllValidationErrors().length > 0;
+  const hasErrors = getAllValidationErrors().length > 0 || !formData.deliveryDate;
 
   // ─── Render suggestions using portal ──────────────────────────────
   const renderSuggestions = (index: number) => {
@@ -1516,7 +1558,7 @@ export default function PurchaseOrderForm() {
           {hasErrors && (
             <div className="pof-error-badge">
               <FaExclamationTriangle size={12} />
-              {getAllValidationErrors().length} missing field{getAllValidationErrors().length !== 1 ? 's' : ''}
+              {getAllValidationErrors().length + (formData.deliveryDate ? 0 : 1)} missing field{getAllValidationErrors().length + (formData.deliveryDate ? 0 : 1) !== 1 ? 's' : ''}
             </div>
           )}
         </div>
@@ -1594,26 +1636,20 @@ export default function PurchaseOrderForm() {
                         </div>
                       </div>
                       <div className="pof-info-field">
-                      <label>Title <span className="pof-required">*</span></label>
-                      <input
-                        type="text"
-                        value={formData.title}
-                        onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                        className={`pof-form-field ${validationErrors.some(e => e.field === 'title') ? 'pof-field-error' : ''}`}
-                        placeholder="Enter PO title"
-                      />
-                      {validationErrors.some(e => e.field === 'title') && (
-                        <span className="pof-error-msg">
-                          <FaExclamationCircle size={10} />Title is required
-                        </span>
-                      )}
-                    </div>
-                    
+                        <label>Title</label>
+                        <input
+                          type="text"
+                          value={formData.title}
+                          onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                          className="pof-form-field"
+                          placeholder="Enter PO title (optional)"
+                        />
+                      </div>
                     </div>
                   </div>
                   
                   <div className="pof-info-row">
-                    <div className="pof-info-field">
+                    <div className="pof-info-field" style={{ display: 'none' }}>
                       <label>PO Number</label>
                       <input
                         type="text"
@@ -1635,7 +1671,7 @@ export default function PurchaseOrderForm() {
                   </div>
                   
                   <div className="pof-info-row">
-                    <div className="pof-info-field">
+                    <div className="pof-info-field" ref={orderDateRef}>
                       <label>Order Date <span className="pof-required">*</span></label>
                       <div className="pof-date-picker-wrapper">
                         <DatePicker
@@ -1663,8 +1699,8 @@ export default function PurchaseOrderForm() {
                         </span>
                       )}
                     </div>
-                    <div className="pof-info-field">
-                      <label>Delivery Date</label>
+                    <div className="pof-info-field" ref={deliveryDateRef}>
+                      <label>Delivery Date <span className="pof-required">*</span></label>
                       <div className="pof-date-picker-wrapper">
                         <DatePicker
                           selected={deliveryDate}
@@ -1679,7 +1715,7 @@ export default function PurchaseOrderForm() {
                             }
                           }}
                           dateFormat="dd/MM/yyyy"
-                          className="pof-form-field"
+                          className={`pof-form-field ${!formData.deliveryDate ? 'pof-field-error' : ''}`}
                           placeholderText="Select delivery date"
                           minDate={startDate || new Date()}
                           showMonthDropdown
@@ -1689,6 +1725,12 @@ export default function PurchaseOrderForm() {
                         />
                         <FaCalendarAlt className="pof-calendar-icon" />
                       </div>
+                      {/* ✅ FIXED: Show red error message under delivery date field */}
+                      {!formData.deliveryDate && (
+                        <span className="pof-error-msg">
+                          <FaExclamationCircle size={10} />Delivery date is required
+                        </span>
+                      )}
                     </div>
                   </div>
                   

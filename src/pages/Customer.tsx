@@ -172,18 +172,31 @@ const Customer: React.FC = () => {
   });
 
   const totalFilteredItems = filteredData.length;
-  const totalPages = Math.ceil(totalFilteredItems / itemsPerPage);
+  
+  // ✅ FIXED: Use totalItems from API for pagination when no filters are applied
+  // When filters are applied, use filteredData length
+  const hasFilters = searchTerm !== '' || statusFilter !== 'all';
+  const totalPages = hasFilters 
+    ? Math.ceil(totalFilteredItems / itemsPerPage) 
+    : Math.ceil(totalItems / itemsPerPage);
+
+  // ✅ FIXED: Determine what to display in pagination
+  const displayTotal = hasFilters ? totalFilteredItems : totalItems;
 
   // Ensure current page is valid when data changes
   const validCurrentPage = Math.min(currentPage, totalPages || 1);
-  if (validCurrentPage !== currentPage) {
+  if (validCurrentPage !== currentPage && totalPages > 0) {
     setCurrentPage(validCurrentPage);
   }
 
-  const paginatedData = filteredData.slice(
-    (validCurrentPage - 1) * itemsPerPage,
-    validCurrentPage * itemsPerPage
-  );
+  // ✅ FIXED: Pagination - when no filters, use API pagination
+  // When filters are applied, use client-side pagination
+  const paginatedData = hasFilters 
+    ? filteredData.slice(
+        (validCurrentPage - 1) * itemsPerPage,
+        validCurrentPage * itemsPerPage
+      )
+    : filteredData; // When no filters, data is already paginated from API
 
   const goToPage = (page: number) => {
     if (page >= 1 && page <= totalPages) {
@@ -230,8 +243,6 @@ const Customer: React.FC = () => {
     }
   };
 
-
-
   const handleEdit = (id: string) => {
     navigate(`/customer/edit/${id}`);
   };
@@ -246,7 +257,8 @@ const Customer: React.FC = () => {
   };
 
   const getEndIndex = () => {
-    return Math.min(validCurrentPage * itemsPerPage, totalFilteredItems);
+    const end = validCurrentPage * itemsPerPage;
+    return Math.min(end, displayTotal);
   };
 
   const getStatusBadge = (status: string) => {
@@ -276,9 +288,7 @@ const Customer: React.FC = () => {
     const types = [];
     if (contact.is_billing_contact) types.push('Billing');
     if (contact.is_saler_contact) types.push('Sales');
-    // If primary only (no other types), show empty
     if (contact.is_primary && types.length === 0) return '';
-    // If primary with other types, show the other types
     return types.length > 0 ? types.join(' • ') : 'General';
   };
 
@@ -389,7 +399,7 @@ const Customer: React.FC = () => {
                   <th className="igl-th">Mobile</th>
                   <th className="igl-th">Status</th>
                   <th className="igl-th igl-th-meta">
-                    <span className="igl-count-label">{totalFilteredItems} of {totalItems}</span>
+                    <span className="igl-count-label">{displayTotal} total</span>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary, #9ca3af)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
                     </svg>
@@ -484,13 +494,6 @@ const Customer: React.FC = () => {
                           <td className="igl-td">{getStatusBadge(row.status)}</td>
                           <td className="igl-td igl-td-meta">
                             <div className="igl-action-buttons">
-                              {/* <button
-                                className="igl-action-btn igl-action-view"
-                                onClick={(e) => { e.stopPropagation(); handleView(row); }}
-                                title="View"
-                              >
-                                <FaEye size={12} />
-                              </button> */}
                               <button
                                 className="igl-action-btn igl-action-edit"
                                 onClick={(e) => { e.stopPropagation(); handleEdit(row.id); }}
@@ -586,19 +589,19 @@ const Customer: React.FC = () => {
             <div className="igl-pagination-center">
               <button
                 onClick={goToFirstPage}
-                disabled={currentPage === 1 || totalFilteredItems === 0}
+                disabled={currentPage === 1 || displayTotal === 0}
                 className="igl-page-btn"
               >
                 <FaAngleDoubleLeft size={12} />
               </button>
               <button
                 onClick={goToPrevPage}
-                disabled={currentPage === 1 || totalFilteredItems === 0}
+                disabled={currentPage === 1 || displayTotal === 0}
                 className="igl-page-btn"
               >
                 <FaChevronLeft size={12} />
               </button>
-              {totalFilteredItems > 0 && getPageNumbers().map(page => (
+              {displayTotal > 0 && getPageNumbers().map(page => (
                 <button
                   key={page}
                   onClick={() => goToPage(page)}
@@ -609,14 +612,14 @@ const Customer: React.FC = () => {
               ))}
               <button
                 onClick={goToNextPage}
-                disabled={currentPage === totalPages || totalFilteredItems === 0}
+                disabled={currentPage === totalPages || displayTotal === 0}
                 className="igl-page-btn"
               >
                 <FaChevronRight size={12} />
               </button>
               <button
                 onClick={goToLastPage}
-                disabled={currentPage === totalPages || totalFilteredItems === 0}
+                disabled={currentPage === totalPages || displayTotal === 0}
                 className="igl-page-btn"
               >
                 <FaAngleDoubleRight size={12} />
@@ -624,8 +627,8 @@ const Customer: React.FC = () => {
             </div>
             <div className="igl-pagination-right">
               <span className="igl-pagination-info">
-                {totalFilteredItems > 0 ? (
-                  `Showing ${getStartIndex()} to ${getEndIndex()} of ${totalFilteredItems} entries`
+                {displayTotal > 0 ? (
+                  `Showing ${getStartIndex()} to ${getEndIndex()} of ${displayTotal} entries`
                 ) : (
                   'No entries to show'
                 )}

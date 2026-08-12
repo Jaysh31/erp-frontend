@@ -37,28 +37,6 @@ interface ValidationError {
   message: string;
 }
 
-// interface WarehouseData {
-//   id: number;
-//   warehouse_name: string;
-//   company: string | null;
-//   parent_warehouse: string | null;
-//   warehouse_type: string | null;
-//   city: string | null;
-//   state: string | null;
-//   email_id: string | null;
-//   phone_no: string | null;
-//   mobile_no: string | null;
-//   address_line_1: string | null;
-//   address_line_2: string | null;
-//   pin: string | null;
-//   account: string | null;
-//   customer: string | null;
-//   is_rejected_warehouse: number;
-//   is_group: number;
-//   default_in_transit_warehouse: string;
-//   disabled: number;
-// }
-
 export default function WarehouseForm() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -102,9 +80,6 @@ export default function WarehouseForm() {
       if (!isNew && id) {
         setLoading(true);
         try {
-
-          console.log('Fetching warehouse data for ID:', id); // Debugging log
-          // Use ID directly from URL params
           const response = await api.get(`/warehouse/${id}`);
           if (response.data && response.data.success === 1) {
             const data = response.data.data;
@@ -143,15 +118,91 @@ export default function WarehouseForm() {
     fetchWarehouseData();
   }, [isNew, id]);
 
+  // ─── Validation Functions ──────────────────────────────────────────────
+
+  // Only alphabets and spaces (for name, city, state, warehouse type)
+  const isValidAlphabetOnly = (value: string): boolean => {
+    return /^[A-Za-z\s]*$/.test(value);
+  };
+
+  // Only alphabets and spaces with dot (for state/province)
+  const isValidState = (value: string): boolean => {
+    return /^[A-Za-z\s.]*$/.test(value);
+  };
+
+  // Exactly 10 digits (for mobile and phone)
+  const isValidPhone = (value: string): boolean => {
+    return /^\d{10}$/.test(value);
+  };
+
+  // Valid email format
+  const isValidEmail = (value: string): boolean => {
+    return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(value);
+  };
+
+  // Exactly 6 digits (for PIN)
+  const isValidPin = (value: string): boolean => {
+    return /^\d{6}$/.test(value);
+  };
+
   // ─── Validation ──────────────────────────────────────────────────────
   const getAllValidationErrors = (): ValidationError[] => {
     const allErrors: ValidationError[] = [];
 
+    // Warehouse Name - Required (only for new)
     if (isNew && !form.warehouseName.trim()) {
       allErrors.push({ field: 'warehouseName', label: 'Warehouse Name', message: 'Warehouse name is required' });
     }
+    if (isNew && form.warehouseName.trim() && !isValidAlphabetOnly(form.warehouseName.trim())) {
+      allErrors.push({ field: 'warehouseName', label: 'Warehouse Name', message: 'Warehouse name should contain only alphabets and spaces' });
+    }
+
+    // Company - Required
     if (!form.company.trim()) {
       allErrors.push({ field: 'company', label: 'Company', message: 'Company is required' });
+    }
+    if (form.company.trim() && !isValidAlphabetOnly(form.company.trim())) {
+      allErrors.push({ field: 'company', label: 'Company', message: 'Company should contain only alphabets and spaces' });
+    }
+
+    // Parent Warehouse - Alphabets only
+    if (form.parentWarehouse.trim() && !isValidAlphabetOnly(form.parentWarehouse.trim())) {
+      allErrors.push({ field: 'parentWarehouse', label: 'Parent Warehouse', message: 'Parent warehouse should contain only alphabets and spaces' });
+    }
+
+    // Phone No - Exactly 10 digits
+    if (form.phoneNo.trim() && !isValidPhone(form.phoneNo.trim())) {
+      allErrors.push({ field: 'phoneNo', label: 'Phone No', message: 'Phone number must be exactly 10 digits' });
+    }
+
+    // Mobile No - Exactly 10 digits
+    if (form.mobileNo.trim() && !isValidPhone(form.mobileNo.trim())) {
+      allErrors.push({ field: 'mobileNo', label: 'Mobile No', message: 'Mobile number must be exactly 10 digits' });
+    }
+
+    // Email - Valid email format
+    if (form.emailId.trim() && !isValidEmail(form.emailId.trim())) {
+      allErrors.push({ field: 'emailId', label: 'Email ID', message: 'Please enter a valid email address' });
+    }
+
+    // PIN - Exactly 6 digits
+    if (form.pin.trim() && !isValidPin(form.pin.trim())) {
+      allErrors.push({ field: 'pin', label: 'PIN', message: 'PIN code must be exactly 6 digits' });
+    }
+
+    // City - Alphabets only
+    if (form.city.trim() && !isValidAlphabetOnly(form.city.trim())) {
+      allErrors.push({ field: 'city', label: 'City', message: 'City should contain only alphabets and spaces' });
+    }
+
+    // State/Province - Alphabets, spaces and dot allowed
+    if (form.stateProvince.trim() && !isValidState(form.stateProvince.trim())) {
+      allErrors.push({ field: 'stateProvince', label: 'State/Province', message: 'State should contain only alphabets, spaces and dots' });
+    }
+
+    // Warehouse Type - Alphabets only
+    if (form.warehouseType.trim() && !isValidAlphabetOnly(form.warehouseType.trim())) {
+      allErrors.push({ field: 'warehouseType', label: 'Warehouse Type', message: 'Warehouse type should contain only alphabets and spaces' });
     }
 
     return allErrors;
@@ -171,15 +222,12 @@ export default function WarehouseForm() {
     setErrors({});
 
     try {
-      // Prepare payload for API - only send fields that exist in the database
       const payload: any = {};
 
-      // Add id first if editing
       if (!isNew && warehouseId) {
         payload.id = warehouseId;
       }
 
-      // Only include fields that exist in the warehouse table
       payload.warehouse_name = form.warehouseName.trim();
       payload.company = form.company.trim() || null;
       payload.parent_warehouse = form.parentWarehouse.trim() || null;
@@ -195,17 +243,14 @@ export default function WarehouseForm() {
       payload.account = form.account.trim() || null;
       payload.customer = form.customer.trim() || null;
       
-      // Boolean fields - convert to 0/1
       payload.is_rejected_warehouse = form.isRejectedWarehouse ? 1 : 0;
       payload.is_group = form.isGroupWarehouse ? 1 : 0;
       payload.default_in_transit_warehouse = form.transit ? 1 : 0;
 
       let response;
       if (isNew) {
-        // For create: POST to /api/warehouse
         response = await api.post('/warehouse', payload);
       } else {
-        // For update: PUT to /api/warehouse (without ID in URL)
         response = await api.put('/warehouse', payload);
       }
 
@@ -244,6 +289,17 @@ export default function WarehouseForm() {
 
   const hasErrors = getAllValidationErrors().length > 0;
 
+  // Helper to check if a field has error
+  const hasFieldError = (fieldName: string): boolean => {
+    return validationErrors.some(err => err.field === fieldName);
+  };
+
+  // Get error message for a field
+  const getFieldError = (fieldName: string): string => {
+    const error = validationErrors.find(err => err.field === fieldName);
+    return error ? error.message : '';
+  };
+
   if (loading) {
     return (
       <div className={`wf-page ${theme}`}>
@@ -267,13 +323,13 @@ export default function WarehouseForm() {
             <div className="validation-summary-modal" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
                 <h2>
-                  <FaExclamationTriangle /> Missing Required Fields
+                  <FaExclamationTriangle /> Missing or Invalid Fields
                 </h2>
                 <button className="modal-close" onClick={() => setShowValidationSummary(false)}>×</button>
               </div>
               <div className="modal-body">
                 <p className="modal-description">
-                  Please fill in the following required fields before submitting:
+                  Please fix the following issues before submitting:
                 </p>
                 <div className="validation-errors-list">
                   {validationErrors.map((error, idx) => (
@@ -309,9 +365,9 @@ export default function WarehouseForm() {
             <h1>{isNew ? 'Add New Warehouse' : `Edit: ${form.warehouseName || 'Warehouse'}`}</h1>
           </div>
           {hasErrors && (
-            <div className="error-badge">
+            <div className="error-badge" onClick={() => setShowValidationSummary(true)} style={{ cursor: 'pointer' }}>
               <FaExclamationTriangle size={12} />
-              {getAllValidationErrors().length} missing field{getAllValidationErrors().length !== 1 ? 's' : ''}
+              {getAllValidationErrors().length} field{getAllValidationErrors().length !== 1 ? 's' : ''} need attention
             </div>
           )}
         </div>
@@ -332,11 +388,17 @@ export default function WarehouseForm() {
                 <input
                   type="text"
                   value={form.warehouseName}
-                  onChange={(e) => setForm({ ...form, warehouseName: e.target.value })}
-                  className={`form-field${errors.warehouseName ? ' field-error' : ''}`}
+                  onChange={(e) => {
+                    // Only allow alphabets and spaces
+                    const value = e.target.value.replace(/[^A-Za-z\s]/g, '');
+                    setForm({ ...form, warehouseName: value });
+                    if (errors.warehouseName) setErrors({ ...errors, warehouseName: '' });
+                  }}
+                  className={`form-field${hasFieldError('warehouseName') ? ' field-error' : ''}`}
                   placeholder="Enter warehouse name"
+                  maxLength={50}
                 />
-                {errors.warehouseName && <span className="wf-error-msg"><FaExclamationCircle size={10} />{errors.warehouseName}</span>}
+                {hasFieldError('warehouseName') && <span className="wf-error-msg"><FaExclamationCircle size={10} />{getFieldError('warehouseName')}</span>}
               </div>
             )}
 
@@ -364,11 +426,17 @@ export default function WarehouseForm() {
                 <input
                   type="text"
                   value={form.company}
-                  onChange={(e) => setForm({ ...form, company: e.target.value })}
-                  className={`form-field${errors.company ? ' field-error' : ''}`}
+                  onChange={(e) => {
+                    // Only allow alphabets and spaces
+                    const value = e.target.value.replace(/[^A-Za-z\s]/g, '');
+                    setForm({ ...form, company: value });
+                    if (errors.company) setErrors({ ...errors, company: '' });
+                  }}
+                  className={`form-field${hasFieldError('company') ? ' field-error' : ''}`}
                   placeholder="Enter company name"
+                  maxLength={50}
                 />
-                {errors.company && <span className="wf-error-msg"><FaExclamationCircle size={10} />{errors.company}</span>}
+                {hasFieldError('company') && <span className="wf-error-msg"><FaExclamationCircle size={10} />{getFieldError('company')}</span>}
               </div>
 
               <div className="wf-field">
@@ -378,10 +446,17 @@ export default function WarehouseForm() {
                 <input
                   type="text"
                   value={form.parentWarehouse}
-                  onChange={(e) => setForm({ ...form, parentWarehouse: e.target.value })}
-                  className="form-field"
-                  placeholder="Select parent warehouse"
+                  onChange={(e) => {
+                    // Only allow alphabets and spaces
+                    const value = e.target.value.replace(/[^A-Za-z\s]/g, '');
+                    setForm({ ...form, parentWarehouse: value });
+                    if (errors.parentWarehouse) setErrors({ ...errors, parentWarehouse: '' });
+                  }}
+                  className={`form-field${hasFieldError('parentWarehouse') ? ' field-error' : ''}`}
+                  placeholder="Enter parent warehouse"
+                  maxLength={50}
                 />
+                {hasFieldError('parentWarehouse') && <span className="wf-error-msg"><FaExclamationCircle size={10} />{getFieldError('parentWarehouse')}</span>}
               </div>
             </div>
 
@@ -473,10 +548,17 @@ export default function WarehouseForm() {
                       <input
                         type="text"
                         value={form.phoneNo}
-                        onChange={(e) => setForm({ ...form, phoneNo: e.target.value })}
-                        className="form-field"
-                        placeholder="Enter phone number"
+                        onChange={(e) => {
+                          // Only allow digits, max 10
+                          const value = e.target.value.replace(/\D/g, '').slice(0, 10);
+                          setForm({ ...form, phoneNo: value });
+                          if (errors.phoneNo) setErrors({ ...errors, phoneNo: '' });
+                        }}
+                        className={`form-field${hasFieldError('phoneNo') ? ' field-error' : ''}`}
+                        placeholder="Enter 10 digit phone number"
+                        maxLength={10}
                       />
+                      {hasFieldError('phoneNo') && <span className="wf-error-msg"><FaExclamationCircle size={10} />{getFieldError('phoneNo')}</span>}
                     </div>
 
                     <div className="wf-field">
@@ -486,10 +568,17 @@ export default function WarehouseForm() {
                       <input
                         type="text"
                         value={form.mobileNo}
-                        onChange={(e) => setForm({ ...form, mobileNo: e.target.value })}
-                        className="form-field"
-                        placeholder="Enter mobile number"
+                        onChange={(e) => {
+                          // Only allow digits, max 10
+                          const value = e.target.value.replace(/\D/g, '').slice(0, 10);
+                          setForm({ ...form, mobileNo: value });
+                          if (errors.mobileNo) setErrors({ ...errors, mobileNo: '' });
+                        }}
+                        className={`form-field${hasFieldError('mobileNo') ? ' field-error' : ''}`}
+                        placeholder="Enter 10 digit mobile number"
+                        maxLength={10}
                       />
+                      {hasFieldError('mobileNo') && <span className="wf-error-msg"><FaExclamationCircle size={10} />{getFieldError('mobileNo')}</span>}
                     </div>
                   </div>
 
@@ -501,10 +590,14 @@ export default function WarehouseForm() {
                       <input
                         type="email"
                         value={form.emailId}
-                        onChange={(e) => setForm({ ...form, emailId: e.target.value })}
-                        className="form-field"
+                        onChange={(e) => {
+                          setForm({ ...form, emailId: e.target.value });
+                          if (errors.emailId) setErrors({ ...errors, emailId: '' });
+                        }}
+                        className={`form-field${hasFieldError('emailId') ? ' field-error' : ''}`}
                         placeholder="Enter email address"
                       />
+                      {hasFieldError('emailId') && <span className="wf-error-msg"><FaExclamationCircle size={10} />{getFieldError('emailId')}</span>}
                     </div>
 
                     <div className="wf-field">
@@ -514,10 +607,17 @@ export default function WarehouseForm() {
                       <input
                         type="text"
                         value={form.pin}
-                        onChange={(e) => setForm({ ...form, pin: e.target.value })}
-                        className="form-field"
-                        placeholder="Enter PIN code"
+                        onChange={(e) => {
+                          // Only allow digits, max 6
+                          const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+                          setForm({ ...form, pin: value });
+                          if (errors.pin) setErrors({ ...errors, pin: '' });
+                        }}
+                        className={`form-field${hasFieldError('pin') ? ' field-error' : ''}`}
+                        placeholder="Enter 6 digit PIN code"
+                        maxLength={6}
                       />
+                      {hasFieldError('pin') && <span className="wf-error-msg"><FaExclamationCircle size={10} />{getFieldError('pin')}</span>}
                     </div>
                   </div>
 
@@ -529,10 +629,17 @@ export default function WarehouseForm() {
                       <input
                         type="text"
                         value={form.city}
-                        onChange={(e) => setForm({ ...form, city: e.target.value })}
-                        className="form-field"
+                        onChange={(e) => {
+                          // Only allow alphabets and spaces
+                          const value = e.target.value.replace(/[^A-Za-z\s]/g, '');
+                          setForm({ ...form, city: value });
+                          if (errors.city) setErrors({ ...errors, city: '' });
+                        }}
+                        className={`form-field${hasFieldError('city') ? ' field-error' : ''}`}
                         placeholder="Enter city"
+                        maxLength={50}
                       />
+                      {hasFieldError('city') && <span className="wf-error-msg"><FaExclamationCircle size={10} />{getFieldError('city')}</span>}
                     </div>
 
                     <div className="wf-field">
@@ -542,10 +649,17 @@ export default function WarehouseForm() {
                       <input
                         type="text"
                         value={form.stateProvince}
-                        onChange={(e) => setForm({ ...form, stateProvince: e.target.value })}
-                        className="form-field"
+                        onChange={(e) => {
+                          // Only allow alphabets, spaces and dots
+                          const value = e.target.value.replace(/[^A-Za-z\s.]/g, '');
+                          setForm({ ...form, stateProvince: value });
+                          if (errors.stateProvince) setErrors({ ...errors, stateProvince: '' });
+                        }}
+                        className={`form-field${hasFieldError('stateProvince') ? ' field-error' : ''}`}
                         placeholder="Enter state/province"
+                        maxLength={50}
                       />
+                      {hasFieldError('stateProvince') && <span className="wf-error-msg"><FaExclamationCircle size={10} />{getFieldError('stateProvince')}</span>}
                     </div>
                   </div>
 
@@ -556,10 +670,17 @@ export default function WarehouseForm() {
                     <input
                       type="text"
                       value={form.warehouseType}
-                      onChange={(e) => setForm({ ...form, warehouseType: e.target.value })}
-                      className="form-field"
+                      onChange={(e) => {
+                        // Only allow alphabets and spaces
+                        const value = e.target.value.replace(/[^A-Za-z\s]/g, '');
+                        setForm({ ...form, warehouseType: value });
+                        if (errors.warehouseType) setErrors({ ...errors, warehouseType: '' });
+                      }}
+                      className={`form-field${hasFieldError('warehouseType') ? ' field-error' : ''}`}
                       placeholder="Enter warehouse type"
+                      maxLength={50}
                     />
+                    {hasFieldError('warehouseType') && <span className="wf-error-msg"><FaExclamationCircle size={10} />{getFieldError('warehouseType')}</span>}
                   </div>
 
                   <div className="wf-field-check">

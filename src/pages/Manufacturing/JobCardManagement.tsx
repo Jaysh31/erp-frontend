@@ -464,45 +464,7 @@ export default function JobCardManagement() {
 
   return (
     <div className={`jc-page ${theme}`}>
-      {/* Stats Cards */}
-      <div className="jc-stats-container">
-        <div className="jc-stat-card" style={{ background: '#EFF6FF', borderLeft: '4px solid #3B82F6' }}>
-          <div className="jc-stat-icon" style={{ color: '#3B82F6' }}>
-            <FaClipboardList size={18} />
-          </div>
-          <div className="jc-stat-content">
-            <p className="jc-stat-title">Total Job Cards</p>
-            <p className="jc-stat-value">{totalItems}</p>
-          </div>
-        </div>
-        <div className="jc-stat-card" style={{ background: '#ECFDF5', borderLeft: '4px solid #10B981' }}>
-          <div className="jc-stat-icon" style={{ color: '#10B981' }}>
-            <FaCheckCircle size={18} />
-          </div>
-          <div className="jc-stat-content">
-            <p className="jc-stat-title">Completed Qty</p>
-            <p className="jc-stat-value">{totalCompleted}</p>
-          </div>
-        </div>
-        <div className="jc-stat-card" style={{ background: '#FEF3C7', borderLeft: '4px solid #F59E0B' }}>
-          <div className="jc-stat-icon" style={{ color: '#F59E0B' }}>
-            <FaClock size={18} />
-          </div>
-          <div className="jc-stat-content">
-            <p className="jc-stat-title">Loss / Scrap</p>
-            <p className="jc-stat-value">{totalLoss}</p>
-          </div>
-        </div>
-        <div className="jc-stat-card" style={{ background: '#F5F3FF', borderLeft: '4px solid #8B5CF6' }}>
-          <div className="jc-stat-icon" style={{ color: '#8B5CF6' }}>
-            <FaBuilding size={18} />
-          </div>
-          <div className="jc-stat-content">
-            <p className="jc-stat-title">Overall Progress</p>
-            <p className="jc-stat-value">{overallProgress}%</p>
-          </div>
-        </div>
-      </div>
+   
 
       {/* Search and Filter Bar */}
       <div className="jc-filter-bar">
