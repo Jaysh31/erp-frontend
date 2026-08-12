@@ -402,15 +402,15 @@ export default function LeadManagement() {
             <table className="jc-table">
               <thead>
                 <tr>
-                  <th className="jc-th-check">
+                  {/* <th className="jc-th-check">
                     <input type="checkbox" checked={allChecked} onChange={toggleAll} className="jc-checkbox" />
-                  </th>
+                  </th> */}
                   <th className="jc-th">Lead ID</th>
                   <th className="jc-th">Name</th>
                   <th className="jc-th">Organization</th>
                   <th className="jc-th">Email</th>
                   <th className="jc-th">Mobile No</th>
-                  <th className="jc-th">Source</th>
+                  {/* <th className="jc-th">Source</th> */}
                   <th className="jc-th">Status</th>
                   <th className="jc-th jc-th-meta">
                     <span className="jc-count-label">{totalFilteredItems} of {totalItems}</span>
@@ -442,9 +442,9 @@ export default function LeadManagement() {
                       onClick={() => goToLead(row)}
                       style={{ cursor: "pointer" }}
                     >
-                      <td className="jc-td-check" onClick={(e) => { e.stopPropagation(); toggleRow(row.id); }}>
+                      {/* <td className="jc-td-check" onClick={(e) => { e.stopPropagation(); toggleRow(row.id); }}>
                         <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleRow(row.id)} className="jc-checkbox" />
-                      </td>
+                      </td> */}
                       <td className="jc-td jc-td-id">{row.id}</td>
                       <td className="jc-td jc-td-link">{row.leadName}</td>
                       <td className="jc-td jc-td-company">
@@ -453,15 +453,15 @@ export default function LeadManagement() {
                       </td>
                       <td className="jc-td">{row.email || "—"}</td>
                       <td className="jc-td">{row.mobileNo || "—"}</td>
-                      <td className="jc-td">{row.source || "—"}</td>
+                      {/* <td className="jc-td">{row.source || "—"}</td> */}
                       <td className="jc-td">
                         <span className={`jc-status-badge ${STATUS_CLASS[row.status]}`}>
                           {STATUS_LABELS[row.status]}
                         </span>
                       </td>
                       <td className="jc-td jc-td-meta" onClick={(e) => e.stopPropagation()}>
-                        <span className="jc-ago">{row.createdAgo}</span>
-                        <span className="jc-dot">·</span>
+                        {/* <span className="jc-ago">{row.createdAgo}</span>
+                        <span className="jc-dot">·</span> */}
                         <div className="jc-action-buttons">
                           <button className="jc-action-btn jc-action-view" onClick={(e) => { e.stopPropagation(); goToLead(row); }} title="View">
                             <FaEye size={12} />
