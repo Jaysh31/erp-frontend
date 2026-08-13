@@ -181,8 +181,6 @@ interface WorkOrderData {
 
 interface BomListItem {
   id: number;
-  item_Id: number;   // ← add this: the actual raw-material item's master id
-
   item: string;
   item_name: string;
   quantity: number;
@@ -228,7 +226,6 @@ interface BomItemWarehouseStock {
 }
 
 interface BomApiItem {
-  item_Id: any;
   id: number;
   item_code: string;
   item_name: string;
@@ -1423,7 +1420,7 @@ export default function WorkOrderForm() {
 
                     const items: RequiredItemRow[] = detail.items.map(it => ({
                       id: uid(),
-                      item_id: it.item_Id, // ✅ correct — the actual item master id
+                      item_id: it.id, // Fixed: Now valid
                       item_code: it.item_code,
                       item_name: it.item_name,
                       source_warehouse: it.source_warehouse || detail.bom.default_source_warehouse || "",
@@ -1583,7 +1580,7 @@ export default function WorkOrderForm() {
 
     const items: RequiredItemRow[] = detail.items.map(it => ({
       id: uid(),
-      item_id: it.item_Id, // ✅ correct — the actual raw-material master id
+      item_id: it.id, // Fixed: Now valid
       item_code: it.item_code,
       item_name: it.item_name,
       source_warehouse: it.source_warehouse || detail.bom.default_source_warehouse || "",

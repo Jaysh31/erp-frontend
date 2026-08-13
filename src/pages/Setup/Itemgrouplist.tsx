@@ -363,10 +363,12 @@ export default function ItemGroupList() {
             Created On
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </button>
-          <button className="igl-btn-primary" onClick={() => navigate("/item-group/new")}>
+        
+          {/* <button className="igl-btn-primary" onClick={() => navigate("/item-group/new")}>
             <FaPlus size={12} />
             Add Item Group
-          </button>
+          </button> */}
+
         </div>
       </div>
 

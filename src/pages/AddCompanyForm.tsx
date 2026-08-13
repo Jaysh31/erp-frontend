@@ -4,7 +4,7 @@ import { useNavigate, useParams, useLocation } from "react-router-dom";
 import {
   FaArrowLeft, FaSave, FaSpinner, FaInfoCircle, FaExclamationTriangle,
   FaTimesCircle, FaFileAlt, FaShoppingCart, FaPercentage,
-  FaUniversity, FaArrowRight, FaCheckCircle,
+  FaUniversity, FaArrowRight, FaCheckCircle, FaTrash, FaTimes,
 } from "react-icons/fa";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -84,6 +84,11 @@ interface CompanyBankAccount {
   remarks: string;
 }
 
+interface FormDraft {
+  formData?: Partial<CompanyFormData> & { date_of_establishment?: string | null };
+  bankAccounts?: CompanyBankAccount[];
+}
+
 const GST_CATEGORY_OPTIONS = [
   "Unregistered", "Registered Regular", "Registered Composition", "SEZ",
   "Overseas", "Deemed Export", "UIN Holders", "Tax Deductor", "Tax Collector",
@@ -129,7 +134,6 @@ const SECTIONS: { key: SectionKey; name: string }[] = [
   { key: "bank", name: "Bank Account" },
 ];
 
-// Formats a Date as YYYY-MM-DD for the API (no timezone surprises).
 const formatDateForApi = (date: Date): string => {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
@@ -210,6 +214,84 @@ const mapCompanyBankAccountRow = (row: any): CompanyBankAccount => ({
   remarks: row.remarks || "",
 });
 
+const mergeBankAccounts = (
+  existing: CompanyBankAccount[],
+  updates: any[]
+): CompanyBankAccount[] => {
+  const merged = [...existing];
+  let primaryKeepIdx: number | null = null;
+
+  updates.forEach((raw) => {
+    const row = mapCompanyBankAccountRow(raw);
+    const existingIdx =
+      row.recordId != null
+        ? merged.findIndex((a) => a.recordId === row.recordId)
+        : merged.findIndex((a) => a._key === row._key);
+
+    let idx: number;
+    if (existingIdx >= 0) {
+      merged[existingIdx] = row;
+      idx = existingIdx;
+    } else {
+      merged.push(row);
+      idx = merged.length - 1;
+    }
+
+    if (row.is_primary) primaryKeepIdx = idx;
+  });
+
+  if (primaryKeepIdx === null) return merged;
+  const keepIdx: number = primaryKeepIdx;
+  return merged.map((acc, i) => (i !== keepIdx && acc.is_primary ? { ...acc, is_primary: false } : acc));
+};
+
+
+const readFormDraft = (formKey: string): FormDraft | null => {
+  try {
+    return JSON.parse(localStorage.getItem(formKey) || "null");
+  } catch {
+    return null;
+  }
+};
+
+
+const buildBankDetailPayload = (account: Record<string, any>) => ({
+ 
+  ...(account.recordId ? { id: Number(account.recordId) } : {}),
+  ...(account.docName ? { name: account.docName } : {}),
+
+  account_holder_name: (account.account_holder_name || "").trim(),
+  account_type: account.account_type || "Savings",
+
+  bank_name: (account.bank_name || "").trim(),
+  branch_name: (account.branch_name || "").trim(),
+  account_number: (account.account_number || "").trim(),
+  ifsc_code: account.ifsc_code ? String(account.ifsc_code).trim().toUpperCase() : "",
+  micr_code: account.micr_code ? String(account.micr_code).trim() : null,
+  swift_code: account.swift_code ? String(account.swift_code).trim().toUpperCase() : null,
+  iban: account.iban ? String(account.iban).trim().toUpperCase() : null,
+
+  upi_id: account.upi_id || null,
+  currency: account.currency || "INR",
+
+  address: null,
+  city: null,
+  district: null,
+  state: null,
+  country: null,
+  pincode: null,
+
+  cancelled_cheque: account.cancelled_cheque || null,
+  passbook_copy: account.passbook_copy || null,
+
+  verified: account.verified ? 1 : 0,
+  verified_by: account.verified ? account.verified_by || "Administrator" : null,
+  verified_on: account.verified ? account.verified_on || null : null,
+
+  is_primary: account.is_primary ? 1 : 0,
+  remarks: account.remarks || null,
+});
+
 const AddCompanyForm: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -232,6 +314,14 @@ const AddCompanyForm: React.FC = () => {
 
   const [formDraftKey, setFormDraftKey] = useState<string>("");
 
+  // ─── bank account delete confirmation ──────────────────────────────
+  const [showDeleteBankConfirm, setShowDeleteBankConfirm] = useState(false);
+  const [bankAccountToDelete, setBankAccountToDelete] = useState<{
+    idx: number;
+    account: CompanyBankAccount;
+  } | null>(null);
+  const [deletingBankAccount, setDeletingBankAccount] = useState(false);
+
   const sectionRefs = useRef<Record<SectionKey, HTMLDivElement | null>>({
     details: null,
     "buy-sell": null,
@@ -239,106 +329,99 @@ const AddCompanyForm: React.FC = () => {
     bank: null,
   });
 
-  const processedBankStateRef = useRef<unknown>(null);
-
-  
   useEffect(() => {
+    const state = location.state as { bankAccountsUpdated?: boolean; updatedAccounts?: any[] } | undefined;
+    const returningFromBankDetails = !!state?.bankAccountsUpdated;
+    const updatesFromBankForm = Array.isArray(state?.updatedAccounts) ? state!.updatedAccounts! : [];
+
+    const applyDraft = (formKey: string) => {
+      const draft = readFormDraft(formKey);
+      const draftAccounts: CompanyBankAccount[] = Array.isArray(draft?.bankAccounts) ? draft!.bankAccounts! : [];
+      const finalAccounts = updatesFromBankForm.length > 0
+        ? mergeBankAccounts(draftAccounts, updatesFromBankForm)
+        : draftAccounts;
+
+      if (draft?.formData) {
+        const draftFormData = draft.formData;
+        setFormData((prev) => ({
+          ...prev,
+          ...draftFormData,
+          date_of_establishment: draftFormData.date_of_establishment
+            ? new Date(draftFormData.date_of_establishment)
+            : null,
+        }));
+      }
+      setBankAccounts(finalAccounts);
+      // Clear the nav state so a refresh/back doesn't re-merge the same accounts.
+      navigate(location.pathname, { replace: true, state: {} });
+    };
+
     if (isEditMode && id) {
       const formKey = `company_form_draft_edit_${id}`;
       setFormDraftKey(formKey);
+      const draft = readFormDraft(formKey);
+      const hasLocalDraft = !!(
+        draft &&
+        (draft.formData || (draft.bankAccounts && draft.bankAccounts.length))
+      );
 
-      const returningFromBankDetails = !!(location.state as any)?.bankAccountsUpdated;
-
-      if (returningFromBankDetails) {
-        restoreFormDraft(formKey);
-        return;
+      if (returningFromBankDetails && hasLocalDraft) {
+        applyDraft(formKey);
+      } else {
+        fetchCompany(id, formKey, updatesFromBankForm);
+        if (returningFromBankDetails) {
+          navigate(location.pathname, { replace: true, state: {} });
+        }
       }
-      fetchCompany(id, formKey);
-    } else {
-      const returningFromBankDetails = !!(location.state as any)?.bankAccountsUpdated;
-      const oldDraftId = sessionStorage.getItem("new_company_draft_id");
-
-      if (returningFromBankDetails && oldDraftId) {
-        const formKey = `company_form_draft_new_${oldDraftId}`;
-        setFormDraftKey(formKey);
-        restoreFormDraft(formKey);
-        return;
-      }
-
-      const oldDraftIdToClear = sessionStorage.getItem("new_company_draft_id");
-      if (oldDraftIdToClear) {
-        localStorage.removeItem(`company_form_draft_new_${oldDraftIdToClear}`);
-      }
-
-      const draftId = `tmp-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
-      sessionStorage.setItem("new_company_draft_id", draftId);
-
-      const formKey = `company_form_draft_new_${draftId}`;
-      setFormDraftKey(formKey);
-
-      setFormData(defaultFormData());
-      setBankAccounts([]);
+      return;
     }
+
+    // ─── New company ───
+    const oldDraftId = sessionStorage.getItem("new_company_draft_id");
+
+    if (returningFromBankDetails && oldDraftId) {
+      const formKey = `company_form_draft_new_${oldDraftId}`;
+      setFormDraftKey(formKey);
+      applyDraft(formKey);
+      return;
+    }
+
+    const oldDraftIdToClear = sessionStorage.getItem("new_company_draft_id");
+    if (oldDraftIdToClear) {
+      localStorage.removeItem(`company_form_draft_new_${oldDraftIdToClear}`);
+    }
+
+    const draftId = `tmp-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+    sessionStorage.setItem("new_company_draft_id", draftId);
+
+    const formKey = `company_form_draft_new_${draftId}`;
+    setFormDraftKey(formKey);
+
+    setFormData(defaultFormData());
+    setBankAccounts([]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, isEditMode]);
 
-  // ─── pick up bank accounts handed back from the Bank Details sub-flow ───
-  useEffect(() => {
-    const state = location.state as { bankAccountsUpdated?: boolean; updatedAccounts?: any[] } | undefined;
-    if (!state?.bankAccountsUpdated) return;
-
-    if (processedBankStateRef.current === state) return;
-    processedBankStateRef.current = state;
-
-    if (Array.isArray(state.updatedAccounts) && state.updatedAccounts.length > 0) {
-      setBankAccounts((prev) => {
-        const merged = [...prev];
-        let primaryKeepIdx: number | null = null;
-
-        state.updatedAccounts!.forEach((raw) => {
-          const row = mapCompanyBankAccountRow(raw);
-          const existingIdx =
-            row.recordId != null
-              ? merged.findIndex((a) => a.recordId === row.recordId)
-              : merged.findIndex((a) => a._key === row._key);
-
-          let idx: number;
-          if (existingIdx >= 0) {
-            merged[existingIdx] = row;
-            idx = existingIdx;
-          } else {
-            merged.push(row);
-            idx = merged.length - 1;
-          }
-
-          if (row.is_primary) primaryKeepIdx = idx;
-        });
-
-        if (primaryKeepIdx === null) return merged;
-        const keepIdx: number = primaryKeepIdx;
-        return merged.map((acc, i) => (i !== keepIdx && acc.is_primary ? { ...acc, is_primary: false } : acc));
-      });
-    }
-
-    navigate(location.pathname, { replace: true, state: {} });
-  }, [location.state]);
-
-
-  const fetchCompany = async (companyId: string, formKey: string) => {
+  const fetchCompany = async (
+    companyId: string,
+    formKey: string,
+    updatesFromBankForm: any[] = []
+  ) => {
     setFetching(true);
     setApiError(null);
     try {
-      const response = await api.get(`/company/${companyId}?_=${Date.now()}`);
+      const response = await api.get(`/company/${companyId}`);
       if (response.data && response.data.success === 1) {
         const data = response.data.data;
-        loadCompanyIntoForm(data);
+        loadCompanyIntoForm(data, updatesFromBankForm);
 
         try {
-          const stored = JSON.parse(localStorage.getItem(formKey) || "null");
+          const stored = readFormDraft(formKey);
           if (stored?.formData) {
             setFormData((prev) => ({
               ...prev,
               ...stored.formData,
-              date_of_establishment: stored.formData.date_of_establishment
+              date_of_establishment: stored.formData?.date_of_establishment
                 ? new Date(stored.formData.date_of_establishment)
                 : null,
             }));
@@ -354,26 +437,6 @@ const AddCompanyForm: React.FC = () => {
       setApiError(err.response?.data?.message || "Failed to fetch company details");
     } finally {
       setFetching(false);
-    }
-  };
-
-  const restoreFormDraft = (formKey: string) => {
-    try {
-      const stored = JSON.parse(localStorage.getItem(formKey) || "null");
-      if (stored?.formData) {
-        setFormData((prev) => ({
-          ...prev,
-          ...stored.formData,
-          date_of_establishment: stored.formData.date_of_establishment
-            ? new Date(stored.formData.date_of_establishment)
-            : null,
-        }));
-      }
-      if (Array.isArray(stored?.bankAccounts)) {
-        setBankAccounts(stored.bankAccounts);
-      }
-    } catch {
-      /* ignore */
     }
   };
 
@@ -397,14 +460,19 @@ const AddCompanyForm: React.FC = () => {
     }
   };
 
-  const loadCompanyIntoForm = (c: any) => {
+  const loadCompanyIntoForm = (c: any, updatesFromBankForm: any[] = []) => {
     setFormData((prev) => ({
       ...prev,
       ...mapApiCompanyToForm(c),
     }));
-    if (Array.isArray(c.bank_details)) {
-      setBankAccounts(c.bank_details.map(mapCompanyBankAccountRow));
-    }
+    const apiBankAccounts: CompanyBankAccount[] = Array.isArray(c.bank_details)
+      ? c.bank_details.map(mapCompanyBankAccountRow)
+      : [];
+    const finalAccounts =
+      updatesFromBankForm.length > 0
+        ? mergeBankAccounts(apiBankAccounts, updatesFromBankForm)
+        : apiBankAccounts;
+    setBankAccounts(finalAccounts);
   };
 
   const scrollToSection = (key: SectionKey) => {
@@ -471,8 +539,6 @@ const AddCompanyForm: React.FC = () => {
           partyId: isEditMode && id ? id : "",
           companyId: isEditMode && id ? Number(id) : null,
           supplierName: formData.company || "New Company",
-          // Always true: the company (and its bank accounts) is only
-          // persisted when the Company form itself is submitted.
           isPendingSupplier: true,
           prefill: bankAccounts.length > 0 ? bankAccounts : undefined,
         },
@@ -480,45 +546,50 @@ const AddCompanyForm: React.FC = () => {
     });
   };
 
-  const removeBankAccount = (idx: number) => {
-    setBankAccounts((prev) => prev.filter((_, i) => i !== idx));
+  // Opens the confirmation modal instead of removing immediately.
+  const requestRemoveBankAccount = (idx: number) => {
+    const account = bankAccounts[idx];
+    if (!account) return;
+    setBankAccountToDelete({ idx, account });
+    setShowDeleteBankConfirm(true);
+  };
+
+  const closeDeleteBankConfirm = () => {
+    if (deletingBankAccount) return;
+    setShowDeleteBankConfirm(false);
+    setBankAccountToDelete(null);
+  };
+
+  // Called when the user confirms deletion in the modal.
+  const confirmRemoveBankAccount = async () => {
+    if (!bankAccountToDelete) return;
+    const { idx, account } = bankAccountToDelete;
+
+    // Not yet persisted (no recordId) — just drop it locally, no API call needed.
+    if (!account.recordId) {
+      setBankAccounts((prev) => prev.filter((_, i) => i !== idx));
+      setShowDeleteBankConfirm(false);
+      setBankAccountToDelete(null);
+      return;
+    }
+
+    setDeletingBankAccount(true);
+    try {
+      await api.delete(`/bank-detail/${account.recordId}`);
+      toast.success("Bank account deleted successfully.");
+      setBankAccounts((prev) => prev.filter((_, i) => i !== idx));
+      setShowDeleteBankConfirm(false);
+      setBankAccountToDelete(null);
+    } catch (err: any) {
+      console.error("Error deleting bank account:", err);
+      const message = err.response?.data?.message || err.message || "Failed to delete bank account";
+      toast.error(message);
+    } finally {
+      setDeletingBankAccount(false);
+    }
   };
 
   // ─── payload builder ────────────────────────────────────────────────────
-
-  const buildBankDetailPayload = (account: Record<string, any>) => ({
-    account_holder_name: (account.account_holder_name || "").trim(),
-    account_type: account.account_type || "Savings",
-
-    bank_name: (account.bank_name || "").trim(),
-    branch_name: (account.branch_name || "").trim(),
-    account_number: (account.account_number || "").trim(),
-    ifsc_code: account.ifsc_code ? String(account.ifsc_code).trim().toUpperCase() : "",
-    micr_code: account.micr_code ? String(account.micr_code).trim() : null,
-    swift_code: account.swift_code ? String(account.swift_code).trim().toUpperCase() : null,
-    iban: account.iban ? String(account.iban).trim().toUpperCase() : null,
-
-    upi_id: account.upi_id || null,
-    currency: account.currency || "INR",
-
-    // Not yet collected in the Bank Account form — sent as null for now.
-    address: null,
-    city: null,
-    district: null,
-    state: null,
-    country: null,
-    pincode: null,
-
-    cancelled_cheque: account.cancelled_cheque || null,
-    passbook_copy: account.passbook_copy || null,
-
-    verified: account.verified ? 1 : 0,
-    verified_by: account.verified ? account.verified_by || "Administrator" : null,
-    verified_on: account.verified ? account.verified_on || null : null,
-
-    is_primary: account.is_primary ? 1 : 0,
-    remarks: account.remarks || null,
-  });
 
   const buildCompanyApiPayload = () => {
     const payload: any = {
@@ -542,7 +613,6 @@ const AddCompanyForm: React.FC = () => {
       pan: formData.pan || null,
       registration_details: formData.registration_details || null,
 
-      // Fields the backend expects but that don't have UI here yet.
       reporting_currency: formData.default_currency.trim() || null,
       company_logo: null,
       date_of_incorporation: null,
@@ -554,8 +624,6 @@ const AddCompanyForm: React.FC = () => {
       website: null,
 
       modified_by: "Administrator",
-
-      // Buying and Selling
       default_buying_terms: formData.default_buying_terms || null,
       default_selling_terms: formData.default_selling_terms || null,
       monthly_sales_target: formData.monthly_sales_target || 0,
@@ -564,14 +632,11 @@ const AddCompanyForm: React.FC = () => {
       purchase_expense_account: formData.purchase_expense_account || null,
       purchase_expense_contra_account: formData.purchase_expense_contra_account || null,
       service_expense_account: formData.service_expense_account || null,
-
-      // Stock and Manufacturing
       default_operating_cost_account: formData.default_operating_cost_account || null,
       default_work_in_progress_warehouse: formData.default_work_in_progress_warehouse || null,
       default_finished_goods_warehouse: formData.default_finished_goods_warehouse || null,
       default_scrap_warehouse: formData.default_scrap_warehouse || null,
-
-      bank_details: bankAccounts.map(buildBankDetailPayload),
+      bank_details: Array.isArray(bankAccounts) ? bankAccounts.map(buildBankDetailPayload) : [],
     };
 
     if (isEditMode && id) {
@@ -705,6 +770,47 @@ const AddCompanyForm: React.FC = () => {
             </div>
             <div className="acf-modal-footer">
               <button className="acf-btn-cancel" onClick={() => setShowValidationSummary(false)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Bank Account Confirmation Modal */}
+      {showDeleteBankConfirm && bankAccountToDelete && (
+        <div className="acf-modal-overlay" onClick={closeDeleteBankConfirm}>
+          <div className="acf-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="acf-modal-header">
+              <h3>Confirm Delete</h3>
+              <button className="acf-modal-close" onClick={closeDeleteBankConfirm} disabled={deletingBankAccount}>
+                <FaTimes />
+              </button>
+            </div>
+            <div className="acf-modal-body">
+              <p>Are you sure you want to delete this bank account?</p>
+              <p className="acf-modal-item-name">
+                <strong>{bankAccountToDelete.account.bank_name || "Bank account"}</strong>
+                {bankAccountToDelete.account.account_number && (
+                  <> &middot; •••• {String(bankAccountToDelete.account.account_number).slice(-4)}</>
+                )}
+              </p>
+              <p className="acf-modal-warning">This action cannot be undone.</p>
+            </div>
+            <div className="acf-modal-footer">
+              <button
+                className="acf-modal-btn-cancel"
+                onClick={closeDeleteBankConfirm}
+                disabled={deletingBankAccount}
+              >
+                Cancel
+              </button>
+              <button
+                className="acf-modal-btn-delete"
+                onClick={confirmRemoveBankAccount}
+                disabled={deletingBankAccount}
+              >
+                {deletingBankAccount && <FaSpinner className="acf-spinning" size={12} />}
+                <FaTrash size={12} /> Delete
+              </button>
             </div>
           </div>
         </div>
@@ -898,53 +1004,8 @@ const AddCompanyForm: React.FC = () => {
                   <label className="acf-label">Default Warehouse for Sales Return</label>
                   <input type="text" name="default_warehouse_for_sales_return" value={formData.default_warehouse_for_sales_return} onChange={handleInputChange} placeholder="Optional" className="acf-input" />
                 </div>
-                {/* <div>
-                  <label className="acf-label">Purchase Expense Account</label>
-                  <input type="text" name="purchase_expense_account" value={formData.purchase_expense_account} onChange={handleInputChange} placeholder="Optional" className="acf-input" />
-                </div>
-              </div> */}
-
-              {/* <div className="acf-section-title"><FaFileInvoiceDollar size={12} /> Purchase &amp; Service Expense</div>
-              <div className="acf-grid-3">
-                <div>
-                  <label className="acf-label">Purchase Expense Account</label>
-                  <input type="text" name="purchase_expense_contra_account" value={formData.purchase_expense_contra_account} onChange={handleInputChange} placeholder="Optional" className="acf-input" />
-                </div>
-                <div>
-                  <label className="acf-label">Service Expense Account</label>
-                  <input type="text" name="service_expense_account" value={formData.service_expense_account} onChange={handleInputChange} placeholder="Optional" className="acf-input" />
-                  <span className="acf-field-note">For service item</span>
-                </div> */}
               </div>
             </div>
-
-            {/* ── Stock and Manufacturing ────────────────────────────── */}
-            {/* <div ref={setSectionRef("stock")} data-section-key="stock">
-              <div className="acf-section-title">
-                <FaIndustry size={12} /> Stock and Manufacturing
-              </div>
-
-              <div className="acf-grid-3">
-                <div>
-                  <label className="acf-label">Default Operating Cost Account</label>
-                  <input type="text" name="default_operating_cost_account" value={formData.default_operating_cost_account} onChange={handleInputChange} placeholder="Optional" className="acf-input" />
-                </div>
-                <div>
-                  <label className="acf-label">Default Work In Progress Warehouse</label>
-                  <input type="text" name="default_work_in_progress_warehouse" value={formData.default_work_in_progress_warehouse} onChange={handleInputChange} placeholder="Optional" className="acf-input" />
-                </div>
-                <div>
-                  <label className="acf-label">Default Finished Goods Warehouse</label>
-                  <input type="text" name="default_finished_goods_warehouse" value={formData.default_finished_goods_warehouse} onChange={handleInputChange} placeholder="Optional" className="acf-input" />
-                </div>
-              </div>
-              <div className="acf-grid-3">
-                <div>
-                  <label className="acf-label">Default Scrap Warehouse</label>
-                  <input type="text" name="default_scrap_warehouse" value={formData.default_scrap_warehouse} onChange={handleInputChange} placeholder="Optional" className="acf-input" />
-                </div>
-              </div>
-            </div> */}
 
             {/* ── Bank Account (navigates out, returns via embedContext) ─ */}
             <div ref={setSectionRef("bank")} data-section-key="bank">
@@ -1001,7 +1062,7 @@ const AddCompanyForm: React.FC = () => {
                         <button
                           type="button"
                           className="acf-bank-remove-btn"
-                          onClick={(e) => { e.stopPropagation(); removeBankAccount(idx); }}
+                          onClick={(e) => { e.stopPropagation(); requestRemoveBankAccount(idx); }}
                           title="Remove"
                         >
                           <FaTimesCircle size={14} />

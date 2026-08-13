@@ -1509,19 +1509,6 @@ select.jcf-input {
   cursor: not-allowed;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 /* Mode Selector */
 .jcf-mode-selector {
   display: flex;
@@ -1701,60 +1688,87 @@ select.jcf-input {
   margin: 0;
   font-size: 14px;
 }
-
 /* ─── Job Type Selector ──────────────────────────────────── */
 
 .jcf-job-type-selector {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 24px;
+  display: inline-flex;
+  gap: 8px;
+  margin-bottom: 20px;
   background: var(--bg-secondary, #f1f5f9);
-  padding: 8px;
-  border-radius: 12px;
+  padding: 6px;
+  border-radius: 10px;
   border: 1px solid var(--border-color, #e2e8f0);
+  width: auto;
 }
 
 .jcf-job-type-btn {
-  flex: 1;
-  display: flex;
+  flex: 0 1 auto;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  padding: 12px 24px;
+  gap: 8px;
+  padding: 10px 20px;
   border: none;
   border-radius: 8px;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
-  background: transparent;
-  color: var(--text-secondary, #64748b);
+  background: var(--bg-secondary, #e2e8f0);
+  color: var(--text-primary, #1e293b) !important;
+  white-space: nowrap;
+}
+
+.jcf-job-type-btn span {
+  color: var(--text-primary, #1e293b) !important;
+}
+
+.jcf-job-type-btn svg {
+  color: var(--text-secondary, #64748b) !important;
+  font-size: 16px;
 }
 
 .jcf-job-type-btn:hover {
-  background: var(--bg-hover, #e2e8f0);
-  color: var(--text-primary, #0f172a);
+  background: rgba(255, 255, 255, 0.5);
+  color: var(--text-primary, #1e293b) !important;
+}
+
+.jcf-job-type-btn:hover span {
+  color: var(--text-primary, #1e293b) !important;
+}
+
+.jcf-job-type-btn:hover svg {
+  color: var(--text-primary, #1e293b) !important;
 }
 
 .jcf-job-type-btn.active {
   background: var(--primary-color, #2563eb);
-  color: #ffffff;
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+  color: #ffffff !important;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+}
+
+.jcf-job-type-btn.active span {
+  color: #ffffff !important;
 }
 
 .jcf-job-type-btn.active svg {
-  color: #ffffff;
+  color: #ffffff !important;
 }
 
-.jcf-job-type-btn svg {
-  font-size: 18px;
-  color: var(--text-secondary, #64748b);
+@media (max-width: 768px) {
+  .jcf-job-type-selector {
+    display: flex;
+    width: 100%;
+    max-width: 100%;
+  }
+  
+  .jcf-job-type-btn {
+    flex: 1;
+    padding: 8px 16px;
+    font-size: 13px;
+    justify-content: center;
+  }
 }
-
-.jcf-job-type-btn.active svg {
-  color: #ffffff;
-}
-
 /* ─── Subcontracting Section ─────────────────────────────── */
 
 .jcf-subcontracting-section {
@@ -1924,22 +1938,85 @@ select.jcf-input {
 }
 
 .jcf-page.dark .jcf-job-type-btn {
-  color: var(--text-secondary-dark, #94a3b8);
+  color: #ffffff !important;
 }
 
-.jcf-page.dark .jcf-job-type-btn:hover {
-  background: var(--bg-hover-dark, #334155);
-  color: var(--text-primary-dark, #f1f5f9);
+.jcf-page.dark .jcf-job-type-btn span {
+  color: #ffffff !important;
+}
+
+.jcf-page.dark .jcf-job-type-btn svg {
+  color: #ffffff !important;
 }
 
 .jcf-page.dark .jcf-job-type-btn.active {
   background: var(--primary-color-dark, #3b82f6);
-  color: #ffffff;
+  color: #ffffff !important;
+}
+
+.jcf-page.dark .jcf-job-type-btn.active span {
+  color: #ffffff !important;
+}
+
+.jcf-page.dark .jcf-job-type-btn.active svg {
+  color: #ffffff !important;
+}
+
+.jcf-page.dark .jcf-card {
+  background: var(--bg-primary-dark, #0f172a);
+  border-color: var(--border-color-dark, #334155);
 }
 
 .jcf-page.dark .jcf-card-header {
   color: var(--text-primary-dark, #f1f5f9);
   border-bottom-color: var(--border-color-dark, #334155);
+}
+
+.jcf-page.dark .jcf-step-progress {
+  background: var(--bg-secondary-dark, #1e293b);
+  border-color: var(--border-color-dark, #334155);
+}
+
+.jcf-page.dark .jcf-step-number {
+  background: var(--bg-secondary-dark, #334155);
+  color: var(--text-secondary-dark, #94a3b8);
+}
+
+.jcf-page.dark .jcf-step-item.active .jcf-step-number {
+  background: var(--primary-color-dark, #3b82f6);
+  color: #ffffff;
+}
+
+.jcf-page.dark .jcf-step-label {
+  color: var(--text-secondary-dark, #94a3b8);
+}
+
+.jcf-page.dark .jcf-step-item.active .jcf-step-label {
+  color: var(--text-primary-dark, #f1f5f9);
+}
+
+.jcf-page.dark .jcf-step-line {
+  background: var(--border-color-dark, #334155);
+}
+
+.jcf-page.dark .jcf-reason-btn {
+  border-color: var(--border-color-dark, #334155);
+  color: var(--text-secondary-dark, #94a3b8);
+}
+
+.jcf-page.dark .jcf-reason-btn:hover {
+  border-color: var(--primary-color-dark, #3b82f6);
+  background: var(--bg-hover-dark, #334155);
+}
+
+.jcf-page.dark .jcf-reason-btn.selected {
+  border-color: var(--primary-color-dark, #3b82f6);
+  background: var(--primary-dark, #1e40af);
+  color: #93c5fd;
+}
+
+.jcf-page.dark .jcf-subcontracting-table {
+  border-color: var(--border-color-dark, #334155);
 }
 
 .jcf-page.dark .jcf-subcontracting-table thead {
@@ -1968,71 +2045,32 @@ select.jcf-input {
   border-top-color: var(--border-color-dark, #334155);
 }
 
-.jcf-page.dark .jcf-section-badge {
+.jcf-page.dark .jcf-cell-input {
+  background: var(--bg-primary-dark, #1e293b);
+  border-color: var(--border-color-dark, #334155);
+  color: var(--text-primary-dark, #f1f5f9);
+}
+
+.jcf-page.dark .jcf-cell-select {
+  background: var(--bg-primary-dark, #1e293b);
+  border-color: var(--border-color-dark, #334155);
+  color: var(--text-primary-dark, #f1f5f9);
+}
+
+.jcf-page.dark .jcf-grand-total-box {
   background: var(--primary-dark, #1e40af);
+}
+
+.jcf-page.dark .jcf-grand-total-value {
   color: #93c5fd;
 }
 
-.jcf-page.dark .jcf-status-submitted {
-  background: var(--primary-dark, #1e40af);
+.jcf-page.dark .jcf-charge-breakdown {
+  background: var(--bg-secondary-dark, #1e293b);
+}
+
+.jcf-page.dark .jcf-breakdown-total {
   color: #93c5fd;
-}
-
-.jcf-page.dark .jcf-status-completed {
-  background: var(--success-dark, #14532d);
-  color: #86efac;
-}
-
-.jcf-page.dark .jcf-status-pending {
-  background: var(--warning-dark, #78350f);
-  color: #fcd34d;
-}
-
-
-
-/* ─── Job Type Selector - Compact ────────────────────────── */
-
-.jcf-job-type-selector {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 20px;
-  background: var(--bg-secondary, #f1f5f9);
-  padding: 6px;
-  border-radius: 10px;
-  border: 1px solid var(--border-color, #e2e8f0);
-  max-width: 400px;
-}
-
-.jcf-job-type-btn {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 8px 20px;
-  border: none;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  background: transparent;
-  color: var(--text-secondary, #64748b);
-}
-
-.jcf-job-type-btn:hover {
-  background: var(--bg-hover, #e2e8f0);
-  color: var(--text-primary, #0f172a);
-}
-
-.jcf-job-type-btn.active {
-  background: var(--primary-color, #2563eb);
-  color: #ffffff;
-  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
-}
-
-.jcf-job-type-btn svg {
-  font-size: 14px;
 }
 
 /* ─── Step Progress ────────────────────────────────────────── */
@@ -2153,11 +2191,6 @@ select.jcf-input {
 .jcf-subcontracting-section {
   margin-top: 20px;
   animation: slideDown 0.3s ease;
-}
-
-@keyframes slideDown {
-  from { opacity: 0; transform: translateY(-8px); }
-  to { opacity: 1; transform: translateY(0); }
 }
 
 .jcf-card {
@@ -2452,135 +2485,56 @@ select.jcf-input {
     width: 60px;
   }
 }
+/* ─── DigitInput Fix ────────────────────────────────────────── */
 
-/* ─── Dark Theme ───────────────────────────────────────────── */
-
-.jcf-page.dark .jcf-job-type-selector {
-  background: var(--bg-secondary-dark, #1e293b);
-  border-color: var(--border-color-dark, #334155);
+.digit-input-wrapper {
+  display: block;
+  width: 100%;
 }
 
-.jcf-page.dark .jcf-job-type-btn {
-  color: var(--text-secondary-dark, #94a3b8);
+.digit-input {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px;
+  font-family: var(--jcf-font, 'Inter', sans-serif);
+  font-size: 14px;
+  color: var(--text-primary, #1e293b);
+  background: var(--bg-primary, #ffffff);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 6px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-.jcf-page.dark .jcf-job-type-btn:hover {
-  background: var(--bg-hover-dark, #334155);
-  color: var(--text-primary-dark, #f1f5f9);
+.digit-input:focus {
+  border-color: var(--primary-color, #2563eb);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
-.jcf-page.dark .jcf-job-type-btn.active {
-  background: var(--primary-color-dark, #3b82f6);
-  color: #ffffff;
+.digit-input:disabled {
+  background: var(--bg-secondary, #f1f5f9);
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
-.jcf-page.dark .jcf-card {
-  background: var(--bg-primary-dark, #0f172a);
-  border-color: var(--border-color-dark, #334155);
+.digit-input-focused {
+  border-color: var(--primary-color, #2563eb);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
-.jcf-page.dark .jcf-card-header {
-  color: var(--text-primary-dark, #f1f5f9);
-  border-bottom-color: var(--border-color-dark, #334155);
+.digit-input-disabled {
+  background: var(--bg-secondary, #f1f5f9);
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
-.jcf-page.dark .jcf-step-progress {
-  background: var(--bg-secondary-dark, #1e293b);
-  border-color: var(--border-color-dark, #334155);
+/* Remove any extra input styling from input-group */
+.input-group {
+  display: block;
+  width: 100%;
 }
 
-.jcf-page.dark .jcf-step-number {
-  background: var(--bg-secondary-dark, #334155);
-  color: var(--text-secondary-dark, #94a3b8);
-}
-
-.jcf-page.dark .jcf-step-item.active .jcf-step-number {
-  background: var(--primary-color-dark, #3b82f6);
-  color: #ffffff;
-}
-
-.jcf-page.dark .jcf-step-label {
-  color: var(--text-secondary-dark, #94a3b8);
-}
-
-.jcf-page.dark .jcf-step-item.active .jcf-step-label {
-  color: var(--text-primary-dark, #f1f5f9);
-}
-
-.jcf-page.dark .jcf-step-line {
-  background: var(--border-color-dark, #334155);
-}
-
-.jcf-page.dark .jcf-reason-btn {
-  border-color: var(--border-color-dark, #334155);
-  color: var(--text-secondary-dark, #94a3b8);
-}
-
-.jcf-page.dark .jcf-reason-btn:hover {
-  border-color: var(--primary-color-dark, #3b82f6);
-  background: var(--bg-hover-dark, #334155);
-}
-
-.jcf-page.dark .jcf-reason-btn.selected {
-  border-color: var(--primary-color-dark, #3b82f6);
-  background: var(--primary-dark, #1e40af);
-  color: #93c5fd;
-}
-
-.jcf-page.dark .jcf-subcontracting-table {
-  border-color: var(--border-color-dark, #334155);
-}
-
-.jcf-page.dark .jcf-subcontracting-table thead {
-  background: var(--bg-secondary-dark, #1e293b);
-}
-
-.jcf-page.dark .jcf-subcontracting-table th {
-  color: var(--text-secondary-dark, #94a3b8);
-  border-bottom-color: var(--border-color-dark, #334155);
-}
-
-.jcf-page.dark .jcf-subcontracting-table td {
-  border-bottom-color: var(--border-color-dark, #334155);
-  color: var(--text-primary-dark, #f1f5f9);
-}
-
-.jcf-page.dark .jcf-subcontracting-table tbody tr:hover {
-  background: var(--bg-hover-dark, #334155);
-}
-
-.jcf-page.dark .jcf-subcontracting-table tfoot {
-  background: var(--bg-secondary-dark, #1e293b);
-}
-
-.jcf-page.dark .jcf-subcontracting-table tfoot td {
-  border-top-color: var(--border-color-dark, #334155);
-}
-
-.jcf-page.dark .jcf-cell-input {
-  background: var(--bg-primary-dark, #1e293b);
-  border-color: var(--border-color-dark, #334155);
-  color: var(--text-primary-dark, #f1f5f9);
-}
-
-.jcf-page.dark .jcf-cell-select {
-  background: var(--bg-primary-dark, #1e293b);
-  border-color: var(--border-color-dark, #334155);
-  color: var(--text-primary-dark, #f1f5f9);
-}
-
-.jcf-page.dark .jcf-grand-total-box {
-  background: var(--primary-dark, #1e40af);
-}
-
-.jcf-page.dark .jcf-grand-total-value {
-  color: #93c5fd;
-}
-
-.jcf-page.dark .jcf-charge-breakdown {
-  background: var(--bg-secondary-dark, #1e293b);
-}
-
-.jcf-page.dark .jcf-breakdown-total {
-  color: #93c5fd;
+.input-group .digit-input-wrapper {
+  display: block;
+  width: 100%;
 }

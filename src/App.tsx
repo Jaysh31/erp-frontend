@@ -8,12 +8,12 @@ import ItemGroupForm from "./pages/Setup/Itemgroupform";
 import ItemGroupList from "./pages/Setup/Itemgrouplist";
 import Itemlist from "./pages/Setup/Itemlist";
 import ItemForm from "./pages/Setup/Itemform";
-import ItemAttributeList from "./pages/Setup/ItemAttributeList";
+// import ItemAttributeList from "./pages/Setup/ItemAttributeList";
 import ItemAttributeForm from "./pages/Setup/ItemAttributeForm";
 import WarehouseForm from "./pages/Setup/WarehouseForm";
 import WarehouseList from "./pages/Setup/WarehouseList";
-import BrandForm from "./pages/Setup/BrandForm";
-import BrandList from "./pages/Setup/BrandList";
+//  import BrandForm from "./pages/Setup/BrandForm";
+// import BrandList from "./pages/Setup/BrandList";
 import UOMForm from "./pages/Setup/UOMForm";
 import UOMList from "./pages/Setup/UOMList";
 import Settings from "./pages/Settings";
@@ -105,6 +105,9 @@ import CustomerInvoices from "./pages/Sales/customerinvoices";
 import SupplierBills from "./pages/Sales/supplierbills";
 import InventoryDetail from "./pages/Manufacturing/InventoryDetail";
 import { FormStateProvider } from "./context/FormStateContext";
+
+import ProformaInvoice from "./pages/Sales/ProformaInvoice";
+import CreateProformaInvoice from "./pages/Sales/CreateProformaInvoice";
 
 
 function App() {
@@ -247,7 +250,7 @@ function App() {
               {/* Item Routes */}
               <Route path="/item-list" element={<Itemlist />} />
               <Route path="/item/:id" element={<ItemForm />} />
-              <Route path="/item-attribute" element={<ItemAttributeList />} />
+              {/* <Route path="/item-attribute" element={<ItemAttributeList />} /> */}
               <Route path="/item-attribute/new" element={<ItemAttributeForm />} />
               <Route path="/item-attribute/:id" element={<ItemAttributeForm />} />
 
@@ -257,7 +260,10 @@ function App() {
               <Route path="/purchase-order/new" element={<PurchaseOrderForm />} />
               <Route path="/purchase-order/edit/:id" element={<PurchaseOrderForm />} />
               <Route path="/purchase-order/view/:id" element={<PurchaseOrderForm />} />
+              <Route path="/proforma-invoice" element={<ProformaInvoice />} />
+              <Route path="/proforma-invoice/new" element={<CreateProformaInvoice />} />
 
+              
               {/* Organization Routes */}
               <Route path="/company" element={<CompanyList />} />
               <Route path="/company/new" element={<AddCompanyForm />} />
@@ -283,9 +289,9 @@ function App() {
               <Route path="/work-order/:id" element={<WorkOrderForm />} />
 
               {/* Brand Routes */}
-              <Route path="/brand" element={<BrandList />} />
+              {/* <Route path="/brand" element={<BrandList />} />
               <Route path="/brand/new" element={<BrandForm />} />
-              <Route path="/brand/:id" element={<BrandForm />} />
+              <Route path="/brand/:id" element={<BrandForm />} /> */}
 
 
               {/* NewWorkstation Routes */}

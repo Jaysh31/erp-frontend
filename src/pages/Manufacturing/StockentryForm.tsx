@@ -1,4 +1,4 @@
-// StockEntryForm.tsx - Complete fixed version
+// StockEntryForm.tsx - Complete file with all fixes and validation
 
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -12,14 +12,14 @@ import {
   FaTimesCircle,
   FaPlus,
   FaTrash,
-  FaSearch,
   FaWarehouse,
-  
   FaClipboardList,
   FaBarcode,
   FaPrint,
   FaLink,
   FaCalculator,
+  FaChevronDown,
+  FaEye,
 } from "react-icons/fa";
 import "./StockEntryForm.css";
 import { useAdminTheme } from "../../admin-theme/AdminThemeContext";
@@ -32,8 +32,10 @@ interface ItemRow {
   sourceWarehouse: string;
   targetWarehouse: string;
   itemCode: string;
+  itemName: string;
   qty: string;
   basicRate: string;
+  amount: string;
   itemTaxTemplate: string;
 }
 
@@ -57,6 +59,27 @@ interface WarehouseOption {
   disabled: number;
 }
 
+interface WorkOrderOption {
+  id: number;
+  name: string;
+  status?: string;
+  description?: string;
+  qty?: number;
+  bom?: string;
+  company?: string;
+}
+
+interface ItemOption {
+  id: number;
+  item_code: string;
+  item_name: string;
+  description?: string;
+  stock_uom?: string;
+  rate?: number;
+  hsn?: string;
+  tax_rate?: number;
+}
+
 interface StockEntryData {
   name: string;
   company: string;
@@ -76,6 +99,8 @@ interface StockEntryData {
   isOpening: string;
   perTransferred: string;
   remarks: string;
+  workOrder: string;
+  workOrderData: WorkOrderOption | null;
   items: ItemRow[];
   additionalCosts: AdditionalCostRow[];
 }
@@ -213,8 +238,10 @@ const emptyItem = (): ItemRow => ({
   sourceWarehouse: "",
   targetWarehouse: "",
   itemCode: "",
-  qty: "0.000",
-  basicRate: "0.00",
+  itemName: "",
+  qty: "",
+  basicRate: "",
+  amount: "",
   itemTaxTemplate: "",
 });
 
@@ -222,7 +249,7 @@ const emptyCost = (): AdditionalCostRow => ({
   id: uid(),
   expenseAccount: "",
   description: "",
-  amount: "0.00",
+  amount: "",
 });
 
 const emptyStockEntry = (): StockEntryData => {
@@ -246,188 +273,12 @@ const emptyStockEntry = (): StockEntryData => {
     isOpening: "No",
     perTransferred: "100",
     remarks: "Material transferred for production.",
-    items: [emptyItem(), emptyItem()],
-    additionalCosts: [], // Start with empty additional costs
+    workOrder: "",
+    workOrderData: null,
+    items: [emptyItem()],
+    additionalCosts: [],
   };
 };
-
-// ─── Warehouse Search Component ────────────────────────────────────────
-
-interface WarehouseSearchFieldProps {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  required?: boolean;
-  disabled?: boolean;
-  placeholder?: string;
-  hint?: string;
-  className?: string;
-  error?: string;
-}
-
-function WarehouseSearchField({
-  label,
-  value,
-  onChange,
-  required = false,
-  disabled = false,
-  placeholder = "Search warehouse...",
-  hint,
-  className = "",
-  error,
-}: WarehouseSearchFieldProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [warehouses, setWarehouses] = useState<WarehouseOption[]>([]);
-  const [filteredWarehouses, setFilteredWarehouses] = useState<WarehouseOption[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [fetchError, setFetchError] = useState<string | null>(null);
-  const wrapperRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    const fetchWarehouses = async () => {
-      setLoading(true);
-      setFetchError(null);
-      try {
-        const response = await api.get("/warehouse");
-        if (response.data.success === 1) {
-          const records = response.data.data?.records || [];
-          setWarehouses(records);
-          setFilteredWarehouses(records);
-        } else {
-          setFetchError("Failed to load warehouses");
-        }
-      } catch (err) {
-        console.error("Error fetching warehouses:", err);
-        setFetchError("Could not load warehouse list");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchWarehouses();
-  }, []);
-
-  useEffect(() => {
-    if (!searchTerm.trim()) {
-      setFilteredWarehouses(warehouses);
-      return;
-    }
-    const term = searchTerm.toLowerCase().trim();
-    const filtered = warehouses.filter((w) =>
-      w.warehouse_name.toLowerCase().includes(term) ||
-      (w.company && w.company.toLowerCase().includes(term))
-    );
-    setFilteredWarehouses(filtered);
-  }, [searchTerm, warehouses]);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const handleSelectWarehouse = (warehouse: WarehouseOption) => {
-    onChange(warehouse.warehouse_name);
-    setSearchTerm(warehouse.warehouse_name);
-    setIsOpen(false);
-  };
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setSearchTerm(val);
-    onChange(val);
-    setIsOpen(true);
-  };
-
-  const handleFocus = () => {
-    if (!disabled) {
-      setSearchTerm(value);
-      setIsOpen(true);
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Escape") {
-      setIsOpen(false);
-    }
-  };
-
-  return (
-    <div className={`warehouse-search-field ${className}`} ref={wrapperRef}>
-      <label className="sef-label">
-        {label}
-        {required && <span className="sef-required"> *</span>}
-      </label>
-      <div className="warehouse-search-wrapper">
-        <div className="warehouse-search-input-wrap">
-          <FaSearch className="warehouse-search-icon" />
-          <input
-            ref={inputRef}
-            type="text"
-            value={searchTerm || value}
-            onChange={handleInputChange}
-            onFocus={handleFocus}
-            onKeyDown={handleKeyDown}
-            placeholder={placeholder}
-            disabled={disabled || loading}
-            className={`form-field warehouse-search-input ${error ? "field-error" : ""}`}
-          />
-          {loading && <FaSpinner className="warehouse-loading-spinner spinning" />}
-          {value && !disabled && (
-            <button
-              type="button"
-              className="warehouse-clear-btn"
-              onClick={() => {
-                onChange("");
-                setSearchTerm("");
-                setIsOpen(false);
-              }}
-              aria-label="Clear selection"
-            >
-              ×
-            </button>
-          )}
-        </div>
-
-        {isOpen && !disabled && (
-          <div className="warehouse-dropdown">
-            {loading ? (
-              <div className="warehouse-dropdown-loading">Loading warehouses...</div>
-            ) : fetchError ? (
-              <div className="warehouse-dropdown-error">{fetchError}</div>
-            ) : filteredWarehouses.length === 0 ? (
-              <div className="warehouse-dropdown-empty">
-                {searchTerm ? "No warehouses found" : "No warehouses available"}
-              </div>
-            ) : (
-              <ul className="warehouse-dropdown-list">
-                {filteredWarehouses.map((warehouse) => (
-                  <li
-                    key={warehouse.id}
-                    className={`warehouse-dropdown-item ${value === warehouse.warehouse_name ? "selected" : ""}`}
-                    onClick={() => handleSelectWarehouse(warehouse)}
-                  >
-                    <div className="warehouse-item-name">{warehouse.warehouse_name}</div>
-                    {warehouse.company && (
-                      <div className="warehouse-item-company">{warehouse.company}</div>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
-      </div>
-      {hint && <span className="sef-hint">{hint}</span>}
-      {error && <div className="sef-error-msg">{error}</div>}
-    </div>
-  );
-}
 
 // ─── Main Component ─────────────────────────────────────────────────────
 
@@ -439,15 +290,29 @@ export default function StockEntryForm() {
 
   const [se, setSe] = useState<StockEntryData>(emptyStockEntry());
   const [activeTab, setActiveTab] = useState<TabKey>("details");
-  const [, setIsDirty] = useState(isNew);
   const [submitting, setSubmitting] = useState(false);
-  const [loading, ] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [showValidationSummary, setShowValidationSummary] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [apiError, setApiError] = useState<string | null>(null);
   
   const [warehouses, setWarehouses] = useState<WarehouseOption[]>([]);
   const [warehousesLoading, setWarehousesLoading] = useState(false);
+  const [workOrders, setWorkOrders] = useState<WorkOrderOption[]>([]);
+  const [workOrdersLoading, setWorkOrdersLoading] = useState(false);
+  const [items, setItems] = useState<ItemOption[]>([]);
+  const [itemsLoading, setItemsLoading] = useState(false);
+  
+  // Dropdown states
+  const [showWorkOrderDropdown, setShowWorkOrderDropdown] = useState(false);
+  const [showItemDropdown, setShowItemDropdown] = useState<string | null>(null);
+  const [workOrderSearch, setWorkOrderSearch] = useState("");
+  const [itemSearch, setItemSearch] = useState<{ [key: string]: string }>({});
+  const [filteredWorkOrders, setFilteredWorkOrders] = useState<WorkOrderOption[]>([]);
+  
+  // Refs for dropdowns
+  const workOrderRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
   const disabled = submitting || loading;
 
@@ -457,28 +322,94 @@ export default function StockEntryForm() {
     message: string;
   }
 
+  // ─── Fetch Data ──────────────────────────────────────────────────────
+
   useEffect(() => {
-    const fetchWarehouses = async () => {
+    const fetchData = async () => {
       try {
         setWarehousesLoading(true);
-        const response = await api.get("/warehouse");
-        if (response.data.success === 1) {
-          const records = response.data.data?.records || [];
+        const warehouseResponse = await api.get("/warehouse");
+        if (warehouseResponse.data.success === 1) {
+          const records = warehouseResponse.data.data?.records || [];
           setWarehouses(records);
         }
+
+        setWorkOrdersLoading(true);
+        const workOrderResponse = await api.get("/work-order");
+        if (workOrderResponse.data.success === 1) {
+          const records = workOrderResponse.data.data?.records || [];
+          setWorkOrders(records);
+          setFilteredWorkOrders(records);
+        }
+
+        setItemsLoading(true);
+        const itemResponse = await api.get("/item");
+        if (itemResponse.data.success === 1) {
+          const records = itemResponse.data.data?.records || [];
+          setItems(records);
+        }
       } catch (error) {
-        console.error("Error fetching warehouses:", error);
-        setWarehouses([]);
+        console.error("Error fetching data:", error);
       } finally {
         setWarehousesLoading(false);
+        setWorkOrdersLoading(false);
+        setItemsLoading(false);
       }
     };
-    fetchWarehouses();
+    fetchData();
   }, []);
+
+  // ─── Filter Functions ────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!workOrderSearch.trim()) {
+      setFilteredWorkOrders(workOrders);
+      return;
+    }
+    const term = workOrderSearch.toLowerCase().trim();
+    const filtered = workOrders.filter((wo) =>
+      (wo.name || "").toLowerCase().includes(term) ||
+      (wo.status || "").toLowerCase().includes(term)
+    );
+    setFilteredWorkOrders(filtered);
+  }, [workOrderSearch, workOrders]);
+
+  // ─── Click Outside Handlers ────────────────────────────────────────────
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      
+      if (workOrderRef.current && !workOrderRef.current.contains(target)) {
+        setShowWorkOrderDropdown(false);
+      }
+      
+      Object.keys(itemRefs.current).forEach((key) => {
+        if (itemRefs.current[key] && !itemRefs.current[key]?.contains(target)) {
+          setShowItemDropdown(null);
+        }
+      });
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // ─── View Functions ────────────────────────────────────────────────────
+
+  const handleViewWorkOrder = (workOrder: WorkOrderOption) => {
+    if (workOrder && workOrder.id) {
+      navigate(`/work-order/${workOrder.id}`);
+    }
+  };
+
+  const handleViewItem = (item: ItemOption) => {
+    if (item && item.id) {
+      navigate(`/item/${item.id}`);
+    }
+  };
 
   const setField = <K extends keyof StockEntryData>(field: K, value: StockEntryData[K]) => {
     setSe((prev) => ({ ...prev, [field]: value }));
-    setIsDirty(true);
   };
 
   const updateItem = (rowId: string, field: keyof ItemRow, value: string) => {
@@ -486,20 +417,126 @@ export default function StockEntryForm() {
       ...prev,
       items: prev.items.map((item) => (item.id === rowId ? { ...item, [field]: value } : item)),
     }));
-    setIsDirty(true);
+  };
+
+  const handleItemSelect = (rowId: string, itemData: ItemOption) => {
+    if (itemData) {
+      setSe((prev) => ({
+        ...prev,
+        items: prev.items.map((item) =>
+          item.id === rowId
+            ? {
+                ...item,
+                itemCode: itemData.item_code,
+                itemName: itemData.item_name || "",
+                basicRate: itemData.rate ? itemData.rate.toString() : "0",
+              }
+            : item
+        ),
+      }));
+      const item = se.items.find((i) => i.id === rowId);
+      if (item) {
+        const qty = parseFloat(item.qty) || 0;
+        const rate = itemData.rate || 0;
+        const amount = qty * rate;
+        updateItem(rowId, "amount", amount.toString());
+      }
+    }
+    setShowItemDropdown(null);
+    setItemSearch(prev => ({ ...prev, [rowId]: "" }));
+  };
+
+  const handleWorkOrderSelect = (workOrderData: WorkOrderOption) => {
+    setSe((prev) => ({
+      ...prev,
+      workOrder: workOrderData.name || workOrderData.id?.toString() || "",
+      workOrderData: workOrderData,
+    }));
+    setShowWorkOrderDropdown(false);
+    setWorkOrderSearch("");
+  };
+
+  // ─── FIXED: Only allow numbers for Qty (max 20 digits) ────────────────
+  const updateQty = (rowId: string, value: string) => {
+    // Remove all non-digit and non-decimal characters
+    const cleaned = value.replace(/[^0-9.]/g, "");
+    
+    // Check for multiple decimal points
+    const parts = cleaned.split(".");
+    if (parts.length > 2) return;
+    
+    // Check decimal places (max 3 decimal places)
+    if (parts.length === 2 && parts[1].length > 3) return;
+    
+    // Check total digits (max 20)
+    const digitsOnly = cleaned.replace(/\./g, "");
+    if (digitsOnly.length > 20) return;
+    
+    updateItem(rowId, "qty", cleaned);
+    const item = se.items.find((i) => i.id === rowId);
+    if (item) {
+      const qty = parseFloat(cleaned) || 0;
+      const rate = parseFloat(item.basicRate) || 0;
+      const amount = qty * rate;
+      updateItem(rowId, "amount", amount.toFixed(2));
+    }
+  };
+
+  // ─── FIXED: Only allow numbers for Basic Rate (max 20 digits) ──────────
+  const updateRate = (rowId: string, value: string) => {
+    // Remove all non-digit and non-decimal characters
+    const cleaned = value.replace(/[^0-9.]/g, "");
+    
+    // Check for multiple decimal points
+    const parts = cleaned.split(".");
+    if (parts.length > 2) return;
+    
+    // Check decimal places (max 2 decimal places)
+    if (parts.length === 2 && parts[1].length > 2) return;
+    
+    // Check total digits (max 20)
+    const digitsOnly = cleaned.replace(/\./g, "");
+    if (digitsOnly.length > 20) return;
+    
+    updateItem(rowId, "basicRate", cleaned);
+    const item = se.items.find((i) => i.id === rowId);
+    if (item) {
+      const qty = parseFloat(item.qty) || 0;
+      const rate = parseFloat(cleaned) || 0;
+      const amount = qty * rate;
+      updateItem(rowId, "amount", amount.toFixed(2));
+    }
+  };
+
+  // ─── FIXED: Only allow numbers for Amount (max 20 digits) ──────────────
+  const updateAmount = (rowId: string, value: string) => {
+    // Remove all non-digit and non-decimal characters
+    const cleaned = value.replace(/[^0-9.]/g, "");
+    
+    // Check for multiple decimal points
+    const parts = cleaned.split(".");
+    if (parts.length > 2) return;
+    
+    // Check decimal places (max 2 decimal places)
+    if (parts.length === 2 && parts[1].length > 2) return;
+    
+    // Check total digits (max 20)
+    const digitsOnly = cleaned.replace(/\./g, "");
+    if (digitsOnly.length > 20) return;
+    
+    updateItem(rowId, "amount", cleaned);
   };
 
   const addItem = () => {
     setSe((prev) => ({ ...prev, items: [...prev.items, emptyItem()] }));
-    setIsDirty(true);
   };
 
   const removeItem = (rowId: string) => {
+    if (se.items.length <= 1) return;
     setSe((prev) => ({
       ...prev,
       items: prev.items.filter((item) => item.id !== rowId),
     }));
-    setIsDirty(true);
   };
 
   const updateCost = (rowId: string, field: keyof AdditionalCostRow, value: string) => {
@@ -509,12 +546,10 @@ export default function StockEntryForm() {
         cost.id === rowId ? { ...cost, [field]: value } : cost
       ),
     }));
-    setIsDirty(true);
   };
 
   const addCost = () => {
     setSe((prev) => ({ ...prev, additionalCosts: [...prev.additionalCosts, emptyCost()] }));
-    setIsDirty(true);
   };
 
   const removeCost = (rowId: string) => {
@@ -522,20 +557,22 @@ export default function StockEntryForm() {
       ...prev,
       additionalCosts: prev.additionalCosts.filter((cost) => cost.id !== rowId),
     }));
-    setIsDirty(true);
   };
 
   // ─── Calculations ──────────────────────────────────────────────────────
 
-  const totalOutgoingValue = 50000.00;
-  const totalIncomingValue = 50000.00;
+  const totalOutgoingValue = se.items.reduce((sum, item) => {
+    return sum + (parseFloat(item.amount) || 0);
+  }, 0);
+
+  const totalIncomingValue = totalOutgoingValue;
   const totalValueDifference = 0.00;
   const totalEstimatedTaxes = 0.00;
   const totalAdditionalCosts = se.additionalCosts.reduce((sum, cost) => sum + (parseFloat(cost.amount) || 0), 0);
-  const totalAmount = 50500.00;
-  const grandTotal = 50500.00;
+  const totalAmount = totalOutgoingValue + totalAdditionalCosts;
+  const grandTotal = totalAmount;
 
-  // ─── Validation ──────────────────────────────────────────────────────
+  // ─── VALIDATION ──────────────────────────────────────────────────────
 
   const getAllValidationErrors = (): ValidationError[] => {
     const errors: ValidationError[] = [];
@@ -559,32 +596,32 @@ export default function StockEntryForm() {
           message: `Item code is required for row ${idx + 1}`,
         });
       }
-      if (!item.qty || parseFloat(item.qty) <= 0) {
+      
+      const qtyNum = parseFloat(item.qty);
+      if (!item.qty || isNaN(qtyNum) || qtyNum <= 0) {
         errors.push({
           field: `items[${idx}].qty`,
           label: `Item ${idx + 1} Qty`,
-          message: `Quantity must be greater than 0 for row ${idx + 1}`,
+          message: `Quantity must be a positive number for row ${idx + 1}`,
         });
       }
-    });
-
-    // Additional Costs are optional - only validate if they have values
-    se.additionalCosts.forEach((cost, idx) => {
-      if (cost.description.trim() || cost.amount) {
-        if (!cost.description.trim()) {
-          errors.push({
-            field: `additionalCosts[${idx}].description`,
-            label: `Cost ${idx + 1} Description`,
-            message: `Description is required for cost row ${idx + 1}`,
-          });
-        }
-        if (!cost.amount || parseFloat(cost.amount) <= 0) {
-          errors.push({
-            field: `additionalCosts[${idx}].amount`,
-            label: `Cost ${idx + 1} Amount`,
-            message: `Amount must be greater than 0 for cost row ${idx + 1}`,
-          });
-        }
+      
+      const rateNum = parseFloat(item.basicRate);
+      if (!item.basicRate || isNaN(rateNum) || rateNum < 0) {
+        errors.push({
+          field: `items[${idx}].basicRate`,
+          label: `Item ${idx + 1} Rate`,
+          message: `Rate must be a valid non-negative number for row ${idx + 1}`,
+        });
+      }
+      
+      const amountNum = parseFloat(item.amount);
+      if (item.amount && (isNaN(amountNum) || amountNum < 0)) {
+        errors.push({
+          field: `items[${idx}].amount`,
+          label: `Item ${idx + 1} Amount`,
+          message: `Amount must be a valid non-negative number for row ${idx + 1}`,
+        });
       }
     });
 
@@ -608,7 +645,7 @@ export default function StockEntryForm() {
       add_to_transit: data.addToTransit ? 1 : 0,
       apply_putaway_rule: data.applyPutawayRule ? 1 : 0,
       inspection_required: data.inspectionRequired ? 1 : 0,
-      work_order: "WO-00001",
+      work_order: data.workOrder || "",
       subcontracting_order: "",
       outgoing_stock_entry: "",
       source_stock_entry: "",
@@ -676,14 +713,6 @@ export default function StockEntryForm() {
     if (validationErrorsList.length > 0) {
       setValidationErrors(validationErrorsList);
       setShowValidationSummary(true);
-      const firstField = validationErrorsList[0].field;
-      if (["company", "stockEntryType"].includes(firstField)) {
-        setActiveTab("details");
-      } else if (firstField.startsWith("items")) {
-        setActiveTab("details");
-      } else if (firstField.startsWith("additionalCosts")) {
-        setActiveTab("additional");
-      }
       return;
     }
 
@@ -699,8 +728,6 @@ export default function StockEntryForm() {
       }
 
       if (response.data && response.data.success === 1) {
-        console.log(isNew ? "Stock entry created successfully:" : "Stock entry updated successfully:", response.data);
-        setIsDirty(false);
         navigate("/stock-entry");
       } else {
         setApiError(response.data?.message || `Failed to ${isNew ? "create" : "update"} stock entry`);
@@ -708,13 +735,7 @@ export default function StockEntryForm() {
     } catch (err: any) {
       console.error("Error saving stock entry:", err);
       if (err.response) {
-        if (err.response.status === 409) {
-          setApiError("A stock entry with this name already exists");
-        } else if (err.response.status === 400) {
-          setApiError(err.response.data?.message || "Invalid data provided");
-        } else {
-          setApiError(err.response.data?.message || `Failed to ${isNew ? "create" : "update"} stock entry`);
-        }
+        setApiError(err.response.data?.message || `Failed to ${isNew ? "create" : "update"} stock entry`);
       } else if (err.request) {
         setApiError("Network error. Please check your connection.");
       } else {
@@ -764,10 +785,6 @@ export default function StockEntryForm() {
                       <div className="error-message">{error.message}</div>
                     </div>
                   ))}
-                </div>
-                <div className="validation-tip">
-                  <FaInfoCircle className="tip-icon" />
-                  Please fix the errors above before submitting
                 </div>
               </div>
               <div className="modal-footer">
@@ -905,6 +922,81 @@ export default function StockEntryForm() {
 
               <div className="sef-divider" />
 
+              {/* ── Work Order Dropdown ── */}
+              <div className="sef-field">
+                <label className="sef-label">Work Order Reference</label>
+                <div className="dropdown-wrapper" ref={workOrderRef}>
+                  <div className="dropdown-input-wrapper">
+                    <input
+                      type="text"
+                      className="form-field"
+                      placeholder="Search work order..."
+                      value={showWorkOrderDropdown ? workOrderSearch : (se.workOrderData?.name || se.workOrder || "")}
+                      onFocus={() => setShowWorkOrderDropdown(true)}
+                      onChange={(e) => {
+                        setWorkOrderSearch(e.target.value);
+                        setShowWorkOrderDropdown(true);
+                      }}
+                      disabled={disabled || workOrdersLoading}
+                    />
+                    <FaChevronDown 
+                      className="dropdown-arrow" 
+                      onClick={() => setShowWorkOrderDropdown(!showWorkOrderDropdown)}
+                    />
+                    {se.workOrder && (
+                      <button
+                        type="button"
+                        className="dropdown-clear"
+                        onClick={() => {
+                          setSe(prev => ({ ...prev, workOrder: "", workOrderData: null }));
+                          setWorkOrderSearch("");
+                        }}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                  {showWorkOrderDropdown && !disabled && (
+                    <div className="dropdown-menu">
+                      {workOrdersLoading ? (
+                        <div className="dropdown-loading">Loading...</div>
+                      ) : filteredWorkOrders.length === 0 ? (
+                        <div className="dropdown-empty">No work orders found</div>
+                      ) : (
+                        filteredWorkOrders.map((wo) => (
+                          <div
+                            key={wo.id}
+                            className={`dropdown-item ${se.workOrder === (wo.name || wo.id?.toString()) ? "selected" : ""}`}
+                            onClick={() => handleWorkOrderSelect(wo)}
+                          >
+                            <div className="dropdown-item-content">
+                              <span className="dropdown-item-main">{wo.name || wo.id}</span>
+                              <span className="dropdown-item-sub">
+                                {wo.status && `Status: ${wo.status}`}
+                                {wo.qty && ` | Qty: ${wo.qty}`}
+                                {wo.bom && ` | BOM: ${wo.bom}`}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              className="dropdown-view-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleViewWorkOrder(wo);
+                              }}
+                            >
+                              <FaEye size={12} />
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="sef-divider" />
+
               {/* ── Checkboxes ── */}
               <div className="sef-grid-2">
                 <div className="sef-checkbox-field">
@@ -944,28 +1036,40 @@ export default function StockEntryForm() {
               <div className="sef-divider" />
 
               {/* ── Warehouses ── */}
-              <span className="sef-section-title">
-                <FaWarehouse className="sef-section-icon" /> Default Warehouse
-              </span>
-
               <div className="sef-grid-2">
-                <WarehouseSearchField
-                  label="Default Source Warehouse"
-                  value={se.sourceWarehouse}
-                  onChange={(val) => setField("sourceWarehouse", val)}
-                  disabled={disabled}
-                  placeholder="Search source warehouse..."
-                  hint="This is the location where items are taken from."
-                />
+                <div className="sef-field">
+                  <label className="sef-label">Source Warehouse</label>
+                  <select
+                    className="form-field"
+                    value={se.sourceWarehouse}
+                    onChange={(e) => setField("sourceWarehouse", e.target.value)}
+                    disabled={disabled || warehousesLoading}
+                  >
+                    <option value="">Select source warehouse...</option>
+                    {warehouses.map((w) => (
+                      <option key={w.id} value={w.warehouse_name}>
+                        {w.warehouse_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-                <WarehouseSearchField
-                  label="Default Target Warehouse"
-                  value={se.targetWarehouse}
-                  onChange={(val) => setField("targetWarehouse", val)}
-                  disabled={disabled}
-                  placeholder="Search target warehouse..."
-                  hint="This is the location where items are sent to."
-                />
+                <div className="sef-field">
+                  <label className="sef-label">Target Warehouse</label>
+                  <select
+                    className="form-field"
+                    value={se.targetWarehouse}
+                    onChange={(e) => setField("targetWarehouse", e.target.value)}
+                    disabled={disabled || warehousesLoading}
+                  >
+                    <option value="">Select target warehouse...</option>
+                    {warehouses.map((w) => (
+                      <option key={w.id} value={w.warehouse_name}>
+                        {w.warehouse_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div className="sef-divider" />
@@ -991,11 +1095,11 @@ export default function StockEntryForm() {
               {/* ── Items Table ── */}
               <div className="sef-table-header">
                 <span className="sef-section-title sef-section-title-flush">
-                  <FaClipboardList className="sef-section-icon" /> Items
+                  <FaClipboardList className="sef-section-icon" /> ITEMS
                 </span>
                 <span className="sef-items-count">{se.items.length}</span>
                 <button type="button" className="sef-row-add-btn" onClick={addItem}>
-                  <FaPlus size={10} /> Add Row
+                  <FaPlus size={10} /> ADD ROW
                 </button>
               </div>
 
@@ -1006,98 +1110,200 @@ export default function StockEntryForm() {
                       <th className="sef-col-no">#</th>
                       <th>Source Warehouse</th>
                       <th>Target Warehouse</th>
-                      <th>Item Code <span className="sef-required">*</span></th>
-                      <th className="text-right">Qty <span className="sef-required">*</span></th>
-                      <th className="text-right">Basic Rate</th>
+                      <th>ITEM <span className="sef-required">*</span></th>
+                      <th className="text-right">QTY <span className="sef-required">*</span></th>
+                      <th className="text-right">BASIC RATE <span className="sef-required">*</span></th>
+                      <th className="text-right">AMOUNT</th>
                       <th>Item Tax Template</th>
                       <th className="sef-col-action" />
                     </tr>
                   </thead>
                   <tbody>
-                    {se.items.map((item, idx) => (
-                      <tr key={item.id}>
-                        <td className="sef-col-no">{idx + 1}</td>
-                        <td>
-                          <select
-                            className="form-field form-field-sm"
-                            value={item.sourceWarehouse}
-                            onChange={(e) => updateItem(item.id, "sourceWarehouse", e.target.value)}
-                            disabled={disabled || warehousesLoading}
-                          >
-                            <option value="">Select warehouse...</option>
-                            {warehouses.map((w) => (
-                              <option key={w.id} value={w.warehouse_name}>
-                                {w.warehouse_name}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td>
-                          <select
-                            className="form-field form-field-sm"
-                            value={item.targetWarehouse}
-                            onChange={(e) => updateItem(item.id, "targetWarehouse", e.target.value)}
-                            disabled={disabled || warehousesLoading}
-                          >
-                            <option value="">Select warehouse...</option>
-                            {warehouses.map((w) => (
-                              <option key={w.id} value={w.warehouse_name}>
-                                {w.warehouse_name}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td>
-                          <input
-                            type="text"
-                            className="form-field form-field-sm"
-                            value={item.itemCode}
-                            onChange={(e) => updateItem(item.id, "itemCode", e.target.value)}
-                            placeholder="Item code…"
-                            disabled={disabled}
-                          />
-                        </td>
-                        <td>
-                          <input
-                            type="text"
-                            className="form-field form-field-sm text-right"
-                            value={item.qty}
-                            onChange={(e) => updateItem(item.id, "qty", e.target.value)}
-                            disabled={disabled}
-                          />
-                        </td>
-                        <td>
-                          <input
-                            type="text"
-                            className="form-field form-field-sm text-right"
-                            value={item.basicRate}
-                            onChange={(e) => updateItem(item.id, "basicRate", e.target.value)}
-                            placeholder="0.00"
-                            disabled={disabled}
-                          />
-                        </td>
-                        <td>
-                          <input
-                            type="text"
-                            className="form-field form-field-sm"
-                            value={item.itemTaxTemplate}
-                            onChange={(e) => updateItem(item.id, "itemTaxTemplate", e.target.value)}
-                            placeholder="Template…"
-                            disabled={disabled}
-                          />
-                        </td>
-                        <td className="sef-col-action">
-                          <button
-                            type="button"
-                            className="sef-row-delete-btn"
-                            onClick={() => removeItem(item.id)}
-                            disabled={se.items.length <= 1}
-                          >
-                            <FaTrash size={11} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                    {se.items.map((item, idx) => {
+                      const itemError = validationErrors.find(e => e.field === `items[${idx}].itemCode`);
+                      const qtyError = validationErrors.find(e => e.field === `items[${idx}].qty`);
+                      const rateError = validationErrors.find(e => e.field === `items[${idx}].basicRate`);
+                      const amountError = validationErrors.find(e => e.field === `items[${idx}].amount`);
+                      const isItemDropdownOpen = showItemDropdown === item.id;
+                      const itemSearchValue = itemSearch[item.id] || "";
+                      
+                      const filteredItemsForRow = itemSearchValue.trim() 
+                        ? items.filter(i => 
+                            (i.item_code || "").toLowerCase().includes(itemSearchValue.toLowerCase()) ||
+                            (i.item_name || "").toLowerCase().includes(itemSearchValue.toLowerCase())
+                          )
+                        : items;
+                      
+                      return (
+                        <tr key={item.id}>
+                          <td className="sef-col-no">{idx + 1}</td>
+                          <td>
+                            <select
+                              className="form-field form-field-sm"
+                              value={item.sourceWarehouse}
+                              onChange={(e) => updateItem(item.id, "sourceWarehouse", e.target.value)}
+                              disabled={disabled || warehousesLoading}
+                            >
+                              <option value="">Select warehouse</option>
+                              {warehouses.map((w) => (
+                                <option key={w.id} value={w.warehouse_name}>
+                                  {w.warehouse_name}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                          <td>
+                            <select
+                              className="form-field form-field-sm"
+                              value={item.targetWarehouse}
+                              onChange={(e) => updateItem(item.id, "targetWarehouse", e.target.value)}
+                              disabled={disabled || warehousesLoading}
+                            >
+                              <option value="">Select warehouse</option>
+                              {warehouses.map((w) => (
+                                <option key={w.id} value={w.warehouse_name}>
+                                  {w.warehouse_name}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                          <td>
+                            <div className="item-dropdown-wrapper" ref={(el) => { itemRefs.current[item.id] = el; }}>
+                              <div className="dropdown-input-wrapper">
+                                <input
+                                  type="text"
+                                  className={`form-field form-field-sm ${itemError ? "field-error" : ""}`}
+                                  placeholder="Search item..."
+                                  value={isItemDropdownOpen ? itemSearchValue : (item.itemName || item.itemCode || "")}
+                                  onFocus={() => {
+                                    setShowItemDropdown(item.id);
+                                    setItemSearch(prev => ({ ...prev, [item.id]: item.itemCode || "" }));
+                                  }}
+                                  onChange={(e) => {
+                                    setItemSearch(prev => ({ ...prev, [item.id]: e.target.value }));
+                                    setShowItemDropdown(item.id);
+                                  }}
+                                  disabled={disabled || itemsLoading}
+                                />
+                                <FaChevronDown 
+                                  className="dropdown-arrow"
+                                  onClick={() => setShowItemDropdown(isItemDropdownOpen ? null : item.id)}
+                                />
+                                {item.itemCode && (
+                                  <button
+                                    type="button"
+                                    className="dropdown-clear"
+                                    onClick={() => {
+                                      updateItem(item.id, "itemCode", "");
+                                      updateItem(item.id, "itemName", "");
+                                      updateItem(item.id, "basicRate", "");
+                                      updateItem(item.id, "amount", "");
+                                      setItemSearch(prev => ({ ...prev, [item.id]: "" }));
+                                      setShowItemDropdown(null);
+                                    }}
+                                  >
+                                    ×
+                                  </button>
+                                )}
+                              </div>
+                              {isItemDropdownOpen && !disabled && (
+                                <div className="dropdown-menu item-dropdown-menu">
+                                  {itemsLoading ? (
+                                    <div className="dropdown-loading">Loading items...</div>
+                                  ) : filteredItemsForRow.length === 0 ? (
+                                    <div className="dropdown-empty">No items found</div>
+                                  ) : (
+                                    filteredItemsForRow.map((itemOpt) => (
+                                      <div
+                                        key={itemOpt.id}
+                                        className={`dropdown-item ${item.itemCode === itemOpt.item_code ? "selected" : ""}`}
+                                        onClick={() => handleItemSelect(item.id, itemOpt)}
+                                      >
+                                        <div className="dropdown-item-content">
+                                          <span className="dropdown-item-main">{itemOpt.item_code} - {itemOpt.item_name}</span>
+                                          <span className="dropdown-item-sub">
+                                            {itemOpt.hsn && `HSN: ${itemOpt.hsn}`}
+                                            {itemOpt.tax_rate && ` | Tax: ${itemOpt.tax_rate}%`}
+                                            {itemOpt.stock_uom && ` | UOM: ${itemOpt.stock_uom}`}
+                                          </span>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          className="dropdown-view-btn"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleViewItem(itemOpt);
+                                          }}
+                                        >
+                                          <FaEye size={12} />
+                                        </button>
+                                      </div>
+                                    ))
+                                  )}
+                                </div>
+                              )}
+                              {itemError && <div className="sef-error-msg">{itemError.message}</div>}
+                            </div>
+                          </td>
+                          <td>
+                            <input
+                              type="text"
+                              className={`form-field form-field-sm text-right ${qtyError ? "field-error" : ""}`}
+                              value={item.qty}
+                              onChange={(e) => updateQty(item.id, e.target.value)}
+                              placeholder="0.000"
+                              disabled={disabled}
+                              maxLength={24}
+                            />
+                            {qtyError && <div className="sef-error-msg">{qtyError.message}</div>}
+                          </td>
+                          <td>
+                            <input
+                              type="text"
+                              className={`form-field form-field-sm text-right ${rateError ? "field-error" : ""}`}
+                              value={item.basicRate}
+                              onChange={(e) => updateRate(item.id, e.target.value)}
+                              placeholder="0.00"
+                              disabled={disabled}
+                              maxLength={24}
+                            />
+                            {rateError && <div className="sef-error-msg">{rateError.message}</div>}
+                          </td>
+                          <td>
+                            <input
+                              type="text"
+                              className={`form-field form-field-sm text-right ${amountError ? "field-error" : ""}`}
+                              value={item.amount}
+                              onChange={(e) => updateAmount(item.id, e.target.value)}
+                              placeholder="0.00"
+                              disabled={disabled}
+                              maxLength={24}
+                            />
+                            {amountError && <div className="sef-error-msg">{amountError.message}</div>}
+                          </td>
+                          <td>
+                            <input
+                              type="text"
+                              className="form-field form-field-sm"
+                              value={item.itemTaxTemplate}
+                              onChange={(e) => updateItem(item.id, "itemTaxTemplate", e.target.value)}
+                              placeholder="Template…"
+                              disabled={disabled}
+                            />
+                          </td>
+                          <td className="sef-col-action">
+                            <button
+                              type="button"
+                              className="sef-row-delete-btn"
+                              onClick={() => removeItem(item.id)}
+                              disabled={se.items.length <= 1}
+                            >
+                              <FaTrash size={11} />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1107,24 +1313,7 @@ export default function StockEntryForm() {
                   <button type="button" className="sef-link-btn" onClick={addItem}>
                     <FaPlus size={12} /> Add row
                   </button>
-                  <button type="button" className="sef-link-btn sef-link-btn-muted">
-                    Add multiple
-                  </button>
                 </div>
-                <div className="sef-table-footer-right">
-                  <button type="button" className="sef-update-btn">
-                    Download
-                  </button>
-                  <button type="button" className="sef-update-btn">
-                    Upload
-                  </button>
-                </div>
-              </div>
-
-              <div style={{ paddingTop: 12 }}>
-                <button type="button" className="sef-update-btn">
-                  Update Rate and Availability
-                </button>
               </div>
 
               <div className="sef-divider" />
@@ -1132,37 +1321,25 @@ export default function StockEntryForm() {
               {/* ── Totals ── */}
               <div className="sef-totals-grid">
                 <div className="sef-total-card">
-                  <div className="sef-total-label">Total Estimated Taxes</div>
-                  <div className="sef-total-value">₹ {totalEstimatedTaxes.toFixed(2)}</div>
+                  <div className="sef-total-label">Total Outgoing Value</div>
+                  <div className="sef-total-value">
+                    ₹ {totalOutgoingValue.toFixed(2)}
+                  </div>
                 </div>
+                <div className="sef-total-card">
+                  <div className="sef-total-label">Total Additional Costs</div>
+                  <div className="sef-total-value">
+                    ₹ {totalAdditionalCosts.toFixed(2)}
+                  </div>
+                </div>
+              </div>
+
+              <div className="sef-totals-grid">
                 <div className="sef-total-card">
                   <div className="sef-total-label">Grand Total</div>
                   <div className="sef-total-value sef-total-value-primary">
-                    ₹ {grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    ₹ {grandTotal.toFixed(2)}
                   </div>
-                </div>
-              </div>
-
-              <div className="sef-totals-grid">
-                <div className="sef-total-card">
-                  <div className="sef-total-label">Total Outgoing Value (Consumption)</div>
-                  <div className="sef-total-value">
-                    ₹ {totalOutgoingValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                  </div>
-                </div>
-                <div className="sef-total-card">
-                  <div className="sef-total-label">Total Incoming Value (Receipt)</div>
-                  <div className="sef-total-value">
-                    ₹ {totalIncomingValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                  </div>
-                </div>
-              </div>
-
-              <div className="sef-totals-grid">
-                <div />
-                <div className="sef-total-card">
-                  <div className="sef-total-label">Total Value Difference (Incoming - Outgoing)</div>
-                  <div className="sef-total-value">₹ {totalValueDifference.toFixed(2)}</div>
                 </div>
               </div>
             </div>
@@ -1173,11 +1350,11 @@ export default function StockEntryForm() {
             <div className="sef-card">
               <div className="sef-table-header">
                 <span className="sef-section-title sef-section-title-flush">
-                  <FaCalculator className="sef-section-icon" /> Additional Costs
+                  <FaCalculator className="sef-section-icon" /> ADDITIONAL COSTS
                 </span>
                 <span className="sef-items-count">{se.additionalCosts.length}</span>
                 <button type="button" className="sef-row-add-btn" onClick={addCost}>
-                  <FaPlus size={10} /> Add Row
+                  <FaPlus size={10} /> ADD ROW
                 </button>
               </div>
 
@@ -1196,7 +1373,7 @@ export default function StockEntryForm() {
                     {se.additionalCosts.length === 0 ? (
                       <tr>
                         <td colSpan={5} style={{ textAlign: "center", padding: "20px", color: "var(--text-secondary)" }}>
-                          No additional costs added. Click "Add Row" to add one.
+                          No additional costs added. Click "ADD ROW" to add rows.
                         </td>
                       </tr>
                     ) : (
@@ -1222,7 +1399,7 @@ export default function StockEntryForm() {
                               className="form-field form-field-sm"
                               value={cost.description}
                               onChange={(e) => updateCost(cost.id, "description", e.target.value)}
-                              placeholder="Description (optional)"
+                              placeholder="Description"
                               disabled={disabled}
                             />
                           </td>
@@ -1231,9 +1408,22 @@ export default function StockEntryForm() {
                               type="text"
                               className="form-field form-field-sm text-right"
                               value={cost.amount}
-                              onChange={(e) => updateCost(cost.id, "amount", e.target.value)}
+                              onChange={(e) => {
+                                // Only allow numbers for amount
+                                const val = e.target.value.replace(/[^0-9.]/g, "");
+                                // Check for multiple decimal points
+                                const parts = val.split(".");
+                                if (parts.length > 2) return;
+                                // Check decimal places (max 2)
+                                if (parts.length === 2 && parts[1].length > 2) return;
+                                // Check total digits (max 20)
+                                const digitsOnly = val.replace(/\./g, "");
+                                if (digitsOnly.length > 20) return;
+                                updateCost(cost.id, "amount", val);
+                              }}
                               placeholder="0.00"
                               disabled={disabled}
+                              maxLength={24}
                             />
                           </td>
                           <td className="sef-col-action">
@@ -1241,7 +1431,6 @@ export default function StockEntryForm() {
                               type="button"
                               className="sef-row-delete-btn"
                               onClick={() => removeCost(cost.id)}
-                              disabled={se.additionalCosts.length <= 0}
                             >
                               <FaTrash size={11} />
                             </button>
@@ -1251,19 +1440,6 @@ export default function StockEntryForm() {
                     )}
                   </tbody>
                 </table>
-              </div>
-
-              <div className="sef-table-footer">
-                <div className="sef-table-footer-left">
-                  <button type="button" className="sef-link-btn" onClick={addCost}>
-                    <FaPlus size={12} /> Add row
-                  </button>
-                </div>
-                <div className="sef-table-footer-right">
-                  <span className="sef-total-label" style={{ marginBottom: 0 }}>
-                    Total Additional Costs: ₹ {totalAdditionalCosts.toFixed(2)}
-                  </span>
-                </div>
               </div>
             </div>
           )}
@@ -1327,8 +1503,11 @@ export default function StockEntryForm() {
                     type="text"
                     className="form-field"
                     value={se.perTransferred}
-                    onChange={(e) => setField("perTransferred", e.target.value)}
-                    placeholder="0%"
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/[^0-9]/g, "");
+                      setField("perTransferred", val);
+                    }}
+                    placeholder="0"
                     disabled={disabled}
                   />
                 </div>
@@ -1343,17 +1522,6 @@ export default function StockEntryForm() {
                   placeholder="Add any notes or remarks…"
                   rows={4}
                   disabled={disabled}
-                />
-              </div>
-
-              <div className="sef-field">
-                <label className="sef-label">Total Amount</label>
-                <input
-                  type="text"
-                  className="form-field form-field-disabled"
-                  value={`₹ ${totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
-                  readOnly
-                  disabled
                 />
               </div>
             </div>

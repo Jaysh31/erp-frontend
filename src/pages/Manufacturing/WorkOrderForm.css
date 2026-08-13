@@ -2321,6 +2321,7 @@ select.form-field {
 .dark .wo-stock-warning-toast .toast-close {
   color: #fbbf24;
 }
+
 /* ─── Cost Summary Card ─── */
 .wof-cost-summary {
   margin: 20px 0 12px 0;
@@ -2443,52 +2444,52 @@ select.form-field {
   box-shadow: 0 4px 20px rgba(245, 158, 11, 0.15);
 }
 
-/* ─── Dark Theme ─── */
-.dark .cost-card {
+/* ─── DARK THEME - Cost Summary Cards ─────────────────────────────────── */
+.dark-theme .cost-card {
   background: #1e293b;
   border-color: #334155;
 }
 
-.dark .cost-card .cost-label {
+.dark-theme .cost-card .cost-label {
   color: #94a3b8;
 }
 
-.dark .cost-card .cost-value {
+.dark-theme .cost-card .cost-value {
   color: #f1f5f9;
 }
 
-.dark .cost-card .cost-sub {
+.dark-theme .cost-card .cost-sub {
   color: #94a3b8;
   border-top-color: #334155;
 }
 
-.dark .cost-card.material:hover {
+.dark-theme .cost-card.material:hover {
   border-color: #3b82f6;
 }
 
-.dark .cost-card.operation:hover {
+.dark-theme .cost-card.operation:hover {
   border-color: #10b981;
 }
 
-.dark .cost-card.total {
+.dark-theme .cost-card.total {
   border-color: #f59e0b;
   box-shadow: 0 2px 8px rgba(245, 158, 11, 0.05);
 }
 
-.dark .cost-card.total .cost-label {
+.dark-theme .cost-card.total .cost-label {
   color: #fbbf24;
 }
 
-.dark .cost-card.total .cost-value {
+.dark-theme .cost-card.total .cost-value {
   color: #ffffff;
 }
 
-.dark .cost-card.total .cost-sub {
+.dark-theme .cost-card.total .cost-sub {
   color: #94a3b8;
   border-top-color: #334155;
 }
 
-.dark .cost-card.total:hover {
+.dark-theme .cost-card.total:hover {
   border-color: #fbbf24;
   box-shadow: 0 4px 20px rgba(245, 158, 11, 0.1);
 }

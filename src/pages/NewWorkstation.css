@@ -1,4 +1,4 @@
-/* NewWorkstation.css */
+/* NewWorkstation.css - Complete file with dark theme support */
 
 /* ─── Page Layout ─────────────────────────────────────────────────────────── */
 
@@ -6,10 +6,11 @@
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  background: var(--c-bg-page, #f9fafb);
+  background: var(--layout-bg, #f9fafb);
   font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
   font-size: 13px;
-  color: var(--c-text, #111827);
+  color: var(--text-primary, #111827);
+  transition: background 0.3s ease, color 0.3s ease;
 }
 
 /* ─── Topbar ──────────────────────────────────────────────────────────────── */
@@ -20,11 +21,12 @@
   justify-content: space-between;
   padding: 0 20px;
   height: 56px;
-  background: var(--c-bg, #ffffff);
-  border-bottom: 1px solid var(--c-border, #e5e7eb);
-  box-shadow: 0 1px 3px rgba(0,0,0,.08);
+  background: var(--card-bg, #ffffff);
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  box-shadow: 0 1px 3px var(--shadow-color, rgba(0,0,0,.08));
   z-index: 10;
   flex-shrink: 0;
+  transition: background 0.3s ease, border-color 0.3s ease;
 }
 
 .nws-breadcrumb {
@@ -32,7 +34,7 @@
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  color: var(--c-text-muted, #6b7280);
+  color: var(--text-secondary, #6b7280);
 }
 
 .nws-breadcrumb__list {
@@ -55,28 +57,28 @@
   background: none;
   border: none;
   cursor: pointer;
-  color: var(--c-text-muted, #6b7280);
+  color: var(--text-secondary, #6b7280);
   padding: 4px;
   border-radius: 4px;
   transition: color 0.16s, background 0.16s;
 }
 
 .nws-breadcrumb__home-btn:hover {
-  color: var(--c-primary, #1a56db);
-  background: var(--c-blue-light, #e8efff);
+  color: var(--primary-color, #6366f1);
+  background: var(--nav-active, rgba(99,102,241,0.18));
 }
 
 .nws-breadcrumb__sep {
   display: flex;
   align-items: center;
-  color: var(--c-border-hover, #d1d5db);
+  color: var(--border-color, #d1d5db);
 }
 
 .nws-breadcrumb__link {
   background: none;
   border: none;
   cursor: pointer;
-  color: var(--c-text-muted, #6b7280);
+  color: var(--text-secondary, #6b7280);
   font-size: 12px;
   padding: 2px 4px;
   border-radius: 4px;
@@ -85,8 +87,8 @@
 }
 
 .nws-breadcrumb__link:hover {
-  color: var(--c-primary, #1a56db);
-  background: var(--c-blue-light, #e8efff);
+  color: var(--primary-color, #6366f1);
+  background: var(--nav-active, rgba(99,102,241,0.18));
 }
 
 .nws-breadcrumb__item--active {
@@ -98,7 +100,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  color: var(--c-text, #111827);
+  color: var(--text-primary, #111827);
   font-weight: 600;
   padding: 2px 4px;
 }
@@ -107,7 +109,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--c-primary, #1a56db);
+  background: var(--primary-color, #6366f1);
   flex-shrink: 0;
 }
 
@@ -131,6 +133,12 @@
   white-space: nowrap;
 }
 
+.dark-theme .nws-error-pill {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
 .nws-badge--unsaved {
   font-size: 11px;
   padding: 2px 8px;
@@ -141,13 +149,19 @@
   font-weight: 500;
 }
 
+.dark-theme .nws-badge--unsaved {
+  background: rgba(217, 119, 6, 0.15);
+  color: #fbbf24;
+  border-color: rgba(217, 119, 6, 0.3);
+}
+
 .nws-btn-save {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: var(--primary-gradient, linear-gradient(135deg, var(--c-primary, #1a56db), #1547c0));
+  background: var(--primary-gradient, linear-gradient(135deg, var(--primary-color, #6366f1), var(--primary-hover, #4f46e5)));
   color: #fff;
-  border: 1px solid #1547c0;
+  border: 1px solid var(--primary-hover, #4f46e5);
   border-radius: 6px;
   padding: 0 18px;
   height: 36px;
@@ -155,13 +169,13 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 0.16s;
-  box-shadow: 0 1px 3px rgba(37,99,235,.3);
+  box-shadow: 0 1px 3px var(--shadow-color, rgba(99,102,241,.3));
   font-family: inherit;
 }
 
 .nws-btn-save:hover:not(:disabled) {
   opacity: .9;
-  box-shadow: 0 3px 8px rgba(37,99,235,.35);
+  box-shadow: 0 3px 8px var(--shadow-color, rgba(99,102,241,.35));
   transform: translateY(-1px);
 }
 
@@ -191,11 +205,12 @@
 /* ─── Cards ───────────────────────────────────────────────────────────────── */
 
 .nws-card {
-  background: var(--c-bg, #ffffff);
-  border: 1px solid var(--c-border, #e5e7eb);
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--border-color, #e5e7eb);
   border-radius: 8px;
   overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0,0,0,.08);
+  box-shadow: 0 1px 3px var(--shadow-color, rgba(0,0,0,.08));
+  transition: background 0.3s ease, border-color 0.3s ease;
 }
 
 .nws-card__header {
@@ -203,8 +218,9 @@
   align-items: center;
   justify-content: space-between;
   padding: 10px 16px;
-  border-bottom: 1px solid var(--c-border, #e5e7eb);
-  background: var(--c-bg-muted, #f3f4f6);
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  background: var(--page-bg, #f3f4f6);
+  transition: background 0.3s ease, border-color 0.3s ease;
 }
 
 .nws-card__title {
@@ -213,14 +229,15 @@
   gap: 7px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--c-text, #111827);
+  color: var(--text-primary, #111827);
+  transition: color 0.3s ease;
 }
 
 .nws-card__title-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--c-primary, #1a56db);
+  background: var(--primary-color, #6366f1);
   flex-shrink: 0;
 }
 
@@ -239,16 +256,41 @@
 .nws-label {
   font-size: 12px;
   font-weight: 600;
-  color: var(--c-text-muted, #6b7280);
+  color: var(--text-secondary, #6b7280);
   letter-spacing: 0.1px;
   display: flex;
   align-items: center;
   gap: 3px;
+  transition: color 0.3s ease;
 }
 
 .nws-label__req {
-  color: var(--c-danger, #e24b4a);
+  color: var(--danger-color, #ef4444);
   font-size: 12px;
+}
+
+/* ─── FIX: Remove dropdown arrow from ALL select elements ────────────────── */
+/* This removes the default dropdown arrow from ALL select elements */
+select.nws-input {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: none !important;
+  background-color: var(--input-bg, #ffffff);
+  cursor: pointer;
+  padding-right: 11px;
+}
+
+/* For Firefox - removes the dropdown arrow */
+select.nws-input::-ms-expand {
+  display: none;
+}
+
+/* Dark theme override for select */
+.dark-theme select.nws-input {
+  background-color: var(--input-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+  color: var(--text-primary, #f8fafc);
 }
 
 .nws-input {
@@ -256,12 +298,12 @@
   box-sizing: border-box;
   height: 36px;
   padding: 0 11px;
-  border: 1px solid var(--c-border, #e5e7eb);
+  border: 1px solid var(--border-color, #e5e7eb);
   border-radius: 4px;
   font-size: 13.5px;
-  color: var(--c-text, #111827);
-  background: var(--c-bg, #ffffff);
-  transition: border-color 0.16s, box-shadow 0.16s;
+  color: var(--text-primary, #111827);
+  background: var(--input-bg, #ffffff);
+  transition: border-color 0.16s, box-shadow 0.16s, background 0.3s ease, color 0.3s ease;
   outline: none;
   font-family: inherit;
   -webkit-appearance: none;
@@ -269,44 +311,36 @@
 }
 
 .nws-input:hover {
-  border-color: var(--c-border-hover, #d1d5db);
+  border-color: var(--border-color, #d1d5db);
 }
 
 .nws-input:focus {
-  border-color: var(--c-primary, #1a56db);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-primary, #1a56db) 14%, transparent);
+  border-color: var(--primary-color, #6366f1);
+  box-shadow: 0 0 0 3px var(--shadow-color, rgba(99,102,241,0.14));
 }
 
 .nws-input:disabled {
-  background: var(--c-bg-muted, #f3f4f6);
-  color: var(--c-text-muted, #6b7280);
+  background: var(--page-bg, #f3f4f6);
+  color: var(--text-secondary, #6b7280);
   cursor: not-allowed;
 }
 
 .nws-input[readonly] {
-  background: var(--c-bg-muted, #f3f4f6);
-  color: var(--c-text-muted, #6b7280);
+  background: var(--page-bg, #f3f4f6);
+  color: var(--text-secondary, #6b7280);
   cursor: default;
-}
-
-select.nws-input {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%239ca3af'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 10px center;
-  padding-right: 28px;
-  cursor: pointer;
 }
 
 .nws-textarea {
   width: 100%;
   box-sizing: border-box;
   padding: 10px 12px;
-  border: 1px solid var(--c-border, #e5e7eb);
+  border: 1px solid var(--border-color, #e5e7eb);
   border-radius: 4px;
   font-size: 13.5px;
-  color: var(--c-text, #111827);
-  background: var(--c-bg, #ffffff);
-  transition: border-color 0.16s, box-shadow 0.16s;
+  color: var(--text-primary, #111827);
+  background: var(--input-bg, #ffffff);
+  transition: border-color 0.16s, box-shadow 0.16s, background 0.3s ease, color 0.3s ease;
   outline: none;
   font-family: inherit;
   resize: vertical;
@@ -314,12 +348,12 @@ select.nws-input {
 }
 
 .nws-textarea:hover {
-  border-color: var(--c-border-hover, #d1d5db);
+  border-color: var(--border-color, #d1d5db);
 }
 
 .nws-textarea:focus {
-  border-color: var(--c-primary, #1a56db);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-primary, #1a56db) 14%, transparent);
+  border-color: var(--primary-color, #6366f1);
+  box-shadow: 0 0 0 3px var(--shadow-color, rgba(99,102,241,0.14));
 }
 
 .nws-form-grid {
@@ -348,19 +382,19 @@ select.nws-input {
   width: 36px;
   height: 36px;
   min-width: 36px;
-  border: 1px solid var(--c-border, #e5e7eb);
+  border: 1px solid var(--border-color, #e5e7eb);
   border-radius: 4px;
-  background: var(--c-bg, #fff);
-  color: var(--c-text-secondary, #6b7280);
+  background: var(--card-bg, #fff);
+  color: var(--text-secondary, #6b7280);
   cursor: pointer;
   transition: all 0.15s;
   flex-shrink: 0;
 }
 
 .nws-add-btn:hover {
-  background: var(--c-primary, #6366f1);
+  background: var(--primary-color, #6366f1);
   color: white;
-  border-color: var(--c-primary, #6366f1);
+  border-color: var(--primary-color, #6366f1);
 }
 
 .nws-add-input-group {
@@ -374,17 +408,18 @@ select.nws-input {
   flex: 1;
   height: 36px;
   padding: 0 11px;
-  border: 1px solid var(--c-border, #e5e7eb);
+  border: 1px solid var(--border-color, #e5e7eb);
   border-radius: 4px;
   font-size: 13.5px;
-  color: var(--c-text, #111827);
-  background: var(--c-bg, #ffffff);
+  color: var(--text-primary, #111827);
+  background: var(--input-bg, #ffffff);
   outline: none;
   min-width: 100px;
+  transition: border-color 0.16s, background 0.3s ease, color 0.3s ease;
 }
 
 .nws-add-input:focus {
-  border-color: var(--c-primary, #6366f1);
+  border-color: var(--primary-color, #6366f1);
 }
 
 .nws-add-confirm {
@@ -396,7 +431,7 @@ select.nws-input {
   min-width: 32px;
   border: none;
   border-radius: 4px;
-  background: var(--c-success, #10b981);
+  background: var(--success-color, #10b981);
   color: white;
   cursor: pointer;
   transition: all 0.15s;
@@ -416,7 +451,7 @@ select.nws-input {
   min-width: 32px;
   border: none;
   border-radius: 4px;
-  background: var(--c-danger, #ef4444);
+  background: var(--danger-color, #ef4444);
   color: white;
   cursor: pointer;
   transition: all 0.15s;
@@ -426,6 +461,7 @@ select.nws-input {
 .nws-add-cancel:hover {
   background: #dc2626;
 }
+
 /* ─── Holiday Picker Portal ───────────────────────────────────────────────── */
 
 .nws-holiday-picker-portal {
@@ -438,14 +474,15 @@ select.nws-input {
 
 .nws-holiday-picker-portal .nws-holiday-picker {
   pointer-events: auto;
-  background: var(--c-bg, #ffffff);
-  border: 1px solid var(--c-border, #e5e7eb);
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--border-color, #e5e7eb);
   border-radius: 8px;
   padding: 12px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 10px 40px var(--shadow-color, rgba(0, 0, 0, 0.2));
   max-height: 320px;
   overflow-y: auto;
   min-width: 280px;
+  transition: background 0.3s ease, border-color 0.3s ease;
 }
 
 .nws-holiday-picker-portal .nws-holiday-input-row {
@@ -462,17 +499,17 @@ select.nws-input {
   height: 32px;
   font-size: 12px;
   padding: 0 8px;
-  border: 1px solid var(--c-border, #e5e7eb);
+  border: 1px solid var(--border-color, #e5e7eb);
   border-radius: 4px;
-  background: var(--c-bg, #ffffff);
-  color: var(--c-text, #111827);
+  background: var(--input-bg, #ffffff);
+  color: var(--text-primary, #111827);
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, background 0.3s ease, color 0.3s ease;
 }
 
 .nws-holiday-picker-portal .nws-holiday-input-row .nws-input:focus {
-  border-color: var(--c-primary, #6366f1);
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
+  border-color: var(--primary-color, #6366f1);
+  box-shadow: 0 0 0 2px var(--shadow-color, rgba(99,102,241,0.1));
 }
 
 .nws-holiday-picker-portal .nws-holiday-input-row .nws-input[type="date"] {
@@ -492,7 +529,7 @@ select.nws-input {
   height: 32px;
   border: none;
   border-radius: 4px;
-  background: var(--c-primary, #6366f1);
+  background: var(--primary-color, #6366f1);
   color: white;
   font-size: 12px;
   cursor: pointer;
@@ -503,7 +540,7 @@ select.nws-input {
 }
 
 .nws-holiday-picker-portal .nws-add-holiday-btn:hover {
-  background: var(--c-primary-hover, #4f46e5);
+  background: var(--primary-hover, #4f46e5);
 }
 
 .nws-holiday-picker-portal .nws-holiday-list {
@@ -520,14 +557,16 @@ select.nws-input {
   align-items: center;
   justify-content: space-between;
   padding: 4px 8px;
-  background: var(--c-bg-muted, #f3f4f6);
+  background: var(--page-bg, #f3f4f6);
   border-radius: 4px;
   font-size: 12px;
+  transition: background 0.3s ease;
 }
 
 .nws-holiday-picker-portal .nws-remove-holiday {
   display: flex;
 }
+
 /* ─── Options Grid ────────────────────────────────────────────────────────── */
 
 .nws-options-grid {
@@ -541,14 +580,15 @@ select.nws-input {
   align-items: center;
   gap: 8px;
   font-size: 13px;
-  color: var(--c-text, #111827);
+  color: var(--text-primary, #111827);
   cursor: pointer;
+  transition: color 0.3s ease;
 }
 
 .nws-checkbox-label input[type="checkbox"] {
   width: 15px;
   height: 15px;
-  accent-color: var(--c-primary, #1a56db);
+  accent-color: var(--primary-color, #6366f1);
   cursor: pointer;
 }
 
@@ -560,11 +600,12 @@ select.nws-input {
   justify-content: flex-end;
   gap: 10px;
   padding: 18px 24px;
-  background: var(--c-bg, #ffffff);
-  border: 1px solid var(--c-border, #e5e7eb);
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--border-color, #e5e7eb);
   border-radius: 8px;
   margin: 0 20px 20px;
-  box-shadow: 0 1px 3px rgba(0,0,0,.08);
+  box-shadow: 0 1px 3px var(--shadow-color, rgba(0,0,0,.08));
+  transition: background 0.3s ease, border-color 0.3s ease;
 }
 
 .nws-footer-btn {
@@ -584,15 +625,15 @@ select.nws-input {
 }
 
 .nws-footer-btn--primary {
-  background: var(--primary-gradient, linear-gradient(135deg, var(--c-primary, #1a56db), #1547c0));
+  background: var(--primary-gradient, linear-gradient(135deg, var(--primary-color, #6366f1), var(--primary-hover, #4f46e5)));
   color: #fff;
-  border-color: #1547c0;
-  box-shadow: 0 1px 3px rgba(37,99,235,.3);
+  border-color: var(--primary-hover, #4f46e5);
+  box-shadow: 0 1px 3px var(--shadow-color, rgba(99,102,241,.3));
 }
 
 .nws-footer-btn--primary:hover:not(:disabled) {
   opacity: .9;
-  box-shadow: 0 3px 8px rgba(37,99,235,.35);
+  box-shadow: 0 3px 8px var(--shadow-color, rgba(99,102,241,.35));
   transform: translateY(-1px);
 }
 
@@ -602,15 +643,16 @@ select.nws-input {
 }
 
 .nws-footer-btn--secondary {
-  background: var(--c-bg, #ffffff);
-  color: var(--c-text-muted, #6b7280);
-  border-color: var(--c-border, #e5e7eb);
+  background: var(--card-bg, #ffffff);
+  color: var(--text-secondary, #6b7280);
+  border-color: var(--border-color, #e5e7eb);
+  transition: background 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 }
 
 .nws-footer-btn--secondary:hover {
   border-color: #c0c8d4;
-  color: var(--c-text, #111827);
-  background: var(--c-bg-muted, #f3f4f6);
+  color: var(--text-primary, #111827);
+  background: var(--page-bg, #f3f4f6);
 }
 
 /* ─── Validation Modal ────────────────────────────────────────────────────── */
@@ -634,10 +676,10 @@ select.nws-input {
 }
 
 .nws-validation-modal {
-  background: var(--c-bg, #ffffff);
+  background: var(--card-bg, #ffffff);
   border-radius: 8px;
-  border: 1px solid var(--c-border, #e5e7eb);
-  box-shadow: 0 8px 32px rgba(0,0,0,.14);
+  border: 1px solid var(--border-color, #e5e7eb);
+  box-shadow: 0 8px 32px var(--shadow-color, rgba(0,0,0,.14));
   width: 100%;
   max-width: 480px;
   max-height: 80vh;
@@ -645,6 +687,7 @@ select.nws-input {
   flex-direction: column;
   overflow: hidden;
   animation: nws-slide-up 0.18s ease;
+  transition: background 0.3s ease, border-color 0.3s ease;
 }
 
 @keyframes nws-slide-up {
@@ -657,9 +700,15 @@ select.nws-input {
   align-items: center;
   justify-content: space-between;
   padding: 14px 18px;
-  border-bottom: 1px solid var(--c-border, #e5e7eb);
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
   background: #fef2f2;
   flex-shrink: 0;
+  transition: border-color 0.3s ease;
+}
+
+.dark-theme .nws-modal-header {
+  background: rgba(239, 68, 68, 0.1);
+  border-bottom-color: var(--border-color, #334155);
 }
 
 .nws-modal-title {
@@ -672,6 +721,10 @@ select.nws-input {
   margin: 0;
 }
 
+.dark-theme .nws-modal-title {
+  color: #f87171;
+}
+
 .nws-modal-close {
   display: inline-flex;
   align-items: center;
@@ -681,7 +734,7 @@ select.nws-input {
   border-radius: 4px;
   border: 1px solid transparent;
   background: none;
-  color: var(--c-text-muted, #6b7280);
+  color: var(--text-secondary, #6b7280);
   cursor: pointer;
   transition: all 0.16s;
   flex-shrink: 0;
@@ -693,6 +746,12 @@ select.nws-input {
   border-color: #fecaca;
 }
 
+.dark-theme .nws-modal-close:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
 .nws-modal-body {
   padding: 16px 18px;
   overflow-y: auto;
@@ -701,9 +760,10 @@ select.nws-input {
 
 .nws-modal-intro {
   font-size: 13px;
-  color: var(--c-text-muted, #6b7280);
+  color: var(--text-secondary, #6b7280);
   margin: 0 0 12px;
   line-height: 1.5;
+  transition: color 0.3s ease;
 }
 
 .nws-error-list {
@@ -717,6 +777,12 @@ select.nws-input {
   background: #fff5f5;
   border-radius: 6px;
   padding: 10px 12px;
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+.dark-theme .nws-validation-error-item {
+  border-color: rgba(239, 68, 68, 0.3);
+  background: rgba(239, 68, 68, 0.08);
 }
 
 .nws-error-header {
@@ -731,17 +797,23 @@ select.nws-input {
   flex-shrink: 0;
 }
 
+.dark-theme .nws-error-icon {
+  color: #f87171;
+}
+
 .nws-error-label {
   font-size: 13px;
   font-weight: 600;
-  color: var(--c-text, #111827);
+  color: var(--text-primary, #111827);
+  transition: color 0.3s ease;
 }
 
 .nws-error-message {
   font-size: 12px;
-  color: var(--c-text-muted, #6b7280);
+  color: var(--text-secondary, #6b7280);
   line-height: 1.5;
   padding-left: 20px;
+  transition: color 0.3s ease;
 }
 
 .nws-modal-footer {
@@ -749,9 +821,10 @@ select.nws-input {
   align-items: center;
   justify-content: flex-end;
   padding: 12px 18px;
-  border-top: 1px solid var(--c-border, #e5e7eb);
-  background: var(--c-bg-muted, #f3f4f6);
+  border-top: 1px solid var(--border-color, #e5e7eb);
+  background: var(--page-bg, #f3f4f6);
   flex-shrink: 0;
+  transition: background 0.3s ease, border-color 0.3s ease;
 }
 
 .nws-btn-cancel {
@@ -759,9 +832,9 @@ select.nws-input {
   padding: 0 16px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--c-text-muted, #6b7280);
-  background: var(--c-bg, #ffffff);
-  border: 1px solid var(--c-border, #e5e7eb);
+  color: var(--text-secondary, #6b7280);
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--border-color, #e5e7eb);
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.16s;
@@ -769,132 +842,219 @@ select.nws-input {
 }
 
 .nws-btn-cancel:hover {
-  background: var(--c-bg-muted, #f3f4f6);
-  border-color: var(--c-border-hover, #d1d5db);
-  color: var(--c-text, #111827);
+  background: var(--page-bg, #f3f4f6);
+  border-color: var(--border-color, #d1d5db);
+  color: var(--text-primary, #111827);
 }
 
 /* ─── Dark Theme Overrides ────────────────────────────────────────────────── */
 
 .dark-theme .nws-page {
-  background: var(--c-bg-page, #0f172a);
+  background: var(--layout-bg, #0f172a);
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .nws-topbar {
+  background: var(--card-bg, #1e293b);
+  border-bottom-color: var(--border-color, #334155);
+}
+
+.dark-theme .nws-breadcrumb__current {
+  color: var(--text-primary, #f8fafc);
 }
 
 .dark-theme .nws-card {
-  background: var(--c-bg, #1e293b);
-  border-color: var(--c-border, #334155);
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
 }
 
 .dark-theme .nws-card__header {
   background: rgba(255,255,255,0.03);
-  border-bottom-color: var(--c-border, #334155);
+  border-bottom-color: var(--border-color, #334155);
 }
 
 .dark-theme .nws-card__title {
-  color: var(--c-text, #f8fafc);
+  color: var(--text-primary, #f8fafc);
 }
 
 .dark-theme .nws-input,
 .dark-theme .nws-textarea,
 .dark-theme .nws-add-input {
-  background: var(--c-bg, #1e293b);
-  border-color: var(--c-border, #334155);
-  color: var(--c-text, #f8fafc);
+  background: var(--input-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+  color: var(--text-primary, #f8fafc);
 }
 
 .dark-theme .nws-input:focus,
 .dark-theme .nws-textarea:focus,
 .dark-theme .nws-add-input:focus {
-  border-color: var(--c-primary, #6366f1);
+  border-color: var(--primary-color, #3b82f6);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.dark-theme .nws-input:hover,
+.dark-theme .nws-textarea:hover {
+  border-color: var(--border-color, #475569);
+}
+
+.dark-theme .nws-input:disabled,
+.dark-theme .nws-input[readonly] {
+  background: rgba(255,255,255,0.03);
+  color: var(--text-secondary, #64748b);
 }
 
 .dark-theme .nws-label {
-  color: var(--c-text-muted, #94a3b8);
+  color: var(--text-secondary, #94a3b8);
 }
 
 .dark-theme .nws-add-btn {
-  background: var(--c-bg, #1e293b);
-  border-color: var(--c-border, #334155);
-  color: var(--c-text-secondary, #94a3b8);
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+  color: var(--text-secondary, #94a3b8);
 }
 
 .dark-theme .nws-add-btn:hover {
-  background: var(--c-primary, #6366f1);
+  background: var(--primary-color, #3b82f6);
   color: white;
+  border-color: var(--primary-color, #3b82f6);
 }
 
-.dark-theme .nws-holiday-toggle {
-  background: var(--c-bg, #1e293b);
-  border-color: var(--c-border, #334155);
-  color: var(--c-text, #f8fafc);
+.dark-theme .nws-holiday-picker-portal .nws-holiday-picker {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
 }
 
-.dark-theme .nws-holiday-picker {
-  background: var(--c-bg, #1e293b);
-  border-color: var(--c-border, #334155);
-}
-
-.dark-theme .nws-holiday-item {
+.dark-theme .nws-holiday-picker-portal .nws-holiday-item {
   background: rgba(255,255,255,0.05);
-  color: var(--c-text, #f8fafc);
+  color: var(--text-primary, #f8fafc);
 }
 
-.dark-theme .nws-preset-btn {
-  background: var(--c-bg, #1e293b);
-  border-color: var(--c-border, #334155);
-  color: var(--c-text, #f8fafc);
+.dark-theme .nws-holiday-picker-portal .nws-holiday-input-row .nws-input {
+  background: var(--input-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+  color: var(--text-primary, #f8fafc);
 }
 
-.dark-theme .nws-preset-btn:hover {
-  background: var(--c-primary, #6366f1);
-  color: white;
+.dark-theme .nws-holiday-picker-portal .nws-holiday-input-row .nws-input:focus {
+  border-color: var(--primary-color, #3b82f6);
 }
 
-.dark-theme .nws-no-holidays {
-  color: var(--c-text-secondary, #94a3b8);
+.dark-theme .nws-checkbox-label {
+  color: var(--text-primary, #f8fafc);
 }
 
 .dark-theme .nws-footer-row {
-  background: var(--c-bg, #1e293b);
-  border-color: var(--c-border, #334155);
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
 }
 
 .dark-theme .nws-footer-btn--secondary {
-  background: var(--c-bg, #1e293b);
-  border-color: var(--c-border, #334155);
-  color: var(--c-text, #f8fafc);
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+  color: var(--text-secondary, #94a3b8);
 }
 
 .dark-theme .nws-footer-btn--secondary:hover {
   background: rgba(255,255,255,0.05);
-}
-
-.dark-theme .nws-checkbox-label {
-  color: var(--c-text, #f8fafc);
-}
-
-.dark-theme .nws-topbar {
-  background: var(--c-bg, #1e293b);
-  border-bottom-color: var(--c-border, #334155);
+  border-color: #4b5563;
+  color: var(--text-primary, #f8fafc);
 }
 
 .dark-theme .nws-validation-modal {
-  background: var(--c-bg, #1e293b);
-  border-color: var(--c-border, #334155);
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
 }
 
 .dark-theme .nws-error-label {
-  color: var(--c-text, #f8fafc);
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .nws-error-message {
+  color: var(--text-secondary, #94a3b8);
 }
 
 .dark-theme .nws-btn-cancel {
-  background: var(--c-bg, #1e293b);
-  border-color: var(--c-border, #334155);
-  color: var(--c-text, #f8fafc);
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+  color: var(--text-secondary, #94a3b8);
 }
 
 .dark-theme .nws-btn-cancel:hover {
   background: rgba(255,255,255,0.05);
+  border-color: #4b5563;
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .nws-modal-footer {
+  background: rgba(255,255,255,0.02);
+  border-top-color: var(--border-color, #334155);
+}
+
+.dark-theme .nws-modal-intro {
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .nws-breadcrumb__home-btn {
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .nws-breadcrumb__home-btn:hover {
+  color: var(--primary-color, #3b82f6);
+  background: rgba(59, 130, 246, 0.15);
+}
+
+.dark-theme .nws-breadcrumb__link {
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .nws-breadcrumb__link:hover {
+  color: var(--primary-color, #3b82f6);
+  background: rgba(59, 130, 246, 0.15);
+}
+
+.dark-theme .nws-breadcrumb__sep {
+  color: var(--text-secondary, #64748b);
+}
+
+.dark-theme .nws-btn-save {
+  background: var(--primary-gradient, linear-gradient(135deg, var(--primary-color, #3b82f6), var(--primary-hover, #2563eb)));
+  border-color: var(--primary-hover, #2563eb);
+}
+
+/* ─── Required field star in red ─────────────────────────────── */
+.nws-label.required-star::after {
+  content: " *";
+  color: var(--danger-color, #dc2626);
+  font-weight: 700;
+}
+
+/* ─── Error text in red ─────────────────────────────────────────── */
+.nws-error-text {
+  color: var(--danger-color, #dc2626) !important;
+  font-size: 12px;
+  font-weight: 500;
+  display: block;
+  margin-top: 4px;
+}
+
+.dark-theme .nws-error-text {
+  color: #f87171 !important;
+}
+
+/* ─── Remove any error borders from inputs ────────────────────── */
+.nws-input.nws-input-error {
+  border-color: inherit !important;
+  background: inherit !important;
+}
+
+.nws-input.nws-input-error:focus {
+  border-color: var(--primary-color, #6366f1) !important;
+  box-shadow: 0 0 0 3px var(--shadow-color, rgba(99,102,241,0.1)) !important;
+}
+
+.dark-theme .nws-input.nws-input-error:focus {
+  border-color: var(--primary-color, #3b82f6) !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15) !important;
 }
 
 /* ─── Responsive ──────────────────────────────────────────────────────────── */
@@ -982,30 +1142,4 @@ select.nws-input {
   .nws-add-input-group {
     flex-wrap: wrap;
   }
-}
-/* ─── Required field star in red ─────────────────────────────── */
-.nws-label.required-star::after {
-  content: " *";
-  color: #dc2626;
-  font-weight: 700;
-}
-
-/* ─── Error text in red ─────────────────────────────────────────── */
-.nws-error-text {
-  color: #dc2626 !important;
-  font-size: 12px;
-  font-weight: 500;
-  display: block;
-  margin-top: 4px;
-}
-
-/* ─── Remove any error borders from inputs ────────────────────── */
-.nws-input.nws-input-error {
-  border-color: inherit !important;
-  background: inherit !important;
-}
-
-.nws-input.nws-input-error:focus {
-  border-color: #3b82f6 !important;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
 }

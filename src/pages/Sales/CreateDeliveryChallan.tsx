@@ -1266,7 +1266,7 @@ const NewDeliveryChallan: React.FC = () => {
   const [transporter, setTransporter] = useState<string>('');
   const [vehicleNumber, setVehicleNumber] = useState<string>('');
   const [remarks, setRemarks] = useState<string>('');
-  const [qualityInspection, setQualityInspection] = useState<boolean>(false);
+  const [qualityInspection] = useState<boolean>(false);
   const [items, setItems] = useState<DeliveryChallanItem[]>([]);
   const [customerData, setCustomerData] = useState<Customer | null>(null);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});

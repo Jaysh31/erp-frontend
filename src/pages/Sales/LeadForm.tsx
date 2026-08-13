@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import type { ChangeEvent, FormEvent } from "react";
+import type { ChangeEvent, FormEvent, KeyboardEvent } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import {
   FaArrowLeft, FaSave, FaSpinner, FaInfoCircle, FaExclamationTriangle,
@@ -192,7 +192,7 @@ function extractList(raw: any): any[] {
   return Array.isArray(list) ? list : [];
 }
 
-// ─── customer helpers (mirrors CreateQuotation's /customer lookup) ─────
+// ─── customer helpers ───────────────────────────────────────────────────
 
 function extractCustomerRecords(payload: any): any[] {
   if (!payload) return [];
@@ -223,7 +223,6 @@ const LeadForm: React.FC = () => {
   const [loadingRecord, setLoadingRecord] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
-
 
   const [recordId, setRecordId] = useState<number | null>(null);
 
@@ -286,37 +285,12 @@ const LeadForm: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customers, formData.organizationName]);
 
-  const handleOrganizationSelect = (e: ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value;
-
-    if (value === ADD_NEW_CUSTOMER_VALUE) {
-      setIsAddingNewCustomer(true);
-      setSelectedCustomerId("");
-      setFormData((prev) => ({ ...prev, organizationName: "" }));
-      return;
-    }
-
-    const match = customers.find((c) => String(customerIdOf(c)) === value);
-    setSelectedCustomerId(value);
-    setFormData((prev) => ({
-      ...prev,
-      organizationName: match ? (match.customer_name || match.party_name || value) : value,
-    }));
+  // ─── Updated: Simplified Organization Name handler ──────────────────
+  const handleOrganizationChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
     if (errors.organizationName) setErrors((prev) => ({ ...prev, organizationName: "" }));
     checkTabWarnings(activeTab);
-  };
-
-  const handleNewOrganizationInput = (e: ChangeEvent<HTMLInputElement>) => {
-    const { value } = e.target;
-    setFormData((prev) => ({ ...prev, organizationName: value }));
-    if (errors.organizationName) setErrors((prev) => ({ ...prev, organizationName: "" }));
-    checkTabWarnings(activeTab);
-  };
-
-  const handleBackToCustomerList = () => {
-    setIsAddingNewCustomer(false);
-    setSelectedCustomerId("");
-    setFormData((prev) => ({ ...prev, organizationName: "" }));
   };
 
   // ─── load existing lead when editing ──────────────────────────────────
@@ -346,7 +320,6 @@ const LeadForm: React.FC = () => {
     try {
       let found: any = null;
 
-
       try {
         const detailResp = await api.get(`/lead/${encodeURIComponent(leadId)}`);
         const detailData = detailResp.data?.data ?? detailResp.data;
@@ -354,7 +327,6 @@ const LeadForm: React.FC = () => {
           found = detailData;
         }
       } catch (detailErr) {
-        // Detail endpoint may not exist on this backend — fall back below.
         console.log("Detail endpoint /lead/:id not available, falling back to list scan");
       }
 
@@ -390,11 +362,92 @@ const LeadForm: React.FC = () => {
 
   // ─── validation ────────────────────────────────────────────────────────
 
+  // Helper function to check if a field has any error
+  const hasFieldError = (fieldName: string): boolean => {
+    return validationErrors.some(err => err.field === fieldName);
+  };
+
   const getValidationErrors = (step: number): { [key: string]: string } => {
     const newErrors: { [key: string]: string } = {};
     if (step === 0) {
       if (!formData.name.trim()) newErrors.name = "Name is required";
       if (!formData.organizationName.trim()) newErrors.organizationName = "Organization Name is required";
+      
+      // Name validation - only alphabets and spaces, max 30 chars (no digits)
+      if (formData.name.trim() && !/^[A-Za-z\s]+$/.test(formData.name.trim())) {
+        newErrors.name = "Name should contain only alphabets and spaces (no numbers)";
+      }
+      if (formData.name.trim() && formData.name.trim().length > 30) {
+        newErrors.name = "Name should not exceed 30 characters";
+      }
+      
+      // Job Title validation - only alphabets and spaces, max 30 chars (no digits)
+      if (formData.jobTitle.trim() && !/^[A-Za-z\s]+$/.test(formData.jobTitle.trim())) {
+        newErrors.jobTitle = "Job title should contain only alphabets and spaces (no numbers)";
+      }
+      if (formData.jobTitle.trim() && formData.jobTitle.trim().length > 30) {
+        newErrors.jobTitle = "Job title should not exceed 30 characters";
+      }
+    }
+    if (step === 1) {
+      // Email validation
+      if (formData.email.trim() && !/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(formData.email.trim())) {
+        newErrors.email = "Enter a valid email address";
+      }
+      
+      // Mobile No validation - exactly 10 digits
+      if (formData.mobileNo.trim() && !/^\d{10}$/.test(formData.mobileNo.trim())) {
+        newErrors.mobileNo = "Mobile number must be exactly 10 digits";
+      }
+      
+      // Phone validation - exactly 10 digits
+      if (formData.phone.trim() && !/^\d{10}$/.test(formData.phone.trim())) {
+        newErrors.phone = "Phone number must be exactly 10 digits";
+      }
+      
+      // Website validation
+      if (formData.website.trim() && !/^https?:\/\/[^\s]+$/.test(formData.website.trim())) {
+        newErrors.website = "Enter a valid website URL";
+      }
+      
+      // City validation - alphabets and spaces only
+      if (formData.city.trim() && !/^[A-Za-z\s]+$/.test(formData.city.trim())) {
+        newErrors.city = "City should contain only alphabets and spaces";
+      }
+      if (formData.city.trim() && formData.city.trim().length > 50) {
+        newErrors.city = "City should not exceed 50 characters";
+      }
+      
+      // State validation - required and alphabets and spaces only
+      if (!formData.state.trim()) {
+        newErrors.state = "State is required";
+      } else if (!/^[A-Za-z\s]+$/.test(formData.state.trim())) {
+        newErrors.state = "State should contain only alphabets and spaces";
+      } else if (formData.state.trim().length > 50) {
+        newErrors.state = "State should not exceed 50 characters";
+      }
+      
+      // Country validation - required and alphabets and spaces only
+      if (!formData.country.trim()) {
+        newErrors.country = "Country is required";
+      } else if (!/^[A-Za-z\s]+$/.test(formData.country.trim())) {
+        newErrors.country = "Country should contain only alphabets and spaces";
+      } else if (formData.country.trim().length > 50) {
+        newErrors.country = "Country should not exceed 50 characters";
+      }
+      
+      // Qualified By validation - alphabets and spaces only
+      if (formData.qualifiedBy.trim() && !/^[A-Za-z\s]+$/.test(formData.qualifiedBy.trim())) {
+        newErrors.qualifiedBy = "Qualified By should contain only alphabets and spaces";
+      }
+      if (formData.qualifiedBy.trim() && formData.qualifiedBy.trim().length > 50) {
+        newErrors.qualifiedBy = "Qualified By should not exceed 50 characters";
+      }
+      
+      // Annual Revenue validation - numbers only
+      if (formData.annualRevenue.trim() && !/^\d*\.?\d+$/.test(formData.annualRevenue.trim())) {
+        newErrors.annualRevenue = "Annual Revenue should contain only numbers";
+      }
     }
     return newErrors;
   };
@@ -402,14 +455,86 @@ const LeadForm: React.FC = () => {
   const getAllValidationErrors = (): ValidationError[] => {
     const allErrors: ValidationError[] = [];
 
-    if (!formData.name.trim())
+    // Tab 0 - Name validation
+    if (!formData.name.trim()) {
       allErrors.push({ field: "name", label: "Name", message: "Name is required", tabIndex: 0 });
+    } else if (!/^[A-Za-z\s]+$/.test(formData.name.trim())) {
+      allErrors.push({ field: "name", label: "Name", message: "Name should contain only alphabets and spaces (no numbers)", tabIndex: 0 });
+    } else if (formData.name.trim().length > 30) {
+      allErrors.push({ field: "name", label: "Name", message: "Name should not exceed 30 characters", tabIndex: 0 });
+    }
 
-    if (!formData.organizationName.trim())
+    // Tab 0 - Organization Name
+    if (!formData.organizationName.trim()) {
       allErrors.push({ field: "organizationName", label: "Organization Name", message: "Organization Name is required", tabIndex: 0 });
+    }
 
-    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email))
+    // Tab 0 - Job Title validation
+    if (formData.jobTitle.trim() && !/^[A-Za-z\s]+$/.test(formData.jobTitle.trim())) {
+      allErrors.push({ field: "jobTitle", label: "Job Title", message: "Job title should contain only alphabets and spaces (no numbers)", tabIndex: 0 });
+    }
+    if (formData.jobTitle.trim() && formData.jobTitle.trim().length > 30) {
+      allErrors.push({ field: "jobTitle", label: "Job Title", message: "Job title should not exceed 30 characters", tabIndex: 0 });
+    }
+
+    // Tab 1 - Email validation
+    if (formData.email.trim() && !/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(formData.email.trim())) {
       allErrors.push({ field: "email", label: "Email", message: "Enter a valid email address", tabIndex: 1 });
+    }
+
+    // Tab 1 - Mobile No validation - exactly 10 digits
+    if (formData.mobileNo.trim() && !/^\d{10}$/.test(formData.mobileNo.trim())) {
+      allErrors.push({ field: "mobileNo", label: "Mobile No", message: "Mobile number must be exactly 10 digits", tabIndex: 1 });
+    }
+
+    // Tab 1 - Phone validation - exactly 10 digits
+    if (formData.phone.trim() && !/^\d{10}$/.test(formData.phone.trim())) {
+      allErrors.push({ field: "phone", label: "Phone", message: "Phone number must be exactly 10 digits", tabIndex: 1 });
+    }
+
+    // Tab 1 - Website validation
+    if (formData.website.trim() && !/^https?:\/\/[^\s]+$/.test(formData.website.trim())) {
+      allErrors.push({ field: "website", label: "Website", message: "Enter a valid website URL", tabIndex: 1 });
+    }
+
+    // Tab 1 - City validation
+    if (formData.city.trim() && !/^[A-Za-z\s]+$/.test(formData.city.trim())) {
+      allErrors.push({ field: "city", label: "City", message: "City should contain only alphabets and spaces", tabIndex: 1 });
+    }
+    if (formData.city.trim() && formData.city.trim().length > 50) {
+      allErrors.push({ field: "city", label: "City", message: "City should not exceed 50 characters", tabIndex: 1 });
+    }
+
+    // Tab 1 - State validation - Required
+    if (!formData.state.trim()) {
+      allErrors.push({ field: "state", label: "State", message: "State is required", tabIndex: 1 });
+    } else if (!/^[A-Za-z\s]+$/.test(formData.state.trim())) {
+      allErrors.push({ field: "state", label: "State", message: "State should contain only alphabets and spaces", tabIndex: 1 });
+    } else if (formData.state.trim().length > 50) {
+      allErrors.push({ field: "state", label: "State", message: "State should not exceed 50 characters", tabIndex: 1 });
+    }
+
+    // Tab 1 - Country validation - Required
+    if (!formData.country.trim()) {
+      allErrors.push({ field: "country", label: "Country", message: "Country is required", tabIndex: 1 });
+    } else if (!/^[A-Za-z\s]+$/.test(formData.country.trim())) {
+      allErrors.push({ field: "country", label: "Country", message: "Country should contain only alphabets and spaces", tabIndex: 1 });
+    } else if (formData.country.trim().length > 50) {
+      allErrors.push({ field: "country", label: "Country", message: "Country should not exceed 50 characters", tabIndex: 1 });
+    }
+
+    // Tab 1 - Qualified By validation
+    if (formData.qualifiedBy.trim() && !/^[A-Za-z\s]+$/.test(formData.qualifiedBy.trim())) {
+      allErrors.push({ field: "qualifiedBy", label: "Qualified By", message: "Qualified By should contain only alphabets and spaces", tabIndex: 1 });
+    }
+    if (formData.qualifiedBy.trim() && formData.qualifiedBy.trim().length > 50) {
+      allErrors.push({ field: "qualifiedBy", label: "Qualified By", message: "Qualified By should not exceed 50 characters", tabIndex: 1 });
+    }
+
+    // Tab 1 - Annual Revenue validation
+    if (formData.annualRevenue.trim() && !/^\d*\.?\d+$/.test(formData.annualRevenue.trim())) {
+      allErrors.push({ field: "annualRevenue", label: "Annual Revenue", message: "Annual Revenue should contain only numbers", tabIndex: 1 });
+    }
 
     return allErrors;
   };
@@ -422,6 +547,18 @@ const LeadForm: React.FC = () => {
     setActiveTab(tabIndex);
     setShowValidationSummary(false);
     setErrors({});
+    
+    // Scroll to the first error field in this tab
+    const errorsInTab = getAllValidationErrors().filter(e => e.tabIndex === tabIndex);
+    if (errorsInTab.length > 0) {
+      const firstError = errorsInTab[0];
+      const fieldSelector = `[name="${firstError.field}"]`;
+      const fieldElement = document.querySelector(fieldSelector);
+      if (fieldElement) {
+        fieldElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        (fieldElement as HTMLElement).focus();
+      }
+    }
   };
 
   const checkTabWarnings = (step: number): boolean => {
@@ -460,6 +597,25 @@ const LeadForm: React.FC = () => {
 
   // ─── field handlers ────────────────────────────────────────────────────
 
+  // ─── Helper to prevent digits in Name and Job Title fields ──────────
+  const preventDigits = (e: KeyboardEvent<HTMLInputElement>) => {
+    const {  } = e.currentTarget;
+    // Allow: backspace, delete, tab, escape, enter, arrow keys, home, end, etc.
+    const allowedKeys = ['Backspace', 'Delete', 'Tab', 'Escape', 'Enter', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'Shift', 'Control', 'Alt', 'Meta', 'CapsLock'];
+    
+    if (allowedKeys.includes(e.key)) {
+      return;
+    }
+    
+    // Allow: space, letters (a-z, A-Z)
+    if (e.key === ' ' || /^[a-zA-Z]$/.test(e.key)) {
+      return;
+    }
+    
+    // Prevent: digits (0-9) and any other special characters
+    e.preventDefault();
+  };
+
   const handleInputChange = (
     e: ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
@@ -478,6 +634,13 @@ const LeadForm: React.FC = () => {
     if (allErrors.length > 0) {
       setValidationErrors(allErrors);
       setShowValidationSummary(true);
+      
+      // Scroll to the first error
+      const firstError = allErrors[0];
+      setTimeout(() => {
+        jumpToTab(firstError.tabIndex);
+      }, 100);
+      
       return;
     }
 
@@ -517,6 +680,11 @@ const LeadForm: React.FC = () => {
   const allValidationErrors = getAllValidationErrors();
   const hasAnyErrors = allValidationErrors.length > 0;
 
+  // Helper to check if a field has error for red border
+  const getFieldErrorClass = (fieldName: string): string => {
+    return hasFieldError(fieldName) ? "jcf-input-error" : "";
+  };
+
   return (
     <div className="jcf-page">
 
@@ -526,13 +694,13 @@ const LeadForm: React.FC = () => {
           <div className="jcf-validation-modal" onClick={(e) => e.stopPropagation()}>
             <div className="jcf-modal-header jcf-modal-header-warning">
               <h2 className="jcf-modal-title-warning">
-                <FaExclamationTriangle /> Missing Required Fields
+                <FaExclamationTriangle /> Missing or Invalid Fields
               </h2>
               <button className="jcf-modal-close" onClick={() => setShowValidationSummary(false)}>×</button>
             </div>
             <div className="jcf-modal-body">
               <p className="jcf-modal-intro">
-                Please fill in the following required fields before submitting:
+                Please fix the following issues before submitting:
               </p>
               <div className="jcf-error-list">
                 {validationErrors.map((error, idx) => (
@@ -578,9 +746,9 @@ const LeadForm: React.FC = () => {
           )}
 
           {hasAnyErrors && (
-            <div className="jcf-error-pill">
+            <div className="jcf-error-pill" onClick={() => setShowValidationSummary(true)} style={{ cursor: 'pointer' }}>
               <FaExclamationTriangle size={11} />
-              {allValidationErrors.length} missing field(s)
+              {allValidationErrors.length} field{allValidationErrors.length !== 1 ? 's' : ''} need attention
             </div>
           )}
         </div>
@@ -666,10 +834,12 @@ const LeadForm: React.FC = () => {
                         name="name"
                         value={formData.name}
                         onChange={handleInputChange}
+                        onKeyDown={preventDigits}
                         placeholder="e.g. John Doe"
-                        className={`jcf-input ${errors.name ? "jcf-input-error" : ""}`}
+                        maxLength={30}
+                        className={`jcf-input ${getFieldErrorClass("name")}`}
                       />
-                      {errors.name && <span className="jcf-error-text">{errors.name}</span>}
+                      {hasFieldError("name") && <span className="jcf-error-text">{validationErrors.find(e => e.field === "name")?.message}</span>}
                     </div>
                     <div>
                       <label className="jcf-label">Job Title</label>
@@ -678,70 +848,31 @@ const LeadForm: React.FC = () => {
                         name="jobTitle"
                         value={formData.jobTitle}
                         onChange={handleInputChange}
+                        onKeyDown={preventDigits}
                         placeholder="e.g. Purchase Manager"
-                        className="jcf-input"
+                        maxLength={30}
+                        className={`jcf-input ${hasFieldError("jobTitle") ? "jcf-input-error" : ""}`}
                       />
+                      {hasFieldError("jobTitle") && <span className="jcf-error-text">{validationErrors.find(e => e.field === "jobTitle")?.message}</span>}
                     </div>
                   </div>
 
                   <div className="jcf-section-title"><FaBuilding size={12} /> Organization</div>
 
                   <div className="jcf-grid-3">
+                    {/* UPDATED: Organization Name - Now a simple input field like others */}
                     <div>
                       <label className="jcf-label">Organization Name *</label>
-
-                      {!isAddingNewCustomer ? (
-                        <>
-                          <select
-                            name="organizationName"
-                            value={selectedCustomerId}
-                            onChange={handleOrganizationSelect}
-                            className={`jcf-input ${errors.organizationName ? "jcf-input-error" : ""}`}
-                            disabled={loadingCustomers}
-                          >
-                            <option value="">
-                              {loadingCustomers ? "Loading customers..." : "Select customer..."}
-                            </option>
-                            {customers.map((c) => (
-                              <option key={customerIdOf(c)} value={customerIdOf(c)}>
-                                {customerLabelOf(c)}
-                              </option>
-                            ))}
-                            <option value={ADD_NEW_CUSTOMER_VALUE}>+ Add New Customer</option>
-                          </select>
-                          {customersError && (
-                            <span className="jcf-error-text">{customersError}</span>
-                          )}
-                        </>
-                      ) : (
-                        <div style={{ display: "flex", gap: 6 }}>
-                          <input
-                            type="text"
-                            name="organizationName"
-                            value={formData.organizationName}
-                            onChange={handleNewOrganizationInput}
-                            placeholder="e.g. Acme Manufacturing"
-                            className={`jcf-input ${errors.organizationName ? "jcf-input-error" : ""}`}
-                            autoFocus
-                          />
-                          <button
-                            type="button"
-                            onClick={handleBackToCustomerList}
-                            className="jcf-btn-secondary"
-                            title="Choose from existing customers"
-                            style={{ padding: "0 10px", flexShrink: 0 }}
-                          >
-                            <FaUndo size={11} />
-                          </button>
-                        </div>
-                      )}
-
-                      {errors.organizationName && <span className="jcf-error-text">{errors.organizationName}</span>}
-                      {isAddingNewCustomer && (
-                        <span className="jcf-helper-text" style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 4 }}>
-                          <FaPlus size={9} /> New customer name — will be saved with this lead
-                        </span>
-                      )}
+                      <input
+                        type="text"
+                        name="organizationName"
+                        value={formData.organizationName}
+                        onChange={handleInputChange}
+                        placeholder="e.g. Acme Manufacturing"
+                        maxLength={50}
+                        className={`jcf-input ${hasFieldError("organizationName") ? "jcf-input-error" : ""}`}
+                      />
+                      {hasFieldError("organizationName") && <span className="jcf-error-text">{validationErrors.find(e => e.field === "organizationName")?.message}</span>}
                     </div>
                     <div>
                       <label className="jcf-label">Status *</label>
@@ -749,7 +880,7 @@ const LeadForm: React.FC = () => {
                         name="status"
                         value={formData.status}
                         onChange={handleInputChange}
-                        className="jcf-input"
+                        className="jcf-input jcf-select-no-arrow"
                       >
                         <option value="Lead">Lead</option>
                         <option value="Contacted">Contacted</option>
@@ -758,7 +889,6 @@ const LeadForm: React.FC = () => {
                         <option value="Converted">Converted</option>
                       </select>
                     </div>
-
                   </div>
 
 
@@ -769,7 +899,7 @@ const LeadForm: React.FC = () => {
                         name="leadType"
                         value={formData.leadType}
                         onChange={handleInputChange}
-                        className="jcf-input"
+                        className="jcf-input jcf-select-no-arrow"
                       >
                         <option value="">Select Lead Type</option>
                         <option value="Customer">Customer</option>
@@ -787,7 +917,7 @@ const LeadForm: React.FC = () => {
                         name="source"
                         value={formData.source}
                         onChange={handleInputChange}
-                        className="jcf-input"
+                        className="jcf-input jcf-select-no-arrow"
                       >
                         <option value="">Select Source</option>
                         <option value="Website">Website</option>
@@ -822,9 +952,9 @@ const LeadForm: React.FC = () => {
                         value={formData.email}
                         onChange={handleInputChange}
                         placeholder="name@example.com"
-                        className={`jcf-input ${errors.email ? "jcf-input-error" : ""}`}
+                        className={`jcf-input ${hasFieldError("email") ? "jcf-input-error" : ""}`}
                       />
-                      {errors.email && <span className="jcf-error-text">{errors.email}</span>}
+                      {hasFieldError("email") && <span className="jcf-error-text">{validationErrors.find(e => e.field === "email")?.message}</span>}
                     </div>
                     <div>
                       <label className="jcf-label">Mobile No</label>
@@ -833,39 +963,39 @@ const LeadForm: React.FC = () => {
                         name="mobileNo"
                         value={formData.mobileNo}
                         onChange={handleInputChange}
-                        placeholder="e.g. +91 98765 43210"
-                        className="jcf-input"
+                        placeholder="e.g. 9876543210"
+                        maxLength={10}
+                        className={`jcf-input ${hasFieldError("mobileNo") ? "jcf-input-error" : ""}`}
                       />
+                      {hasFieldError("mobileNo") && <span className="jcf-error-text">{validationErrors.find(e => e.field === "mobileNo")?.message}</span>}
                     </div>
-                    <div className="jcf-grid-2">
+                  </div>
+                  <div className="jcf-grid-2">
+                    <div>
+                      <label className="jcf-label">Phone</label>
+                      <input
+                        type="text"
+                        name="phone"
+                        value={formData.phone}
+                        onChange={handleInputChange}
+                        placeholder="e.g. 9876543210"
+                        maxLength={10}
+                        className={`jcf-input ${hasFieldError("phone") ? "jcf-input-error" : ""}`}
+                      />
+                      {hasFieldError("phone") && <span className="jcf-error-text">{validationErrors.find(e => e.field === "phone")?.message}</span>}
+                    </div>
 
-                      <div>
-                        <label className="jcf-label">Phone</label>
-
-                        <input
-                          type="text"
-                          name="phone"
-                          value={formData.phone}
-                          onChange={handleInputChange}
-                          className="jcf-input"
-                        />
-
-                      </div>
-
-                      <div>
-
-                        <label className="jcf-label">Website</label>
-
-                        <input
-                          type="text"
-                          name="website"
-                          value={formData.website}
-                          onChange={handleInputChange}
-                          className="jcf-input"
-                        />
-
-                      </div>
-
+                    <div>
+                      <label className="jcf-label">Website</label>
+                      <input
+                        type="text"
+                        name="website"
+                        value={formData.website}
+                        onChange={handleInputChange}
+                        placeholder="https://example.com"
+                        className={`jcf-input ${hasFieldError("website") ? "jcf-input-error" : ""}`}
+                      />
+                      {hasFieldError("website") && <span className="jcf-error-text">{validationErrors.find(e => e.field === "website")?.message}</span>}
                     </div>
                   </div>
                   <div className="jcf-section-title">
@@ -874,22 +1004,15 @@ const LeadForm: React.FC = () => {
                   </div>
 
                   <div className="jcf-grid-3">
-
                     <div>
-
-                      <label className="jcf-label">
-                        Industry
-                      </label>
-
+                      <label className="jcf-label">Industry</label>
                       <select
                         name="industry"
                         value={formData.industry}
                         onChange={handleInputChange}
-                        className="jcf-input"
+                        className="jcf-input jcf-select-no-arrow"
                       >
-
                         <option value="">Select</option>
-
                         <option>IT</option>
                         <option>Healthcare</option>
                         <option>Manufacturing</option>
@@ -900,53 +1023,40 @@ const LeadForm: React.FC = () => {
                         <option>Real Estate</option>
                         <option>Hospitality</option>
                         <option>Other</option>
-
                       </select>
-
                     </div>
 
                     <div>
-
-                      <label className="jcf-label">
-                        No. of Employees
-                      </label>
-
+                      <label className="jcf-label">No. of Employees</label>
                       <select
                         name="employees"
                         value={formData.employees}
                         onChange={handleInputChange}
-                        className="jcf-input"
+                        className="jcf-input jcf-select-no-arrow"
                       >
-
                         <option value="">Select</option>
-
                         <option>1-10</option>
                         <option>11-50</option>
                         <option>51-200</option>
                         <option>201-500</option>
                         <option>501-1000</option>
                         <option>1000+</option>
-
                       </select>
-
                     </div>
 
                     <div>
-
-                      <label className="jcf-label">
-                        Annual Revenue
-                      </label>
-
+                      <label className="jcf-label">Annual Revenue</label>
                       <input
                         name="annualRevenue"
                         value={formData.annualRevenue}
                         onChange={handleInputChange}
-                        className="jcf-input"
+                        placeholder="e.g. 1000000"
+                        className={`jcf-input ${hasFieldError("annualRevenue") ? "jcf-input-error" : ""}`}
                       />
-
+                      {hasFieldError("annualRevenue") && <span className="jcf-error-text">{validationErrors.find(e => e.field === "annualRevenue")?.message}</span>}
                     </div>
-
                   </div>
+
                   <div className="jcf-section-title">Address</div>
 
                   <div className="jcf-grid-3">
@@ -958,85 +1068,72 @@ const LeadForm: React.FC = () => {
                         value={formData.city}
                         onChange={handleInputChange}
                         placeholder="e.g. Mumbai"
-                        className="jcf-input"
+                        maxLength={50}
+                        className={`jcf-input ${hasFieldError("city") ? "jcf-input-error" : ""}`}
                       />
+                      {hasFieldError("city") && <span className="jcf-error-text">{validationErrors.find(e => e.field === "city")?.message}</span>}
                     </div>
                     <div>
-
-                      <label className="jcf-label">
-                        State
-                      </label>
-
+                      <label className="jcf-label">State *</label>
                       <input
                         name="state"
                         value={formData.state}
                         onChange={handleInputChange}
-                        className="jcf-input"
+                        placeholder="e.g. Maharashtra"
+                        maxLength={50}
+                        className={`jcf-input ${hasFieldError("state") ? "jcf-input-error" : ""}`}
                       />
-
+                      {hasFieldError("state") && <span className="jcf-error-text">{validationErrors.find(e => e.field === "state")?.message}</span>}
                     </div>
                     <div>
-                      <label className="jcf-label">Country</label>
+                      <label className="jcf-label">Country *</label>
                       <input
                         type="text"
                         name="country"
                         value={formData.country}
                         onChange={handleInputChange}
                         placeholder="e.g. India"
-                        className="jcf-input"
+                        maxLength={50}
+                        className={`jcf-input ${hasFieldError("country") ? "jcf-input-error" : ""}`}
                       />
+                      {hasFieldError("country") && <span className="jcf-error-text">{validationErrors.find(e => e.field === "country")?.message}</span>}
                     </div>
                   </div>
-                  <div className="jcf-section-title">
-                    Qualification
-                  </div>
+
+                  <div className="jcf-section-title">Qualification</div>
 
                   <div className="jcf-grid-3">
-
                     <div>
-
-                      <label className="jcf-label">
-                        Qualification Status
-                      </label>
-
+                      <label className="jcf-label">Qualification Status</label>
                       <select
                         name="qualificationStatus"
                         value={formData.qualificationStatus}
                         onChange={handleInputChange}
-                        className="jcf-input"
+                        className="jcf-input jcf-select-no-arrow"
                       >
-
                         <option>Lead</option>
                         <option>Contacted</option>
                         <option>Qualified</option>
                         <option>Unqualified</option>
                         <option>Converted</option>
-
                       </select>
-
                     </div>
 
                     <div>
-
-                      <label className="jcf-label">
-                        Qualified By
-                      </label>
-
+                      <label className="jcf-label">Qualified By</label>
                       <input
                         name="qualifiedBy"
                         value={formData.qualifiedBy}
                         onChange={handleInputChange}
-                        className="jcf-input"
+                        placeholder="Enter name"
+                        maxLength={50}
+                        className={`jcf-input ${hasFieldError("qualifiedBy") ? "jcf-input-error" : ""}`}
                       />
-
+                      {hasFieldError("qualifiedBy") && <span className="jcf-error-text">{validationErrors.find(e => e.field === "qualifiedBy")?.message}</span>}
                     </div>
 
                     <div>
-
-                      <label className="jcf-label">
-                        Qualified On
-                      </label>
-
+                      <label className="jcf-label">Qualified On</label>
                       <input
                         type="date"
                         name="qualifiedOn"
@@ -1044,9 +1141,7 @@ const LeadForm: React.FC = () => {
                         onChange={handleInputChange}
                         className="jcf-input"
                       />
-
                     </div>
-
                   </div>
                 </div>
               </div>

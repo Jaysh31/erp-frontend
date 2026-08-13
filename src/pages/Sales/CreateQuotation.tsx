@@ -97,6 +97,9 @@ interface Customer {
   gstin: string;
   contactPerson?: string;
   contactMobile?: string;
+  customerType?: string;
+  customerGroup?: string;
+  territory?: string;
   contacts?: Array<{
     id: number;
     customer_id: number;
@@ -221,6 +224,14 @@ const extractRecords = (payload: any): any[] => {
   return [];
 };
 
+/** Blurs a number input on wheel so an accidental scroll over it (e.g. while
+ *  scrolling the items table) cannot silently increment/decrement its value.
+ *  Browsers apply the scroll-to-change behavior only while the input is
+ *  focused, so removing focus synchronously inside the wheel event stops it
+ *  while leaving the page's normal scroll untouched. */
+const blurOnWheel = (e: React.WheelEvent<HTMLInputElement>) => {
+  (e.target as HTMLInputElement).blur();
+};
 
 // ===== SHARED: portal-based dropdown menu position hook =====
 function useDropdownPosition(isOpen: boolean, triggerRef: React.RefObject<HTMLDivElement | null>) {
@@ -525,19 +536,37 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
       const records = extractRecords(payload);
 
       if (records.length > 0) {
-        const mappedCustomers: Customer[] = records.map((cust: any) => ({
-          id: cust.id?.toString() || cust.customer_id?.toString() || '',
-          name: cust.customer_name || cust.name || '',
-          code: cust.customer_code || cust.code || '',
-          email: cust.email_id || cust.email || '',
-          phone: cust.mobile_no || cust.phone || '',
-          address: cust.address || '',
-          shippingAddress: cust.shipping_address || cust.address || '',
-          gstin: cust.gstin || '',
-          contactPerson: cust.contact_person || '',
-          contactMobile: cust.contact_mobile || cust.mobile_no || '',
-          contacts: cust.contacts || [],
-        }));
+        const mappedCustomers: Customer[] = records.map((cust: any) => {
+          const contacts = cust.contacts || [];
+          // The API's "is_primary" contact is frequently a blank placeholder
+          // record (empty name/mobile/email) while the real details sit on a
+          // different, non-primary contact. Prefer whichever contact — primary
+          // or not — actually has usable info, instead of trusting the flag.
+          const contactsWithInfo = contacts.filter(
+            (c: any) => c.mobile_no || c.email_id || c.contact_name || c.telephone
+          );
+          const bestContact =
+            contactsWithInfo.find((c: any) => c.is_primary === 1) ||
+            contactsWithInfo[0] ||
+            contacts[0];
+
+          return {
+            id: cust.id?.toString() || cust.customer_id?.toString() || '',
+            name: cust.customer_name || cust.name || '',
+            code: cust.customer_code || cust.code || (cust.id != null ? `CUST-${cust.id}` : ''),
+            email: cust.email_id || cust.email || bestContact?.email_id || '',
+            phone: cust.mobile_no || cust.phone || bestContact?.mobile_no || bestContact?.telephone || '',
+            address: cust.address || '',
+            shippingAddress: cust.shipping_address || cust.address || '',
+            gstin: cust.gstin || '',
+            contactPerson: cust.contact_person || bestContact?.contact_name || '',
+            contactMobile: cust.contact_mobile || bestContact?.mobile_no || cust.mobile_no || '',
+            customerType: cust.customer_type || '',
+            customerGroup: cust.customer_group || '',
+            territory: cust.territory || '',
+            contacts,
+          };
+        });
         setCustomers(mappedCustomers);
         setFilteredCustomers(mappedCustomers);
       }
@@ -633,13 +662,13 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
               <div>
                 <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary, #0f172a)' }}>{customer.name}</span>
               </div>
-              {customer.gstin && (
+              {(customer.gstin || customer.customerType) && (
                 <span style={{ fontSize: '10px', color: 'var(--text-secondary, #94a3b8)', background: 'var(--layout-bg, #f1f5f9)', padding: '2px 8px', borderRadius: '4px' }}>
-                  GST: {customer.gstin}
+                  {customer.gstin ? `GST: ${customer.gstin}` : customer.customerType}
                 </span>
               )}
             </div>
-            <div style={{ display: 'flex', gap: '16px', marginTop: '4px', fontSize: '11px', color: 'var(--text-secondary, #64748b)' }}>
+            <div style={{ display: 'flex', gap: '16px', marginTop: '4px', fontSize: '11px', color: 'var(--text-secondary, #64748b)', flexWrap: 'wrap' }}>
               {customer.contactPerson && (
                 <span><FaUser size={10} style={{ marginRight: '4px' }} />{customer.contactPerson}</span>
               )}
@@ -648,6 +677,9 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
               )}
               {customer.email && (
                 <span><FaEnvelope size={10} style={{ marginRight: '4px' }} />{customer.email}</span>
+              )}
+              {customer.territory && (
+                <span>{customer.territory}</span>
               )}
             </div>
           </div>
@@ -737,6 +769,15 @@ export default function CreateQuotation() {
   const [isLoadingItems, setIsLoadingItems] = useState(false);
   const [taxOptions, setTaxOptions] = useState<TaxOption[]>([]);
   const [loadingTaxOptions, setLoadingTaxOptions] = useState(false);
+  // ===== FIX: track whether tax options have finished loading (success or
+  // failure) so the edit-mode quotation load can wait for them. Previously
+  // the quotation was fetched and mapped as soon as `id` was available, in a
+  // separate effect from the async tax-options fetch — the quotation almost
+  // always finished loading before taxOptions had arrived, so every item's
+  // item_tax_id -> tax_type lookup silently matched nothing and every line
+  // fell back to 0%, even though the correct GST had been saved.
+  const [taxOptionsLoaded, setTaxOptionsLoaded] = useState(false);
+  const [recordFetched, setRecordFetched] = useState(false);
 
   const statusOptions = ['Draft', 'Sent', 'Accepted', 'Rejected', 'Expired', 'Converted'];
 
@@ -894,6 +935,10 @@ export default function CreateQuotation() {
       setTaxOptions([]);
     } finally {
       setLoadingTaxOptions(false);
+      // ===== FIX: mark tax options as loaded regardless of success/failure
+      // so the edit-mode quotation fetch (gated below) isn't blocked forever
+      // if this call ever fails.
+      setTaxOptionsLoaded(true);
     }
   };
 
@@ -966,9 +1011,18 @@ export default function CreateQuotation() {
     }
   }, [allProducts, formData.isService]);
 
+  // ===== FIX: fetch tax options exactly once on mount, independent of
+  // formData.isService. Tax options don't vary by item type, and keeping
+  // this separate from the items fetch means taxOptionsLoaded only flips
+  // once and can't be misread as "still loading" by a later toggle.
   useEffect(() => {
     fetchTaxOptions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     fetchAllItems();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.isService]);
 
   // ─── Handle Customer Change ────────────────────────────────────
@@ -1052,11 +1106,14 @@ export default function CreateQuotation() {
 
   // ─── load existing quotation when editing ────────────────────────
 
+  // ===== FIX: wait for taxOptionsLoaded before fetching the quotation, and
+  // only fetch once (recordFetched guards against re-fetching if this effect
+  // re-runs, e.g. after isService gets set from the loaded record).
   useEffect(() => {
-    if (isEditMode && id) {
+    if (isEditMode && id && taxOptionsLoaded && !recordFetched) {
       fetchQuotationById(id);
     }
-  }, [id]);
+  }, [id, taxOptionsLoaded, recordFetched]);
 
   const QUOTATION_PAGE_SIZE = 50;
 
@@ -1099,6 +1156,7 @@ export default function CreateQuotation() {
       const record = await findQuotationRecord(quotationId);
       if (record) {
         loadQuotationIntoForm(record);
+        setRecordFetched(true);
       } else {
         setApiError('Quotation not found');
       }
@@ -1126,7 +1184,9 @@ export default function CreateQuotation() {
           let sgst = it.sgst_rate ?? 0;
           let tax = cgst + sgst;
           
-          // If we have item_tax_id, try to get the tax rate
+          // If we have item_tax_id, try to get the tax rate. By the time this
+          // runs, taxOptionsLoaded is guaranteed true (see the gated useEffect
+          // above), so `taxOptions` here is the real list, not the initial [].
           if (it.item_tax_id) {
             const taxOption = taxOptions.find(t => t.tax_id === it.item_tax_id);
             if (taxOption) {
@@ -1231,22 +1291,6 @@ export default function CreateQuotation() {
       });
     }
   };
-
-  useEffect(() => {
-    if (formData.customer && formData.customerName) {
-      setCustomerData({
-        id: formData.customer,
-        name: formData.customerName,
-        code: '',
-        email: '',
-        phone: '',
-        address: '',
-        shippingAddress: '',
-        gstin: '',
-        contacts: [],
-      });
-    }
-  }, [formData.customer, formData.customerName]);
 
   /* ─── validation ─────────────────────────────────────────────── */
 
@@ -1726,34 +1770,6 @@ export default function CreateQuotation() {
   const getTotalTax = () => formData.items.reduce((sum, item) => sum + item.taxAmount, 0);
   const getGrandTotal = () => formData.items.reduce((sum, item) => sum + item.totalAmount, 0);
 
-  // Get primary contact from customer
-  const getPrimaryContact = (customer: Customer | null) => {
-    if (!customer || !customer.contacts) return null;
-    const primary = customer.contacts.find(c => c.is_primary === 1);
-    return primary || customer.contacts[0] || null;
-  };
-
-  const getCustomerPhone = (customer: Customer | null) => {
-    if (!customer) return '';
-    if (customer.phone) return customer.phone;
-    const contact = getPrimaryContact(customer);
-    return contact?.mobile_no || contact?.telephone || '';
-  };
-
-  const getCustomerEmail = (customer: Customer | null) => {
-    if (!customer) return '';
-    if (customer.email) return customer.email;
-    const contact = getPrimaryContact(customer);
-    return contact?.email_id || '';
-  };
-
-  const getCustomerContactPerson = (customer: Customer | null) => {
-    if (!customer) return '';
-    if (customer.contactPerson) return customer.contactPerson;
-    const contact = getPrimaryContact(customer);
-    return contact?.contact_name || '';
-  };
-
   return (
     <div className={`cq-page ${theme}-theme`}>
       {/* Validation Summary Modal */}
@@ -1961,28 +1977,46 @@ export default function CreateQuotation() {
                   <div className="cq-card-content">
                     <h3>{customerData.name}</h3>
                     <div className="cq-card-info">
-                      {customerData.code && (
+                      {/* {customerData.code && (
                         <div className="cq-info-item">
                           <span className="cq-info-label">Code</span>
                           <span className="cq-info-value">{customerData.code}</span>
                         </div>
+                      )} */}
+                      {/* {customerData.customerType && (
+                        <div className="cq-info-item">
+                          <span className="cq-info-label">Type</span>
+                          <span className="cq-info-value">{customerData.customerType}</span>
+                        </div>
                       )}
-                      {getCustomerContactPerson(customerData) && (
+                      {customerData.customerGroup && (
+                        <div className="cq-info-item">
+                          <span className="cq-info-label">Group</span>
+                          <span className="cq-info-value">{customerData.customerGroup}</span>
+                        </div>
+                      )}
+                      {customerData.territory && (
+                        <div className="cq-info-item">
+                          <span className="cq-info-label">Territory</span>
+                          <span className="cq-info-value">{customerData.territory}</span>
+                        </div>
+                      )} */}
+                      {customerData.contactPerson && (
                         <div className="cq-info-item">
                           <span className="cq-info-label">Contact</span>
-                          <span className="cq-info-value"><FaUser size={10} /> {getCustomerContactPerson(customerData)}</span>
+                          <span className="cq-info-value"><FaUser size={10} /> {customerData.contactPerson}</span>
                         </div>
                       )}
-                      {getCustomerPhone(customerData) && (
+                      {customerData.phone && (
                         <div className="cq-info-item">
                           <span className="cq-info-label">Phone</span>
-                          <span className="cq-info-value"><FaPhone size={10} /> {getCustomerPhone(customerData)}</span>
+                          <span className="cq-info-value"><FaPhone size={10} /> {customerData.phone}</span>
                         </div>
                       )}
-                      {getCustomerEmail(customerData) && (
+                      {customerData.email && (
                         <div className="cq-info-item">
                           <span className="cq-info-label">Email</span>
-                          <span className="cq-info-value"><FaEnvelope size={10} /> {getCustomerEmail(customerData)}</span>
+                          <span className="cq-info-value"><FaEnvelope size={10} /> {customerData.email}</span>
                         </div>
                       )}
                       {customerData.gstin && (
@@ -2117,6 +2151,7 @@ export default function CreateQuotation() {
                           type="number"
                           value={item.quantity}
                           onChange={(e) => handleItemChange(index, 'quantity', Number(e.target.value))}
+                          onWheel={blurOnWheel}
                           min="1"
                           className={`cq-table-input ${errors[`item_${index}_quantity`] ? 'cq-input-error' : ''}`}
                           ref={setItemRef(`item_${index}_quantity`)}
@@ -2145,6 +2180,7 @@ export default function CreateQuotation() {
                           type="number"
                           value={item.rate}
                           onChange={(e) => handleItemChange(index, 'rate', Number(e.target.value))}
+                          onWheel={blurOnWheel}
                           min="0"
                           step="0.01"
                           className={`cq-table-input ${errors[`item_${index}_rate`] ? 'cq-input-error' : ''}`}
@@ -2297,6 +2333,7 @@ export default function CreateQuotation() {
                               type="number"
                               value={schedule.durationDays}
                               onChange={(e) => handlePaymentDurationChange(index, Number(e.target.value))}
+                              onWheel={blurOnWheel}
                               min="0"
                               className="cq-table-input"
                               ref={setRef(`payment_${index}_duration`)}
@@ -2307,6 +2344,7 @@ export default function CreateQuotation() {
                               type="number"
                               value={schedule.invoicePortion}
                               onChange={(e) => updatePaymentRow(index, { invoicePortion: Number(e.target.value) })}
+                              onWheel={blurOnWheel}
                               min="0"
                               max="100"
                               className="cq-table-input"

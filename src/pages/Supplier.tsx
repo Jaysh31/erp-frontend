@@ -153,6 +153,7 @@ export default function SupplierList() {
   const [selectedSupplier, setSelectedSupplier] = useState<SupplierDisplay | null>(null);
   const [supplierGroups, setSupplierGroups] = useState<string[]>([]);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // ─── Edit Modal State ──────────────────────────────────────────────────
   const [showEditModal, setShowEditModal] = useState(false);
@@ -175,7 +176,6 @@ export default function SupplierList() {
   const priceLists = ['Standard Buying', 'Export Pricing', 'Wholesale', 'Distributor'];
   const statusOptions = ['Active', 'Inactive'];
 
-  // Format date to "X h" or "X d" format
   const formatDate = (dateString: string) => {
     if (!dateString) return 'N/A';
     const date = new Date(dateString);
@@ -200,7 +200,7 @@ export default function SupplierList() {
     setError(null);
     try {
       const response = await api.get<ApiResponse>(
-        `/supplier?page=${currentPage}&limit=${itemsPerPage}&_=${Date.now()}`
+        `/supplier?page=${currentPage}&limit=${itemsPerPage}`
       );
 
       if (response.data && response.data.success === 1) {
@@ -342,27 +342,86 @@ export default function SupplierList() {
     setShowDeleteConfirm(true);
   };
 
+  // 🔧 FIXED: Better error handling and debugging for delete
   const confirmDelete = async () => {
-    if (selectedSupplier) {
-      try {
-        const response = await api.delete(`/supplier/${selectedSupplier.id}`);
-        if (response.data && response.data.success === 1) {
-          setShowDeleteConfirm(false);
-          setSelectedSupplier(null);
-          toast.success(response.data.message || 'Supplier deleted successfully!');
-          fetchSuppliers();
-        } else {
-          toast.error(response.data?.message || 'Failed to delete supplier');
-        }
-      } catch (err: any) {
-        console.error('Error deleting supplier:', err);
-        toast.error(err?.response?.data?.message || 'Failed to delete supplier');
+    if (!selectedSupplier) return;
+    
+    setIsDeleting(true);
+    try {
+      console.log('Attempting to delete supplier with ID:', selectedSupplier.id);
+      
+      // Log the full URL for debugging
+      const deleteUrl = `/supplier/${selectedSupplier.id}`;
+      console.log('DELETE URL:', deleteUrl);
+      
+      const response = await api.delete(deleteUrl);
+      console.log('Delete response:', response);
+      
+      if (response.data && response.data.success === 1) {
+        setShowDeleteConfirm(false);
+        setSelectedSupplier(null);
+        toast.success(response.data.message || 'Supplier deleted successfully!');
+        // Refresh the supplier list
+        await fetchSuppliers();
+      } else {
+        const errorMsg = response.data?.message || 'Failed to delete supplier';
+        console.error('Delete failed:', errorMsg);
+        toast.error(errorMsg);
       }
+    } catch (err: any) {
+      console.error('Error in delete operation:', err);
+      
+      // More detailed error logging
+      if (err.response) {
+        // The request was made and the server responded with a status code
+        console.error('Error response data:', err.response.data);
+        console.error('Error response status:', err.response.status);
+        console.error('Error response headers:', err.response.headers);
+        toast.error(err.response.data?.message || `Server error: ${err.response.status}`);
+      } else if (err.request) {
+        // The request was made but no response was received
+        console.error('No response received:', err.request);
+        toast.error('No response from server. Please check your connection and CORS settings.');
+      } else {
+        // Something happened in setting up the request that triggered an Error
+        console.error('Request setup error:', err.message);
+        toast.error('Failed to send delete request. Please try again.');
+      }
+    } finally {
+      setIsDeleting(false);
     }
   };
 
+  // 🔧 FIXED: Edit function now opens modal instead of navigating
   const handleEdit = (supplier: SupplierDisplay) => {
-    navigate(`/supplier/${supplier.id}`);
+    setEditForm({
+      id: supplier.id,
+      supplierName: supplier.supplierName,
+      supplierType: supplier.supplierType || 'Company',
+      supplierGroup: supplier.supplierGroup !== 'N/A' ? supplier.supplierGroup : '',
+      country: supplier.country !== 'N/A' ? supplier.country : 'India',
+      defaultCurrency: 'INR',
+      language: 'English',
+      email: supplier.email || '',
+      phone: supplier.phone || '',
+      address: '',
+      city: '',
+      state: '',
+      pincode: '',
+      taxId: '',
+      taxCategory: 'Registered Regular',
+      paymentTerms: '30 Days',
+      defaultBankAccount: '',
+      defaultPriceList: 'Standard Buying',
+      website: supplier.website || '',
+      supplierDetails: '',
+      isTransporter: supplier.isTransporter || false,
+      isInternalSupplier: supplier.isInternalSupplier || false,
+      onHold: supplier.onHold || false,
+      status: supplier.status || 'Active'
+    });
+    setShowEditModal(true);
+    setEditError(null);
   };
 
   const closeEditModal = () => {
@@ -458,23 +517,20 @@ export default function SupplierList() {
     setShowViewModal(true);
   };
 
-  // Opens the read-only "Bank Accounts" details popup for a supplier that
-  // already has one or more accounts on file.
   const handleViewBankAccounts = (supplier: SupplierDisplay) => {
     setBankModalSupplier(supplier);
     setShowBankModal(true);
   };
 
-  // Sends the user to the bank-details form, pre-wired to attach the new
-  // account to this supplier, for suppliers that have none yet.
   const handleAddBankAccount = (supplier: SupplierDisplay) => {
     navigate('/bank-details', {
       state: {
         embedContext: {
-          returnPath: '/supplier',
+          returnPath: `/supplier/${supplier.id}`,
           partyType: 'Supplier',
           partyId: supplier.id,
           supplierName: supplier.supplierName,
+          isPendingSupplier: true,
         },
       },
     });
@@ -521,15 +577,11 @@ export default function SupplierList() {
   const getContactTypeLabel = (contact: Contact) => {
     const types = [];
     if (contact.is_billing_contact) types.push('Billing');
-    // Check both is_saler_contact and is_purchase_contact
     if (contact.is_saler_contact || (contact as any).is_purchase_contact) types.push('Sales');
-    // If all three are 0 or undefined, return null to show dash
     if (!contact.is_primary && !contact.is_billing_contact && !(contact.is_saler_contact || (contact as any).is_purchase_contact)) {
       return null;
     }
-    // If primary only (no other types), return 'Primary'
     if (contact.is_primary && types.length === 0) return 'Primary';
-    // If primary with other types, show the other types
     return types.length > 0 ? types.join(' • ') : 'General';
   };
 
@@ -665,7 +717,6 @@ export default function SupplierList() {
                   </tr>
                 ) : (
                   paginatedData.map((row, _index) => {
-                    // const serialNumber = (validCurrentPage - 1) * itemsPerPage + index + 1;
                     const isExpanded = expandedRows.has(row.id);
                     const hasContacts = row.contacts && row.contacts.length > 0;
                     const hasBankAccounts = row.bankDetails && row.bankDetails.length > 0;
@@ -773,8 +824,13 @@ export default function SupplierList() {
                                 className="supplier-action-btn supplier-action-delete"
                                 onClick={(e) => { e.stopPropagation(); handleDelete(row); }}
                                 title="Delete"
+                                disabled={isDeleting}
                               >
-                                <FaTrash size={12} />
+                                {isDeleting && selectedSupplier?.id === row.id ? (
+                                  <FaSpinner className="supplier-spin" size={12} />
+                                ) : (
+                                  <FaTrash size={12} />
+                                )}
                               </button>
                             </div>
                           </td>
@@ -913,11 +969,15 @@ export default function SupplierList() {
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && selectedSupplier && (
-        <div className="supplier-modal-overlay" onClick={() => setShowDeleteConfirm(false)}>
+        <div className="supplier-modal-overlay" onClick={() => !isDeleting && setShowDeleteConfirm(false)}>
           <div className="supplier-modal supplier-modal-delete" onClick={(e) => e.stopPropagation()}>
             <div className="supplier-modal-header">
               <span className="supplier-modal-title">Confirm Delete</span>
-              <button className="supplier-modal-close" onClick={() => setShowDeleteConfirm(false)}>
+              <button 
+                className="supplier-modal-close" 
+                onClick={() => !isDeleting && setShowDeleteConfirm(false)}
+                disabled={isDeleting}
+              >
                 <FaTimes size={16} />
               </button>
             </div>
@@ -925,13 +985,31 @@ export default function SupplierList() {
               <p>Are you sure you want to delete this supplier?</p>
               <p className="supplier-modal-item-name"><strong>{selectedSupplier.supplierName}</strong></p>
               <p className="supplier-modal-warning">This action cannot be undone.</p>
+              {isDeleting && (
+                <div className="supplier-deleting-indicator">
+                  <FaSpinner className="supplier-spin" size={16} />
+                  <span>Deleting...</span>
+                </div>
+              )}
             </div>
             <div className="supplier-modal-footer">
-              <button className="supplier-btn-cancel" onClick={() => setShowDeleteConfirm(false)}>
+              <button 
+                className="supplier-btn-cancel" 
+                onClick={() => !isDeleting && setShowDeleteConfirm(false)}
+                disabled={isDeleting}
+              >
                 Cancel
               </button>
-              <button className="supplier-btn-delete" onClick={confirmDelete}>
-                <FaTrash size={12} /> Delete
+              <button 
+                className="supplier-btn-delete" 
+                onClick={confirmDelete}
+                disabled={isDeleting}
+              >
+                {isDeleting ? (
+                  <><FaSpinner className="supplier-spin" size={12} /> Deleting...</>
+                ) : (
+                  <><FaTrash size={12} /> Delete</>
+                )}
               </button>
             </div>
           </div>
@@ -991,7 +1069,7 @@ export default function SupplierList() {
         </div>
       )}
 
-      {/* Bank Accounts Modal — shown when clicking the account-count badge */}
+      {/* Bank Accounts Modal */}
       {showBankModal && bankModalSupplier && (
         <div className="supplier-modal-overlay" onClick={() => setShowBankModal(false)}>
           <div className="supplier-modal supplier-modal-bank" onClick={(e) => e.stopPropagation()}>

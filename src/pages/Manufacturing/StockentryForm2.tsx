@@ -302,17 +302,17 @@ const emptyItem = (): ItemRow => ({
   itemCode: "",
   itemName: "",
   itemGroup: "",
-  qty: "0.000",
-  basicRate: "0.00",
+  qty: "",
+  basicRate: "",
   uom: "",
-  amount: "0.00",
+  amount: "",
 });
 
 const emptyCost = (): AdditionalCostRow => ({
   id: uid(),
   expenseAccount: "",
   description: "",
-  amount: "0.00",
+  amount: "",
 });
 
 const emptyStockEntry = (): StockEntryData => {
@@ -1180,7 +1180,7 @@ export default function StockEntryForm2() {
                 itemName: itemName || itemCode,
                 itemGroup: "",
                 qty: String(qty),
-                basicRate: qty > 0 ? String(amount / qty) : "0.00",
+                basicRate: qty > 0 ? String(amount / qty) : "",
                 uom: "Nos",
                 amount: String(amount),
               }],
@@ -1205,11 +1205,31 @@ export default function StockEntryForm2() {
     setIsDirty(true);
   };
 
+  // ─── Updated updateItem function for number fields ──────────────────
   const updateItem = (
     rowId: string,
     field: keyof ItemRow,
     value: string
   ) => {
+    // For qty, basicRate, amount fields - allow only numbers and decimal
+    if (field === 'qty' || field === 'basicRate' || field === 'amount') {
+      // If empty, set to empty string
+      if (value === '') {
+        setSe((prev) => ({
+          ...prev,
+          items: prev.items.map((item) =>
+            item.id === rowId ? { ...item, [field]: value } : item
+          ),
+        }));
+        setIsDirty(true);
+        return;
+      }
+      // Only allow numbers and decimal point
+      if (!/^\d*\.?\d*$/.test(value)) {
+        return;
+      }
+    }
+    
     setSe((prev) => ({
       ...prev,
       items: prev.items.map((item) =>
@@ -1232,7 +1252,7 @@ export default function StockEntryForm2() {
                 itemGroup: item.item_group || "",
                 basicRate: item.standard_rate
                   ? item.standard_rate.toString()
-                  : "0.00",
+                  : "",
                 uom: item.stock_uom || "",
               }
             : itemRow
@@ -1268,7 +1288,7 @@ export default function StockEntryForm2() {
               itemName: detail.item_name || "",
               itemGroup: "",
               qty: String(detail.qty - detail.produced_qty),
-              basicRate: String(detail.planned_operating_cost / (detail.qty || 1) || 0),
+              basicRate: detail.qty > 0 ? String(detail.planned_operating_cost / detail.qty) : "",
               uom: detail.stock_uom || "Nos",
               amount: String(detail.planned_operating_cost || 0),
             }
@@ -1314,6 +1334,23 @@ export default function StockEntryForm2() {
     field: keyof AdditionalCostRow,
     value: string
   ) => {
+    // For amount field - allow only numbers and decimal
+    if (field === 'amount') {
+      if (value === '') {
+        setSe((prev) => ({
+          ...prev,
+          additionalCosts: prev.additionalCosts.map((cost) =>
+            cost.id === rowId ? { ...cost, [field]: value } : cost
+          ),
+        }));
+        setIsDirty(true);
+        return;
+      }
+      if (!/^\d*\.?\d*$/.test(value)) {
+        return;
+      }
+    }
+    
     setSe((prev) => ({
       ...prev,
       additionalCosts: prev.additionalCosts.map((cost) =>
@@ -1497,67 +1534,65 @@ export default function StockEntryForm2() {
   };
 
   // ─── Save ────────────────────────────────────────────────────────────
-// ─── Save ────────────────────────────────────────────────────────────
 
-const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
-  e.preventDefault();
-  setApiError(null);
+  const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setApiError(null);
 
-  const validationErrorsList = getAllValidationErrors();
-  if (validationErrorsList.length > 0) {
-    setValidationErrors(validationErrorsList);
-    setShowValidationSummary(true);
-    return;
-  }
-
-  setSubmitting(true);
-  try {
-    // Pass the ID in the payload for both create and update
-    const payload = convertToApiPayload(se, !isNew ? id : undefined);
-
-    let response;
-    // Always use POST to /stock-entry with ID in payload
-    response = await api.post("/stock-entry", payload);
-
-    if (response.data && response.data.success === 1) {
-      console.log(
-        isNew
-          ? "Stock entry created successfully:"
-          : "Stock entry updated successfully:",
-        response.data
-      );
-      setIsDirty(false);
-      navigate("/stock-entry");
-    } else {
-      setApiError(
-        response.data?.message ||
-          `Failed to ${isNew ? "create" : "update"} stock entry`
-      );
+    const validationErrorsList = getAllValidationErrors();
+    if (validationErrorsList.length > 0) {
+      setValidationErrors(validationErrorsList);
+      setShowValidationSummary(true);
+      return;
     }
-  } catch (err: any) {
-    console.error("Error saving stock entry:", err);
-    if (err.response) {
-      if (err.response.status === 409) {
-        setApiError("A stock entry with this name already exists");
-      } else if (err.response.status === 400) {
-        setApiError(err.response.data?.message || "Invalid data provided");
-      } else if (err.response.status === 404) {
-        setApiError("Stock entry not found. It may have been deleted.");
+
+    setSubmitting(true);
+    try {
+      const payload = convertToApiPayload(se, !isNew ? id : undefined);
+
+      let response;
+      response = await api.post("/stock-entry", payload);
+
+      if (response.data && response.data.success === 1) {
+        console.log(
+          isNew
+            ? "Stock entry created successfully:"
+            : "Stock entry updated successfully:",
+          response.data
+        );
+        setIsDirty(false);
+        navigate("/stock-entry");
       } else {
         setApiError(
-          err.response.data?.message ||
+          response.data?.message ||
             `Failed to ${isNew ? "create" : "update"} stock entry`
         );
       }
-    } else if (err.request) {
-      setApiError("Network error. Please check your connection.");
-    } else {
-      setApiError("An unexpected error occurred. Please try again.");
+    } catch (err: any) {
+      console.error("Error saving stock entry:", err);
+      if (err.response) {
+        if (err.response.status === 409) {
+          setApiError("A stock entry with this name already exists");
+        } else if (err.response.status === 400) {
+          setApiError(err.response.data?.message || "Invalid data provided");
+        } else if (err.response.status === 404) {
+          setApiError("Stock entry not found. It may have been deleted.");
+        } else {
+          setApiError(
+            err.response.data?.message ||
+              `Failed to ${isNew ? "create" : "update"} stock entry`
+          );
+        }
+      } else if (err.request) {
+        setApiError("Network error. Please check your connection.");
+      } else {
+        setApiError("An unexpected error occurred. Please try again.");
+      }
+    } finally {
+      setSubmitting(false);
     }
-  } finally {
-    setSubmitting(false);
-  }
-};
+  };
+
   // ─── Render ──────────────────────────────────────────────────────────
 
   if (loading) {
@@ -1895,6 +1930,7 @@ const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
                           onChange={(e) =>
                             updateItem(item.id, "qty", e.target.value)
                           }
+                          placeholder="0"
                           disabled={disabled}
                         />
                       </td>

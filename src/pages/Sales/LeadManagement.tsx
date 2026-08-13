@@ -17,6 +17,7 @@ import {
 import "./LeadManagement.css";
 import { useAdminTheme } from "../../admin-theme/AdminThemeContext";
 import api from "../../services/api";
+import toast from 'react-hot-toast';
 
 // ─── types ──────────────────────────────────────────────────────────────
 
@@ -131,7 +132,6 @@ export default function LeadManagement() {
       const list = extractList(response.data);
       setRawLeads(list);
 
-     
       if (list.length > 0) {
         console.log("First raw lead record:", list[0]);
       }
@@ -232,32 +232,63 @@ export default function LeadManagement() {
     setShowDeleteConfirm(true);
   };
 
-  // ─── delete via DELETE /lead ─────────────────────────────────────────
- 
+  // ✅ FIXED: Better delete with detailed error handling
   const confirmDelete = async () => {
-  if (!selectedItem) return;
+    if (!selectedItem) return;
 
-  setDeleting(true);
+    setDeleting(true);
+    setError(null);
 
-  try {
-    const response = await api.delete(`/lead/${selectedItem.recordId}`);
+    try {
+      // Log the delete URL for debugging
+      const deleteUrl = `/lead/${selectedItem.recordId}`;
+      console.log(`Attempting to delete lead with ID: ${selectedItem.recordId}`);
+      console.log(`DELETE URL: ${deleteUrl}`);
+      
+      const response = await api.delete(deleteUrl);
+      console.log("Delete response:", response);
 
-    if (response.data.success !== 1) {
-      throw new Error(response.data?.message || "Failed to delete lead");
+      // Check if the response indicates success
+      if (response.data && response.data.success === 1) {
+        setShowDeleteConfirm(false);
+        setSelectedItem(null);
+        toast.success(response.data.message || "Lead deleted successfully!");
+        await fetchLeads();
+      } else {
+        const errorMsg = response.data?.message || "Failed to delete lead";
+        console.error("Delete failed:", errorMsg);
+        toast.error(errorMsg);
+      }
+    } catch (err: any) {
+      console.error("Error deleting lead:", err);
+      
+      // Detailed error logging
+      if (err.response) {
+        // The request was made and the server responded with a status code
+        console.error("Error response data:", err.response.data);
+        console.error("Error response status:", err.response.status);
+        console.error("Error response headers:", err.response.headers);
+        
+        const errorMsg = err.response.data?.message || `Server error: ${err.response.status}`;
+        toast.error(errorMsg);
+        setError(errorMsg);
+      } else if (err.request) {
+        // The request was made but no response was received
+        console.error("No response received:", err.request);
+        const errorMsg = "No response from server. Please check your connection and CORS settings.";
+        toast.error(errorMsg);
+        setError(errorMsg);
+      } else {
+        // Something happened in setting up the request
+        console.error("Request setup error:", err.message);
+        const errorMsg = "Failed to send delete request. Please try again.";
+        toast.error(errorMsg);
+        setError(errorMsg);
+      }
+    } finally {
+      setDeleting(false);
     }
-
-    setShowDeleteConfirm(false);
-    setSelectedItem(null);
-
-    await fetchLeads();
-  } catch (err: any) {
-    console.error("Error deleting lead:", err);
-    
-    alert(err.response?.data?.message || "Failed to delete lead");
-  } finally {
-    setDeleting(false);
-  }
-};
+  };
 
   const findRawById = (id: string) => rawLeads.find((l) => String(l.name ?? l.id) === id);
 
@@ -371,15 +402,15 @@ export default function LeadManagement() {
             <table className="jc-table">
               <thead>
                 <tr>
-                  <th className="jc-th-check">
+                  {/* <th className="jc-th-check">
                     <input type="checkbox" checked={allChecked} onChange={toggleAll} className="jc-checkbox" />
-                  </th>
+                  </th> */}
                   <th className="jc-th">Lead ID</th>
                   <th className="jc-th">Name</th>
                   <th className="jc-th">Organization</th>
                   <th className="jc-th">Email</th>
                   <th className="jc-th">Mobile No</th>
-                  <th className="jc-th">Source</th>
+                  {/* <th className="jc-th">Source</th> */}
                   <th className="jc-th">Status</th>
                   <th className="jc-th jc-th-meta">
                     <span className="jc-count-label">{totalFilteredItems} of {totalItems}</span>
@@ -411,9 +442,9 @@ export default function LeadManagement() {
                       onClick={() => goToLead(row)}
                       style={{ cursor: "pointer" }}
                     >
-                      <td className="jc-td-check" onClick={(e) => { e.stopPropagation(); toggleRow(row.id); }}>
+                      {/* <td className="jc-td-check" onClick={(e) => { e.stopPropagation(); toggleRow(row.id); }}>
                         <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleRow(row.id)} className="jc-checkbox" />
-                      </td>
+                      </td> */}
                       <td className="jc-td jc-td-id">{row.id}</td>
                       <td className="jc-td jc-td-link">{row.leadName}</td>
                       <td className="jc-td jc-td-company">
@@ -422,15 +453,15 @@ export default function LeadManagement() {
                       </td>
                       <td className="jc-td">{row.email || "—"}</td>
                       <td className="jc-td">{row.mobileNo || "—"}</td>
-                      <td className="jc-td">{row.source || "—"}</td>
+                      {/* <td className="jc-td">{row.source || "—"}</td> */}
                       <td className="jc-td">
                         <span className={`jc-status-badge ${STATUS_CLASS[row.status]}`}>
                           {STATUS_LABELS[row.status]}
                         </span>
                       </td>
                       <td className="jc-td jc-td-meta" onClick={(e) => e.stopPropagation()}>
-                        <span className="jc-ago">{row.createdAgo}</span>
-                        <span className="jc-dot">·</span>
+                        {/* <span className="jc-ago">{row.createdAgo}</span>
+                        <span className="jc-dot">·</span> */}
                         <div className="jc-action-buttons">
                           <button className="jc-action-btn jc-action-view" onClick={(e) => { e.stopPropagation(); goToLead(row); }} title="View">
                             <FaEye size={12} />
@@ -506,6 +537,11 @@ export default function LeadManagement() {
               <p>Are you sure you want to delete this lead?</p>
               <p className="jc-modal-item-name"><strong>{selectedItem.leadName}</strong> - {selectedItem.organizationName || "—"}</p>
               <p className="jc-modal-warning">This action cannot be undone.</p>
+              {deleting && (
+                <div className="jc-deleting-indicator">
+                  <span>Deleting...</span>
+                </div>
+              )}
             </div>
             <div className="jc-modal-footer">
               <button className="jc-btn-cancel" onClick={() => setShowDeleteConfirm(false)} disabled={deleting}>
