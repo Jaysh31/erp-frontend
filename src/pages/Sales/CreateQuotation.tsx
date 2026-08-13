@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactDOM from 'react-dom';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
   FaArrowLeft, FaSpinner, FaPlus,
   FaTrash, FaFileAlt,
@@ -214,6 +214,19 @@ const readCachedQuotationLineData = (name: string): CachedQuotationLineData | nu
     return null;
   }
 };
+
+// ===== ADD CUSTOMER FLOW: sessionStorage key used to stash the in-progress
+// quotation draft (form data + loaded record identity) right before we
+// navigate away to /customer/add, so it can be restored when the user comes
+// back (whether they finished adding a customer or just hit cancel/back).
+const QUOTATION_DRAFT_PREFIX = 'cq_quotation_draft:';
+
+interface QuotationDraftPayload {
+  formData: QuotationForm;
+  recordName: string | null;
+  recordId: number | null;
+  customerData: Customer | null;
+}
 
 /** Normalizes a list-style API response: { success, data: { records, total } } or { success, data: [...] } */
 const extractRecords = (payload: any): any[] => {
@@ -465,6 +478,15 @@ interface CustomerDropdownProps {
   placeholder?: string;
   disabled?: boolean;
   error?: boolean;
+  /** Customer object the parent currently considers "selected" (e.g. loaded
+   *  from an existing record, or just created via the Add New Customer flow).
+   *  Used to keep the displayed name in sync when the selection changes from
+   *  outside this component. */
+  presetCustomer?: Customer | null;
+  /** Called when the user chooses to create a brand-new customer, either via
+   *  the persistent footer button or the "not found" prompt. Receives the
+   *  current search term so the Add Customer page can be pre-filled. */
+  onAddNew: (searchTerm: string) => void;
 }
 
 const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
@@ -473,6 +495,8 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
   placeholder = 'Search Customer...',
   disabled = false,
   error = false,
+  presetCustomer = null,
+  onAddNew,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -491,6 +515,22 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
   useEffect(() => {
     fetchCustomers('');
   }, []);
+
+  // ===== FIX: keep the input's displayed name in sync with the parent's
+  // selected customer even when the selection happens outside of a direct
+  // pick in this dropdown (e.g. a customer loaded for edit mode, or one just
+  // created via "Add New Customer" and handed back to the form). Previously
+  // `selectedCustomer` only ever got set from `handleSelect` below, so the
+  // input rendered blank in those cases even though `value` was correct.
+  useEffect(() => {
+    if (!value) {
+      setSelectedCustomer(null);
+      return;
+    }
+    if (presetCustomer && presetCustomer.id === value) {
+      setSelectedCustomer(prev => (prev && prev.id === presetCustomer.id ? prev : presetCustomer));
+    }
+  }, [value, presetCustomer]);
 
   useEffect(() => {
     if (!searchTerm.trim()) {
@@ -569,6 +609,9 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
         });
         setCustomers(mappedCustomers);
         setFilteredCustomers(mappedCustomers);
+      } else {
+        setCustomers([]);
+        setFilteredCustomers([]);
       }
     } catch (error) {
       console.error('Error fetching customers:', error);
@@ -610,6 +653,11 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
     }
   };
 
+  const handleAddNewClick = () => {
+    setIsOpen(false);
+    onAddNew(searchTerm.trim());
+  };
+
   const getDisplayValue = () => {
     if (selectedCustomer) {
       return `${selectedCustomer.name}`;
@@ -617,10 +665,13 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
     return '';
   };
 
+  const addNewLabel = searchTerm.trim()
+    ? `Add "${searchTerm.trim()}" as New Customer`
+    : 'Add New Customer';
+
   const menu = isOpen ? (
     <div
       ref={menuRef}
-      className="cq-custom-scroll"
       style={{
         position: 'fixed',
         top: menuPos.top,
@@ -631,64 +682,126 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
         borderRadius: '6px',
         boxShadow: '0 4px 16px var(--shadow-color, rgba(0,0,0,0.15))',
         zIndex: 99999,
-        maxHeight: '280px',
-        overflowY: 'auto',
-        overflowX: 'hidden'
+        display: 'flex',
+        flexDirection: 'column',
+        maxHeight: '320px',
+        overflow: 'hidden'
       }}
     >
-      {loading ? (
-        <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
-          <FaSpinner className="cq-spinning" style={{ display: 'inline-block', marginRight: '8px' }} /> Loading...
-        </div>
-      ) : filteredCustomers.length > 0 ? (
-        filteredCustomers.map((customer, index) => (
-          <div
-            key={customer.id}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              handleSelect(customer);
-            }}
-            style={{
-              padding: '10px 14px',
-              cursor: 'pointer',
-              background: highlightedIndex === index ? 'var(--nav-hover, #eff6ff)' : 'transparent',
-              borderLeft: value === customer.id ? '3px solid var(--primary-color, #2563eb)' : '3px solid transparent',
-              transition: 'background 0.15s',
-              borderBottom: index < filteredCustomers.length - 1 ? '0.5px solid var(--border-color, #f1f5f9)' : 'none'
-            }}
-            onMouseEnter={() => setHighlightedIndex(index)}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary, #0f172a)' }}>{customer.name}</span>
-              </div>
-              {(customer.gstin || customer.customerType) && (
-                <span style={{ fontSize: '10px', color: 'var(--text-secondary, #94a3b8)', background: 'var(--layout-bg, #f1f5f9)', padding: '2px 8px', borderRadius: '4px' }}>
-                  {customer.gstin ? `GST: ${customer.gstin}` : customer.customerType}
-                </span>
-              )}
-            </div>
-            <div style={{ display: 'flex', gap: '16px', marginTop: '4px', fontSize: '11px', color: 'var(--text-secondary, #64748b)', flexWrap: 'wrap' }}>
-              {customer.contactPerson && (
-                <span><FaUser size={10} style={{ marginRight: '4px' }} />{customer.contactPerson}</span>
-              )}
-              {customer.phone && (
-                <span><FaPhone size={10} style={{ marginRight: '4px' }} />{customer.phone}</span>
-              )}
-              {customer.email && (
-                <span><FaEnvelope size={10} style={{ marginRight: '4px' }} />{customer.email}</span>
-              )}
-              {customer.territory && (
-                <span>{customer.territory}</span>
-              )}
-            </div>
+      <div
+        className="cq-custom-scroll"
+        style={{
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          maxHeight: '260px'
+        }}
+      >
+        {loading ? (
+          <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
+            <FaSpinner className="cq-spinning" style={{ display: 'inline-block', marginRight: '8px' }} /> Loading...
           </div>
-        ))
-      ) : (
-        <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
-          {searchTerm ? 'No matching customers found' : 'No customers available'}
-        </div>
-      )}
+        ) : filteredCustomers.length > 0 ? (
+          filteredCustomers.map((customer, index) => (
+            <div
+              key={customer.id}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                handleSelect(customer);
+              }}
+              style={{
+                padding: '10px 14px',
+                cursor: 'pointer',
+                background: highlightedIndex === index ? 'var(--nav-hover, #eff6ff)' : 'transparent',
+                borderLeft: value === customer.id ? '3px solid var(--primary-color, #2563eb)' : '3px solid transparent',
+                transition: 'background 0.15s',
+                borderBottom: index < filteredCustomers.length - 1 ? '0.5px solid var(--border-color, #f1f5f9)' : 'none'
+              }}
+              onMouseEnter={() => setHighlightedIndex(index)}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary, #0f172a)' }}>{customer.name}</span>
+                </div>
+                {(customer.gstin || customer.customerType) && (
+                  <span style={{ fontSize: '10px', color: 'var(--text-secondary, #94a3b8)', background: 'var(--layout-bg, #f1f5f9)', padding: '2px 8px', borderRadius: '4px' }}>
+                    {customer.gstin ? `GST: ${customer.gstin}` : customer.customerType}
+                  </span>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: '16px', marginTop: '4px', fontSize: '11px', color: 'var(--text-secondary, #64748b)', flexWrap: 'wrap' }}>
+                {customer.contactPerson && (
+                  <span><FaUser size={10} style={{ marginRight: '4px' }} />{customer.contactPerson}</span>
+                )}
+                {customer.phone && (
+                  <span><FaPhone size={10} style={{ marginRight: '4px' }} />{customer.phone}</span>
+                )}
+                {customer.email && (
+                  <span><FaEnvelope size={10} style={{ marginRight: '4px' }} />{customer.email}</span>
+                )}
+                {customer.territory && (
+                  <span>{customer.territory}</span>
+                )}
+              </div>
+            </div>
+          ))
+        ) : (
+          <div style={{ padding: '16px 14px', textAlign: 'center' }}>
+            <div style={{ fontSize: '12px', color: 'var(--text-secondary, #94a3b8)', marginBottom: '10px' }}>
+              {searchTerm.trim() ? (
+                <>No customer found for &quot;<strong>{searchTerm.trim()}</strong>&quot;</>
+              ) : (
+                'No customers available'
+              )}
+            </div>
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                handleAddNewClick();
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 14px',
+                fontSize: '12px',
+                fontWeight: 600,
+                color: '#fff',
+                background: 'var(--primary-color, #2563eb)',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer'
+              }}
+            >
+              <FaPlus size={10} /> {addNewLabel}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Persistent footer action so "Add New Customer" is always reachable,
+          even when there are matching results to scroll through. */}
+      <div
+        onMouseDown={(e) => {
+          e.preventDefault();
+          handleAddNewClick();
+        }}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          padding: '10px 14px',
+          cursor: 'pointer',
+          borderTop: '0.5px solid var(--border-color, #e2e8f0)',
+          color: 'var(--primary-color, #2563eb)',
+          fontWeight: 600,
+          fontSize: '12px',
+          background: 'var(--layout-bg, #f8fafc)',
+          flexShrink: 0
+        }}
+      >
+        <FaPlus size={11} /> Add New Customer
+      </div>
     </div>
   ) : null;
 
@@ -735,8 +848,13 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
 export default function CreateQuotation() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
 
   const isEditMode = !!id && id !== 'new';
+
+  // ===== ADD CUSTOMER FLOW: stable per-record key for the draft this
+  // quotation is saved under while the user is off on the Add Customer page.
+  const getDraftStorageKey = () => `${QUOTATION_DRAFT_PREFIX}${id || 'new'}`;
 
   let theme = 'light';
   try {
@@ -1025,6 +1143,54 @@ export default function CreateQuotation() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.isService]);
 
+  // ===== ADD CUSTOMER FLOW: on mount, restore any draft that was stashed
+  // right before we navigated off to /customer/add (covers both "came back
+  // after saving" and "hit cancel/back"), and — if we're returning with a
+  // freshly created customer in router state — select it automatically.
+  useEffect(() => {
+    const draftKey = getDraftStorageKey();
+    try {
+      const raw = sessionStorage.getItem(draftKey);
+      if (raw) {
+        const draft = JSON.parse(raw) as QuotationDraftPayload;
+        if (draft.formData) {
+          setFormData(prev => ({ ...prev, ...draft.formData }));
+        }
+        if (draft.recordName) setRecordName(draft.recordName);
+        if (draft.recordId != null) setRecordId(draft.recordId);
+        if (draft.customerData) {
+          setCustomerData(draft.customerData);
+          setSelectedCustomer(draft.customerData);
+        }
+        // In edit mode, the restored draft already reflects everything the
+        // user had changed, so skip re-fetching the original record (which
+        // would otherwise clobber the restored draft with stale server data).
+        if (isEditMode) {
+          setRecordFetched(true);
+        }
+        sessionStorage.removeItem(draftKey);
+      }
+    } catch (e) {
+      console.error('Failed to restore quotation draft:', e);
+    }
+
+    const newCustomer = (location.state as any)?.newCustomer as Customer | undefined;
+    if (newCustomer) {
+      setSelectedCustomer(newCustomer);
+      setCustomerData(newCustomer);
+      setFormData(prev => ({
+        ...prev,
+        customer: newCustomer.id,
+        customerName: newCustomer.name,
+      }));
+      toast.success(`Customer "${newCustomer.name}" added and selected`);
+      // Clear the navigation state so a refresh or back/forward navigation
+      // doesn't re-trigger the selection.
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ─── Handle Customer Change ────────────────────────────────────
   const handleCustomerChange = (customerId: string, customerData?: Customer) => {
     if (customerId && customerData) {
@@ -1045,6 +1211,30 @@ export default function CreateQuotation() {
         customerName: '',
       }));
     }
+  };
+
+  // ===== ADD CUSTOMER FLOW: stash the current draft, then hand off to the
+  // dedicated Add Customer page. It navigates back here (via `returnTo`) with
+  // the newly created customer in router state once saved.
+  const handleAddNewCustomer = (prefillName: string) => {
+    try {
+      const draftPayload: QuotationDraftPayload = {
+        formData,
+        recordName,
+        recordId,
+        customerData,
+      };
+      sessionStorage.setItem(getDraftStorageKey(), JSON.stringify(draftPayload));
+    } catch (e) {
+      console.error('Failed to save quotation draft before navigating to Add Customer:', e);
+    }
+
+    navigate('/customer/add', {
+      state: {
+        returnTo: location.pathname,
+        prefillCustomerName: prefillName || '',
+      },
+    });
   };
 
   // ─── Handle IsService Change ──────────────────────────────────
@@ -1882,6 +2072,8 @@ export default function CreateQuotation() {
                     placeholder="Search Customer..."
                     disabled={isEditMode}
                     error={!!errors.customer}
+                    presetCustomer={customerData}
+                    onAddNew={handleAddNewCustomer}
                   />
                   {errors.customer && <span className="cq-error-text">{errors.customer}</span>}
                 </div>
