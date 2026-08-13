@@ -29,6 +29,7 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
+import { useFormState } from '../../context/FormStateContext';
 import './CreateDeliveryChallan.css';
 import { FaTrash } from 'react-icons/fa6';
 
@@ -1247,10 +1248,10 @@ const NewDeliveryChallan: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const location = useLocation();
   const { theme } = useAdminTheme();
+  const formState = useFormState();
 
   const isEditMode = !!id;
   const isViewMode = location.pathname.includes('/view/');
-  // const isReadOnly = isViewMode;
   
   const [hasSalesOrder, setHasSalesOrder] = useState<boolean>(true);
   
@@ -1512,6 +1513,69 @@ const NewDeliveryChallan: React.FC = () => {
     }
   };
 
+  // ===== RESTORE STATE FROM QUALITY INSPECTION =====
+  const restoreStateFromQI = useCallback(() => {
+    const returnFlag = new URLSearchParams(location.search).get('returnFromQI');
+    
+    if (returnFlag === '1' && !isEditMode && !isViewMode) {
+      const savedState = formState.restoreFormState('delivery_challan');
+      if (savedState) {
+        // Restore all form fields
+        if (savedState.selectedCustomer) {
+          setSelectedCustomer(savedState.selectedCustomer);
+          // Find and set customer data
+          const customer = customers.find(c => c.id === savedState.selectedCustomer);
+          if (customer) {
+            setCustomerData(customer);
+          }
+        }
+        if (savedState.selectedSalesOrder !== undefined) {
+          setSelectedSalesOrder(savedState.selectedSalesOrder);
+        }
+        if (savedState.isService !== undefined) {
+          setIsService(savedState.isService);
+        }
+        if (savedState.dcDate) {
+          setDcDate(savedState.dcDate);
+        }
+        if (savedState.warehouse) {
+          setWarehouse(savedState.warehouse);
+        }
+        if (savedState.transporter) {
+          setTransporter(savedState.transporter);
+        }
+        if (savedState.vehicleNumber) {
+          setVehicleNumber(savedState.vehicleNumber);
+        }
+        if (savedState.remarks) {
+          setRemarks(savedState.remarks);
+        }
+        if (savedState.items && Array.isArray(savedState.items)) {
+          setItems(savedState.items);
+        }
+        if (savedState.dcNumber) {
+          setDcNumber(savedState.dcNumber);
+        }
+        if (savedState.hasSalesOrder !== undefined) {
+          setHasSalesOrder(savedState.hasSalesOrder);
+        }
+        if (savedState.roundOff !== undefined) {
+          setRoundOff(savedState.roundOff);
+        }
+        
+        toast.success('Delivery Challan data restored from Quality Inspection');
+        
+        // Clean up URL
+        const cleanUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, cleanUrl);
+      }
+    }
+  }, [location.search, formState, customers, isEditMode, isViewMode]);
+
+  useEffect(() => {
+    restoreStateFromQI();
+  }, [restoreStateFromQI]);
+
   useEffect(() => {
     fetchTaxOptions();
     fetchInventory();
@@ -1633,7 +1697,7 @@ const NewDeliveryChallan: React.FC = () => {
           hsn: item.HSN || item.hsn || '',
           description: item.description || item.item_name || '',
           unit: item.stock_uom || 'pcs',
-          rate: item.selling_price  || 0,
+          rate: item.selling_price || 0,
           tax: item.gst_rate || item.tax_rate || 0,
           type: 'product' as 'product' | 'service',
           stockUom: item.stock_uom,
@@ -1966,46 +2030,65 @@ const NewDeliveryChallan: React.FC = () => {
     );
   };
 
-// ===== NAVIGATE TO QUALITY INSPECTION =====
-const navigateToQualityInspection = () => {
-  // Check if there are items to inspect
-  const hasItems = items.some(item => item.itemCode && item.quantity > 0);
-  if (!hasItems) {
-    toast.error('Please add at least one item before creating a Quality Inspection');
-    return;
-  }
+  // ===== NAVIGATE TO QUALITY INSPECTION =====
+  const navigateToQualityInspection = () => {
+    // Check if there are items to inspect
+    const hasItems = items.some(item => item.itemCode && item.quantity > 0);
+    if (!hasItems) {
+      toast.error('Please add at least one item before creating a Quality Inspection');
+      return;
+    }
 
-  // Build the URL for the Quality Inspection form
-  const baseUrl = '/quality-inspection/new';
-  
-  // Get the first item's name and code for the inspection
-  const firstItem = items.find(item => item.itemCode && item.quantity > 0);
-  const partProductName = encodeURIComponent(firstItem?.itemName || firstItem?.itemCode || '');
-  const partNo = encodeURIComponent(firstItem?.itemCode || '');
-  
-  // Use the delivery challan number as the doc no
-  const docNo = encodeURIComponent(dcNumber || '');
-  
-  // Get customer name
-  const customerName = encodeURIComponent(customerData?.name || '');
-  
-  // Use challan number as challanNoDate (or you can use date)
-  const challanNoDate = encodeURIComponent(dcNumber || '');
-  
-  // Invoice Qty - total quantity of all items
-  const invoiceQty = encodeURIComponent(String(getTotalQty()));
-  
-  // Report No - can use the delivery challan number or generate one
-  const reportNo = encodeURIComponent(`QIR-${dcNumber || Date.now()}`);
-  
-  // Construct the URL with all query parameters
-  const url = `${baseUrl}?docNo=${docNo}&sourceType=delivery_challan&sourceId=${id || ''}&partProductName=${partProductName}&partNo=${partNo}&customerName=${customerName}&challanNoDate=${challanNoDate}&invoiceQty=${invoiceQty}&reportNo=${reportNo}`;
-  
-  // Navigate to the Quality Inspection form
-  navigate(url);
-  
-  toast(`Opening Quality Inspection for this delivery challan`);
-};
+    // Save current form state BEFORE navigating
+    const formDataToSave = {
+      selectedCustomer,
+      selectedSalesOrder,
+      isService,
+      dcDate,
+      warehouse,
+      transporter,
+      vehicleNumber,
+      remarks,
+      items,
+      customerData,
+      dcNumber,
+      hasSalesOrder,
+      roundOff
+    };
+    formState.saveFormState('delivery_challan', formDataToSave, id);
+
+    // Get the first item's name and code for the inspection
+    const firstItem = items.find(item => item.itemCode && item.quantity > 0);
+    const partProductName = encodeURIComponent(firstItem?.itemName || firstItem?.itemCode || '');
+    const partNo = encodeURIComponent(firstItem?.itemCode || '');
+    
+    // Use the delivery challan number as the doc no
+    const docNo = encodeURIComponent(dcNumber || '');
+    
+    // Get customer name
+    const customerName = encodeURIComponent(customerData?.name || '');
+    
+    // Use challan number as challanNoDate
+    const challanNoDate = encodeURIComponent(dcNumber || '');
+    
+    // Invoice Qty - total quantity of all items
+    const invoiceQty = encodeURIComponent(String(getTotalQty()));
+    
+    // Report No - use the delivery challan number
+    const reportNo = encodeURIComponent(`QIR-${dcNumber || Date.now()}`);
+    
+    // Build the URL with all query parameters
+    const baseUrl = '/quality-inspection/new';
+    const url = `${baseUrl}?docNo=${docNo}&sourceType=delivery_challan&sourceId=${id || ''}&partProductName=${partProductName}&partNo=${partNo}&customerName=${customerName}&challanNoDate=${challanNoDate}&invoiceQty=${invoiceQty}&reportNo=${reportNo}`;
+    
+    // Set quality inspection flag
+    setQualityInspection(true);
+    
+    // Navigate to the Quality Inspection form
+    navigate(url);
+    
+    toast.success('Opening Quality Inspection for this delivery challan');
+  };
 
   const getTotalQty = () => items.reduce((sum, item) => sum + (item.quantity || 0), 0);
   const getTotalAmount = () => items.reduce((sum, item) => sum + (item.amount || 0), 0);
@@ -2056,7 +2139,7 @@ const navigateToQualityInspection = () => {
         reserved_qty_for_production_plan: record.reserved_qty_for_production_plan || 0,
         reserved_stock: record.reserved_stock || 0,
         stock_uom: record.stock_uom || 'Nos',
-        company: record.company || 'SculptorTech Pvt Ltd',
+        company: record.company || 'SculptERP Pvt Ltd',
         valuation_rate: record.valuation_rate || 0,
         type: record.type || 'Internal',
       };
@@ -2175,14 +2258,11 @@ const navigateToQualityInspection = () => {
   };
 
   const scrollToFirstError = () => {
-    // Get all error keys and sort them by their order in the form
     const errorKeys = Object.keys(errors);
     if (errorKeys.length === 0) return;
     
-    // Priority order for errors (top to bottom in form)
     const priorityOrder = ['customer', 'salesOrder', 'dcDate', 'warehouse', 'items'];
     
-    // Sort error keys by priority order first, then by string order
     const sortedErrorKeys = errorKeys.sort((a, b) => {
       const indexA = priorityOrder.indexOf(a);
       const indexB = priorityOrder.indexOf(b);
@@ -2195,44 +2275,31 @@ const navigateToQualityInspection = () => {
     const firstErrorKey = sortedErrorKeys[0];
     if (!firstErrorKey) return;
     
-    // Find the element with the error
     let element: Element | null = null;
-    
-    // Strategy 1: Look for data-error-key attribute
     element = document.querySelector(`[data-error-key="${firstErrorKey}"]`);
     
-    // Strategy 2: If it's an item error, find the corresponding input
     if (!element && firstErrorKey.startsWith('item_')) {
       const match = firstErrorKey.match(/item_(\d+)_(code|name|qty)/);
       if (match) {
         const index = parseInt(match[1]);
         const field = match[2];
-        // Find the item row and scroll to it
         const rows = document.querySelectorAll('.ndc-items-table tbody tr');
         if (rows[index]) {
           element = rows[index];
-          // If field is code, try to find the searchable select input
           if (field === 'code') {
             const input = rows[index].querySelector('.ndc-col-code input');
-            if (input) {
-              element = input;
-            }
+            if (input) element = input;
           } else if (field === 'name') {
             const input = rows[index].querySelector('.ndc-col-name input');
-            if (input) {
-              element = input;
-            }
+            if (input) element = input;
           } else if (field === 'qty') {
             const input = rows[index].querySelector('.ndc-col-qty input');
-            if (input) {
-              element = input;
-            }
+            if (input) element = input;
           }
         }
       }
     }
     
-    // Strategy 3: Look for any element with error class
     if (!element) {
       const errorElements = document.querySelectorAll('.ndc-input-error, .ndc-select-error, .ndc-table-input.ndc-input-error');
       if (errorElements.length > 0) {
@@ -2240,7 +2307,6 @@ const navigateToQualityInspection = () => {
       }
     }
     
-    // Strategy 4: If still not found, look for any field with error text
     if (!element) {
       const errorTexts = document.querySelectorAll('.ndc-error-text');
       if (errorTexts.length > 0) {
@@ -2252,10 +2318,7 @@ const navigateToQualityInspection = () => {
     }
     
     if (element) {
-      // Scroll to the element
       element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      
-      // If it's an input, focus it
       const input = element.querySelector('input, select, textarea') || element;
       if (input && typeof (input as HTMLElement).focus === 'function') {
         setTimeout(() => {
@@ -2266,7 +2329,6 @@ const navigateToQualityInspection = () => {
         }, 350);
       }
     } else {
-      // Fallback: scroll to top
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
@@ -2320,6 +2382,9 @@ const navigateToQualityInspection = () => {
           }
         }
       }
+      
+      // Clear saved form state after successful submission
+      formState.clearFormState('delivery_challan');
       
       toast.success(isEditMode ? 'Updated!' : 'Created!', { id: toastId });
       
@@ -2375,6 +2440,9 @@ const navigateToQualityInspection = () => {
                           createdDC?.name || 
                           dcNumber;
       
+      // Clear saved form state after saving draft
+      formState.clearFormState('delivery_challan');
+      
       toast.success(`${isEditMode ? 'Draft updated' : 'Draft saved'}: ${deliveryNote}`, { id: toastId });
       setTimeout(() => navigate('/delivery-challan'), 1000);
     } catch (error: any) {
@@ -2390,6 +2458,8 @@ const navigateToQualityInspection = () => {
       return;
     }
     if (window.confirm('Are you sure? Unsaved data will be lost.')) {
+      // Clear saved form state on cancel
+      formState.clearFormState('delivery_challan');
       navigate('/delivery-challan');
     }
   };
@@ -3043,7 +3113,7 @@ const navigateToQualityInspection = () => {
               />
             </div>
 
-            {/* Quality Inspection Section - Replaces checkbox with button */}
+            {/* Quality Inspection Section - Button to navigate to QI */}
             <div className="ndc-qi-section">
               <span className="ndc-qi-label">
                 <FaClipboardCheck size={14} style={{ marginRight: '6px' }} />
