@@ -1214,7 +1214,7 @@ export default function ProformaInvoice() {
                     </td>
                     <td className="pq-td pq-td-meta">
                       <div className="pq-action-buttons">
-                        <button className="pq-action-btn pq-action-view" onClick={() => handleView(order)} title="View / Edit">
+                        <button className="pq-action-btn pq-action-view" onClick={() => handleView(order)} title="View ">
                           <FaEye size={12} />
                         </button>
                         <button
@@ -1225,12 +1225,12 @@ export default function ProformaInvoice() {
                         >
                           {printLoadingId === order.id ? <FaSpinner className="spinning" size={12} /> : <FaPrint size={12} />}
                         </button>
-                        <button className="pq-action-btn pq-action-edit" onClick={() => handleEdit(order)} title="Edit">
+                        {/* <button className="pq-action-btn pq-action-edit" onClick={() => handleEdit(order)} title="Edit">
                           <FaEdit size={12} />
                         </button>
                         <button className="pq-action-btn pq-action-delete" onClick={() => handleDeleteClick(order)} title="Delete">
                           <FaTrash size={12} />
-                        </button>
+                        </button> */}
                       </div>
                     </td>
                   </tr>

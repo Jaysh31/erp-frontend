@@ -1,10 +1,10 @@
-import  { useState, useEffect } from 'react';
+import  { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   FaSearch, FaPlus, FaEye, FaEdit, FaTrash, FaFilePdf, FaPrint,
   FaFilter, FaCheckCircle, FaClock, FaTimesCircle,
   FaFileAlt, FaExternalLinkAlt,
-  FaChartLine, FaTimes, FaSpinner, FaBoxOpen, FaEnvelope
+  FaChartLine, FaTimes, FaSpinner, FaBoxOpen, FaEnvelope, FaEllipsisV
   
 } from 'react-icons/fa';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
@@ -238,6 +238,7 @@ const mapApiItemsToSalesOrderItems = (record: SalesOrderApiRecord | null | undef
 
 export default function SalesOrder() {
   const navigate = useNavigate();
+  const menuRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
   let theme = 'light';
   try {
@@ -254,6 +255,7 @@ export default function SalesOrder() {
   const [error, setError] = useState<string | null>(null);
   const [printLoadingId, setPrintLoadingId] = useState<string | null>(null);
   const [proformaLoadingId, setProformaLoadingId] = useState<string | null>(null);
+  const [showMoreMenu, setShowMoreMenu] = useState<string | null>(null);
 
   const [salesOrders, setSalesOrders] = useState<SalesOrder[]>([]);
 
@@ -263,6 +265,29 @@ export default function SalesOrder() {
   const [selectedOrder, setSelectedOrder] = useState<SalesOrder | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pdfModalLoading, ] = useState(false);
+
+  // ─── close more-menu on outside click ─────────────────────────────────
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showMoreMenu === null) return;
+
+      const target = event.target as Node;
+      const menuContainer = menuRefs.current[showMoreMenu];
+
+      if (menuContainer && !menuContainer.contains(target)) {
+        setShowMoreMenu(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showMoreMenu]);
+
+  const toggleMenu = (id: string) => {
+    setShowMoreMenu(showMoreMenu === id ? null : id);
+  };
 
   // ─── load from GET /sales-order ───────────────────────────────────────
 
@@ -288,8 +313,7 @@ export default function SalesOrder() {
       }
 
       const transformedData: SalesOrder[] = all.map((o, idx) => {
-        // Prefer a real numeric/string id from the API for delete/navigate.
-        // Fall back to `name` if no id field is present at all.
+       
         const resolvedId =
           o.id !== undefined && o.id !== null && String(o.id).trim() !== ''
             ? String(o.id)
@@ -1291,6 +1315,70 @@ export default function SalesOrder() {
 
   return (
     <div className={`sales-order-page ${theme}-theme`}>
+      <style>{`
+        .qt-more-menu-container {
+          position: relative;
+          display: inline-block;
+        }
+
+        .qt-more-menu-dropdown {
+          position: absolute;
+          right: 0;
+          top: 100%;
+          background: var(--card-bg, #fff);
+          border: 1px solid var(--border-color, #e5e7eb);
+          border-radius: 8px;
+          box-shadow: 0 10px 40px var(--shadow-color, rgba(0,0,0,0.15));
+          min-width: 170px;
+          z-index: 100;
+          padding: 4px 0;
+          margin-top: 4px;
+        }
+
+        .qt-more-menu-dropdown button {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          width: 100%;
+          padding: 8px 16px;
+          border: none;
+          background: transparent;
+          color: var(--text-primary, #1e293b);
+          font-size: 13px;
+          cursor: pointer;
+          transition: all 0.2s;
+          text-align: left;
+        }
+
+        .qt-more-menu-dropdown button:hover:not(:disabled) {
+          background: var(--nav-hover, #f8fafc);
+          color: var(--primary-color, #2563eb);
+        }
+
+        .qt-more-menu-dropdown button:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        .qt-more-menu-dropdown button.danger {
+          color: var(--danger-color, #ef4444);
+        }
+
+        .qt-more-menu-dropdown button.danger:hover {
+          background: #fef2f2;
+        }
+
+        .qt-more-menu-dropdown .menu-divider {
+          height: 1px;
+          background: var(--border-color, #e5e7eb);
+          margin: 4px 0;
+        }
+
+        .qt-action-more {
+          color: var(--text-secondary, #6b7280);
+        }
+      `}</style>
+
       {/* Stats Cards */}
     
 
@@ -1439,17 +1527,6 @@ export default function SalesOrder() {
                     </td>
                     <td className="qt-td qt-td-meta">
                       <div className="qt-action-buttons">
-                        <button className="qt-action-btn qt-action-view" onClick={() => handleView(order)} title="View / Edit">
-                          <FaEye size={12} />
-                        </button>
-                        <button
-                          className="qt-action-btn qt-action-print"
-                          onClick={() => handlePrintOrder(order)}
-                          title="Print Sales Order"
-                          disabled={printLoadingId === order.id}
-                        >
-                          {printLoadingId === order.id ? <FaSpinner className="spinning" size={12} /> : <FaPrint size={12} />}
-                        </button>
                         <button
                           className="qt-action-btn qt-action-proforma"
                           onClick={() => handleProformaInvoice(order)}
@@ -1458,12 +1535,41 @@ export default function SalesOrder() {
                         >
                           {proformaLoadingId === order.id ? <FaSpinner className="spinning" size={12} /> : <FaFileInvoice size={12} />}
                         </button>
-                        <button className="qt-action-btn qt-action-edit" onClick={() => handleEdit(order)} title="Edit">
-                          <FaEdit size={12} />
-                        </button>
-                        <button className="qt-action-btn qt-action-delete" onClick={() => handleDeleteClick(order)} title="Delete">
-                          <FaTrash size={12} />
-                        </button>
+                        <div
+                          className="qt-more-menu-container"
+                          ref={(el) => { menuRefs.current[order.id] = el; }}
+                        >
+                          <button
+                            className="qt-action-btn qt-action-more"
+                            onClick={() => toggleMenu(order.id)}
+                            title="More"
+                          >
+                            <FaEllipsisV size={14} />
+                          </button>
+                          {showMoreMenu === order.id && (
+                            <div className="qt-more-menu-dropdown">
+                              <button onClick={() => { handleView(order); setShowMoreMenu(null); }}>
+                                <FaEye size={12} /> View
+                              </button>
+                              <button onClick={() => { handleEdit(order); setShowMoreMenu(null); }}>
+                                <FaEdit size={12} /> Edit
+                              </button>
+                              <button
+                                onClick={() => { handlePrintOrder(order); setShowMoreMenu(null); }}
+                                disabled={printLoadingId === order.id}
+                              >
+                                {printLoadingId === order.id ? <FaSpinner className="spinning" size={12} /> : <FaPrint size={12} />} Print
+                              </button>
+                              <div className="menu-divider" />
+                              <button
+                                className="danger"
+                                onClick={() => { handleDeleteClick(order); setShowMoreMenu(null); }}
+                              >
+                                <FaTrash size={12} /> Delete
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </td>
                   </tr>

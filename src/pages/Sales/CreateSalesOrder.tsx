@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
   FaArrowLeft, FaSave, FaSpinner, FaPlus,
   FaTrash, FaFileAlt,
@@ -256,9 +256,7 @@ interface InventoryApiRecord {
   company?: string;
 }
 
-// ===== SHARED: prevent mouse-wheel from changing a focused number input's value =====
-// Number inputs natively change value on scroll when focused; this blurs the input
-// on wheel so scrolling the page never mutates the value.
+
 const preventWheelChange = (e: React.WheelEvent<HTMLInputElement>) => {
   e.currentTarget.blur();
 };
@@ -512,6 +510,8 @@ interface CustomerDropdownProps {
   error?: boolean;
   customerList?: Customer[];
   selectedCustomer?: Customer | null;
+  
+  onAddNew: (searchTerm: string) => void;
 }
 
 const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
@@ -522,6 +522,7 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
   error = false,
   customerList = [],
   selectedCustomer: propSelectedCustomer,
+  onAddNew,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -556,6 +557,8 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
       if (match) {
         setSelectedCustomer(match);
       }
+    } else {
+      setSelectedCustomer(null);
     }
   }, [propSelectedCustomer, value, customers]);
 
@@ -648,6 +651,11 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
     }
   };
 
+  const handleAddNewClick = () => {
+    setIsOpen(false);
+    onAddNew(searchTerm.trim());
+  };
+
   const getDisplayValue = () => {
     if (selectedCustomer) {
       return `${selectedCustomer.name}`;
@@ -655,10 +663,11 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
     return '';
   };
 
+  
+
   const menu = isOpen ? (
     <div
       ref={menuRef}
-      className="so-custom-scroll"
       style={{
         position: 'fixed',
         top: menuPos.top,
@@ -669,61 +678,126 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
         borderRadius: '6px',
         boxShadow: '0 4px 16px var(--shadow-color, rgba(0,0,0,0.15))',
         zIndex: 99999,
-        maxHeight: '280px',
-        overflowY: 'auto',
-        overflowX: 'hidden'
+        display: 'flex',
+        flexDirection: 'column',
+        maxHeight: '320px',
+        overflow: 'hidden'
       }}
     >
-      {loading ? (
-        <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
-          <FaSpinner className="so-spinning" style={{ display: 'inline-block', marginRight: '8px' }} /> Loading...
-        </div>
-      ) : filteredCustomers.length > 0 ? (
-        filteredCustomers.map((customer, index) => (
-          <div
-            key={customer.id}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              handleSelect(customer);
-            }}
-            style={{
-              padding: '10px 14px',
-              cursor: 'pointer',
-              background: highlightedIndex === index ? 'var(--nav-hover, #eff6ff)' : 'transparent',
-              borderLeft: value === customer.id ? '3px solid var(--primary-color, #2563eb)' : '3px solid transparent',
-              transition: 'background 0.15s',
-              borderBottom: index < filteredCustomers.length - 1 ? '0.5px solid var(--border-color, #f1f5f9)' : 'none'
-            }}
-            onMouseEnter={() => setHighlightedIndex(index)}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary, #0f172a)' }}>{customer.name}</span>
-              </div>
-              {customer.gstin && (
-                <span style={{ fontSize: '10px', color: 'var(--text-secondary, #94a3b8)', background: 'var(--layout-bg, #f1f5f9)', padding: '2px 8px', borderRadius: '4px' }}>
-                  GST: {customer.gstin}
-                </span>
-              )}
-            </div>
-            <div style={{ display: 'flex', gap: '16px', marginTop: '4px', fontSize: '11px', color: 'var(--text-secondary, #64748b)' }}>
-              {customer.contactPerson && (
-                <span><FaUser size={10} style={{ marginRight: '4px' }} />{customer.contactPerson}</span>
-              )}
-              {customer.phone && (
-                <span><FaPhone size={10} style={{ marginRight: '4px' }} />{customer.phone}</span>
-              )}
-              {customer.email && (
-                <span><FaEnvelope size={10} style={{ marginRight: '4px' }} />{customer.email}</span>
-              )}
-            </div>
+      <div
+        className="so-custom-scroll"
+        style={{
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          maxHeight: '260px'
+        }}
+      >
+        {loading ? (
+          <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
+            <FaSpinner className="so-spinning" style={{ display: 'inline-block', marginRight: '8px' }} /> Loading...
           </div>
-        ))
-      ) : (
-        <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
-          {searchTerm ? 'No matching customers found' : 'No customers available'}
-        </div>
-      )}
+        ) : filteredCustomers.length > 0 ? (
+          filteredCustomers.map((customer, index) => (
+            <div
+              key={customer.id}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                handleSelect(customer);
+              }}
+              style={{
+                padding: '10px 14px',
+                cursor: 'pointer',
+                background: highlightedIndex === index ? 'var(--nav-hover, #eff6ff)' : 'transparent',
+                borderLeft: value === customer.id ? '3px solid var(--primary-color, #2563eb)' : '3px solid transparent',
+                transition: 'background 0.15s',
+                borderBottom: index < filteredCustomers.length - 1 ? '0.5px solid var(--border-color, #f1f5f9)' : 'none'
+              }}
+              onMouseEnter={() => setHighlightedIndex(index)}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary, #0f172a)' }}>{customer.name}</span>
+                </div>
+                {customer.gstin && (
+                  <span style={{ fontSize: '10px', color: 'var(--text-secondary, #94a3b8)', background: 'var(--layout-bg, #f1f5f9)', padding: '2px 8px', borderRadius: '4px' }}>
+                    GST: {customer.gstin}
+                  </span>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: '16px', marginTop: '4px', fontSize: '11px', color: 'var(--text-secondary, #64748b)' }}>
+                {customer.contactPerson && (
+                  <span><FaUser size={10} style={{ marginRight: '4px' }} />{customer.contactPerson}</span>
+                )}
+                {customer.phone && (
+                  <span><FaPhone size={10} style={{ marginRight: '4px' }} />{customer.phone}</span>
+                )}
+                {customer.email && (
+                  <span><FaEnvelope size={10} style={{ marginRight: '4px' }} />{customer.email}</span>
+                )}
+              </div>
+            </div>
+          ))
+        ) : (
+          <div style={{ padding: '16px 14px', textAlign: 'center' }}>
+            <div style={{ fontSize: '12px', color: 'var(--text-secondary, #94a3b8)', marginBottom: '10px' }}>
+              {searchTerm.trim() ? (
+                <>No customer found for &quot;<strong>{searchTerm.trim()}</strong>&quot;</>
+              ) : (
+                'No customers available'
+              )}
+            </div>
+    
+          </div>
+        )}
+      </div>
+
+      {/* Persistent footer action so "Add New Customer" is always reachable,
+          even when there are matching results to scroll through. */}
+      <div
+  className="cq-dropdown-add-new"
+  onMouseDown={(e) => {
+    e.preventDefault();
+    handleAddNewClick();
+  }}
+  style={{
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '10px 14px',
+    cursor: 'pointer',
+    borderTop: '0.5px solid var(--border-color, #e2e8f0)',
+    color: 'var(--primary-color, #2563eb)',
+    fontWeight: 600,
+    fontSize: '12px',
+    background: 'var(--layout-bg, #f8fafc)',
+    flexShrink: 0,
+    transition: 'background 0.15s, color 0.15s'
+  }}
+  onMouseEnter={(e) => {
+    e.currentTarget.style.background = 'var(--nav-hover, #eff6ff)';
+    e.currentTarget.style.color = 'var(--primary-color, #2563eb)';
+  }}
+  onMouseLeave={(e) => {
+    e.currentTarget.style.background = 'var(--layout-bg, #f8fafc)';
+    e.currentTarget.style.color = 'var(--primary-color, #2563eb)';
+  }}
+>
+  <span
+    style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center'
+    }}
+  >
+    <FaPlus size={10} />
+  </span>
+
+  <span>
+    {searchTerm.trim() && filteredCustomers.length === 0
+      ? `Add "${searchTerm.trim()}" as New Customer`
+      : 'Add New Customer'}
+  </span>
+</div>
     </div>
   ) : null;
 
@@ -761,6 +835,341 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
       </div>
 
       {menu && ReactDOM.createPortal(menu, document.body)}
+    </div>
+  );
+};
+
+// ===== QUICK ADD CUSTOMER MODAL =====
+
+interface QuickAddCustomerModalProps {
+  isOpen: boolean;
+  prefillName?: string;
+  onClose: () => void;
+  onCreated: (customer: Customer) => void;
+  onOpenFullForm: () => void;
+}
+
+const QuickAddCustomerModal: React.FC<QuickAddCustomerModalProps> = ({
+  isOpen,
+  prefillName = '',
+  onClose,
+  onCreated,
+  onOpenFullForm,
+}) => {
+  const [customerName, setCustomerName] = useState('');
+  const [mobileNo, setMobileNo] = useState('');
+  const [emailId, setEmailId] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+ 
+  const DEFAULT_CUSTOMER_TYPE = 'Company';
+  const DEFAULT_CUSTOMER_GROUP = 'Commercial';
+
+  useEffect(() => {
+    if (isOpen) {
+      setCustomerName(prefillName || '');
+      setMobileNo('');
+      setEmailId('');
+      setErrors({});
+    }
+  }, [isOpen, prefillName]);
+
+  if (!isOpen) return null;
+
+  const validate = (): boolean => {
+    const errs: Record<string, string> = {};
+    if (!customerName.trim()) errs.customerName = 'Customer name is required';
+    if (!mobileNo.trim()) errs.mobileNo = 'Mobile number is required';
+    if (!emailId.trim()) {
+      errs.emailId = 'Email is required';
+    } else if (!/\S+@\S+\.\S+/.test(emailId)) {
+      errs.emailId = 'Enter a valid email address';
+    }
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validate()) return;
+
+    setSubmitting(true);
+    try {
+      
+      const contactPayload = {
+        first_name: customerName.trim(),
+        last_name: '',
+        contact_name: customerName.trim(),
+        mobile_no: mobileNo.trim(),
+        alternate_mobile: '',
+        email_id: emailId.trim(),
+        telephone: '',
+        extension: '',
+        is_primary: 1,
+        is_billing_contact: 0,
+        is_saler_contact: 1,
+        remarks: '',
+      };
+
+      const payload = {
+        customer_name: customerName.trim(),
+        customer_group: DEFAULT_CUSTOMER_GROUP,
+        territory: '',
+        customer_type: DEFAULT_CUSTOMER_TYPE,
+        mobile_no: mobileNo.trim(),
+        email_id: emailId.trim(),
+        customer_primary_address: '',
+        primary_address: '',
+        contacts: [contactPayload],
+      };
+
+      const response = await api.post('/customer', payload);
+      if (response.data && response.data.success === 0) {
+        throw new Error(response.data?.message || 'Failed to add customer');
+      }
+
+      const apiData = response?.data?.data;
+
+      const created: Customer = {
+        id: apiData?.id?.toString() || apiData?.name?.toString() || '',
+        name: apiData?.customer_name || payload.customer_name,
+        code: apiData?.customer_code || (apiData?.id != null ? `CUST-${apiData.id}` : ''),
+        email: apiData?.email_id || payload.email_id,
+        phone: apiData?.mobile_no || payload.mobile_no,
+        address: apiData?.customer_primary_address || '',
+        shippingAddress: apiData?.primary_address || '',
+        gstin: '',
+        contactPerson: contactPayload.contact_name,
+        contactMobile: contactPayload.mobile_no,
+      };
+
+      toast.success(`Customer "${created.name}" added and selected`);
+      onCreated(created);
+    } catch (err: any) {
+      console.error('Error quick-adding customer:', err);
+      const message =
+        err.response?.data?.message || err.message || 'Failed to add customer';
+      toast.error(message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const labelStyle: React.CSSProperties = {
+    fontSize: '11px',
+    fontWeight: 600,
+    color: 'var(--text-secondary, #64748b)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
+    marginBottom: '4px',
+    display: 'block',
+  };
+
+  const inputStyle = (hasError: boolean): React.CSSProperties => ({
+    width: '100%',
+    padding: '7px 10px',
+    border: hasError
+      ? '1.5px solid var(--danger-color, #ef4444)'
+      : '1.5px solid var(--border-color, #e2e8f0)',
+    borderRadius: '8px',
+    background: 'var(--card-bg, #ffffff)',
+    color: 'var(--text-primary, #0f172a)',
+    fontSize: '13px',
+    fontFamily: 'inherit',
+    boxSizing: 'border-box',
+    minHeight: '34px',
+  });
+
+  const fieldWrapStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: '2px' };
+  const errorTextStyle: React.CSSProperties = { fontSize: '10px', color: 'var(--danger-color, #ef4444)' };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(17, 24, 39, 0.45)',
+        backdropFilter: 'blur(3px)',
+        zIndex: 300,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '20px',
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: 'var(--card-bg, #ffffff)',
+          borderRadius: '12px',
+          width: '100%',
+          maxWidth: '420px',
+          boxShadow: '0 16px 40px rgba(0, 0, 0, 0.18)',
+          overflow: 'hidden',
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '16px 20px',
+            borderBottom: '1px solid var(--border-color, #e2e8f0)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <FaUser style={{ color: 'var(--primary-color, #2563eb)' }} />
+            <h2 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: 'var(--text-primary, #0f172a)' }}>
+              Quick Add Customer
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              width: '28px',
+              height: '28px',
+              borderRadius: '50%',
+              border: 'none',
+              background: 'none',
+              fontSize: '18px',
+              color: 'var(--text-secondary, #6b7280)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <FaTimes />
+          </button>
+        </div>
+
+        {/* Body */}
+        <form onSubmit={handleSubmit}>
+          <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={fieldWrapStyle}>
+              <label style={labelStyle}>
+                Customer Name <span style={{ color: 'var(--danger-color, #ef4444)' }}>*</span>
+              </label>
+              <input
+                type="text"
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                placeholder="Enter customer name"
+                style={inputStyle(!!errors.customerName)}
+                autoFocus
+              />
+              {errors.customerName && <span style={errorTextStyle}>{errors.customerName}</span>}
+            </div>
+
+            <div style={fieldWrapStyle}>
+              <label style={labelStyle}>
+                Mobile Number <span style={{ color: 'var(--danger-color, #ef4444)' }}>*</span>
+              </label>
+              <input
+                type="tel"
+                value={mobileNo}
+                onChange={(e) => setMobileNo(e.target.value)}
+                placeholder="Mobile number"
+                style={inputStyle(!!errors.mobileNo)}
+              />
+              {errors.mobileNo && <span style={errorTextStyle}>{errors.mobileNo}</span>}
+            </div>
+
+            <div style={fieldWrapStyle}>
+              <label style={labelStyle}>
+                Email <span style={{ color: 'var(--danger-color, #ef4444)' }}>*</span>
+              </label>
+              <input
+                type="email"
+                value={emailId}
+                onChange={(e) => setEmailId(e.target.value)}
+                placeholder="Email address"
+                style={inputStyle(!!errors.emailId)}
+              />
+              {errors.emailId && <span style={errorTextStyle}>{errors.emailId}</span>}
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div
+            style={{
+              padding: '14px 20px',
+              borderTop: '1px solid var(--border-color, #e2e8f0)',
+              background: 'var(--layout-bg, #f8fafc)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '10px',
+              flexWrap: 'wrap',
+            }}
+          >
+            <button
+              type="button"
+              onClick={onOpenFullForm}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 14px',
+                borderRadius: '20px',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                background: 'transparent',
+                border: '1px solid var(--border-color, #e2e8f0)',
+                color: 'var(--primary-color, #2563eb)',
+              }}
+              title="Fill in the full customer form instead (customer type/group, contact person, address, etc.)"
+            >
+              <FaBuilding size={11} /> Add All Details
+            </button>
+
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={onClose}
+                style={{
+                  padding: '8px 18px',
+                  borderRadius: '20px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  background: 'var(--card-bg, #ffffff)',
+                  border: '1px solid var(--border-color, #e2e8f0)',
+                  color: 'var(--text-secondary, #64748b)',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={submitting}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 18px',
+                  borderRadius: '20px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: submitting ? 'not-allowed' : 'pointer',
+                  opacity: submitting ? 0.7 : 1,
+                  background: 'var(--primary-gradient, linear-gradient(135deg, #2563eb 0%, #1e40af 100%))',
+                  border: 'none',
+                  color: '#ffffff',
+                }}
+              >
+                {submitting && <FaSpinner className="so-spinning" size={11} />}
+                Add Customer
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
     </div>
   );
 };
@@ -1055,6 +1464,15 @@ const readCachedSalesOrderLineData = (name: string): CachedSalesOrderLineData | 
   }
 };
 
+
+const SALES_ORDER_DRAFT_PREFIX = 'cso_sales_order_draft:';
+
+interface SalesOrderDraftPayload {
+  formData: SalesOrderForm;
+  recordName: string | null;
+  customerData: Customer | null;
+}
+
 const extractRecords = (payload: any): any[] => {
   if (!payload) return [];
   const data = payload.success === 1 || payload.success === 0 ? payload.data : payload;
@@ -1090,7 +1508,6 @@ const getTaxIdFromRate = (taxRate: number, taxOptions: TaxOption[]): number | un
   return taxOption?.tax_id;
 };
 
-/* ═════ SUCCESS MODAL COMPONENT ═════ */
 /* ═════ SUCCESS MODAL COMPONENT ═════ */
 interface SuccessModalProps {
   isOpen: boolean;
@@ -1162,8 +1579,11 @@ const SuccessModal: React.FC<SuccessModalProps> = ({
 export default function CreateSalesOrder() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
 
   const isEditMode = !!id && id !== 'new';
+
+  const getDraftStorageKey = () => `${SALES_ORDER_DRAFT_PREFIX}${id || 'new'}`;
 
   let theme = 'light';
   try {
@@ -1211,6 +1631,10 @@ export default function CreateSalesOrder() {
   // Customer data
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [customerData, setCustomerData] = useState<Customer | null>(null);
+
+  // ─── Quick Add Customer modal state ─────────────────────────────
+  const [showQuickAddModal, setShowQuickAddModal] = useState(false);
+  const [quickAddPrefillName, setQuickAddPrefillName] = useState('');
 
   // Product data
   const [products, setProducts] = useState<Product[]>([]);
@@ -1612,6 +2036,31 @@ export default function CreateSalesOrder() {
     }
   };
 
+  const handleAddNewCustomer = (prefillName: string) => {
+    setQuickAddPrefillName(prefillName || '');
+    setShowQuickAddModal(true);
+  };
+
+  const navigateToFullCustomerForm = (prefillName: string) => {
+    try {
+      const draftPayload: SalesOrderDraftPayload = {
+        formData,
+        recordName,
+        customerData,
+      };
+      sessionStorage.setItem(getDraftStorageKey(), JSON.stringify(draftPayload));
+    } catch (e) {
+      console.error('Failed to save sales order draft before navigating to Add Customer:', e);
+    }
+
+    navigate('/customer/add', {
+      state: {
+        returnTo: location.pathname,
+        prefillCustomerName: prefillName || '',
+      },
+    });
+  };
+
   // ─── customers state for dropdown ──────────────────────────
   const [customers, setCustomers] = useState<Customer[]>([]);
 
@@ -1641,6 +2090,48 @@ export default function CreateSalesOrder() {
 
   useEffect(() => {
     fetchCustomers();
+  }, []);
+
+ 
+  useEffect(() => {
+    const draftKey = getDraftStorageKey();
+    try {
+      const raw = sessionStorage.getItem(draftKey);
+      if (raw) {
+        const draft = JSON.parse(raw) as SalesOrderDraftPayload;
+        if (draft.formData) {
+          setFormData(prev => ({ ...prev, ...draft.formData }));
+        }
+        if (draft.recordName) setRecordName(draft.recordName);
+        if (draft.customerData) {
+          setCustomerData(draft.customerData);
+          setSelectedCustomer(draft.customerData);
+        }
+       
+        if (isEditMode) {
+          setRecordFetched(true);
+        }
+        sessionStorage.removeItem(draftKey);
+      }
+    } catch (e) {
+      console.error('Failed to restore sales order draft:', e);
+    }
+
+    const newCustomer = (location.state as any)?.newCustomer as Customer | undefined;
+    if (newCustomer) {
+      setSelectedCustomer(newCustomer);
+      setCustomerData(newCustomer);
+      setFormData(prev => ({
+        ...prev,
+        customer: newCustomer.id,
+        customerName: newCustomer.name,
+      }));
+      toast.success(`Customer "${newCustomer.name}" added and selected`);
+      // Clear the navigation state so a refresh or back/forward navigation
+      // doesn't re-trigger the selection.
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ─── load quotation ──────────────────────────
@@ -1952,40 +2443,20 @@ export default function CreateSalesOrder() {
             const itemCode = it.item_code || '';
             
             let tax = it.tax_rate ?? 0;
-            // ===== FIX: The backend's item child-table persists the per-line
-            // GST selection under `item_tax_id` (same field name/schema the
-            // Quotation module uses) — NOT `tax_id`. `tax_id` only exists at
-            // the order (parent) level. Previous versions of this screen read
-            // `it.tax_id` first, which is essentially always undefined on a
-            // fetched record, so every line silently fell through to the
-            // order-level `parentTaxId` fallback — and since that fallback is
-            // always the first tax option (GST18) when nothing else is set,
-            // every item on every reopened order showed GST18 regardless of
-            // what was actually chosen when the order was created (this is
-            // exactly the bug: correct GST at create time via a quotation,
-            // wrong GST — always GST18 — after edit/reload).
-            //
-            // Fix: read `item_tax_id` first (mirrors Quotation's working
-            // load logic), fall back to the legacy `tax_id` key for older
-            // records, then to a saved numeric tax_rate, and only use the
-            // order-level default as an absolute last resort.
+           
             let tax_id: number | undefined =
               it.item_tax_id ? Number(it.item_tax_id) :
               it.tax_id ? Number(it.tax_id) : undefined;
 
             if (tax_id) {
-              // Line has its own saved tax id — trust it. Only derive the %
-              // from it if no explicit tax_rate was saved for this line.
+             
               if (!tax || tax <= 0) {
                 tax = getTaxValueFromId(tax_id, taxOptions);
               }
             } else if (tax > 0) {
-              // No tax id on the line, but a real tax_rate was saved — find
-              // the matching tax option by rate instead of using the order
-              // default.
+              
               tax_id = getTaxIdFromRate(tax, taxOptions);
             } else if (parentTaxId) {
-              // Nothing usable on the line itself — last-resort fallback only.
               tax_id = parentTaxId;
               tax = getTaxValueFromId(parentTaxId, taxOptions);
             }
@@ -2323,12 +2794,6 @@ export default function CreateSalesOrder() {
     }
 
     if (field === 'tax_id') {
-      // Selecting by tax_id (not by percentage) avoids ambiguity when two tax
-      // types share the same rate — e.g. GST18 and IGST18 are both "18%", so
-      // matching on the percentage alone always resolved to whichever of the
-      // two came first in the list (GST18), no matter which one was actually
-      // picked or saved. Binding the <select> to tax_id fixes that both when
-      // choosing a tax here and when re-displaying a saved item on edit.
       const amount = updatedItems[index].amount || 0;
       const taxIdValue = value === '' || value === undefined || value === null ? undefined : Number(value);
       const tax = taxIdValue ? getTaxValueFromId(taxIdValue, taxOptions) : 0;
@@ -2431,11 +2896,7 @@ export default function CreateSalesOrder() {
 
     const customerId = customerData?.id || selectedCustomer?.id || formData.customer || '';
 
-    // ===== FIX: Don't hard-code the order-level tax_id to the first tax option
-    // (e.g. GST18). Use the tax_id actually selected on an item, if any, so the
-    // saved order-level value reflects what the user picked instead of always
-    // pointing at the same default — this was the root cause of every item
-    // showing GST18 after reopening a saved order that used a different rate.
+   
     const firstItemWithTax = validItems.find((item) => item.tax_id);
     const taxId = firstItemWithTax?.tax_id
       ?? (taxOptions.length > 0 ? taxOptions[0].tax_id : null);
@@ -2459,15 +2920,7 @@ export default function CreateSalesOrder() {
       rounded_total: formData.roundedTotal,
       status: formData.status,
       items: validItems.map((item) => {
-        // ===== FIX: Persist the per-line GST under `item_tax_id` — the field
-        // name the backend's item child table actually stores per line (same
-        // schema the Quotation module saves to, which is why Quotation's
-        // edit view has always shown the correct GST per line). Previously
-        // only `tax_id` was sent, which the backend has no per-line column
-        // for, so it was silently dropped and every line fell back to the
-        // order-level default (GST18) as soon as the order was reopened.
-        // `tax_id` is still included for backward compatibility with any
-        // code path still reading the old key.
+
         const itemTaxId = item.tax_id || getTaxIdFromRate(item.tax, taxOptions) || taxId;
         
         return {
@@ -2627,6 +3080,21 @@ export default function CreateSalesOrder() {
         message={successData.message}
         customerName={successData.customerName}
         onViewDetails={handleViewSalesOrder}
+      />
+
+      {/* Quick Add Customer Modal */}
+      <QuickAddCustomerModal
+        isOpen={showQuickAddModal}
+        prefillName={quickAddPrefillName}
+        onClose={() => setShowQuickAddModal(false)}
+        onCreated={(customer) => {
+          handleCustomerChange(customer.id, customer);
+          setShowQuickAddModal(false);
+        }}
+        onOpenFullForm={() => {
+          setShowQuickAddModal(false);
+          navigateToFullCustomerForm(quickAddPrefillName);
+        }}
       />
 
       {/* Validation Summary Modal */}
@@ -2827,6 +3295,7 @@ export default function CreateSalesOrder() {
                   error={!!errors.customer}
                   customerList={customers}
                   selectedCustomer={selectedCustomer}
+                  onAddNew={handleAddNewCustomer}
                 />
                 {errors.customer && <span className="so-error-text">{errors.customer}</span>}
               </div>
