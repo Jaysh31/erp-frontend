@@ -27,7 +27,7 @@ import {
   FaQuestionCircle,
   FaFileAlt,
 } from 'react-icons/fa';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
@@ -353,12 +353,36 @@ const getTaxIdFromRate = (taxRate: number, taxOpts: TaxOption[]): number | undef
   return taxOption?.tax_id;
 };
 
+
+const SALESBILL_DRAFT_PREFIX = 'cnv_salesbill_draft:';
+
+interface SalesBillDraftPayload {
+  selectedDeliveryChallans: DeliveryChallanData[];
+  selectedCustomer: string;
+  selectedSalesOrder: string;
+  isService: boolean;
+  hasDeliveryChallan: boolean;
+  billDate: string;
+  dueDate: string;
+  warehouse: string;
+  invoiceNumber: string;
+  invoiceDate: string;
+  paymentMode: string;
+  invoiceStatus: string;
+  remarks: string;
+  items: SalesBillItem[];
+  customerData: Customer | null;
+  isCustomerDisabled: boolean;
+  paymentSchedule: PaymentScheduleRow[];
+  selectedPaymentTemplate: string;
+}
+
 // ===== API SERVICE =====
 
 class ApiService {
   private static instance: ApiService;
 
-  private constructor() {}
+  private constructor() { }
 
   public static getInstance(): ApiService {
     if (!ApiService.instance) {
@@ -446,9 +470,9 @@ class ApiService {
     if (error.response) {
       statusCode = error.response.status;
       errorMessage = error.response.data?.message ||
-                    error.response.data?.error ||
-                    error.response.statusText ||
-                    'Server error occurred';
+        error.response.data?.error ||
+        error.response.statusText ||
+        'Server error occurred';
     } else if (error.request) {
       errorMessage = 'Network error. Please check your connection.';
     } else {
@@ -572,29 +596,29 @@ const SuccessModal: React.FC<SuccessModalProps> = ({
         <div className="nsb-modal-success-icon">
           <FaCheckCircle size={48} />
         </div>
-        
+
         <h2 className="nsb-modal-title">✓ Success!</h2>
-        
+
         <p className="nsb-modal-message">{message}</p>
-        
+
         <div className="nsb-modal-details">
           <div className="nsb-modal-detail-item">
             <span className="nsb-modal-detail-label">Sales Invoice</span>
             <span className="nsb-modal-detail-value nsb-modal-sb-number">{salesBill}</span>
           </div>
-          
+
           {customerName && (
             <div className="nsb-modal-detail-item">
               <span className="nsb-modal-detail-label">Customer</span>
               <span className="nsb-modal-detail-value">{customerName}</span>
             </div>
           )}
-          
+
           <div className="nsb-modal-detail-item">
             <span className="nsb-modal-detail-label">Total Items</span>
             <span className="nsb-modal-detail-value">{totalItems}</span>
           </div>
-          
+
           {totalAmount !== undefined && (
             <div className="nsb-modal-detail-item">
               <span className="nsb-modal-detail-label">Total Amount</span>
@@ -604,7 +628,7 @@ const SuccessModal: React.FC<SuccessModalProps> = ({
             </div>
           )}
         </div>
-        
+
         <div className="nsb-modal-actions">
           <button onClick={onViewDetails} className="nsb-modal-btn nsb-modal-btn-primary">
             View Sales Bill
@@ -865,6 +889,9 @@ interface CustomerDropdownProps {
   placeholder?: string;
   disabled?: boolean;
   error?: boolean;
+  presetCustomer?: Customer | null;
+
+  onAddNew: (searchTerm: string) => void;
 }
 
 const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
@@ -873,6 +900,8 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
   placeholder = 'Search Customer...',
   disabled = false,
   error = false,
+  presetCustomer = null,
+  onAddNew,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -892,6 +921,16 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
   useEffect(() => {
     fetchCustomers('');
   }, []);
+
+  useEffect(() => {
+    if (!value) {
+      setSelectedCustomer(null);
+      return;
+    }
+    if (presetCustomer && presetCustomer.id === value) {
+      setSelectedCustomer(prev => (prev && prev.id === presetCustomer.id ? prev : presetCustomer));
+    }
+  }, [value, presetCustomer]);
 
   useEffect(() => {
     if (!searchTerm.trim()) {
@@ -957,7 +996,13 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
           }));
           setCustomers(mappedCustomers);
           setFilteredCustomers(mappedCustomers);
+        } else {
+          setCustomers([]);
+          setFilteredCustomers([]);
         }
+      } else {
+        setCustomers([]);
+        setFilteredCustomers([]);
       }
     } catch (error) {
       console.error('Error fetching customers:', error);
@@ -999,12 +1044,19 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
     }
   };
 
+  const handleAddNewClick = () => {
+    setIsOpen(false);
+    onAddNew(searchTerm.trim());
+  };
+
   const getDisplayValue = () => {
     if (selectedCustomer) {
       return `${selectedCustomer.name}`;
     }
     return '';
   };
+
+
 
   const menu = isOpen ? (
     <div
@@ -1020,61 +1072,126 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
         borderRadius: '6px',
         boxShadow: '0 4px 16px var(--shadow-color, rgba(0,0,0,0.15))',
         zIndex: 99999,
-        maxHeight: '280px',
-        overflowY: 'auto',
-        overflowX: 'hidden'
+        display: 'flex',
+        flexDirection: 'column',
+        maxHeight: '320px',
+        overflow: 'hidden'
       }}
     >
-      {loading ? (
-        <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
-          <FaSpinner className="nsb-spinning" style={{ display: 'inline-block', marginRight: '8px' }} /> Loading...
-        </div>
-      ) : filteredCustomers.length > 0 ? (
-        filteredCustomers.map((customer, index) => (
-          <div
-            key={customer.id}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              handleSelect(customer);
-            }}
-            style={{
-              padding: '10px 14px',
-              cursor: 'pointer',
-              background: highlightedIndex === index ? 'var(--nav-hover, #eff6ff)' : 'transparent',
-              borderLeft: value === customer.id ? '3px solid var(--primary-color, #2563eb)' : '3px solid transparent',
-              transition: 'background 0.15s',
-              borderBottom: index < filteredCustomers.length - 1 ? '0.5px solid var(--border-color, #f1f5f9)' : 'none'
-            }}
-            onMouseEnter={() => setHighlightedIndex(index)}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary, #0f172a)' }}>{customer.name}</span>
-              </div>
-              {customer.gstin && (
-                <span style={{ fontSize: '10px', color: 'var(--text-secondary, #94a3b8)', background: 'var(--layout-bg, #f1f5f9)', padding: '2px 8px', borderRadius: '4px' }}>
-                  GST: {customer.gstin}
-                </span>
-              )}
-            </div>
-            <div style={{ display: 'flex', gap: '16px', marginTop: '4px', fontSize: '11px', color: 'var(--text-secondary, #64748b)' }}>
-              {customer.contactPerson && (
-                <span><FaUser size={10} style={{ marginRight: '4px' }} />{customer.contactPerson}</span>
-              )}
-              {customer.phone && (
-                <span><FaPhone size={10} style={{ marginRight: '4px' }} />{customer.phone}</span>
-              )}
-              {customer.email && (
-                <span><FaEnvelope size={10} style={{ marginRight: '4px' }} />{customer.email}</span>
-              )}
-            </div>
+      <div
+        className="nsb-custom-scroll"
+        style={{
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          maxHeight: '260px'
+        }}
+      >
+        {loading ? (
+          <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
+            <FaSpinner className="nsb-spinning" style={{ display: 'inline-block', marginRight: '8px' }} /> Loading...
           </div>
-        ))
-      ) : (
-        <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
-          {searchTerm ? 'No matching customers found' : 'No customers available'}
-        </div>
-      )}
+        ) : filteredCustomers.length > 0 ? (
+          filteredCustomers.map((customer, index) => (
+            <div
+              key={customer.id}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                handleSelect(customer);
+              }}
+              style={{
+                padding: '10px 14px',
+                cursor: 'pointer',
+                background: highlightedIndex === index ? 'var(--nav-hover, #eff6ff)' : 'transparent',
+                borderLeft: value === customer.id ? '3px solid var(--primary-color, #2563eb)' : '3px solid transparent',
+                transition: 'background 0.15s',
+                borderBottom: index < filteredCustomers.length - 1 ? '0.5px solid var(--border-color, #f1f5f9)' : 'none'
+              }}
+              onMouseEnter={() => setHighlightedIndex(index)}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary, #0f172a)' }}>{customer.name}</span>
+                </div>
+                {customer.gstin && (
+                  <span style={{ fontSize: '10px', color: 'var(--text-secondary, #94a3b8)', background: 'var(--layout-bg, #f1f5f9)', padding: '2px 8px', borderRadius: '4px' }}>
+                    GST: {customer.gstin}
+                  </span>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: '16px', marginTop: '4px', fontSize: '11px', color: 'var(--text-secondary, #64748b)' }}>
+                {customer.contactPerson && (
+                  <span><FaUser size={10} style={{ marginRight: '4px' }} />{customer.contactPerson}</span>
+                )}
+                {customer.phone && (
+                  <span><FaPhone size={10} style={{ marginRight: '4px' }} />{customer.phone}</span>
+                )}
+                {customer.email && (
+                  <span><FaEnvelope size={10} style={{ marginRight: '4px' }} />{customer.email}</span>
+                )}
+              </div>
+            </div>
+          ))
+        ) : (
+          <div style={{ padding: '16px 14px', textAlign: 'center' }}>
+            <div style={{ fontSize: '12px', color: 'var(--text-secondary, #94a3b8)', marginBottom: '10px' }}>
+              {searchTerm.trim() ? (
+                <>No customer found for &quot;<strong>{searchTerm.trim()}</strong>&quot;</>
+              ) : (
+                'No customers available'
+              )}
+            </div>
+
+          </div>
+        )}
+      </div>
+
+      {/* Persistent footer action so "Add New Customer" is always reachable,
+          even when there are matching results to scroll through. */}
+      <div
+        className="cq-dropdown-add-new"
+        onMouseDown={(e) => {
+          e.preventDefault();
+          handleAddNewClick();
+        }}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          padding: '10px 14px',
+          cursor: 'pointer',
+          borderTop: '0.5px solid var(--border-color, #e2e8f0)',
+          color: 'var(--primary-color, #2563eb)',
+          fontWeight: 600,
+          fontSize: '12px',
+          background: 'var(--layout-bg, #f8fafc)',
+          flexShrink: 0,
+          transition: 'background 0.15s, color 0.15s'
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = 'var(--nav-hover, #eff6ff)';
+          e.currentTarget.style.color = 'var(--primary-color, #2563eb)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = 'var(--layout-bg, #f8fafc)';
+          e.currentTarget.style.color = 'var(--primary-color, #2563eb)';
+        }}
+      >
+        <span
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          <FaPlus size={10} />
+        </span>
+
+        <span>
+          {searchTerm.trim() && filteredCustomers.length === 0
+            ? `Add "${searchTerm.trim()}" as New Customer`
+            : 'Add New Customer'}
+        </span>
+      </div>
     </div>
   ) : null;
 
@@ -1112,6 +1229,340 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
       </div>
 
       {menu && ReactDOM.createPortal(menu, document.body)}
+    </div>
+  );
+};
+
+interface QuickAddCustomerModalProps {
+  isOpen: boolean;
+  prefillName?: string;
+  onClose: () => void;
+  onCreated: (customer: Customer) => void;
+  onOpenFullForm: () => void;
+}
+
+const QuickAddCustomerModal: React.FC<QuickAddCustomerModalProps> = ({
+  isOpen,
+  prefillName = '',
+  onClose,
+  onCreated,
+  onOpenFullForm,
+}) => {
+  const [customerName, setCustomerName] = useState('');
+  const [mobileNo, setMobileNo] = useState('');
+  const [emailId, setEmailId] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+
+  const DEFAULT_CUSTOMER_TYPE = 'Company';
+  const DEFAULT_CUSTOMER_GROUP = 'Commercial';
+
+  useEffect(() => {
+    if (isOpen) {
+      setCustomerName(prefillName || '');
+      setMobileNo('');
+      setEmailId('');
+      setErrors({});
+    }
+  }, [isOpen, prefillName]);
+
+  if (!isOpen) return null;
+
+  const validate = (): boolean => {
+    const errs: Record<string, string> = {};
+    if (!customerName.trim()) errs.customerName = 'Customer name is required';
+    if (!mobileNo.trim()) errs.mobileNo = 'Mobile number is required';
+    if (!emailId.trim()) {
+      errs.emailId = 'Email is required';
+    } else if (!/\S+@\S+\.\S+/.test(emailId)) {
+      errs.emailId = 'Enter a valid email address';
+    }
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validate()) return;
+
+    setSubmitting(true);
+    try {
+      // No separate contact-person name is collected here, so the contact
+      // record reuses the customer name/mobile/email.
+      const contactPayload = {
+        first_name: customerName.trim(),
+        last_name: '',
+        contact_name: customerName.trim(),
+        mobile_no: mobileNo.trim(),
+        alternate_mobile: '',
+        email_id: emailId.trim(),
+        telephone: '',
+        extension: '',
+        is_primary: 1,
+        is_billing_contact: 0,
+        is_saler_contact: 1,
+        remarks: '',
+      };
+
+      const payload = {
+        customer_name: customerName.trim(),
+        customer_group: DEFAULT_CUSTOMER_GROUP,
+        territory: '',
+        customer_type: DEFAULT_CUSTOMER_TYPE,
+        mobile_no: mobileNo.trim(),
+        email_id: emailId.trim(),
+        customer_primary_address: '',
+        primary_address: '',
+        contacts: [contactPayload],
+      };
+
+      const response = await api.post('/customer', payload);
+      if (response.data && response.data.success === 0) {
+        throw new Error(response.data?.message || 'Failed to add customer');
+      }
+
+      const apiData = response?.data?.data;
+
+      const created: Customer = {
+        id: apiData?.id?.toString() || apiData?.name?.toString() || '',
+        name: apiData?.customer_name || payload.customer_name,
+        code: apiData?.customer_code || (apiData?.id != null ? `CUST-${apiData.id}` : ''),
+        email: apiData?.email_id || payload.email_id,
+        phone: apiData?.mobile_no || payload.mobile_no,
+        address: apiData?.customer_primary_address || '',
+        shippingAddress: apiData?.primary_address || '',
+        gstin: '',
+        contactPerson: contactPayload.contact_name,
+        contactMobile: contactPayload.mobile_no,
+      };
+
+      toast.success(`Customer "${created.name}" added and selected`);
+      onCreated(created);
+    } catch (err: any) {
+      console.error('Error quick-adding customer:', err);
+      const message =
+        err.response?.data?.message || err.message || 'Failed to add customer';
+      toast.error(message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const labelStyle: React.CSSProperties = {
+    fontSize: '11px',
+    fontWeight: 600,
+    color: 'var(--text-secondary, #64748b)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
+    marginBottom: '4px',
+    display: 'block',
+  };
+
+  const inputStyle = (hasError: boolean): React.CSSProperties => ({
+    width: '100%',
+    padding: '7px 10px',
+    border: hasError
+      ? '1.5px solid var(--danger-color, #ef4444)'
+      : '1.5px solid var(--border-color, #e2e8f0)',
+    borderRadius: '8px',
+    background: 'var(--card-bg, #ffffff)',
+    color: 'var(--text-primary, #0f172a)',
+    fontSize: '13px',
+    fontFamily: 'inherit',
+    boxSizing: 'border-box',
+    minHeight: '34px',
+  });
+
+  const fieldWrapStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: '2px' };
+  const errorTextStyle: React.CSSProperties = { fontSize: '10px', color: 'var(--danger-color, #ef4444)' };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(17, 24, 39, 0.45)',
+        backdropFilter: 'blur(3px)',
+        zIndex: 300,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '20px',
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: 'var(--card-bg, #ffffff)',
+          borderRadius: '12px',
+          width: '100%',
+          maxWidth: '420px',
+          boxShadow: '0 16px 40px rgba(0, 0, 0, 0.18)',
+          overflow: 'hidden',
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '16px 20px',
+            borderBottom: '1px solid var(--border-color, #e2e8f0)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <FaUser style={{ color: 'var(--primary-color, #2563eb)' }} />
+            <h2 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: 'var(--text-primary, #0f172a)' }}>
+              Quick Add Customer
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              width: '28px',
+              height: '28px',
+              borderRadius: '50%',
+              border: 'none',
+              background: 'none',
+              fontSize: '18px',
+              color: 'var(--text-secondary, #6b7280)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <FaTimes />
+          </button>
+        </div>
+
+        {/* Body */}
+        <form onSubmit={handleSubmit}>
+          <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={fieldWrapStyle}>
+              <label style={labelStyle}>
+                Customer Name <span style={{ color: 'var(--danger-color, #ef4444)' }}>*</span>
+              </label>
+              <input
+                type="text"
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                placeholder="Enter customer name"
+                style={inputStyle(!!errors.customerName)}
+                autoFocus
+              />
+              {errors.customerName && <span style={errorTextStyle}>{errors.customerName}</span>}
+            </div>
+
+            <div style={fieldWrapStyle}>
+              <label style={labelStyle}>
+                Mobile Number <span style={{ color: 'var(--danger-color, #ef4444)' }}>*</span>
+              </label>
+              <input
+                type="tel"
+                value={mobileNo}
+                onChange={(e) => setMobileNo(e.target.value)}
+                placeholder="Mobile number"
+                style={inputStyle(!!errors.mobileNo)}
+              />
+              {errors.mobileNo && <span style={errorTextStyle}>{errors.mobileNo}</span>}
+            </div>
+
+            <div style={fieldWrapStyle}>
+              <label style={labelStyle}>
+                Email <span style={{ color: 'var(--danger-color, #ef4444)' }}>*</span>
+              </label>
+              <input
+                type="email"
+                value={emailId}
+                onChange={(e) => setEmailId(e.target.value)}
+                placeholder="Email address"
+                style={inputStyle(!!errors.emailId)}
+              />
+              {errors.emailId && <span style={errorTextStyle}>{errors.emailId}</span>}
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div
+            style={{
+              padding: '14px 20px',
+              borderTop: '1px solid var(--border-color, #e2e8f0)',
+              background: 'var(--layout-bg, #f8fafc)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '10px',
+              flexWrap: 'wrap',
+            }}
+          >
+            <button
+              type="button"
+              onClick={onOpenFullForm}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 14px',
+                borderRadius: '20px',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                background: 'transparent',
+                border: '1px solid var(--border-color, #e2e8f0)',
+                color: 'var(--primary-color, #2563eb)',
+              }}
+              title="Fill in the full customer form instead (customer type/group, contact person, address, etc.)"
+            >
+              <FaBuilding size={11} /> Add All Details
+            </button>
+
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={onClose}
+                style={{
+                  padding: '8px 18px',
+                  borderRadius: '20px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  background: 'var(--card-bg, #ffffff)',
+                  border: '1px solid var(--border-color, #e2e8f0)',
+                  color: 'var(--text-secondary, #64748b)',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={submitting}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 18px',
+                  borderRadius: '20px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: submitting ? 'not-allowed' : 'pointer',
+                  opacity: submitting ? 0.7 : 1,
+                  background: 'var(--primary-gradient, linear-gradient(135deg, #2563eb 0%, #1e40af 100%))',
+                  border: 'none',
+                  color: '#ffffff',
+                }}
+              >
+                {submitting && <FaSpinner className="nsb-spinning" size={11} />}
+                Add Customer
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
     </div>
   );
 };
@@ -1717,7 +2168,10 @@ const WarehouseSelect: React.FC<WarehouseSelectProps> = ({
 
 const CreateSalesBill: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { theme } = useAdminTheme();
+
+  const getDraftStorageKey = () => `${SALESBILL_DRAFT_PREFIX}new`;
 
   const [selectedDeliveryChallans, setSelectedDeliveryChallans] = useState<DeliveryChallanData[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<string>('');
@@ -1751,6 +2205,10 @@ const CreateSalesBill: React.FC = () => {
   const [inventoryMap, setInventoryMap] = useState<{ [itemCode: string]: InventoryApiRecord[] }>({});
   const [, setLoadingInventory] = useState(false);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+
+  // ─── Quick Add Customer modal state ─────────────────────────────
+  const [showQuickAddModal, setShowQuickAddModal] = useState<boolean>(false);
+  const [quickAddPrefillName, setQuickAddPrefillName] = useState<string>('');
 
   // Success Modal state
   const [showSuccessModal, setShowSuccessModal] = useState<boolean>(false);
@@ -1894,12 +2352,12 @@ const CreateSalesBill: React.FC = () => {
     const newId = String(paymentSchedule.length + 1);
     setPaymentSchedule([
       ...paymentSchedule,
-      { 
-        id: newId, 
-        paymentTerm: '', 
-        dueDate: '', 
-        durationDays: 0, 
-        invoicePortion: 0, 
+      {
+        id: newId,
+        paymentTerm: '',
+        dueDate: '',
+        durationDays: 0,
+        invoicePortion: 0,
         paymentAmount: 0,
         paidAmount: 0,
         status: 'Pending'
@@ -1915,12 +2373,12 @@ const CreateSalesBill: React.FC = () => {
   const updatePaymentRow = (index: number, patch: Partial<PaymentScheduleRow>) => {
     const updated = [...paymentSchedule];
     updated[index] = { ...updated[index], ...patch };
-    
+
     if (patch.invoicePortion !== undefined) {
       const grandTotal = getGrandTotalWithRound();
       updated[index].paymentAmount = (patch.invoicePortion / 100) * grandTotal;
     }
-    
+
     setPaymentSchedule(updated);
   };
 
@@ -2015,10 +2473,10 @@ const CreateSalesBill: React.FC = () => {
     if (!itemCode) return { status: 'unknown' };
     const records = inventoryMap[itemCode.toUpperCase()];
     if (!records || records.length === 0) return { status: 'unknown' };
-    
+
     const sorted = [...records].sort((a, b) => b.actual_qty - a.actual_qty);
     const bestRecord = sorted[0];
-    
+
     return {
       status: (bestRecord.actual_qty ?? 0) >= quantity ? 'available' : 'insufficient',
       availableQty: bestRecord.actual_qty,
@@ -2103,6 +2561,50 @@ const CreateSalesBill: React.FC = () => {
     fetchWarehouses();
   }, []);
 
+  useEffect(() => {
+    const draftKey = getDraftStorageKey();
+    try {
+      const raw = sessionStorage.getItem(draftKey);
+      if (raw) {
+        const draft = JSON.parse(raw) as SalesBillDraftPayload;
+        if (draft) {
+          setSelectedDeliveryChallans(draft.selectedDeliveryChallans || []);
+          setSelectedCustomer(draft.selectedCustomer || '');
+          setSelectedSalesOrder(draft.selectedSalesOrder || '');
+          setIsService(!!draft.isService);
+          setHasDeliveryChallan(draft.hasDeliveryChallan !== undefined ? draft.hasDeliveryChallan : true);
+          if (draft.billDate) setBillDate(draft.billDate);
+          if (draft.dueDate) setDueDate(draft.dueDate);
+          if (draft.warehouse) setWarehouse(draft.warehouse);
+          setInvoiceNumber(draft.invoiceNumber || '');
+          if (draft.invoiceDate) setInvoiceDate(draft.invoiceDate);
+          setPaymentMode(draft.paymentMode || '');
+          setInvoiceStatus(draft.invoiceStatus || 'Draft');
+          setRemarks(draft.remarks || '');
+          if (draft.items && draft.items.length > 0) setItems(draft.items);
+          if (draft.customerData) setCustomerData(draft.customerData);
+          setIsCustomerDisabled(!!draft.isCustomerDisabled);
+          if (draft.paymentSchedule && draft.paymentSchedule.length > 0) setPaymentSchedule(draft.paymentSchedule);
+          setSelectedPaymentTemplate(draft.selectedPaymentTemplate || '');
+        }
+        sessionStorage.removeItem(draftKey);
+      }
+    } catch (e) {
+      console.error('Failed to restore sales bill draft:', e);
+    }
+
+    const newCustomer = (location.state as any)?.newCustomer as Customer | undefined;
+    if (newCustomer) {
+      setSelectedCustomer(newCustomer.id);
+      setCustomerData(newCustomer);
+      toast.success(`Customer "${newCustomer.name}" added and selected`);
+      // Clear the navigation state so a refresh or back/forward navigation
+      // doesn't re-trigger the selection.
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Update stock status when inventory changes
   useEffect(() => {
     if (Object.keys(inventoryMap).length === 0) return;
@@ -2115,9 +2617,9 @@ const CreateSalesBill: React.FC = () => {
           const sorted = [...inventoryRecords].sort((a, b) => b.actual_qty - a.actual_qty);
           inventoryId = sorted[0]?.id;
         }
-        return { 
-          ...item, 
-          stockStatus: status, 
+        return {
+          ...item,
+          stockStatus: status,
           availableQty,
           inventoryId: inventoryId || item.inventoryId,
         };
@@ -2135,7 +2637,7 @@ const CreateSalesBill: React.FC = () => {
   // Update payment amounts when grand total changes
   useEffect(() => {
     const grandTotal = getGrandTotalWithRound();
-    setPaymentSchedule(prev => 
+    setPaymentSchedule(prev =>
       prev.map(p => ({
         ...p,
         paymentAmount: (p.invoicePortion / 100) * grandTotal
@@ -2193,7 +2695,7 @@ const CreateSalesBill: React.FC = () => {
           hsn: item.HSN || item.hsn || '',
           description: item.description || item.item_name || '',
           unit: item.stock_uom || 'pcs',
-          rate: item.selling_price  || 0,
+          rate: item.selling_price || 0,
           tax: item.gst_rate || item.tax_rate || 0,
           type: 'product' as 'product' | 'service',
           stockUom: item.stock_uom,
@@ -2249,7 +2751,7 @@ const CreateSalesBill: React.FC = () => {
             disabled: wh.disabled || 0
           }));
           setWarehouses(mapped);
-          
+
           const finishedGoods = mapped.find(w => w.warehouse_name.toLowerCase() === 'finished goods');
           if (finishedGoods) {
             setWarehouse(finishedGoods.id.toString());
@@ -2341,7 +2843,7 @@ const CreateSalesBill: React.FC = () => {
     let autoFilledCustomer: Customer | null = null;
 
     const customerInList = customers.find(c => c.id === firstCustomer.customer_id || c.code === firstCustomer.customer_code);
-    
+
     if (customerInList) {
       autoFilledCustomer = customerInList;
     } else if (firstCustomer.customer_details) {
@@ -2398,11 +2900,11 @@ const CreateSalesBill: React.FC = () => {
       if (dc.items && dc.items.length > 0) {
         dc.items.forEach((item, index) => {
           const product = allProducts.find(p => p.itemCode === item.item_code);
-          
+
           const taxIdFromDC = (item as any).tax_id;
           let taxRate = 0;
           let taxId = taxIdFromDC;
-          
+
           if (taxIdFromDC) {
             const taxOption = taxOptions.find(t => t.tax_id === taxIdFromDC);
             if (taxOption) {
@@ -2424,7 +2926,7 @@ const CreateSalesBill: React.FC = () => {
             const sorted = [...inventoryRecords].sort((a, b) => b.actual_qty - a.actual_qty);
             inventoryId = sorted[0]?.id;
           }
-          
+
           allItems.push({
             id: `dc-${dc.id}-${index}`,
             itemCode: item.item_code || '',
@@ -2489,7 +2991,7 @@ const CreateSalesBill: React.FC = () => {
     }
 
     const firstDCPaymentSchedule = dcs[0].payment_schedule;
-    
+
     if (firstDCPaymentSchedule && firstDCPaymentSchedule.length > 0) {
       const autoPaymentSchedule: PaymentScheduleRow[] = firstDCPaymentSchedule.map((ps, idx) => ({
         id: String(idx + 1),
@@ -2520,11 +3022,52 @@ const CreateSalesBill: React.FC = () => {
     setSelectedCustomer(customerId);
     if (customerId && customerData) {
       setCustomerData(customerData);
+      if (errors.customer) setErrors(prev => ({ ...prev, customer: '' }));
     } else {
       setCustomerData(null);
       setSelectedSalesOrder('');
       setSelectedOrderData(null);
     }
+  };
+
+  const handleAddNewCustomer = (prefillName: string) => {
+    setQuickAddPrefillName(prefillName || '');
+    setShowQuickAddModal(true);
+  };
+
+  const navigateToFullCustomerForm = (prefillName: string) => {
+    try {
+      const draftPayload: SalesBillDraftPayload = {
+        selectedDeliveryChallans,
+        selectedCustomer,
+        selectedSalesOrder,
+        isService,
+        hasDeliveryChallan,
+        billDate,
+        dueDate,
+        warehouse,
+        invoiceNumber,
+        invoiceDate,
+        paymentMode,
+        invoiceStatus,
+        remarks,
+        items,
+        customerData,
+        isCustomerDisabled,
+        paymentSchedule,
+        selectedPaymentTemplate,
+      };
+      sessionStorage.setItem(getDraftStorageKey(), JSON.stringify(draftPayload));
+    } catch (e) {
+      console.error('Failed to save sales bill draft before navigating to Add Customer:', e);
+    }
+
+    navigate('/customer/add', {
+      state: {
+        returnTo: location.pathname,
+        prefillCustomerName: prefillName || '',
+      },
+    });
   };
 
   const addItem = () => {
@@ -2579,7 +3122,7 @@ const CreateSalesBill: React.FC = () => {
                 const sorted = [...inventoryRecords].sort((a, b) => b.actual_qty - a.actual_qty);
                 inventoryId = sorted[0]?.id;
               }
-              
+
               updated.itemName = product.itemName || '';
               updated.hsn = product.hsn || '';
               updated.description = product.description || '';
@@ -2619,7 +3162,7 @@ const CreateSalesBill: React.FC = () => {
             updated.amount = amount;
             updated.taxAmount = taxAmount;
             updated.totalAmount = amount + taxAmount;
-            
+
             if (updated.itemCode) {
               const { status, availableQty, inventoryRecords } = getStockStatus(updated.itemCode, updated.quantity || 0);
               let inventoryId: number | undefined;
@@ -2671,10 +3214,7 @@ const CreateSalesBill: React.FC = () => {
     const warehouseName = selectedWarehouse?.warehouse_name || 'Finished Goods - A';
 
     return {
-      // Prefer the customer's code, but fall back to the internal id when the
-      // selected customer record has no code set - previously this could go
-      // out completely empty ("customer": "") even though a customer was
-      // picked, which is why the View page couldn't resolve/display it.
+
       customer: customerData?.code || customerData?.id || '',
       company: 'SculptERP Pvt Ltd',
       modified_by: 'Administrator',
@@ -2694,11 +3234,6 @@ const CreateSalesBill: React.FC = () => {
       update_stock: 1,
       is_pos: 0,
       is_return: 0,
-      // These four fields were previously captured in the form state
-      // (invoiceNumber, invoiceDate, paymentMode, invoiceStatus) but were
-      // never included in the payload sent to the API, so they were lost
-      // as soon as the bill was created - hence the View page appearing to
-      // be "missing" data that was in fact filled in on this form.
       invoice_number: invoiceNumber || '',
       invoice_date: invoiceDate || '',
       mode_of_payment: paymentMode || '',
@@ -2753,71 +3288,71 @@ const CreateSalesBill: React.FC = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-const handleSubmit = async () => {
-  if (!validateForm()) return;
-  setIsSubmitting(true);
-  const toastId = toast.loading('Creating sales bill...');
-  try {
-    const payload = buildPayload('Submitted');
-    const createResponse = await salesBillAPI.createSalesBill(payload);
-    
-    if (!createResponse.success) {
-      throw new Error(createResponse.message || 'Failed to create');
-    }
-    
-    const responseData = createResponse.data;
-    const salesBillName = responseData?.data?.name || responseData?.name || billNumber;
-    const totalItemsCount = responseData?.data?.total_items || items.filter(i => i.itemCode && i.quantity > 0).length;
-    const message = responseData?.data?.message || responseData?.message || createResponse.message || 'Sales Invoice created successfully.';
-    const totalAmount = getGrandTotalWithRound();
+  const handleSubmit = async () => {
+    if (!validateForm()) return;
+    setIsSubmitting(true);
+    const toastId = toast.loading('Creating sales bill...');
+    try {
+      const payload = buildPayload('Submitted');
+      const createResponse = await salesBillAPI.createSalesBill(payload);
 
-    // ===== FIX: Only update inventory if NOT from Delivery Challan =====
-    const isFromDeliveryChallan = selectedDeliveryChallans.length > 0;
-    
-    if (!isFromDeliveryChallan) {
-      // Only update inventory if NOT from Delivery Challan
-      const itemsToDispatch = items.filter(item => item.itemCode && item.quantity > 0 && item.type !== 'service');
-      if (itemsToDispatch.length > 0) {
-        toast.loading('Updating inventory...', { id: toastId });
-        const failedUpdates = await updateInventory(itemsToDispatch);
-        
-        if (failedUpdates.length > 0) {
-          toast(`Inventory updated with ${failedUpdates.length} failures: ${failedUpdates.join(', ')}`, { id: toastId });
-        } else {
-          toast.success('Inventory updated successfully!', { id: toastId });
+      if (!createResponse.success) {
+        throw new Error(createResponse.message || 'Failed to create');
+      }
+
+      const responseData = createResponse.data;
+      const salesBillName = responseData?.data?.name || responseData?.name || billNumber;
+      const totalItemsCount = responseData?.data?.total_items || items.filter(i => i.itemCode && i.quantity > 0).length;
+      const message = responseData?.data?.message || responseData?.message || createResponse.message || 'Sales Invoice created successfully.';
+      const totalAmount = getGrandTotalWithRound();
+
+      // ===== FIX: Only update inventory if NOT from Delivery Challan =====
+      const isFromDeliveryChallan = selectedDeliveryChallans.length > 0;
+
+      if (!isFromDeliveryChallan) {
+        // Only update inventory if NOT from Delivery Challan
+        const itemsToDispatch = items.filter(item => item.itemCode && item.quantity > 0 && item.type !== 'service');
+        if (itemsToDispatch.length > 0) {
+          toast.loading('Updating inventory...', { id: toastId });
+          const failedUpdates = await updateInventory(itemsToDispatch);
+
+          if (failedUpdates.length > 0) {
+            toast(`Inventory updated with ${failedUpdates.length} failures: ${failedUpdates.join(', ')}`, { id: toastId });
+          } else {
+            toast.success('Inventory updated successfully!', { id: toastId });
+          }
+        }
+      } else {
+        // Skip inventory update when from Delivery Challan
+        toast.success('Sales Bill created from Delivery Challan - Inventory not updated (already deducted at DC level)', { id: toastId });
+      }
+
+      toast.success('Created!', { id: toastId });
+
+      setSuccessData({
+        salesBill: salesBillName,
+        totalItems: totalItemsCount,
+        message: message,
+        customerName: customerData?.name,
+        totalAmount: totalAmount
+      });
+      setShowSuccessModal(true);
+
+      if (salesBillName && salesBillName !== billNumber) {
+        try {
+          await salesBillAPI.submitSalesBill(salesBillName);
+          toast.success(`Bill ${salesBillName} submitted!`);
+        } catch (submitError) {
+          console.warn('Submit failed but SB was created:', submitError);
+          toast('SB created but submission failed. Please submit manually.');
         }
       }
-    } else {
-      // Skip inventory update when from Delivery Challan
-      toast.success('Sales Bill created from Delivery Challan - Inventory not updated (already deducted at DC level)', { id: toastId });
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to create', { id: toastId });
+    } finally {
+      setIsSubmitting(false);
     }
-
-    toast.success('Created!', { id: toastId });
-
-    setSuccessData({
-      salesBill: salesBillName,
-      totalItems: totalItemsCount,
-      message: message,
-      customerName: customerData?.name,
-      totalAmount: totalAmount
-    });
-    setShowSuccessModal(true);
-
-    if (salesBillName && salesBillName !== billNumber) {
-      try {
-        await salesBillAPI.submitSalesBill(salesBillName);
-        toast.success(`Bill ${salesBillName} submitted!`);
-      } catch (submitError) {
-        console.warn('Submit failed but SB was created:', submitError);
-        toast('SB created but submission failed. Please submit manually.');
-      }
-    }
-  } catch (error: any) {
-    toast.error(error.message || 'Failed to create', { id: toastId });
-  } finally {
-    setIsSubmitting(false);
-  }
-};
+  };
 
   const handleSaveDraft = async () => {
     if (!validateForm()) return;
@@ -2827,10 +3362,10 @@ const handleSubmit = async () => {
       const payload = buildPayload('Draft');
       const response = await salesBillAPI.createSalesBill(payload);
       if (!response.success) throw new Error(response.message || 'Failed to save');
-      
+
       const responseData = response.data;
       const salesBillName = responseData?.data?.name || responseData?.name || billNumber;
-      
+
       toast.success(`Draft saved: ${salesBillName}`, { id: toastId });
       setTimeout(() => navigate('/sales-bill'), 1000);
     } catch (error: any) {
@@ -2928,6 +3463,21 @@ const handleSubmit = async () => {
         message={successData.message}
         customerName={successData.customerName}
         totalAmount={successData.totalAmount}
+      />
+
+      {/* Quick Add Customer Modal */}
+      <QuickAddCustomerModal
+        isOpen={showQuickAddModal}
+        prefillName={quickAddPrefillName}
+        onClose={() => setShowQuickAddModal(false)}
+        onCreated={(customer) => {
+          handleCustomerChange(customer.id, customer);
+          setShowQuickAddModal(false);
+        }}
+        onOpenFullForm={() => {
+          setShowQuickAddModal(false);
+          navigateToFullCustomerForm(quickAddPrefillName);
+        }}
       />
 
       {/* Header */}
@@ -3043,6 +3593,8 @@ const handleSubmit = async () => {
                   placeholder="Search Customer..."
                   disabled={isLoading || (hasDeliveryChallan && isCustomerDisabled)}
                   error={!!errors.customer}
+                  presetCustomer={customerData}
+                  onAddNew={handleAddNewCustomer}
                 />
                 {errors.customer && <span className="nsb-error-text">{errors.customer}</span>}
                 {hasDeliveryChallan && isCustomerDisabled && (

@@ -262,6 +262,7 @@ function App() {
               <Route path="/purchase-order/view/:id" element={<PurchaseOrderForm />} />
               <Route path="/proforma-invoice" element={<ProformaInvoice />} />
               <Route path="/proforma-invoice/new" element={<CreateProformaInvoice />} />
+              <Route path="/proforma-invoice/:id" element={<CreateProformaInvoice />} />
 
               
               {/* Organization Routes */}

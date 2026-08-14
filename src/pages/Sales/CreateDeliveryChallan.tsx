@@ -747,14 +747,7 @@ const SalesOrderDropdown: React.FC<SalesOrderDropdownProps> = ({
           po_date: record.po_date || '',
           tax_id: record.tax_id || '',
           items: (record.sales_items || []).map((item: any) => {
-            // ===== FIX: The Sales Order line items persist per-line GST
-            // under `item_tax_id` (same field/schema Quotation and
-            // CreateSalesOrder.tsx use) — NOT `tax_id`. `tax_id` only
-            // exists at the order (parent) level. Reading `item.tax_id`
-            // first here meant every line silently fell back to the
-            // order-level default (or null), so any delivery challan
-            // pulled from a sales order lost its per-line GST and showed
-            // 0% no matter what was actually selected on that line.
+        
             const lineTaxId = item.item_tax_id
               ? Number(item.item_tax_id)
               : (item.tax_id ? Number(item.tax_id) : (record.tax_id ? Number(record.tax_id) : null));
@@ -940,6 +933,8 @@ interface CustomerDropdownProps {
   error?: boolean;
   fullWidth?: boolean;
   onAddNewCustomer?: (searchTerm: string) => void;
+  
+  presetCustomer?: Customer | null;
 }
 
 const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
@@ -949,6 +944,7 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
   disabled = false,
   error = false,
   onAddNewCustomer,
+  presetCustomer = null,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -969,6 +965,16 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
   useEffect(() => {
     fetchCustomers('');
   }, []);
+
+  useEffect(() => {
+    if (!value) {
+      setSelectedCustomer(null);
+      return;
+    }
+    if (presetCustomer && presetCustomer.id === value) {
+      setSelectedCustomer(prev => (prev && prev.id === presetCustomer.id ? prev : presetCustomer));
+    }
+  }, [value, presetCustomer]);
 
   useEffect(() => {
     if (!searchTerm.trim()) {
@@ -1225,6 +1231,339 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
   );
 };
 
+interface QuickAddCustomerModalProps {
+  isOpen: boolean;
+  prefillName?: string;
+  onClose: () => void;
+  onCreated: (customer: Customer) => void;
+  onOpenFullForm: () => void;
+}
+
+const QuickAddCustomerModal: React.FC<QuickAddCustomerModalProps> = ({
+  isOpen,
+  prefillName = '',
+  onClose,
+  onCreated,
+  onOpenFullForm,
+}) => {
+  const [customerName, setCustomerName] = useState('');
+  const [mobileNo, setMobileNo] = useState('');
+  const [emailId, setEmailId] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const DEFAULT_CUSTOMER_TYPE = 'Company';
+  const DEFAULT_CUSTOMER_GROUP = 'Commercial';
+
+  useEffect(() => {
+    if (isOpen) {
+      setCustomerName(prefillName || '');
+      setMobileNo('');
+      setEmailId('');
+      setErrors({});
+    }
+  }, [isOpen, prefillName]);
+
+  if (!isOpen) return null;
+
+  const validate = (): boolean => {
+    const errs: Record<string, string> = {};
+    if (!customerName.trim()) errs.customerName = 'Customer name is required';
+    if (!mobileNo.trim()) errs.mobileNo = 'Mobile number is required';
+    if (!emailId.trim()) {
+      errs.emailId = 'Email is required';
+    } else if (!/\S+@\S+\.\S+/.test(emailId)) {
+      errs.emailId = 'Enter a valid email address';
+    }
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validate()) return;
+
+    setSubmitting(true);
+    try {
+      // No separate contact-person name is collected here, so the contact
+      // record reuses the customer name/mobile/email.
+      const contactPayload = {
+        first_name: customerName.trim(),
+        last_name: '',
+        contact_name: customerName.trim(),
+        mobile_no: mobileNo.trim(),
+        alternate_mobile: '',
+        email_id: emailId.trim(),
+        telephone: '',
+        extension: '',
+        is_primary: 1,
+        is_billing_contact: 0,
+        is_saler_contact: 1,
+        remarks: '',
+      };
+
+      const payload = {
+        customer_name: customerName.trim(),
+        customer_group: DEFAULT_CUSTOMER_GROUP,
+        territory: '',
+        customer_type: DEFAULT_CUSTOMER_TYPE,
+        mobile_no: mobileNo.trim(),
+        email_id: emailId.trim(),
+        customer_primary_address: '',
+        primary_address: '',
+        contacts: [contactPayload],
+      };
+
+      const response = await api.post('/customer', payload);
+      if (response.data && response.data.success === 0) {
+        throw new Error(response.data?.message || 'Failed to add customer');
+      }
+
+      const apiData = response?.data?.data;
+
+      const created: Customer = {
+        id: apiData?.id?.toString() || apiData?.name?.toString() || '',
+        name: apiData?.customer_name || payload.customer_name,
+        code: apiData?.customer_code || (apiData?.id != null ? `CUST-${apiData.id}` : ''),
+        email: apiData?.email_id || payload.email_id,
+        phone: apiData?.mobile_no || payload.mobile_no,
+        address: apiData?.customer_primary_address || '',
+        shippingAddress: apiData?.primary_address || '',
+        gstin: '',
+        contactPerson: contactPayload.contact_name,
+        contactMobile: contactPayload.mobile_no,
+      };
+
+      toast.success(`Customer "${created.name}" added and selected`);
+      onCreated(created);
+    } catch (err: any) {
+      console.error('Error quick-adding customer:', err);
+      const message =
+        err.response?.data?.message || err.message || 'Failed to add customer';
+      toast.error(message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const labelStyle: React.CSSProperties = {
+    fontSize: '11px',
+    fontWeight: 600,
+    color: 'var(--text-secondary, #64748b)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
+    marginBottom: '4px',
+    display: 'block',
+  };
+
+  const inputStyle = (hasError: boolean): React.CSSProperties => ({
+    width: '100%',
+    padding: '7px 10px',
+    border: hasError
+      ? '1.5px solid var(--danger-color, #ef4444)'
+      : '1.5px solid var(--border-color, #e2e8f0)',
+    borderRadius: '8px',
+    background: 'var(--card-bg, #ffffff)',
+    color: 'var(--text-primary, #0f172a)',
+    fontSize: '13px',
+    fontFamily: 'inherit',
+    boxSizing: 'border-box',
+    minHeight: '34px',
+  });
+
+  const fieldWrapStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: '2px' };
+  const errorTextStyle: React.CSSProperties = { fontSize: '10px', color: 'var(--danger-color, #ef4444)' };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(17, 24, 39, 0.45)',
+        backdropFilter: 'blur(3px)',
+        zIndex: 300,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '20px',
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: 'var(--card-bg, #ffffff)',
+          borderRadius: '12px',
+          width: '100%',
+          maxWidth: '420px',
+          boxShadow: '0 16px 40px rgba(0, 0, 0, 0.18)',
+          overflow: 'hidden',
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '16px 20px',
+            borderBottom: '1px solid var(--border-color, #e2e8f0)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <FaUser style={{ color: 'var(--primary-color, #2563eb)' }} />
+            <h2 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: 'var(--text-primary, #0f172a)' }}>
+              Quick Add Customer
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              width: '28px',
+              height: '28px',
+              borderRadius: '50%',
+              border: 'none',
+              background: 'none',
+              fontSize: '18px',
+              color: 'var(--text-secondary, #6b7280)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <FaTimes />
+          </button>
+        </div>
+
+        {/* Body */}
+        <form onSubmit={handleSubmit}>
+          <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={fieldWrapStyle}>
+              <label style={labelStyle}>
+                Customer Name <span style={{ color: 'var(--danger-color, #ef4444)' }}>*</span>
+              </label>
+              <input
+                type="text"
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                placeholder="Enter customer name"
+                style={inputStyle(!!errors.customerName)}
+                autoFocus
+              />
+              {errors.customerName && <span style={errorTextStyle}>{errors.customerName}</span>}
+            </div>
+
+            <div style={fieldWrapStyle}>
+              <label style={labelStyle}>
+                Mobile Number <span style={{ color: 'var(--danger-color, #ef4444)' }}>*</span>
+              </label>
+              <input
+                type="tel"
+                value={mobileNo}
+                onChange={(e) => setMobileNo(e.target.value)}
+                placeholder="Mobile number"
+                style={inputStyle(!!errors.mobileNo)}
+              />
+              {errors.mobileNo && <span style={errorTextStyle}>{errors.mobileNo}</span>}
+            </div>
+
+            <div style={fieldWrapStyle}>
+              <label style={labelStyle}>
+                Email <span style={{ color: 'var(--danger-color, #ef4444)' }}>*</span>
+              </label>
+              <input
+                type="email"
+                value={emailId}
+                onChange={(e) => setEmailId(e.target.value)}
+                placeholder="Email address"
+                style={inputStyle(!!errors.emailId)}
+              />
+              {errors.emailId && <span style={errorTextStyle}>{errors.emailId}</span>}
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div
+            style={{
+              padding: '14px 20px',
+              borderTop: '1px solid var(--border-color, #e2e8f0)',
+              background: 'var(--layout-bg, #f8fafc)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '10px',
+              flexWrap: 'wrap',
+            }}
+          >
+            <button
+              type="button"
+              onClick={onOpenFullForm}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 14px',
+                borderRadius: '20px',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                background: 'transparent',
+                border: '1px solid var(--border-color, #e2e8f0)',
+                color: 'var(--primary-color, #2563eb)',
+              }}
+              title="Fill in the full customer form instead (address, contact person, etc.)"
+            >
+              <FaBuilding size={11} /> Add All Details
+            </button>
+
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={onClose}
+                style={{
+                  padding: '8px 18px',
+                  borderRadius: '20px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  background: 'var(--card-bg, #ffffff)',
+                  border: '1px solid var(--border-color, #e2e8f0)',
+                  color: 'var(--text-secondary, #64748b)',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={submitting}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 18px',
+                  borderRadius: '20px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: submitting ? 'not-allowed' : 'pointer',
+                  opacity: submitting ? 0.7 : 1,
+                  background: 'var(--primary-gradient, linear-gradient(135deg, #2563eb 0%, #1e40af 100%))',
+                  border: 'none',
+                  color: '#ffffff',
+                }}
+              >
+                {submitting && <FaSpinner className="ndc-spinning" size={11} />}
+                Add Customer
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 // ===== SUCCESS MODAL COMPONENT =====
 interface SuccessModalProps {
   isOpen: boolean;
@@ -1319,6 +1658,11 @@ const NewDeliveryChallan: React.FC = () => {
   const [qualityInspection, setQualityInspection] = useState<boolean>(false);
   const [items, setItems] = useState<DeliveryChallanItem[]>([]);
   const [customerData, setCustomerData] = useState<Customer | null>(null);
+
+  // ─── Quick Add Customer modal state ─────────────────────────────
+  const [showQuickAddModal, setShowQuickAddModal] = useState<boolean>(false);
+  const [quickAddPrefillName, setQuickAddPrefillName] = useState<string>('');
+
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [dcNumber, setDcNumber] = useState<string>(`DN-${new Date().getFullYear()}-001`);
@@ -1516,38 +1860,21 @@ const NewDeliveryChallan: React.FC = () => {
           const mappedItems: DeliveryChallanItem[] = data.items.map((item: any, index: number) => {
             const product = allProducts.find(p => p.itemCode === item.item_code);
 
-            // ===== FIX: GST was always showing 0% on the View screen. =====
-            // The backend's item child table persists the per-line GST
-            // selection under `item_tax_id` (the same field/schema Sales
-            // Order and Quotation use — see CreateSalesOrder.tsx notes),
-            // NOT `tax_id`. Previously this read `item.tax` / `item.tax_id`
-            // only, which are essentially always empty on a fetched
-            // delivery-note record, so every line silently fell through to
-            // 0% no matter what GST was chosen when the challan was created
-            // (e.g. via a sales order).
-            //
-            // Fix: read `item_tax_id` first, fall back to the legacy
-            // `tax_id` key, then to a saved `tax_rate`/`tax` percentage, and
-            // only then fall back to the item master — mirroring the exact
-            // fix already applied in CreateSalesOrder.tsx.
             let taxId: number | undefined =
               item.item_tax_id ? Number(item.item_tax_id) :
               item.tax_id ? Number(item.tax_id) : undefined;
             let taxRate: number = item.tax_rate ?? item.tax ?? 0;
 
             if (taxId) {
-              // Line has its own saved tax id — trust it. Only derive the %
-              // from it if no explicit tax_rate/tax was saved for this line.
+            
               if (!taxRate || taxRate <= 0) {
                 taxRate = getTaxRateFromId(taxId, taxOptions);
               }
             } else if (taxRate > 0) {
-              // No tax id on the line, but a real tax percentage was saved —
-              // find the matching tax option by rate.
+             
               taxId = getTaxIdFromRate(taxRate, taxOptions);
             } else if (product?.tax) {
-              // Nothing usable on the line itself — fall back to the item
-              // master's default tax as a last resort.
+             
               taxRate = product.tax;
               taxId = getTaxIdFromRate(taxRate, taxOptions);
             }
@@ -1661,8 +1988,13 @@ const NewDeliveryChallan: React.FC = () => {
     restoreStateFromQI();
   }, [restoreStateFromQI]);
 
-  // ===== SAVE STATE & NAVIGATE TO ADD NEW CUSTOMER =====
+
   const handleAddNewCustomer = useCallback((searchTerm: string) => {
+    setQuickAddPrefillName(searchTerm || '');
+    setShowQuickAddModal(true);
+  }, []);
+
+  const navigateToFullCustomerForm = useCallback((searchTerm: string) => {
     const formDataToSave = {
       selectedCustomer,
       selectedSalesOrder,
@@ -2393,15 +2725,7 @@ const NewDeliveryChallan: React.FC = () => {
       items: items
         .filter(item => item.itemCode && item.quantity > 0)
         .map(item => {
-          // ===== FIX: Persist per-line GST under `item_tax_id` — the field
-          // name the backend's item child table actually stores per line
-          // (same schema Sales Order / Quotation save to). Previously only
-          // `tax`/`tax_id` were sent, which the backend has no reliable
-          // per-line column for on this endpoint, so it was effectively
-          // dropped and every line reverted to 0% GST as soon as the
-          // challan was reopened for viewing. `tax_id` and `tax_rate` are
-          // still included for backward compatibility with any code path
-          // still reading the old keys.
+          
           const itemTaxId = item.tax_id ?? getTaxIdFromRate(item.tax || 0, taxOptions) ?? null;
           return {
             name: item.itemName || item.itemCode,
@@ -2878,6 +3202,23 @@ const NewDeliveryChallan: React.FC = () => {
         onViewDetails={handleViewDeliveryNote}
       />
 
+      {/* Quick Add Customer Modal — same popup and flow as Create Quotation */}
+      <QuickAddCustomerModal
+        isOpen={showQuickAddModal}
+        prefillName={quickAddPrefillName}
+        onClose={() => setShowQuickAddModal(false)}
+        onCreated={(customer) => {
+          setCustomers(prev => [customer, ...prev.filter(c => c.id !== customer.id)]);
+          setSelectedCustomer(customer.id);
+          loadCustomerData(customer.id, customer);
+          setShowQuickAddModal(false);
+        }}
+        onOpenFullForm={() => {
+          setShowQuickAddModal(false);
+          navigateToFullCustomerForm(quickAddPrefillName);
+        }}
+      />
+
       {/* Header with IsService on right */}
       <div className="ndc-header">
         <div className="ndc-header-left">
@@ -2976,6 +3317,7 @@ const NewDeliveryChallan: React.FC = () => {
                     placeholder="Search Customer..."
                     disabled={isLoading || isEditMode || isViewMode}
                     error={!!errors.customer}
+                    presetCustomer={customerData}
                     onAddNewCustomer={handleAddNewCustomer}
                   />
                   {errors.customer && <span className="ndc-error-text">{errors.customer}</span>}
@@ -3010,6 +3352,7 @@ const NewDeliveryChallan: React.FC = () => {
                     disabled={isLoading || isEditMode || isViewMode}
                     error={!!errors.customer}
                     fullWidth={true}
+                    presetCustomer={customerData}
                     onAddNewCustomer={handleAddNewCustomer}
                   />
                   {errors.customer && <span className="ndc-error-text">{errors.customer}</span>}
