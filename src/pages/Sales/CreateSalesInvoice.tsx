@@ -246,6 +246,10 @@ interface SalesBillPayload {
   update_stock: number;
   is_pos: number;
   is_return: number;
+  invoice_number: string;
+  invoice_date: string;
+  mode_of_payment: string;
+  invoice_status: string;
   items: Array<{
     item_code: string;
     item_name: string;
@@ -2667,7 +2671,11 @@ const CreateSalesBill: React.FC = () => {
     const warehouseName = selectedWarehouse?.warehouse_name || 'Finished Goods - A';
 
     return {
-      customer: customerData?.code || '',
+      // Prefer the customer's code, but fall back to the internal id when the
+      // selected customer record has no code set - previously this could go
+      // out completely empty ("customer": "") even though a customer was
+      // picked, which is why the View page couldn't resolve/display it.
+      customer: customerData?.code || customerData?.id || '',
       company: 'SculptERP Pvt Ltd',
       modified_by: 'Administrator',
       customer_name: customerData?.name || '',
@@ -2686,6 +2694,15 @@ const CreateSalesBill: React.FC = () => {
       update_stock: 1,
       is_pos: 0,
       is_return: 0,
+      // These four fields were previously captured in the form state
+      // (invoiceNumber, invoiceDate, paymentMode, invoiceStatus) but were
+      // never included in the payload sent to the API, so they were lost
+      // as soon as the bill was created - hence the View page appearing to
+      // be "missing" data that was in fact filled in on this form.
+      invoice_number: invoiceNumber || '',
+      invoice_date: invoiceDate || '',
+      mode_of_payment: paymentMode || '',
+      invoice_status: invoiceStatus || 'Draft',
       items: items
         .filter(item => item.itemCode && item.quantity > 0)
         .map(item => ({

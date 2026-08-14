@@ -163,7 +163,9 @@ interface DeliveryNotePayload {
     rate: number;
     amount: number;
     tax: number;
+    tax_rate: number;
     tax_id: number | null;
+    item_tax_id: number | null;
     tax_amount: number;
     total_amount: number;
     warehouse: string;
@@ -744,16 +746,29 @@ const SalesOrderDropdown: React.FC<SalesOrderDropdownProps> = ({
           po_no: record.po_no || '',
           po_date: record.po_date || '',
           tax_id: record.tax_id || '',
-          items: (record.sales_items || []).map((item: any) => ({
-            item_code: item.item_code || '',
-            description: item.description || '',
-            qty: item.qty || 0,
-            uom: item.uom || item.stock_uom || 'pcs',
-            rate: item.rate || 0,
-            amount: item.amount || 0,
-            tax_id: item.tax_id || record.tax_id || null,
-            tax: item.tax || 0,
-          }))
+          items: (record.sales_items || []).map((item: any) => {
+            // ===== FIX: The Sales Order line items persist per-line GST
+            // under `item_tax_id` (same field/schema Quotation and
+            // CreateSalesOrder.tsx use) — NOT `tax_id`. `tax_id` only
+            // exists at the order (parent) level. Reading `item.tax_id`
+            // first here meant every line silently fell back to the
+            // order-level default (or null), so any delivery challan
+            // pulled from a sales order lost its per-line GST and showed
+            // 0% no matter what was actually selected on that line.
+            const lineTaxId = item.item_tax_id
+              ? Number(item.item_tax_id)
+              : (item.tax_id ? Number(item.tax_id) : (record.tax_id ? Number(record.tax_id) : null));
+            return {
+              item_code: item.item_code || '',
+              description: item.description || '',
+              qty: item.qty || 0,
+              uom: item.uom || item.stock_uom || 'pcs',
+              rate: item.rate || 0,
+              amount: item.amount || 0,
+              tax_id: lineTaxId,
+              tax: item.tax_rate || item.tax || 0,
+            };
+          })
         }));
         
         setOrders(mappedOrders);
@@ -924,6 +939,7 @@ interface CustomerDropdownProps {
   disabled?: boolean;
   error?: boolean;
   fullWidth?: boolean;
+  onAddNewCustomer?: (searchTerm: string) => void;
 }
 
 const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
@@ -932,6 +948,7 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
   placeholder = 'Search Customer...',
   disabled = false,
   error = false,
+  onAddNewCustomer,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -945,6 +962,7 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const deliveryChallanAPI = new DeliveryChallanAPI();
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const navigate = useNavigate();
 
   const menuPos = useDropdownPosition(isOpen, wrapperRef);
 
@@ -1058,6 +1076,15 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
     }
   };
 
+  const handleAddNewCustomer = () => {
+    setIsOpen(false);
+    if (onAddNewCustomer) {
+      onAddNewCustomer(searchTerm.trim());
+    } else {
+      navigate('/customer/add');
+    }
+  };
+
   const getDisplayValue = () => {
     if (selectedCustomer) {
       return `${selectedCustomer.name}`;
@@ -1079,61 +1106,84 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
         borderRadius: '6px',
         boxShadow: '0 4px 16px var(--shadow-color, rgba(0,0,0,0.15))',
         zIndex: 99999,
-        maxHeight: '280px',
-        overflowY: 'auto',
-        overflowX: 'hidden'
+        maxHeight: '320px',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden'
       }}
     >
-      {loading ? (
-        <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
-          <FaSpinner className="ndc-spinning" style={{ display: 'inline-block', marginRight: '8px' }} /> Loading...
-        </div>
-      ) : filteredCustomers.length > 0 ? (
-        filteredCustomers.map((customer, index) => (
-          <div
-            key={customer.id}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              handleSelect(customer);
-            }}
-            style={{
-              padding: '10px 14px',
-              cursor: 'pointer',
-              background: highlightedIndex === index ? 'var(--nav-hover, #eff6ff)' : 'transparent',
-              borderLeft: value === customer.id ? '3px solid var(--primary-color, #2563eb)' : '3px solid transparent',
-              transition: 'background 0.15s',
-              borderBottom: index < filteredCustomers.length - 1 ? '0.5px solid var(--border-color, #f1f5f9)' : 'none'
-            }}
-            onMouseEnter={() => setHighlightedIndex(index)}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary, #0f172a)' }}>{customer.name}</span>
-              </div>
-              {customer.gstin && (
-                <span style={{ fontSize: '10px', color: 'var(--text-secondary, #94a3b8)', background: 'var(--layout-bg, #f1f5f9)', padding: '2px 8px', borderRadius: '4px' }}>
-                  GST: {customer.gstin}
-                </span>
-              )}
-            </div>
-            <div style={{ display: 'flex', gap: '16px', marginTop: '4px', fontSize: '11px', color: 'var(--text-secondary, #64748b)' }}>
-              {customer.contactPerson && (
-                <span><FaUser size={10} style={{ marginRight: '4px' }} />{customer.contactPerson}</span>
-              )}
-              {customer.phone && (
-                <span><FaPhone size={10} style={{ marginRight: '4px' }} />{customer.phone}</span>
-              )}
-              {customer.email && (
-                <span><FaEnvelope size={10} style={{ marginRight: '4px' }} />{customer.email}</span>
-              )}
-            </div>
+      <div className="ndc-custom-scroll" style={{ overflowY: 'auto', overflowX: 'hidden', flex: '1 1 auto' }}>
+        {loading ? (
+          <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
+            <FaSpinner className="ndc-spinning" style={{ display: 'inline-block', marginRight: '8px' }} /> Loading...
           </div>
-        ))
-      ) : (
-        <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
-          {searchTerm ? 'No matching customers found' : 'No customers available'}
-        </div>
-      )}
+        ) : filteredCustomers.length > 0 ? (
+          filteredCustomers.map((customer, index) => (
+            <div
+              key={customer.id}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                handleSelect(customer);
+              }}
+              style={{
+                padding: '10px 14px',
+                cursor: 'pointer',
+                background: highlightedIndex === index ? 'var(--nav-hover, #eff6ff)' : 'transparent',
+                borderLeft: value === customer.id ? '3px solid var(--primary-color, #2563eb)' : '3px solid transparent',
+                transition: 'background 0.15s',
+                borderBottom: index < filteredCustomers.length - 1 ? '0.5px solid var(--border-color, #f1f5f9)' : 'none'
+              }}
+              onMouseEnter={() => setHighlightedIndex(index)}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary, #0f172a)' }}>{customer.name}</span>
+                </div>
+                {customer.gstin && (
+                  <span style={{ fontSize: '10px', color: 'var(--text-secondary, #94a3b8)', background: 'var(--layout-bg, #f1f5f9)', padding: '2px 8px', borderRadius: '4px' }}>
+                    GST: {customer.gstin}
+                  </span>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: '16px', marginTop: '4px', fontSize: '11px', color: 'var(--text-secondary, #64748b)' }}>
+                {customer.contactPerson && (
+                  <span><FaUser size={10} style={{ marginRight: '4px' }} />{customer.contactPerson}</span>
+                )}
+                {customer.phone && (
+                  <span><FaPhone size={10} style={{ marginRight: '4px' }} />{customer.phone}</span>
+                )}
+                {customer.email && (
+                  <span><FaEnvelope size={10} style={{ marginRight: '4px' }} />{customer.email}</span>
+                )}
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="ndc-dropdown-no-results">
+            <FaInfoCircle size={13} />
+            <span>
+              {searchTerm ? `No customer found for "${searchTerm}"` : 'No customers available'}
+            </span>
+          </div>
+        )}
+      </div>
+
+      <div
+        className="ndc-dropdown-add-new"
+        onMouseDown={(e) => {
+          e.preventDefault();
+          handleAddNewCustomer();
+        }}
+      >
+        <span className="ndc-dropdown-add-new-icon">
+          <FaPlus size={10} />
+        </span>
+        <span>
+          {searchTerm && filteredCustomers.length === 0
+            ? `Add "${searchTerm}" as New Customer`
+            : 'Add New Customer'}
+        </span>
+      </div>
     </div>
   ) : null;
 
@@ -1266,7 +1316,7 @@ const NewDeliveryChallan: React.FC = () => {
   const [transporter, setTransporter] = useState<string>('');
   const [vehicleNumber, setVehicleNumber] = useState<string>('');
   const [remarks, setRemarks] = useState<string>('');
-  const [qualityInspection] = useState<boolean>(false);
+  const [qualityInspection, setQualityInspection] = useState<boolean>(false);
   const [items, setItems] = useState<DeliveryChallanItem[]>([]);
   const [customerData, setCustomerData] = useState<Customer | null>(null);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
@@ -1465,8 +1515,43 @@ const NewDeliveryChallan: React.FC = () => {
         if (data.items && Array.isArray(data.items) && data.items.length > 0) {
           const mappedItems: DeliveryChallanItem[] = data.items.map((item: any, index: number) => {
             const product = allProducts.find(p => p.itemCode === item.item_code);
-            const taxRate = item.tax || 0;
-            const taxId = item.tax_id || getTaxIdFromRate(taxRate, taxOptions);
+
+            // ===== FIX: GST was always showing 0% on the View screen. =====
+            // The backend's item child table persists the per-line GST
+            // selection under `item_tax_id` (the same field/schema Sales
+            // Order and Quotation use — see CreateSalesOrder.tsx notes),
+            // NOT `tax_id`. Previously this read `item.tax` / `item.tax_id`
+            // only, which are essentially always empty on a fetched
+            // delivery-note record, so every line silently fell through to
+            // 0% no matter what GST was chosen when the challan was created
+            // (e.g. via a sales order).
+            //
+            // Fix: read `item_tax_id` first, fall back to the legacy
+            // `tax_id` key, then to a saved `tax_rate`/`tax` percentage, and
+            // only then fall back to the item master — mirroring the exact
+            // fix already applied in CreateSalesOrder.tsx.
+            let taxId: number | undefined =
+              item.item_tax_id ? Number(item.item_tax_id) :
+              item.tax_id ? Number(item.tax_id) : undefined;
+            let taxRate: number = item.tax_rate ?? item.tax ?? 0;
+
+            if (taxId) {
+              // Line has its own saved tax id — trust it. Only derive the %
+              // from it if no explicit tax_rate/tax was saved for this line.
+              if (!taxRate || taxRate <= 0) {
+                taxRate = getTaxRateFromId(taxId, taxOptions);
+              }
+            } else if (taxRate > 0) {
+              // No tax id on the line, but a real tax percentage was saved —
+              // find the matching tax option by rate.
+              taxId = getTaxIdFromRate(taxRate, taxOptions);
+            } else if (product?.tax) {
+              // Nothing usable on the line itself — fall back to the item
+              // master's default tax as a last resort.
+              taxRate = product.tax;
+              taxId = getTaxIdFromRate(taxRate, taxOptions);
+            }
+
             const amount = (item.qty || 0) * (item.rate || 0);
             const taxAmount = (amount * taxRate) / 100;
             const { status: stockStatus, availableQty, inventoryRecords } = getStockStatus(item.item_code || '', item.qty || 0);
@@ -1575,6 +1660,128 @@ const NewDeliveryChallan: React.FC = () => {
   useEffect(() => {
     restoreStateFromQI();
   }, [restoreStateFromQI]);
+
+  // ===== SAVE STATE & NAVIGATE TO ADD NEW CUSTOMER =====
+  const handleAddNewCustomer = useCallback((searchTerm: string) => {
+    const formDataToSave = {
+      selectedCustomer,
+      selectedSalesOrder,
+      isService,
+      dcDate,
+      warehouse,
+      transporter,
+      vehicleNumber,
+      remarks,
+      items,
+      customerData,
+      dcNumber,
+      hasSalesOrder,
+      roundOff
+    };
+    formState.saveFormState('delivery_challan', formDataToSave, id);
+
+    const returnUrl = `${location.pathname}?returnFromCustomerAdd=1`;
+    const params = new URLSearchParams();
+    params.set('returnUrl', returnUrl);
+    if (searchTerm) {
+      params.set('name', searchTerm);
+    }
+
+    toast('Add the new customer, and you\'ll be brought back here automatically.', { icon: 'ℹ️' });
+    navigate(`/customer/add?${params.toString()}`);
+  }, [
+    selectedCustomer, selectedSalesOrder, isService, dcDate, warehouse,
+    transporter, vehicleNumber, remarks, items, customerData, dcNumber,
+    hasSalesOrder, roundOff, formState, id, location.pathname, navigate
+  ]);
+
+  // ===== RESTORE STATE AFTER ADDING A NEW CUSTOMER =====
+  const restoreStateFromCustomerAdd = useCallback(async () => {
+    const searchParams = new URLSearchParams(location.search);
+    const returnFlag = searchParams.get('returnFromCustomerAdd');
+
+    if (returnFlag !== '1' || isEditMode || isViewMode) {
+      return;
+    }
+
+    const newCustomerId = searchParams.get('newCustomerId') || searchParams.get('customerId');
+
+    const savedState = formState.restoreFormState('delivery_challan');
+    if (savedState) {
+      if (savedState.selectedSalesOrder !== undefined) setSelectedSalesOrder(savedState.selectedSalesOrder);
+      if (savedState.isService !== undefined) setIsService(savedState.isService);
+      if (savedState.dcDate) setDcDate(savedState.dcDate);
+      if (savedState.warehouse) setWarehouse(savedState.warehouse);
+      if (savedState.transporter) setTransporter(savedState.transporter);
+      if (savedState.vehicleNumber) setVehicleNumber(savedState.vehicleNumber);
+      if (savedState.remarks) setRemarks(savedState.remarks);
+      if (savedState.items && Array.isArray(savedState.items)) setItems(savedState.items);
+      if (savedState.dcNumber) setDcNumber(savedState.dcNumber);
+      if (savedState.hasSalesOrder !== undefined) setHasSalesOrder(savedState.hasSalesOrder);
+      if (savedState.roundOff !== undefined) setRoundOff(savedState.roundOff);
+      if (!newCustomerId && savedState.selectedCustomer) {
+        setSelectedCustomer(savedState.selectedCustomer);
+        const customer = (customers.length > 0 ? customers : []).find(c => c.id === savedState.selectedCustomer);
+        if (customer) setCustomerData(customer);
+      }
+    }
+
+    if (newCustomerId) {
+      setIsLoading(true);
+      try {
+        const response = await deliveryChallanAPI.getCustomers({ page: 1, limit: 100 });
+        if (response.success && response.data) {
+          let customerList: any[] = [];
+          if (response.data.data && Array.isArray(response.data.data.records)) {
+            customerList = response.data.data.records;
+          } else if (Array.isArray(response.data)) {
+            customerList = response.data;
+          } else if (response.data.data && Array.isArray(response.data.data)) {
+            customerList = response.data.data;
+          }
+
+          const mappedCustomers: Customer[] = customerList.map((cust: any) => ({
+            id: cust.id?.toString() || cust.customer_id?.toString() || '',
+            name: cust.customer_name || cust.name || '',
+            code: cust.customer_code || cust.code || '',
+            email: cust.email_id || cust.email || '',
+            phone: cust.mobile_no || cust.phone || '',
+            address: cust.address || '',
+            shippingAddress: cust.shipping_address || cust.address || '',
+            gstin: cust.gstin || '',
+            contactPerson: cust.contact_person || '',
+            contactMobile: cust.contact_mobile || cust.mobile_no || ''
+          }));
+
+          setCustomers(mappedCustomers);
+
+          const newCustomer = mappedCustomers.find(c => c.id === String(newCustomerId));
+          if (newCustomer) {
+            setSelectedCustomer(newCustomer.id);
+            setCustomerData(newCustomer);
+            setSelectedSalesOrder('');
+            setSelectedOrderData(null);
+            toast.success(`New customer "${newCustomer.name}" added and selected`);
+          } else {
+            toast.error('Customer was added, but could not be auto-selected. Please select it manually.');
+          }
+        }
+      } catch (error) {
+        console.error('Error refreshing customers after add:', error);
+        toast.error('Failed to refresh customer list');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    const cleanUrl = window.location.pathname;
+    window.history.replaceState({}, document.title, cleanUrl);
+  }, [location.search, formState, isEditMode, isViewMode, customers]);
+
+  useEffect(() => {
+    restoreStateFromCustomerAdd();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search]);
 
   useEffect(() => {
     fetchTaxOptions();
@@ -2185,22 +2392,36 @@ const NewDeliveryChallan: React.FC = () => {
       type: isService ? 'Services' : 'Products',
       items: items
         .filter(item => item.itemCode && item.quantity > 0)
-        .map(item => ({
-          name: item.itemName || item.itemCode,
-          item_code: item.itemCode,
-          item_name: item.itemName || item.itemCode,
-          description: item.description || item.itemName || item.itemCode,
-          qty: item.quantity,
-          uom: item.unit,
-          rate: item.rate,
-          amount: item.amount,
-          tax: item.tax || 0,
-          tax_id: item.tax_id ?? null,
-          tax_amount: item.taxAmount || 0,
-          total_amount: item.totalAmount || 0,
-          warehouse: selectedWarehouse?.warehouse_name || warehouse || '',
-          type: item.type
-        }))
+        .map(item => {
+          // ===== FIX: Persist per-line GST under `item_tax_id` — the field
+          // name the backend's item child table actually stores per line
+          // (same schema Sales Order / Quotation save to). Previously only
+          // `tax`/`tax_id` were sent, which the backend has no reliable
+          // per-line column for on this endpoint, so it was effectively
+          // dropped and every line reverted to 0% GST as soon as the
+          // challan was reopened for viewing. `tax_id` and `tax_rate` are
+          // still included for backward compatibility with any code path
+          // still reading the old keys.
+          const itemTaxId = item.tax_id ?? getTaxIdFromRate(item.tax || 0, taxOptions) ?? null;
+          return {
+            name: item.itemName || item.itemCode,
+            item_code: item.itemCode,
+            item_name: item.itemName || item.itemCode,
+            description: item.description || item.itemName || item.itemCode,
+            qty: item.quantity,
+            uom: item.unit,
+            rate: item.rate,
+            amount: item.amount,
+            tax: item.tax || 0,
+            tax_rate: item.tax || 0,
+            tax_id: itemTaxId,
+            item_tax_id: itemTaxId,
+            tax_amount: item.taxAmount || 0,
+            total_amount: item.totalAmount || 0,
+            warehouse: selectedWarehouse?.warehouse_name || warehouse || '',
+            type: item.type
+          };
+        })
     };
 
     if (isEditMode && id) {
@@ -2755,6 +2976,7 @@ const NewDeliveryChallan: React.FC = () => {
                     placeholder="Search Customer..."
                     disabled={isLoading || isEditMode || isViewMode}
                     error={!!errors.customer}
+                    onAddNewCustomer={handleAddNewCustomer}
                   />
                   {errors.customer && <span className="ndc-error-text">{errors.customer}</span>}
                 </div>
@@ -2788,6 +3010,7 @@ const NewDeliveryChallan: React.FC = () => {
                     disabled={isLoading || isEditMode || isViewMode}
                     error={!!errors.customer}
                     fullWidth={true}
+                    onAddNewCustomer={handleAddNewCustomer}
                   />
                   {errors.customer && <span className="ndc-error-text">{errors.customer}</span>}
                 </div>

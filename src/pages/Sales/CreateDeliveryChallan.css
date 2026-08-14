@@ -721,6 +721,77 @@
   background: #eff6ff;
 }
 
+/* ── Customer Dropdown: Add New Customer Button ──────────
+   Themed via the same CSS custom properties the rest of the
+   dropdown uses (--card-bg / --border-color / --primary-color),
+   so it automatically follows light/dark theme + the admin's
+   configured primary color. ───────────────────────────────── */
+.ndc-dropdown-no-results {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px;
+  color: var(--text-secondary, #94a3b8);
+  font-size: 12px;
+  text-align: left;
+}
+
+.ndc-dropdown-add-new {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--primary-color, #2563eb);
+  background: color-mix(in srgb, var(--primary-color) 6%, var(--card-bg, #ffffff));
+  border-top: 1px solid var(--border-color, #e2e8f0);
+  position: sticky;
+  bottom: 0;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+}
+
+.ndc-dropdown-add-new:hover {
+  background: color-mix(in srgb, var(--primary-color) 16%, var(--card-bg, #ffffff));
+  color: var(--primary-color, #1e40af);
+}
+
+.ndc-dropdown-add-new:active {
+  background: color-mix(in srgb, var(--primary-color) 24%, var(--card-bg, #ffffff));
+}
+
+.ndc-dropdown-add-new-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--primary-color, #2563eb);
+  color: #ffffff;
+  flex-shrink: 0;
+}
+
+.dark-theme .ndc-dropdown-add-new {
+  background: color-mix(in srgb, var(--primary-color, #3b82f6) 14%, var(--card-bg, #1e293b));
+  border-color: var(--border-color, #334155);
+  color: var(--primary-color, #60a5fa);
+}
+
+.dark-theme .ndc-dropdown-add-new:hover {
+  background: color-mix(in srgb, var(--primary-color, #3b82f6) 26%, var(--card-bg, #1e293b));
+}
+
+.dark-theme .ndc-dropdown-add-new-icon {
+  background: var(--primary-color, #3b82f6);
+}
+
+.dark-theme .ndc-dropdown-no-results {
+  color: var(--text-secondary, #94a3b8);
+}
+
 /* ── Bottom Section ─────────────────────────────── */
 .ndc-bottom-section {
   display: grid;
