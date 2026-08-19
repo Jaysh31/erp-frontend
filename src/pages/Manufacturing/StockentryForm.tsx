@@ -291,7 +291,7 @@ export default function StockEntryForm() {
   const [se, setSe] = useState<StockEntryData>(emptyStockEntry());
   const [activeTab, setActiveTab] = useState<TabKey>("details");
   const [submitting, setSubmitting] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading] = useState(false);
   const [showValidationSummary, setShowValidationSummary] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [apiError, setApiError] = useState<string | null>(null);
@@ -310,7 +310,7 @@ export default function StockEntryForm() {
   const [itemSearch, setItemSearch] = useState<{ [key: string]: string }>({});
   const [filteredWorkOrders, setFilteredWorkOrders] = useState<WorkOrderOption[]>([]);
   
-  // Refs for dropdowns
+  // Refs for dropdowns - FIXED: using proper ref types
   const workOrderRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
@@ -385,7 +385,10 @@ export default function StockEntryForm() {
       }
       
       Object.keys(itemRefs.current).forEach((key) => {
-        if (itemRefs.current[key] && !itemRefs.current[key]?.contains(target)) {
+        const ref = itemRefs.current[key];
+        if (ref && !ref.contains(target)) {
+          // Don't close if clicking on the view button inside dropdown
+          if (target.closest('.dropdown-view-btn')) return;
           setShowItemDropdown(null);
         }
       });
@@ -567,7 +570,6 @@ export default function StockEntryForm() {
 
   const totalIncomingValue = totalOutgoingValue;
   const totalValueDifference = 0.00;
-  const totalEstimatedTaxes = 0.00;
   const totalAdditionalCosts = se.additionalCosts.reduce((sum, cost) => sum + (parseFloat(cost.amount) || 0), 0);
   const totalAmount = totalOutgoingValue + totalAdditionalCosts;
   const grandTotal = totalAmount;
@@ -810,7 +812,7 @@ export default function StockEntryForm() {
         {/* ─── Header ────────────────────────────────────────────────── */}
         <div className="sef-header">
           <button onClick={() => navigate("/stock-entry")} className="back-btn">
-            <FaArrowLeft size={28} />
+            <FaArrowLeft size={14} /> Back
           </button>
           <div className="header-title">
             <h1>{isNew ? "Add New Stock Entry" : `Edit: ${se.name || "Stock Entry"}`}</h1>

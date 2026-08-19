@@ -1,4 +1,4 @@
-import { useState, useEffect, type JSX } from "react";
+import { useState, useEffect, type JSX, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FaSearch,
@@ -49,7 +49,7 @@ interface GRN {
   remarks: string | null;
   total_items: number;
   type?: string;
-  creation?: string;  // ✅ CORRECT FIELD NAME from API
+  creation?: string;
 }
 
 interface GRNDisplay {
@@ -62,6 +62,7 @@ interface GRNDisplay {
   purchaseOrderId: number | null;
   poReference: string;
   date: string;
+  dateRaw: string; // Added for proper date comparison
   status: 'draft' | 'submitted' | 'completed' | 'rejected';
   items: number;
   receivedBy: string;
@@ -90,6 +91,132 @@ interface ApiResponse {
 
 type TabId = 'all' | 'po' | 'manual' | 'service';
 
+// ─── Date helpers ────────────────────────────────────────────────
+
+const toISODate = (d: Date): string => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const formatDisplayDate = (iso: string): string => {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+const WEEKDAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+
+// ─── Range Calendar Component ────────────────────────────────────
+
+interface RangeCalendarProps {
+  month: Date;
+  onMonthChange: (d: Date) => void;
+  fromDate: string;
+  toDate: string;
+  onSelect: (from: string, to: string) => void;
+}
+
+function RangeCalendar({ month, onMonthChange, fromDate, toDate, onSelect }: RangeCalendarProps) {
+  const year = month.getFullYear();
+  const monthIndex = month.getMonth();
+  const firstDayOfMonth = new Date(year, monthIndex, 1);
+  const startWeekday = firstDayOfMonth.getDay();
+  const totalDaysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+  const monthLabel = month.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  const handleDayClick = (day: number) => {
+    const clickedStr = toISODate(new Date(year, monthIndex, day));
+    if (!fromDate || (fromDate && toDate)) {
+      onSelect(clickedStr, '');
+    } else if (clickedStr < fromDate) {
+      onSelect(clickedStr, fromDate);
+    } else {
+      onSelect(fromDate, clickedStr);
+    }
+  };
+
+  const cells: (number | null)[] = [];
+  for (let i = 0; i < startWeekday; i++) cells.push(null);
+  for (let d = 1; d <= totalDaysInMonth; d++) cells.push(d);
+
+  return (
+    <div style={{ userSelect: 'none' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+        <button
+          type="button"
+          onClick={() => onMonthChange(new Date(year, monthIndex - 1, 1))}
+          style={{
+            background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px',
+            borderRadius: '4px', color: '#4a5568', display: 'flex', alignItems: 'center'
+          }}
+        >
+          <FaChevronLeft size={11} />
+        </button>
+        <span style={{ fontWeight: 600, fontSize: '13px', color: '#1a202c' }}>{monthLabel}</span>
+        <button
+          type="button"
+          onClick={() => onMonthChange(new Date(year, monthIndex + 1, 1))}
+          style={{
+            background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px',
+            borderRadius: '4px', color: '#4a5568', display: 'flex', alignItems: 'center'
+          }}
+        >
+          <FaChevronRight size={11} />
+        </button>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', marginBottom: '4px' }}>
+        {WEEKDAY_LABELS.map((wd) => (
+          <span key={wd} style={{ fontSize: '10px', fontWeight: 600, color: '#a0aec0', textAlign: 'center', padding: '4px 0' }}>
+            {wd}
+          </span>
+        ))}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', rowGap: '2px' }}>
+        {cells.map((day, idx) => {
+          if (day === null) return <span key={`empty-${idx}`} />;
+          const dateStr = toISODate(new Date(year, monthIndex, day));
+          const isFrom = dateStr === fromDate;
+          const isTo = dateStr === toDate;
+          const isEndpoint = isFrom || isTo;
+          const inRange = !!fromDate && !!toDate && dateStr > fromDate && dateStr < toDate;
+          const isToday = dateStr === toISODate(new Date());
+
+          let borderRadius = '6px';
+          if (isFrom && toDate) borderRadius = '6px 0 0 6px';
+          else if (isTo && fromDate) borderRadius = '0 6px 6px 0';
+
+          return (
+            <button
+              type="button"
+              key={dateStr}
+              onClick={() => handleDayClick(day)}
+              style={{
+                width: '100%',
+                aspectRatio: '1',
+                border: isToday && !isEndpoint ? '1px solid #3182ce' : 'none',
+                borderRadius,
+                background: isEndpoint ? '#3182ce' : inRange ? '#ebf8ff' : 'transparent',
+                color: isEndpoint ? 'white' : '#2d3748',
+                fontSize: '12px',
+                fontWeight: isEndpoint ? 600 : 400,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {day}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Component ──────────────────────────────────────────────
 
 export default function GRNList() {
@@ -108,6 +235,13 @@ export default function GRNList() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedItem, setSelectedItem] = useState<GRNDisplay | null>(null);
 
+  // Date filters
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [showDateFilterDropdown, setShowDateFilterDropdown] = useState(false);
+  const [calMonth, setCalMonth] = useState<Date>(new Date());
+  const dateFilterRef = useRef<HTMLDivElement>(null);
+
   // ── Tabs config ─────────────────────────────────────────────────
   const tabs: { id: TabId; label: string; icon: JSX.Element }[] = [
     { id: 'all', label: 'All GRNs', icon: <FaList size={14} /> },
@@ -116,35 +250,64 @@ export default function GRNList() {
     { id: 'service', label: 'Service', icon: <FaUsers size={14} /> },
   ];
 
-  // ── Helpers ────────────────────────────────────────────────────
+  // ─── Click outside handler ──────────────────────────────────────
 
-  // ✅ FIXED: Proper time ago calculation using creation timestamp
-  const formatDateAgo = (dateString: string) => {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    
-    // Handle invalid dates or future dates
-    if (isNaN(date.getTime()) || diffMs < 0) return 'Just now';
-    
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dateFilterRef.current && !dateFilterRef.current.contains(event.target as Node)) {
+        setShowDateFilterDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins} min`;
-    if (diffHours < 24) return `${diffHours} h`;
-    if (diffDays < 7) return `${diffDays} d`;
-    if (diffDays < 30) return `${Math.floor(diffDays / 7)} w`;
-    if (diffDays < 365) return `${Math.floor(diffDays / 30)} mo`;
-    return `${Math.floor(diffDays / 365)} y`;
+  // ─── Helper: Format GRN Number ──────────────────────────────
+  
+  const formatGRNNumber = (grnNumber: string, id: number): string => {
+    if (grnNumber && grnNumber.startsWith('GRN-') && grnNumber.length <= 12) {
+      return grnNumber;
+    }
+    return `GRN-${String(id).padStart(4, '0')}`;
   };
 
-  const formatDateDisplay = (dateString: string) => {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  // ─── Quick presets for the calendar ──────────────────────────
+
+  const applyPreset = (preset: 'today' | 'last7' | 'last30' | 'thisMonth') => {
+    const today = new Date();
+    let from = today;
+    let to = today;
+
+    if (preset === 'last7') {
+      from = new Date(today);
+      from.setDate(today.getDate() - 6);
+    } else if (preset === 'last30') {
+      from = new Date(today);
+      from.setDate(today.getDate() - 29);
+    } else if (preset === 'thisMonth') {
+      from = new Date(today.getFullYear(), today.getMonth(), 1);
+    }
+
+    const fromStr = toISODate(from);
+    const toStr = toISODate(to);
+
+    setDateFrom(fromStr);
+    setDateTo(toStr);
+    setCalMonth(from);
+  };
+
+  const clearDateRange = () => {
+    setDateFrom('');
+    setDateTo('');
+  };
+
+  const dateButtonLabel = () => {
+    if (dateFrom) {
+      return `${formatDisplayDate(dateFrom)}${dateTo ? ' – ' + formatDisplayDate(dateTo) : ''}`;
+    }
+    return 'From - To';
   };
 
   // ─── Fetch ALL GRNs ──────────────────────────────────────────────
@@ -156,10 +319,24 @@ export default function GRNList() {
       const params = new URLSearchParams();
       params.append('limit', '10000');
 
+      // Date filters - ensure proper date format
+      if (dateFrom) {
+        params.append('date_from', dateFrom);
+        console.log('Filtering from date:', dateFrom);
+      }
+      if (dateTo) {
+        params.append('date_to', dateTo);
+        console.log('Filtering to date:', dateTo);
+      }
+
+      console.log('API URL:', `/grn?${params.toString()}`);
+
       const response = await api.get<ApiResponse>(`/grn?${params.toString()}`);
 
       if (response.data.success === 1) {
         const records = response.data.data.data || [];
+        console.log('Records received:', records.length);
+        
         const transformed: GRNDisplay[] = records.map((item: GRN) => {
           const isService = item.type === 'External';
           const isManual = item.purchase_order_id === null && item.customer_id === null;
@@ -167,18 +344,11 @@ export default function GRNList() {
             ? (item.name || item.party_name || 'N/A')
             : (item.supplier_name || item.party_name || 'N/A');
 
-          // ✅ DEBUG: Log to see what fields are available
-          console.log('GRN Item:', {
-            id: item.id,
-            grn_number: item.grn_number,
-            grn_date: item.grn_date,
-            creation: item.creation,
-            type: item.type
-          });
+          const formattedGRN = formatGRNNumber(item.grn_number, item.id);
 
           return {
             id: item.id.toString(),
-            grnNo: item.grn_number || `GRN-${String(item.id).padStart(5, '0')}`,
+            grnNo: formattedGRN,
             partyName,
             partyId: isService ? item.customer_id : item.supplier_id,
             supplierId: item.supplier_id,
@@ -186,6 +356,7 @@ export default function GRNList() {
             purchaseOrderId: item.purchase_order_id,
             poReference: item.purchase_order_id ? `PO-${String(item.purchase_order_id).padStart(5, '0')}` : 'N/A',
             date: formatDateDisplay(item.grn_date),
+            dateRaw: item.grn_date, // Store raw date for sorting
             status: item.status || 'draft',
             items: item.total_items || 0,
             receivedBy: item.received_by || 'N/A',
@@ -193,15 +364,19 @@ export default function GRNList() {
             receivedQty: item.total_received_qty || 0,
             acceptedQty: item.total_accepted_qty || 0,
             rejectedQty: item.total_rejected_qty || 0,
-            // ✅ FIXED: Use creation field (not created_at)
-            createdAgo: formatDateAgo(item.creation || item.grn_date || new Date().toISOString()),
+            createdAgo: '',
             isService,
             isManual,
             type: item.type || '',
           };
         });
 
-        setAllGrns(transformed);
+        // Sort by date in descending order (newest first)
+        const sortedTransformed = transformed.sort((a, b) => {
+          return new Date(b.dateRaw).getTime() - new Date(a.dateRaw).getTime();
+        });
+
+        setAllGrns(sortedTransformed);
       } else {
         setError('Failed to fetch GRNs');
       }
@@ -213,11 +388,17 @@ export default function GRNList() {
     }
   };
 
+  const formatDateDisplay = (dateString: string) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+
   // ─── Effects ────────────────────────────────────────────────────
 
   useEffect(() => {
     fetchGRNs();
-  }, []);
+  }, [dateFrom, dateTo]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -345,10 +526,14 @@ export default function GRNList() {
 
   const handleEdit = (item: GRNDisplay) => navigate(`/grn/${encodeURIComponent(item.id)}`);
   const handleView = (item: GRNDisplay) => navigate(`/grn/${encodeURIComponent(item.id)}`);
+
   const clearFilters = () => {
     setSearchTerm('');
     setStatusFilter('all');
     setActiveTab('all');
+    setDateFrom('');
+    setDateTo('');
+    setShowDateFilterDropdown(false);
   };
 
   // ─── Render ─────────────────────────────────────────────────────
@@ -424,11 +609,133 @@ export default function GRNList() {
             <option value="completed">Completed</option>
             <option value="rejected">Rejected</option>
           </select>
-          <button className="grn-sort-btn">
-            <FaFilter size={12} />
-            Created On
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-          </button>
+          
+          {/* Created On Button with Calendar Dropdown */}
+          <div ref={dateFilterRef} style={{ position: 'relative', display: 'inline-block' }}>
+            <button
+              className="grn-sort-btn"
+              onClick={() => setShowDateFilterDropdown(!showDateFilterDropdown)}
+              style={dateFrom ? { borderColor: '#3182ce', color: '#3182ce' } : undefined}
+            >
+              <FaCalendarAlt size={13} />
+              <span style={{ maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {dateButtonLabel()}
+              </span>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </button>
+
+            {/* Calendar Date Filter Dropdown */}
+            {showDateFilterDropdown && (
+              <div className="grn-date-filter-dropdown" style={{
+                position: 'absolute',
+                top: '100%',
+                right: '0',
+                marginTop: '4px',
+                backgroundColor: 'white',
+                border: '1px solid #e2e8f0',
+                borderRadius: '8px',
+                boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+                padding: '16px',
+                minWidth: '300px',
+                zIndex: 1000,
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <span style={{ fontWeight: 600, fontSize: '14px', color: '#1a202c' }}>Filter by Date</span>
+                  <button onClick={() => setShowDateFilterDropdown(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#718096' }}>
+                    <FaTimes size={14} />
+                  </button>
+                </div>
+
+                {/* Selected range readout */}
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+                  <div style={{
+                    flex: 1, padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: '4px',
+                    fontSize: '12px', color: dateFrom ? '#1a202c' : '#a0aec0'
+                  }}>
+                    {dateFrom ? formatDisplayDate(dateFrom) : 'From'}
+                  </div>
+                  <div style={{
+                    flex: 1, padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: '4px',
+                    fontSize: '12px', color: dateTo ? '#1a202c' : '#a0aec0'
+                  }}>
+                    {dateTo ? formatDisplayDate(dateTo) : 'To'}
+                  </div>
+                </div>
+
+                {/* Quick presets */}
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '12px' }}>
+                  {([
+                    { key: 'today', label: 'Today' },
+                    { key: 'last7', label: 'Last 7 Days' },
+                    { key: 'last30', label: 'Last 30 Days' },
+                    { key: 'thisMonth', label: 'This Month' },
+                  ] as const).map((p) => (
+                    <button
+                      key={p.key}
+                      type="button"
+                      onClick={() => applyPreset(p.key)}
+                      style={{
+                        padding: '4px 10px',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '999px',
+                        backgroundColor: '#f7fafc',
+                        fontSize: '11px',
+                        color: '#4a5568',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Calendar */}
+                <RangeCalendar
+                  month={calMonth}
+                  onMonthChange={setCalMonth}
+                  fromDate={dateFrom}
+                  toDate={dateTo}
+                  onSelect={(from, to) => { setDateFrom(from); setDateTo(to); }}
+                />
+
+                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '14px' }}>
+                  <button
+                    onClick={clearDateRange}
+                    style={{
+                      padding: '6px 16px',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '4px',
+                      backgroundColor: 'white',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      color: '#4a5568'
+                    }}
+                  >
+                    Clear
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowDateFilterDropdown(false);
+                      fetchGRNs();
+                    }}
+                    style={{
+                      padding: '6px 16px',
+                      border: 'none',
+                      borderRadius: '4px',
+                      backgroundColor: '#3182ce',
+                      color: 'white',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      fontWeight: 500
+                    }}
+                  >
+                    Apply Filters
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
           <button className="grn-btn-primary" onClick={() => navigate('/grn/new')}>
             <FaPlus size={12} /> New GRN
           </button>
@@ -436,7 +743,7 @@ export default function GRNList() {
       </div>
 
       {/* ─── Active filters indicator ───────────────────────────── */}
-      {(searchTerm || statusFilter !== 'all' || activeTab !== 'all') && (
+      {(searchTerm || statusFilter !== 'all' || activeTab !== 'all' || dateFrom || dateTo) && (
         <div className="grn-active-filters">
           <FaFilter size={12} style={{ color: 'var(--primary-color)' }} />
           <span>Active filters:</span>
@@ -449,6 +756,8 @@ export default function GRNList() {
           {statusFilter !== 'all' && (
             <span><strong>Status:</strong> {getStatusLabel(statusFilter)}</span>
           )}
+          {dateFrom && <span><strong>From:</strong> {dateFrom}</span>}
+          {dateTo && <span><strong>To:</strong> {dateTo}</span>}
           <button onClick={clearFilters} className="grn-clear-filters">
             <FaTimes size={10} /> Clear All
           </button>
@@ -527,8 +836,6 @@ export default function GRNList() {
                     <span className="grn-qty">{row.receivedQty}</span>
                   </td>
                   <td className="grn-td grn-td-meta">
-                    <span className="grn-ago">{row.createdAgo}</span>
-                    <span className="grn-dot">·</span>
                     <div className="grn-action-buttons">
                       <button
                         className="grn-action-btn grn-action-view"

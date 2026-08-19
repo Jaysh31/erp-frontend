@@ -12,6 +12,7 @@ import {
   FaTimes,
   FaCalculator,
   FaWarehouse,
+  FaInfoCircle,
 } from "react-icons/fa";
 import "./ItemForm.css";
 import { useAdminTheme } from "../../admin-theme/AdminThemeContext";
@@ -23,36 +24,27 @@ import api, { baseURL } from "../../services/api";
 // ────────────────────────────────────────────────────────────────────────
 const IMAGE_BASE_URL = `${baseURL}/getimage`;
 
-/**
- * Convert a full URL or relative path to a relative path (starting with /)
- * Example: "http://148.66.152.56:9001/erpsystem/items/49/49_profile2.png" -> "/items/49/49_profile2.png"
- */
 const extractRelativePath = (url: string | null): string | null => {
   if (!url) return null;
-  if (url.startsWith("data:")) return url; // keep data URLs for preview
-  if (url.startsWith("/")) return url; // already relative
+  if (url.startsWith("data:")) return url;
+  if (url.startsWith("/")) return url;
 
   try {
     const parsed = new URL(url);
-    let path = parsed.pathname; // e.g., "/erpsystem/items/49/49_profile2.png"
+    let path = parsed.pathname;
     if (path.startsWith("/erpsystem")) {
       path = path.substring("/erpsystem".length);
     }
     return path || "/";
   } catch {
-    // Not a valid URL – treat as relative without leading slash
     return `/${url}`;
   }
 };
 
-/**
- * Build the full image URL for display.
- * If the path is a data URL (preview) or already absolute, return as‑is.
- */
 const getImageUrl = (path: string | null): string | null => {
   if (!path) return null;
   if (path.startsWith("data:")) return path;
-  if (path.startsWith("http")) return path; // fallback for absolute URLs
+  if (path.startsWith("http")) return path;
   const relativePath = path.startsWith("/") ? path : `/${path}`;
   return `${IMAGE_BASE_URL}${relativePath}`;
 };
@@ -76,9 +68,18 @@ interface UOM {
   symbol: string;
   common_code: string;
   category: string;
+  category_id?: number;
   enabled?: number;
   must_be_whole_number: number;
   creation: string;
+}
+
+interface UOMCategory {
+  id: number;
+  name: string;
+  category_name: string;
+  creation: string;
+  modified: string;
 }
 
 interface Tax {
@@ -169,7 +170,7 @@ function Field({
   );
 }
 
-// ─── TextInput with validation for alphabets only ───────────────────────
+// ─── TextInput ──────────────────────────────────────────────────────────
 function TextInput({
   value,
   onChange,
@@ -197,12 +198,9 @@ function TextInput({
     let val = e.target.value;
     
     if (allowOnlyAlphabets) {
-      // Only allow alphabets, digits, and spaces (updated to allow digits)
       val = val.replace(/[^a-zA-Z0-9\s]/g, "");
     } else if (allowOnlyDigits) {
-      // Only allow digits
       val = val.replace(/[^0-9]/g, "");
-      // Check max length for digits
       if (maxLength && val.length > maxLength) {
         val = val.slice(0, maxLength);
       }
@@ -228,6 +226,7 @@ function TextInput({
   );
 }
 
+// ─── SelectInput with "+" button INSIDE the field ──────────────────────
 function SelectInput({
   value,
   onChange,
@@ -236,6 +235,11 @@ function SelectInput({
   loading = false,
   error,
   allowOnlyAlphabets = false,
+  showAddButton = false,
+  onAddClick,
+  theme = "light",
+  onCustomValueConfirm,
+  entityLabel = "option",
 }: {
   value: string;
   onChange?: (v: string) => void;
@@ -244,27 +248,38 @@ function SelectInput({
   loading?: boolean;
   error?: string;
   allowOnlyAlphabets?: boolean;
+  showAddButton?: boolean;
+  onAddClick?: () => void;
+  theme?: string;
+  onCustomValueConfirm?: (value: string) => void;
+  /** Human-readable name used in "No X found" / "Add new X" messaging, e.g. "UOM", "Customer" */
+  entityLabel?: string;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [showAddPrompt, setShowAddPrompt] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Filter options with alphabet validation for search
   const filteredOptions = options.filter((opt) => {
     let search = searchTerm;
     if (allowOnlyAlphabets) {
-      search = search.replace(/[^a-zA-Z0-9\s]/g, ""); // Updated to allow digits
+      search = search.replace(/[^a-zA-Z0-9\s]/g, "");
     }
     return opt.label.toLowerCase().includes(search.toLowerCase());
   });
 
   const selectedOption = options.find((opt) => opt.value === value);
 
+  const isExactMatch = options.some(
+    (opt) => opt.label.toLowerCase() === searchTerm.toLowerCase()
+  );
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
         setSearchTerm("");
+        setShowAddPrompt(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -274,52 +289,100 @@ function SelectInput({
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let val = e.target.value;
     if (allowOnlyAlphabets) {
-      val = val.replace(/[^a-zA-Z0-9\s]/g, ""); // Updated to allow digits
+      val = val.replace(/[^a-zA-Z0-9\s]/g, "");
     }
     setSearchTerm(val);
+    setShowAddPrompt(false);
   };
 
-  return (
-    <div>
-      <div className="itf-select-container" ref={dropdownRef}>
-        <div
-          className={`itf-select-wrapper ${isOpen ? "itf-select-wrapper-open" : ""} ${error ? "itf-select-wrapper-error" : ""}`}
-          onClick={() => setIsOpen(!isOpen)}
-        >
-          {isOpen ? (
-            <input
-              autoFocus
-              type="text"
-              className="itf-select-display itf-select-search"
-              value={searchTerm}
-              onChange={handleSearchChange}
-              placeholder={selectedOption?.label || placeholder}
-            />
-          ) : (
-            <span className={`itf-select-display ${!selectedOption ? "itf-select-placeholder" : ""}`}>
-              {selectedOption?.label || placeholder}
-            </span>
-          )}
-          <span className="itf-select-arrow">
-            {loading ? (
-              <FaSpinner className="itf-spin" size={12} />
-            ) : (
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className={isOpen ? "itf-chevron-up" : ""}>
-                <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            )}
-          </span>
-        </div>
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      const trimmedSearch = searchTerm.trim();
+      
+      const exactMatch = options.some(
+        (opt) => opt.label.toLowerCase() === trimmedSearch.toLowerCase()
+      );
+      
+      if (trimmedSearch && !exactMatch && onCustomValueConfirm) {
+        e.preventDefault();
+        onCustomValueConfirm(trimmedSearch);
+        setSearchTerm("");
+        setIsOpen(false);
+      } else if (trimmedSearch && exactMatch) {
+        const match = options.find(
+          (opt) => opt.label.toLowerCase() === trimmedSearch.toLowerCase()
+        );
+        if (match) {
+          onChange?.(match.value);
+          setSearchTerm("");
+          setIsOpen(false);
+        }
+      }
+    }
+  };
 
-        {isOpen && (
-          <div className="itf-select-dropdown">
+  const trimmedSearch = searchTerm.trim();
+
+  return (
+    <div className="itf-select-wrapper-main" ref={dropdownRef}>
+      <div
+        className={`itf-select-wrapper ${isOpen ? "itf-select-wrapper-open" : ""} ${error ? "itf-select-wrapper-error" : ""} ${showAddButton ? "itf-select-wrapper-with-add" : ""}`}
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        {isOpen ? (
+          <input
+            autoFocus
+            type="text"
+            className="itf-select-display itf-select-search"
+            value={searchTerm}
+            onChange={handleSearchChange}
+            onKeyDown={handleKeyDown}
+            placeholder={selectedOption?.label || placeholder}
+          />
+        ) : (
+          <span className={`itf-select-display ${!selectedOption ? "itf-select-placeholder" : ""}`}>
+            {selectedOption?.label || placeholder}
+          </span>
+        )}
+        <span className="itf-select-arrow">
+          {loading ? (
+            <FaSpinner className="itf-spin" size={12} />
+          ) : (
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className={isOpen ? "itf-chevron-up" : ""}>
+              <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          )}
+        </span>
+      </div>
+
+      {isOpen && (
+        <div
+          className="itf-select-dropdown"
+          style={{ display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden' }}
+        >
+          {/* Scrollable area: loading state / empty state / option list */}
+          <div style={{ overflowY: 'auto', flex: '1 1 auto' }}>
             {loading ? (
               <div className="itf-select-loading">
                 <FaSpinner className="itf-spin" size={14} />
                 <span>Loading…</span>
               </div>
             ) : filteredOptions.length === 0 ? (
-              <div className="itf-select-empty">No options found</div>
+              <div className="itf-select-empty" style={{ padding: '10px 12px' }}>
+                <span
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    fontSize: '13px',
+                    color: 'var(--text-secondary, #6b7280)',
+                  }}
+                >
+                  <FaInfoCircle size={12} style={{ marginRight: '6px', opacity: 0.6, flexShrink: 0 }} />
+                  {trimmedSearch
+                    ? `No ${entityLabel} found for "${trimmedSearch}"`
+                    : `No ${entityLabel} found`}
+                </span>
+              </div>
             ) : (
               filteredOptions.map((opt) => (
                 <div
@@ -336,14 +399,98 @@ function SelectInput({
               ))
             )}
           </div>
-        )}
-      </div>
+
+          {/* ✅ Fixed / stable "Add New" footer - stays pinned at the bottom of the
+              dropdown regardless of list scrolling, like "Add New Customer" in Delivery Challan */}
+          {!loading && trimmedSearch && !isExactMatch && onCustomValueConfirm && (
+            <div
+              className="itf-select-option itf-select-option-add"
+              onClick={(e) => {
+                e.stopPropagation();
+                onCustomValueConfirm(trimmedSearch);
+                setSearchTerm("");
+                setIsOpen(false);
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                flexShrink: 0,
+                borderTop: '1px solid var(--border-color, #e5e7eb)',
+                background: 'var(--card-bg, #fff)',
+                color: 'var(--primary-color, #2563eb)',
+                fontWeight: 500,
+                fontSize: '13px',
+                cursor: 'pointer',
+                padding: '10px 12px',
+              }}
+            >
+              <span
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '18px',
+                  height: '18px',
+                  borderRadius: '50%',
+                  background: 'var(--primary-color, #2563eb)',
+                  color: '#fff',
+                  flexShrink: 0,
+                }}
+              >
+                <FaPlus size={9} />
+              </span>
+              Add "{trimmedSearch}" as New {entityLabel}
+            </div>
+          )}
+          {!loading && showAddButton && !trimmedSearch && (
+            <div
+              className="itf-select-option itf-select-option-add"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAddClick?.();
+                setIsOpen(false);
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                flexShrink: 0,
+                borderTop: '1px solid var(--border-color, #e5e7eb)',
+                background: 'var(--card-bg, #fff)',
+                color: 'var(--primary-color, #2563eb)',
+                fontWeight: 500,
+                fontSize: '13px',
+                cursor: 'pointer',
+                padding: '10px 12px',
+              }}
+            >
+              <span
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '18px',
+                  height: '18px',
+                  borderRadius: '50%',
+                  background: 'var(--primary-color, #2563eb)',
+                  color: '#fff',
+                  flexShrink: 0,
+                }}
+              >
+                <FaPlus size={9} />
+              </span>
+              Add New {entityLabel}
+            </div>
+          )}
+        </div>
+      )}
       {error && <p className="itf-field-error" style={{ color: 'red', fontSize: '12px', marginTop: '4px' }}>{error}</p>}
     </div>
   );
 }
 
-
+// ─── ImageUpload ──────────────────────────────────────────────────────
 function ImageUpload({
   image,
   onImageChange,
@@ -378,7 +525,6 @@ function ImageUpload({
     if (file) handleFileSelect(file);
   };
 
-  // Determine the display URL
   const displayImage = image ? getImageUrl(image) : null;
 
   return (
@@ -457,7 +603,7 @@ function ImageUpload({
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// Opening Stock Table - Single Row Only (UPDATED - Removed duplicate footer)
+// Opening Stock Table
 // ────────────────────────────────────────────────────────────────────────
 function OpeningStockTable({
   entries,
@@ -466,7 +612,6 @@ function OpeningStockTable({
   entries: OpeningStockEntry[];
   onChange: (entries: OpeningStockEntry[]) => void;
 }) {
-  // Ensure there's always exactly ONE row
   useEffect(() => {
     if (entries.length === 0) {
       onChange([{ id: 1, quantity: 0, rate: 0, total: 0 }]);
@@ -474,7 +619,6 @@ function OpeningStockTable({
   }, [entries, onChange]);
 
   const handleUpdate = (field: "quantity" | "rate", value: number) => {
-    // Only update the first (and only) entry
     if (entries.length > 0) {
       const entry = entries[0];
       const updated = { ...entry, [field]: value };
@@ -530,7 +674,6 @@ function OpeningStockTable({
               <td className="itf-table-total">₹{entry.total.toFixed(2)}</td>
             </tr>
           </tbody>
-          {/* REMOVED the duplicate tfoot section with quantity and total */}
         </table>
       </div>
     </div>
@@ -584,7 +727,7 @@ function PricingSummary({
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// NumberInput Component - For numeric inputs with placeholder support
+// NumberInput Component
 // ────────────────────────────────────────────────────────────────────────
 interface NumberInputProps {
   value: string | number;
@@ -618,7 +761,6 @@ function NumberInput({
 }: NumberInputProps) {
   const [displayValue, setDisplayValue] = useState<string>(String(value || ""));
 
-  // Sync external value changes
   useEffect(() => {
     if (value !== undefined && value !== null) {
       setDisplayValue(String(value));
@@ -628,27 +770,20 @@ function NumberInput({
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let rawValue = e.target.value;
     
-    // Handle empty input - allow empty string to show placeholder
     if (rawValue === "") {
       setDisplayValue("");
       onChange("");
       return;
     }
 
-    // Validate based on allowDecimal
     if (!allowDecimal) {
-      // Only allow digits
       rawValue = rawValue.replace(/[^0-9]/g, "");
     } else {
-      // Allow digits and one decimal point
       const parts = rawValue.split(".");
       if (parts.length > 2) {
-        // More than one decimal point - keep only first two parts
         rawValue = parts[0] + "." + parts.slice(1).join("");
       }
-      // Only allow digits and a single decimal point
       rawValue = rawValue.replace(/[^0-9.]/g, "");
-      // Ensure at most one decimal point
       const decimalCount = (rawValue.match(/\./g) || []).length;
       if (decimalCount > 1) {
         const firstDecimalIndex = rawValue.indexOf(".");
@@ -657,14 +792,12 @@ function NumberInput({
       }
     }
 
-    // Check maxLength
     if (maxLength && rawValue.replace(/\./g, "").length > maxLength) {
       return;
     }
 
     setDisplayValue(rawValue);
 
-    // Parse and validate numeric value
     if (rawValue === "" || rawValue === "-" || rawValue === ".") {
       onChange(rawValue);
       return;
@@ -673,14 +806,12 @@ function NumberInput({
     const numValue = parseFloat(rawValue);
     if (!isNaN(numValue)) {
       if (min !== undefined && numValue < min) {
-        // Clamp to min
         const clamped = min.toString();
         setDisplayValue(clamped);
         onChange(clamped);
         return;
       }
       if (max !== undefined && numValue > max) {
-        // Clamp to max
         const clamped = max.toString();
         setDisplayValue(clamped);
         onChange(clamped);
@@ -691,7 +822,6 @@ function NumberInput({
   };
 
   const handleBlur = () => {
-    // Format on blur - if empty, keep empty (placeholder will show)
     if (displayValue === "" || displayValue === "." || displayValue === "-") {
       setDisplayValue("");
       onChange("");
@@ -700,7 +830,6 @@ function NumberInput({
     
     const numValue = parseFloat(displayValue);
     if (!isNaN(numValue)) {
-      // If allowDecimal is false, round to integer
       const formatted = allowDecimal ? numValue.toString() : Math.round(numValue).toString();
       setDisplayValue(formatted);
       onChange(formatted);
@@ -708,7 +837,6 @@ function NumberInput({
   };
 
   const handleWheel = (e: React.WheelEvent<HTMLInputElement>) => {
-    // Prevent scroll wheel from changing value
     e.preventDefault();
   };
 
@@ -734,6 +862,317 @@ function NumberInput({
 }
 
 // ────────────────────────────────────────────────────────────────────────
+// Add Item Group Modal
+// ────────────────────────────────────────────────────────────────────────
+function AddItemGroupModal({
+  isOpen,
+  onClose,
+  onSave,
+  saving,
+  theme = "light",
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (name: string, company: string) => void;
+  saving: boolean;
+  theme?: string;
+}) {
+  const [groupName, setGroupName] = useState("");
+  const [company, setCompany] = useState("");
+
+  useEffect(() => {
+    if (isOpen) {
+      setGroupName("");
+      setCompany("");
+    }
+  }, [isOpen]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!groupName.trim()) {
+      toast.error("Item Group Name is required");
+      return;
+    }
+    if (!company.trim()) {
+      toast.error("Company is required");
+      return;
+    }
+    onSave(groupName.trim(), company.trim());
+  };
+
+  if (!isOpen) return null;
+
+  const isDark = theme === "dark";
+
+  return (
+    <div className="itf-modal-overlay" onClick={onClose}>
+      <div className={`itf-modal ${isDark ? "itf-modal-dark" : "itf-modal-light"}`} onClick={(e) => e.stopPropagation()}>
+        <div className="itf-modal-header">
+          <div className="itf-modal-header-left">
+            <span className="itf-modal-icon">
+              <FaTag size={18} />
+            </span>
+            <h3>Add New Item Group</h3>
+          </div>
+          <button type="button" className="itf-modal-close" onClick={onClose}>
+            <FaTimes size={18} />
+          </button>
+        </div>
+        
+        <form onSubmit={handleSubmit}>
+          <div className="itf-modal-body">
+            <p className="itf-modal-subtitle">Create a new item group to organize your items.</p>
+            
+            <div className="itf-modal-form-group">
+              <label className="itf-modal-label">
+                Item Group Name <span className="itf-req">*</span>
+              </label>
+              <div className="itf-modal-input-wrap">
+                <input
+                  type="text"
+                  className={`itf-modal-input ${isDark ? "itf-modal-input-dark" : "itf-modal-input-light"}`}
+                  value={groupName}
+                  onChange={(e) => setGroupName(e.target.value.replace(/[^a-zA-Z0-9\s]/g, ""))}
+                  placeholder="Enter item group name (e.g. Raw Material)"
+                  autoFocus
+                />
+              </div>
+              <p className="itf-modal-hint">Only alphabets, digits, and spaces are allowed</p>
+            </div>
+
+            <div className="itf-modal-form-group">
+              <label className="itf-modal-label">
+                Company <span className="itf-req">*</span>
+              </label>
+              <div className="itf-modal-input-wrap">
+                <input
+                  type="text"
+                  className={`itf-modal-input ${isDark ? "itf-modal-input-dark" : "itf-modal-input-light"}`}
+                  value={company}
+                  onChange={(e) => setCompany(e.target.value.replace(/[^a-zA-Z0-9\s]/g, ""))}
+                  placeholder="Enter company name"
+                />
+              </div>
+              <p className="itf-modal-hint">Only alphabets, digits, and spaces are allowed</p>
+            </div>
+          </div>
+
+          <div className="itf-modal-footer">
+            <button type="button" className="itf-modal-btn-cancel" onClick={onClose}>
+              Cancel
+            </button>
+            <button 
+              type="submit" 
+              className={`itf-modal-btn-save ${isDark ? "itf-modal-btn-save-dark" : "itf-modal-btn-save-light"}`} 
+              disabled={saving}
+            >
+              {saving ? <FaSpinner className="itf-spin" size={14} /> : <FaPlus size={14} />}
+              {saving ? "Adding..." : "Add Group"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// Add UOM Modal - with Category dropdown from API
+// ────────────────────────────────────────────────────────────────────────
+function AddUOMModal({
+  isOpen,
+  onClose,
+  onSave,
+  saving,
+  theme = "light",
+  categoryOptions = [],
+  loadingCategories = false,
+  initialUOMName = "",
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (name: string, symbol: string, categoryId: string) => void;
+  saving: boolean;
+  theme?: string;
+  categoryOptions?: { label: string; value: string }[];
+  loadingCategories?: boolean;
+  initialUOMName?: string;
+}) {
+  const [uomName, setUomName] = useState("");
+  const [symbol, setSymbol] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("");
+  const [isCategoryOpen, setIsCategoryOpen] = useState(false);
+  const categoryDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setUomName(initialUOMName || "");
+      setSymbol("");
+      setSelectedCategory("");
+      setIsCategoryOpen(false);
+    }
+  }, [isOpen, initialUOMName]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(event.target as Node)) {
+        setIsCategoryOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!uomName.trim()) {
+      toast.error("UOM Name is required");
+      return;
+    }
+    if (!symbol.trim()) {
+      toast.error("Symbol is required");
+      return;
+    }
+    if (!selectedCategory) {
+      toast.error("Category is required");
+      return;
+    }
+    onSave(uomName.trim(), symbol.trim(), selectedCategory);
+  };
+
+  if (!isOpen) return null;
+
+  const isDark = theme === "dark";
+  const selectedCategoryLabel = categoryOptions.find(opt => opt.value === selectedCategory)?.label || "";
+
+  return (
+    <div className="itf-modal-overlay" onClick={onClose}>
+      <div className={`itf-modal ${isDark ? "itf-modal-dark" : "itf-modal-light"}`} onClick={(e) => e.stopPropagation()}>
+        <div className="itf-modal-header">
+          <div className="itf-modal-header-left">
+            <span className="itf-modal-icon">
+              <FaTag size={18} />
+            </span>
+            <h3>Add New UOM</h3>
+          </div>
+          <button type="button" className="itf-modal-close" onClick={onClose}>
+            <FaTimes size={18} />
+          </button>
+        </div>
+        
+        <form onSubmit={handleSubmit}>
+          <div className="itf-modal-body">
+            <p className="itf-modal-subtitle">Create a new unit of measure for your items.</p>
+            
+            <div className="itf-modal-form-group">
+              <label className="itf-modal-label">
+                UOM Name <span className="itf-req">*</span>
+              </label>
+              <div className="itf-modal-input-wrap">
+                <input
+                  type="text"
+                  className={`itf-modal-input ${isDark ? "itf-modal-input-dark" : "itf-modal-input-light"}`}
+                  value={uomName}
+                  onChange={(e) => setUomName(e.target.value.replace(/[^a-zA-Z0-9\s]/g, ""))}
+                  placeholder="Enter UOM name (e.g. Kilogram, Meter)"
+                  autoFocus
+                />
+              </div>
+              <p className="itf-modal-hint">Only alphabets, digits, and spaces are allowed</p>
+            </div>
+
+            <div className="itf-modal-form-group">
+              <label className="itf-modal-label">
+                Symbol <span className="itf-req">*</span>
+              </label>
+              <div className="itf-modal-input-wrap">
+                <input
+                  type="text"
+                  className={`itf-modal-input ${isDark ? "itf-modal-input-dark" : "itf-modal-input-light"}`}
+                  value={symbol}
+                  onChange={(e) => setSymbol(e.target.value.replace(/[^a-zA-Z0-9]/g, ""))}
+                  placeholder="Enter symbol (e.g. kg, m)"
+                />
+              </div>
+              <p className="itf-modal-hint">Only alphabets and digits are allowed</p>
+            </div>
+
+            {/* ✅ Category Dropdown */}
+            <div className="itf-modal-form-group">
+              <label className="itf-modal-label">
+                Category <span className="itf-req">*</span>
+              </label>
+              <div className="itf-select-wrapper-main" ref={categoryDropdownRef}>
+                <div
+                  className={`itf-select-wrapper ${isCategoryOpen ? "itf-select-wrapper-open" : ""} ${isDark ? "itf-select-add-btn-dark" : "itf-select-add-btn-light"}`}
+                  onClick={() => setIsCategoryOpen(!isCategoryOpen)}
+                >
+                  <span className={`itf-select-display ${!selectedCategory ? "itf-select-placeholder" : ""}`}>
+                    {selectedCategoryLabel || (loadingCategories ? "Loading..." : "Search or select category...")}
+                  </span>
+                  <span className="itf-select-arrow">
+                    {loadingCategories ? (
+                      <FaSpinner className="itf-spin" size={12} />
+                    ) : (
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className={isCategoryOpen ? "itf-chevron-up" : ""}>
+                        <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    )}
+                  </span>
+                </div>
+
+                {isCategoryOpen && (
+                  <div className="itf-select-dropdown">
+                    {loadingCategories ? (
+                      <div className="itf-select-loading">
+                        <FaSpinner className="itf-spin" size={14} />
+                        <span>Loading categories…</span>
+                      </div>
+                    ) : categoryOptions.length === 0 ? (
+                      <div className="itf-select-empty">
+                        <span>No categories found</span>
+                      </div>
+                    ) : (
+                      categoryOptions.map((opt) => (
+                        <div
+                          key={opt.value}
+                          className={`itf-select-option ${opt.value === selectedCategory ? "itf-select-option-selected" : ""}`}
+                          onClick={() => {
+                            setSelectedCategory(opt.value);
+                            setIsCategoryOpen(false);
+                          }}
+                        >
+                          {opt.label}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+              <p className="itf-modal-hint">Select a category from the list</p>
+            </div>
+          </div>
+
+          <div className="itf-modal-footer">
+            <button type="button" className="itf-modal-btn-cancel" onClick={onClose}>
+              Cancel
+            </button>
+            <button 
+              type="submit" 
+              className={`itf-modal-btn-save ${isDark ? "itf-modal-btn-save-dark" : "itf-modal-btn-save-light"}`} 
+              disabled={saving}
+            >
+              {saving ? <FaSpinner className="itf-spin" size={14} /> : <FaPlus size={14} />}
+              {saving ? "Adding..." : "Add UOM"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────
 // Main Component
 // ────────────────────────────────────────────────────────────────────────
 export default function ItemForm() {
@@ -751,6 +1190,15 @@ export default function ItemForm() {
   const [validationErrors, setValidationErrors] = useState<{ field: string; label: string; message: string }[]>([]);
   const [warehouseManuallyChanged, setWarehouseManuallyChanged] = useState(false);
   const [previousItemGroup, setPreviousItemGroup] = useState<string>("");
+
+  // ─── State for Add UOM Modal ────────────────────────────────────────
+  const [showAddUOMModal, setShowAddUOMModal] = useState(false);
+  const [addingUOM, setAddingUOM] = useState(false);
+  const [pendingUOMName, setPendingUOMName] = useState("");
+
+  // ─── State for UOM Categories ──────────────────────────────────────
+  const [uomCategories, setUomCategories] = useState<UOMCategory[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(false);
 
   const [form, setFormRaw] = useState({
     id: 0,
@@ -801,35 +1249,23 @@ export default function ItemForm() {
   const currentTax = taxes.find((t) => t.tax_id.toString() === form.taxId);
   const taxPercentage = currentTax ? parseFloat(currentTax.tax_type.replace("GST", "")) || 0 : 0;
 
-  // Helper function to check if item group is raw material
   const isRawMaterialGroup = (groupName: string): boolean => {
     if (!groupName) return false;
-    
     const rawMaterialGroups = [
-      "raw material",
-      "raw materials",
-      "input material",
-      "raw material store",
-      "raw materials store",
-      "component",
-      "components",
-      "parts",
-      "sub assembly",
-      "sub-assembly",
-      "raw material -",
-      "raw materials -",
+      "raw material", "raw materials", "input material",
+      "raw material store", "raw materials store",
+      "component", "components", "parts",
+      "sub assembly", "sub-assembly",
+      "raw material -", "raw materials -",
     ];
-    
     const lowerGroup = groupName.toLowerCase().trim();
     return rawMaterialGroups.some(g => lowerGroup.includes(g));
   };
 
-  // Function to get default warehouse based on item group
   const getDefaultWarehouse = (itemGroup: string, warehouseList: Warehouse[]): Warehouse | null => {
     if (!itemGroup || warehouseList.length === 0) return null;
 
     if (isRawMaterialGroup(itemGroup)) {
-      // For raw materials, try different variations
       let warehouse = warehouseList.find(
         (w) => w.warehouse_name.toLowerCase() === "raw material store"
       );
@@ -840,7 +1276,6 @@ export default function ItemForm() {
       }
       return warehouse || null;
     } else {
-      // For finished goods/products, try different variations
       let warehouse = warehouseList.find(
         (w) => w.warehouse_name.toLowerCase() === "finished goods"
       );
@@ -899,7 +1334,6 @@ export default function ItemForm() {
     });
   };
 
-  // Recalculate MRP / valuation whenever base price, margin or tax changes.
   useEffect(() => {
     const basePrice = parseFloat(form.standardRate) || 0;
     const profitMargin = isRawMaterialGroup(form.itemGroup) ? 0 : parseFloat(form.profitMargin) || 0;
@@ -914,11 +1348,10 @@ export default function ItemForm() {
       valuationRate: priceBeforeTax.toFixed(2),
       lastPurchaseRate: basePrice.toFixed(2),
     }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.standardRate, form.profitMargin, taxPercentage, form.itemGroup]);
 
-  // ─── Fetch UOMs ──────────────────────────────────────────────────────
-  const fetchUoms = async () => {
+  // ─── ✅ GET API: Fetch UOMs (direct /uom endpoint) ─────────────────
+  const fetchUOMs = async () => {
     setLoadingUoms(true);
     try {
       const response = await api.get("/uom");
@@ -928,28 +1361,184 @@ export default function ItemForm() {
         const uomRecords = response.data.data?.records || response.data.data || [];
         console.log("UOM Records:", uomRecords);
         setUoms(uomRecords);
+      } else {
+        console.warn("UOM API failed, using default UOMs");
+        setUoms([
+          { id: 1, uom_name: "Nos", symbol: "Nos", common_code: "", category: "General", must_be_whole_number: 1, creation: "" },
+          { id: 2, uom_name: "Kg", symbol: "Kg", common_code: "", category: "Weight", must_be_whole_number: 1, creation: "" },
+          { id: 3, uom_name: "Meter", symbol: "m", common_code: "", category: "Length", must_be_whole_number: 1, creation: "" },
+          { id: 4, uom_name: "Gram", symbol: "g", common_code: "", category: "Weight", must_be_whole_number: 1, creation: "" },
+          { id: 5, uom_name: "Liter", symbol: "L", common_code: "", category: "Volume", must_be_whole_number: 1, creation: "" },
+        ]);
       }
     } catch (err) {
       console.error("Error fetching UOMs:", err);
-      toast.error("Failed to load UOMs");
+      setUoms([
+        { id: 1, uom_name: "Nos", symbol: "Nos", common_code: "", category: "General", must_be_whole_number: 1, creation: "" },
+        { id: 2, uom_name: "Kg", symbol: "Kg", common_code: "", category: "Weight", must_be_whole_number: 1, creation: "" },
+        { id: 3, uom_name: "Meter", symbol: "m", common_code: "", category: "Length", must_be_whole_number: 1, creation: "" },
+        { id: 4, uom_name: "Gram", symbol: "g", common_code: "", category: "Weight", must_be_whole_number: 1, creation: "" },
+        { id: 5, uom_name: "Liter", symbol: "L", common_code: "", category: "Volume", must_be_whole_number: 1, creation: "" },
+      ]);
     } finally {
       setLoadingUoms(false);
     }
   };
 
-  useEffect(() => {
-    const fetchLookups = async () => {
-      setLoadingGroups(true);
-      try {
-        const response = await api.get("/item-group?type=Input%0Material");
-        if (response.data.success === 1) setItemGroups(response.data.data);
-      } catch (err) {
-        console.error("Error fetching item groups:", err);
-      } finally {
-        setLoadingGroups(false);
+  // ─── ✅ GET API: Fetch UOM Categories ──────────────────────────────
+  const fetchUOMCategories = async () => {
+    setLoadingCategories(true);
+    try {
+      const response = await api.get("/uom-category");
+      console.log("UOM Category Response:", response.data);
+      
+      if (response.data.success === 1) {
+        const categories = response.data.data?.records || response.data.data || [];
+        console.log("UOM Categories:", categories);
+        setUomCategories(categories);
+      } else {
+        console.warn("UOM Category API failed, using empty list");
+        setUomCategories([]);
+      }
+    } catch (err) {
+      console.error("Error fetching UOM categories:", err);
+      setUomCategories([]);
+    } finally {
+      setLoadingCategories(false);
+    }
+  };
+
+  // ─── ✅ GET API: Fetch Item Groups ──────────────────────────────────
+  const fetchItemGroups = async () => {
+    setLoadingGroups(true);
+    try {
+      const response = await api.get("/item-group?type=Input%0Material");
+      if (response.data.success === 1) {
+        setItemGroups(response.data.data);
+      }
+    } catch (err) {
+      console.error("Error fetching item groups:", err);
+    } finally {
+      setLoadingGroups(false);
+    }
+  };
+
+  // ─── ✅ POST API: Add New UOM ──────────────────────────────────────
+  const handleAddUOM = async (uomName: string, symbol: string, categoryId: string) => {
+    setAddingUOM(true);
+    try {
+      const selectedCategory = uomCategories.find(cat => String(cat.id) === categoryId);
+      const generatedCommonCode = symbol || uomName.substring(0, 3).toUpperCase();
+
+      // ✅ Duplicate checks
+      const nameClash = uoms.find(
+        (u) => u.uom_name.trim().toLowerCase() === uomName.trim().toLowerCase()
+      );
+      if (nameClash) {
+        toast.error(`A UOM named "${uomName}" already exists. Choose a different name.`);
+        setAddingUOM(false);
+        return;
       }
 
-      await fetchUoms();
+      const symbolClash = uoms.find(
+        (u) => u.symbol && u.symbol.trim().toLowerCase() === symbol.trim().toLowerCase()
+      );
+      if (symbolClash) {
+        toast.error(`Symbol "${symbol}" is already used by "${symbolClash.uom_name}". Choose a different symbol.`);
+        setAddingUOM(false);
+        return;
+      }
+
+      const commonCodeClash = uoms.find(
+        (u) => u.common_code && u.common_code.trim().toLowerCase() === generatedCommonCode.trim().toLowerCase()
+      );
+      if (commonCodeClash) {
+        toast.error(
+          `Internal code "${generatedCommonCode}" is already used by "${commonCodeClash.uom_name}". Try a different symbol.`
+        );
+        setAddingUOM(false);
+        return;
+      }
+
+      const payload = {
+        uom_name: uomName,
+        symbol: symbol || "",
+        category: selectedCategory?.category_name || selectedCategory?.name || "General",
+        common_code: generatedCommonCode,
+        must_be_whole_number: 1,
+      };
+
+      console.log("📤 Sending UOM Payload:", JSON.stringify(payload, null, 2));
+
+      const response = await api.post("/uom", payload);
+
+      console.log("📥 UOM Response:", response.data);
+
+      if (response.data.success === 1) {
+        toast.success(`UOM "${uomName}" created successfully!`);
+        setShowAddUOMModal(false);
+        setPendingUOMName("");
+        
+        await fetchUOMs();
+        
+        setTimeout(() => {
+          s("defaultUOM", uomName);
+        }, 500);
+      } else {
+        toast.error(response.data?.message || "Failed to create UOM");
+      }
+    } catch (err: any) {
+      console.error("❌ Error creating UOM:", err);
+
+      if (err.response) {
+        console.error("Full error response:", JSON.stringify(err.response.data, null, 2));
+
+        const serverMessage =
+          err.response.data?.message ||
+          err.response.data?.error ||
+          err.response.data?.sqlMessage ||
+          err.response.data?.detail ||
+          JSON.stringify(err.response.data);
+
+        if (err.response.status === 409) {
+          toast.error(`UOM "${uomName}" already exists!`);
+        } else if (err.response.status === 500) {
+          toast.error(`Server Error: ${serverMessage}`, { duration: 10000 });
+          console.error("Full 500 Error:", err.response.data);
+        } else {
+          toast.error(`Error ${err.response.status}: ${serverMessage}`);
+        }
+      } else if (err.request) {
+        toast.error("Network error. Please check your connection.");
+      } else {
+        toast.error("An unexpected error occurred.");
+      }
+    } finally {
+      setAddingUOM(false);
+    }
+  };
+
+  // ─── Handle Custom UOM Value Confirmation ──────────────────────────
+  const handleCustomUOMConfirm = (customValue: string) => {
+    const exists = uoms.some(
+      (u) => u.uom_name.trim().toLowerCase() === customValue.trim().toLowerCase()
+    );
+
+    if (exists) {
+      s("defaultUOM", customValue.trim());
+      toast.info(`UOM "${customValue}" already exists. Selected.`);
+      return;
+    }
+
+    setPendingUOMName(customValue.trim());
+    setShowAddUOMModal(true);
+  };
+
+  useEffect(() => {
+    const fetchLookups = async () => {
+      await fetchItemGroups();
+      await fetchUOMs();
+      await fetchUOMCategories();
 
       setLoadingTaxes(true);
       try {
@@ -1055,7 +1644,6 @@ export default function ItemForm() {
 
   useEffect(() => {
     if (!isNew && itemId) fetchItemData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isNew, itemId]);
 
   const fetchInventoryRecord = async (inventoryId: number) => {
@@ -1113,7 +1701,7 @@ export default function ItemForm() {
     value: group.item_group_name,
   }));
 
-  const uomOptions = uoms.map((uom) => ({
+  const uomOptions = uoms.map((uom: UOM) => ({
     label: uom.uom_name + (uom.symbol ? ` (${uom.symbol})` : ""),
     value: uom.uom_name,
   }));
@@ -1123,16 +1711,16 @@ export default function ItemForm() {
     value: tax.tax_id.toString(),
   }));
 
-  // Track item group changes and auto-select warehouse
+  const categoryOptions = uomCategories.map((cat) => ({
+    label: cat.category_name || cat.name || "Unnamed",
+    value: String(cat.id),
+  }));
+
   useEffect(() => {
-    // Check if item group changed
     if (form.itemGroup && form.itemGroup !== previousItemGroup) {
       setPreviousItemGroup(form.itemGroup);
-      
-      // Reset the manual flag when item group changes
       setWarehouseManuallyChanged(false);
       
-      // Auto-select warehouse based on new item group
       if (warehouses.length > 0) {
         const defaultWarehouse = getDefaultWarehouse(form.itemGroup, warehouses);
         if (defaultWarehouse) {
@@ -1145,7 +1733,6 @@ export default function ItemForm() {
     }
   }, [form.itemGroup, previousItemGroup, warehouses]);
 
-  // Initial auto-select when warehouses load and item group is set
   useEffect(() => {
     if (warehouses.length > 0 && form.itemGroup && !form.warehouseId && !warehouseManuallyChanged) {
       const defaultWarehouse = getDefaultWarehouse(form.itemGroup, warehouses);
@@ -1164,8 +1751,6 @@ export default function ItemForm() {
     value: w.id.toString(),
   }));
 
-  // ─── Validation Functions ─────────────────────────────────────────────
-  // UPDATED: Allow digits, alphabets, and spaces
   const validateAlphabetsAndDigits = (value: string): boolean => {
     return /^[a-zA-Z0-9\s]*$/.test(value);
   };
@@ -1177,7 +1762,6 @@ export default function ItemForm() {
   const getValidationErrors = () => {
     const errors: { field: string; label: string; message: string }[] = [];
 
-    // 1. item_name - REQUIRED - Alphabets, digits, and spaces allowed (UPDATED)
     if (!form.itemName.trim()) {
       errors.push({ field: "itemName", label: "Item Name", message: "Item name is required" });
     } else if (form.itemName.length > 140) {
@@ -1186,12 +1770,10 @@ export default function ItemForm() {
       errors.push({ field: "itemName", label: "Item Name", message: "Item name must contain only alphabets, digits, and spaces" });
     }
 
-    // 2. item_code - OPTIONAL but if provided, must be valid (varchar(140), UNIQUE)
     if (form.itemCode && form.itemCode.length > 140) {
       errors.push({ field: "itemCode", label: "Item Code", message: "Item code must be 140 characters or less" });
     }
 
-    // 3. item_group - REQUIRED - Only alphabets and spaces
     if (!form.itemGroup.trim()) {
       errors.push({ field: "itemGroup", label: "Item Group", message: "Item group is required" });
     } else if (form.itemGroup.length > 140) {
@@ -1200,7 +1782,6 @@ export default function ItemForm() {
       errors.push({ field: "itemGroup", label: "Item Group", message: "Item group must contain only alphabets, digits, and spaces" });
     }
 
-    // 4. stock_uom - REQUIRED - Only alphabets and spaces
     if (!form.defaultUOM.trim()) {
       errors.push({ field: "defaultUOM", label: "Default UOM", message: "Default unit of measure is required" });
     } else if (form.defaultUOM.length > 140) {
@@ -1209,47 +1790,32 @@ export default function ItemForm() {
       errors.push({ field: "defaultUOM", label: "Default UOM", message: "UOM must contain only alphabets, digits, and spaces" });
     }
 
-    // 5. HSN - OPTIONAL - Only digits
     if (form.hsn && form.hsn.length > 45) {
       errors.push({ field: "hsn", label: "HSN Code", message: "HSN code must be 45 characters or less" });
     } else if (form.hsn && !validateDigitsOnly(form.hsn)) {
       errors.push({ field: "hsn", label: "HSN Code", message: "HSN code must contain only digits" });
     }
 
-    // 6. brand - OPTIONAL - Only alphabets and spaces
     if (form.brand && form.brand.length > 140) {
       errors.push({ field: "brand", label: "Brand", message: "Brand must be 140 characters or less" });
     } else if (form.brand && !validateAlphabetsAndDigits(form.brand)) {
       errors.push({ field: "brand", label: "Brand", message: "Brand must contain only alphabets, digits, and spaces" });
     }
 
-    // 7. description - OPTIONAL (longtext, nullable)
-    // No length validation needed for longtext
-
-    // 8. disabled - REQUIRED (tinyint, NOT NULL, default 0)
-    // Already has default, validation not needed
-
-    // 9. tax_id - OPTIONAL (int, nullable) - but we require it in UI
     if (!form.taxId) {
       errors.push({ field: "taxId", label: "Tax Type", message: "Tax type is required" });
     }
 
-    // 10. is_stock_item - REQUIRED (tinyint, NOT NULL, default 1)
-    // Already has default, validation not needed
-
-    // 11. standard_rate - REQUIRED (decimal(21,9), NOT NULL, default 0.000000000)
     const standardRate = parseFloat(form.standardRate);
     if (form.standardRate !== "" && (isNaN(standardRate) || standardRate < 0)) {
       errors.push({ field: "standardRate", label: "Standard Rate", message: "Standard rate must be a valid number" });
     }
 
-    // 12. selling_price - OPTIONAL (decimal(21,9), nullable, default 0.000000000)
     const sellingPrice = parseFloat(form.sellingPrice);
     if (isNaN(sellingPrice) || sellingPrice < 0) {
       errors.push({ field: "sellingPrice", label: "Selling Price", message: "Selling price must be a valid number" });
     }
 
-    // 13. safety_stock - OPTIONAL - Only digits
     if (form.safetyStock && !validateDigitsOnly(form.safetyStock)) {
       errors.push({ field: "safetyStock", label: "Safety Stock", message: "Safety stock must contain only digits" });
     }
@@ -1258,13 +1824,10 @@ export default function ItemForm() {
       errors.push({ field: "safetyStock", label: "Safety Stock", message: "Safety stock must be a valid number" });
     }
 
-    // 14. warehouseId - REQUIRED for stock items
     if (form.isStockItem && !form.warehouseId) {
       errors.push({ field: "warehouseId", label: "Warehouse", message: "Select a warehouse to track inventory for this item" });
     }
 
-    // 22. profitMargin - Custom field, not in DB but used for calculation
-    // Only validate if not raw material
     if (!isRawMaterialGroup(form.itemGroup)) {
       const profitMargin = parseFloat(form.profitMargin);
       if (form.profitMargin !== "" && (isNaN(profitMargin) || profitMargin < 0)) {
@@ -1272,13 +1835,11 @@ export default function ItemForm() {
       }
     }
 
-    // 23. valuation_rate - REQUIRED (decimal(21,9), NOT NULL, default 0.000000000)
     const valuationRate = parseFloat(form.valuationRate);
     if (isNaN(valuationRate) || valuationRate < 0) {
       errors.push({ field: "valuationRate", label: "Valuation Rate", message: "Valuation rate must be a valid number" });
     }
 
-    // 24. last_purchase_rate - REQUIRED (decimal(21,9), NOT NULL, default 0.000000000)
     const lastPurchaseRate = parseFloat(form.lastPurchaseRate);
     if (isNaN(lastPurchaseRate) || lastPurchaseRate < 0) {
       errors.push({ field: "lastPurchaseRate", label: "Last Purchase Rate", message: "Last purchase rate must be a valid number" });
@@ -1325,13 +1886,11 @@ export default function ItemForm() {
 
     setSubmitting(true);
     try {
-      // 1. Prepare the item payload WITHOUT the image
       const totalOpeningStock = openingStockEntries.reduce((sum, entry) => sum + entry.quantity, 0);
       const totalOpeningValue = openingStockEntries.reduce((sum, entry) => sum + entry.total, 0);
       const openingStockRate = totalOpeningStock > 0 ? totalOpeningValue / totalOpeningStock : 0;
 
-      // Determine if we have an existing image (to keep) or we're replacing it
-      const existingImage = form.image && !imageFile ? form.image : null; // keep existing if no new file
+      const existingImage = form.image && !imageFile ? form.image : null;
 
       const payload: any = {
         naming_series: "STO-ITEM-.YYYY.-",
@@ -1339,7 +1898,7 @@ export default function ItemForm() {
         item_name: form.itemName.trim(),
         item_group: form.itemGroup.trim(),
         stock_uom: form.defaultUOM.trim(),
-        image: existingImage, // will be updated after upload if new file
+        image: existingImage,
         disabled: form.disabled ? 1 : 0,
         tax_id: parseInt(form.taxId) || null,
         is_stock_item: form.isStockItem ? 1 : 0,
@@ -1407,12 +1966,10 @@ export default function ItemForm() {
         HSN: form.hsn || null,
       };
 
-      // Include id if editing
       if (!isNew && itemId) {
         payload.id = itemId;
       }
 
-      // 2. Save the item (POST or PUT)
       let response;
       if (isNew) {
         response = await api.post("/item", payload);
@@ -1426,7 +1983,6 @@ export default function ItemForm() {
         return;
       }
 
-      // Get the item ID (insertId for new, existing id for edit)
       const savedItemId = isNew
         ? response.data.data?.insertId ?? response.data.data?.id
         : itemId;
@@ -1437,7 +1993,6 @@ export default function ItemForm() {
         return;
       }
 
-      // 3. If there's a new image file, upload it and update the item
       let uploadedImageUrl = null;
       if (imageFile) {
         const uploadFormData = new FormData();
@@ -1467,14 +2022,12 @@ export default function ItemForm() {
         }
       }
 
-      // 4. If we got a new image URL, update the item's image field
       if (uploadedImageUrl) {
         const updatePayload = { id: savedItemId, image: uploadedImageUrl };
         try {
           const updateResponse = await api.put("/item", updatePayload);
           if (updateResponse.data.success === 1) {
             toast.success("Item image updated");
-            // Update local state with the new image URL
             setFormRaw((prev) => ({ ...prev, image: uploadedImageUrl }));
             setImageFile(null);
           } else {
@@ -1486,7 +2039,6 @@ export default function ItemForm() {
         }
       }
 
-      // 5. Sync inventory (as before)
       let inventoryConfirmed = false;
       if (form.isStockItem) {
         const savedItemCode = response.data.data?.item_code || payload.item_code;
@@ -1577,8 +2129,8 @@ export default function ItemForm() {
     );
   }
 
-  // Check if current item group is raw material
   const isRawMaterial = isRawMaterialGroup(form.itemGroup);
+  const isDark = theme === "dark";
 
   return (
     <div className={`itf-page ${theme}`}>
@@ -1602,10 +2154,6 @@ export default function ItemForm() {
         </div>
         <div className="itf-topbar-actions">
           {isDirty && <span className="itf-unsaved-dot">Unsaved changes</span>}
-          <button className="itf-btn-save" onClick={handleSave} disabled={submitting}>
-            {submitting ? <FaSpinner className="itf-spin" size={13} /> : <FaSave size={13} />}
-            {submitting ? "Saving…" : "Save"}
-          </button>
         </div>
       </div>
 
@@ -1632,7 +2180,6 @@ export default function ItemForm() {
                         value={form.itemName} 
                         onChange={(v) => s("itemName", v)} 
                         placeholder="e.g. Cotton Yarn 40s" 
-                        // UPDATED: Removed allowOnlyAlphabets to allow digits
                       />
                       <p className="itf-hint" style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>
                         Alphabets, digits, and spaces are allowed
@@ -1645,7 +2192,6 @@ export default function ItemForm() {
                         value={form.itemGroup}
                         onChange={(v) => {
                           s("itemGroup", v);
-                          // Reset manual flag when user changes item group
                           setWarehouseManuallyChanged(false);
                         }}
                         options={groupOptions}
@@ -1653,6 +2199,9 @@ export default function ItemForm() {
                         placeholder="Search for an item group…"
                         error={fieldError("itemGroup")}
                         allowOnlyAlphabets={true}
+                        showAddButton={false}
+                        theme={theme}
+                        entityLabel="Item Group"
                       />
                       <p className="itf-hint" style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>
                         Only alphabets and spaces are allowed
@@ -1669,9 +2218,17 @@ export default function ItemForm() {
                         placeholder="Search for a UOM…"
                         error={fieldError("defaultUOM")}
                         allowOnlyAlphabets={true}
+                        showAddButton={true}
+                        onAddClick={() => {
+                          setPendingUOMName("");
+                          setShowAddUOMModal(true);
+                        }}
+                        onCustomValueConfirm={handleCustomUOMConfirm}
+                        theme={theme}
+                        entityLabel="UOM"
                       />
                       <p className="itf-hint" style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                        Only alphabets and spaces are allowed
+                        Type a name and press Enter or click the "Add" option to create a new UOM
                       </p>
                     </Field>
                   </div>
@@ -1716,8 +2273,6 @@ export default function ItemForm() {
                 </Field>
 
                 <div className="itf-divider" />
-
-                
               </div>
 
               {/* Pricing, Opening Stock, Warehouse - 50:50 split */}
@@ -1740,7 +2295,6 @@ export default function ItemForm() {
                           prefix="₹"
                         />
                       </Field>
-                      {/* Conditionally show Profit Margin field - hide for raw materials */}
                       {!isRawMaterial && (
                         <Field label="Profit margin (%)" hint="Margin applied on top of the base price." error={fieldError("profitMargin")}>
                           <NumberInput
@@ -1782,6 +2336,7 @@ export default function ItemForm() {
                         loading={loadingTaxes}
                         placeholder="Select tax type…"
                         error={fieldError("taxId")}
+                        entityLabel="Tax Type"
                       />
                     </Field>
 
@@ -1834,6 +2389,7 @@ export default function ItemForm() {
                         loading={loadingWarehouses}
                         placeholder="Select a warehouse…"
                         error={fieldError("warehouseId")}
+                        entityLabel="Warehouse"
                       />
                       {!warehouseManuallyChanged && form.warehouseId && (
                         <div style={{ 
@@ -1920,14 +2476,48 @@ export default function ItemForm() {
                     <strong>{openingStockEntries.reduce((sum, e) => sum + e.quantity, 0)} {form.defaultUOM}</strong>
                   </div>
                 </div>
-
               </div>
             </div>
           </div>
 
-          {/* Removed bottom validation errors - now only showing field-level errors */}
+          {/* ─── Footer with Save Button ───────────────────────────────── */}
+          <div className="itf-footer">
+            <div className="itf-footer-actions">
+              <button 
+                type="button" 
+                className="itf-btn-cancel" 
+                onClick={() => navigate("/item-list")}
+                disabled={submitting}
+              >
+                Cancel
+              </button>
+              <button 
+                type="submit" 
+                className={`itf-btn-save-bottom ${isDark ? "itf-btn-save-dark" : "itf-btn-save-light"}`}
+                disabled={submitting}
+              >
+                {submitting ? <FaSpinner className="itf-spin" size={13} /> : <FaSave size={13} />}
+                {submitting ? "Saving…" : "Save Item"}
+              </button>
+            </div>
+          </div>
         </form>
       </div>
+
+      {/* ─── Add UOM Modal ─────────────────────────────────────────────── */}
+      <AddUOMModal
+        isOpen={showAddUOMModal}
+        onClose={() => {
+          setShowAddUOMModal(false);
+          setPendingUOMName("");
+        }}
+        onSave={handleAddUOM}
+        saving={addingUOM}
+        theme={theme}
+        categoryOptions={categoryOptions}
+        loadingCategories={loadingCategories}
+        initialUOMName={pendingUOMName}
+      />
     </div>
   );
 }

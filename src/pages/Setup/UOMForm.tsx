@@ -131,7 +131,7 @@ export default function UOMForm() {
             <FaArrowLeft size={9} /> Back
           </button>
           <div className="header-title">
-            <h1>{isNew ? 'Add New UOM' : `Edit: ${uomName}`}</h1>
+            <h1>{isNew ? 'New UOM' : `Edit: ${uomName}`}</h1>
           </div>
           {hasErrors && (
             <div className="error-badge">

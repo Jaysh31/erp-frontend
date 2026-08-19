@@ -4,9 +4,9 @@ import { useNavigate, useParams, useLocation } from "react-router-dom";
 import {
   FaArrowLeft, FaSave, FaSpinner, FaInfoCircle, FaExclamationTriangle,
   FaTimesCircle, FaClock,
-  FaCalendarAlt, FaPlay, FaPause, FaCheck, FaUserPlus, FaTimes,
+   FaPlay, FaPause, FaCheck, FaUserPlus, FaTimes,
   FaBuilding, FaUser, FaUserCheck, FaExchangeAlt, FaWarehouse,
-  FaTruck, FaShoppingCart, FaMoneyBillWave,
+  FaTruck, FaMoneyBillWave,
   FaClipboardList, FaBoxes, FaIndustry, FaPlus, FaTrash,
   FaFileAlt,
   FaTools, FaExclamationCircle
@@ -186,15 +186,120 @@ interface SupplierOption {
   [key: string]: any;
 }
 
+// ── Subcontracting Order (SCO) item, as returned inside `items` by
+//    GET /subcontracting-order/job-card/:jobCardId. ─────────────────────
+interface SubcontractingOrderApiItem {
+  id: number;
+  name?: string;
+  subcontracting_order_id?: number;
+  item_code: string;
+  item_name: string;
+  bom?: string | null;
+  include_exploded_items?: number;
+  schedule_date?: string | null;
+  expected_delivery_date?: string | null;
+  description?: string | null;
+  image?: string | null;
+  qty: number;
+  received_qty?: number;
+  returned_qty?: number;
+  stock_uom?: string;
+  uom?: string;
+  conversion_factor?: number;
+  rate?: number;
+  amount?: number;
+  rm_cost_per_qty?: number;
+  service_cost_per_qty?: number;
+  additional_cost_per_qty?: number;
+  warehouse?: string | null;
+  expense_account?: string | null;
+  manufacturer?: string | null;
+  manufacturer_part_no?: string | null;
+  material_request?: string | null;
+  material_request_item?: string | null;
+  cost_center?: string | null;
+  project?: string | null;
+  job_card?: string | number | null;
+  purchase_order_item?: string | null;
+  [key: string]: any;
+}
+
+// ── Subcontracting Order (SCO), as returned by
+//    GET /subcontracting-order/job-card/:jobCardId. This is the SCO
+//    already linked to a job card whose `is_subcontracted` flag is 1 —
+//    used to prefill the Subcontracting tab instead of starting blank. ──
+interface SubcontractingOrderApi {
+  id: number;
+  name: string;
+  title?: string;
+  work_order_id?: string | number | null;
+  job_card_id?: string | number | null;
+  supplier_id?: number | string | null;
+  supplier_name?: string;
+  supplier_warehouse?: string;
+  supplier_currency?: string;
+  company?: string;
+  transaction_date?: string | null;
+  schedule_date?: string | null;
+  cost_center?: string | null;
+  set_warehouse?: string | null;
+  set_reserve_warehouse?: string | null;
+  total_qty?: number;
+  total?: number;
+  total_additional_costs?: number;
+  status?: string;
+  per_received?: number;
+  remark?: string | null;
+  items?: SubcontractingOrderApiItem[];
+  [key: string]: any;
+}
+
+// ── Raw material line as it comes back on the job card record (from
+//    /job-card and /job-card/:id) — this is the source data we prefill
+//    the "Materials Sent to Vendor" table from. ─────────────────────────
+interface JobCardRawItem {
+  id?: number;
+  item_code: string;
+  item_name: string;
+  uom?: string;
+  stock_uom?: string;
+  description?: string | null;
+  required_qty?: number;
+  consumed_qty?: number;
+  transferred_qty?: number;
+  source_warehouse?: string | null;
+  allow_alternative_item?: number;
+  [key: string]: any;
+}
+
+// ── Materials Sent to Vendor row — extended with all fields the
+//    Subcontracting Order (SCO) API expects per item, so nothing is lost
+//    when buildSubcontractingOrderPayload() runs. ───────────────────────
 interface SubcontractingItem {
   id: string;
   item_code: string;
   item_name: string;
   quantity: number;
   uom: string;
+  stock_uom?: string;
   rate: number;
   amount: number;
   warehouse?: string;
+  bom?: string | null;
+  description?: string;
+  conversion_factor?: number;
+  material_request?: string | null;
+  material_request_item?: string | null;
+  cost_center?: string;
+  expense_account?: string;
+  manufacturer?: string | null;
+  manufacturer_part_no?: string | null;
+  rm_cost_per_qty?: number;
+  service_cost_per_qty?: number;
+  additional_cost_per_qty?: number;
+  expected_delivery_date?: string | null;
+  // Links back to the originating job-card item row, if it came from there
+  job_card_item_id?: number | string;
 }
 
 interface JobCardFormData {
@@ -295,7 +400,7 @@ const CompletionModal: React.FC<CompletionModalProps> = ({
       setLossQty("");
       setRemarks("");
       setError("");
-      
+
       if (existingRemarks) {
         const lines = existingRemarks.split('\n').filter(line => line.trim());
         setRemarkHistory(lines);
@@ -326,22 +431,22 @@ const CompletionModal: React.FC<CompletionModalProps> = ({
     }
 
     const isPartial = totalToProcess < remainingQty;
-    
+
     let finalRemarks = remarkHistory.length > 0 ? remarkHistory.join('\n') : "";
-    
+
     if (remarks.trim()) {
-      const timestamp = new Date().toLocaleString('en-IN', { 
-        day: '2-digit', 
-        month: '2-digit', 
-        year: 'numeric', 
-        hour: '2-digit', 
+      const timestamp = new Date().toLocaleString('en-IN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
         minute: '2-digit',
-        hour12: true 
+        hour12: true
       });
       const newRemark = `[${timestamp}] ${remarks.trim()}`;
       finalRemarks = finalRemarks ? `${finalRemarks}\n${newRemark}` : newRemark;
     }
-    
+
     onConfirm(completed, loss, isPartial, finalRemarks || undefined);
     onClose();
   };
@@ -353,13 +458,13 @@ const CompletionModal: React.FC<CompletionModalProps> = ({
 
   const addRemark = () => {
     if (remarks.trim()) {
-      const timestamp = new Date().toLocaleString('en-IN', { 
-        day: '2-digit', 
-        month: '2-digit', 
-        year: 'numeric', 
-        hour: '2-digit', 
+      const timestamp = new Date().toLocaleString('en-IN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
         minute: '2-digit',
-        hour12: true 
+        hour12: true
       });
       const newRemark = `[${timestamp}] ${remarks.trim()}`;
       setRemarkHistory(prev => [...prev, newRemark]);
@@ -393,9 +498,9 @@ const CompletionModal: React.FC<CompletionModalProps> = ({
         <div className="jcf-modal-body">
           <div className="jcf-completion-summary">
             {/* Three summary boxes at top */}
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: 'repeat(3, 1fr)', 
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
               gap: '12px',
               marginBottom: '16px'
             }}>
@@ -432,9 +537,9 @@ const CompletionModal: React.FC<CompletionModalProps> = ({
             </div>
 
             {/* Process Now fields - Fixed to remove double box */}
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: '1fr 1fr', 
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
               gap: '12px',
               marginBottom: '16px'
             }}>
@@ -467,9 +572,9 @@ const CompletionModal: React.FC<CompletionModalProps> = ({
             </div>
 
             {/* Remarks Field with Add Button */}
-            <div style={{ 
-              borderTop: "1px solid var(--border-color)", 
-              paddingTop: "12px", 
+            <div style={{
+              borderTop: "1px solid var(--border-color)",
+              paddingTop: "12px",
               marginTop: "8px"
             }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
@@ -505,7 +610,7 @@ const CompletionModal: React.FC<CompletionModalProps> = ({
                   placeholder="Add a remark (e.g., quality issue, machine downtime...) - Press Enter to add"
                   className="jcf-input jcf-textarea"
                   rows={2}
-                  style={{ 
+                  style={{
                     flex: 1,
                     padding: "8px 12px",
                     border: "1px solid var(--border-color)",
@@ -520,17 +625,17 @@ const CompletionModal: React.FC<CompletionModalProps> = ({
 
             {/* Remark History */}
             {remarkHistory.length > 0 && (
-              <div style={{ 
-                borderTop: "1px solid var(--border-color)", 
-                paddingTop: "12px", 
+              <div style={{
+                borderTop: "1px solid var(--border-color)",
+                paddingTop: "12px",
                 marginTop: "8px"
               }}>
                 <span style={{ fontSize: "13px", fontWeight: "500", color: "#333", marginBottom: "8px", display: "block" }}>
                   <FaClipboardList size={12} style={{ marginRight: "4px" }} />
                   Remark History ({remarkHistory.length})
                 </span>
-                <div style={{ 
-                  maxHeight: "120px", 
+                <div style={{
+                  maxHeight: "120px",
                   overflowY: "auto",
                   border: "1px solid var(--border-color)",
                   borderRadius: "4px",
@@ -571,18 +676,18 @@ const CompletionModal: React.FC<CompletionModalProps> = ({
               </div>
             )}
 
-            <div style={{ 
-              borderTop: "1px solid var(--border-color)", 
-              paddingTop: "12px", 
+            <div style={{
+              borderTop: "1px solid var(--border-color)",
+              paddingTop: "12px",
               marginTop: "8px",
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center'
             }}>
               <span style={{ fontSize: "14px", fontWeight: "500", color: "#333" }}>This Session Total:</span>
-              <span style={{ 
-                fontSize: "16px", 
-                fontWeight: "bold", 
+              <span style={{
+                fontSize: "16px",
+                fontWeight: "bold",
                 color: isValid ? "var(--success-color)" : "var(--danger-color)"
               }}>
                 {totalToProcess > 0 ? totalToProcess : '0'} / {remainingQty} remaining
@@ -708,6 +813,14 @@ const SUBCONTRACT_REASON_OPTIONS: { key: string; label: string; icon: React.Comp
   { key: 'other', label: 'Other Reason', icon: FaFileAlt },
 ];
 
+// Look up the human-readable label for a stored reason key (falls back to
+// the raw key/string if it isn't one of the predefined options).
+const getSubcontractReasonLabel = (key: string): string => {
+  if (!key) return "Not specified";
+  const found = SUBCONTRACT_REASON_OPTIONS.find((r) => r.key === key);
+  return found ? found.label : key;
+};
+
 const SubcontractConfirmModal: React.FC<SubcontractConfirmModalProps> = ({
   isOpen,
   onClose,
@@ -823,6 +936,60 @@ const defaultFormData = (): JobCardFormData => ({
   subcontracting_notes: '',
 });
 
+// ── Map a job card's raw `items` (raw materials) array into
+//    SubcontractingItem rows used by the "Materials Sent to Vendor" table. ──
+const mapJobCardItemsToSubcontractingItems = (rawItems: JobCardRawItem[] | undefined | null): SubcontractingItem[] => {
+  if (!Array.isArray(rawItems) || rawItems.length === 0) return [];
+  return rawItems.map((it, idx) => ({
+    id: it.id !== undefined && it.id !== null ? String(it.id) : `jc-item-${idx}-${Date.now()}`,
+    item_code: it.item_code || "",
+    item_name: it.item_name || "",
+    quantity: it.required_qty ?? 0,
+    uom: it.uom || it.stock_uom || "NOS",
+    stock_uom: it.stock_uom || it.uom || "NOS",
+    rate: 0,
+    amount: 0,
+    warehouse: it.source_warehouse || "",
+    description: it.description || "",
+    conversion_factor: 1,
+    job_card_item_id: it.id,
+  }));
+};
+
+// ── Map a Subcontracting Order's `items` array (from
+//    GET /subcontracting-order/job-card/:jobCardId) into SubcontractingItem
+//    rows used by the "Materials Sent to Vendor" table. When an SCO
+//    already exists for this job card, this takes priority over the raw
+//    job-card items so the form reflects what was actually sent/priced,
+//    not just what's required. ──────────────────────────────────────────
+const mapSCOItemsToSubcontractingItems = (scoItems: SubcontractingOrderApiItem[] | undefined | null): SubcontractingItem[] => {
+  if (!Array.isArray(scoItems) || scoItems.length === 0) return [];
+  return scoItems.map((it, idx) => ({
+    id: it.id !== undefined && it.id !== null ? String(it.id) : `sco-item-${idx}-${Date.now()}`,
+    item_code: it.item_code || "",
+    item_name: it.item_name || "",
+    quantity: it.qty ?? 0,
+    uom: it.uom || it.stock_uom || "NOS",
+    stock_uom: it.stock_uom || it.uom || "NOS",
+    rate: it.rate ?? 0,
+    amount: it.amount ?? ((it.qty ?? 0) * (it.rate ?? 0)),
+    warehouse: it.warehouse || "",
+    bom: it.bom ?? null,
+    description: it.description || "",
+    conversion_factor: it.conversion_factor ?? 1,
+    material_request: it.material_request ?? null,
+    material_request_item: it.material_request_item ?? null,
+    cost_center: it.cost_center || "",
+    expense_account: it.expense_account || "",
+    manufacturer: it.manufacturer ?? null,
+    manufacturer_part_no: it.manufacturer_part_no ?? null,
+    rm_cost_per_qty: it.rm_cost_per_qty ?? it.rate ?? 0,
+    service_cost_per_qty: it.service_cost_per_qty ?? 0,
+    additional_cost_per_qty: it.additional_cost_per_qty ?? 0,
+    expected_delivery_date: it.expected_delivery_date ?? null,
+  }));
+};
+
 const JobCardForm: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -833,6 +1000,12 @@ const JobCardForm: React.FC = () => {
   const currentJobCardId: number | null = isEditMode && id
     ? (isNaN(Number(id)) ? null : Number(id))
     : (recordId !== null ? Number(recordId) : null);
+
+  // ── Raw materials this job card uses/has, exactly as returned by the
+  //    API's `items` array. Shown read-only in a "Raw Materials" card so
+  //    the user can see what's required / consumed / transferred / left
+  //    for this job card, regardless of Internal vs Subcontracting tab. ──
+  const [rawMaterialItems, setRawMaterialItems] = useState<JobCardRawItem[]>([]);
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [saving, setSaving] = useState(false);
@@ -863,18 +1036,32 @@ const JobCardForm: React.FC = () => {
   const [isSubcontracted, setIsSubcontracted] = useState(false);
   const [showSubcontractConfirm, setShowSubcontractConfirm] = useState(false);
   const [creatingSubcontract, setCreatingSubcontract] = useState(false);
-  const [creatingSCO, setCreatingSCO] = useState(false);
+  const [] = useState(false);
 
   // ── Suppliers (vendors for subcontracting) ──────────────────────────
   const [suppliers, setSuppliers] = useState<SupplierOption[]>([]);
   const [loadingSuppliers, setLoadingSuppliers] = useState(false);
+
+  // ── Subcontracting Order (SCO) already linked to this job card,
+  //    fetched from GET /subcontracting-order/job-card/:jobCardId
+  //    whenever is_subcontracted = 1. Tracks the SCO's own id/name so a
+  //    second "Create" click updates it (PUT) instead of duplicating it. ──
+  const [scoRecordId, setScoRecordId] = useState<number | null>(null);
+  const [scoName, setScoName] = useState<string>("");
+  const [loadingSCO, setLoadingSCO] = useState(false);
 
   const getRemainingQty = () => {
     return Math.max(0, (formData.qty_to_manufacture || formData.for_quantity || 0) -
       (formData.total_completed_qty || 0) - (formData.process_loss_qty || 0));
   };
 
-
+  // Balance still to be consumed for a given raw material line
+  // (required - consumed), floored at 0.
+  const getRawMaterialBalance = (it: JobCardRawItem): number => {
+    const required = it.required_qty ?? 0;
+    const consumed = it.consumed_qty ?? 0;
+    return Math.max(0, required - consumed);
+  };
 
   // ── Fetch suppliers list (for the subcontracting Vendor dropdown) ──────
   const fetchSuppliers = async (): Promise<SupplierOption[]> => {
@@ -902,6 +1089,51 @@ const JobCardForm: React.FC = () => {
       });
     }
   }, [selectedJobType]);
+
+  // ── Fetch the Subcontracting Order (SCO) linked to this job card ──────
+  //    GET /subcontracting-order/job-card/:jobCardId
+  //    Called whenever the job card comes back with is_subcontracted = 1,
+  //    so the Subcontracting tab is prefilled with the vendor, materials,
+  //    and charges that were already sent, instead of showing a blank form.
+  const fetchSubcontractingOrderByJobCard = async (jobCardId: number | string): Promise<SubcontractingOrderApi | null> => {
+    try {
+      const response = await api.get(`/subcontracting-order/job-card/${jobCardId}`);
+      if (response.data?.success === 1 && response.data?.data) {
+        const raw = response.data.data;
+        // API may return either a single SCO object or an array with one record
+        const sco: SubcontractingOrderApi = Array.isArray(raw) ? raw[0] : raw;
+        return sco || null;
+      }
+      return null;
+    } catch (err) {
+      console.error("Error fetching subcontracting order for job card:", err);
+      return null;
+    }
+  };
+
+  // ── Populate the Subcontracting tab (vendor, materials, charges, PO)
+  //    from an already-created Subcontracting Order tied to this job card. ──
+  const applySubcontractingOrderToForm = (sco: SubcontractingOrderApi) => {
+    setScoRecordId(sco.id ?? null);
+    setScoName(sco.name || "");
+
+    const mappedItems = mapSCOItemsToSubcontractingItems(sco.items);
+
+    setFormData((prev) => ({
+      ...prev,
+      supplier_id: sco.supplier_id !== undefined && sco.supplier_id !== null ? String(sco.supplier_id) : prev.supplier_id,
+      subcontractor_name: sco.supplier_name || prev.subcontractor_name,
+      subcontractor_address: sco.supplier_warehouse || prev.subcontractor_address,
+      // The SCO's own item lines (with real vendor rates) take priority
+      // over the raw job-card items prefill once an SCO exists.
+      material_sent_items: mappedItems.length > 0 ? mappedItems : prev.material_sent_items,
+      other_charges: sco.total_additional_costs ?? prev.other_charges,
+      expected_return_date: sco.schedule_date ? new Date(sco.schedule_date) : prev.expected_return_date,
+      subcontracting_notes: sco.remark || prev.subcontracting_notes,
+      po_number: sco.name || prev.po_number,
+      po_created: true,
+    }));
+  };
 
   const getSupplierPrimaryContact = (supplier: SupplierOption): SupplierContact | undefined => {
     if (!supplier.contacts || supplier.contacts.length === 0) return undefined;
@@ -959,7 +1191,6 @@ const JobCardForm: React.FC = () => {
     } catch (err) { console.error("Error fetching employees:", err); return []; }
   };
 
-  
   useEffect(() => {
     if (isEditMode && id) {
       const state = location.state as { jobCard?: any };
@@ -989,6 +1220,14 @@ const JobCardForm: React.FC = () => {
     setIsSubcontracted(subcontractedFlag);
     setSelectedJobType(subcontractedFlag ? 'subcontracting' : 'internal');
 
+    // ── Keep the job card's raw `items` (raw materials) as-is for the
+    //    read-only "Raw Materials" display card. ──────────────────────
+    setRawMaterialItems(Array.isArray(jc.items) ? jc.items : []);
+
+    // ── Prefill "Materials Sent to Vendor" from the job card's own raw
+    //    material `items` array (e.g. from /job-card or /job-card/:id). ──
+    const materialItemsFromJobCard = mapJobCardItemsToSubcontractingItems(jc.items);
+
     setFormData((prev) => ({
       ...prev,
       work_order: jc.work_order || "", qty_to_manufacture: jc.requested_qty ?? jc.for_quantity ?? 0,
@@ -1013,7 +1252,29 @@ const JobCardForm: React.FC = () => {
       operation_id: jc.operation_id || "", sequence_id: jc.sequence_id || 1,
       serial_no: jc.serial_no || "", assigned_employees: [],
       job_type: subcontractedFlag ? 'subcontracting' : 'internal',
+      // Only auto-fill if the user hasn't already built/edited a materials
+      // list in this session — avoids clobbering edits on a re-fetch.
+      material_sent_items: prev.material_sent_items.length > 0
+        ? prev.material_sent_items
+        : materialItemsFromJobCard,
     }));
+
+    // ── If this job card is subcontracted, fetch its Subcontracting Order
+    //    (GET /subcontracting-order/job-card/:jobCardId) and use it to
+    //    prefill the vendor, priced materials, charges, and PO number —
+    //    this takes priority over the raw job-card items prefill above. ──
+    if (subcontractedFlag) {
+      const jobCardIdForSCO = jc.id ?? currentJobCardId;
+      if (jobCardIdForSCO) {
+        setLoadingSCO(true);
+        try {
+          const sco = await fetchSubcontractingOrderByJobCard(jobCardIdForSCO);
+          if (sco) applySubcontractingOrderToForm(sco);
+        } finally {
+          setLoadingSCO(false);
+        }
+      }
+    }
 
     const employeeListFromJc: any[] = Array.isArray(jc.employees)
       ? jc.employees
@@ -1037,7 +1298,6 @@ const JobCardForm: React.FC = () => {
       } catch (err) { console.error("Error loading assigned employee(s):", err); }
     }
 
-    
     if (jc.actual_start_date && !jc.actual_end_date) {
       setElapsedSeconds(Math.max(0, Math.floor((Date.now() - new Date(jc.actual_start_date).getTime()) / 1000)));
       setTimerRunning(jc.status === "Work In Progress");
@@ -1128,7 +1388,7 @@ const JobCardForm: React.FC = () => {
     const wo = workOrders.find((w) => w.name === value);
     setFormData((prev) => ({ ...prev, work_order: value, company: wo?.company ?? prev.company, qty_to_manufacture: wo?.qty ?? prev.qty_to_manufacture, item_name: wo?.item_name || prev.item_name }));
     if (errors.work_order) setErrors((prev) => ({ ...prev, work_order: "" }));
-    
+
   };
 
   const openEmployeeModal = async () => {
@@ -1316,7 +1576,7 @@ const JobCardForm: React.FC = () => {
       if (!isEditMode || !currentJobCardId) throw new Error("No job card to update");
       payload.id = currentJobCardId;
       payload.remarks = formData.remarks || "";
-      
+
       const response = await api.put("/job-card", payload);
       if (response.data.success !== 1) throw new Error(response.data?.message || "Failed to update job card");
       setSuccessMessage("Job Card updated successfully!"); setShowSuccessModal(true);
@@ -1330,57 +1590,57 @@ const JobCardForm: React.FC = () => {
       ? Math.max(0, Math.round((formData.expected_end_date.getTime() - formData.expected_start_date.getTime()) / 60000)) : 0;
     const payload: any = {
       production_item: formData.production_item || "",
-      for_quantity: formData.for_quantity || formData.qty_to_manufacture, 
+      for_quantity: formData.for_quantity || formData.qty_to_manufacture,
       bom_no: formData.bom_no || "",
-      company: formData.company, 
-      naming_series: "PO-JOB-.#####", 
+      company: formData.company,
+      naming_series: "PO-JOB-.#####",
       posting_date: formatDateOnly(formData.posting_date),
       finished_good: formData.finished_good || "",
       semi_fg_bom: formData.semi_fg_bom || "",
       pending_qty: formData.pending_qty,
       process_loss_qty: formData.process_loss_qty,
-      total_completed_qty: formData.total_completed_qty, 
-      transferred_qty: 0, 
+      total_completed_qty: formData.total_completed_qty,
+      transferred_qty: 0,
       manufactured_qty: 0,
-      operation: formData.operation || "", 
+      operation: formData.operation || "",
       source_warehouse: formData.source_warehouse || "",
-      wip_warehouse: formData.wip_warehouse || "", 
-      skip_material_transfer: 0, 
+      wip_warehouse: formData.wip_warehouse || "",
+      skip_material_transfer: 0,
       backflush_from_wip_warehouse: 0,
-      workstation_type: formData.workstation_type || "", 
+      workstation_type: formData.workstation_type || "",
       workstation: formData.workstation || "",
-      target_warehouse: formData.target_warehouse || "", 
+      target_warehouse: formData.target_warehouse || "",
       quality_inspection_template: formData.quality_inspection_template,
-      quality_inspection: "", 
+      quality_inspection: "",
       expected_start_date: formatDateTime(formData.expected_start_date),
-      time_required: timeRequired, 
+      time_required: timeRequired,
       expected_end_date: formatDateTime(formData.expected_end_date),
-      actual_start_date: formatDateTime(formData.actual_start_date), 
+      actual_start_date: formatDateTime(formData.actual_start_date),
       total_time_in_mins: 0,
-      actual_end_date: formatDateTime(formData.actual_end_date), 
-      for_job_card: "", 
+      actual_end_date: formatDateTime(formData.actual_end_date),
+      for_job_card: "",
       is_corrective_job_card: 0,
-      hour_rate: formData.hour_rate, 
+      hour_rate: formData.hour_rate,
       for_operation: formData.for_operation || "",
-      item_name: formData.item_name || "", 
+      item_name: formData.item_name || "",
       requested_qty: formData.qty_to_manufacture,
       is_paused: formData.status === "On Hold" ? 1 : 0,
       is_subcontracted: isSubcontracted ? 1 : 0,
-      track_semi_finished_goods: 0, 
-      project: formData.project || "", 
+      track_semi_finished_goods: 0,
+      project: formData.project || "",
       remarks: formData.remarks || "",
-      status: formData.status, 
+      status: formData.status,
       operation_row_id: formData.operation_row_id || 1,
-      operation_row_number: formData.operation_row_number || 1, 
+      operation_row_number: formData.operation_row_number || 1,
       operation_id: formData.operation_id || "",
-      sequence_id: formData.sequence_id || 1, 
+      sequence_id: formData.sequence_id || 1,
       serial_no: formData.serial_no || "",
-      serial_and_batch_bundle: "", 
-      barcode: "", 
-      batch_no: "", 
+      serial_and_batch_bundle: "",
+      barcode: "",
+      batch_no: "",
       modified_by: "Administrator",
     };
-    
+
     if (isEditMode && currentJobCardId) {
       payload.id = currentJobCardId;
     } else if (currentJobCardId) {
@@ -1398,7 +1658,7 @@ const JobCardForm: React.FC = () => {
     try {
       const payload = buildApiPayload();
       payload.remarks = formData.remarks || "";
-      
+
       const response = await api.put("/job-card", payload);
       if (response.data.success !== 1) throw new Error(response.data?.message || "Failed to save job card");
       navigate("/job-card");
@@ -1464,71 +1724,228 @@ const JobCardForm: React.FC = () => {
     return getMaterialTotal() + formData.service_charge + formData.transport_cost + formData.other_charges;
   };
 
-  // ── Build & submit the /api/subcontracting-order payload ───────────────
+  // ── Build & submit the /api/subcontracting-order payload, including the
+  //    full `items` array carried over from the job card / materials table.
+  //    When an SCO already exists for this job card (scoRecordId set), the
+  //    payload carries its id so the caller can PUT an update instead of
+  //    POSTing a duplicate order. ─────────────────────────────────────────
   const buildSubcontractingOrderPayload = () => {
-    return {
+    const scheduleDate = formatDateOnly(formData.expected_return_date) || formatDateOnly(formData.expected_end_date);
+
+    const payload: any = {
       title: `Subcontracting Order - ${formData.subcontractor_name || formData.item_name || 'Job Card'}`,
       work_order_id: formData.work_order || null,
       job_card_id: currentJobCardId,
       naming_series: "SCO-.YYYY.-",
+      purchase_order: null,
       supplier_id: formData.supplier_id ? Number(formData.supplier_id) : null,
       supplier_name: formData.subcontractor_name || "",
       supplier_warehouse: formData.subcontractor_address || "",
+      supplier_currency: "INR",
       company: formData.company || "",
       transaction_date: formatDateOnly(new Date()),
-      schedule_date: formatDateOnly(formData.expected_return_date) || formatDateOnly(formData.expected_end_date),
+      schedule_date: scheduleDate,
+      amended_from: null,
+      cost_center: "",
       set_warehouse: formData.source_warehouse || "",
       set_reserve_warehouse: formData.wip_warehouse || "",
       reserve_stock: 1,
       distribute_additional_costs_based_on: "Qty",
       total_additional_costs: (formData.transport_cost || 0) + (formData.other_charges || 0),
       status: "Draft",
+      per_received: 0,
+      letter_head: null,
       remark: formData.subcontracting_notes && formData.subcontracting_notes.trim()
         ? formData.subcontracting_notes
         : `Subcontracting for job card ${currentJobCardId ?? ""}${formData.subcontract_reason ? ` - Reason: ${formData.subcontract_reason}` : ""}`,
+      modified_by: "Administrator",
+      // ── The materials table (prefilled from the job card's own `items`
+      //    array, or from an existing SCO, or added manually) is sent as
+      //    the SCO's item lines. ──────────────────────────────────────
       items: formData.material_sent_items.map((item) => ({
         item_code: item.item_code,
         item_name: item.item_name,
+        bom: item.bom ?? null,
+        include_exploded_items: 0,
+        schedule_date: scheduleDate,
+        description: item.description || "",
+        image: null,
         qty: item.quantity,
         received_qty: 0,
         returned_qty: 0,
-        stock_uom: item.uom,
+        stock_uom: item.stock_uom || item.uom,
         uom: item.uom,
-        conversion_factor: 1,
+        conversion_factor: item.conversion_factor ?? 1,
         rate: item.rate,
         amount: item.amount,
+        rm_cost_per_qty: item.rm_cost_per_qty ?? item.rate,
+        service_cost_per_qty: item.service_cost_per_qty ?? 0,
+        additional_cost_per_qty: item.additional_cost_per_qty ?? 0,
         warehouse: item.warehouse || formData.source_warehouse || "",
+        expense_account: item.expense_account || "",
+        manufacturer: item.manufacturer ?? null,
+        manufacturer_part_no: item.manufacturer_part_no ?? null,
+        material_request: item.material_request ?? null,
+        material_request_item: item.material_request_item ?? null,
+        cost_center: item.cost_center || "",
         job_card: currentJobCardId,
+        purchase_order_item: null,
       })),
     };
+
+    // ── If an SCO already exists for this job card, include its id so a
+    //    PUT call updates it in place instead of creating a duplicate. ──
+    if (scoRecordId) {
+      payload.id = scoRecordId;
+      payload.name = scoName || undefined;
+    }
+
+    return payload;
   };
 
-  const handleCreateSCO = async () => {
+  // ── Create (POST) a new Subcontracting Order, or update (PUT) the one
+  //    already linked to this job card if fetchSubcontractingOrderByJobCard
+  //    found one on load. ─────────────────────────────────────────────
+
+  // ── Combined submit: updates the Job Card AND creates/updates its
+  //    linked Subcontracting Order in one action. Used by the sidebar's
+  //    single "Submit Subcontracting" button. ─────────────────────────
+  const handleSubmitSubcontracting = async () => {
     if (!formData.supplier_id || !formData.subcontractor_name.trim()) {
-      setApiError("Please select a Vendor / Supplier before creating the Subcontracting Order");
+      setApiError("Please select a Vendor / Supplier before submitting");
       return;
     }
     if (formData.material_sent_items.length === 0) {
-      setApiError("Please add at least one material item before creating the Subcontracting Order");
+      setApiError("Please add at least one material item before submitting");
       return;
     }
-    setCreatingSCO(true);
+
+    setSaving(true);
     setApiError(null);
     try {
-      const payload = buildSubcontractingOrderPayload();
-      const response = await api.post("/subcontracting-order", payload);
-      if (response.data?.success === 0) {
-        throw new Error(response.data?.message || "Failed to create Subcontracting Order");
+      // 1. Update the job card itself
+      if (isEditMode && currentJobCardId) {
+        const jcPayload = buildApiPayload();
+        jcPayload.id = currentJobCardId;
+        jcPayload.remarks = formData.remarks || "";
+        const jcResponse = await api.put("/job-card", jcPayload);
+        if (jcResponse.data.success !== 1) {
+          throw new Error(jcResponse.data?.message || "Failed to update job card");
+        }
       }
-      const scoName = response.data?.data?.name || response.data?.name;
-      setFormData((prev) => ({ ...prev, po_created: true, po_number: scoName || prev.po_number }));
-      setSuccessMessage(`Subcontracting Order ${scoName ? scoName + " " : ""}created successfully!`);
+
+      // 2. Create/update the linked Subcontracting Order
+      const scoPayload = buildSubcontractingOrderPayload();
+      const scoResponse = scoRecordId
+        ? await api.put("/subcontracting-order", scoPayload)
+        : await api.post("/subcontracting-order", scoPayload);
+
+      if (scoResponse.data?.success === 0) {
+        throw new Error(scoResponse.data?.message || `Failed to ${scoRecordId ? "update" : "create"} Subcontracting Order`);
+      }
+
+      const scoNameFromResponse = scoResponse.data?.data?.name || scoResponse.data?.name;
+      const scoIdFromResponse = scoResponse.data?.data?.id;
+      setScoRecordId(scoIdFromResponse ?? scoRecordId);
+      setScoName(scoNameFromResponse || scoName);
+      setFormData((prev) => ({ ...prev, po_created: true, po_number: scoNameFromResponse || prev.po_number }));
+
+      setSuccessMessage("Job card and Subcontracting Order updated successfully!");
       setShowSuccessModal(true);
+
+      if (isEditMode && id) fetchJobCardById(id);
     } catch (err: any) {
-      setApiError(err.response?.data?.message || err.message || "Failed to create Subcontracting Order");
+      setApiError(err.response?.data?.message || err.message || "Failed to submit subcontracting");
     } finally {
-      setCreatingSCO(false);
+      setSaving(false);
     }
+  };
+
+  // ── Read-only "Raw Materials" card: shows exactly what raw materials
+  //    this job card uses/has, straight from the API's `items` array —
+  //    required qty, consumed so far, transferred, balance left, and
+  //    which warehouse they're sourced from. ─────────────────────────
+  const renderRawMaterialsSection = () => {
+    if (rawMaterialItems.length === 0) return null;
+
+    const totals = rawMaterialItems.reduce(
+      (acc, it) => {
+        acc.required += it.required_qty ?? 0;
+        acc.consumed += it.consumed_qty ?? 0;
+        acc.transferred += it.transferred_qty ?? 0;
+        acc.balance += getRawMaterialBalance(it);
+        return acc;
+      },
+      { required: 0, consumed: 0, transferred: 0, balance: 0 }
+    );
+
+    return (
+      <div className="jcf-card jcf-raw-materials-card">
+        <div className="jcf-card-header">
+          <FaBoxes size={14} /> Raw Materials Assigned
+          <span
+            className="jcf-status-badge jcf-status-open"
+            style={{ marginLeft: "8px" }}
+          >
+            {rawMaterialItems.length} item{rawMaterialItems.length > 1 ? "s" : ""}
+          </span>
+        </div>
+        <div className="jcf-table-wrap">
+          <table className="jcf-subcontracting-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Item Code</th>
+                <th>Item Name</th>
+                <th>UOM</th>
+                <th>Required Qty</th>
+                <th>Transferred Qty</th>
+                <th>Balance</th>
+                <th>Source Warehouse</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rawMaterialItems.map((it, index) => {
+                const balance = getRawMaterialBalance(it);
+                const fullyConsumed = (it.required_qty ?? 0) > 0 && balance === 0;
+                return (
+                  <tr key={it.id ?? `${it.item_code}-${index}`}>
+                    <td>{index + 1}</td>
+                    <td>{it.item_code}</td>
+                    <td>{it.item_name}</td>
+                    <td>{it.uom || it.stock_uom || "-"}</td>
+                    <td className="jcf-cell-amount">{it.required_qty ?? 0}</td>
+                    <td className="jcf-cell-amount">{it.transferred_qty ?? 0}</td>
+                    <td className="jcf-cell-amount">
+                      <span
+                        style={{
+                          color: fullyConsumed ? "var(--success-color)" : "var(--info-color)",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {balance}
+                      </span>
+                    </td>
+                    <td>{it.source_warehouse || "-"}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colSpan={4} style={{ textAlign: "right", fontWeight: "bold" }}>
+                  Totals
+                </td>
+                <td style={{ fontWeight: "bold" }}>{totals.required}</td>
+                <td style={{ fontWeight: "bold" }}>{totals.consumed}</td>
+                <td style={{ fontWeight: "bold" }}>{totals.transferred}</td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    );
   };
 
   const renderSubcontractingSection = () => {
@@ -1561,32 +1978,14 @@ const JobCardForm: React.FC = () => {
           </div>
         </div>
 
-        <div className="jcf-card jcf-reason-card">
-          <div className="jcf-card-header">
-            <FaExclamationCircle size={14} /> Why Subcontracting?
-          </div>
-          <div className="jcf-reason-grid">
-            <button type="button" className={`jcf-reason-btn ${formData.subcontract_reason === 'machine_failure' ? 'selected' : ''}`} onClick={() => setFormData(prev => ({ ...prev, subcontract_reason: 'machine_failure' }))}>
-              <FaTools size={20} /> Machine Failure
-            </button>
-            <button type="button" className={`jcf-reason-btn ${formData.subcontract_reason === 'no_machine' ? 'selected' : ''}`} onClick={() => setFormData(prev => ({ ...prev, subcontract_reason: 'no_machine' }))}>
-              <FaTimesCircle size={20} /> No Machine Available
-            </button>
-            <button type="button" className={`jcf-reason-btn ${formData.subcontract_reason === 'capacity_overflow' ? 'selected' : ''}`} onClick={() => setFormData(prev => ({ ...prev, subcontract_reason: 'capacity_overflow' }))}>
-              <FaBoxes size={20} /> Capacity Overflow
-            </button>
-            <button type="button" className={`jcf-reason-btn ${formData.subcontract_reason === 'specialized_process' ? 'selected' : ''}`} onClick={() => setFormData(prev => ({ ...prev, subcontract_reason: 'specialized_process' }))}>
-              <FaIndustry size={20} /> Specialized Process
-            </button>
-            <button type="button" className={`jcf-reason-btn ${formData.subcontract_reason === 'other' ? 'selected' : ''}`} onClick={() => setFormData(prev => ({ ...prev, subcontract_reason: 'other' }))}>
-              <FaFileAlt size={20} /> Other Reason
-            </button>
-          </div>
-        </div>
-
         <div className="jcf-card jcf-vendor-card">
           <div className="jcf-card-header">
             <FaBuilding size={14} /> Subcontractor / Vendor
+            {loadingSCO && (
+              <span className="jcf-status-badge jcf-status-pending" style={{ marginLeft: "8px" }}>
+                <FaSpinner className="jcf-spinning" size={10} /> Loading vendor details...
+              </span>
+            )}
           </div>
           <div className="jcf-grid-3">
             <div>
@@ -1764,25 +2163,6 @@ const JobCardForm: React.FC = () => {
           </div>
         </div>
 
-        {/* ── Subcontracting Order (SCO) creation card ── */}
-        <div className="jcf-card jcf-sco-card">
-          <div className="jcf-card-header">
-            <FaShoppingCart size={14} /> Subcontracting Order (SCO)
-          </div>
-          <p style={{ fontSize: '13px', color: '#555', marginBottom: '12px' }}>
-            Create a Subcontracting Order to send the materials above to the vendor. This calls the
-            Subcontracting Order API and links it to this job card{formData.work_order ? ` and work order ${formData.work_order}` : ''}.
-          </p>
-          <button
-            type="button"
-            className="jcf-btn-primary"
-            onClick={handleCreateSCO}
-            disabled={creatingSCO}
-          >
-            {creatingSCO ? <FaSpinner className="jcf-spinning" /> : <FaShoppingCart size={12} />} Create Subcontracting Order
-          </button>
-        </div>
-
         <div className="jcf-card jcf-charges-card">
           <div className="jcf-card-header">
             <FaMoneyBillWave size={14} /> Service Charges
@@ -1835,70 +2215,7 @@ const JobCardForm: React.FC = () => {
           </div>
         </div>
 
-        <div className="jcf-card jcf-schedule-card">
-          <div className="jcf-card-header">
-            <FaCalendarAlt size={14} /> Schedule
-          </div>
-          <div className="jcf-grid-3">
-            <div>
-              <label className="jcf-label">Expected Return Date</label>
-              <DatePicker
-                selected={formData.expected_return_date}
-                onChange={(date: Date | null) => handleDateChange("expected_return_date", date)}
-                dateFormat="dd-MM-yyyy"
-                className="jcf-date-input"
-                placeholderText="Select date"
-              />
-            </div>
-            <div>
-              <label className="jcf-label">Actual Return Date</label>
-              <DatePicker
-                selected={formData.actual_return_date}
-                onChange={(date: Date | null) => handleDateChange("actual_return_date", date)}
-                dateFormat="dd-MM-yyyy"
-                className="jcf-date-input"
-                placeholderText="Not yet returned"
-              />
-            </div>
-            <div className="jcf-status-display">
-              <span className="jcf-status-label">Current Status</span>
-              <span className={`jcf-status-badge jcf-status-${formData.status.replace(/\s/g, '-').toLowerCase()}`}>
-                {formData.status}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="jcf-card jcf-po-card">
-          <div className="jcf-card-header">
-            <FaShoppingCart size={14} /> Purchase Order
-            <span className="jcf-po-status">
-              {formData.po_created ?
-                <span className="jcf-status-badge jcf-status-completed"><FaCheck size={10} /> Created</span> :
-                <span className="jcf-status-badge jcf-status-pending">Not yet created</span>
-              }
-            </span>
-          </div>
-          <div className="jcf-grid-2">
-            <div>
-              <label className="jcf-label">PO Number (if exists)</label>
-              <input
-                type="text"
-                name="po_number"
-                value={formData.po_number}
-                onChange={handleInputChange}
-                className="jcf-input"
-                placeholder="PO-2026-XXXX"
-              />
-            </div>
-            <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-              <button type="button" className="jcf-btn-primary" onClick={() => setFormData(prev => ({ ...prev, po_created: !prev.po_created }))}>
-                <FaPlus size={12} /> {formData.po_created ? 'Update Purchase Order' : 'Create Purchase Order'}
-              </button>
-            </div>
-          </div>
-        </div>
-
+    
         <div className="jcf-card jcf-receipt-card">
           <div className="jcf-card-header">
             <FaTruck size={14} /> Material Return / Receipt
@@ -2104,46 +2421,29 @@ const JobCardForm: React.FC = () => {
                     </div>
                   </div>
                 </div>
-                <div className="jcf-field-block"><label className="jcf-label">Quality Inspection Template</label><input type="text" name="quality_inspection_template" value={formData.quality_inspection_template} onChange={handleInputChange} placeholder="Optional" className="jcf-input" /></div>
-                <div className="jcf-section-title"><FaCalendarAlt size={12} /> Scheduled Time</div>
-                <div className="jcf-grid-4">
-                  <div><label className="jcf-label">Expected Start Date</label><DatePicker selected={formData.expected_start_date} onChange={(date: Date | null) => handleDateChange("expected_start_date", date)} showTimeSelect dateFormat="dd-MM-yyyy HH:mm" placeholderText="Select start" className="jcf-date-input" /></div>
-                  <div><label className="jcf-label">Expected End Date</label><DatePicker selected={formData.expected_end_date} onChange={(date: Date | null) => handleDateChange("expected_end_date", date)} showTimeSelect dateFormat="dd-MM-yyyy HH:mm" placeholderText="Select end" className="jcf-date-input" />{errors.expected_end_date && <span className="jcf-error-text">{errors.expected_end_date}</span>}</div>
-                  <div><label className="jcf-label">For Quantity</label><DigitInput value={String(formData.for_quantity)} onChange={(val) => handleNumberChange('for_quantity', val)} placeholder="0" maxLength={10} /></div>
-                  <div><label className="jcf-label">Hour Rate</label><DigitInput value={String(formData.hour_rate)} onChange={(val) => handleNumberChange('hour_rate', val)} placeholder="0.00" maxLength={15} allowDecimal={true} /></div>
-                </div>
-                <div className="jcf-section-title"><FaClock size={12} /> Actual Schedule</div>
+                
+                <div className="jcf-section-title"><FaClock size={12} /> Time Schedule</div>
                 <div className="jcf-grid-2 jcf-mb-20">
-                  <div><label className="jcf-label">Actual Start Date</label><DatePicker selected={formData.actual_start_date} onChange={(date: Date | null) => handleDateChange("actual_start_date", date)} showTimeSelect dateFormat="dd-MM-yyyy HH:mm" placeholderText="Not started" className="jcf-date-input" /></div>
-                  <div><label className="jcf-label">Actual End Date</label><DatePicker selected={formData.actual_end_date} onChange={(date: Date | null) => handleDateChange("actual_end_date", date)} showTimeSelect dateFormat="dd-MM-yyyy HH:mm" placeholderText="Not completed" className="jcf-date-input" /></div>
+                  <div><label className="jcf-label"> Start Date</label><DatePicker selected={formData.actual_start_date} onChange={(date: Date | null) => handleDateChange("actual_start_date", date)} showTimeSelect dateFormat="dd-MM-yyyy HH:mm" placeholderText="Not started" className="jcf-date-input" /></div>
+                  <div><label className="jcf-label"> End Date</label><DatePicker selected={formData.actual_end_date} onChange={(date: Date | null) => handleDateChange("actual_end_date", date)} showTimeSelect dateFormat="dd-MM-yyyy HH:mm" placeholderText="Not completed" className="jcf-date-input" /></div>
                 </div>
-                <div className="jcf-section-title"><FaBuilding size={12} /> Warehouses</div>
-                <div className="jcf-grid-3">
-                  <div><label className="jcf-label">Source Warehouse</label><input type="text" name="source_warehouse" value={formData.source_warehouse} onChange={handleInputChange} placeholder="Source warehouse" className="jcf-input" disabled={isEditMode} /></div>
-                  <div><label className="jcf-label">WIP Warehouse</label><input type="text" name="wip_warehouse" value={formData.wip_warehouse} onChange={handleInputChange} placeholder="WIP warehouse" className="jcf-input" disabled={isEditMode} /></div>
-                  <div><label className="jcf-label">Target Warehouse</label><input type="text" name="target_warehouse" value={formData.target_warehouse} onChange={handleInputChange} placeholder="Target warehouse" className="jcf-input" disabled={isEditMode} /></div>
-                </div>
-                <div className="jcf-field-block jcf-mt-20"><label className="jcf-label">Status</label>
-                  <select name="status" value={formData.status} onChange={handleInputChange} className="jcf-input" disabled={formData.status === "Completed"}>
-                    <option value="Open">Open</option>
-                    <option value="Work In Progress">Work In Progress</option>
-                    <option value="On Hold">On Hold</option>
-                    <option value="Completed">Completed</option>
-                    <option value="Cancelled">Cancelled</option>
-                  </select>
-                </div>
+             
+               
                 <div className="jcf-field-block jcf-mt-20">
                   <label className="jcf-label">Remarks</label>
-                  <textarea 
-                    name="remarks" 
-                    value={formData.remarks} 
-                    onChange={handleInputChange} 
-                    rows={6} 
-                    placeholder="Any additional notes for this job card..." 
-                    className="jcf-input jcf-textarea" 
+                  <textarea
+                    name="remarks"
+                    value={formData.remarks}
+                    onChange={handleInputChange}
+                    rows={2}
+                    placeholder="Any additional notes for this job card..."
+                    className="jcf-input jcf-textarea"
                   />
                 </div>
               </div>
+
+              {/* Conditionally render raw materials only for internal jobs */}
+              {selectedJobType !== 'subcontracting' && renderRawMaterialsSection()}
 
               {renderSubcontractingSection()}
 
@@ -2156,6 +2456,26 @@ const JobCardForm: React.FC = () => {
               <div className="jcf-sidebar-card">
                 <div className="jcf-sidebar-timer"><span className="jcf-timer-label"><FaClock size={11} /> ELAPSED TIME</span><span className="jcf-timer-value">{formatElapsed(elapsedSeconds)}</span></div>
                 <div className="jcf-sidebar-status"><span className="jcf-status-label">Status</span><span className={`jcf-status-badge jcf-status-${formData.status.replace(/\s/g, '-').toLowerCase()}`}>{formData.status}</span></div>
+
+                {/* Subcontract Details — reason (set when the job card was
+                    converted via the Start Subcontract modal) + selected
+                    vendor. Read-only summary, right side, subcontracting only. */}
+                {selectedJobType === 'subcontracting' && (
+                  <div className="jcf-sidebar-section">
+                    <div className="jcf-sidebar-section-title"><FaExclamationCircle size={12} /> Subcontract Details</div>
+                    <div className="jcf-progress-stats">
+                      <div className="jcf-progress-row">
+                        <span>Reason:</span>
+                        <span className="jcf-progress-value">{getSubcontractReasonLabel(formData.subcontract_reason)}</span>
+                      </div>
+                      <div className="jcf-progress-row">
+                        <span>Vendor:</span>
+                        <span className="jcf-progress-value">{formData.subcontractor_name || "Not selected"}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="jcf-sidebar-section">
                   <div className="jcf-sidebar-section-title"><FaUserCheck size={12} /> Assigned Employees{formData.assigned_employees.length > 0 && <span className="jcf-assigned-count">{formData.assigned_employees.length}</span>}</div>
                   {formData.assigned_employees.length > 0 ? (
@@ -2184,9 +2504,11 @@ const JobCardForm: React.FC = () => {
                   </div>
                 </div>
                 <div className="jcf-sidebar-actions">
-                  <button type="button" className="jcf-btn-secondary jcf-btn-block" onClick={openEmployeeModal} disabled={jobCompleted}>
-                    <FaUserPlus size={12} /> {hasAssignedEmployees ? "Manage Employees" : "Assign Employee"}
-                  </button>
+                  {selectedJobType !== 'subcontracting' && (
+                    <button type="button" className="jcf-btn-secondary jcf-btn-block" onClick={openEmployeeModal} disabled={jobCompleted}>
+                      <FaUserPlus size={12} /> {hasAssignedEmployees ? "Manage Employees" : "Assign Employee"}
+                    </button>
+                  )}
                   {!jobStarted && !jobCompleted && (
                     <button type="button" className="jcf-btn-start jcf-btn-block" onClick={handleStartJob} disabled={!hasAssignedEmployees || isStartingJob}>
                       {isStartingJob ? <FaSpinner className="jcf-spinning" /> : <FaPlay size={11} />}
@@ -2220,7 +2542,13 @@ const JobCardForm: React.FC = () => {
                       <FaCheck size={11} /> Completed
                     </div>
                   )}
-                  {isEditMode && (
+                  {isEditMode && selectedJobType === 'subcontracting' && (
+                    <button type="button" className="jcf-btn-primary jcf-btn-block" onClick={handleSubmitSubcontracting} disabled={saving}>
+                      {saving ? <FaSpinner className="jcf-spinning" /> : <FaSave size={11} />}
+                      Submit Subcontracting
+                    </button>
+                  )}
+                  {isEditMode && selectedJobType !== 'subcontracting' && (
                     <button type="button" className="jcf-btn-primary jcf-btn-block" onClick={handleUpdate} disabled={saving}>
                       {saving ? <FaSpinner className="jcf-spinning" /> : <FaSave size={11} />}
                       Update Job Card

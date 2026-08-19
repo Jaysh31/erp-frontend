@@ -215,8 +215,8 @@ export default function Sidebar({
       items: [
         { title: 'Item', icon: <ItemIcon />, path: '/item-list' },
         { title: 'Item Group', icon: <FolderIcon />, path: '/item-group' },
-        { title: 'Item Attribute', icon: <TagIcon />, path: '/item-attribute' },
-        { title: 'Brand', icon: <BrandIcon />, path: '/brand' },
+        // { title: 'Item Attribute', icon: <TagIcon />, path: '/item-attribute' },
+        // { title: 'Brand', icon: <BrandIcon />, path: '/brand' },
         { title: 'Warehouse', icon: <WarehouseIcon />, path: '/warehouse' },
         { title: 'Workstation', icon: <WarehouseIcon />, path: '/Workstation' },
         { title: 'Operations', icon: <WarehouseIcon />, path: '/operations' },

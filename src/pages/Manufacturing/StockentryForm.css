@@ -1,4 +1,4 @@
-/* StockEntryForm.css - Complete file */
+/* StockEntryForm.css - Complete file with fixed dropdown styles */
 
 /* ─── Container ───────────────────────────────────────────────────────── */
 .sef-page {
@@ -409,6 +409,7 @@
   border: 1px solid var(--border-color);
   border-radius: 10px;
   margin-bottom: 8px;
+  position: relative;
 }
 
 .sef-editable-table {
@@ -714,144 +715,174 @@
   cursor: not-allowed;
 }
 
-/* ─── Warehouse Search Field ──────────────────────────────────────────── */
-.warehouse-search-field {
-  margin-bottom: 0;
-}
+/* ─── DROPDOWN STYLES - FIXED ────────────────────────────────────────── */
 
-.warehouse-search-wrapper {
+/* Dropdown Wrapper - must have position relative */
+.dropdown-wrapper {
   position: relative;
+  width: 100%;
+  z-index: 50;
 }
 
-.warehouse-search-input-wrap {
+/* Item Dropdown Wrapper - must have position relative */
+.item-dropdown-wrapper {
+  position: relative;
+  width: 100%;
+  z-index: 50;
+}
+
+/* Dropdown Input Wrapper - for the input + arrow + clear button */
+.dropdown-input-wrapper {
   position: relative;
   display: flex;
   align-items: center;
+  width: 100%;
 }
 
-.warehouse-search-icon {
-  position: absolute;
-  left: 12px;
-  color: var(--text-secondary);
-  font-size: 14px;
-  pointer-events: none;
+.dropdown-input-wrapper .form-field {
+  padding-right: 30px;
 }
 
-.warehouse-search-input {
-  padding-left: 36px !important;
-  padding-right: 36px !important;
-}
-
-.warehouse-clear-btn {
+/* Dropdown arrow icon */
+.dropdown-arrow {
   position: absolute;
   right: 10px;
+  color: var(--text-secondary, #6b7280);
+  font-size: 12px;
+  cursor: pointer;
+  pointer-events: auto;
+  z-index: 2;
+}
+
+/* Clear button for dropdown */
+.dropdown-clear {
+  position: absolute;
+  right: 28px;
   background: none;
   border: none;
-  font-size: 18px;
-  color: var(--text-secondary);
+  color: var(--text-secondary, #6b7280);
+  font-size: 16px;
   cursor: pointer;
   padding: 0 4px;
-  border-radius: 4px;
-  transition: background 0.15s, color 0.15s;
   line-height: 1;
+  z-index: 2;
 }
 
-.warehouse-clear-btn:hover {
-  color: var(--text-primary);
-  background: var(--layout-bg);
+.dropdown-clear:hover {
+  color: var(--text-primary, #111827);
 }
 
-.warehouse-loading-spinner {
-  position: absolute;
-  right: 12px;
-  color: var(--primary-color);
-  font-size: 14px;
-}
-
-/* ─── Warehouse Dropdown ───────────────────────────────────────────────── */
-.warehouse-dropdown {
+/* ─── DROPDOWN MENU - KEY FIXES ──────────────────────────────────────── */
+.dropdown-menu {
   position: absolute;
   top: calc(100% + 4px);
   left: 0;
   right: 0;
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--border-color, #e5e7eb);
   border-radius: 10px;
-  box-shadow: 0 8px 24px var(--shadow-color);
-  max-height: 220px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+  max-height: 280px;
   overflow-y: auto;
-  z-index: 100;
-  animation: fadeIn 0.15s ease-out;
+  z-index: 9999 !important;
+  padding: 4px 0;
+  min-width: 100%;
+  width: 100%;
 }
 
-.warehouse-dropdown::-webkit-scrollbar {
+/* Scrollbar styling for dropdown */
+.dropdown-menu::-webkit-scrollbar {
   width: 6px;
 }
 
-.warehouse-dropdown::-webkit-scrollbar-track {
-  background: var(--layout-bg);
+.dropdown-menu::-webkit-scrollbar-track {
+  background: var(--layout-bg, #f3f4f6);
   border-radius: 0 10px 10px 0;
 }
 
-.warehouse-dropdown::-webkit-scrollbar-thumb {
-  background: var(--border-color);
+.dropdown-menu::-webkit-scrollbar-thumb {
+  background: var(--border-color, #d1d5db);
   border-radius: 4px;
 }
 
-.warehouse-dropdown::-webkit-scrollbar-thumb:hover {
-  background: var(--text-secondary);
+.dropdown-menu::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary, #6b7280);
 }
 
-.warehouse-dropdown-list {
-  list-style: none;
-  margin: 0;
-  padding: 4px 0;
-}
-
-.warehouse-dropdown-item {
-  padding: 8px 14px;
-  cursor: pointer;
-  transition: background 0.12s;
+/* Dropdown item */
+.dropdown-menu .dropdown-item {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-  border-bottom: 1px solid var(--border-color);
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+  border-bottom: 1px solid var(--border-color-light, #f3f4f6);
+  gap: 8px;
 }
 
-.warehouse-dropdown-item:last-child {
+.dropdown-menu .dropdown-item:last-child {
   border-bottom: none;
 }
 
-.warehouse-dropdown-item:hover {
+.dropdown-menu .dropdown-item:hover {
   background: color-mix(in srgb, var(--primary-color) 8%, var(--card-bg));
 }
 
-.warehouse-dropdown-item.selected {
+.dropdown-menu .dropdown-item.selected {
   background: color-mix(in srgb, var(--primary-color) 12%, var(--card-bg));
+  border-left: 3px solid var(--primary-color, #4f46e5);
 }
 
-.warehouse-dropdown-item .warehouse-item-name {
+/* Dropdown item content */
+.dropdown-item-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.dropdown-item-main {
+  display: block;
   font-size: 13px;
   font-weight: 500;
-  color: var(--text-primary);
+  color: var(--text-primary, #111827);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.warehouse-dropdown-item .warehouse-item-company {
+.dropdown-item-sub {
+  display: block;
   font-size: 11px;
-  color: var(--text-secondary);
+  color: var(--text-secondary, #6b7280);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.warehouse-dropdown-loading,
-.warehouse-dropdown-empty,
-.warehouse-dropdown-error {
-  padding: 16px 14px;
+/* View button inside dropdown */
+.dropdown-view-btn {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--text-secondary, #6b7280);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+
+.dropdown-view-btn:hover {
+  background: var(--bg-hover, #f3f4f6);
+  color: var(--primary-color, #4f46e5);
+}
+
+/* Dropdown states */
+.dropdown-loading,
+.dropdown-empty {
+  padding: 16px;
   text-align: center;
+  color: var(--text-secondary, #6b7280);
   font-size: 13px;
-  color: var(--text-secondary);
-}
-
-.warehouse-dropdown-error {
-  color: var(--danger-color);
 }
 
 /* ─── Validation Summary Modal ──────────────────────────────────────── */
@@ -866,7 +897,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 10000;
   padding: 20px;
 }
 
@@ -1082,8 +1113,8 @@
     justify-content: center;
   }
 
-  .warehouse-dropdown {
-    max-height: 180px;
+  .dropdown-menu {
+    max-height: 200px;
   }
 }
 
@@ -1126,4 +1157,114 @@
     margin: 10px;
     border-radius: 12px;
   }
+}
+
+/* ─── Dark Theme ──────────────────────────────────────────────────────── */
+.dark-theme .sef-page {
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --card-bg: #1e293b;
+  --bg-hover: #2d3748;
+  --border-color: #334155;
+  --border-color-light: #2d3748;
+  --input-bg: #1e293b;
+  --layout-bg: #0f172a;
+}
+
+.dark-theme .dropdown-menu {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+.dark-theme .dropdown-menu .dropdown-item:hover {
+  background: #2d3748;
+}
+
+.dark-theme .dropdown-menu .dropdown-item.selected {
+  background: rgba(59, 130, 246, 0.15);
+}
+
+.dark-theme .dropdown-item-main {
+  color: #f8fafc;
+}
+
+.dark-theme .dropdown-item-sub {
+  color: #94a3b8;
+}
+
+.dark-theme .sef-total-card {
+  background: #2d3748;
+}
+
+.dark-theme .validation-summary-modal {
+  background: #1e293b;
+}
+
+.dark-theme .modal-header {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+.dark-theme .validation-error-item {
+  background: #2d3748;
+}
+
+.dark-theme .sef-connection-btn-secondary {
+  background: #1e293b;
+  border-color: #334155;
+  color: #f8fafc;
+}
+
+.dark-theme .sef-connection-btn-secondary:hover {
+  background: #2d3748;
+}
+
+.dark-theme .sef-editable-table thead {
+  background: #2d3748;
+}
+
+.dark-theme .sef-required {
+  color: #f87171;
+}
+
+.dark-theme .back-btn {
+  background: #1e293b;
+  border-color: #334155;
+  color: #94a3b8;
+}
+
+.dark-theme .back-btn:hover {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: #ffffff;
+}
+
+.dark-theme .cancel-btn {
+  background: #1e293b;
+  border-color: #334155;
+  color: #94a3b8;
+}
+
+.dark-theme .cancel-btn:hover {
+  background: #2d3748;
+}
+
+.dark-theme .sef-status-draft {
+  background: #451a03;
+  color: #fcd34d;
+}
+
+.dark-theme .sef-status-submitted {
+  background: #1e3a5f;
+  color: #93c5fd;
+}
+
+.dark-theme .sef-status-completed {
+  background: #064e3b;
+  color: #6ee7b7;
+}
+
+.dark-theme .sef-status-rejected {
+  background: #7f1d1d;
+  color: #fca5a5;
 }

@@ -1165,7 +1165,7 @@ export default function PurchaseOrderForm() {
     }
     // ✅ FIXED: Delivery Date validation - ONLY check for field error, don't show in popup
     // We check it but don't add to errors array - only visual red border will show
-    // const hasDeliveryDateError = !formData.deliveryDate;
+
     // Don't push to errors array - only use for visual validation
     
     if (formData.items.some(item => !item.itemCode.trim() || !item.itemName.trim() || item.quantity <= 0 || (item.orderRate || item.rate) <= 0)) {

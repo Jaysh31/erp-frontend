@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   FaArrowLeft,
@@ -47,46 +47,24 @@ interface ValidationError {
   message: string;
 }
 
-const EXISTING_DATA: Record<string, {
-  parentItemGroup: string;
-  isGroup: boolean;
-  hsnSac: string;
-  defaults: DefaultRow[];
-  taxes: TaxRow[];
-  comments: Comment[];
-  activity: { text: string; time: string }[];
-}> = {
-  "Consumable": {
-    parentItemGroup: "All Item Groups",
-    isGroup: false,
-    hsnSac: "",
-    defaults: [],
-    taxes: [],
-    comments: [
-      { id: "1", author: "Administrator", initials: "AD", text: "Created this item group", time: "4 hours ago" },
-    ],
-    activity: [
-      { text: "Administrator created this", time: "4 hours ago" },
-      { text: "Administrator last edited this", time: "4 hours ago" },
-    ],
-  },
-};
-
 export default function ItemGroupForm() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { theme } = useAdminTheme();
   const isNew = id === "new";
-  const existing = id ? EXISTING_DATA[decodeURIComponent(id)] : undefined;
-  const isEditMode = !isNew && existing;
 
   // ─── Form State ────────────────────────────────────────────────────────
-  const [itemGroupName, setItemGroupName] = useState(isNew ? "" : (id !== "new" ? decodeURIComponent(id ?? "") : ""));
-  const [parentItemGroup, setParentItemGroup] = useState(existing?.parentItemGroup ?? "");
-  const [isGroup, setIsGroup] = useState(existing?.isGroup ?? false);
-  const [hsnSac, setHsnSac] = useState(existing?.hsnSac ?? "");
-  const [defaults, setDefaults] = useState<DefaultRow[]>(existing?.defaults ?? []);
-  const [taxes, setTaxes] = useState<TaxRow[]>(existing?.taxes ?? []);
+  const [itemGroupName, setItemGroupName] = useState(
+    isNew ? "" : (id !== "new" ? decodeURIComponent(id ?? "") : "")
+  );
+  const [parentItemGroup, setParentItemGroup] = useState("");
+  const [isGroup, setIsGroup] = useState(false);
+  const [hsnSac, setHsnSac] = useState("");
+  const [defaults, setDefaults] = useState<DefaultRow[]>([]);
+  const [taxes, setTaxes] = useState<TaxRow[]>([]);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [activity, setActivity] = useState<{ text: string; time: string }[]>([]);
+
   const [commentText, setCommentText] = useState("");
   const [, setIsDirty] = useState(isNew);
   const [submitting, setSubmitting] = useState(false);
@@ -96,8 +74,88 @@ export default function ItemGroupForm() {
   const [showValidationSummary, setShowValidationSummary] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
 
-  const comments = existing?.comments ?? [];
-  const activity = existing?.activity ?? [];
+  // ─── Fetch existing record (view/edit mode) ──────────────────────────
+  const [loading, setLoading] = useState(!isNew);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isNew || !id) return;
+
+    let cancelled = false;
+
+    const fetchItemGroup = async () => {
+      setLoading(true);
+      setLoadError(null);
+      try {
+        const response = await api.get(`/item-group/${encodeURIComponent(id)}`);
+        // support either { data: {...} } or a flat object response
+        const data = response.data?.data ?? response.data;
+
+        if (cancelled || !data) return;
+
+        setItemGroupName(data.item_group_name ?? decodeURIComponent(id));
+        setParentItemGroup(data.parent_item_group ?? "");
+        setIsGroup(!!data.is_group);
+        setHsnSac(data.gst_hsn_code ?? data.hsn_sac ?? "");
+
+        setDefaults(
+          (data.item_group_defaults ?? []).map((row: any, idx: number) => ({
+            id: row.name ?? `${idx}-${Date.now()}`,
+            company: row.company ?? "",
+            defaultWarehouse: row.default_warehouse ?? "",
+            defaultPriceList: row.default_price_list ?? "",
+          }))
+        );
+
+        setTaxes(
+          (data.taxes ?? []).map((row: any, idx: number) => ({
+            id: row.name ?? `${idx}-${Date.now()}`,
+            itemTaxTemplate: row.item_tax_template ?? "",
+            taxCategory: row.tax_category ?? "",
+            validFrom: row.valid_from ?? "",
+            minNetRate: row.minimum_net_rate != null ? String(row.minimum_net_rate) : "",
+            maxNetRate: row.maximum_net_rate != null ? String(row.maximum_net_rate) : "",
+          }))
+        );
+
+        setComments(
+          (data.comments ?? []).map((c: any, idx: number) => {
+            const authorName = c.comment_by ?? c.owner ?? "Administrator";
+            return {
+              id: c.name ?? String(idx),
+              author: authorName,
+              initials: authorName.slice(0, 2).toUpperCase(),
+              text: c.content ?? c.comment ?? "",
+              time: c.creation ?? "",
+            };
+          })
+        );
+
+        setActivity(
+          (data.activity ?? []).map((a: any) => ({
+            text: a.text ?? a.action ?? "",
+            time: a.time ?? a.creation ?? "",
+          }))
+        );
+      } catch (err: any) {
+        if (cancelled) return;
+        console.error('Error fetching item group:', err);
+        setLoadError(
+          err?.response?.data?.message || 'Failed to load item group details'
+        );
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    fetchItemGroup();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id, isNew]);
+
+  const isEditMode = !isNew;
 
   // ─── Validation ──────────────────────────────────────────────────────
   const getAllValidationErrors = (): ValidationError[] => {
@@ -157,7 +215,6 @@ export default function ItemGroupForm() {
       const warehouseField = `defaults[${index}].defaultWarehouse`;
       const priceListField = `defaults[${index}].defaultPriceList`;
       
-      // Company - Only alphabets and spaces, required, max 140 chars
       if (!row.company.trim()) {
         allErrors.push({
           field: companyField,
@@ -180,7 +237,6 @@ export default function ItemGroupForm() {
         });
       }
 
-      // Default Warehouse - Only alphabets and spaces, max 140 chars
       if (row.defaultWarehouse && row.defaultWarehouse.trim() && !/^[A-Za-z\s]+$/.test(row.defaultWarehouse.trim())) {
         allErrors.push({
           field: warehouseField,
@@ -196,7 +252,6 @@ export default function ItemGroupForm() {
         });
       }
 
-      // Default Price List - Only digits, max 30 chars
       if (row.defaultPriceList && row.defaultPriceList.trim() && !/^\d+$/.test(row.defaultPriceList.trim())) {
         allErrors.push({
           field: priceListField,
@@ -221,7 +276,6 @@ export default function ItemGroupForm() {
       const minRateField = `taxes[${index}].minNetRate`;
       const maxRateField = `taxes[${index}].maxNetRate`;
       
-      // Item Tax Template - Required, only alphabets and spaces, max 140 chars
       if (!row.itemTaxTemplate.trim()) {
         allErrors.push({
           field: templateField,
@@ -244,7 +298,6 @@ export default function ItemGroupForm() {
         });
       }
 
-      // Tax Category - Only alphabets and spaces, max 140 chars
       if (row.taxCategory && row.taxCategory.trim() && !/^[A-Za-z\s]+$/.test(row.taxCategory.trim())) {
         allErrors.push({
           field: categoryField,
@@ -260,7 +313,6 @@ export default function ItemGroupForm() {
         });
       }
 
-      // Valid From - Optional, only alphabets and spaces, max 140 chars
       if (row.validFrom && row.validFrom.trim() && !/^[A-Za-z\s]+$/.test(row.validFrom.trim())) {
         allErrors.push({
           field: validFromField,
@@ -276,7 +328,6 @@ export default function ItemGroupForm() {
         });
       }
 
-      // Min Net Rate - Optional, only digits and decimal points
       if (row.minNetRate && row.minNetRate.trim() && !/^\d*\.?\d+$/.test(row.minNetRate.trim())) {
         allErrors.push({
           field: minRateField,
@@ -292,7 +343,6 @@ export default function ItemGroupForm() {
         });
       }
 
-      // Max Net Rate - Optional, only digits and decimal points
       if (row.maxNetRate && row.maxNetRate.trim() && !/^\d*\.?\d+$/.test(row.maxNetRate.trim())) {
         allErrors.push({
           field: maxRateField,
@@ -318,7 +368,6 @@ export default function ItemGroupForm() {
     return errors[field];
   };
 
-  // Check if a field has any error (for red border) - ONLY ON THE INPUT FIELD
   const hasFieldError = (field: string): boolean => {
     if (!formSubmitted) return false;
     return !!errors[field];
@@ -345,11 +394,9 @@ export default function ItemGroupForm() {
     setIsDirty(true);
   };
 
-  // Jump to error field
   const jumpToError = (fieldName: string) => {
     setShowValidationSummary(false);
     
-    // Handle nested fields like defaults[0].company
     let selector = `[data-field="${fieldName}"]`;
     let element = document.querySelector(selector);
     
@@ -357,7 +404,6 @@ export default function ItemGroupForm() {
       element.scrollIntoView({ behavior: 'smooth', block: 'center' });
       const input = element as HTMLInputElement;
       input.focus();
-      // Add a temporary highlight
       input.style.boxShadow = '0 0 0 2px #dc3545';
       setTimeout(() => {
         input.style.boxShadow = '';
@@ -372,7 +418,6 @@ export default function ItemGroupForm() {
 
     const validationErrorsList = getAllValidationErrors();
     if (validationErrorsList.length > 0) {
-      // Set errors
       const fieldErrors: { [key: string]: string } = {};
       validationErrorsList.forEach(error => {
         fieldErrors[error.field] = error.message;
@@ -381,7 +426,6 @@ export default function ItemGroupForm() {
       setValidationErrors(validationErrorsList);
       setShowValidationSummary(true);
       
-      // Scroll to first error field
       const firstError = validationErrorsList[0];
       setTimeout(() => {
         jumpToError(firstError.field);
@@ -393,7 +437,6 @@ export default function ItemGroupForm() {
     setSubmitting(true);
     try {
       if (isNew) {
-        // Create new item group
         const payload = {
           item_group_name: itemGroupName.trim(),
           parent_item_group: parentItemGroup || "All Item Groups",
@@ -411,16 +454,21 @@ export default function ItemGroupForm() {
           setApiError(response.data?.message || 'Failed to create item group');
         }
       } else {
-        // Update existing item group
         const payload = {
           parent_item_group: parentItemGroup || "All Item Groups",
           is_group: isGroup ? 1 : 0,
           modified_by: "Administrator",
         };
         
-        console.log('Update mode - payload:', payload);
-        setIsDirty(false);
-        navigate('/item-group');
+        const response = await api.put(`/item-group/${encodeURIComponent(id ?? "")}`, payload);
+
+        if (response.data && (response.data.success === 1 || response.data.success === undefined)) {
+          console.log('Update mode - payload:', payload);
+          setIsDirty(false);
+          navigate('/item-group');
+        } else {
+          setApiError(response.data?.message || 'Failed to update item group');
+        }
       }
     } catch (err: any) {
       console.error('Error saving item group:', err);
@@ -445,6 +493,51 @@ export default function ItemGroupForm() {
 
   const hasErrors = formSubmitted && getAllValidationErrors().length > 0;
   const allValidationErrors = getAllValidationErrors();
+
+  // ─── Loading / Load-error states (view/edit mode) ────────────────────
+  if (!isNew && loading) {
+    return (
+      <div className={`igf-page ${theme}`}>
+        <div className="igf-inner">
+          <div className="igf-header">
+            <button onClick={() => navigate('/item-group')} className="back-btn">
+              <FaArrowLeft size={9} /> Back
+            </button>
+          </div>
+          <div style={{ padding: '40px', textAlign: 'center' }}>
+            <FaSpinner className="spinning" /> Loading item group…
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isNew && loadError) {
+    return (
+      <div className={`igf-page ${theme}`}>
+        <div className="igf-inner">
+          <div className="igf-header">
+            <button onClick={() => navigate('/item-group')} className="back-btn">
+              <FaArrowLeft size={9} /> Back
+            </button>
+          </div>
+          <div className="igf-api-error" style={{ 
+            background: '#fee', 
+            border: '1px solid #fcc', 
+            borderRadius: '4px', 
+            padding: '12px 16px',
+            marginTop: '16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px'
+          }}>
+            <FaExclamationCircle style={{ color: '#dc3545' }} />
+            <span style={{ color: '#dc3545' }}>{loadError}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`igf-page ${theme}`}>

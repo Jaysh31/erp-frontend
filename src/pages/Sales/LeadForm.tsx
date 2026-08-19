@@ -3,7 +3,7 @@ import type { ChangeEvent, FormEvent, KeyboardEvent } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import {
   FaArrowLeft, FaSave, FaSpinner, FaInfoCircle, FaExclamationTriangle,
-  FaTimesCircle, FaUser, FaBuilding, FaAddressBook, FaPlus, FaUndo,
+  FaTimesCircle, FaUser, FaBuilding, FaAddressBook, 
 } from "react-icons/fa";
 import "./LeadForm.css";
 import api from "../../services/api";
@@ -49,7 +49,6 @@ interface TabWarning {
   [key: number]: boolean;
 }
 
-const ADD_NEW_CUSTOMER_VALUE = "__add_new_customer__";
 
 const defaultFormData = (): LeadFormData => ({
   name: "",
@@ -203,11 +202,7 @@ function extractCustomerRecords(payload: any): any[] {
 }
 
 const customerIdOf = (c: any) => c?.name ?? c?.id ?? c?.customer_code ?? "";
-// const customerLabelOf = (c: any) => {
-//   const id = customerIdOf(c);
-//   const label = c?.customer_name || c?.party_name || id;
-//   return label && label !== id ? `${label} (${id})` : `${id}`;
-// };
+
 
 const LeadForm: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -233,10 +228,10 @@ const LeadForm: React.FC = () => {
 
   // ─── customer lookup state ──────────────────────────────────────────
   const [customers, setCustomers] = useState<any[]>([]);
-  const [loadingCustomers, setLoadingCustomers] = useState(false);
-  const [customersError, setCustomersError] = useState<string | null>(null);
-  const [isAddingNewCustomer, setIsAddingNewCustomer] = useState(false);
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
+  const [, setLoadingCustomers] = useState(false);
+  const [, setCustomersError] = useState<string | null>(null);
+  const [, setIsAddingNewCustomer] = useState(false);
+  const [, setSelectedCustomerId] = useState<string>("");
 
   const tabs = [
     { id: 0, name: "Lead Details & Contact", icon: <FaUser size={14} /> },
@@ -286,12 +281,7 @@ const LeadForm: React.FC = () => {
   }, [customers, formData.organizationName]);
 
   // ─── Updated: Simplified Organization Name handler ──────────────────
-  // const handleOrganizationChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-  //   const { name, value } = e.target;
-  //   setFormData((prev) => ({ ...prev, [name]: value }));
-  //   if (errors.organizationName) setErrors((prev) => ({ ...prev, organizationName: "" }));
-  //   checkTabWarnings(activeTab);
-  // };
+
 
   // ─── load existing lead when editing ──────────────────────────────────
 

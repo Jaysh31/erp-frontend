@@ -1,4 +1,4 @@
-// StockEntryForm2.tsx - Fixed with proper portal-based dropdown, WO integration, and edit functionality
+// StockEntryForm2.tsx - Fixed with proper portal-based dropdown positioning
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -417,21 +417,24 @@ function WorkOrderSearchField({
     
     const rect = inputRef.current.getBoundingClientRect();
     const viewportHeight = window.innerHeight;
-    const dropdownHeight = Math.min(280, workOrders.length * 50 + 20);
+    const dropdownHeight = Math.min(280, Math.max(workOrders.length * 45 + 20, 50));
     
-    const spaceBelow = viewportHeight - rect.bottom;
+    const spaceBelow = viewportHeight - rect.bottom - 10;
+    const spaceAbove = rect.top - 10;
     
     let top: number;
     if (spaceBelow >= dropdownHeight || spaceBelow >= 200) {
       top = rect.bottom + 4;
-    } else {
+    } else if (spaceAbove >= dropdownHeight) {
       top = rect.top - dropdownHeight - 4;
+    } else {
+      top = Math.max(10, Math.min(rect.bottom + 4, viewportHeight - dropdownHeight - 10));
     }
     
     return {
       top,
-      left: rect.left,
-      width: rect.width,
+      left: Math.max(10, rect.left),
+      width: Math.min(rect.width, window.innerWidth - 20),
     };
   }, [workOrders.length]);
 
@@ -506,7 +509,7 @@ function WorkOrderSearchField({
 
     if (val.trim()) {
       setIsOpen(true);
-      setTimeout(updateDropdownPosition, 0);
+      setTimeout(updateDropdownPosition, 50);
     } else {
       setIsOpen(false);
       setWorkOrders([]);
@@ -536,11 +539,11 @@ function WorkOrderSearchField({
       if (searchTerm.trim()) {
         setIsOpen(true);
         searchWorkOrders(searchTerm);
-        setTimeout(updateDropdownPosition, 0);
+        setTimeout(updateDropdownPosition, 50);
       } else {
         setIsOpen(true);
         setWorkOrders([]);
-        setTimeout(updateDropdownPosition, 0);
+        setTimeout(updateDropdownPosition, 50);
       }
     }
   };
@@ -608,6 +611,10 @@ function WorkOrderSearchField({
           maxHeight: 280,
           overflowY: 'auto',
           zIndex: 99999,
+          background: 'var(--card-bg, #ffffff)',
+          borderRadius: '10px',
+          boxShadow: '0 8px 30px rgba(0,0,0,0.15)',
+          border: '1px solid var(--border-color, #e5e7eb)',
         }}
         onMouseDown={(e) => e.preventDefault()}
       >
@@ -633,7 +640,7 @@ function WorkOrderSearchField({
             )}
           </div>
         ) : (
-          <ul className="item-dropdown-list">
+          <ul className="item-dropdown-list" style={{ listStyle: 'none', margin: 0, padding: '4px 0' }}>
             {workOrders.map((wo, index) => (
               <li
                 key={wo.id}
@@ -642,16 +649,22 @@ function WorkOrderSearchField({
                 } ${highlightedIndex === index ? "highlighted" : ""}`}
                 onClick={() => handleSelectWO(wo)}
                 onMouseEnter={() => setHighlightedIndex(index)}
+                style={{
+                  padding: '8px 12px',
+                  cursor: 'pointer',
+                  borderBottom: '1px solid var(--border-color, #f3f4f6)',
+                  transition: 'background 0.12s',
+                }}
               >
                 <div className="item-main-info">
-                  <span className="item-code">{wo.name}</span>
-                  <span className="item-name">{wo.production_item}</span>
-                  <span className="item-uom-badge">Qty: {wo.qty}</span>
+                  <span className="item-code" style={{ fontWeight: 600, fontSize: '13px' }}>{wo.name}</span>
+                  <span className="item-name" style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{wo.production_item}</span>
+                  <span className="item-uom-badge" style={{ fontSize: '10px', background: 'var(--layout-bg)', padding: '1px 8px', borderRadius: '12px' }}>Qty: {wo.qty}</span>
                 </div>
-                <div className="item-sub-info">
-                  <span className="item-tag">{wo.status}</span>
-                  <span className="item-tag">{wo.company}</span>
-                  <span className="item-tag">BOM: {wo.bom_no}</span>
+                <div className="item-sub-info" style={{ display: 'flex', gap: '6px', marginTop: '3px' }}>
+                  <span className="item-tag" style={{ fontSize: '10px', color: 'var(--text-secondary)', background: 'var(--layout-bg)', padding: '1px 8px', borderRadius: '10px' }}>{wo.status}</span>
+                  <span className="item-tag" style={{ fontSize: '10px', color: 'var(--text-secondary)', background: 'var(--layout-bg)', padding: '1px 8px', borderRadius: '10px' }}>{wo.company}</span>
+                  <span className="item-tag" style={{ fontSize: '10px', color: 'var(--text-secondary)', background: 'var(--layout-bg)', padding: '1px 8px', borderRadius: '10px' }}>BOM: {wo.bom_no}</span>
                 </div>
               </li>
             ))}
@@ -776,21 +789,24 @@ function ItemSearchField({
     
     const rect = inputRef.current.getBoundingClientRect();
     const viewportHeight = window.innerHeight;
-    const dropdownHeight = Math.min(280, items.length * 45 + 20);
+    const dropdownHeight = Math.min(280, Math.max(items.length * 45 + 20, 50));
     
-    const spaceBelow = viewportHeight - rect.bottom;
+    const spaceBelow = viewportHeight - rect.bottom - 10;
+    const spaceAbove = rect.top - 10;
     
     let top: number;
     if (spaceBelow >= dropdownHeight || spaceBelow >= 200) {
       top = rect.bottom + 4;
-    } else {
+    } else if (spaceAbove >= dropdownHeight) {
       top = rect.top - dropdownHeight - 4;
+    } else {
+      top = Math.max(10, Math.min(rect.bottom + 4, viewportHeight - dropdownHeight - 10));
     }
     
     return {
       top,
-      left: rect.left,
-      width: rect.width,
+      left: Math.max(10, rect.left),
+      width: Math.min(rect.width, window.innerWidth - 20),
     };
   }, [items.length]);
 
@@ -865,7 +881,7 @@ function ItemSearchField({
 
     if (val.trim()) {
       setIsOpen(true);
-      setTimeout(updateDropdownPosition, 0);
+      setTimeout(updateDropdownPosition, 50);
     } else {
       setIsOpen(false);
       setItems([]);
@@ -895,11 +911,11 @@ function ItemSearchField({
       if (searchTerm.trim()) {
         setIsOpen(true);
         searchItems(searchTerm);
-        setTimeout(updateDropdownPosition, 0);
+        setTimeout(updateDropdownPosition, 50);
       } else {
         setIsOpen(true);
         setItems([]);
-        setTimeout(updateDropdownPosition, 0);
+        setTimeout(updateDropdownPosition, 50);
       }
     }
   };
@@ -967,6 +983,10 @@ function ItemSearchField({
           maxHeight: 280,
           overflowY: 'auto',
           zIndex: 99999,
+          background: 'var(--card-bg, #ffffff)',
+          borderRadius: '10px',
+          boxShadow: '0 8px 30px rgba(0,0,0,0.15)',
+          border: '1px solid var(--border-color, #e5e7eb)',
         }}
         onMouseDown={(e) => e.preventDefault()}
       >
@@ -992,7 +1012,7 @@ function ItemSearchField({
             )}
           </div>
         ) : (
-          <ul className="item-dropdown-list">
+          <ul className="item-dropdown-list" style={{ listStyle: 'none', margin: 0, padding: '4px 0' }}>
             {items.map((item, index) => (
               <li
                 key={item.id}
@@ -1001,19 +1021,25 @@ function ItemSearchField({
                 } ${highlightedIndex === index ? "highlighted" : ""}`}
                 onClick={() => handleSelectItem(item)}
                 onMouseEnter={() => setHighlightedIndex(index)}
+                style={{
+                  padding: '8px 12px',
+                  cursor: 'pointer',
+                  borderBottom: '1px solid var(--border-color, #f3f4f6)',
+                  transition: 'background 0.12s',
+                }}
               >
                 <div className="item-main-info">
-                  <span className="item-code">{item.item_code}</span>
-                  <span className="item-name">{item.item_name}</span>
+                  <span className="item-code" style={{ fontWeight: 600, fontSize: '13px' }}>{item.item_code}</span>
+                  <span className="item-name" style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{item.item_name}</span>
                   {item.stock_uom && (
-                    <span className="item-uom-badge">{item.stock_uom}</span>
+                    <span className="item-uom-badge" style={{ fontSize: '10px', background: 'var(--layout-bg)', padding: '1px 8px', borderRadius: '12px' }}>{item.stock_uom}</span>
                   )}
                 </div>
-                <div className="item-sub-info">
+                <div className="item-sub-info" style={{ display: 'flex', gap: '6px', marginTop: '3px' }}>
                   {item.item_group && (
-                    <span className="item-tag">{item.item_group}</span>
+                    <span className="item-tag" style={{ fontSize: '10px', color: 'var(--text-secondary)', background: 'var(--layout-bg)', padding: '1px 8px', borderRadius: '10px' }}>{item.item_group}</span>
                   )}
-                  {item.brand && <span className="item-tag">{item.brand}</span>}
+                  {item.brand && <span className="item-tag" style={{ fontSize: '10px', color: 'var(--text-secondary)', background: 'var(--layout-bg)', padding: '1px 8px', borderRadius: '10px' }}>{item.brand}</span>}
                 </div>
               </li>
             ))}
@@ -1146,7 +1172,6 @@ export default function StockEntryForm2() {
             
             console.log("📦 Loaded Stock Entry:", d);
             
-            // Determine item details from available fields
             let itemCode = d.production_item || d.item_code || "";
             let itemName = d.item_name || "";
             let qty = d.fg_completed_qty || d.qty || 1;
@@ -1172,7 +1197,6 @@ export default function StockEntryForm2() {
               inspectionRequired: d.inspection_required === 1,
               isOpening: d.is_opening || "No",
               perTransferred: String(d.per_transferred || 100),
-              // Create a single item from the stock entry data
               items: [{
                 id: uid(),
                 targetWarehouse: targetWh,
@@ -1211,9 +1235,7 @@ export default function StockEntryForm2() {
     field: keyof ItemRow,
     value: string
   ) => {
-    // For qty, basicRate, amount fields - allow only numbers and decimal
     if (field === 'qty' || field === 'basicRate' || field === 'amount') {
-      // If empty, set to empty string
       if (value === '') {
         setSe((prev) => ({
           ...prev,
@@ -1224,7 +1246,6 @@ export default function StockEntryForm2() {
         setIsDirty(true);
         return;
       }
-      // Only allow numbers and decimal point
       if (!/^\d*\.?\d*$/.test(value)) {
         return;
       }
@@ -1334,7 +1355,6 @@ export default function StockEntryForm2() {
     field: keyof AdditionalCostRow,
     value: string
   ) => {
-    // For amount field - allow only numbers and decimal
     if (field === 'amount') {
       if (value === '') {
         setSe((prev) => ({
@@ -1703,7 +1723,7 @@ export default function StockEntryForm2() {
               <FaBuilding className="sef-section-icon" /> Work Order Reference
             </div>
             
-            <div className="wof-grid-2" style={{ marginBottom: "16px" }}>
+            <div className="wof-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
               <div className="sef-field">
                 <label className="sef-label">Work Order</label>
                 <WorkOrderSearchField
@@ -2119,9 +2139,9 @@ export default function StockEntryForm2() {
             </div>
 
             {/* ── Grand Total ── */}
-            <div className="sef-grand-total">
-              <span className="sef-grand-total-label">Grand Total:</span>
-              <span className="sef-grand-total-value">₹ {totalAmount.toFixed(2)}</span>
+            <div className="sef-grand-total" style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', padding: '12px 0', gap: '16px' }}>
+              <span className="sef-grand-total-label" style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-secondary)' }}>Grand Total:</span>
+              <span className="sef-grand-total-value" style={{ fontSize: '18px', fontWeight: 700, color: 'var(--primary-color)' }}>₹ {totalAmount.toFixed(2)}</span>
             </div>
 
             <div className="sef-divider" />

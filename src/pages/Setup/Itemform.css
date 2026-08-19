@@ -2,57 +2,7 @@
    ItemForm.css — consolidated, professional admin form styling
    Design tokens fall back gracefully if the app doesn't define them.
    ════════════════════════════════════════════════════════════════════ */
-/* Add to ItemForm.css */
 
-/* ─── Image Card Compact ────────────────────────────────────────────── */
-.itf-image-card-compact .itf-image-dropzone {
-  min-height: 100px;
-  padding: 12px 16px;
-}
-
-.itf-image-card-compact .itf-image-preview-img {
-  height: 100px;
-}
-
-.itf-image-card-compact .itf-image-icon-wrap {
-  width: 30px;
-  height: 30px;
-}
-
-.itf-image-card-compact .itf-image-dropzone-text {
-  font-size: 10.5px;
-}
-
-.itf-image-card-compact .itf-image-dropzone-hint {
-  font-size: 9.5px;
-}
-
-.itf-image-card-compact .itf-image-preview-wrapper {
-  flex-direction: row;
-  gap: 12px;
-  align-items: center;
-}
-
-.itf-image-card-compact .itf-image-preview {
-  width: 120px;
-  height: 100px;
-  flex-shrink: 0;
-}
-
-.itf-image-card-compact .itf-image-actions {
-  flex-direction: column;
-  gap: 4px;
-  flex: 1;
-}
-
-.itf-image-card-compact .itf-image-btn {
-  padding: 4px 8px;
-  font-size: 10px;
-}
-
-.itf-image-card-compact .itf-section-head {
-  margin-bottom: 8px;
-}
    :root {
     --itf-primary: var(--primary-color, #4f46e5);
     --itf-primary-hover: var(--primary-hover, #4338ca);
@@ -450,6 +400,7 @@
     z-index: 50;
   }
   
+  /* ✅ UOM फील्डची लांबी वाढवा */
   .itf-select-wrapper {
     display: flex;
     align-items: center;
@@ -461,6 +412,8 @@
     padding: 0 10px;
     cursor: pointer;
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    width: 100%;
+    flex: 1;
   }
   
   .itf-select-wrapper:hover {
@@ -566,6 +519,92 @@
     align-items: center;
     justify-content: center;
     gap: 6px;
+  }
+
+  /* ─── "+" Button Inside Select Field ──────────────────────────────── */
+  .itf-select-wrapper-main {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: 100%;
+  }
+
+  /* ✅ "+" बटणासाठी जागा - फील्डची लांबी वाढवा */
+  .itf-select-wrapper-with-add {
+    padding-right: 30px !important;
+  }
+
+  /* ✅ "+" Button - फील्डच्या अगदी जवळ */
+  .itf-select-add-btn-inside {
+    position: absolute;
+    right: 2px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    z-index: 5;
+    background: transparent;
+    padding: 0;
+  }
+
+  .itf-select-add-btn-inside:hover {
+    transform: translateY(-50%) scale(1.15);
+    background: rgba(99, 102, 241, 0.1);
+  }
+
+  /* Light Theme "+" Button */
+  .itf-select-add-btn-light {
+    color: #6366f1;
+    background: rgba(99, 102, 241, 0.05);
+  }
+
+  .itf-select-add-btn-light:hover {
+    background: rgba(99, 102, 241, 0.12);
+  }
+
+  /* Dark Theme "+" Button */
+  .itf-select-add-btn-dark {
+    color: #818cf8;
+    background: rgba(129, 140, 248, 0.06);
+  }
+
+  .itf-select-add-btn-dark:hover {
+    background: rgba(129, 140, 248, 0.14);
+  }
+
+  /* Empty state "Add New" button */
+  .itf-select-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 12px;
+  }
+
+  .itf-select-empty-add-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 12px;
+    background: var(--itf-primary);
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+
+  .itf-select-empty-add-btn:hover {
+    background: var(--itf-primary-hover);
   }
   
   /* ─── Checkbox (card style) ─────────────────────────────────────────── */
@@ -1159,40 +1198,425 @@
       order: -1;
     }
   }
+  
   /* ─── 50:50 Split Layout ────────────────────────────────────────────── */
-.itf-grid-2-50 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
-
-.itf-col-left-50 {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.itf-col-right-50 {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-/* ─── Responsive adjustments ─────────────────────────────────────────── */
-@media (max-width: 980px) {
   .itf-grid-2-50 {
-    grid-template-columns: 1fr;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: 16px;
   }
   
-  .itf-col-left-50,
-  .itf-col-right-50 {
+  .itf-col-left-50 {
+    display: flex;
+    flex-direction: column;
     gap: 14px;
   }
-}
-
-@media (max-width: 768px) {
-  .itf-grid-2-50 {
-    grid-template-columns: 1fr;
+  
+  .itf-col-right-50 {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
   }
-}
+  
+  /* ─── Responsive adjustments ─────────────────────────────────────────── */
+  @media (max-width: 980px) {
+    .itf-grid-2-50 {
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+    
+    .itf-col-left-50,
+    .itf-col-right-50 {
+      gap: 14px;
+    }
+  }
+  
+  @media (max-width: 768px) {
+    .itf-grid-2-50 {
+      grid-template-columns: 1fr;
+    }
+  }
+  
+  /* ─── FOOTER WITH SAVE BUTTON - THEME COLOR FIX ────────────────────── */
+  .itf-footer {
+    margin-top: 24px;
+    padding: 16px 20px;
+    background: var(--itf-surface);
+    border: 1px solid var(--itf-border);
+    border-radius: var(--itf-radius);
+    box-shadow: var(--itf-shadow);
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    width: 100%;
+  }
+  
+  .itf-footer-actions {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+  }
+  
+  .itf-btn-cancel {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 24px;
+    border: 1px solid var(--itf-border);
+    background: var(--itf-surface);
+    border-radius: var(--itf-radius-sm);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--itf-text-secondary);
+    transition: all 0.2s ease;
+  }
+  
+  .itf-btn-cancel:hover:not(:disabled) {
+    background: var(--itf-hover);
+    border-color: var(--itf-text-muted);
+    color: var(--itf-text);
+  }
+  
+  .itf-btn-cancel:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+  
+  /* CRITICAL FIX: Save button using theme primary color directly */
+  .itf-btn-save-bottom {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 32px;
+    background: var(--primary-color, #4f46e5) !important;
+    color: #ffffff !important;
+    border: none;
+    border-radius: var(--itf-radius-sm);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    box-shadow: var(--itf-shadow-sm);
+    min-width: 120px;
+    justify-content: center;
+  }
+  
+  .itf-btn-save-bottom:hover:not(:disabled) {
+    background: var(--primary-hover, #4338ca) !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+  }
+  
+  .itf-btn-save-bottom:active:not(:disabled) {
+    transform: translateY(0) scale(0.98);
+  }
+  
+  .itf-btn-save-bottom:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+  
+  /* Dark theme support for Save button - using theme variables directly */
+  .dark-theme .itf-btn-save-bottom,
+  .dark-theme .itf-btn-save-bottom:disabled {
+    background: var(--primary-color, #3b82f6) !important;
+    color: #ffffff !important;
+  }
+  
+  .dark-theme .itf-btn-save-bottom:hover:not(:disabled) {
+    background: var(--primary-hover, #2563eb) !important;
+  }
+  
+  /* Green theme support for Save button */
+  .green-theme .itf-btn-save-bottom,
+  .green-theme .itf-btn-save-bottom:disabled {
+    background: var(--primary-color, #43a047) !important;
+    color: #ffffff !important;
+  }
+  
+  .green-theme .itf-btn-save-bottom:hover:not(:disabled) {
+    background: var(--primary-hover, #2e7d32) !important;
+  }
+  
+  /* Blue theme support for Save button */
+  .blue-theme .itf-btn-save-bottom,
+  .blue-theme .itf-btn-save-bottom:disabled {
+    background: var(--primary-color, #6366f1) !important;
+    color: #ffffff !important;
+  }
+  
+  .blue-theme .itf-btn-save-bottom:hover:not(:disabled) {
+    background: var(--primary-hover, #4f46e5) !important;
+  }
+  
+  .dark-theme .itf-btn-cancel {
+    background: var(--itf-surface);
+    color: var(--itf-text-secondary);
+    border-color: var(--itf-border);
+  }
+  
+  .dark-theme .itf-btn-cancel:hover:not(:disabled) {
+    background: var(--itf-hover);
+    color: var(--itf-text);
+  }
+  
+  /* ─── MODAL STYLES ────────────────────────────────────────────────────── */
+  .itf-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    padding: 20px;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    animation: itf-modal-fade-in 0.2s ease;
+  }
+
+  @keyframes itf-modal-fade-in {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  .itf-modal {
+    background: var(--itf-surface);
+    border-radius: var(--itf-radius-lg);
+    max-width: 520px;
+    width: 100%;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--itf-border);
+  }
+
+  .itf-modal-dark {
+    background: #1a1d27;
+    border-color: #2a2e3a;
+  }
+
+  .itf-modal-light {
+    background: #ffffff;
+    border-color: #e3e5ea;
+  }
+
+  .itf-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--itf-border);
+    flex-shrink: 0;
+  }
+
+  .itf-modal-header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .itf-modal-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: var(--itf-primary-light);
+    color: var(--itf-primary);
+  }
+
+  .itf-modal-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--itf-text);
+  }
+
+  .itf-modal-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--itf-text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .itf-modal-close:hover {
+    background: var(--itf-hover);
+    color: var(--itf-text);
+  }
+
+  .itf-modal-body {
+    padding: 20px;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  .itf-modal-subtitle {
+    margin: 0 0 16px 0;
+    font-size: 12px;
+    color: var(--itf-text-muted);
+  }
+
+  .itf-modal-form-group {
+    margin-bottom: 14px;
+  }
+
+  .itf-modal-form-group:last-child {
+    margin-bottom: 0;
+  }
+
+  .itf-modal-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--itf-text-secondary);
+    margin-bottom: 4px;
+  }
+
+  .itf-modal-input-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    border: 1px solid var(--itf-border);
+    border-radius: var(--itf-radius-sm);
+    background: var(--itf-input-bg);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .itf-modal-input-wrap:focus-within {
+    border-color: var(--itf-primary);
+    box-shadow: 0 0 0 3px var(--itf-primary-light);
+  }
+
+  .itf-modal-input {
+    width: 100%;
+    padding: 8px 12px;
+    border: none;
+    outline: none;
+    border-radius: var(--itf-radius-sm);
+    font-size: 13px;
+    background: transparent;
+    color: var(--itf-text);
+  }
+
+  .itf-modal-input::placeholder {
+    color: var(--itf-text-muted);
+  }
+
+  .itf-modal-input-dark {
+    color: #f1f2f6;
+  }
+
+  .itf-modal-input-light {
+    color: #1a1d29;
+  }
+
+  .itf-modal-hint {
+    font-size: 10.5px;
+    color: var(--itf-text-muted);
+    margin: 4px 0 0 0;
+  }
+
+  .itf-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 14px 20px;
+    border-top: 1px solid var(--itf-border);
+    flex-shrink: 0;
+    background: var(--itf-surface);
+  }
+
+  .itf-modal-btn-cancel {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 20px;
+    border: 1px solid var(--itf-border);
+    background: transparent;
+    border-radius: var(--itf-radius-sm);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--itf-text-secondary);
+    transition: all 0.15s ease;
+  }
+
+  .itf-modal-btn-cancel:hover {
+    background: var(--itf-hover);
+    color: var(--itf-text);
+  }
+
+  .itf-modal-btn-save {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 24px;
+    border: none;
+    border-radius: var(--itf-radius-sm);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    transition: all 0.15s ease;
+  }
+
+  .itf-modal-btn-save:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  /* Light theme modal save button */
+  .itf-modal-btn-save-light {
+    background: #4f46e5;
+    color: #ffffff;
+  }
+
+  .itf-modal-btn-save-light:hover:not(:disabled) {
+    background: #4338ca;
+  }
+
+  /* Dark theme modal save button */
+  .itf-modal-btn-save-dark {
+    background: #818cf8;
+    color: #ffffff;
+  }
+
+  .itf-modal-btn-save-dark:hover:not(:disabled) {
+    background: #6366f1;
+  }
+  
+  /* ─── Responsive footer ─────────────────────────────────────────────── */
+  @media (max-width: 640px) {
+    .itf-footer {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    
+    .itf-footer-actions {
+      flex-direction: column-reverse;
+      width: 100%;
+    }
+    
+    .itf-footer-actions button {
+      width: 100%;
+      justify-content: center;
+    }
+  }
