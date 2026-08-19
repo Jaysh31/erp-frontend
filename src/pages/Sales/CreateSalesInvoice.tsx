@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+
 import ReactDOM from 'react-dom';
 import {
   FaSave,
@@ -27,7 +28,7 @@ import {
   FaQuestionCircle,
   FaFileAlt,
 } from 'react-icons/fa';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
@@ -227,6 +228,7 @@ interface DeliveryChallanData {
 }
 
 interface SalesBillPayload {
+  id?: string | number;
   customer: string;
   company: string;
   modified_by: string;
@@ -353,6 +355,186 @@ const getTaxIdFromRate = (taxRate: number, taxOpts: TaxOption[]): number | undef
   return taxOption?.tax_id;
 };
 
+// ===== COMPANY DETAILS =====
+const companyDetails = {
+  name: 'Sculptor Tech Pvt Ltd',
+  address: 'c-1006, gc, Pune, Maharashtra 411028, India',
+  website: 'sculptortechpvtltd@gmail.com',
+  email: 'jayeshwakle@sculptortechpvtltd.com',
+  contact: '8668584275',
+  gstin: '',
+  stateName: 'Maharashtra',
+  stateCode: '27',
+  panNo: '',
+  bankName: '',
+  bankAccountNo: '',
+  bankBranchIfsc: '',
+  jurisdiction: 'PUNE',
+};
+
+// ===== AMOUNT IN WORDS HELPER =====
+const ONES = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
+  'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+const TENS = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+const twoDigitWords = (n: number): string => {
+  if (n < 20) return ONES[n];
+  return TENS[Math.floor(n / 10)] + (n % 10 ? ' ' + ONES[n % 10] : '');
+};
+
+const threeDigitWords = (n: number): string => {
+  if (n >= 100) {
+    return ONES[Math.floor(n / 100)] + ' Hundred' + (n % 100 ? ' ' + twoDigitWords(n % 100) : '');
+  }
+  return twoDigitWords(n);
+};
+
+const numberToIndianWords = (value: number): string => {
+  let num = Math.round(Math.abs(value));
+  if (num === 0) return 'Zero';
+
+  const crore = Math.floor(num / 10000000); num %= 10000000;
+  const lakh = Math.floor(num / 100000); num %= 100000;
+  const thousand = Math.floor(num / 1000); num %= 1000;
+  const hundred = num;
+
+  let out = '';
+  if (crore) out += threeDigitWords(crore) + ' Crore ';
+  if (lakh) out += threeDigitWords(lakh) + ' Lakh ';
+  if (thousand) out += threeDigitWords(thousand) + ' Thousand ';
+  if (hundred) out += threeDigitWords(hundred);
+
+  return out.trim();
+};
+
+const formatPrintDate = (date: string): string => {
+  if (!date) return '';
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return date;
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = d.toLocaleString('en-US', { month: 'short' });
+  const year = String(d.getFullYear()).slice(-2);
+  return `${day}-${month}-${year}`;
+};
+
+const escapeHtml = (val: unknown): string => {
+  const s = val === null || val === undefined ? '' : String(val);
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+};
+
+// ===== PRINT TEMPLATE DATA =====
+interface SalesInvoicePrintData {
+  id: string | number;
+  customer: string;
+  customer_name: string;
+  company: string;
+  posting_date: string;
+  due_date: string;
+  currency: string;
+  total_qty: number;
+  total: number;
+  net_total: number;
+  grand_total: number;
+  outstanding_amount: number;
+  paid_amount: number;
+  status: string;
+  total_taxes_and_charges: number;
+  remarks: string | null;
+  items?: Array<{
+    id?: number;
+    item_code: string;
+    item_name: string;
+    description: string;
+    item_group: string;
+    qty: number;
+    uom: string;
+    stock_uom?: string;
+    rate: number;
+    amount: number;
+  }>;
+  payment_schedule?: Array<{
+    payment_term: string;
+    due_date: string;
+    due_days: number;
+    invoice_portion: number;
+    payment_amount: number;
+    payment_status?: string;
+  }>;
+  displayInvoiceNumber?: string;
+}
+
+// Formats a raw numeric/string invoice id into the SINV-##### display format
+// used across the app (list page, print view, etc.)
+const formatInvoiceNumber = (idVal: string | number): string => {
+  const numId = typeof idVal === 'string' ? parseInt(idVal, 10) : idVal;
+  if (idVal === undefined || idVal === null || isNaN(numId as number)) return String(idVal ?? '');
+  return `SINV-${String(numId).padStart(5, '0')}`;
+};
+
+// Normalizes all response shapes returned by GET /sales-invoice/:id.
+// The endpoint may return:
+//   { success: true, data: { ...invoice } }
+//   { success: 1, data: [{ ...invoice }] }
+//   { success: 1, data: { data: [{ ...invoice }] } }
+//   { data: { record: { ...invoice } } }
+//   or the invoice object directly.
+const extractSalesInvoiceRecord = (raw: any): any | null => {
+  if (!raw) return null;
+
+  const isInvoice = (value: any): boolean =>
+    !!value &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    (
+      value.id !== undefined ||
+      value.customer !== undefined ||
+      Array.isArray(value.items) ||
+      Array.isArray(value.payment_schedule)
+    );
+
+  const unwrap = (value: any, depth = 0): any | null => {
+    if (!value || depth > 8) return null;
+
+    if (isInvoice(value)) return value;
+
+    if (Array.isArray(value)) {
+      const firstInvoice = value.find(isInvoice);
+      if (firstInvoice) return firstInvoice;
+      for (const item of value) {
+        const found = unwrap(item, depth + 1);
+        if (found) return found;
+      }
+      return null;
+    }
+
+    if (typeof value === 'object') {
+      // Prefer common wrapper keys first.
+      for (const key of ['record', 'data', 'result', 'invoice', 'sales_invoice', 'salesInvoice', 'records']) {
+        if (value[key] !== undefined) {
+          const found = unwrap(value[key], depth + 1);
+          if (found) return found;
+        }
+      }
+
+      // Last resort: inspect nested object values.
+      for (const key of Object.keys(value)) {
+        const child = value[key];
+        if (child && typeof child === 'object') {
+          const found = unwrap(child, depth + 1);
+          if (found) return found;
+        }
+      }
+    }
+
+    return null;
+  };
+
+  return unwrap(raw);
+};
 
 const SALESBILL_DRAFT_PREFIX = 'cnv_salesbill_draft:';
 
@@ -513,9 +695,9 @@ class SalesBillAPI {
     return this.apiService.get('/sales-invoice', params);
   }
 
-  async updateSalesBill(id: string, data: Partial<SalesBillPayload>): Promise<ApiResponse<any>> {
-    return this.apiService.put(`/sales-invoice/${id}`, data);
-  }
+ async updateSalesBill(data: Partial<SalesBillPayload>): Promise<ApiResponse<any>> {
+  return this.apiService.put('/sales-invoice', data);
+}
 
   async deleteSalesBill(id: string): Promise<ApiResponse<any>> {
     return this.apiService.delete(`/sales-invoice/${id}`);
@@ -2171,6 +2353,16 @@ const CreateSalesBill: React.FC = () => {
   const location = useLocation();
   const { theme } = useAdminTheme();
 
+  // Route param: present when the form is opened from "Edit" / "View" on the
+  // Sales Invoice list (/sales-bill/edit/:id or /sales-bill/view/:id). Absent
+  // for "New Sales Bill" (/sales-bill/new).
+  const { id: routeId } = useParams<{ id?: string }>();
+  const stateInvoiceId = (location.state as any)?.invoiceId;
+  const id = routeId || (stateInvoiceId ? String(stateInvoiceId) : undefined);
+  const isEditMode = !!id && location.pathname.includes('/edit/');
+  const isViewMode = !!id && location.pathname.includes('/view/');
+  const isExistingRecord = isEditMode || isViewMode;
+
   const getDraftStorageKey = () => `${SALESBILL_DRAFT_PREFIX}new`;
 
   const [selectedDeliveryChallans, setSelectedDeliveryChallans] = useState<DeliveryChallanData[]>([]);
@@ -2206,12 +2398,19 @@ const CreateSalesBill: React.FC = () => {
   const [, setLoadingInventory] = useState(false);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
 
+  // ─── Edit / View mode state ─────────────────────────────────────
+  const [loadingInvoice, setLoadingInvoice] = useState<boolean>(false);
+  const [existingInvoiceNumber, setExistingInvoiceNumber] = useState<string>('');
+  const [pendingWarehouseName, setPendingWarehouseName] = useState<string>('');
+
   // ─── Quick Add Customer modal state ─────────────────────────────
   const [showQuickAddModal, setShowQuickAddModal] = useState<boolean>(false);
   const [quickAddPrefillName, setQuickAddPrefillName] = useState<string>('');
 
   // Success Modal state
   const [showSuccessModal, setShowSuccessModal] = useState<boolean>(false);
+  const [showPrintConfirmModal, setShowPrintConfirmModal] = useState<boolean>(false);
+  const [printInvoiceId, setPrintInvoiceId] = useState<string | number | null>(null);
   const [successData, setSuccessData] = useState<{
     salesBill: string;
     totalItems: number;
@@ -2552,6 +2751,158 @@ const CreateSalesBill: React.FC = () => {
     return failedUpdates;
   };
 
+  // ─── Fetch existing invoice (Edit / View mode) ─────
+  // Populates every field from GET /sales-invoice/:id so the form opens
+  // pre-filled instead of blank.
+  const populateFormFromInvoice = (record: any) => {
+    const recordId = record.id ?? id ?? '';
+    setExistingInvoiceNumber(formatInvoiceNumber(recordId));
+
+    if (record.posting_date) setBillDate(String(record.posting_date).split('T')[0]);
+    if (record.due_date) setDueDate(String(record.due_date).split('T')[0]);
+    setRemarks(record.remarks || '');
+    setInvoiceStatus(record.status || 'Draft');
+    setInvoiceNumber(record.invoice_number || '');
+    setInvoiceDate(
+      record.invoice_date
+        ? String(record.invoice_date).split('T')[0]
+        : (record.posting_date ? String(record.posting_date).split('T')[0] : invoiceDate)
+    );
+    setPaymentMode(record.mode_of_payment || '');
+
+    // No delivery-challan concept once an invoice already exists on its own.
+    setHasDeliveryChallan(false);
+    setSelectedDeliveryChallans([]);
+
+    const custId = String(record.customer ?? record.customer_id ?? '');
+    const custCode = String(record.customer_code ?? record.customer ?? '');
+    const custData: Customer = {
+      id: custId,
+      name: record.customer_name || record.customer || '',
+      code: custCode,
+      email: '',
+      phone: '',
+      address: '',
+      shippingAddress: '',
+      gstin: '',
+      contactPerson: '',
+      contactMobile: '',
+    };
+    setCustomerData(custData);
+    setSelectedCustomer(custId);
+    setIsCustomerDisabled(false);
+
+    const rawItems: any[] = Array.isArray(record.items) ? record.items : [];
+    if (rawItems.length > 0) {
+      const mappedItems: SalesBillItem[] = rawItems.map((it: any, idx: number) => {
+        const qty = Number(it.qty ?? 0);
+        const rate = Number(it.rate ?? 0);
+        const amount = Number(it.amount ?? (qty * rate));
+        const discountPercentage = Number(it.discount_percentage ?? 0);
+        const discountAmount = Number(it.discount_amount ?? 0);
+
+        // The sample API response does not return a per-item tax rate.
+        // If a tax rate is supplied, use it; otherwise keep tax at 0.
+        const itemTaxRate = Number(it.tax_rate ?? it.gst_rate ?? 0);
+        const taxAmount = Number(
+          it.tax_amount ??
+          (it.net_amount !== undefined && it.amount !== undefined
+            ? Math.max(0, Number(it.net_amount) - Number(it.amount))
+            : (amount * itemTaxRate) / 100)
+        );
+
+        return {
+          id: (it.id ?? idx + 1).toString(),
+          itemCode: it.item_code || '',
+          itemName: it.item_name || '',
+          hsn: it.hsn || '',
+          description: it.description || it.item_name || '',
+          quantity: qty,
+          unit: it.uom || it.stock_uom || 'pcs',
+          rate: rate,
+          amount: amount,
+          tax: itemTaxRate,
+          tax_id: undefined,
+          taxAmount: taxAmount,
+          totalAmount: amount + taxAmount,
+          type: 'product',
+          itemGroup: it.item_group || 'Products',
+          incomeAccount: it.income_account || 'Sales - A',
+          costCenter: it.cost_center || 'Main - A',
+          weightPerUnit: it.weight_per_unit || 0,
+          weightUom: 'kg',
+          discountPercentage,
+          discountAmount,
+          warehouse: it.warehouse || '',
+          item_id: it.item_id ?? undefined,
+          uom: it.uom || it.stock_uom || 'pcs',
+          net_rate: it.net_rate ?? undefined,
+          net_amount: it.net_amount ?? undefined,
+          transaction_date: it.transaction_date ?? undefined,
+          serialNo: it.serial_no || '',
+          batchNo: it.batch_no || '',
+        };
+      });
+      setItems(mappedItems);
+
+      // Warehouse comes back on the API as a name (e.g. "Finished Goods"),
+      // but the form stores the warehouse *id*. Resolve it once the
+      // warehouses list has loaded (see effect below).
+      if (rawItems[0]?.warehouse) {
+        setPendingWarehouseName(rawItems[0].warehouse);
+      }
+    }
+
+    const rawSchedule: any[] = Array.isArray(record.payment_schedule) ? record.payment_schedule : [];
+    if (rawSchedule.length > 0) {
+      const mappedSchedule: PaymentScheduleRow[] = rawSchedule.map((ps: any, idx: number) => ({
+        id: (ps.payment_id ?? idx + 1).toString(),
+        paymentTerm: ps.payment_term || '',
+        dueDate: ps.due_date ? String(ps.due_date).split('T')[0] : '',
+        durationDays: ps.due_days || 0,
+        invoicePortion: ps.invoice_portion || 0,
+        paymentAmount: ps.payment_amount || 0,
+        paidAmount: ps.paid_amount || 0,
+        status: ps.payment_status || ps.status || 'Pending',
+      }));
+      setPaymentSchedule(mappedSchedule);
+    }
+
+    if (record.rounding_adjustment !== undefined && record.rounding_adjustment !== null) {
+      setRoundOff(Number(record.rounding_adjustment) || 0);
+    }
+
+    setErrors({});
+  };
+
+  const fetchInvoiceForEdit = async (invoiceId: string) => {
+    setLoadingInvoice(true);
+    try {
+      // IMPORTANT: call the single-invoice endpoint directly.
+      // This guarantees that clicking View/Edit for invoice 35 requests:
+      // GET /sales-invoice/35
+      const response = await api.get(`/sales-invoice/${invoiceId}`);
+      const record = extractSalesInvoiceRecord(response.data);
+
+      if (!record) {
+        console.error('Unexpected GET /sales-invoice/:id response:', response.data);
+        toast.error(`Sales Invoice ${invoiceId} not found`);
+        return;
+      }
+
+      populateFormFromInvoice(record);
+    } catch (err: any) {
+      console.error(`Error loading sales invoice ${invoiceId}:`, err);
+      toast.error(
+        err?.response?.data?.message ||
+        err?.message ||
+        'Failed to load sales invoice'
+      );
+    } finally {
+      setLoadingInvoice(false);
+    }
+  };
+
   // ─── Effects ───────────────────────────────────────
   useEffect(() => {
     fetchTaxOptions();
@@ -2562,6 +2913,13 @@ const CreateSalesBill: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    // Editing / viewing an existing Sales Invoice: load it from the API and
+    // skip the "new bill" draft-restore / new-customer-navigation flow below.
+    if (id) {
+      fetchInvoiceForEdit(id);
+      return;
+    }
+
     const draftKey = getDraftStorageKey();
     try {
       const raw = sessionStorage.getItem(draftKey);
@@ -2603,7 +2961,31 @@ const CreateSalesBill: React.FC = () => {
       navigate(location.pathname, { replace: true, state: {} });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [id]);
+
+  // Resolve the warehouse *name* that came back from the invoice API into a
+  // warehouse *id* once the warehouses list has finished loading.
+  useEffect(() => {
+    if (!pendingWarehouseName || warehouses.length === 0) return;
+    const target = pendingWarehouseName.trim().toLowerCase();
+    const found = warehouses.find(
+      w => w.warehouse_name?.trim().toLowerCase() === target
+    );
+    if (found) {
+      setWarehouse(found.id.toString());
+    } else {
+      // Some installations return "Finished Goods - A" while the dropdown
+      // contains "Finished Goods", or vice versa.
+      const partial = warehouses.find(
+        w =>
+          w.warehouse_name?.trim().toLowerCase().includes(target) ||
+          target.includes(w.warehouse_name?.trim().toLowerCase())
+      );
+      if (partial) setWarehouse(partial.id.toString());
+    }
+    setPendingWarehouseName('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [warehouses, pendingWarehouseName]);
 
   // Update stock status when inventory changes
   useEffect(() => {
@@ -2752,9 +3134,14 @@ const CreateSalesBill: React.FC = () => {
           }));
           setWarehouses(mapped);
 
-          const finishedGoods = mapped.find(w => w.warehouse_name.toLowerCase() === 'finished goods');
-          if (finishedGoods) {
-            setWarehouse(finishedGoods.id.toString());
+          // Only auto-pick "Finished Goods" for a brand new bill. When
+          // editing/viewing, the invoice's own warehouse is resolved by the
+          // pendingWarehouseName effect above.
+          if (!id) {
+            const finishedGoods = mapped.find(w => w.warehouse_name.toLowerCase() === 'finished goods');
+            if (finishedGoods) {
+              setWarehouse(finishedGoods.id.toString());
+            }
           }
         }
       }
@@ -3271,6 +3658,44 @@ const CreateSalesBill: React.FC = () => {
     };
   };
 
+  const buildUpdatePayload = (
+  status: 'Draft' | 'Submitted',
+  invoiceId: string
+) => {
+  const payload = buildPayload(status);
+
+  return {
+    id: invoiceId,
+
+    customer: payload.customer,
+    company: payload.company,
+    modified_by: payload.modified_by,
+    customer_name: payload.customer_name,
+
+    posting_date: payload.posting_date,
+    due_date: payload.due_date,
+
+    currency: payload.currency,
+    conversion_rate: payload.conversion_rate,
+    selling_price_list: payload.selling_price_list,
+
+    status: payload.status,
+
+    customer_address: payload.customer_address,
+    contact_person: payload.contact_person,
+    territory: payload.territory,
+    remarks: payload.remarks,
+
+    total_taxes_and_charges: payload.total_taxes_and_charges,
+    paid_amount: payload.paid_amount,
+
+    update_stock: payload.update_stock,
+    is_pos: payload.is_pos,
+    is_return: payload.is_return,
+
+  };
+};
+
   const validateForm = (): boolean => {
     const newErrors: { [key: string]: string } = {};
     if (hasDeliveryChallan && selectedDeliveryChallans.length === 0) {
@@ -3291,9 +3716,49 @@ const CreateSalesBill: React.FC = () => {
   const handleSubmit = async () => {
     if (!validateForm()) return;
     setIsSubmitting(true);
-    const toastId = toast.loading('Creating sales bill...');
+    const toastId = toast.loading(isEditMode ? 'Updating sales bill...' : 'Creating sales bill...');
     try {
       const payload = buildPayload('Submitted');
+
+// EDIT EXISTING SALES INVOICE
+if (isEditMode && id) {
+  const updatePayload = buildUpdatePayload('Submitted', id);
+
+  const updateResponse = await salesBillAPI.updateSalesBill(updatePayload);
+
+  if (!updateResponse.success) {
+    throw new Error(
+      updateResponse.message || 'Failed to update sales invoice'
+    );
+  }
+
+  const displayNumber =
+    existingInvoiceNumber || formatInvoiceNumber(id);
+
+  const updatedPrintId =
+    getPrintInvoiceId(updateResponse.data) || id;
+
+  setPrintInvoiceId(updatedPrintId);
+
+  toast.success('Sales Bill updated successfully!', {
+    id: toastId
+  });
+
+  setSuccessData({
+    salesBill: displayNumber,
+    totalItems: items.filter(
+      i => i.itemCode && i.quantity > 0
+    ).length,
+    message: 'Sales Invoice updated successfully.',
+    customerName: customerData?.name,
+    totalAmount: getGrandTotalWithRound()
+  });
+
+  setShowSuccessModal(true);
+
+  return;
+}
+
       const createResponse = await salesBillAPI.createSalesBill(payload);
 
       if (!createResponse.success) {
@@ -3302,6 +3767,12 @@ const CreateSalesBill: React.FC = () => {
 
       const responseData = createResponse.data;
       const salesBillName = responseData?.data?.name || responseData?.name || billNumber;
+      const createdPrintId =
+        getPrintInvoiceId(responseData) ||
+        responseData?.data?.id ||
+        responseData?.id ||
+        salesBillName;
+      setPrintInvoiceId(createdPrintId);
       const totalItemsCount = responseData?.data?.total_items || items.filter(i => i.itemCode && i.quantity > 0).length;
       const message = responseData?.data?.message || responseData?.message || createResponse.message || 'Sales Invoice created successfully.';
       const totalAmount = getGrandTotalWithRound();
@@ -3329,15 +3800,6 @@ const CreateSalesBill: React.FC = () => {
 
       toast.success('Created!', { id: toastId });
 
-      setSuccessData({
-        salesBill: salesBillName,
-        totalItems: totalItemsCount,
-        message: message,
-        customerName: customerData?.name,
-        totalAmount: totalAmount
-      });
-      setShowSuccessModal(true);
-
       if (salesBillName && salesBillName !== billNumber) {
         try {
           await salesBillAPI.submitSalesBill(salesBillName);
@@ -3347,8 +3809,19 @@ const CreateSalesBill: React.FC = () => {
           toast('SB created but submission failed. Please submit manually.');
         }
       }
+
+      setSuccessData({
+        salesBill: salesBillName,
+        totalItems: totalItemsCount,
+        message: message,
+        customerName: customerData?.name,
+        totalAmount: totalAmount
+      });
+
+      // Ask whether the newly-created Sales Bill should be printed.
+      setShowPrintConfirmModal(true);
     } catch (error: any) {
-      toast.error(error.message || 'Failed to create', { id: toastId });
+      toast.error(error.message || (isEditMode ? 'Failed to update' : 'Failed to create'), { id: toastId });
     } finally {
       setIsSubmitting(false);
     }
@@ -3357,9 +3830,33 @@ const CreateSalesBill: React.FC = () => {
   const handleSaveDraft = async () => {
     if (!validateForm()) return;
     setIsSubmitting(true);
-    const toastId = toast.loading('Saving draft...');
+    const toastId = toast.loading(isEditMode ? 'Updating draft...' : 'Saving draft...');
     try {
       const payload = buildPayload('Draft');
+
+if (isEditMode && id) {
+  const updatePayload = buildUpdatePayload('Draft', id);
+
+  const response = await salesBillAPI.updateSalesBill(updatePayload);
+
+  if (!response.success) {
+    throw new Error(
+      response.message || 'Failed to update draft'
+    );
+  }
+
+  const displayNumber =
+    existingInvoiceNumber || formatInvoiceNumber(id);
+
+  toast.success(`Draft updated: ${displayNumber}`, {
+    id: toastId
+  });
+
+  setTimeout(() => navigate('/sales-bill'), 1000);
+
+  return;
+}
+
       const response = await salesBillAPI.createSalesBill(payload);
       if (!response.success) throw new Error(response.message || 'Failed to save');
 
@@ -3382,6 +3879,425 @@ const CreateSalesBill: React.FC = () => {
 
   const handleCloseModal = () => {
     setShowSuccessModal(false);
+    navigate('/sales-bill');
+  };
+
+  // ===== SHARED SALES INVOICE PRINT =====
+  // This is the same print template used by SalesInvoice.tsx.
+  // Both the confirmation modal and the form Print button use this function.
+  const buildCurrentFormPrintData = (): SalesInvoicePrintData => {
+    const validItems = items.filter(item => item.itemCode && item.quantity > 0);
+
+    return {
+      id: printInvoiceId || id || billNumber,
+      displayInvoiceNumber:
+        existingInvoiceNumber ||
+        (id ? formatInvoiceNumber(id) : (printInvoiceId ? formatInvoiceNumber(printInvoiceId) : billNumber)),
+      customer: selectedCustomer || '',
+      customer_name: customerData?.name || '',
+      company: (customerData as any)?.company || '',
+      posting_date: billDate,
+      due_date: dueDate,
+      currency: 'INR',
+      total_qty: getTotalQty(),
+      total: getTotalAmount(),
+      net_total: getTotalAmount(),
+      grand_total: getGrandTotalWithRound(),
+      outstanding_amount: getGrandTotalWithRound(),
+      paid_amount: 0,
+      status: invoiceStatus || 'Draft',
+      total_taxes_and_charges: getTotalTax(),
+      remarks: remarks || null,
+      items: validItems.map((item) => ({
+        id: Number(item.id) || undefined,
+        item_code: item.itemCode || '',
+        item_name: item.itemName || item.itemCode || '',
+        description: item.description || '',
+        item_group: item.itemGroup || item.hsn || '',
+        qty: item.quantity || 0,
+        uom: item.unit || item.uom || 'Nos',
+        stock_uom: item.uom || item.unit || 'Nos',
+        rate: item.rate || 0,
+        amount: item.amount || 0,
+      })),
+      payment_schedule: paymentSchedule.map((ps) => ({
+        payment_term: ps.paymentTerm || '',
+        due_date: ps.dueDate || '',
+        due_days: ps.durationDays || 0,
+        invoice_portion: ps.invoicePortion || 0,
+        payment_amount: ps.paymentAmount || 0,
+        payment_status: ps.status || 'Pending',
+      })),
+    };
+  };
+
+  const getPrintInvoiceId = (raw: any): string | number | null => {
+    const record = extractSalesInvoiceRecord(raw);
+    if (record?.id !== undefined && record?.id !== null) return record.id;
+
+    const candidate =
+      record?.name ??
+      raw?.data?.id ??
+      raw?.data?.name ??
+      raw?.id ??
+      raw?.name ??
+      null;
+
+    if (candidate === null || candidate === undefined || candidate === '') return null;
+
+    // If the backend returns the display name (e.g. SINV-00035),
+    // use the numeric id because GET /sales-invoice/:id expects that id.
+    const match = String(candidate).match(/(\d+)$/);
+    return match ? Number(match[1]) : candidate;
+  };
+
+  const openSalesInvoicePrint = async (
+    invoiceId?: string | number | null,
+    fallbackData?: SalesInvoicePrintData
+  ) => {
+    const printWindow = window.open('', '_blank', 'width=900,height=1000');
+
+    if (!printWindow) {
+      toast.error('Please allow pop-ups to print this invoice');
+      return;
+    }
+
+    printWindow.document.write(
+      '<p style="font-family:sans-serif;padding:24px;color:#374151;">Loading invoice…</p>'
+    );
+
+    try {
+      let printData = fallbackData || buildCurrentFormPrintData();
+
+      if (invoiceId !== undefined && invoiceId !== null && invoiceId !== '') {
+        try {
+          const response = await salesBillAPI.getSalesBill(String(invoiceId));
+          const record = extractSalesInvoiceRecord(response.data);
+
+          if (record) {
+            printData = {
+              ...record,
+              id: record.id ?? invoiceId,
+              displayInvoiceNumber:
+                record.displayInvoiceNumber ||
+                formatInvoiceNumber(record.id ?? invoiceId),
+            } as SalesInvoicePrintData;
+          }
+        } catch (fetchError) {
+          console.warn('Could not fetch full invoice for printing. Using form data.', fetchError);
+        }
+      }
+
+      printWindow.document.open();
+      printWindow.document.write(buildSalesInvoicePrintHtml(printData));
+      printWindow.document.close();
+    } catch (error) {
+      console.error('Error printing sales invoice:', error);
+
+      try {
+        printWindow.document.open();
+        printWindow.document.write(
+          buildSalesInvoicePrintHtml(fallbackData || buildCurrentFormPrintData())
+        );
+        printWindow.document.close();
+      } catch (fallbackError) {
+        console.error('Fallback print failed:', fallbackError);
+        printWindow.close();
+        toast.error('Unable to print sales invoice');
+      }
+    }
+  };
+
+  // ===== EXACT SAME PRINT TEMPLATE AS SALESINVOICE.TSX =====
+  const buildSalesInvoicePrintHtml = (invoice: SalesInvoicePrintData): string => {
+    const items = invoice.items || [];
+    const totalQty = items.reduce((sum, item) => sum + (item.qty || 0), 0);
+    const grandTotal = invoice.grand_total || invoice.total || 0;
+    const totalTax = invoice.total_taxes_and_charges || 0;
+    const netTotal = invoice.net_total || invoice.total || 0;
+
+    // Calculate tax per item (simplified)
+    const taxRate = totalTax > 0 && netTotal > 0 ? (totalTax / netTotal) * 100 : 0;
+    const cgstRate = taxRate / 2;
+    const sgstRate = taxRate / 2;
+
+    const itemRows = items.map((item, idx) => `
+      <tr>
+        <td class="pq-col-sl">${idx + 1}</td>
+        <td class="pq-col-desc">
+          ${escapeHtml(item.item_name || item.item_code || '')}
+          ${item.item_code ? `<div class="pq-item-sub">${escapeHtml(item.item_code)}</div>` : ''}
+          ${item.description ? `<div class="pq-item-desc">${escapeHtml(item.description)}</div>` : ''}
+        </td>
+        <td class="pq-col-hsn">${escapeHtml(item.item_group || '')}</td>
+        <td class="pq-col-qty">${item.qty || 0} ${escapeHtml(item.uom || item.stock_uom || 'Nos')}</td>
+        <td class="pq-col-rate">${(item.rate || 0).toFixed(2)}</td>
+        <td class="pq-col-cgst">${cgstRate > 0 ? cgstRate.toFixed(2) + '%' : ''}</td>
+        <td class="pq-col-sgst">${sgstRate > 0 ? sgstRate.toFixed(2) + '%' : ''}</td>
+        <td class="pq-col-amt">${(item.amount || 0).toFixed(2)}</td>
+      </tr>
+    `).join('');
+
+    // Payment schedule rows
+    const paymentRows = (invoice.payment_schedule || []).map((ps, idx) => `
+      <tr>
+        <td>${idx + 1}</td>
+        <td>${escapeHtml(ps.payment_term)}</td>
+        <td>${escapeHtml(formatPrintDate(ps.due_date))}</td>
+        <td>${ps.due_days}</td>
+        <td>${ps.invoice_portion}%</td>
+        <td>₹${(ps.payment_amount || 0).toFixed(2)}</td>
+        <td>${escapeHtml(ps.payment_status || 'Pending')}</td>
+      </tr>
+    `).join('');
+
+    const hasPaymentSchedule = invoice.payment_schedule && invoice.payment_schedule.length > 0;
+
+    return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8" />
+<title>${escapeHtml(invoice.displayInvoiceNumber || 'Sales Invoice')}</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #1a1a1a; margin: 0; padding: 24px; }
+  .pq-outer { border: 1.5px solid #000; }
+  .pq-title-row { display: flex; align-items: center; justify-content: center; position: relative; padding: 8px; border-bottom: 1.5px solid #000; }
+  .pq-title { font-size: 18px; font-weight: bold; letter-spacing: 1px; }
+  .pq-top { display: flex; border-bottom: 1px solid #000; }
+  .pq-company-box { flex: 1.3; padding: 8px; border-right: 1px solid #000; }
+  .pq-company-name { font-weight: bold; font-size: 14px; margin-bottom: 4px; }
+  .pq-company-box div { margin: 1px 0; }
+  .pq-meta-box { flex: 1.1; }
+  .pq-meta-row { display: flex; border-bottom: 1px solid #000; }
+  .pq-meta-row:last-child { border-bottom: none; }
+  .pq-meta-cell { flex: 1; padding: 4px 8px; border-right: 1px solid #000; }
+  .pq-meta-cell:last-child { border-right: none; }
+  .pq-meta-label { font-size: 10px; color: #444; }
+  .pq-meta-value { font-weight: 600; margin-top: 1px; min-height: 13px; }
+  .pq-parties { display: flex; border-bottom: 1px solid #000; }
+  .pq-party-box { flex: 1; padding: 8px; border-right: 1px solid #000; }
+  .pq-party-box:last-child { border-right: none; }
+  .pq-party-label { font-weight: bold; margin-bottom: 3px; }
+  .pq-party-box div { margin: 1px 0; }
+  table.pq-items { width: 100%; border-collapse: collapse; }
+  table.pq-items th, table.pq-items td { border-right: 1px solid #000; padding: 5px 6px; }
+  table.pq-items th:last-child, table.pq-items td:last-child { border-right: none; }
+  table.pq-items thead th { border-bottom: 1px solid #000; border-top: none; font-size: 11px; text-align: left; }
+  .pq-col-sl { width: 26px; text-align: center; }
+  .pq-col-desc { min-width: 180px; }
+  .pq-item-sub { font-size: 10px; color: #555; }
+  .pq-item-desc { font-size: 10px; color: #666; margin-top: 2px; }
+  .pq-col-hsn { width: 60px; }
+  .pq-col-qty { width: 74px; text-align: right; }
+  .pq-col-rate { width: 62px; text-align: right; }
+  .pq-col-cgst { width: 54px; text-align: right; }
+  .pq-col-sgst { width: 54px; text-align: right; }
+  .pq-col-amt { width: 90px; text-align: right; }
+  .pq-tax-label { text-align: right; font-style: italic; padding-right: 10px; }
+  .pq-total-row td { border-top: 1px solid #000; font-weight: bold; padding: 6px; }
+  .pq-words { display: flex; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 6px 8px; justify-content: space-between; align-items: flex-start; }
+  .pq-words-label { font-size: 10px; color: #444; }
+  .pq-eoe { font-size: 11px; font-style: italic; white-space: nowrap; }
+  .pq-payment-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  .pq-payment-table th, .pq-payment-table td { border: 1px solid #000; padding: 4px 8px; font-size: 11px; text-align: left; }
+  .pq-payment-table th { background: #f8f9fa; font-weight: 600; }
+  .pq-payment-table td:last-child { text-align: right; }
+  .pq-payment-title { font-weight: 600; font-size: 12px; padding: 6px 0; }
+  .pq-bottom { display: flex; border-top: 1px solid #000; }
+  .pq-decl-box { flex: 1; padding: 8px; border-right: 1px solid #000; }
+  .pq-sign-box { flex: 1; padding: 8px; display: flex; flex-direction: column; justify-content: space-between; }
+  .pq-signatory { text-align: right; margin-top: 24px; font-size: 11px; }
+  .pq-footer { text-align: center; padding: 8px; font-size: 10px; color: #444; border-top: 1px solid #000; }
+  .pq-footer div:first-child { font-weight: 600; letter-spacing: 0.5px; margin-bottom: 2px; }
+  .pq-status-badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 10px; font-weight: 600; }
+  .pq-status-Submitted { background: #dbeafe; color: #1e40af; }
+  .pq-status-Draft { background: #f3f4f6; color: #6b7280; }
+  .pq-status-Cancelled { background: #fee2e2; color: #991b1b; }
+  .pq-status-Paid { background: #d1fae5; color: #065f46; }
+  .pq-status-Partially\\ Paid { background: #fef3c7; color: #92400e; }
+  @media print {
+    body { padding: 0; }
+    @page { margin: 12mm; }
+  }
+</style>
+</head>
+<body>
+  <div class="pq-outer">
+
+    <div class="pq-title-row">
+      <div class="pq-title">TAX INVOICE</div>
+      <span style="position:absolute;right:12px;font-size:11px;color:#555;">
+        <span class="pq-status-badge pq-status-${escapeHtml(invoice.status || 'Draft').replace(/ /g, '\\ ')}">${escapeHtml(invoice.status || 'Draft')}</span>
+      </span>
+    </div>
+
+    <div class="pq-top">
+      <div class="pq-company-box">
+        <div class="pq-company-name">${escapeHtml(companyDetails.name)}</div>
+        <div>${escapeHtml(companyDetails.address)}</div>
+        <div>Phone: ${escapeHtml(companyDetails.contact)}</div>
+        ${companyDetails.email ? `<div>Email: ${escapeHtml(companyDetails.email)}</div>` : ''}
+        ${companyDetails.gstin ? `<div>GSTIN/UIN: ${escapeHtml(companyDetails.gstin)}</div>` : ''}
+        <div>State Name : ${escapeHtml(companyDetails.stateName)}, Code : ${escapeHtml(companyDetails.stateCode)}</div>
+      </div>
+      <div class="pq-meta-box">
+        <div class="pq-meta-row">
+          <div class="pq-meta-cell">
+            <div class="pq-meta-label">Invoice No.</div>
+            <div class="pq-meta-value">${escapeHtml(invoice.displayInvoiceNumber || invoice.id || '')}</div>
+          </div>
+          <div class="pq-meta-cell" style="border-right:none;">
+            <div class="pq-meta-label">Date</div>
+            <div class="pq-meta-value">${escapeHtml(formatPrintDate(invoice.posting_date))}</div>
+          </div>
+        </div>
+        <div class="pq-meta-row">
+          <div class="pq-meta-cell">
+            <div class="pq-meta-label">Due Date</div>
+            <div class="pq-meta-value">${escapeHtml(formatPrintDate(invoice.due_date))}</div>
+          </div>
+          <div class="pq-meta-cell" style="border-right:none;">
+            <div class="pq-meta-label">Currency</div>
+            <div class="pq-meta-value">${escapeHtml(invoice.currency || 'INR')}</div>
+          </div>
+        </div>
+        <div class="pq-meta-row">
+          <div class="pq-meta-cell">
+            <div class="pq-meta-label">Total Qty</div>
+            <div class="pq-meta-value">${totalQty}</div>
+          </div>
+          <div class="pq-meta-cell" style="border-right:none;">
+            <div class="pq-meta-label">Payment Status</div>
+            <div class="pq-meta-value">${escapeHtml(invoice.status || 'Draft')}</div>
+          </div>
+        </div>
+        ${invoice.remarks ? `
+        <div class="pq-meta-row">
+          <div class="pq-meta-cell" style="border-right:none;">
+            <div class="pq-meta-label">Remarks</div>
+            <div class="pq-meta-value">${escapeHtml(invoice.remarks)}</div>
+          </div>
+        </div>` : ''}
+      </div>
+    </div>
+
+    <div class="pq-parties">
+      <div class="pq-party-box">
+        <div class="pq-party-label">Bill To</div>
+        <div><strong>${escapeHtml(invoice.customer_name || '')}</strong></div>
+        <div>Customer Code: ${escapeHtml(invoice.customer || '')}</div>
+        ${invoice.company ? `<div>Company: ${escapeHtml(invoice.company)}</div>` : ''}
+      </div>
+      <div class="pq-party-box">
+        <div class="pq-party-label">Invoice Details</div>
+        <div>Total Amount: ₹${(grandTotal || 0).toFixed(2)}</div>
+        <div>Paid Amount: ₹${(invoice.paid_amount || 0).toFixed(2)}</div>
+        <div>Outstanding: ₹${(invoice.outstanding_amount || grandTotal || 0).toFixed(2)}</div>
+      </div>
+    </div>
+
+    <table class="pq-items">
+      <thead>
+        <tr>
+          <th class="pq-col-sl">#</th>
+          <th class="pq-col-desc">Description</th>
+          <th class="pq-col-hsn">Group</th>
+          <th class="pq-col-qty">Qty</th>
+          <th class="pq-col-rate">Rate</th>
+          <th class="pq-col-cgst">CGST</th>
+          <th class="pq-col-sgst">SGST</th>
+          <th class="pq-col-amt">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemRows}
+        <tr class="pq-total-row">
+          <td colspan="3">Total</td>
+          <td class="pq-col-qty">${totalQty}</td>
+          <td colspan="3"></td>
+          <td class="pq-col-amt">${(grandTotal || 0).toFixed(2)}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="pq-words">
+      <div>
+        <div class="pq-words-label">Amount Chargeable (in words)</div>
+        <div><strong>${invoice.currency || 'INR'} ${numberToIndianWords(grandTotal)} Only</strong></div>
+      </div>
+      <div class="pq-eoe">E.&amp;O.E</div>
+    </div>
+
+    ${hasPaymentSchedule ? `
+    <div style="padding: 8px 8px 0 8px;">
+      <div class="pq-payment-title">Payment Schedule</div>
+      <table class="pq-payment-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Payment Term</th>
+            <th>Due Date</th>
+            <th>Days</th>
+            <th>Portion</th>
+            <th>Amount</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${paymentRows}
+          <tr style="font-weight:600;border-top:2px solid #000;">
+            <td colspan="5" style="text-align:right;">Total</td>
+            <td>₹${(invoice.payment_schedule?.reduce((sum, p) => sum + p.payment_amount, 0) || 0).toFixed(2)}</td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>` : ''}
+
+    <div class="pq-bottom">
+      <div class="pq-decl-box">
+        <strong>Declaration</strong>
+        <div style="margin-top:4px;">We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.</div>
+        ${companyDetails.panNo ? `<div style="margin-top:8px;">Company's PAN : ${escapeHtml(companyDetails.panNo)}</div>` : ''}
+      </div>
+      <div class="pq-sign-box">
+        <div>
+          <div><strong>Bank Details</strong></div>
+          ${companyDetails.bankName ? `<div>Bank Name : ${escapeHtml(companyDetails.bankName)}</div>` : ''}
+          ${companyDetails.bankAccountNo ? `<div>A/c No. : ${escapeHtml(companyDetails.bankAccountNo)}</div>` : ''}
+          ${companyDetails.bankBranchIfsc ? `<div>Branch &amp; IFS Code : ${escapeHtml(companyDetails.bankBranchIfsc)}</div>` : ''}
+        </div>
+        <div class="pq-signatory">
+          for ${escapeHtml(companyDetails.name)}<br /><br /><br />
+          Authorised Signatory
+        </div>
+      </div>
+    </div>
+
+    <div class="pq-footer">
+      ${companyDetails.jurisdiction ? `<div>SUBJECT TO ${escapeHtml(companyDetails.jurisdiction)} JURISDICTION</div>` : ''}
+      <div>This is a computer generated sales invoice.</div>
+    </div>
+  </div>
+
+  <script>
+    window.onload = function () { window.print(); };
+  </script>
+</body>
+</html>`;
+  };
+
+  const handlePrintSalesBill = async () => {
+    setShowPrintConfirmModal(false);
+    await openSalesInvoicePrint(
+      printInvoiceId,
+      buildCurrentFormPrintData()
+    );
+  };
+
+  const handleCancelPrint = () => {
+    setShowPrintConfirmModal(false);
     navigate('/sales-bill');
   };
 
@@ -3421,6 +4337,9 @@ const CreateSalesBill: React.FC = () => {
   const totalTax = getTotalTax();
   const grandTotalWithRound = getGrandTotalWithRound();
 
+  const pageTitle = isViewMode ? 'View Sales Bill' : isEditMode ? 'Edit Sales Bill' : 'Create Sales Bill';
+  const displayBillNumber = isExistingRecord ? (existingInvoiceNumber || billNumber) : billNumber;
+
   return (
     <div className={`nsb-page ${theme}`}>
       <style>{`
@@ -3453,6 +4372,28 @@ const CreateSalesBill: React.FC = () => {
         }
       `}</style>
 
+      {/* Loading overlay while fetching an existing invoice for Edit/View */}
+      {loadingInvoice && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(255,255,255,0.65)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '10px',
+            zIndex: 500
+          }}
+        >
+          <FaSpinner className="nsb-spinning" size={32} style={{ color: 'var(--primary-color, #2563eb)' }} />
+          <span style={{ fontSize: '13px', color: 'var(--text-secondary, #475569)', fontWeight: 600 }}>
+            Loading Sales Invoice...
+          </span>
+        </div>
+      )}
+
       {/* Success Modal */}
       <SuccessModal
         isOpen={showSuccessModal}
@@ -3464,6 +4405,55 @@ const CreateSalesBill: React.FC = () => {
         customerName={successData.customerName}
         totalAmount={successData.totalAmount}
       />
+
+      {/* Print Confirmation Modal */}
+      {showPrintConfirmModal && (
+        <div
+          className="nsb-print-confirm-overlay"
+          onClick={handleCancelPrint}
+        >
+          <div
+            className="nsb-print-confirm-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="nsb-print-confirm-icon">
+              <FaPrint size={28} />
+            </div>
+
+            <h2 className="nsb-print-confirm-title">
+              Sales Bill Created Successfully
+            </h2>
+
+            <p className="nsb-print-confirm-message">
+              Sales Bill <strong>{successData.salesBill}</strong> has been created.
+            </p>
+
+            <p className="nsb-print-confirm-question">
+              Do you want to print it now?
+            </p>
+
+            <div className="nsb-print-confirm-actions">
+              <button
+                type="button"
+                className="nsb-print-confirm-btn nsb-print-confirm-yes"
+                onClick={handlePrintSalesBill}
+              >
+                <FaPrint size={13} />
+                Yes, Print
+              </button>
+
+              <button
+                type="button"
+                className="nsb-print-confirm-btn nsb-print-confirm-cancel"
+                onClick={handleCancelPrint}
+              >
+                <FaTimes size={13} />
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Quick Add Customer Modal */}
       <QuickAddCustomerModal
@@ -3487,7 +4477,7 @@ const CreateSalesBill: React.FC = () => {
             <FaArrowLeft size={13} /> Back
           </button>
           <div className="nsb-header-divider" />
-          <h1 className="nsb-header-title">Create Sales Bill</h1>
+          <h1 className="nsb-header-title">{pageTitle}</h1>
           {selectedDeliveryChallans.length > 0 && (
             <span className="nsb-dc-count">
               ({selectedDeliveryChallans.length} DCs selected)
@@ -3499,6 +4489,7 @@ const CreateSalesBill: React.FC = () => {
             <input
               type="checkbox"
               checked={isService}
+              disabled={isViewMode}
               onChange={(e) => {
                 setIsService(e.target.checked);
                 setItems(items.map(item => ({
@@ -3514,694 +4505,713 @@ const CreateSalesBill: React.FC = () => {
       </div>
 
       {/* MAIN BOX */}
-      <div className="nsb-main-box">
-        {/* Delivery Challan Toggle */}
-        <div className="nsb-invoice-type-section">
-          <label className="nsb-label" style={{ marginBottom: 8 }}>Create Bill From</label>
-          <div className="nsb-radio-group">
-            <label className="nsb-radio-label">
-              <input
-                type="radio"
-                name="deliveryChallanSource"
-                value="with"
-                checked={hasDeliveryChallan === true}
-                onChange={() => setHasDeliveryChallan(true)}
-              />
-              With Delivery Challan(s)
-            </label>
-            <label className="nsb-radio-label">
-              <input
-                type="radio"
-                name="deliveryChallanSource"
-                value="without"
-                checked={hasDeliveryChallan === false}
-                onChange={() => setHasDeliveryChallan(false)}
-              />
-              Without Delivery Challan
-            </label>
+      {/* A native <fieldset disabled> automatically disables every nested
+          input/select/button/textarea (including those inside the custom
+          dropdown components below), which is the quickest reliable way to
+          make the "View" mode read-only without touching every field. */}
+      <fieldset disabled={isViewMode} style={{ border: 'none', padding: 0, margin: 0 }}>
+        <div className="nsb-main-box">
+          {/* Delivery Challan Toggle */}
+          <div className="nsb-invoice-type-section">
+            <label className="nsb-label" style={{ marginBottom: 8 }}>Create Bill From</label>
+            <div className="nsb-radio-group">
+              <label className="nsb-radio-label">
+                <input
+                  type="radio"
+                  name="deliveryChallanSource"
+                  value="with"
+                  checked={hasDeliveryChallan === true}
+                  onChange={() => setHasDeliveryChallan(true)}
+                />
+                With Delivery Challan(s)
+              </label>
+              <label className="nsb-radio-label">
+                <input
+                  type="radio"
+                  name="deliveryChallanSource"
+                  value="without"
+                  checked={hasDeliveryChallan === false}
+                  onChange={() => setHasDeliveryChallan(false)}
+                />
+                Without Delivery Challan
+              </label>
+            </div>
           </div>
-        </div>
 
-        {/* TWO COLUMN LAYOUT */}
-        <div className="nsb-compact-layout">
-          {/* LEFT COLUMN */}
-          <div className="nsb-left-column">
-            {/* Delivery Challan - Only show when toggle is ON */}
-            {hasDeliveryChallan && (
-              <div className="nsb-dc-field-wrapper">
-                <div className="nsb-section-header">
-                  <FaFileAlt className="nsb-section-icon" />
-                  <span>Select Delivery Challans</span>
-                  {selectedDeliveryChallans.length > 0 && (
-                    <span style={{ fontSize: '10px', fontWeight: 'normal', color: 'var(--text-secondary, #64748b)', marginLeft: '8px' }}>
-                      {selectedDeliveryChallans.length} selected
-                    </span>
+          {/* TWO COLUMN LAYOUT */}
+          <div className="nsb-compact-layout">
+            {/* LEFT COLUMN */}
+            <div className="nsb-left-column">
+              {/* Delivery Challan - Only show when toggle is ON */}
+              {hasDeliveryChallan && (
+                <div className="nsb-dc-field-wrapper">
+                  <div className="nsb-section-header">
+                    <FaFileAlt className="nsb-section-icon" />
+                    <span>Select Delivery Challans</span>
+                    {selectedDeliveryChallans.length > 0 && (
+                      <span style={{ fontSize: '10px', fontWeight: 'normal', color: 'var(--text-secondary, #64748b)', marginLeft: '8px' }}>
+                        {selectedDeliveryChallans.length} selected
+                      </span>
+                    )}
+                  </div>
+                  <div className="nsb-field">
+                    <MultiDeliveryChallanSelect
+                      selectedDCs={selectedDeliveryChallans}
+                      onSelect={handleDeliveryChallansChange}
+                      placeholder="Search and select multiple Delivery Challans..."
+                      error={!!errors.deliveryChallan}
+                      customerFilter={selectedCustomer || undefined}
+                    />
+                    {errors.deliveryChallan && <span className="nsb-error-text">{errors.deliveryChallan}</span>}
+                    {selectedDeliveryChallans.length > 0 && (
+                      <span className="nsb-field-hint">
+                        ✓ {selectedDeliveryChallans.length} Delivery Challans selected. Items, customer & payment terms will be auto-filled.
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Customer & Sales Order */}
+              <div className="nsb-section-header">
+                <FaBuilding className="nsb-section-icon" />
+                <span>Customer & Order</span>
+              </div>
+
+              <div className="nsb-field-row">
+                <div className="nsb-field-half">
+                  <label className="nsb-label">
+                    Customer <span className="nsb-required">*</span>
+                  </label>
+                  <CustomerDropdown
+                    value={selectedCustomer}
+                    onChange={handleCustomerChange}
+                    placeholder="Search Customer..."
+                    disabled={isLoading || (hasDeliveryChallan && isCustomerDisabled)}
+                    error={!!errors.customer}
+                    presetCustomer={customerData}
+                    onAddNew={handleAddNewCustomer}
+                  />
+                  {errors.customer && <span className="nsb-error-text">{errors.customer}</span>}
+                  {hasDeliveryChallan && isCustomerDisabled && (
+                    <span className="nsb-field-hint">Auto-selected from Delivery Challans</span>
                   )}
                 </div>
+
+                <div className="nsb-field-half">
+                  <label className="nsb-label">Sales Order</label>
+                  <input
+                    type="text"
+                    value={selectedSalesOrder || (hasDeliveryChallan && selectedDeliveryChallans.length > 0 ? 'Auto-loaded from DCs' : '')}
+                    disabled
+                    className="nsb-input nsb-input-disabled"
+                    placeholder="Sales Order will be auto-loaded"
+                  />
+                </div>
+              </div>
+
+              {/* Bill Details */}
+              <div className="nsb-section-header">
+                <FaFileAlt className="nsb-section-icon" />
+                <span>Bill Details</span>
+              </div>
+
+              <div className="nsb-grid-3">
                 <div className="nsb-field">
-                  <MultiDeliveryChallanSelect
-                    selectedDCs={selectedDeliveryChallans}
-                    onSelect={handleDeliveryChallansChange}
-                    placeholder="Search and select multiple Delivery Challans..."
-                    error={!!errors.deliveryChallan}
-                    customerFilter={selectedCustomer || undefined}
-                  />
-                  {errors.deliveryChallan && <span className="nsb-error-text">{errors.deliveryChallan}</span>}
-                  {selectedDeliveryChallans.length > 0 && (
-                    <span className="nsb-field-hint">
-                      ✓ {selectedDeliveryChallans.length} Delivery Challans selected. Items, customer & payment terms will be auto-filled.
-                    </span>
-                  )}
+                  <label className="nsb-label">Bill Number</label>
+                  <div className="nsb-bill-number-display">{displayBillNumber}</div>
                 </div>
-              </div>
-            )}
 
-            {/* Customer & Sales Order */}
-            <div className="nsb-section-header">
-              <FaBuilding className="nsb-section-icon" />
-              <span>Customer & Order</span>
-            </div>
-
-            <div className="nsb-field-row">
-              <div className="nsb-field-half">
-                <label className="nsb-label">
-                  Customer <span className="nsb-required">*</span>
-                </label>
-                <CustomerDropdown
-                  value={selectedCustomer}
-                  onChange={handleCustomerChange}
-                  placeholder="Search Customer..."
-                  disabled={isLoading || (hasDeliveryChallan && isCustomerDisabled)}
-                  error={!!errors.customer}
-                  presetCustomer={customerData}
-                  onAddNew={handleAddNewCustomer}
-                />
-                {errors.customer && <span className="nsb-error-text">{errors.customer}</span>}
-                {hasDeliveryChallan && isCustomerDisabled && (
-                  <span className="nsb-field-hint">Auto-selected from Delivery Challans</span>
-                )}
-              </div>
-
-              <div className="nsb-field-half">
-                <label className="nsb-label">Sales Order</label>
-                <input
-                  type="text"
-                  value={selectedSalesOrder || (hasDeliveryChallan && selectedDeliveryChallans.length > 0 ? 'Auto-loaded from DCs' : '')}
-                  disabled
-                  className="nsb-input nsb-input-disabled"
-                  placeholder="Sales Order will be auto-loaded"
-                />
-              </div>
-            </div>
-
-            {/* Bill Details */}
-            <div className="nsb-section-header">
-              <FaFileAlt className="nsb-section-icon" />
-              <span>Bill Details</span>
-            </div>
-
-            <div className="nsb-grid-3">
-              <div className="nsb-field">
-                <label className="nsb-label">Bill Number</label>
-                <div className="nsb-bill-number-display">{billNumber}</div>
-              </div>
-
-              <div className="nsb-field">
-                <label className="nsb-label">
-                  Bill Date <span className="nsb-required">*</span>
-                </label>
-                <div className="nsb-date-field">
-                  <input
-                    type="date"
-                    value={billDate}
-                    onChange={(e) => setBillDate(e.target.value)}
-                    className={`nsb-input ${errors.billDate ? 'nsb-input-error' : ''}`}
-                  />
-                  <button
-                    type="button"
-                    className="nsb-date-icon-btn"
-                    onClick={() => {
-                      const el = document.querySelector('input[type="date"]') as HTMLInputElement;
-                      if (el) {
-                        if (typeof (el as any).showPicker === 'function') {
-                          (el as any).showPicker();
-                        } else {
-                          el.focus();
+                <div className="nsb-field">
+                  <label className="nsb-label">
+                    Bill Date <span className="nsb-required">*</span>
+                  </label>
+                  <div className="nsb-date-field">
+                    <input
+                      type="date"
+                      value={billDate}
+                      onChange={(e) => setBillDate(e.target.value)}
+                      className={`nsb-input ${errors.billDate ? 'nsb-input-error' : ''}`}
+                    />
+                    <button
+                      type="button"
+                      className="nsb-date-icon-btn"
+                      onClick={() => {
+                        const el = document.querySelector('input[type="date"]') as HTMLInputElement;
+                        if (el) {
+                          if (typeof (el as any).showPicker === 'function') {
+                            (el as any).showPicker();
+                          } else {
+                            el.focus();
+                          }
                         }
-                      }
-                    }}
-                    tabIndex={-1}
-                  >
-                    <FaCalendarAlt size={13} />
-                  </button>
+                      }}
+                      tabIndex={-1}
+                    >
+                      <FaCalendarAlt size={13} />
+                    </button>
+                  </div>
                 </div>
-              </div>
 
-              <div className="nsb-field">
-                <label className="nsb-label">
-                  Due Date <span className="nsb-required">*</span>
-                </label>
-                <div className="nsb-date-field">
-                  <input
-                    type="date"
-                    value={dueDate}
-                    onChange={(e) => setDueDate(e.target.value)}
-                    className={`nsb-input ${errors.dueDate ? 'nsb-input-error' : ''}`}
-                  />
-                  <button
-                    type="button"
-                    className="nsb-date-icon-btn"
-                    onClick={() => {
-                      const el = document.querySelector('input[type="date"]') as HTMLInputElement;
-                      if (el) {
-                        if (typeof (el as any).showPicker === 'function') {
-                          (el as any).showPicker();
-                        } else {
-                          el.focus();
+                <div className="nsb-field">
+                  <label className="nsb-label">
+                    Due Date <span className="nsb-required">*</span>
+                  </label>
+                  <div className="nsb-date-field">
+                    <input
+                      type="date"
+                      value={dueDate}
+                      onChange={(e) => setDueDate(e.target.value)}
+                      className={`nsb-input ${errors.dueDate ? 'nsb-input-error' : ''}`}
+                    />
+                    <button
+                      type="button"
+                      className="nsb-date-icon-btn"
+                      onClick={() => {
+                        const el = document.querySelector('input[type="date"]') as HTMLInputElement;
+                        if (el) {
+                          if (typeof (el as any).showPicker === 'function') {
+                            (el as any).showPicker();
+                          } else {
+                            el.focus();
+                          }
                         }
-                      }
-                    }}
-                    tabIndex={-1}
-                  >
-                    <FaCalendarAlt size={13} />
-                  </button>
+                      }}
+                      tabIndex={-1}
+                    >
+                      <FaCalendarAlt size={13} />
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="nsb-grid-3">
-              <div className="nsb-field">
-                <label className="nsb-label">
-                  Warehouse <span className="nsb-required">*</span>
-                </label>
-                <WarehouseSelect
-                  value={warehouse}
-                  onChange={setWarehouse}
-                  placeholder="Search and select Warehouse..."
-                  error={!!errors.warehouse}
-                  required={true}
-                />
-                {errors.warehouse && <span className="nsb-error-text">{errors.warehouse}</span>}
-              </div>
+              <div className="nsb-grid-3">
+                <div className="nsb-field">
+                  <label className="nsb-label">
+                    Warehouse <span className="nsb-required">*</span>
+                  </label>
+                  <WarehouseSelect
+                    value={warehouse}
+                    onChange={setWarehouse}
+                    placeholder="Search and select Warehouse..."
+                    error={!!errors.warehouse}
+                    required={true}
+                  />
+                  {errors.warehouse && <span className="nsb-error-text">{errors.warehouse}</span>}
+                </div>
 
-              <div className="nsb-field">
-                <label className="nsb-label">Invoice Number</label>
-                <input
-                  type="text"
-                  placeholder="INV-2026-001"
-                  value={invoiceNumber}
-                  onChange={(e) => setInvoiceNumber(e.target.value)}
-                  className="nsb-input"
-                />
-              </div>
-
-              <div className="nsb-field">
-                <label className="nsb-label">Invoice Date</label>
-                <div className="nsb-date-field">
+                <div className="nsb-field">
+                  <label className="nsb-label">Invoice Number</label>
                   <input
-                    type="date"
-                    value={invoiceDate}
-                    onChange={(e) => setInvoiceDate(e.target.value)}
+                    type="text"
+                    placeholder="INV-2026-001"
+                    value={invoiceNumber}
+                    onChange={(e) => setInvoiceNumber(e.target.value)}
                     className="nsb-input"
                   />
-                  <button
-                    type="button"
-                    className="nsb-date-icon-btn"
-                    onClick={() => {
-                      const el = document.querySelector('input[type="date"]') as HTMLInputElement;
-                      if (el) {
-                        if (typeof (el as any).showPicker === 'function') {
-                          (el as any).showPicker();
-                        } else {
-                          el.focus();
+                </div>
+
+                <div className="nsb-field">
+                  <label className="nsb-label">Invoice Date</label>
+                  <div className="nsb-date-field">
+                    <input
+                      type="date"
+                      value={invoiceDate}
+                      onChange={(e) => setInvoiceDate(e.target.value)}
+                      className="nsb-input"
+                    />
+                    <button
+                      type="button"
+                      className="nsb-date-icon-btn"
+                      onClick={() => {
+                        const el = document.querySelector('input[type="date"]') as HTMLInputElement;
+                        if (el) {
+                          if (typeof (el as any).showPicker === 'function') {
+                            (el as any).showPicker();
+                          } else {
+                            el.focus();
+                          }
                         }
-                      }
-                    }}
-                    tabIndex={-1}
-                  >
-                    <FaCalendarAlt size={13} />
-                  </button>
+                      }}
+                      tabIndex={-1}
+                    >
+                      <FaCalendarAlt size={13} />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* RIGHT COLUMN - CUSTOMER DETAIL CARD */}
-          <div className="nsb-right-column">
-            {customerData ? (
-              <div className="nsb-detail-card">
-                <div className="nsb-card-header">
-                  <FaBuilding size={14} />
-                  <span>Customer Details</span>
-                </div>
-                <div className="nsb-card-content">
-                  <h3>{customerData.name}</h3>
-                  <div className="nsb-card-info">
-                    {customerData.code && (
-                      <div className="nsb-info-item">
-                        <span className="nsb-info-label">Code</span>
-                        <span className="nsb-info-value">{customerData.code}</span>
-                      </div>
-                    )}
-                    {customerData.contactPerson && (
-                      <div className="nsb-info-item">
-                        <span className="nsb-info-label">Contact</span>
-                        <span className="nsb-info-value"><FaUser size={10} /> {customerData.contactPerson}</span>
-                      </div>
-                    )}
-                    {customerData.phone && (
-                      <div className="nsb-info-item">
-                        <span className="nsb-info-label">Phone</span>
-                        <span className="nsb-info-value"><FaPhone size={10} /> {customerData.phone}</span>
-                      </div>
-                    )}
-                    {customerData.email && (
-                      <div className="nsb-info-item">
-                        <span className="nsb-info-label">Email</span>
-                        <span className="nsb-info-value"><FaEnvelope size={10} /> {customerData.email}</span>
-                      </div>
-                    )}
-                    {customerData.gstin && (
-                      <div className="nsb-info-item">
-                        <span className="nsb-info-label">GST</span>
-                        <span className="nsb-info-value">{customerData.gstin}</span>
-                      </div>
-                    )}
+            {/* RIGHT COLUMN - CUSTOMER DETAIL CARD */}
+            <div className="nsb-right-column">
+              {customerData ? (
+                <div className="nsb-detail-card">
+                  <div className="nsb-card-header">
+                    <FaBuilding size={14} />
+                    <span>Customer Details</span>
                   </div>
-                  {selectedDeliveryChallans.length > 0 && (
-                    <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px solid var(--border-color, #e2e8f0)' }}>
-                      <div style={{ fontSize: '10px', color: 'var(--text-secondary, #64748b)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                        Associated DCs
-                      </div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
-                        {selectedDeliveryChallans.map(dc => (
-                          <span key={dc.id} style={{
-                            fontSize: '10px',
-                            padding: '1px 6px',
-                            borderRadius: '10px',
-                            background: 'color-mix(in srgb, var(--primary-color) 10%, transparent)',
-                            color: 'var(--primary-color, #2563eb)',
-                            border: '1px solid color-mix(in srgb, var(--primary-color) 20%, transparent)'
-                          }}>
-                            {dc.id}
-                          </span>
-                        ))}
-                      </div>
+                  <div className="nsb-card-content">
+                    <h3>{customerData.name}</h3>
+                    <div className="nsb-card-info">
+                      {customerData.code && (
+                        <div className="nsb-info-item">
+                          <span className="nsb-info-label">Code</span>
+                          <span className="nsb-info-value">{customerData.code}</span>
+                        </div>
+                      )}
+                      {customerData.contactPerson && (
+                        <div className="nsb-info-item">
+                          <span className="nsb-info-label">Contact</span>
+                          <span className="nsb-info-value"><FaUser size={10} /> {customerData.contactPerson}</span>
+                        </div>
+                      )}
+                      {customerData.phone && (
+                        <div className="nsb-info-item">
+                          <span className="nsb-info-label">Phone</span>
+                          <span className="nsb-info-value"><FaPhone size={10} /> {customerData.phone}</span>
+                        </div>
+                      )}
+                      {customerData.email && (
+                        <div className="nsb-info-item">
+                          <span className="nsb-info-label">Email</span>
+                          <span className="nsb-info-value"><FaEnvelope size={10} /> {customerData.email}</span>
+                        </div>
+                      )}
+                      {customerData.gstin && (
+                        <div className="nsb-info-item">
+                          <span className="nsb-info-label">GST</span>
+                          <span className="nsb-info-value">{customerData.gstin}</span>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="nsb-detail-card nsb-empty-card">
-                <div className="nsb-card-header">
-                  <FaBuilding size={14} />
-                  <span>Customer Details</span>
-                </div>
-                <div className="nsb-card-content">
-                  <div className="nsb-empty-state">
-                    <FaInfoCircle size={24} />
-                    <p>Select a customer to view details</p>
+                    {selectedDeliveryChallans.length > 0 && (
+                      <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px solid var(--border-color, #e2e8f0)' }}>
+                        <div style={{ fontSize: '10px', color: 'var(--text-secondary, #64748b)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                          Associated DCs
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
+                          {selectedDeliveryChallans.map(dc => (
+                            <span key={dc.id} style={{
+                              fontSize: '10px',
+                              padding: '1px 6px',
+                              borderRadius: '10px',
+                              background: 'color-mix(in srgb, var(--primary-color) 10%, transparent)',
+                              color: 'var(--primary-color, #2563eb)',
+                              border: '1px solid color-mix(in srgb, var(--primary-color) 20%, transparent)'
+                            }}>
+                              {dc.id}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* FULL WIDTH - ITEMS SECTION */}
-        <div className="nsb-items-full">
-          <div className="nsb-items-header">
-            <span className="nsb-items-title">
-              <FaClipboardList className="nsb-items-icon" /> {isService ? 'Services' : 'Products'}
-              {selectedDeliveryChallans.length > 0 && (
-                <span style={{ fontSize: '10px', fontWeight: 'normal', color: 'var(--text-secondary, #64748b)' }}>
-                  (from {selectedDeliveryChallans.length} DCs)
-                </span>
+              ) : (
+                <div className="nsb-detail-card nsb-empty-card">
+                  <div className="nsb-card-header">
+                    <FaBuilding size={14} />
+                    <span>Customer Details</span>
+                  </div>
+                  <div className="nsb-card-content">
+                    <div className="nsb-empty-state">
+                      <FaInfoCircle size={24} />
+                      <p>Select a customer to view details</p>
+                    </div>
+                  </div>
+                </div>
               )}
-            </span>
-            <button onClick={addItem} className="nsb-add-btn">
-              <FaPlus size={9} /> Add
-            </button>
+            </div>
           </div>
 
-          {errors.items && <div className="nsb-items-error"><FaExclamationTriangle /> {errors.items}</div>}
-
-          <div className="nsb-table-wrap">
-            <table className="nsb-items-table">
-              <thead>
-                <tr>
-                  <th className="nsb-col-sno">#</th>
-                  <th className="nsb-col-code">Item Code <span className="nsb-required">*</span></th>
-                  <th className="nsb-col-name">Item Name <span className="nsb-required">*</span></th>
-                  <th className="nsb-col-hsn">HSN</th>
-                  <th className="nsb-col-qty">Qty <span className="nsb-required">*</span></th>
-                  <th className="nsb-col-unit">UOM</th>
-                  <th className="nsb-col-rate">Rate</th>
-                  <th className="nsb-col-tax">Tax</th>
-                  <th className="nsb-col-tax-amount" style={{ textAlign: 'right' }}>Tax Amt</th>
-                  <th className="nsb-col-amount" style={{ textAlign: 'right' }}>Amount</th>
-                  <th className="nsb-col-action"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((item, index) => (
-                  <tr key={item.id}>
-                    <td className="nsb-col-sno">{index + 1}</td>
-                    <td className="nsb-col-code">
-                      <SearchableSelect
-                        value={item.itemCode}
-                        onChange={(value) => updateItem(item.id, 'itemCode', value)}
-                        options={products}
-                        placeholder="Search..."
-                        onSearch={handleItemSearch}
-                        loading={isLoadingItems}
-                        error={!!errors[`item_${index}_code`]}
-                        stockInfo={{ status: item.stockStatus || 'unknown', availableQty: item.availableQty }}
-                      />
-                    </td>
-                    <td className="nsb-col-name">
-                      <input
-                        type="text"
-                        value={item.itemName}
-                        onChange={(e) => updateItem(item.id, 'itemName', e.target.value)}
-                        placeholder="Item Name"
-                        className="nsb-table-input nsb-table-input-text"
-                      />
-                    </td>
-                    <td className="nsb-col-hsn">
-                      <input
-                        type="text"
-                        value={item.hsn}
-                        onChange={(e) => updateItem(item.id, 'hsn', e.target.value)}
-                        placeholder="HSN"
-                        className="nsb-table-input nsb-table-input-text"
-                      />
-                    </td>
-                    <td className="nsb-col-qty">
-                      <input
-                        type="number"
-                        value={item.quantity}
-                        onChange={(e) => updateItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
-                        min="1"
-                        className="nsb-table-input"
-                      />
-                    </td>
-                    <td className="nsb-col-unit">
-                      <select
-                        value={item.unit}
-                        onChange={(e) => updateItem(item.id, 'unit', e.target.value)}
-                        className="nsb-table-input"
-                      >
-                        <option value="pcs">Pcs</option>
-                        <option value="kg">Kg</option>
-                        <option value="ltr">Ltr</option>
-                        <option value="mtr">Mtr</option>
-                        <option value="Nos">Nos</option>
-                        <option value="Box">Box</option>
-                      </select>
-                    </td>
-                    <td className="nsb-col-rate">
-                      <input
-                        type="number"
-                        value={item.rate}
-                        onChange={(e) => updateItem(item.id, 'rate', parseFloat(e.target.value) || 0)}
-                        min="0"
-                        step="0.01"
-                        className="nsb-table-input"
-                      />
-                    </td>
-                    <td className="nsb-col-tax">
-                      <select
-                        value={item.tax}
-                        onChange={(e) => updateItem(item.id, 'tax', parseFloat(e.target.value) || 0)}
-                        className="nsb-table-input"
-                        disabled={loadingTaxOptions}
-                      >
-                        <option value={0}>0%</option>
-                        {taxOptions.map((tax) => (
-                          <option key={tax.tax_id} value={extractTaxValue(tax.tax_type)}>
-                            {tax.tax_type}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="nsb-col-tax-amount" style={{ textAlign: 'right' }}>
-                      <span className="nsb-table-value">₹{item.taxAmount.toFixed(2)}</span>
-                    </td>
-                    <td className="nsb-col-amount" style={{ textAlign: 'right' }}>
-                      <span className="nsb-table-value">₹{item.totalAmount.toFixed(2)}</span>
-                    </td>
-                    <td className="nsb-col-action">
-                      <button onClick={() => removeItem(item.id)} className="nsb-remove-btn">
-                        <FaTrash size={12} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* BOTTOM SECTION - Payment Schedule */}
-        <div className="nsb-bottom-section">
-          {/* LEFT COLUMN */}
-          <div className="nsb-bottom-left">
-            {/* Payment Schedule Header */}
-            <div className="nsb-section-header">
-              <FaCreditCard className="nsb-section-icon" />
-              <span>Payment Schedule</span>
+          {/* FULL WIDTH - ITEMS SECTION */}
+          <div className="nsb-items-full">
+            <div className="nsb-items-header">
+              <span className="nsb-items-title">
+                <FaClipboardList className="nsb-items-icon" /> {isService ? 'Services' : 'Products'}
+                {selectedDeliveryChallans.length > 0 && (
+                  <span style={{ fontSize: '10px', fontWeight: 'normal', color: 'var(--text-secondary, #64748b)' }}>
+                    (from {selectedDeliveryChallans.length} DCs)
+                  </span>
+                )}
+              </span>
+              <button onClick={addItem} className="nsb-add-btn">
+                <FaPlus size={9} /> Add
+              </button>
             </div>
 
-            {/* Payment Terms Template Dropdown */}
-            <div className="nsb-field" style={{ marginBottom: '0.5rem' }}>
-              <div className="nsb-field-row" style={{ gridTemplateColumns: '1fr auto' }}>
-                <select
-                  value={selectedPaymentTemplate}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setSelectedPaymentTemplate(value);
-                    if (value) {
-                      applyPaymentTemplate(value);
-                    }
-                  }}
-                  className="nsb-select"
-                  style={{ minWidth: '200px' }}
-                >
-                  <option value="">Select Payment Terms...</option>
-                  {paymentTermTemplates.map((template) => (
-                    <option key={template.id} value={template.id}>
-                      {template.name} - {template.description}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  className="nsb-add-btn"
-                  onClick={() => {
-                    if (selectedPaymentTemplate) {
-                      applyPaymentTemplate(selectedPaymentTemplate);
-                    }
-                  }}
-                  style={{ whiteSpace: 'nowrap', padding: '5px 14px' }}
-                >
-                  <FaCopy size={9} /> Apply
-                </button>
-              </div>
-            </div>
+            {errors.items && <div className="nsb-items-error"><FaExclamationTriangle /> {errors.items}</div>}
 
-            {/* Payment Schedule Table */}
-            <div className="nsb-payment-table-wrap">
-              <table className="nsb-payment-table">
+            <div className="nsb-table-wrap">
+              <table className="nsb-items-table">
                 <thead>
                   <tr>
-                    <th className="nsb-payment-col-no">#</th>
-                    <th className="nsb-payment-col-term">Payment Term</th>
-                    <th className="nsb-payment-col-date">Due Date</th>
-                    <th className="nsb-payment-col-duration">Days</th>
-                    <th className="nsb-payment-col-portion">%</th>
-                    <th className="nsb-payment-col-amount">Amount</th>
-                    <th className="nsb-payment-col-action"></th>
+                    <th className="nsb-col-sno">#</th>
+                    <th className="nsb-col-code">Item Code <span className="nsb-required">*</span></th>
+                    <th className="nsb-col-name">Item Name <span className="nsb-required">*</span></th>
+                    <th className="nsb-col-hsn">HSN</th>
+                    <th className="nsb-col-qty">Qty <span className="nsb-required">*</span></th>
+                    <th className="nsb-col-unit">UOM</th>
+                    <th className="nsb-col-rate">Rate</th>
+                    <th className="nsb-col-tax">Tax</th>
+                    <th className="nsb-col-tax-amount" style={{ textAlign: 'right' }}>Tax Amt</th>
+                    <th className="nsb-col-amount" style={{ textAlign: 'right' }}>Amount</th>
+                    <th className="nsb-col-action"></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {paymentSchedule.map((schedule, index) => (
-                    <tr key={schedule.id}>
-                      <td className="nsb-payment-col-no">{index + 1}</td>
-                      <td className="nsb-payment-col-term">
+                  {items.map((item, index) => (
+                    <tr key={item.id}>
+                      <td className="nsb-col-sno">{index + 1}</td>
+                      <td className="nsb-col-code">
+                        <SearchableSelect
+                          value={item.itemCode}
+                          onChange={(value) => updateItem(item.id, 'itemCode', value)}
+                          options={products}
+                          placeholder="Search..."
+                          onSearch={handleItemSearch}
+                          loading={isLoadingItems}
+                          error={!!errors[`item_${index}_code`]}
+                          stockInfo={{ status: item.stockStatus || 'unknown', availableQty: item.availableQty }}
+                        />
+                      </td>
+                      <td className="nsb-col-name">
                         <input
                           type="text"
-                          value={schedule.paymentTerm}
-                          onChange={(e) => updatePaymentRow(index, { paymentTerm: e.target.value })}
-                          placeholder="Term"
+                          value={item.itemName}
+                          onChange={(e) => updateItem(item.id, 'itemName', e.target.value)}
+                          placeholder="Item Name"
                           className="nsb-table-input nsb-table-input-text"
                         />
                       </td>
-                      <td className="nsb-payment-col-date">
+                      <td className="nsb-col-hsn">
                         <input
-                          type="date"
-                          value={schedule.dueDate}
-                          onChange={(e) => handlePaymentDueDateChange(index, e.target.value)}
-                          className="nsb-table-input"
+                          type="text"
+                          value={item.hsn}
+                          onChange={(e) => updateItem(item.id, 'hsn', e.target.value)}
+                          placeholder="HSN"
+                          className="nsb-table-input nsb-table-input-text"
                         />
                       </td>
-                      <td className="nsb-payment-col-duration">
-                        <input
-                          type="number"
-                          value={schedule.durationDays}
-                          onChange={(e) => handlePaymentDurationChange(index, Number(e.target.value) || 0)}
-                          min="0"
-                          className="nsb-table-input"
-                        />
-                      </td>
-                      <td className="nsb-payment-col-portion">
+                      <td className="nsb-col-qty">
                         <input
                           type="number"
-                          value={schedule.invoicePortion}
-                          onChange={(e) => updatePaymentRow(index, { invoicePortion: Number(e.target.value) || 0 })}
-                          min="0"
-                          max="100"
+                          value={item.quantity}
+                          onChange={(e) => updateItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
+                          min="1"
                           className="nsb-table-input"
                         />
                       </td>
-                      <td className="nsb-payment-col-amount">
-                        <span className="nsb-table-value">₹{schedule.paymentAmount.toFixed(2)}</span>
+                      <td className="nsb-col-unit">
+                        <select
+                          value={item.unit}
+                          onChange={(e) => updateItem(item.id, 'unit', e.target.value)}
+                          className="nsb-table-input"
+                        >
+                          <option value="pcs">Pcs</option>
+                          <option value="kg">Kg</option>
+                          <option value="ltr">Ltr</option>
+                          <option value="mtr">Mtr</option>
+                          <option value="Nos">Nos</option>
+                          <option value="Box">Box</option>
+                        </select>
                       </td>
-                      <td className="nsb-payment-col-action">
-                        {paymentSchedule.length > 1 && (
-                          <button
-                            type="button"
-                            className="nsb-remove-btn"
-                            onClick={() => removePaymentSchedule(index)}
-                          >
-                            <FaTrash size={10} />
-                          </button>
-                        )}
+                      <td className="nsb-col-rate">
+                        <input
+                          type="number"
+                          value={item.rate}
+                          onChange={(e) => updateItem(item.id, 'rate', parseFloat(e.target.value) || 0)}
+                          min="0"
+                          step="0.01"
+                          className="nsb-table-input"
+                        />
+                      </td>
+                      <td className="nsb-col-tax">
+                        <select
+                          value={item.tax}
+                          onChange={(e) => updateItem(item.id, 'tax', parseFloat(e.target.value) || 0)}
+                          className="nsb-table-input"
+                          disabled={loadingTaxOptions}
+                        >
+                          <option value={0}>0%</option>
+                          {taxOptions.map((tax) => (
+                            <option key={tax.tax_id} value={extractTaxValue(tax.tax_type)}>
+                              {tax.tax_type}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="nsb-col-tax-amount" style={{ textAlign: 'right' }}>
+                        <span className="nsb-table-value">₹{item.taxAmount.toFixed(2)}</span>
+                      </td>
+                      <td className="nsb-col-amount" style={{ textAlign: 'right' }}>
+                        <span className="nsb-table-value">₹{item.totalAmount.toFixed(2)}</span>
+                      </td>
+                      <td className="nsb-col-action">
+                        <button onClick={() => removeItem(item.id)} className="nsb-remove-btn">
+                          <FaTrash size={12} />
+                        </button>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-
-            <button type="button" className="nsb-add-payment-btn" onClick={addPaymentSchedule}>
-              <FaPlus size={9} /> Add Schedule
-            </button>
-
-            {/* Payment Mode, Status & Remarks in one row */}
-            <div className="nsb-field" style={{ marginTop: '1rem' }}>
-              <div className="nsb-grid-2">
-                <div className="nsb-field">
-                  <label className="nsb-label">Payment Mode</label>
-                  <select
-                    value={paymentMode}
-                    onChange={(e) => setPaymentMode(e.target.value)}
-                    className="nsb-select"
-                  >
-                    <option value="">Select Payment Mode</option>
-                    <option value="Cash">Cash</option>
-                    <option value="Bank Transfer">Bank Transfer</option>
-                    <option value="Cheque">Cheque</option>
-                    <option value="Credit Card">Credit Card</option>
-                    <option value="UPI">UPI</option>
-                    <option value="NEFT">NEFT</option>
-                    <option value="RTGS">RTGS</option>
-                    <option value="IMPS">IMPS</option>
-                  </select>
-                </div>
-
-                <div className="nsb-field">
-                  <label className="nsb-label">Invoice Status</label>
-                  <select
-                    value={invoiceStatus}
-                    onChange={(e) => setInvoiceStatus(e.target.value)}
-                    className="nsb-select"
-                  >
-                    <option value="Draft">Draft</option>
-                    <option value="Submitted">Submitted</option>
-                    <option value="Paid">Paid</option>
-                    <option value="Overdue">Overdue</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            <div className="nsb-field">
-              <label className="nsb-label">Remarks</label>
-              <input
-                type="text"
-                placeholder="Add notes..."
-                value={remarks}
-                onChange={(e) => setRemarks(e.target.value)}
-                className="nsb-input"
-              />
-            </div>
           </div>
 
-          {/* RIGHT COLUMN: Financial Summary */}
-          <div className="nsb-bottom-right">
-            <div className="nsb-detail-card nsb-summary-card">
-              <div className="nsb-card-header">
-                <FaCalculator size={14} />
-                <span>Financial Summary</span>
+          {/* BOTTOM SECTION - Payment Schedule */}
+          <div className="nsb-bottom-section">
+            {/* LEFT COLUMN */}
+            <div className="nsb-bottom-left">
+              {/* Payment Schedule Header */}
+              <div className="nsb-section-header">
+                <FaCreditCard className="nsb-section-icon" />
+                <span>Payment Schedule</span>
               </div>
-              <div className="nsb-card-content">
-                <div className="nsb-summary-grid">
-                  <div className="nsb-summary-item">
-                    <span className="nsb-summary-label">Total Items</span>
-                    <span className="nsb-summary-value">{totalItems}</span>
+
+              {/* Payment Terms Template Dropdown */}
+              <div className="nsb-field" style={{ marginBottom: '0.5rem' }}>
+                <div className="nsb-field-row" style={{ gridTemplateColumns: '1fr auto' }}>
+                  <select
+                    value={selectedPaymentTemplate}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setSelectedPaymentTemplate(value);
+                      if (value) {
+                        applyPaymentTemplate(value);
+                      }
+                    }}
+                    className="nsb-select"
+                    style={{ minWidth: '200px' }}
+                  >
+                    <option value="">Select Payment Terms...</option>
+                    {paymentTermTemplates.map((template) => (
+                      <option key={template.id} value={template.id}>
+                        {template.name} - {template.description}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="nsb-add-btn"
+                    onClick={() => {
+                      if (selectedPaymentTemplate) {
+                        applyPaymentTemplate(selectedPaymentTemplate);
+                      }
+                    }}
+                    style={{ whiteSpace: 'nowrap', padding: '5px 14px' }}
+                  >
+                    <FaCopy size={9} /> Apply
+                  </button>
+                </div>
+              </div>
+
+              {/* Payment Schedule Table */}
+              <div className="nsb-payment-table-wrap">
+                <table className="nsb-payment-table">
+                  <thead>
+                    <tr>
+                      <th className="nsb-payment-col-no">#</th>
+                      <th className="nsb-payment-col-term">Payment Term</th>
+                      <th className="nsb-payment-col-date">Due Date</th>
+                      <th className="nsb-payment-col-duration">Days</th>
+                      <th className="nsb-payment-col-portion">%</th>
+                      <th className="nsb-payment-col-amount">Amount</th>
+                      <th className="nsb-payment-col-action"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paymentSchedule.map((schedule, index) => (
+                      <tr key={schedule.id}>
+                        <td className="nsb-payment-col-no">{index + 1}</td>
+                        <td className="nsb-payment-col-term">
+                          <input
+                            type="text"
+                            value={schedule.paymentTerm}
+                            onChange={(e) => updatePaymentRow(index, { paymentTerm: e.target.value })}
+                            placeholder="Term"
+                            className="nsb-table-input nsb-table-input-text"
+                          />
+                        </td>
+                        <td className="nsb-payment-col-date">
+                          <input
+                            type="date"
+                            value={schedule.dueDate}
+                            onChange={(e) => handlePaymentDueDateChange(index, e.target.value)}
+                            className="nsb-table-input"
+                          />
+                        </td>
+                        <td className="nsb-payment-col-duration">
+                          <input
+                            type="number"
+                            value={schedule.durationDays}
+                            onChange={(e) => handlePaymentDurationChange(index, Number(e.target.value) || 0)}
+                            min="0"
+                            className="nsb-table-input"
+                          />
+                        </td>
+                        <td className="nsb-payment-col-portion">
+                          <input
+                            type="number"
+                            value={schedule.invoicePortion}
+                            onChange={(e) => updatePaymentRow(index, { invoicePortion: Number(e.target.value) || 0 })}
+                            min="0"
+                            max="100"
+                            className="nsb-table-input"
+                          />
+                        </td>
+                        <td className="nsb-payment-col-amount">
+                          <span className="nsb-table-value">₹{schedule.paymentAmount.toFixed(2)}</span>
+                        </td>
+                        <td className="nsb-payment-col-action">
+                          {paymentSchedule.length > 1 && (
+                            <button
+                              type="button"
+                              className="nsb-remove-btn"
+                              onClick={() => removePaymentSchedule(index)}
+                            >
+                              <FaTrash size={10} />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <button type="button" className="nsb-add-payment-btn" onClick={addPaymentSchedule}>
+                <FaPlus size={9} /> Add Schedule
+              </button>
+
+              {/* Payment Mode, Status & Remarks in one row */}
+              <div className="nsb-field" style={{ marginTop: '1rem' }}>
+                <div className="nsb-grid-2">
+                  <div className="nsb-field">
+                    <label className="nsb-label">Payment Mode</label>
+                    <select
+                      value={paymentMode}
+                      onChange={(e) => setPaymentMode(e.target.value)}
+                      className="nsb-select"
+                    >
+                      <option value="">Select Payment Mode</option>
+                      <option value="Cash">Cash</option>
+                      <option value="Bank Transfer">Bank Transfer</option>
+                      <option value="Cheque">Cheque</option>
+                      <option value="Credit Card">Credit Card</option>
+                      <option value="UPI">UPI</option>
+                      <option value="NEFT">NEFT</option>
+                      <option value="RTGS">RTGS</option>
+                      <option value="IMPS">IMPS</option>
+                    </select>
                   </div>
-                  <div className="nsb-summary-item">
-                    <span className="nsb-summary-label">Total Quantity</span>
-                    <span className="nsb-summary-value">{totalQuantity}</span>
+
+                  <div className="nsb-field">
+                    <label className="nsb-label">Invoice Status</label>
+                    <select
+                      value={invoiceStatus}
+                      onChange={(e) => setInvoiceStatus(e.target.value)}
+                      className="nsb-select"
+                    >
+                      <option value="Draft">Draft</option>
+                      <option value="Submitted">Submitted</option>
+                      <option value="Paid">Paid</option>
+                      <option value="Overdue">Overdue</option>
+                    </select>
                   </div>
-                  <div className="nsb-summary-item">
-                    <span className="nsb-summary-label">Sub Total</span>
-                    <span className="nsb-summary-value">₹{subTotal.toFixed(2)}</span>
-                  </div>
-                  <div className="nsb-summary-item">
-                    <span className="nsb-summary-label">Total Tax</span>
-                    <span className="nsb-summary-value">₹{totalTax.toFixed(2)}</span>
-                  </div>
-                  <div className="nsb-summary-item">
-                    <span className="nsb-summary-label">Round Off</span>
-                    <div className="nsb-roundoff-wrap">
-                      <input
-                        type="number"
-                        value={roundOff.toFixed(2)}
-                        onChange={(e) => setRoundOff(parseFloat(e.target.value) || 0)}
-                        className="nsb-roundoff-input"
-                      />
+                </div>
+              </div>
+
+              <div className="nsb-field">
+                <label className="nsb-label">Remarks</label>
+                <input
+                  type="text"
+                  placeholder="Add notes..."
+                  value={remarks}
+                  onChange={(e) => setRemarks(e.target.value)}
+                  className="nsb-input"
+                />
+              </div>
+            </div>
+
+            {/* RIGHT COLUMN: Financial Summary */}
+            <div className="nsb-bottom-right">
+              <div className="nsb-detail-card nsb-summary-card">
+                <div className="nsb-card-header">
+                  <FaCalculator size={14} />
+                  <span>Financial Summary</span>
+                </div>
+                <div className="nsb-card-content">
+                  <div className="nsb-summary-grid">
+                    <div className="nsb-summary-item">
+                      <span className="nsb-summary-label">Total Items</span>
+                      <span className="nsb-summary-value">{totalItems}</span>
                     </div>
-                  </div>
-                  <div className="nsb-summary-grand">
-                    <span className="nsb-summary-grand-label">Grand Total</span>
-                    <span className="nsb-summary-grand-value">₹{grandTotalWithRound.toFixed(2)}</span>
-                  </div>
-                  <div className="nsb-summary-item" style={{ borderTop: '1px solid var(--border-color, #e2e8f0)', marginTop: '4px', paddingTop: '6px' }}>
-                    <span className="nsb-summary-label" style={{ fontWeight: 600, color: 'var(--text-primary, #0f172a)' }}>Payment Schedule Total</span>
-                    <span className="nsb-summary-value" style={{ fontWeight: 600, color: 'var(--primary-color, #2563eb)' }}>
-                      ₹{paymentSchedule.reduce((sum, p) => sum + p.paymentAmount, 0).toFixed(2)}
-                    </span>
+                    <div className="nsb-summary-item">
+                      <span className="nsb-summary-label">Total Quantity</span>
+                      <span className="nsb-summary-value">{totalQuantity}</span>
+                    </div>
+                    <div className="nsb-summary-item">
+                      <span className="nsb-summary-label">Sub Total</span>
+                      <span className="nsb-summary-value">₹{subTotal.toFixed(2)}</span>
+                    </div>
+                    <div className="nsb-summary-item">
+                      <span className="nsb-summary-label">Total Tax</span>
+                      <span className="nsb-summary-value">₹{totalTax.toFixed(2)}</span>
+                    </div>
+                    <div className="nsb-summary-item">
+                      <span className="nsb-summary-label">Round Off</span>
+                      <div className="nsb-roundoff-wrap">
+                        <input
+                          type="number"
+                          value={roundOff.toFixed(2)}
+                          onChange={(e) => setRoundOff(parseFloat(e.target.value) || 0)}
+                          className="nsb-roundoff-input"
+                        />
+                      </div>
+                    </div>
+                    <div className="nsb-summary-grand">
+                      <span className="nsb-summary-grand-label">Grand Total</span>
+                      <span className="nsb-summary-grand-value">₹{grandTotalWithRound.toFixed(2)}</span>
+                    </div>
+                    <div className="nsb-summary-item" style={{ borderTop: '1px solid var(--border-color, #e2e8f0)', marginTop: '4px', paddingTop: '6px' }}>
+                      <span className="nsb-summary-label" style={{ fontWeight: 600, color: 'var(--text-primary, #0f172a)' }}>Payment Schedule Total</span>
+                      <span className="nsb-summary-value" style={{ fontWeight: 600, color: 'var(--primary-color, #2563eb)' }}>
+                        ₹{paymentSchedule.reduce((sum, p) => sum + p.paymentAmount, 0).toFixed(2)}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      </fieldset>
 
       {/* Action Buttons */}
       <div className="nsb-form-footer">
-        <button onClick={() => window.print()} className="nsb-btn nsb-btn-print">
+        <button
+          type="button"
+          onClick={() => openSalesInvoicePrint(id || printInvoiceId, buildCurrentFormPrintData())}
+          className="nsb-btn nsb-btn-print"
+        >
           <FaPrint size={11} /> Print
         </button>
-        <button onClick={handleSaveDraft} disabled={isSubmitting} className="nsb-btn nsb-btn-draft">
-          {isSubmitting ? <FaSpinner className="nsb-spinning" size={11} /> : <FaSave size={11} />} Draft
-        </button>
-        <button onClick={handleSubmit} disabled={isSubmitting} className="nsb-btn nsb-btn-submit">
-          {isSubmitting ? <FaSpinner className="nsb-spinning" size={11} /> : <FaPaperPlane size={11} />} Submit
-        </button>
+        {!isViewMode && (
+          <>
+            <button onClick={handleSaveDraft} disabled={isSubmitting} className="nsb-btn nsb-btn-draft">
+              {isSubmitting ? <FaSpinner className="nsb-spinning" size={11} /> : <FaSave size={11} />} Draft
+            </button>
+            <button onClick={handleSubmit} disabled={isSubmitting} className="nsb-btn nsb-btn-submit">
+              {isSubmitting ? <FaSpinner className="nsb-spinning" size={11} /> : <FaPaperPlane size={11} />} {isEditMode ? 'Update' : 'Submit'}
+            </button>
+          </>
+        )}
+        {isViewMode && id && (
+          <button onClick={() => navigate(`/sales-bill/edit/${id}`)} className="nsb-btn nsb-btn-submit">
+            <FaSave size={11} /> Edit
+          </button>
+        )}
         <button onClick={handleCancel} className="nsb-btn nsb-btn-cancel">
           <FaTimes size={11} /> Cancel
         </button>

@@ -1,4 +1,3 @@
-
 /* ── Root tokens (same convention as CreateQuotation.css) ─────── */
 :root {
   --qir-bg: var(--layout-bg, #f7f8fa);
@@ -547,13 +546,15 @@
   cursor: not-allowed;
 }
 
-/* ── Observation table wrapper (NO SCROLL) ────────────────────── */
+/* ── Observation table wrapper (scrolls independently) ──────────── */
 .qir-obs-table-wrapper {
-  overflow: visible;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   border: 1px solid var(--qir-border-strong);
   border-radius: 4px;
   position: relative;
   width: 100%;
+  max-width: 100%;
 }
 
 .qir-obs-table {
@@ -587,39 +588,25 @@
   z-index: 10;
 }
 
-/* Fix for autocomplete dropdown positioning */
-.qir-obs-table td .autocomplete-wrapper .autocomplete-dropdown {
-  position: fixed;
-  max-height: 200px;
-  overflow-y: auto;
-  background-color: white;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
-  margin-top: 2px;
-  padding: 0;
-  list-style: none;
-  z-index: 9999;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-  min-width: 200px;
-}
-
-/* Alternative approach using absolute positioning with table cells */
 .qir-obs-table td {
   position: relative;
   z-index: 1;
 }
 
-.qir-obs-table td .autocomplete-wrapper {
-  position: relative;
-  z-index: 10;
-}
-
-.qir-obs-table td .autocomplete-wrapper .autocomplete-dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  min-width: 200px;
+/*
+ * The autocomplete dropdown (Parameter / Inspection Method columns) and the
+ * specification "±" helper are rendered through a React portal straight
+ * into <body>, positioned with inline `position: fixed` + JS-computed
+ * top/left/width that track scroll and resize. That's what actually keeps
+ * them from being clipped by .qir-obs-table-wrapper's horizontal scrollbar
+ * (overflow-x: auto forces overflow-y: auto too, which was clipping them
+ * before). Because they render outside the table, table-scoped z-index /
+ * overflow rules no longer apply to them — the rules below are just
+ * baseline cosmetic styling + a high fallback z-index.
+ */
+.autocomplete-dropdown,
+.specification-helper-dropdown {
+  z-index: 999999 !important;
 }
 
 .qir-col-sr {
@@ -1296,4 +1283,1337 @@
 
 .dark-theme .qir-row-error td {
   border-color: rgba(220, 38, 38, 0.2);
+}
+
+/* ================================================================
+   Responsive Quality Inspection Form
+   ================================================================ */
+.qir-page {
+  box-sizing: border-box;
+  width: 100%;
+  overflow-x: hidden;
+}
+
+.qir-header-wrap,
+.qir-sheet {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Only the observation grid scrolls horizontally — letterhead, meta
+   table, notes, and signoff stay fluid and stack on narrow screens,
+   so the whole page never has to scroll sideways. */
+.qir-sheet {
+  overflow: visible;
+}
+
+.qir-obs-table {
+  min-width: 640px;
+}
+
+.qir-header-actions {
+  flex-wrap: wrap;
+}
+
+@media (max-width: 900px) {
+  .qir-page {
+    padding: 12px 12px 24px;
+  }
+
+  .qir-header-row {
+    align-items: stretch;
+  }
+
+  .qir-title {
+    min-width: 180px;
+  }
+
+  .qir-error-pill {
+    max-width: 100%;
+    white-space: normal;
+  }
+
+  .qir-header-actions {
+    width: 100%;
+  }
+
+  .qir-header-actions button {
+    flex: 1 1 120px;
+    min-height: 38px;
+  }
+
+  .qir-sheet {
+    padding: 10px;
+    border-radius: 6px;
+  }
+
+  .qir-obs-table {
+    min-width: 600px;
+  }
+
+  /* Stack letterhead into a single column on tablet/mobile */
+  .qir-letterhead,
+  .qir-letterhead tbody,
+  .qir-letterhead tr {
+    display: block;
+    width: 100%;
+  }
+  .qir-letterhead td {
+    display: block;
+    width: 100% !important;
+    box-sizing: border-box;
+  }
+
+  /* Stack meta info grid */
+  .qir-meta-table,
+  .qir-meta-table tbody {
+    display: block;
+    width: 100%;
+  }
+  .qir-meta-table tr {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+  .qir-meta-table td {
+    display: block;
+    width: 100% !important;
+    box-sizing: border-box;
+  }
+
+  .qir-toolbar-actions {
+    flex-wrap: wrap;
+  }
+
+  .qir-add-btn {
+    flex: 1 1 auto;
+    justify-content: center;
+    min-height: 34px;
+  }
+}
+
+@media (max-width: 600px) {
+  .qir-page {
+    padding: 8px 8px 18px;
+  }
+
+  .qir-header-wrap {
+    margin-bottom: 8px;
+  }
+
+  .qir-header-row {
+    gap: 7px;
+  }
+
+  .qir-back-btn {
+    order: 1;
+    min-height: 36px;
+  }
+
+  .qir-title {
+    order: 2;
+    flex: 1 1 calc(100% - 100px);
+    font-size: 14px;
+  }
+
+  .qir-header-actions {
+    order: 5;
+    gap: 6px;
+  }
+
+  .qir-header-actions button {
+    min-height: 40px;
+    padding: 0 10px;
+  }
+
+  .qir-sheet {
+    padding: 7px;
+    border-radius: 5px;
+  }
+
+  .qir-obs-table {
+    min-width: 560px;
+  }
+
+  .qir-letterhead td,
+  .qir-meta-table td {
+    padding: 6px 8px;
+  }
+
+  .qir-company-input {
+    font-size: 13px !important;
+  }
+
+  .qir-report-title-input {
+    font-size: 12px !important;
+  }
+
+  .qir-inline-input {
+    margin-left: 0;
+    min-width: 90px;
+  }
+
+  .qir-docno-cell {
+    flex-wrap: wrap;
+  }
+
+  /* Signoff footer stacks on small screens */
+  .qir-signoff-table,
+  .qir-signoff-table tbody,
+  .qir-signoff-table tr {
+    display: block;
+    width: 100%;
+  }
+  .qir-signoff-table td {
+    display: block;
+    width: 100% !important;
+    box-sizing: border-box;
+  }
+  .qir-signoff-rev,
+  .qir-signoff-name {
+    width: 100% !important;
+  }
+
+  .date-picker-dropdown,
+  .specification-helper-dropdown {
+    max-width: calc(100vw - 32px);
+  }
+
+  /* Bigger touch targets for observation cell inputs */
+  .qir-col-obs input {
+    min-height: 34px;
+  }
+
+  .qir-remove-btn,
+  .date-picker-toggle,
+  .specification-tolerance-btn {
+    min-width: 30px;
+    min-height: 30px;
+  }
+}
+
+@media (max-width: 420px) {
+  .qir-page {
+    padding-left: 5px;
+    padding-right: 5px;
+  }
+
+  .qir-header-actions button {
+    flex: 1 1 100%;
+  }
+
+  .qir-sheet {
+    padding: 5px;
+    border-left: 0;
+    border-right: 0;
+    border-radius: 0;
+  }
+
+  .qir-obs-table {
+    min-width: 520px;
+  }
+}
+
+@media print {
+  .qir-sheet {
+    overflow: visible;
+  }
+
+  .qir-obs-table-wrapper {
+    overflow: visible;
+  }
+
+  .qir-obs-table {
+    min-width: 0;
+  }
+}
+
+/* ================================================================
+   FINAL QUALITY INSPECTION RESPONSIVE + DATE PICKER FIXES
+   ================================================================ */
+
+.qir-page,
+.qir-page *,
+.qir-page *::before,
+.qir-page *::after {
+  box-sizing: border-box;
+}
+
+.qir-page {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.qir-sheet {
+  width: 100%;
+  max-width: 1200px;
+  min-width: 0;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+
+/* ================================================================
+   DATE FIELD
+   ================================================================ */
+
+.date-picker-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.date-picker-input-wrapper {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.date-picker-input {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  padding-right: 38px !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * IMPORTANT:
+ * The input already displays the selected date.
+ * Do not render a second visual date beside it.
+ */
+.date-picker-display {
+  display: none !important;
+}
+
+
+/* Calendar button stays inside the field */
+
+.date-picker-toggle {
+  right: 4px;
+  width: 30px;
+  height: 30px;
+  padding: 4px;
+  z-index: 5;
+}
+
+
+/* ================================================================
+   CALENDAR DROPDOWN
+   ================================================================ */
+
+.date-picker-dropdown {
+  position: absolute;
+
+  /*
+   * Keep it attached to the date field instead of using
+   * arbitrary negative left offsets.
+   */
+  top: calc(100% + 6px);
+  left: 0;
+  right: auto;
+
+  width: 292px;
+  min-width: 0;
+  max-width: min(292px, calc(100vw - 20px));
+
+  padding: 12px;
+
+  background: var(--qir-surface);
+  border: 1px solid var(--qir-border);
+  border-radius: 8px;
+
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.16);
+
+  z-index: 99999;
+
+  overflow: hidden;
+}
+
+
+/* Calendar header */
+
+.date-picker-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.date-picker-month-year {
+  min-width: 0;
+  flex: 1;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.date-picker-nav {
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+
+/* Weekdays and days always stay inside calendar */
+
+.date-picker-weekdays,
+.date-picker-days {
+  width: 100%;
+  max-width: 100%;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 3px;
+}
+
+.date-picker-weekday,
+.date-picker-day,
+.date-picker-day-empty {
+  min-width: 0;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+}
+
+.date-picker-day {
+  padding: 0;
+}
+
+
+/* Footer */
+
+.date-picker-footer {
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.date-picker-today-btn,
+.date-picker-clear-btn {
+  min-height: 32px;
+}
+
+
+/* ================================================================
+   TABLES
+   ================================================================ */
+
+.qir-obs-table-wrapper {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+}
+
+.qir-obs-table {
+  min-width: 720px;
+}
+
+
+/* ================================================================
+   TABLET
+   ================================================================ */
+
+@media (max-width: 900px) {
+
+  .qir-page {
+    padding: 12px !important;
+  }
+
+  .qir-sheet {
+    width: 100%;
+    padding: 12px;
+  }
+
+  .qir-header-row {
+    width: 100%;
+  }
+
+  .qir-header-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  /*
+   * Don't allow the report tables to stretch the page.
+   */
+  .qir-letterhead,
+  .qir-meta-table,
+  .qir-notes-table,
+  .qir-signoff-table {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  /*
+   * Date picker: center within available field where possible.
+   */
+  .date-picker-dropdown {
+    width: 292px;
+    max-width: calc(100vw - 24px);
+  }
+}
+
+
+/* ================================================================
+   MOBILE
+   ================================================================ */
+
+@media (max-width: 600px) {
+
+  .qir-page {
+    padding: 8px !important;
+  }
+
+  .qir-sheet {
+    width: 100%;
+    padding: 9px;
+    border-radius: 7px;
+  }
+
+  .qir-header-row {
+    gap: 8px;
+  }
+
+  .qir-title {
+    min-width: 0;
+    font-size: 14px;
+  }
+
+  .qir-header-actions {
+    display: flex;
+    width: 100%;
+    gap: 6px;
+  }
+
+  .qir-header-actions button {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+
+  /* --------------------------------------------
+     Date picker mobile
+  -------------------------------------------- */
+
+  .date-picker-wrapper {
+    width: 100%;
+  }
+
+  .date-picker-dropdown {
+    /*
+     * Never use left:-40px or similar fixed offsets.
+     */
+    left: 0 !important;
+    right: auto !important;
+
+    width: min(292px, calc(100vw - 24px));
+    max-width: calc(100vw - 24px);
+
+    padding: 10px;
+  }
+
+  .date-picker-day,
+  .date-picker-day-empty {
+    font-size: 12px;
+  }
+
+  .date-picker-weekday {
+    font-size: 10px;
+  }
+
+  .date-picker-footer {
+    justify-content: stretch;
+  }
+
+  .date-picker-today-btn,
+  .date-picker-clear-btn {
+    flex: 1;
+  }
+
+
+  /* --------------------------------------------
+     Report tables
+  -------------------------------------------- */
+
+  .qir-meta-table,
+  .qir-letterhead,
+  .qir-notes-table,
+  .qir-signoff-table {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .qir-meta-table table,
+  .qir-letterhead table,
+  .qir-notes-table table,
+  .qir-signoff-table table {
+    min-width: 650px;
+  }
+
+  .qir-obs-table-wrapper {
+    border-radius: 6px;
+  }
+
+  .qir-obs-table {
+    min-width: 720px;
+  }
+
+
+  /* --------------------------------------------
+     Inputs
+  -------------------------------------------- */
+
+  .qir-sheet input,
+  .date-picker-input {
+    max-width: 100%;
+    min-width: 0;
+  }
+}
+
+
+/* ================================================================
+   SMALL MOBILE
+   ================================================================ */
+
+@media (max-width: 420px) {
+
+  .qir-page {
+    padding: 5px !important;
+  }
+
+  .qir-sheet {
+    padding: 7px;
+  }
+
+  .qir-header-actions {
+    flex-direction: column;
+  }
+
+  .qir-header-actions button {
+    width: 100%;
+  }
+
+
+  /* Calendar fits completely inside phone */
+
+  .date-picker-dropdown {
+    width: calc(100vw - 20px);
+    max-width: calc(100vw - 20px);
+
+    /*
+     * Prevent calendar from escaping the viewport.
+     */
+    left: 50% !important;
+    transform: translateX(-50%);
+  }
+
+  .date-picker-header {
+    margin-bottom: 8px;
+  }
+
+  .date-picker-days,
+  .date-picker-weekdays {
+    gap: 2px;
+  }
+
+  .date-picker-day,
+  .date-picker-day-empty {
+    font-size: 11px;
+  }
+
+  .date-picker-weekday {
+    font-size: 9px;
+  }
+}
+
+
+/* ================================================================
+   VERY SMALL PHONES
+   ================================================================ */
+
+@media (max-width: 340px) {
+
+  .qir-page {
+    padding: 3px !important;
+  }
+
+  .qir-sheet {
+    padding: 5px;
+  }
+
+  .date-picker-dropdown {
+    width: calc(100vw - 12px);
+    max-width: calc(100vw - 12px);
+  }
+
+  .date-picker-day,
+  .date-picker-day-empty {
+    font-size: 10px;
+  }
+}
+
+
+/* ================================================================
+   DARK MODE
+   ================================================================ */
+
+.dark-theme .date-picker-dropdown {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+}
+
+
+/* ================================================================
+   PREVENT BODY/VIEWPORT HORIZONTAL OVERFLOW
+   ================================================================ */
+
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+/* Read-only Quality Inspection report mode */
+.qir-view-mode .qir-sheet input,
+.qir-view-mode .qir-sheet textarea,
+.qir-view-mode .qir-sheet select,
+.qir-view-mode .qir-sheet button {
+  pointer-events: none;
+}
+
+.qir-view-mode .qir-sheet input,
+.qir-view-mode .qir-sheet textarea {
+  cursor: default !important;
+}
+
+.qir-view-mode .qir-sheet .qir-no-print,
+.qir-view-mode .qir-sheet .qir-add-btn,
+.qir-view-mode .qir-sheet .qir-delete-btn {
+  pointer-events: none;
+}
+/* ================================================================
+   FINAL AUTOCOMPLETE + OBSERVATION DROPDOWN FIX
+   ================================================================ */
+
+/* Prevent every autocomplete from forcing the page wider */
+.autocomplete-wrapper {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Input inside all autocomplete fields */
+.autocomplete-wrapper > div {
+  width: 100%;
+  min-width: 0;
+}
+
+.autocomplete-wrapper input {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/* ================================================================
+   PORTAL DROPDOWN
+   Parameter / Inspection Method / Employee
+   ================================================================ */
+
+.autocomplete-dropdown {
+  position: fixed !important;
+
+  /*
+   * IMPORTANT:
+   * Do NOT keep min-width: 200px here.
+   * The inline width comes from the actual input width.
+   */
+  min-width: 0 !important;
+  max-width: calc(100vw - 16px) !important;
+
+  width: auto;
+
+  max-height: min(240px, 40vh);
+
+  margin: 0 !important;
+  padding: 3px 0 !important;
+
+  overflow-x: hidden;
+  overflow-y: auto;
+
+  background: var(--qir-surface, #ffffff) !important;
+  border: 1px solid var(--qir-border, #d1d5db) !important;
+  border-radius: 6px !important;
+
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.16),
+    0 2px 6px rgba(0, 0, 0, 0.08);
+
+  z-index: 999999 !important;
+
+  list-style: none;
+  box-sizing: border-box;
+
+  /* Never allow text/content to increase dropdown width */
+  white-space: normal;
+}
+
+
+/* Dropdown item */
+.autocomplete-dropdown li {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+
+  box-sizing: border-box;
+
+  padding: 8px 10px !important;
+
+  cursor: pointer;
+
+  overflow: hidden;
+
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--qir-border, #d1d5db) 55%, transparent);
+
+  background: var(--qir-surface, #ffffff);
+
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.autocomplete-dropdown li:last-child {
+  border-bottom: none;
+}
+
+
+/* Employee name / parameter / method name */
+.autocomplete-dropdown li > div:first-child {
+  display: block;
+
+  width: 100%;
+  min-width: 0;
+
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  font-size: 12px;
+  line-height: 17px;
+  font-weight: 600;
+
+  color: var(--qir-text-primary, #1f2433);
+}
+
+
+/* Employee code / designation / description */
+.autocomplete-dropdown li > div:nth-child(2) {
+  display: block;
+
+  width: 100%;
+  min-width: 0;
+
+  margin-top: 1px;
+
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  font-size: 10.5px !important;
+  line-height: 15px;
+
+  color: var(--qir-text-secondary, #6b7280) !important;
+}
+
+
+/* Hover / keyboard selected item */
+.autocomplete-dropdown li:hover {
+  background: color-mix(
+    in srgb,
+    var(--qir-blue, #2563eb) 8%,
+    var(--qir-surface, #ffffff)
+  ) !important;
+}
+
+.autocomplete-dropdown li[aria-selected="true"] {
+  background: color-mix(
+    in srgb,
+    var(--qir-blue, #2563eb) 12%,
+    var(--qir-surface, #ffffff)
+  ) !important;
+}
+
+
+/* ================================================================
+   OBSERVATION TABLE AUTOCOMPLETE
+   ================================================================ */
+
+.qir-obs-table-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+
+  overflow-x: auto;
+  overflow-y: visible;
+
+  -webkit-overflow-scrolling: touch;
+}
+
+.qir-obs-table {
+  width: 100%;
+  min-width: 640px;
+  table-layout: fixed;
+}
+
+
+/* Parameter + Inspection Method cells */
+.qir-obs-table .qir-col-param,
+.qir-obs-table .qir-col-method {
+  position: relative;
+  overflow: visible;
+  vertical-align: middle;
+}
+
+.qir-obs-table .qir-col-param {
+  width: 130px;
+  min-width: 130px;
+}
+
+.qir-obs-table .qir-col-method {
+  width: 130px;
+  min-width: 130px;
+}
+
+
+/* Autocomplete must fit inside the table cell */
+.qir-obs-table .qir-col-param .autocomplete-wrapper,
+.qir-obs-table .qir-col-method .autocomplete-wrapper {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+
+/* Observation inputs */
+.qir-col-obs {
+  width: 62px;
+  min-width: 62px;
+  max-width: 62px;
+
+  text-align: center;
+}
+
+.qir-col-obs input {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+
+  box-sizing: border-box;
+
+  text-align: center;
+  padding: 4px 2px;
+}
+
+
+/* ================================================================
+   SIGN-OFF / EMPLOYEE FIELDS
+   ================================================================ */
+
+.qir-signoff-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  min-width: 0;
+  overflow: visible;
+}
+
+.qir-signoff-name .qir-label-inline {
+  flex: 0 0 auto;
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.qir-signoff-name .autocomplete-wrapper {
+  flex: 1 1 auto;
+  width: 0;
+  min-width: 0;
+  max-width: 100%;
+}
+
+
+/* Employee input itself */
+.qir-signoff-name .autocomplete-wrapper input {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+
+  height: 30px;
+
+  padding: 4px 8px;
+
+  font-size: 12px;
+
+  border: 1px solid var(--qir-border-strong, #9aa2ad);
+  border-radius: 4px;
+
+  background: var(--qir-surface, #ffffff);
+}
+
+
+/* ================================================================
+   TABLET
+   ================================================================ */
+
+@media (max-width: 900px) {
+
+  .qir-signoff-name {
+    width: 100% !important;
+    min-width: 0;
+  }
+
+  .qir-signoff-name .autocomplete-wrapper {
+    width: 0;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .qir-obs-table-wrapper {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .autocomplete-dropdown {
+    max-width: calc(100vw - 16px) !important;
+    max-height: 220px;
+  }
+}
+
+
+/* ================================================================
+   MOBILE
+   ================================================================ */
+
+@media (max-width: 600px) {
+
+  .qir-signoff-name {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+
+    width: 100% !important;
+  }
+
+  .qir-signoff-name .qir-label-inline {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .qir-signoff-name .autocomplete-wrapper {
+    width: 100%;
+    flex: none;
+  }
+
+  .qir-signoff-name .autocomplete-wrapper input {
+    height: 36px;
+    font-size: 13px;
+  }
+
+
+  /* Observation table remains horizontally scrollable */
+  .qir-obs-table-wrapper {
+    width: 100%;
+    max-width: 100%;
+
+    overflow-x: auto;
+    overflow-y: visible;
+  }
+
+  .qir-obs-table {
+    min-width: 640px;
+  }
+
+
+  /* Smaller but readable observation dropdown */
+  .autocomplete-dropdown {
+    max-width: calc(100vw - 12px) !important;
+    max-height: 200px;
+
+    border-radius: 5px !important;
+  }
+
+  .autocomplete-dropdown li {
+    padding: 9px 10px !important;
+  }
+
+  .autocomplete-dropdown li > div:first-child {
+    font-size: 12px;
+  }
+
+  .autocomplete-dropdown li > div:nth-child(2) {
+    font-size: 10px !important;
+  }
+}
+
+
+/* ================================================================
+   VERY SMALL PHONES
+   ================================================================ */
+
+@media (max-width: 420px) {
+
+  .qir-page {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .qir-sheet {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .qir-signoff-name {
+    width: 100% !important;
+  }
+
+  .autocomplete-dropdown {
+    max-width: calc(100vw - 10px) !important;
+    max-height: 180px;
+  }
+
+  .autocomplete-dropdown li {
+    padding: 8px !important;
+  }
+}
+
+
+/* ================================================================
+   DARK THEME
+   ================================================================ */
+
+.dark-theme .autocomplete-dropdown {
+  background: var(--card-bg, #1e293b) !important;
+  border-color: var(--border-color, #334155) !important;
+
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.45),
+    0 2px 6px rgba(0, 0, 0, 0.25);
+}
+
+.dark-theme .autocomplete-dropdown li {
+  background: var(--card-bg, #1e293b);
+  border-bottom-color: var(--border-color, #334155);
+}
+
+.dark-theme .autocomplete-dropdown li > div:first-child {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .autocomplete-dropdown li > div:nth-child(2) {
+  color: var(--text-secondary, #94a3b8) !important;
+}
+
+.dark-theme .autocomplete-dropdown li:hover {
+  background: var(--layout-bg, #0f172a) !important;
+}
+
+
+/* ================================================================
+   PRINT
+   ================================================================ */
+
+@media print {
+
+  .autocomplete-dropdown {
+    display: none !important;
+  }
+}
+/* =========================================================
+   FINAL EMPLOYEE AUTOCOMPLETE DROPDOWN FIX
+   ========================================================= */
+
+.autocomplete-wrapper {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.autocomplete-wrapper input {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Portal dropdown */
+.autocomplete-dropdown {
+  position: fixed !important;
+
+  min-width: 0 !important;
+  max-width: calc(100vw - 16px) !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+
+  background: var(--qir-surface, #ffffff) !important;
+  border: 1px solid var(--qir-border, #d1d5db) !important;
+  border-radius: 6px !important;
+
+  box-sizing: border-box !important;
+
+  z-index: 999999 !important;
+
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.18),
+    0 2px 6px rgba(0, 0, 0, 0.08);
+
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* Employee option */
+.autocomplete-dropdown li {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+
+  padding: 9px 12px !important;
+
+  cursor: pointer;
+
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  white-space: normal;
+
+  background: var(--qir-surface, #ffffff);
+
+  border-bottom: 1px solid
+    color-mix(
+      in srgb,
+      var(--qir-border, #d1d5db) 55%,
+      transparent
+    );
+
+  transition: background-color 120ms ease;
+}
+
+.autocomplete-dropdown li:last-child {
+  border-bottom: none;
+}
+
+.autocomplete-dropdown li:hover {
+  background: color-mix(
+    in srgb,
+    var(--qir-blue, #2563eb) 8%,
+    var(--qir-surface, #ffffff)
+  ) !important;
+}
+
+/* Employee name */
+.autocomplete-dropdown li > div:first-child {
+  width: 100%;
+  min-width: 0;
+
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 600;
+
+  color: var(--qir-text-primary, #1f2433);
+}
+
+/* Employee code / designation */
+.autocomplete-dropdown li > div:nth-child(2) {
+  width: 100%;
+  min-width: 0;
+
+  margin-top: 1px;
+
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  font-size: 10.5px !important;
+  line-height: 15px;
+
+  color: var(--qir-text-secondary, #6b7280) !important;
+}
+
+/* Scrollbar */
+.autocomplete-dropdown::-webkit-scrollbar {
+  width: 7px;
+}
+
+.autocomplete-dropdown::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.autocomplete-dropdown::-webkit-scrollbar-thumb {
+  background: #b8bec8;
+  border-radius: 10px;
+}
+
+.autocomplete-dropdown::-webkit-scrollbar-thumb:hover {
+  background: #9299a5;
+}
+
+/* Dark theme */
+.dark-theme .autocomplete-dropdown {
+  background: var(--card-bg, #1e293b) !important;
+  border-color: var(--border-color, #334155) !important;
+}
+
+.dark-theme .autocomplete-dropdown li {
+  background: var(--card-bg, #1e293b);
+  color: var(--text-primary, #f8fafc);
+  border-bottom-color: var(--border-color, #334155);
+}
+
+.dark-theme .autocomplete-dropdown li > div:first-child {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .autocomplete-dropdown li > div:nth-child(2) {
+  color: var(--text-secondary, #94a3b8) !important;
+}
+
+.dark-theme .autocomplete-dropdown li:hover {
+  background: var(--layout-bg, #0f172a) !important;
 }

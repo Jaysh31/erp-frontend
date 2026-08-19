@@ -11,7 +11,6 @@ import {
   FaEye,
   FaEdit,
   FaTrash,
-  FaPlus,
   FaSave,
   FaSpinner,
   FaTag,

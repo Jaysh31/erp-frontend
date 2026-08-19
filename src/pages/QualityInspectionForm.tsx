@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   FaArrowLeft, FaSave, FaPrint, FaPlus, FaTrash,
@@ -96,6 +97,17 @@ interface MethodSuggestion {
   created_at: string;
 }
 
+// Shape assumed for GET /employee — adjust displayField/labelField/
+// subLabelField on the two AutocompleteInput usages below if the API
+// returns different field names.
+interface EmployeeSuggestion {
+  id: number;
+  employee_name: string;
+  employee_code: string;
+  designation: string;
+  department: string;
+}
+
 interface TemplateInfo {
   id: number;
   template_name: string;
@@ -164,11 +176,15 @@ const DatePicker: React.FC<DatePickerProps> = ({
   };
 
   const handleDateSelect = (day: number) => {
-    const selected = new Date(currentYear, currentMonth, day);
-    const formatted = selected.toISOString().split('T')[0];
-    onChange(formatted);
-    setIsOpen(false);
-  };
+  const year = currentYear;
+  const month = String(currentMonth + 1).padStart(2, '0');
+  const selectedDay = String(day).padStart(2, '0');
+
+  const formatted = `${year}-${month}-${selectedDay}`;
+
+  onChange(formatted);
+  setIsOpen(false);
+};
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -211,25 +227,35 @@ const DatePicker: React.FC<DatePickerProps> = ({
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const dayNames = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
-  const today = new Date();
-  const todayStr = today.toISOString().split('T')[0];
+ const today = new Date();
 
-  const isToday = (day: number) => {
-    const d = new Date(currentYear, currentMonth, day);
-    return d.toISOString().split('T')[0] === todayStr;
-  };
+const todayYear = today.getFullYear();
+const todayMonth = today.getMonth();
+const todayDay = today.getDate();
+
+const isToday = (day: number) => {
+  return (
+    currentYear === todayYear &&
+    currentMonth === todayMonth &&
+    day === todayDay
+  );
+};
 
   const isSelected = (day: number) => {
-    if (!value) return false;
-    const d = new Date(currentYear, currentMonth, day);
-    return d.toISOString().split('T')[0] === value;
-  };
+  if (!value) return false;
 
-  const displayValue = value ? new Date(value + 'T00:00:00').toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric'
-  }) : '';
+  const year = currentYear;
+  const month = String(currentMonth + 1).padStart(2, '0');
+  const selectedDay = String(day).padStart(2, '0');
+
+  return `${year}-${month}-${selectedDay}` === value;
+};
+
+  // const displayValue = value ? new Date(value + 'T00:00:00').toLocaleDateString('en-US', {
+  //   year: 'numeric',
+  //   month: 'short',
+  //   day: 'numeric'
+  // }) : '';
 
   return (
     <div className="date-picker-wrapper" ref={wrapperRef}>
@@ -256,9 +282,7 @@ const DatePicker: React.FC<DatePickerProps> = ({
         >
           <FaCalendarAlt size={14} />
         </button>
-        {value && (
-          <span className="date-picker-display">{displayValue}</span>
-        )}
+        
       </div>
 
       {isOpen && !disabled && (
@@ -347,7 +371,52 @@ const SpecificationInput: React.FC<SpecificationInputProps> = ({
   disabled = false,
 }) => {
   const inputRef = useRef<HTMLInputElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const [showHelper, setShowHelper] = useState(false);
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 });
+const updateDropdownPosition = () => {
+  if (!inputRef.current) return;
+
+  const rect = inputRef.current.getBoundingClientRect();
+
+  const viewportPadding = 8;
+  const availableWidth = window.innerWidth - viewportPadding * 2;
+
+  const dropdownWidth = Math.min(
+    rect.width,
+    availableWidth
+  );
+
+  const maxLeft =
+    window.innerWidth - dropdownWidth - viewportPadding;
+
+  const left = Math.max(
+    viewportPadding,
+    Math.min(rect.left, maxLeft)
+  );
+
+  setDropdownPos({
+    top: rect.bottom + 4,
+    left,
+    width: dropdownWidth
+  });
+};
+
+  // Reposition (or track scroll/resize) while the helper is open so it never
+  // gets clipped by the scrollable observation table wrapper.
+  useEffect(() => {
+    if (!showHelper) return;
+    updateDropdownPosition();
+    const reposition = () => updateDropdownPosition();
+    // capture=true so we also catch scroll events from nested scroll
+    // containers (e.g. the observation table's horizontal scrollbar).
+    window.addEventListener('scroll', reposition, true);
+    window.addEventListener('resize', reposition);
+    return () => {
+      window.removeEventListener('scroll', reposition, true);
+      window.removeEventListener('resize', reposition);
+    };
+  }, [showHelper]);
 
   const insertSymbol = (symbol: string) => {
     const input = inputRef.current;
@@ -390,7 +459,7 @@ const SpecificationInput: React.FC<SpecificationInputProps> = ({
   };
 
   return (
-    <div className="specification-input-wrapper">
+    <div className="specification-input-wrapper" ref={wrapperRef}>
       <div className="specification-input-container">
         <input
           ref={inputRef}
@@ -412,8 +481,17 @@ const SpecificationInput: React.FC<SpecificationInputProps> = ({
         </button>
       </div>
 
-      {showHelper && !disabled && (
-        <div className="specification-helper-dropdown">
+      {showHelper && !disabled && createPortal(
+        <div
+          className="specification-helper-dropdown"
+          style={{
+            position: 'fixed',
+            top: dropdownPos.top,
+            left: dropdownPos.left,
+            minWidth: Math.max(dropdownPos.width, 200),
+            zIndex: 999999,
+          }}
+        >
           <div className="specification-helper-header">
             <span>Insert Tolerance</span>
             <button
@@ -464,7 +542,8 @@ const SpecificationInput: React.FC<SpecificationInputProps> = ({
           <div className="specification-helper-examples">
             <span>Examples: 9±0.2, 25±0.5, 100±1.0</span>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -523,7 +602,14 @@ const defaultFormData = (): InspectionForm => ({
   drawingNo: '',
   revNo: '00',
   customerName: '',
-  date: new Date().toISOString().split('T')[0],
+  date: (() => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+
+    return `${year}-${month}-${day}`;
+  })(),
   invoiceNo: '',
   invoiceQty: '',
   challanNoDate: '',
@@ -582,40 +668,120 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const [dropdownPos, setDropdownPos] = useState({
+    top: 0,
+    left: 0,
+    width: 0,
+    maxHeight: 240
+  });
   const wrapperRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLUListElement>(null);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const fetchSuggestions = async (searchTerm: string) => {
-    if (!searchTerm.trim()) {
+  const updateDropdownPosition = () => {
+    if (!inputRef.current) return;
+
+    const rect = inputRef.current.getBoundingClientRect();
+    const viewportPadding = 8;
+    const gap = 4;
+    const preferredHeight = 240;
+
+    const spaceBelow = window.innerHeight - rect.bottom - viewportPadding;
+    const spaceAbove = rect.top - viewportPadding;
+
+    // Open upward when there is not enough room below the input.
+    const openUpward =
+      spaceBelow < preferredHeight && spaceAbove > spaceBelow;
+
+    const availableSpace = openUpward ? spaceAbove : spaceBelow;
+    const maxHeight = Math.max(100, Math.min(preferredHeight, availableSpace));
+
+    const width = Math.min(
+      rect.width,
+      window.innerWidth - viewportPadding * 2
+    );
+
+    const left = Math.max(
+      viewportPadding,
+      Math.min(
+        rect.left,
+        window.innerWidth - width - viewportPadding
+      )
+    );
+
+    const top = openUpward
+      ? Math.max(viewportPadding, rect.top - maxHeight - gap)
+      : rect.bottom + gap;
+
+    setDropdownPos({
+      top,
+      left,
+      width,
+      maxHeight
+    });
+  };
+
+  // Keep the dropdown correctly positioned while it's open, including when
+  // the page or an inner scroll container is scrolled.
+  useEffect(() => {
+    if (!isOpen) return;
+    updateDropdownPosition();
+    const reposition = () => updateDropdownPosition();
+    // capture=true so this also fires for scroll events inside nested
+    // scroll containers (e.g. the observation table's own scrollbar).
+    window.addEventListener('scroll', reposition, true);
+    window.addEventListener('resize', reposition);
+    return () => {
+      window.removeEventListener('scroll', reposition, true);
+      window.removeEventListener('resize', reposition);
+    };
+  }, [isOpen]);
+
+  const fetchSuggestions = async (searchTerm: string = '') => {
+    const isEmployeeDropdown = apiEndpoint === '/employee';
+
+    // Employee dropdowns should show all employees immediately when
+    // the field is focused, even when the search box is empty.
+    if (!searchTerm.trim() && !isEmployeeDropdown) {
       setSuggestions([]);
       setIsOpen(false);
       return;
     }
 
     setLoading(true);
+
     try {
-      const response = await api.get(apiEndpoint, {
-        params: {
-          page: 1,
-          limit: 10,
-          [searchParam]: searchTerm.trim()
-        }
-      });
+      const params: Record<string, any> = {
+        page: 1,
+        limit: isEmployeeDropdown ? 100 : 10
+      };
+
+      // Only send the search parameter when the user has typed something.
+      if (searchTerm.trim()) {
+        params[searchParam] = searchTerm.trim();
+      }
+
+      const response = await api.get(apiEndpoint, { params });
 
       if (response.data.success === 1) {
-        let items = [];
+        let items: any[] = [];
+
         if (Array.isArray(response.data.data)) {
           items = response.data.data;
         } else if (response.data.data?.records) {
           items = response.data.data.records;
         } else if (response.data.data?.data) {
           items = response.data.data.data;
-        } else {
-          items = [];
         }
+
         setSuggestions(items);
+        setHighlightedIndex(-1);
         setIsOpen(items.length > 0);
+
+        requestAnimationFrame(() => {
+          updateDropdownPosition();
+        });
       } else {
         setSuggestions([]);
         setIsOpen(false);
@@ -676,7 +842,12 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      // The dropdown is rendered in a portal (document.body), so it lives
+      // outside wrapperRef's DOM subtree — check both before closing.
+      const insideWrapper = !!wrapperRef.current && wrapperRef.current.contains(target);
+      const insideDropdown = !!dropdownRef.current && dropdownRef.current.contains(target);
+      if (!insideWrapper && !insideDropdown) {
         setIsOpen(false);
         setHighlightedIndex(-1);
       }
@@ -724,7 +895,9 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           onFocus={() => {
-            if (value.trim()) {
+            if (apiEndpoint === '/employee') {
+              fetchSuggestions(value);
+            } else if (value.trim()) {
               fetchSuggestions(value);
             }
           }}
@@ -747,45 +920,69 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
         )}
       </div>
 
-      {isOpen && suggestions.length > 0 && (
-        <ul className="autocomplete-dropdown" style={{
-          position: 'absolute',
-          top: '100%',
-          left: 0,
-          right: 0,
-          maxHeight: '200px',
-          overflowY: 'auto',
-          backgroundColor: 'white',
-          border: '1px solid #d1d5db',
-          borderRadius: '4px',
-          marginTop: '2px',
-          padding: 0,
-          listStyle: 'none',
-          zIndex: 1000,
-          boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-        }}>
+      {isOpen && suggestions.length > 0 && createPortal(
+        <ul
+          ref={dropdownRef}
+          className="autocomplete-dropdown"
+          style={{
+            position: 'fixed',
+            top: dropdownPos.top,
+            left: dropdownPos.left,
+            width: dropdownPos.width,
+            maxHeight: dropdownPos.maxHeight,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            backgroundColor: 'white',
+            border: '1px solid #d1d5db',
+            borderRadius: '6px',
+            padding: 0,
+            listStyle: 'none',
+            zIndex: 999999,
+            boxSizing: 'border-box',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.18)'
+          }}
+        >
           {suggestions.map((item, index) => (
             <li
               key={item.id || index}
               onClick={() => handleSuggestionClick(item)}
               onMouseEnter={() => setHighlightedIndex(index)}
               style={{
-                padding: '8px 12px',
+                padding: '9px 12px',
                 cursor: 'pointer',
+                boxSizing: 'border-box',
+                overflow: 'hidden',
                 backgroundColor: index === highlightedIndex ? '#f3f4f6' : 'white',
                 borderBottom: '1px solid #f3f4f6'
               }}
             >
-              <div style={{ fontWeight: 500 }}>{getDisplayValue(item)}</div>
+              <div style={{
+                fontWeight: 600,
+                width: '100%',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap'
+              }}>
+                {getDisplayValue(item)}
+              </div>
               {getLabelValue(item) && (
-                <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                <div style={{
+                  fontSize: '10.5px',
+                  color: '#6b7280',
+                  width: '100%',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  marginTop: '1px'
+                }}>
                   {getLabelValue(item)}
                   {getSubLabelValue(item) && ` | ${getSubLabelValue(item)}`}
                 </div>
               )}
             </li>
           ))}
-        </ul>
+        </ul>,
+        document.body
       )}
     </div>
   );
@@ -1008,6 +1205,7 @@ export default function QualityInspectionForm() {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const autoPrint = searchParams.get('print') === '1';
+  const isViewMode = searchParams.get('view') === '1';
 
   const isEditMode = !!id && id !== 'new';
 
@@ -1063,7 +1261,7 @@ export default function QualityInspectionForm() {
       'work_order': '/work-order',
       'stock_entry': '/stock-entry',
     };
-    
+
     const basePath = paths[formData.sourceType || ''] || '/quality-inspection';
     if (formData.sourceId) {
       return `${basePath}/edit/${formData.sourceId}?returnFromQI=1`;
@@ -1087,7 +1285,7 @@ export default function QualityInspectionForm() {
     const challanNoDateParam = searchParams.get('challanNoDate');
     const invoiceQtyParam = searchParams.get('invoiceQty');
     const reportNoParam = searchParams.get('reportNo');
-    
+
     // Set docNo, sourceType, sourceId
     if (docNoParam) {
       setFormData(prev => ({
@@ -1151,8 +1349,14 @@ export default function QualityInspectionForm() {
       }));
     }
 
-    // If we have partProductName, try to find the item and load its template
-    if (partProductNameParam) {
+    // If a pending inspection already exists, never replace its saved rows
+    // and observations with a newly fetched template.
+    const savedSourceForTemplate = sourceType
+      ? formState.getFormState(sourceType, sourceId ? sourceId : undefined)?.formData
+      : null;
+    const hasPendingInspection = !!savedSourceForTemplate?.pendingQualityInspection?.formData;
+
+    if (partProductNameParam && !hasPendingInspection) {
       const decodedName = decodeURIComponent(partProductNameParam);
       // Search for the item by name
       const searchItemAndLoadTemplate = async () => {
@@ -1211,27 +1415,27 @@ export default function QualityInspectionForm() {
     }
   }, [searchParams, formState]);
 
-  const compareParameters = (templateParams: any[], formParams: ParameterRow[]): boolean => {
-    if (templateParams.length !== formParams.length) {
-      return true;
-    }
+  // const compareParameters = (templateParams: any[], formParams: ParameterRow[]): boolean => {
+  //   if (templateParams.length !== formParams.length) {
+  //     return true;
+  //   }
 
-    const sortedTemplate = [...templateParams].sort((a, b) => a.parameter_id - b.parameter_id);
-    const sortedForm = [...formParams].sort((a, b) => (a.parameterId || 0) - (b.parameterId || 0));
+  //   const sortedTemplate = [...templateParams].sort((a, b) => a.parameter_id - b.parameter_id);
+  //   const sortedForm = [...formParams].sort((a, b) => (a.parameterId || 0) - (b.parameterId || 0));
 
-    for (let i = 0; i < sortedTemplate.length; i++) {
-      const t = sortedTemplate[i];
-      const f = sortedForm[i];
+  //   for (let i = 0; i < sortedTemplate.length; i++) {
+  //     const t = sortedTemplate[i];
+  //     const f = sortedForm[i];
 
-      if (t.parameter_id !== f.parameterId) return true;
-      if (t.inspection_method_id !== f.inspectionMethodId) return true;
-      if (t.specification !== f.specification) return true;
-      if ((t.remarks || '') !== (f.remarks || '')) return true;
-      if ((t.is_mandatory || 1) !== (f.isMandatory || 1)) return true;
-    }
+  //     if (t.parameter_id !== f.parameterId) return true;
+  //     if (t.inspection_method_id !== f.inspectionMethodId) return true;
+  //     if (t.specification !== f.specification) return true;
+  //     if ((t.remarks || '') !== (f.remarks || '')) return true;
+  //     if ((t.is_mandatory || 1) !== (f.isMandatory || 1)) return true;
+  //   }
 
-    return false;
-  };
+  //   return false;
+  // };
 
   const loadQualityTemplate = async (itemId: number) => {
     setLoadingTemplate(true);
@@ -1338,18 +1542,18 @@ export default function QualityInspectionForm() {
 
     const parameters: ParameterRow[] = Array.isArray(record.details) && record.details.length > 0
       ? record.details.map((d: any) => ({
-          id: nextId(),
-          parameter: d.parameter_name || `Parameter ${d.parameter_id}`,
-          parameterId: d.parameter_id,
-          specification: d.specification || '',
-          inspectionMethod: d.inspection_method_name || '',
-          inspectionMethodId: d.inspection_method_id,
-          observations: Array.isArray(d.observations) && d.observations.length > 0
-            ? d.observations.map((obs: any) => obs.observed_value || '')
-            : Array.from({ length: sampleCount }, () => ''),
-          isMandatory: d.is_mandatory,
-          remarks: d.remarks,
-        }))
+        id: nextId(),
+        parameter: d.parameter_name || `Parameter ${d.parameter_id}`,
+        parameterId: d.parameter_id,
+        specification: d.specification || '',
+        inspectionMethod: d.inspection_method_name || '',
+        inspectionMethodId: d.inspection_method_id,
+        observations: Array.isArray(d.observations) && d.observations.length > 0
+          ? d.observations.map((obs: any) => obs.observed_value || '')
+          : Array.from({ length: sampleCount }, () => ''),
+        isMandatory: d.is_mandatory,
+        remarks: d.remarks,
+      }))
       : [createBlankParameterRow(sampleCount)];
 
     if (record.item_id) {
@@ -1424,6 +1628,42 @@ export default function QualityInspectionForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  // Restore an inspection that is already attached to a Delivery Challan.
+  // This is used by both Edit Inspection and View Inspection so every field,
+  // parameter and observation comes back exactly as it was entered.
+  useEffect(() => {
+    if (isEditMode) return;
+
+    const sourceType = searchParams.get('sourceType');
+    const sourceId = searchParams.get('sourceId');
+    if (!sourceType) return;
+
+    const savedSource = formState.getFormState(
+      sourceType,
+      sourceId ? sourceId : undefined
+    )?.formData;
+
+    // Restore the exact pending inspection, including every parameter and
+    // observation. Do not rebuild the form from URL values.
+    const pendingInspection = savedSource?.pendingQualityInspection;
+    const pending = pendingInspection?.formData;
+
+    if (!pending) return;
+
+    const restored = JSON.parse(JSON.stringify(pending));
+    restored.sourceType = restored.sourceType || sourceType;
+    if (!restored.sourceId && sourceId) restored.sourceId = Number(sourceId);
+
+    setFormData(restored);
+    setSelectedItemId(
+      pendingInspection?.selectedItemId ??
+      restored.itemId ??
+      restored.parameters?.find((p: any) => p?.parameterId)?.parameterId ??
+      null
+    );
+    setRecordName(restored.reportNo || null);
+  }, [isEditMode, searchParams, formState]);
+
   useEffect(() => {
     if (autoPrint && !loadingRecord) {
       const timer = setTimeout(() => handlePrint(), 400);
@@ -1475,6 +1715,22 @@ export default function QualityInspectionForm() {
       customerName: item.customer_name
     }));
     if (errors.customerName) setErrors(prev => ({ ...prev, customerName: '' }));
+  };
+
+  const handleInspectedByChange = (value: string) => {
+    setFormData(prev => ({ ...prev, inspectedBy: value }));
+  };
+
+  const handleInspectedBySelect = (item: EmployeeSuggestion) => {
+    setFormData(prev => ({ ...prev, inspectedBy: item.employee_name }));
+  };
+
+  const handleReviewedByChange = (value: string) => {
+    setFormData(prev => ({ ...prev, reviewedBy: value }));
+  };
+
+  const handleReviewedBySelect = (item: EmployeeSuggestion) => {
+    setFormData(prev => ({ ...prev, reviewedBy: item.employee_name }));
   };
 
   const handleParameterFieldChange = (rowIndex: number, field: 'parameter' | 'specification' | 'inspectionMethod', value: string) => {
@@ -1763,7 +2019,7 @@ export default function QualityInspectionForm() {
   // ===== FIXED: validate with observations check and visual indicators =====
   const validate = (): boolean => {
     const newErrors: { [key: string]: string } = {};
-    
+
     // Basic required fields
     if (!formData.docNo.trim()) newErrors.docNo = 'Doc No is required';
     if (!formData.reportNo.trim()) newErrors.reportNo = 'Report No is required';
@@ -1780,7 +2036,7 @@ export default function QualityInspectionForm() {
       if (!row.inspectionMethod.trim()) {
         newErrors[`method_${index}`] = 'Inspection method is required';
       }
-      
+
       // ===== CRITICAL: Check if at least one observation has a value =====
       const hasObservation = row.observations.some(obs => obs && obs.trim() !== '');
       if (!hasObservation) {
@@ -1790,7 +2046,7 @@ export default function QualityInspectionForm() {
     });
 
     setErrors(newErrors);
-    
+
     if (Object.keys(newErrors).length > 0) {
       // Show a toast message for observation errors
       if (hasObservationError) {
@@ -1798,7 +2054,7 @@ export default function QualityInspectionForm() {
       } else {
         toast.error('Please fill in all required fields');
       }
-      
+
       const firstKey = Object.keys(newErrors)[0];
       inputRefs.current[firstKey]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       inputRefs.current[firstKey]?.focus();
@@ -2049,137 +2305,57 @@ export default function QualityInspectionForm() {
     }
   };
 
-  // ===== FIXED: performSave with correct flow =====
-  const performSave = async (payload: any) => {
-    try {
-      // STEP 1: Detect and save missing parameters and methods FIRST
-      const { newParameters, newMethods } = detectNewParametersAndMethods();
-      
-      let savedParameters: { [key: string]: number } = {};
-      let savedMethods: { [key: string]: number } = {};
-      
-      // Save missing masters BEFORE the QI save
-      if (newParameters.length > 0 || newMethods.length > 0) {
-        toast.loading('Creating new parameters and methods...', { id: 'master-save' });
-        try {
-          const result = await saveMissingMasters(newParameters, newMethods);
-          savedParameters = result.savedParameters;
-          savedMethods = result.savedMethods;
-          
-          // Update the payload with the new IDs
-          payload.details = payload.details.map((detail: any, index: number) => {
-            const row = formData.parameters[index];
-            if (row) {
-              // If this parameter was newly created, use the new ID
-              if (!row.parameterId && row.parameter.trim()) {
-                const paramName = row.parameter.trim();
-                if (savedParameters[paramName]) {
-                  detail.parameter_id = savedParameters[paramName];
-                  console.log(`✅ Updated parameter "${paramName}" with ID: ${savedParameters[paramName]}`);
-                }
-              }
-              // If this method was newly created, use the new ID
-              if (!row.inspectionMethodId && row.inspectionMethod.trim()) {
-                const methodName = row.inspectionMethod.trim();
-                if (savedMethods[methodName]) {
-                  detail.inspection_method_id = savedMethods[methodName];
-                  console.log(`✅ Updated method "${methodName}" with ID: ${savedMethods[methodName]}`);
-                }
-              }
-            }
-            return detail;
-          });
-          
-          toast.success('Parameters and methods created!', { id: 'master-save' });
-        } catch (err: any) {
-          toast.error(`Failed to create masters: ${err.message}`, { id: 'master-save' });
-          throw err;
-        }
-      }
-
-      // STEP 2: Now save the QI form with the updated payload (all IDs should be valid)
-      let response;
-      if (isEditMode && recordName) {
-        response = await api.put(`/quality-inspection`, { ...payload, id: parseInt(id!) });
-      } else {
-        response = await api.post('/quality-inspection', payload);
-      }
-
-      if (response.data.success !== 1) {
-        throw new Error(response.data?.message || 'Failed to save inspection report');
-      }
-
-      const inspectionId = response.data.data?.id || response.data.data?.inspection_id;
-
-      toast.success(isEditMode ? 'Inspection report updated!' : 'Inspection report saved!');
-
-      // STEP 3: Handle template creation/update
-      const sourceType = formData.sourceType;
-      const sourceId = formData.sourceId;
-      
-      if (formData.qualityTemplateId) {
-        if (currentTemplate) {
-          const hasChanges = compareParameters(currentTemplate.parameters, formData.parameters);
-          if (hasChanges) {
-            setShowTemplateUpdateModal(true);
-            return { 
-              success: true, 
-              inspectionId, 
-              templateChanged: true,
-              sourceType,
-              sourceId
-            };
-          }
-        }
-        // No template changes, navigate back
-        const targetPath = isFromSource ? getSourcePath() : '/quality-inspection';
-        if (sourceType) {
-          formState.clearFormState(sourceType);
-        }
-        navigate(targetPath);
-      } else {
-        // No template exists, show creation modal
-        setShowTemplateCreationModal(true);
-        return { 
-          success: true, 
-          inspectionId, 
-          templateExists: false,
-          sourceType,
-          sourceId
-        };
-      }
-
-      return { success: true, inspectionId, templateExists: !!formData.qualityTemplateId };
-    } catch (err: any) {
-      console.error('Error saving inspection report:', err);
-      let message = 'Failed to save inspection report';
-      if (err.response) {
-        message = err.response.data?.message || `Server error: ${err.response.status}`;
-      } else if (err.request) {
-        message = 'Network error. Please check your connection.';
-      } else if (err.message) {
-        message = err.message;
-      }
-      setApiError(message);
-      toast.error(message);
-      throw err;
-    }
-  };
-
+  // ===== SAVE INSPECTION AS PENDING DRAFT =====
+  // A Quality Inspection created from a Delivery Challan is intentionally NOT
+  // persisted here. The complete inspection is kept in FormState and is saved
+  // together with the Delivery Challan when the user clicks Submit on the DC.
   const handleSave = async () => {
-    if (!validate()) {
-      // Error toast is shown inside validate()
-      return;
-    }
+    if (!validate()) return;
 
     setSaving(true);
     setApiError(null);
 
     try {
       const payload = buildApiPayload();
-      await performSave(payload);
-    } catch (err) {
-      // Error already handled in performSave
+
+      if (formData.sourceType === 'delivery_challan') {
+        const existingDcState =
+          formState.getFormState('delivery_challan', formData.sourceId)?.formData || {};
+
+        formState.saveFormState('delivery_challan', {
+          ...existingDcState,
+          pendingQualityInspection: {
+            formData: JSON.parse(JSON.stringify(formData)),
+            payload: JSON.parse(JSON.stringify(payload)),
+            selectedItemId,
+            savedAt: new Date().toISOString()
+          },
+          qualityInspection: true
+        }, formData.sourceId);
+
+        toast.success('Inspection saved. Complete and submit the Delivery Challan to save both.');
+        // Navigate back to the exact source page (new or edit) that this
+        // inspection was created from, instead of always going to "new".
+        navigate(getSourcePath());
+        return;
+      }
+
+      // Standalone QI records retain immediate persistence.
+      const response = isEditMode && recordName
+        ? await api.put('/quality-inspection', { ...payload, id: parseInt(id!) })
+        : await api.post('/quality-inspection', payload);
+
+      if (response.data.success !== 1) {
+        throw new Error(response.data?.message || 'Failed to save inspection report');
+      }
+
+      toast.success(isEditMode ? 'Inspection report updated!' : 'Inspection report saved!');
+      navigate('/quality-inspection');
+    } catch (err: any) {
+      console.error('Error saving inspection report:', err);
+      const message = err.response?.data?.message || err.message || 'Failed to save inspection report';
+      setApiError(message);
+      toast.error(message);
     } finally {
       setSaving(false);
     }
@@ -2353,6 +2529,13 @@ export default function QualityInspectionForm() {
   };
 
   const handleBack = () => {
+    if (formData.sourceType === 'delivery_challan') {
+      // Return to the exact DC (new or edit) this inspection was opened from,
+      // without discarding whatever pendingQualityInspection may already be
+      // saved in FormState for it.
+      navigate(getSourcePath());
+      return;
+    }
     if (formData.sourceType) {
       formState.clearFormState(formData.sourceType);
     }
@@ -2363,13 +2546,13 @@ export default function QualityInspectionForm() {
   /* ─────────────────────────── Render ─────────────────────────── */
 
   return (
-    <div className={`qir-page ${theme}-theme`}>
+    <div className={`qir-page ${theme}-theme ${isViewMode ? 'qir-view-mode' : ''}`}>
       <div className="qir-header-wrap qir-no-print">
         <div className="qir-header-row">
           <button type="button" className="qir-back-btn" onClick={handleBack}>
             <FaArrowLeft size={12} /> Back
           </button>
-          <h1 className="qir-title"><FaClipboardCheck size={15} /> {isEditMode ? 'Edit Inspection Report' : 'New Inspection Report'}</h1>
+          <h1 className="qir-title"><FaClipboardCheck size={15} /> {isViewMode ? 'View Inspection Report' : isEditMode ? 'Edit Inspection Report' : 'New Inspection Report'}</h1>
 
           {apiError && (
             <div className="qir-error-pill">
@@ -2406,9 +2589,9 @@ export default function QualityInspectionForm() {
             <button type="button" className="qir-btn-secondary" onClick={handlePrint}>
               <FaPrint size={12} /> Print
             </button>
-            <button type="button" className="qir-submit-btn" onClick={handleSave} disabled={saving}>
+            {!isViewMode && <button type="button" className="qir-submit-btn" onClick={handleSave} disabled={saving}>
               {saving ? <FaSpinner className="spinning" size={12} /> : <FaSave size={12} />} {saving ? 'Saving...' : 'Save'}
-            </button>
+            </button>}
           </div>
         </div>
       </div>
@@ -2530,10 +2713,10 @@ export default function QualityInspectionForm() {
               </td>
               <td className="qir-meta-label">Challan No / Date :</td>
               <td className="qir-meta-value" colSpan={2}>
-                <input 
-                  name="challanNoDate" 
-                  value={formData.challanNoDate} 
-                  onChange={handleFieldChange} 
+                <input
+                  name="challanNoDate"
+                  value={formData.challanNoDate}
+                  onChange={handleFieldChange}
                   ref={setRef('challanNoDate')}
                   readOnly={isFromSource}
                   style={isFromSource ? { backgroundColor: '#f9fafb', cursor: 'not-allowed' } : {}}
@@ -2541,11 +2724,11 @@ export default function QualityInspectionForm() {
               </td>
               <td className="qir-meta-label">Invoice Qty :</td>
               <td className="qir-meta-value">
-                <input 
-                  name="invoiceQty" 
-                  value={formData.invoiceQty} 
-                  onChange={handleFieldChange} 
-                  placeholder="Nos" 
+                <input
+                  name="invoiceQty"
+                  value={formData.invoiceQty}
+                  onChange={handleFieldChange}
+                  placeholder="Nos"
                   ref={setRef('invoiceQty')}
                   readOnly={isFromSource}
                   style={isFromSource ? { backgroundColor: '#f9fafb', cursor: 'not-allowed' } : {}}
@@ -2559,11 +2742,11 @@ export default function QualityInspectionForm() {
               <td className="qir-meta-value" colSpan={2}></td>
               <td className="qir-meta-label">Report No :</td>
               <td className="qir-meta-value">
-                <input 
-                  name="reportNo" 
-                  value={formData.reportNo} 
-                  onChange={handleFieldChange} 
-                  className={errors.reportNo ? 'qir-input-error' : ''} 
+                <input
+                  name="reportNo"
+                  value={formData.reportNo}
+                  onChange={handleFieldChange}
+                  className={errors.reportNo ? 'qir-input-error' : ''}
                   ref={setRef('reportNo')}
                   readOnly={isFromSource}
                   style={isFromSource ? { backgroundColor: '#f9fafb', cursor: 'not-allowed' } : {}}
@@ -2580,7 +2763,7 @@ export default function QualityInspectionForm() {
             <button type="button" className="qir-add-btn" onClick={addSampleColumn}>
               <FaPlus size={10} /> Sample Column
             </button>
-            <button type="button" className="qir-add-btn" onClick={removeSampleColumn} disabled={formData.sampleCount <= 1}>
+            <button type="button" className="qir-add-btn" onClick={removeSampleColumn} disabled={isViewMode || formData.sampleCount <= 1}>
               <FaTrash size={10} /> Remove Column
             </button>
             <button type="button" className="qir-add-btn" onClick={addParameterRow}>
@@ -2611,7 +2794,7 @@ export default function QualityInspectionForm() {
               {formData.parameters.map((row, rowIndex) => {
                 const hasObservation = row.observations.some(obs => obs && obs.trim() !== '');
                 const hasObservationError = errors[`observation_${rowIndex}`] && !hasObservation;
-                
+
                 return (
                   <tr key={row.id} className={hasObservationError ? 'qir-row-error' : ''}>
                     <td className="qir-col-sr qir-text-center">{rowIndex + 1}</td>
@@ -2661,12 +2844,12 @@ export default function QualityInspectionForm() {
                             value={value}
                             onChange={(e) => handleObservationChange(rowIndex, colIndex, e.target.value)}
                             className={
-                              outOfSpec ? 'qir-out-of-spec' : 
-                              isObservationCellError ? 'qir-observation-error' : ''
+                              outOfSpec ? 'qir-out-of-spec' :
+                                isObservationCellError ? 'qir-observation-error' : ''
                             }
                             title={
                               outOfSpec ? 'Reading is outside the specification tolerance' :
-                              isObservationCellError ? 'At least one observation value is required' : undefined
+                                isObservationCellError ? 'At least one observation value is required' : undefined
                             }
                           />
                         </td>
@@ -2731,11 +2914,31 @@ export default function QualityInspectionForm() {
               </td>
               <td className="qir-signoff-name">
                 <span className="qir-label-inline">Inspected By:</span>
-                <input name="inspectedBy" value={formData.inspectedBy} onChange={handleFieldChange} />
+                <AutocompleteInput
+                  value={formData.inspectedBy}
+                  onChange={handleInspectedByChange}
+                  onSelect={handleInspectedBySelect}
+                  placeholder="Search employee..."
+                  apiEndpoint="/employee"
+                  displayField="employee_name"
+                  labelField="employee_code"
+                  subLabelField="designation"
+                  searchParam="search"
+                />
               </td>
               <td className="qir-signoff-name">
                 <span className="qir-label-inline">Reviewed By:</span>
-                <input name="reviewedBy" value={formData.reviewedBy} onChange={handleFieldChange} />
+                <AutocompleteInput
+                  value={formData.reviewedBy}
+                  onChange={handleReviewedByChange}
+                  onSelect={handleReviewedBySelect}
+                  placeholder="Search employee..."
+                  apiEndpoint="/employee"
+                  displayField="employee_name"
+                  labelField="employee_code"
+                  subLabelField="designation"
+                  searchParam="search"
+                />
               </td>
             </tr>
           </tbody>

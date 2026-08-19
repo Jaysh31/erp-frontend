@@ -203,11 +203,11 @@ function extractCustomerRecords(payload: any): any[] {
 }
 
 const customerIdOf = (c: any) => c?.name ?? c?.id ?? c?.customer_code ?? "";
-const customerLabelOf = (c: any) => {
-  const id = customerIdOf(c);
-  const label = c?.customer_name || c?.party_name || id;
-  return label && label !== id ? `${label} (${id})` : `${id}`;
-};
+// const customerLabelOf = (c: any) => {
+//   const id = customerIdOf(c);
+//   const label = c?.customer_name || c?.party_name || id;
+//   return label && label !== id ? `${label} (${id})` : `${id}`;
+// };
 
 const LeadForm: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -286,12 +286,12 @@ const LeadForm: React.FC = () => {
   }, [customers, formData.organizationName]);
 
   // ─── Updated: Simplified Organization Name handler ──────────────────
-  const handleOrganizationChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    if (errors.organizationName) setErrors((prev) => ({ ...prev, organizationName: "" }));
-    checkTabWarnings(activeTab);
-  };
+  // const handleOrganizationChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  //   const { name, value } = e.target;
+  //   setFormData((prev) => ({ ...prev, [name]: value }));
+  //   if (errors.organizationName) setErrors((prev) => ({ ...prev, organizationName: "" }));
+  //   checkTabWarnings(activeTab);
+  // };
 
   // ─── load existing lead when editing ──────────────────────────────────
 

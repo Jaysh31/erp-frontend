@@ -1471,3 +1471,197 @@
     background: white;
   }
 }
+
+/* ── Print Confirmation Modal ───────────────────── */
+
+.nsb-print-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999999;
+  animation: nsbPrintFadeIn 0.2s ease-out;
+}
+
+@keyframes nsbPrintFadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.nsb-print-confirm-modal {
+  width: 90%;
+  max-width: 430px;
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 18px;
+  padding: 32px 34px 28px;
+  text-align: center;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.22);
+  animation: nsbPrintSlideUp 0.25s ease-out;
+}
+
+@keyframes nsbPrintSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.nsb-print-confirm-icon {
+  width: 58px;
+  height: 58px;
+  margin: 0 auto 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--primary-color, #2563eb);
+  background: color-mix(
+    in srgb,
+    var(--primary-color, #2563eb) 10%,
+    transparent
+  );
+}
+
+.nsb-print-confirm-title {
+  margin: 0 0 10px;
+  color: var(--text-primary, #0f172a);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.nsb-print-confirm-message {
+  margin: 0 0 8px;
+  color: var(--text-secondary, #64748b);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.nsb-print-confirm-message strong {
+  color: var(--primary-color, #2563eb);
+  font-weight: 700;
+}
+
+.nsb-print-confirm-question {
+  margin: 0 0 24px;
+  color: var(--text-primary, #0f172a);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.nsb-print-confirm-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+.nsb-print-confirm-btn {
+  min-width: 125px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 10px 20px;
+  border-radius: 30px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s ease;
+}
+
+.nsb-print-confirm-yes {
+  color: #ffffff;
+  background: var(
+    --primary-gradient,
+    linear-gradient(135deg, #2563eb 0%, #1e40af 100%)
+  );
+  box-shadow: 0 3px 10px
+    color-mix(in srgb, var(--primary-color, #2563eb) 25%, transparent);
+}
+
+.nsb-print-confirm-yes:hover {
+  transform: translateY(-1px);
+  opacity: 0.92;
+  box-shadow: 0 5px 16px
+    color-mix(in srgb, var(--primary-color, #2563eb) 35%, transparent);
+}
+
+.nsb-print-confirm-cancel {
+  color: var(--text-secondary, #64748b);
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--border-color, #e2e8f0);
+}
+
+.nsb-print-confirm-cancel:hover {
+  color: var(--danger-color, #ef4444);
+  border-color: color-mix(
+    in srgb,
+    var(--danger-color, #ef4444) 35%,
+    var(--border-color, #e2e8f0)
+  );
+  background: color-mix(
+    in srgb,
+    var(--danger-color, #ef4444) 5%,
+    var(--card-bg, #ffffff)
+  );
+}
+
+/* ── Dark Theme - Print Confirmation ───────────── */
+
+.dark-theme .nsb-print-confirm-modal {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+}
+
+.dark-theme .nsb-print-confirm-title {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .nsb-print-confirm-message {
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .nsb-print-confirm-question {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .nsb-print-confirm-cancel {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+  color: var(--text-secondary, #94a3b8);
+}
+
+/* ── Responsive Print Confirmation ─────────────── */
+
+@media (max-width: 480px) {
+  .nsb-print-confirm-modal {
+    width: calc(100% - 30px);
+    padding: 26px 20px 22px;
+  }
+
+  .nsb-print-confirm-title {
+    font-size: 18px;
+  }
+
+  .nsb-print-confirm-actions {
+    flex-direction: column;
+  }
+
+  .nsb-print-confirm-btn {
+    width: 100%;
+  }
+}

@@ -30,8 +30,119 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import { useFormState } from '../../context/FormStateContext';
+import { useFormNavigation } from '../../hooks/useFormNavigation';
 import './CreateDeliveryChallan.css';
 import { FaTrash } from 'react-icons/fa6';
+// ===== SHARED DELIVERY CHALLAN PRINT HELPERS =====
+// Keep this print implementation identical to the one used by delivery_challan.tsx.
+// Both the Create Delivery Challan Print button and the post-create Print confirmation
+// use the same HTML builder/opening function.
+const printCompanyDetails = {
+  name: 'Sculptor Tech Pvt Ltd',
+  address: 'c-1006, gc, Pune, Maharashtra 411028, India',
+  email: 'jayeshwakle@sculptortechpvtltd.com',
+  contact: '8668584275',
+  gstin: '',
+  stateName: 'Maharashtra',
+  stateCode: '27',
+  panNo: '',
+  jurisdiction: 'PUNE',
+};
+
+const printFormatDcNumber = (id: string | number): string => {
+  const numId = typeof id === 'string' ? parseInt(id, 10) : id;
+  if (!Number.isFinite(numId)) return String(id || '');
+  return `DC-${String(numId).padStart(5, '0')}`;
+};
+
+const printFormatDate = (date: string): string => {
+  if (!date) return '';
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return date;
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = d.toLocaleString('en-US', { month: 'short' });
+  const year = String(d.getFullYear()).slice(-2);
+  return `${day}-${month}-${year}`;
+};
+
+const printEscapeHtml = (val: unknown): string => {
+  const s = val === null || val === undefined ? '' : String(val);
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+};
+
+const PRINT_ONES = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
+  'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+const PRINT_TENS = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+const printTwoDigitWords = (n: number): string => {
+  if (n < 20) return PRINT_ONES[n];
+  return PRINT_TENS[Math.floor(n / 10)] + (n % 10 ? ' ' + PRINT_ONES[n % 10] : '');
+};
+
+const printThreeDigitWords = (n: number): string => {
+  if (n >= 100) {
+    return PRINT_ONES[Math.floor(n / 100)] + ' Hundred' + (n % 100 ? ' ' + printTwoDigitWords(n % 100) : '');
+  }
+  return printTwoDigitWords(n);
+};
+
+const printNumberToIndianWords = (value: number): string => {
+  let num = Math.round(Math.abs(value));
+  if (num === 0) return 'Zero';
+
+  const crore = Math.floor(num / 10000000); num %= 10000000;
+  const lakh = Math.floor(num / 100000); num %= 100000;
+  const thousand = Math.floor(num / 1000); num %= 1000;
+  const hundred = num;
+
+  let out = '';
+  if (crore) out += printThreeDigitWords(crore) + ' Crore ';
+  if (lakh) out += printThreeDigitWords(lakh) + ' Lakh ';
+  if (thousand) out += printThreeDigitWords(thousand) + ' Thousand ';
+  if (hundred) out += printThreeDigitWords(hundred);
+
+  return out.trim();
+};
+
+interface DeliveryChallanPrintData {
+  id: string | number;
+  name: string;
+  customer_id: number | string;
+  customer_name: string;
+  posting_date: string;
+  status: string;
+  grand_total: number;
+  set_warehouse?: string;
+  transporter?: string;
+  vehicle_no?: string;
+  driver_name?: string;
+  instructions?: string;
+  sales_order_id?: number | string | null;
+  displayDcNumber?: string;
+  items?: Array<{
+    id?: number | string;
+    item_code: string;
+    item_name?: string;
+    description?: string;
+    qty: number;
+    stock_uom?: string;
+    uom?: string;
+    rate: number;
+    amount: number;
+  }>;
+  customer_details?: {
+    primary_address?: string;
+    mobile_no?: string;
+    email_id?: string;
+    gstin?: string;
+    state?: string;
+    state_code?: string;
+  };
+};
 
 // ===== INTERFACES =====
 
@@ -1285,8 +1396,6 @@ const QuickAddCustomerModal: React.FC<QuickAddCustomerModalProps> = ({
 
     setSubmitting(true);
     try {
-      // No separate contact-person name is collected here, so the contact
-      // record reuses the customer name/mobile/email.
       const contactPayload = {
         first_name: customerName.trim(),
         last_name: '',
@@ -1564,7 +1673,7 @@ const QuickAddCustomerModal: React.FC<QuickAddCustomerModalProps> = ({
   );
 };
 
-// ===== SUCCESS MODAL COMPONENT =====
+// ===== SUCCESS / PRINT CONFIRMATION MODAL COMPONENT =====
 interface SuccessModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -1592,30 +1701,30 @@ const SuccessModal: React.FC<SuccessModalProps> = ({
         <div className="ndc-modal-success-icon">
           <FaCheckCircle size={48} />
         </div>
-        
+
         <h2 className="ndc-modal-title">✓ Success!</h2>
-        
+
         <p className="ndc-modal-message">{message}</p>
-        
+
         <div className="ndc-modal-details">
           <div className="ndc-modal-detail-item">
             <span className="ndc-modal-detail-label">Delivery Note</span>
             <span className="ndc-modal-detail-value ndc-modal-dn-number">{deliveryNote}</span>
           </div>
-          
+
           {customerName && (
             <div className="ndc-modal-detail-item">
               <span className="ndc-modal-detail-label">Customer</span>
               <span className="ndc-modal-detail-value">{customerName}</span>
             </div>
           )}
-          
+
           <div className="ndc-modal-detail-item">
             <span className="ndc-modal-detail-label">Total Items</span>
             <span className="ndc-modal-detail-value">{totalItems}</span>
           </div>
         </div>
-        
+
         <div className="ndc-modal-actions">
           <button onClick={onViewDetails || onClose} className="ndc-modal-btn ndc-modal-btn-primary">
             View Delivery Note
@@ -1629,7 +1738,6 @@ const SuccessModal: React.FC<SuccessModalProps> = ({
     document.body
   );
 };
-
 // ===== MAIN COMPONENT =====
 
 const NewDeliveryChallan: React.FC = () => {
@@ -1638,6 +1746,7 @@ const NewDeliveryChallan: React.FC = () => {
   const location = useLocation();
   const { theme } = useAdminTheme();
   const formState = useFormState();
+  const formNav = useFormNavigation('delivery_challan');
 
   const isEditMode = !!id;
   const isViewMode = location.pathname.includes('/view/');
@@ -1656,8 +1765,13 @@ const NewDeliveryChallan: React.FC = () => {
   const [vehicleNumber, setVehicleNumber] = useState<string>('');
   const [remarks, setRemarks] = useState<string>('');
   const [qualityInspection, setQualityInspection] = useState<boolean>(false);
+  const [pendingQualityInspection, setPendingQualityInspection] = useState<any | null>(null);
   const [items, setItems] = useState<DeliveryChallanItem[]>([]);
   const [customerData, setCustomerData] = useState<Customer | null>(null);
+
+  // Guards against a mount-time effect re-seeding a blank row/warehouse
+  // after data has been restored from a Quality Inspection round-trip.
+  const itemsRestoredRef = useRef(false);
 
   // ─── Quick Add Customer modal state ─────────────────────────────
   const [showQuickAddModal, setShowQuickAddModal] = useState<boolean>(false);
@@ -1680,6 +1794,8 @@ const NewDeliveryChallan: React.FC = () => {
   const [isLoadingData, setIsLoadingData] = useState<boolean>(false);
 
   const [showSuccessModal, setShowSuccessModal] = useState<boolean>(false);
+  const [showPrintConfirmModal, setShowPrintConfirmModal] = useState<boolean>(false);
+  const [printDeliveryChallanId, setPrintDeliveryChallanId] = useState<string | number | null>(null);
   const [successData, setSuccessData] = useState<{
     deliveryNote: string;
     totalItems: number;
@@ -1927,67 +2043,93 @@ const NewDeliveryChallan: React.FC = () => {
 
   // ===== RESTORE STATE FROM QUALITY INSPECTION =====
   const restoreStateFromQI = useCallback(() => {
-    const returnFlag = new URLSearchParams(location.search).get('returnFromQI');
-    
-    if (returnFlag === '1' && !isEditMode && !isViewMode) {
-      const savedState = formState.restoreFormState('delivery_challan');
-      if (savedState) {
-        // Restore all form fields
-        if (savedState.selectedCustomer) {
-          setSelectedCustomer(savedState.selectedCustomer);
-          // Find and set customer data
-          const customer = customers.find(c => c.id === savedState.selectedCustomer);
-          if (customer) {
-            setCustomerData(customer);
-          }
-        }
-        if (savedState.selectedSalesOrder !== undefined) {
-          setSelectedSalesOrder(savedState.selectedSalesOrder);
-        }
-        if (savedState.isService !== undefined) {
-          setIsService(savedState.isService);
-        }
-        if (savedState.dcDate) {
-          setDcDate(savedState.dcDate);
-        }
-        if (savedState.warehouse) {
-          setWarehouse(savedState.warehouse);
-        }
-        if (savedState.transporter) {
-          setTransporter(savedState.transporter);
-        }
-        if (savedState.vehicleNumber) {
-          setVehicleNumber(savedState.vehicleNumber);
-        }
-        if (savedState.remarks) {
-          setRemarks(savedState.remarks);
-        }
-        if (savedState.items && Array.isArray(savedState.items)) {
-          setItems(savedState.items);
-        }
-        if (savedState.dcNumber) {
-          setDcNumber(savedState.dcNumber);
-        }
-        if (savedState.hasSalesOrder !== undefined) {
-          setHasSalesOrder(savedState.hasSalesOrder);
-        }
-        if (savedState.roundOff !== undefined) {
-          setRoundOff(savedState.roundOff);
-        }
-        
-        toast.success('Delivery Challan data restored from Quality Inspection');
-        
-        // Clean up URL
-        const cleanUrl = window.location.pathname;
-        window.history.replaceState({}, document.title, cleanUrl);
+    // View mode must never restore editable FormState.
+    // Edit mode MUST restore when returning from Quality Inspection.
+    if (isViewMode) return;
+
+    const searchParams = new URLSearchParams(location.search);
+    const returnFromQI = searchParams.get('returnFromQI');
+    if (returnFromQI !== '1') return;
+
+    const savedState = formNav.returnFromQualityInspection();
+    if (!savedState) return;
+
+    // Restore all form fields
+    if (savedState.selectedCustomer) {
+      setSelectedCustomer(savedState.selectedCustomer);
+      // Try to resolve the full customer object right away. If the
+      // customers list hasn't loaded yet, a separate effect (below)
+      // re-syncs customerData once it does.
+      const customer = customers.find(c => c.id === savedState.selectedCustomer);
+      if (customer) {
+        setCustomerData(customer);
+      } else if (savedState.customerData) {
+        setCustomerData(savedState.customerData);
       }
     }
-  }, [location.search, formState, customers, isEditMode, isViewMode]);
+    if (savedState.selectedSalesOrder !== undefined) {
+      setSelectedSalesOrder(savedState.selectedSalesOrder);
+    }
+    if (savedState.isService !== undefined) {
+      setIsService(savedState.isService);
+    }
+    if (savedState.dcDate) {
+      setDcDate(savedState.dcDate);
+    }
+    if (savedState.warehouse) {
+      setWarehouse(savedState.warehouse);
+    }
+    if (savedState.transporter) {
+      setTransporter(savedState.transporter);
+    }
+    if (savedState.vehicleNumber) {
+      setVehicleNumber(savedState.vehicleNumber);
+    }
+    if (savedState.remarks) {
+      setRemarks(savedState.remarks);
+    }
+    if (savedState.items && Array.isArray(savedState.items) && savedState.items.length > 0) {
+      itemsRestoredRef.current = true;
+      setItems(savedState.items);
+    }
+    if (savedState.dcNumber) {
+      setDcNumber(savedState.dcNumber);
+    }
+    if (savedState.hasSalesOrder !== undefined) {
+      setHasSalesOrder(savedState.hasSalesOrder);
+    }
+    if (savedState.roundOff !== undefined) {
+      setRoundOff(savedState.roundOff);
+    }
+    if (savedState.pendingQualityInspection) {
+      setPendingQualityInspection(savedState.pendingQualityInspection);
+      setQualityInspection(true);
+    } else if (savedState.qualityInspection) {
+      setQualityInspection(true);
+    }
+
+    toast.success('Delivery Challan data restored from Quality Inspection');
+
+    // Clean up URL
+    const cleanUrl = window.location.pathname;
+    window.history.replaceState({}, document.title, cleanUrl);
+  }, [formNav, customers, isViewMode, location.search]);
 
   useEffect(() => {
     restoreStateFromQI();
-  }, [restoreStateFromQI]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
+  // Re-sync full customer details once the customers list has loaded,
+  // in case restoration happened before the list was ready.
+  useEffect(() => {
+    if (selectedCustomer && !customerData && customers.length > 0) {
+      const customer = customers.find(c => c.id === selectedCustomer);
+      if (customer) {
+        setCustomerData(customer);
+      }
+    }
+  }, [customers, selectedCustomer, customerData]);
 
   const handleAddNewCustomer = useCallback((searchTerm: string) => {
     setQuickAddPrefillName(searchTerm || '');
@@ -2008,7 +2150,9 @@ const NewDeliveryChallan: React.FC = () => {
       customerData,
       dcNumber,
       hasSalesOrder,
-      roundOff
+      roundOff,
+      pendingQualityInspection,
+      qualityInspection: !!pendingQualityInspection || qualityInspection
     };
     formState.saveFormState('delivery_challan', formDataToSave, id);
 
@@ -2047,7 +2191,10 @@ const NewDeliveryChallan: React.FC = () => {
       if (savedState.transporter) setTransporter(savedState.transporter);
       if (savedState.vehicleNumber) setVehicleNumber(savedState.vehicleNumber);
       if (savedState.remarks) setRemarks(savedState.remarks);
-      if (savedState.items && Array.isArray(savedState.items)) setItems(savedState.items);
+      if (savedState.items && Array.isArray(savedState.items)) {
+        itemsRestoredRef.current = true;
+        setItems(savedState.items);
+      }
       if (savedState.dcNumber) setDcNumber(savedState.dcNumber);
       if (savedState.hasSalesOrder !== undefined) setHasSalesOrder(savedState.hasSalesOrder);
       if (savedState.roundOff !== undefined) setRoundOff(savedState.roundOff);
@@ -2124,10 +2271,32 @@ const NewDeliveryChallan: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if ((isEditMode || isViewMode) && id && customers.length > 0 && allProducts.length > 0 && taxOptions.length > 0) {
+    const searchParams = new URLSearchParams(location.search);
+    const isReturningFromQI = searchParams.get('returnFromQI') === '1';
+
+    // When coming back from Quality Inspection, FormState contains the
+    // exact in-progress Delivery Challan. Do not fetch the old API record
+    // and overwrite the values the user just entered before opening QI.
+    if (isReturningFromQI) return;
+
+    if (
+      (isEditMode || isViewMode) &&
+      id &&
+      customers.length > 0 &&
+      allProducts.length > 0 &&
+      taxOptions.length > 0
+    ) {
       fetchDeliveryChallanForEdit(id);
     }
-  }, [isEditMode, isViewMode, id, customers.length, allProducts.length, taxOptions.length]);
+  }, [
+    isEditMode,
+    isViewMode,
+    id,
+    customers.length,
+    allProducts.length,
+    taxOptions.length,
+    location.search
+  ]);
 
   useEffect(() => {
     if (Object.keys(inventoryMap).length === 0) return;
@@ -2169,12 +2338,14 @@ const NewDeliveryChallan: React.FC = () => {
           const finishedGoods = warehouseList.find(
             w => w.warehouse_name.toLowerCase() === 'finished goods'
           );
-          
-          if (finishedGoods) {
-            setWarehouse(finishedGoods.warehouse_name);
-          } else if (warehouseList.length > 0) {
-            setWarehouse(warehouseList[0].warehouse_name);
-          }
+
+          // Don't clobber a warehouse already restored from a Quality
+          // Inspection round-trip (or something the user already picked).
+          setWarehouse(prev => {
+            if (prev) return prev;
+            if (finishedGoods) return finishedGoods.warehouse_name;
+            return warehouseList.length > 0 ? warehouseList[0].warehouse_name : prev;
+          });
         }
       }
     } catch (error) {
@@ -2311,6 +2482,7 @@ const NewDeliveryChallan: React.FC = () => {
       setSelectedSalesOrder('');
       setSelectedOrderData(null);
       if (!isEditMode && !isViewMode || items.length === 0) {
+        itemsRestoredRef.current = true;
         setItems([{
           id: '1',
           itemCode: '',
@@ -2409,8 +2581,10 @@ const NewDeliveryChallan: React.FC = () => {
           inventoryId: inventoryId,
         };
       });
+      itemsRestoredRef.current = true;
       setItems(initialItems);
     } else {
+      itemsRestoredRef.current = true;
       setItems([{
         id: '1',
         itemCode: '',
@@ -2463,6 +2637,7 @@ const NewDeliveryChallan: React.FC = () => {
       type: isService ? 'service' : 'product',
       inventoryId: undefined,
     };
+    itemsRestoredRef.current = true;
     setItems([...items, newItem]);
   };
 
@@ -2578,7 +2753,7 @@ const NewDeliveryChallan: React.FC = () => {
       return;
     }
 
-    // Save current form state BEFORE navigating
+    // Snapshot current form state BEFORE navigating away
     const formDataToSave = {
       selectedCustomer,
       selectedSalesOrder,
@@ -2592,41 +2767,75 @@ const NewDeliveryChallan: React.FC = () => {
       customerData,
       dcNumber,
       hasSalesOrder,
-      roundOff
+      roundOff,
+      // Preserve the complete pending inspection when opening Edit Inspection.
+      pendingQualityInspection: pendingQualityInspection
+        ? JSON.parse(JSON.stringify(pendingQualityInspection))
+        : null,
+      qualityInspection: !!pendingQualityInspection || qualityInspection
     };
-    formState.saveFormState('delivery_challan', formDataToSave, id);
 
     // Get the first item's name and code for the inspection
     const firstItem = items.find(item => item.itemCode && item.quantity > 0);
-    const partProductName = encodeURIComponent(firstItem?.itemName || firstItem?.itemCode || '');
-    const partNo = encodeURIComponent(firstItem?.itemCode || '');
-    
-    // Use the delivery challan number as the doc no
-    const docNo = encodeURIComponent(dcNumber || '');
-    
-    // Get customer name
-    const customerName = encodeURIComponent(customerData?.name || '');
-    
-    // Use challan number as challanNoDate
-    const challanNoDate = encodeURIComponent(dcNumber || '');
-    
-    // Invoice Qty - total quantity of all items
-    const invoiceQty = encodeURIComponent(String(getTotalQty()));
-    
-    // Report No - use the delivery challan number
-    const reportNo = encodeURIComponent(`QIR-${dcNumber || Date.now()}`);
-    
-    // Build the URL with all query parameters
-    const baseUrl = '/quality-inspection/new';
-    const url = `${baseUrl}?docNo=${docNo}&sourceType=delivery_challan&sourceId=${id || ''}&partProductName=${partProductName}&partNo=${partNo}&customerName=${customerName}&challanNoDate=${challanNoDate}&invoiceQty=${invoiceQty}&reportNo=${reportNo}`;
-    
-    // Set quality inspection flag
+
     setQualityInspection(true);
-    
-    // Navigate to the Quality Inspection form
-    navigate(url);
-    
+
+    formNav.navigateToQualityInspection(
+      formDataToSave,
+      {
+        docNo: dcNumber || '',
+        sourceId: id,
+        partProductName: firstItem?.itemName || firstItem?.itemCode || '',
+        partNo: firstItem?.itemCode || '',
+        customerName: customerData?.name || '',
+        challanNoDate: dcNumber || '',
+        invoiceQty: getTotalQty(),
+        reportNo: `QIR-${dcNumber || Date.now()}`,
+      },
+      id
+    );
+
     toast.success('Opening Quality Inspection for this delivery challan');
+  };
+
+  const handleViewQualityInspection = () => {
+    if (!pendingQualityInspection?.formData) {
+      toast.error('No Quality Inspection is attached to this Delivery Challan');
+      return;
+    }
+
+    const formDataToSave = {
+      selectedCustomer,
+      selectedSalesOrder,
+      isService,
+      dcDate,
+      warehouse,
+      transporter,
+      vehicleNumber,
+      remarks,
+      items,
+      customerData,
+      dcNumber,
+      hasSalesOrder,
+      roundOff,
+      pendingQualityInspection,
+      qualityInspection: true,
+    };
+
+    formNav.navigateToQualityInspectionView(
+      formDataToSave,
+      {
+        docNo: dcNumber || pendingQualityInspection.formData.docNo || '',
+        sourceId: id,
+        partProductName: pendingQualityInspection.formData.partProductName || '',
+        partNo: pendingQualityInspection.formData.partNo || '',
+        customerName: pendingQualityInspection.formData.customerName || customerData?.name || '',
+        challanNoDate: pendingQualityInspection.formData.challanNoDate || dcNumber || '',
+        invoiceQty: pendingQualityInspection.formData.invoiceQty || getTotalQty(),
+        reportNo: pendingQualityInspection.formData.reportNo || '',
+      },
+      id
+    );
   };
 
   const getTotalQty = () => items.reduce((sum, item) => sum + (item.quantity || 0), 0);
@@ -2878,6 +3087,498 @@ const NewDeliveryChallan: React.FC = () => {
     }
   };
 
+  // ===== SHARED DELIVERY CHALLAN PRINT =====
+  // This builder is intentionally the same template used by delivery_challan.tsx.
+  const buildDeliveryChallanPrintHtml = (challan: DeliveryChallanPrintData): string => {
+    const printItems = challan.items || [];
+    const totalQty = printItems.reduce((sum, item) => sum + (item.qty || 0), 0);
+    const grandTotal = challan.grand_total || 0;
+
+    const itemRows = printItems.map((item, idx) => `
+      <tr>
+        <td class="pq-col-sl">${idx + 1}</td>
+        <td class="pq-col-desc">
+          ${printEscapeHtml(item.item_name || item.item_code || '')}
+          ${item.item_code ? `<div class="pq-item-sub">${printEscapeHtml(item.item_code)}</div>` : ''}
+          ${item.description ? `<div class="pq-item-desc">${printEscapeHtml(item.description)}</div>` : ''}
+        </td>
+        <td class="pq-col-qty">${item.qty || 0} ${printEscapeHtml(item.stock_uom || item.uom || 'Nos')}</td>
+        <td class="pq-col-rate">${(item.rate || 0).toFixed(2)}</td>
+        <td class="pq-col-amt">${(item.amount || 0).toFixed(2)}</td>
+      </tr>
+    `).join('');
+
+    const customer = challan.customer_details;
+
+    return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8" />
+<title>${printEscapeHtml(challan.displayDcNumber || challan.name || 'Delivery Challan')}</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #1a1a1a; margin: 0; padding: 24px; }
+  .pq-outer { border: 1.5px solid #000; }
+  .pq-title-row { display: flex; align-items: center; justify-content: center; position: relative; padding: 8px; border-bottom: 1.5px solid #000; }
+  .pq-title { font-size: 18px; font-weight: bold; letter-spacing: 1px; }
+  .pq-top { display: flex; border-bottom: 1px solid #000; }
+  .pq-company-box { flex: 1.3; padding: 8px; border-right: 1px solid #000; }
+  .pq-company-name { font-weight: bold; font-size: 14px; margin-bottom: 4px; }
+  .pq-company-box div { margin: 1px 0; }
+  .pq-meta-box { flex: 1.1; }
+  .pq-meta-row { display: flex; border-bottom: 1px solid #000; }
+  .pq-meta-row:last-child { border-bottom: none; }
+  .pq-meta-cell { flex: 1; padding: 4px 8px; border-right: 1px solid #000; }
+  .pq-meta-cell:last-child { border-right: none; }
+  .pq-meta-label { font-size: 10px; color: #444; }
+  .pq-meta-value { font-weight: 600; margin-top: 1px; min-height: 13px; }
+  .pq-parties { display: flex; border-bottom: 1px solid #000; }
+  .pq-party-box { flex: 1; padding: 8px; border-right: 1px solid #000; }
+  .pq-party-box:last-child { border-right: none; }
+  .pq-party-label { font-weight: bold; margin-bottom: 3px; }
+  .pq-party-box div { margin: 1px 0; }
+  table.pq-items { width: 100%; border-collapse: collapse; }
+  table.pq-items th, table.pq-items td { border-right: 1px solid #000; padding: 5px 6px; }
+  table.pq-items th:last-child, table.pq-items td:last-child { border-right: none; }
+  table.pq-items thead th { border-bottom: 1px solid #000; border-top: none; font-size: 11px; text-align: left; }
+  .pq-col-sl { width: 26px; text-align: center; }
+  .pq-col-desc { min-width: 200px; }
+  .pq-item-sub { font-size: 10px; color: #555; }
+  .pq-item-desc { font-size: 10px; color: #666; margin-top: 2px; }
+  .pq-col-qty { width: 80px; text-align: right; }
+  .pq-col-rate { width: 70px; text-align: right; }
+  .pq-col-amt { width: 90px; text-align: right; }
+  .pq-total-row td { border-top: 1px solid #000; font-weight: bold; padding: 6px; }
+  .pq-words { display: flex; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 6px 8px; justify-content: space-between; align-items: flex-start; }
+  .pq-words-label { font-size: 10px; color: #444; }
+  .pq-eoe { font-size: 11px; font-style: italic; white-space: nowrap; }
+  .pq-bottom { display: flex; border-top: 1px solid #000; }
+  .pq-decl-box { flex: 1; padding: 8px; border-right: 1px solid #000; }
+  .pq-sign-box { flex: 1; padding: 8px; display: flex; flex-direction: column; justify-content: space-between; }
+  .pq-signatory { text-align: right; margin-top: 24px; font-size: 11px; }
+  .pq-footer { text-align: center; padding: 8px; font-size: 10px; color: #444; border-top: 1px solid #000; }
+  .pq-footer div:first-child { font-weight: 600; letter-spacing: 0.5px; margin-bottom: 2px; }
+  .pq-status-badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 10px; font-weight: 600; }
+  .pq-status-Submitted { background: #dbeafe; color: #1e40af; }
+  .pq-status-Draft { background: #f3f4f6; color: #6b7280; }
+  .pq-status-Cancelled { background: #fee2e2; color: #991b1b; }
+  @media print {
+    body { padding: 0; }
+    @page { margin: 12mm; }
+  }
+</style>
+</head>
+<body>
+  <div class="pq-outer">
+    <div class="pq-title-row">
+      <div class="pq-title">DELIVERY CHALLAN</div>
+      <span style="position:absolute;right:12px;font-size:11px;color:#555;">
+        <span class="pq-status-badge pq-status-${printEscapeHtml(challan.status || 'Draft')}">${printEscapeHtml(challan.status || 'Draft')}</span>
+      </span>
+    </div>
+
+    <div class="pq-top">
+      <div class="pq-company-box">
+        <div class="pq-company-name">${printEscapeHtml(printCompanyDetails.name)}</div>
+        <div>${printEscapeHtml(printCompanyDetails.address)}</div>
+        <div>Phone: ${printEscapeHtml(printCompanyDetails.contact)}</div>
+        ${printCompanyDetails.email ? `<div>Email: ${printEscapeHtml(printCompanyDetails.email)}</div>` : ''}
+        ${printCompanyDetails.gstin ? `<div>GSTIN/UIN: ${printEscapeHtml(printCompanyDetails.gstin)}</div>` : ''}
+        <div>State Name : ${printEscapeHtml(printCompanyDetails.stateName)}, Code : ${printEscapeHtml(printCompanyDetails.stateCode)}</div>
+      </div>
+      <div class="pq-meta-box">
+        <div class="pq-meta-row">
+          <div class="pq-meta-cell">
+            <div class="pq-meta-label">DC No.</div>
+            <div class="pq-meta-value">${printEscapeHtml(challan.displayDcNumber || challan.name || '')}</div>
+          </div>
+          <div class="pq-meta-cell" style="border-right:none;">
+            <div class="pq-meta-label">Date</div>
+            <div class="pq-meta-value">${printEscapeHtml(printFormatDate(challan.posting_date))}</div>
+          </div>
+        </div>
+        <div class="pq-meta-row">
+          <div class="pq-meta-cell">
+            <div class="pq-meta-label">Warehouse</div>
+            <div class="pq-meta-value">${printEscapeHtml(challan.set_warehouse || '')}</div>
+          </div>
+          <div class="pq-meta-cell" style="border-right:none;">
+            <div class="pq-meta-label">Transporter</div>
+            <div class="pq-meta-value">${printEscapeHtml(challan.transporter || challan.driver_name || '')}</div>
+          </div>
+        </div>
+        <div class="pq-meta-row">
+          <div class="pq-meta-cell">
+            <div class="pq-meta-label">Vehicle No.</div>
+            <div class="pq-meta-value">${printEscapeHtml(challan.vehicle_no || '')}</div>
+          </div>
+          <div class="pq-meta-cell" style="border-right:none;">
+            <div class="pq-meta-label">Sales Order</div>
+            <div class="pq-meta-value">${challan.sales_order_id ? `#${printEscapeHtml(String(challan.sales_order_id))}` : 'N/A'}</div>
+          </div>
+        </div>
+        ${challan.instructions ? `
+        <div class="pq-meta-row">
+          <div class="pq-meta-cell" style="border-right:none;">
+            <div class="pq-meta-label">Instructions</div>
+            <div class="pq-meta-value">${printEscapeHtml(challan.instructions)}</div>
+          </div>
+        </div>` : ''}
+      </div>
+    </div>
+
+    <div class="pq-parties">
+      <div class="pq-party-box">
+        <div class="pq-party-label">Consignee (Ship to)</div>
+        <div><strong>${printEscapeHtml(challan.customer_name || '')}</strong></div>
+        ${customer?.primary_address ? `<div>${printEscapeHtml(customer.primary_address)}</div>` : ''}
+        ${customer?.mobile_no ? `<div>Phone: ${printEscapeHtml(customer.mobile_no)}</div>` : ''}
+        ${customer?.email_id ? `<div>Email: ${printEscapeHtml(customer.email_id)}</div>` : ''}
+        ${customer?.gstin ? `<div>GSTIN/UIN : ${printEscapeHtml(customer.gstin)}</div>` : ''}
+        ${customer?.state ? `<div>State: ${printEscapeHtml(customer.state)}${customer?.state_code ? ` (${printEscapeHtml(customer.state_code)})` : ''}</div>` : ''}
+      </div>
+      <div class="pq-party-box">
+        <div class="pq-party-label">Buyer (Bill to)</div>
+        <div><strong>${printEscapeHtml(challan.customer_name || '')}</strong></div>
+        ${customer?.primary_address ? `<div>${printEscapeHtml(customer.primary_address)}</div>` : ''}
+        ${customer?.mobile_no ? `<div>Phone: ${printEscapeHtml(customer.mobile_no)}</div>` : ''}
+        ${customer?.email_id ? `<div>Email: ${printEscapeHtml(customer.email_id)}</div>` : ''}
+        ${customer?.gstin ? `<div>GSTIN/UIN : ${printEscapeHtml(customer.gstin)}</div>` : ''}
+        ${customer?.state ? `<div>State: ${printEscapeHtml(customer.state)}${customer?.state_code ? ` (${printEscapeHtml(customer.state_code)})` : ''}</div>` : ''}
+      </div>
+    </div>
+
+    <table class="pq-items">
+      <thead>
+        <tr>
+          <th class="pq-col-sl">#</th>
+          <th class="pq-col-desc">Description of Goods</th>
+          <th class="pq-col-qty">Quantity</th>
+          <th class="pq-col-rate">Rate</th>
+          <th class="pq-col-amt">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemRows}
+        <tr class="pq-total-row">
+          <td colspan="2">Total</td>
+          <td class="pq-col-qty">${totalQty} ${printItems.length > 0 ? printEscapeHtml(printItems[0]?.stock_uom || printItems[0]?.uom || 'Nos') : 'Nos'}</td>
+          <td class="pq-col-rate"></td>
+          <td class="pq-col-amt">${grandTotal.toFixed(2)}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="pq-words">
+      <div>
+        <div class="pq-words-label">Amount Chargeable (in words)</div>
+        <div><strong>INR ${printNumberToIndianWords(grandTotal)} Only</strong></div>
+      </div>
+      <div class="pq-eoe">E.&amp;O.E</div>
+    </div>
+
+    <div class="pq-bottom">
+      <div class="pq-decl-box">
+        <strong>Declaration</strong>
+        <div style="margin-top:4px;">We declare that the goods described above are as per the delivery challan and all particulars are true and correct.</div>
+        ${printCompanyDetails.panNo ? `<div style="margin-top:8px;">Company's PAN : ${printEscapeHtml(printCompanyDetails.panNo)}</div>` : ''}
+      </div>
+      <div class="pq-sign-box">
+        <div>
+          <div><strong>Delivery Details</strong></div>
+          ${challan.transporter ? `<div>Transporter: ${printEscapeHtml(challan.transporter)}</div>` : ''}
+          ${challan.vehicle_no ? `<div>Vehicle No: ${printEscapeHtml(challan.vehicle_no)}</div>` : ''}
+          ${challan.driver_name ? `<div>Driver: ${printEscapeHtml(challan.driver_name)}</div>` : ''}
+        </div>
+        <div class="pq-signatory">
+          for ${printEscapeHtml(printCompanyDetails.name)}<br /><br /><br />
+          Authorised Signatory
+        </div>
+      </div>
+    </div>
+
+    <div class="pq-footer">
+      ${printCompanyDetails.jurisdiction ? `<div>SUBJECT TO ${printEscapeHtml(printCompanyDetails.jurisdiction)} JURISDICTION</div>` : ''}
+      <div>This is a computer generated delivery challan. ${challan.status === 'Submitted' ? '✓ Submitted' : ''}</div>
+    </div>
+  </div>
+
+  <script>
+    window.onload = function () { window.print(); };
+  </script>
+</body>
+</html>`;
+  };
+
+  const buildCurrentDeliveryChallanPrintData = (): DeliveryChallanPrintData => {
+    const validItems = items.filter(item => item.itemCode && item.quantity > 0);
+    const numericId = id && /^\d+$/.test(String(id)) ? Number(id) : undefined;
+    const fallbackDisplayNumber = numericId !== undefined
+      ? printFormatDcNumber(numericId)
+      : dcNumber;
+
+    return {
+      id: numericId ?? id ?? dcNumber,
+      name: dcNumber || String(id || ''),
+      customer_id: selectedCustomer || '',
+      customer_name: customerData?.name || '',
+      posting_date: dcDate,
+      status: isViewMode ? 'Submitted' : 'Draft',
+      grand_total: getGrandTotal(),
+      set_warehouse: warehouse || '',
+      transporter: transporter || '',
+      vehicle_no: vehicleNumber || '',
+      driver_name: transporter || '',
+      instructions: remarks || '',
+      sales_order_id: selectedSalesOrder ? Number(selectedSalesOrder) || selectedSalesOrder : null,
+      displayDcNumber: fallbackDisplayNumber,
+      items: validItems.map(item => ({
+        id: Number(item.id) || undefined,
+        item_code: item.itemCode || '',
+        item_name: item.itemName || item.itemCode || '',
+        description: item.description || '',
+        qty: item.quantity || 0,
+        stock_uom: item.unit || 'Nos',
+        uom: item.unit || 'Nos',
+        rate: item.rate || 0,
+        amount: item.amount || 0,
+      })),
+      customer_details: {
+        primary_address: customerData?.address || customerData?.shippingAddress || '',
+        mobile_no: customerData?.phone || customerData?.contactMobile || '',
+        email_id: customerData?.email || '',
+        gstin: customerData?.gstin || '',
+      },
+    };
+  };
+
+  const extractPrintRecord = (raw: any): any => {
+    const data = raw?.data ?? raw;
+    if (Array.isArray(data)) return data[0] || null;
+    return data?.record ?? data?.data ?? data;
+  };
+
+  const getPrintDeliveryChallanId = (raw: any): string | number | null => {
+    const record = extractPrintRecord(raw);
+    const candidate =
+      record?.id ??
+      raw?.data?.id ??
+      raw?.id ??
+      record?.name ??
+      raw?.data?.name ??
+      raw?.name ??
+      null;
+
+    if (candidate === null || candidate === undefined || candidate === '') return null;
+
+    const numericMatch = String(candidate).match(/(\d+)$/);
+    return numericMatch ? Number(numericMatch[1]) : candidate;
+  };
+
+  const normalizeDeliveryChallanPrintData = (raw: any, fallback?: DeliveryChallanPrintData): DeliveryChallanPrintData | null => {
+    const record = extractPrintRecord(raw);
+    if (!record) return fallback || null;
+
+    const recordId = record.id ?? fallback?.id ?? id ?? dcNumber;
+    const displayNumber =
+      record.displayDcNumber ||
+      (record.id !== undefined && record.id !== null
+        ? printFormatDcNumber(record.id)
+        : record.name || fallback?.displayDcNumber || dcNumber);
+
+    return {
+      ...(fallback || {}),
+      ...record,
+      id: recordId,
+      name: record.name || fallback?.name || String(recordId),
+      customer_id: record.customer_id ?? record.customer ?? fallback?.customer_id ?? '',
+      customer_name: record.customer_name || record.customer || fallback?.customer_name || '',
+      posting_date: record.posting_date || record.transaction_date || fallback?.posting_date || '',
+      status: record.status || fallback?.status || 'Submitted',
+      grand_total: Number(record.grand_total ?? record.total ?? fallback?.grand_total ?? 0),
+      set_warehouse: record.set_warehouse || record.warehouse || fallback?.set_warehouse || '',
+      transporter: record.transporter || fallback?.transporter || '',
+      vehicle_no: record.vehicle_no || fallback?.vehicle_no || '',
+      driver_name: record.driver_name || fallback?.driver_name || '',
+      instructions: record.instructions || record.remarks || fallback?.instructions || '',
+      sales_order_id: record.sales_order_id ?? fallback?.sales_order_id ?? null,
+      displayDcNumber: displayNumber,
+      items: (Array.isArray(record.items) ? record.items : (fallback?.items || [])).map((item: any) => ({
+        id: item.id,
+        item_code: item.item_code || item.itemCode || '',
+        item_name: item.item_name || item.itemName || item.description || '',
+        description: item.description || '',
+        qty: Number(item.qty ?? item.quantity ?? 0),
+        stock_uom: item.stock_uom || item.uom || item.unit || 'Nos',
+        uom: item.uom || item.unit || item.stock_uom || 'Nos',
+        rate: Number(item.rate ?? 0),
+        amount: Number(item.amount ?? ((item.qty ?? item.quantity ?? 0) * (item.rate ?? 0))),
+      })),
+      customer_details: record.customer_details
+        ? {
+            primary_address: record.customer_details.primary_address || record.customer_details.address || '',
+            mobile_no: record.customer_details.mobile_no || record.customer_details.phone || '',
+            email_id: record.customer_details.email_id || record.customer_details.email || '',
+            gstin: record.customer_details.gstin || record.customer_details.tax_id || '',
+            state: record.customer_details.state || '',
+            state_code: record.customer_details.state_code || '',
+          }
+        : fallback?.customer_details,
+    };
+  };
+
+  const openDeliveryChallanPrint = async (
+    challanId?: string | number | null,
+    fallbackData?: DeliveryChallanPrintData
+  ) => {
+    const printWindow = window.open('', '_blank', 'width=900,height=1000');
+
+    if (!printWindow) {
+      toast.error('Please allow pop-ups to print this delivery challan');
+      return;
+    }
+
+    printWindow.document.write(
+      '<p style="font-family:sans-serif;padding:24px;color:#374151;">Loading delivery challan…</p>'
+    );
+
+    try {
+      let printData = fallbackData || buildCurrentDeliveryChallanPrintData();
+
+      if (challanId !== undefined && challanId !== null && challanId !== '') {
+        try {
+          const response = await deliveryChallanAPI.getDeliveryNote(String(challanId));
+          const fetched = normalizeDeliveryChallanPrintData(response.data, printData);
+          if (fetched) printData = fetched;
+        } catch (fetchError) {
+          console.warn('Could not fetch full delivery challan for printing. Using form data.', fetchError);
+        }
+      }
+
+      printWindow.document.open();
+      printWindow.document.write(buildDeliveryChallanPrintHtml(printData));
+      printWindow.document.close();
+    } catch (error) {
+      console.error('Error printing delivery challan:', error);
+      try {
+        printWindow.document.open();
+        printWindow.document.write(
+          buildDeliveryChallanPrintHtml(fallbackData || buildCurrentDeliveryChallanPrintData())
+        );
+        printWindow.document.close();
+      } catch (fallbackError) {
+        console.error('Fallback print failed:', fallbackError);
+        printWindow.close();
+        toast.error('Unable to print delivery challan');
+      }
+    }
+  };
+
+  const handlePrintDeliveryChallan = async () => {
+    setShowPrintConfirmModal(false);
+
+    const fallbackData = buildCurrentDeliveryChallanPrintData();
+    const printId = printDeliveryChallanId || getPrintDeliveryChallanId({
+      id: id,
+      name: successData.deliveryNote,
+      data: { name: successData.deliveryNote }
+    });
+
+    await openDeliveryChallanPrint(printId, fallbackData);
+  };
+
+  const handleCancelPrint = () => {
+    setShowPrintConfirmModal(false);
+    navigate('/delivery-challan');
+  };
+  // Persist the inspection only after the Delivery Challan has been created.
+  // This keeps the QI and DC in the same user-driven submit flow.
+  const savePendingQualityInspection = async (createdDC: any, responseData: any) => {
+    if (!pendingQualityInspection?.payload) return null;
+
+    const pending = pendingQualityInspection;
+    const payload = JSON.parse(JSON.stringify(pending.payload));
+    const inspectionForm = pending.formData || {};
+    const parameters = Array.isArray(inspectionForm.parameters) ? inspectionForm.parameters : [];
+
+    const savedParameters: Record<string, number> = {};
+    const savedMethods: Record<string, number> = {};
+
+    // Create only masters that did not already have IDs. This is deliberately
+    // deferred until DC Submit, so clicking Save on the inspection makes zero
+    // persistence API calls.
+    for (const row of parameters) {
+      const name = String(row?.parameter || '').trim();
+      if (!name || row?.parameterId) continue;
+      const r = await api.post('/quality-parameter', {
+        parameter_name: name,
+        parameter_code: name.substring(0, 10).toUpperCase().replace(/\s+/g, '_'),
+        parameter_group_id: 1,
+        default_method_id: null,
+        unit: null,
+        description: 'Auto-created from inspection form',
+        is_mandatory: 0,
+        is_active: 1
+      });
+      if (r.data?.success !== 1 || !r.data?.data) {
+        throw new Error(r.data?.message || `Failed to save parameter: ${name}`);
+      }
+      const id = r.data.data.id || r.data.data.parameter_id || r.data.data.insertId;
+      if (!id) throw new Error(`No ID returned for parameter: ${name}`);
+      savedParameters[name] = Number(id);
+    }
+
+    for (const row of parameters) {
+      const name = String(row?.inspectionMethod || '').trim();
+      if (!name || row?.inspectionMethodId) continue;
+      const r = await api.post('/inspection-method', {
+        method_name: name,
+        description: 'Auto-created from inspection form',
+        is_active: 1
+      });
+      if (r.data?.success !== 1 || !r.data?.data) {
+        throw new Error(r.data?.message || `Failed to save inspection method: ${name}`);
+      }
+      const id = r.data.data.id || r.data.data.method_id || r.data.data.insertId;
+      if (!id) throw new Error(`No ID returned for inspection method: ${name}`);
+      savedMethods[name] = Number(id);
+    }
+
+    payload.details = (payload.details || []).map((detail: any, index: number) => {
+      const row = parameters[index] || {};
+      const parameterName = String(row.parameter || '').trim();
+      const methodName = String(row.inspectionMethod || '').trim();
+      return {
+        ...detail,
+        parameter_id: Number(row.parameterId || savedParameters[parameterName] || detail.parameter_id || 0),
+        inspection_method_id: Number(row.inspectionMethodId || savedMethods[methodName] || detail.inspection_method_id || 0)
+      };
+    });
+
+    const dcId = getPrintDeliveryChallanId(createdDC) ?? getPrintDeliveryChallanId(responseData) ?? null;
+    const dcName = createdDC?.data?.delivery_note || createdDC?.delivery_note || createdDC?.name || dcNumber;
+
+    payload.reference_type = 'Delivery Challan';
+    payload.reference_id = dcId && /^\d+$/.test(String(dcId)) ? Number(dcId) : 0;
+    payload.source_type = 'delivery_challan';
+    payload.source_id = payload.reference_id || undefined;
+    payload.customer_id = customerData?.id ? Number(customerData.id) : 0;
+    payload.customer_name = customerData?.name || payload.customer_name || '';
+    payload.doc_no = dcName || payload.doc_no || dcNumber;
+    payload.challan_no_date = dcName || payload.challan_no_date || dcNumber;
+    payload.inspection_date = inspectionForm.date || dcDate || null;
+    payload.invoice_qty = inspectionForm.invoiceQty || String(getTotalQty());
+    payload.inspection_qty = parseInt(payload.invoice_qty, 10) || getTotalQty();
+    payload.item_id = Number(pending.selectedItemId || payload.item_id || 0);
+
+    const qiResponse = await api.post('/quality-inspection', payload);
+    if (qiResponse.data?.success !== 1) {
+      throw new Error(qiResponse.data?.message || 'Failed to save Quality Inspection');
+    }
+
+    return qiResponse.data;
+  };
+
   const handleSubmit = async () => {
     if (isViewMode) return;
     if (!validateForm()) {
@@ -2928,10 +3629,9 @@ const NewDeliveryChallan: React.FC = () => {
         }
       }
       
-      // Clear saved form state after successful submission
-      formState.clearFormState('delivery_challan');
-      
-      toast.success(isEditMode ? 'Updated!' : 'Created!', { id: toastId });
+      // Do not clear the pending state yet. The inspection must be persisted
+      // before the Delivery Challan is finally submitted.
+      toast.success(isEditMode ? 'Delivery Challan saved!' : 'Delivery Challan created!', { id: toastId });
       
       setSuccessData({
         deliveryNote: deliveryNote,
@@ -2939,20 +3639,46 @@ const NewDeliveryChallan: React.FC = () => {
         message: message,
         customerName: customerData?.name
       });
-      setShowSuccessModal(true);
-      
-      if (!isEditMode && (createdDC?.data?.delivery_note || createdDC?.name)) {
-        const dcName = createdDC?.data?.delivery_note || createdDC?.name;
-        try {
-          await deliveryChallanAPI.submitDeliveryNote(dcName);
-          toast.success(`DC ${dcName} submitted!`);
-        } catch (submitError) {
-          console.warn('Submit failed but DC was created:', submitError);
-          toast('DC created but submission failed. Please submit manually.');
-        }
+
+      // Preserve the actual backend id/name so the print action can fetch the
+      // just-created record and render the exact same print template.
+      setPrintDeliveryChallanId(
+        getPrintDeliveryChallanId(createdDC) ??
+        getPrintDeliveryChallanId(response.data) ??
+        (id || null)
+      );
+
+      // After creating a new Delivery Challan, ask whether it should be printed.
+      // The Yes action uses the exact same print template as delivery_challan.tsx.
+      if (!isEditMode) {
+        setShowPrintConfirmModal(true);
+      } else {
+        setShowSuccessModal(true);
       }
+      
+      // Save the pending Quality Inspection before final DC submission.
+      // If this fails, the DC remains as a saved draft and the pending QI state
+      // is intentionally preserved so the user can retry without losing data.
+      if (pendingQualityInspection) {
+        toast.loading('Saving Quality Inspection...', { id: toastId });
+        await savePendingQualityInspection(createdDC, response.data);
+        toast.success('Quality Inspection saved!', { id: toastId });
+      }
+
+      const finalDcName = createdDC?.data?.delivery_note || createdDC?.delivery_note || createdDC?.name || dcNumber;
+      if (!isEditMode && finalDcName) {
+        await deliveryChallanAPI.submitDeliveryNote(String(finalDcName));
+        toast.success(`DC ${finalDcName} submitted!`, { id: toastId });
+      }
+
+      formState.clearFormState('delivery_challan');
+      setPendingQualityInspection(null);
+      setQualityInspection(true);
     } catch (error: any) {
       toast.error(error.message || (isEditMode ? 'Failed to update' : 'Failed to create'), { id: toastId });
+      if (pendingQualityInspection) {
+        toast('Your inspection is still attached to this Delivery Challan. Fix the issue and submit again.', { icon: 'ℹ️' });
+      }
       setIsSubmitting(false);
     } finally {
       setIsSubmitting(false);
@@ -3020,8 +3746,11 @@ const NewDeliveryChallan: React.FC = () => {
   };
 
   useEffect(() => {
-    if (items.length === 0 && !isViewMode) {
-      setItems([{
+    if (isViewMode) return;
+    if (itemsRestoredRef.current) return;
+    setItems(prev => {
+      if (prev.length > 0) return prev;
+      return [{
         id: '1',
         itemCode: '',
         itemName: '',
@@ -3037,8 +3766,8 @@ const NewDeliveryChallan: React.FC = () => {
         totalAmount: 0,
         type: isService ? 'service' : 'product',
         inventoryId: undefined,
-      }]);
-    }
+      }];
+    });
   }, [isService, isViewMode]);
 
   const totalItems = items.filter(i => i.itemCode && i.quantity > 0).length;
@@ -3185,6 +3914,122 @@ const NewDeliveryChallan: React.FC = () => {
           color: var(--text-secondary, #64748b);
         }
 
+        .ndc-print-confirm-overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 99999;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 20px;
+          background: rgba(15, 23, 42, 0.55);
+          backdrop-filter: blur(2px);
+        }
+
+        .ndc-print-confirm-modal {
+          width: min(420px, 100%);
+          background: var(--card-bg, #ffffff);
+          border: 1px solid var(--border-color, #e2e8f0);
+          border-radius: 16px;
+          padding: 28px 24px 22px;
+          box-shadow: 0 20px 50px rgba(15, 23, 42, 0.22);
+          text-align: center;
+        }
+
+        .ndc-print-confirm-icon {
+          width: 56px;
+          height: 56px;
+          margin: 0 auto 14px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: var(--primary-color, #2563eb);
+          background: color-mix(in srgb, var(--primary-color, #2563eb) 10%, transparent);
+        }
+
+        .ndc-print-confirm-title {
+          margin: 0 0 10px;
+          color: var(--text-primary, #0f172a);
+          font-size: 20px;
+          font-weight: 700;
+        }
+
+        .ndc-print-confirm-message {
+          margin: 0;
+          color: var(--text-secondary, #64748b);
+          font-size: 13px;
+          line-height: 1.55;
+        }
+
+        .ndc-print-confirm-message strong {
+          color: var(--text-primary, #0f172a);
+        }
+
+        .ndc-print-confirm-question {
+          margin: 8px 0 20px;
+          color: var(--text-primary, #334155);
+          font-size: 14px;
+          font-weight: 600;
+        }
+
+        .ndc-print-confirm-actions {
+          display: flex;
+          justify-content: center;
+          gap: 10px;
+        }
+
+        .ndc-print-confirm-btn {
+          min-width: 120px;
+          height: 38px;
+          border-radius: 9px;
+          border: 1px solid transparent;
+          padding: 0 16px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 7px;
+          font-size: 12px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.18s ease;
+        }
+
+        .ndc-print-confirm-yes {
+          background: var(--primary-color, #2563eb);
+          color: #fff;
+          border-color: var(--primary-color, #2563eb);
+        }
+
+        .ndc-print-confirm-yes:hover {
+          filter: brightness(0.94);
+          transform: translateY(-1px);
+        }
+
+        .ndc-print-confirm-cancel {
+          background: var(--card-bg, #fff);
+          color: var(--text-primary, #334155);
+          border-color: var(--border-color, #cbd5e1);
+        }
+
+        .ndc-print-confirm-cancel:hover {
+          background: var(--layout-bg, #f8fafc);
+        }
+
+        @media (max-width: 480px) {
+          .ndc-print-confirm-modal {
+            padding: 24px 18px 20px;
+          }
+
+          .ndc-print-confirm-actions {
+            flex-direction: column;
+          }
+
+          .ndc-print-confirm-btn {
+            width: 100%;
+          }
+        }
+
         @media print {
           .ndc-form-footer, button { display: none !important; }
           body { padding: 0; }
@@ -3201,6 +4046,58 @@ const NewDeliveryChallan: React.FC = () => {
         customerName={successData.customerName}
         onViewDetails={handleViewDeliveryNote}
       />
+
+      {/* Print Confirmation Modal */}
+      {showPrintConfirmModal && (
+        <div
+          className="ndc-print-confirm-overlay"
+          onClick={handleCancelPrint}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="ndc-print-confirm-title"
+        >
+          <div
+            className="ndc-print-confirm-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="ndc-print-confirm-icon">
+              <FaPrint size={28} />
+            </div>
+
+            <h2 id="ndc-print-confirm-title" className="ndc-print-confirm-title">
+              Delivery Challan Created Successfully
+            </h2>
+
+            <p className="ndc-print-confirm-message">
+              Delivery Challan <strong>{successData.deliveryNote}</strong> has been created.
+            </p>
+
+            <p className="ndc-print-confirm-question">
+              Do you want to print it now?
+            </p>
+
+            <div className="ndc-print-confirm-actions">
+              <button
+                type="button"
+                className="ndc-print-confirm-btn ndc-print-confirm-yes"
+                onClick={handlePrintDeliveryChallan}
+              >
+                <FaPrint size={13} />
+                Yes, Print
+              </button>
+
+              <button
+                type="button"
+                className="ndc-print-confirm-btn ndc-print-confirm-cancel"
+                onClick={handleCancelPrint}
+              >
+                <FaTimes size={13} />
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Quick Add Customer Modal — same popup and flow as Create Quotation */}
       <QuickAddCustomerModal
@@ -3679,26 +4576,48 @@ const NewDeliveryChallan: React.FC = () => {
               />
             </div>
 
-            {/* Quality Inspection Section - Button to navigate to QI */}
-            <div className="ndc-qi-section">
-              <span className="ndc-qi-label">
-                <FaClipboardCheck size={14} style={{ marginRight: '6px' }} />
-                Quality Inspection
-              </span>
-              <button
-                type="button"
-                onClick={navigateToQualityInspection}
-                className="ndc-qi-action-btn"
-                disabled={isViewMode || items.every(item => !item.itemCode || item.quantity <= 0)}
-                title={items.every(item => !item.itemCode || item.quantity <= 0) ? 'Add at least one item first' : 'Create Quality Inspection'}
-              >
-                <FaClipboardCheck size={14} />
-                Create Inspection
-              </button>
-              {qualityInspection && (
-                <span style={{ fontSize: '11px', color: 'var(--success-color, #22c55e)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <FaCheckCircle size={12} /> Inspection created
-                </span>
+            {/* Quality Inspection Section */}
+            <div className="ndc-qi-section ndc-qi-section-enhanced">
+              <div className="ndc-qi-section-header">
+                <div>
+                  <span className="ndc-qi-label">
+                    <FaClipboardCheck size={14} style={{ marginRight: '6px' }} />
+                    Quality Inspection
+                  </span>
+                  <span className="ndc-qi-help">
+                    {pendingQualityInspection ? 'Inspection is attached to this Delivery Challan and will be saved on Submit.' : 'Create an inspection before submitting this Delivery Challan.'}
+                  </span>
+                </div>
+                <div className="ndc-qi-header-actions">
+                  {qualityInspection && (
+                    <span className="ndc-qi-status">
+                      <FaCheckCircle size={12} /> Inspection ready
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={navigateToQualityInspection}
+                    className="ndc-qi-action-btn"
+                    disabled={isViewMode || items.every(item => !item.itemCode || item.quantity <= 0)}
+                    title={items.every(item => !item.itemCode || item.quantity <= 0) ? 'Add at least one item first' : 'Create Quality Inspection'}
+                  >
+                    <FaClipboardCheck size={14} />
+                    {pendingQualityInspection ? 'Edit Inspection' : 'Create Inspection'}
+                  </button>
+                </div>
+              </div>
+
+              {pendingQualityInspection?.formData && (
+                <div className="ndc-qi-report-actions">
+                  <button
+                    type="button"
+                    className="ndc-qi-view-btn"
+                    onClick={handleViewQualityInspection}
+                  >
+                    <FaClipboardCheck size={14} />
+                    View Inspection
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -3752,7 +4671,10 @@ const NewDeliveryChallan: React.FC = () => {
 
       {/* Action Buttons */}
       <div className="ndc-form-footer">
-        <button onClick={() => window.print()} className="ndc-btn ndc-btn-print">
+        <button
+          onClick={() => openDeliveryChallanPrint(id || null, buildCurrentDeliveryChallanPrintData())}
+          className="ndc-btn ndc-btn-print"
+        >
           <FaPrint size={11} /> Print
         </button>
         {!isViewMode && (

@@ -92,8 +92,8 @@ export default function LeadManagement() {
   const [rawLeads, setRawLeads] = useState<any[]>([]); 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [allChecked, setAllChecked] = useState(false);
+  const [selected] = useState<Set<string>>(new Set());
+  // const [allChecked, setAllChecked] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
@@ -185,21 +185,21 @@ export default function LeadManagement() {
     validCurrentPage * itemsPerPage
   );
 
-  const toggleAll = () => {
-    if (allChecked) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(paginatedData.map((r) => r.id)));
-    }
-    setAllChecked(!allChecked);
-  };
+  // const toggleAll = () => {
+  //   if (allChecked) {
+  //     setSelected(new Set());
+  //   } else {
+  //     setSelected(new Set(paginatedData.map((r) => r.id)));
+  //   }
+  //   setAllChecked(!allChecked);
+  // };
 
-  const toggleRow = (id: string) => {
-    const next = new Set(selected);
-    next.has(id) ? next.delete(id) : next.add(id);
-    setSelected(next);
-    setAllChecked(next.size === paginatedData.length);
-  };
+  // const toggleRow = (id: string) => {
+  //   const next = new Set(selected);
+  //   next.has(id) ? next.delete(id) : next.add(id);
+  //   setSelected(next);
+  //   setAllChecked(next.size === paginatedData.length);
+  // };
 
   const goToPage = (page: number) => {
     if (page >= 1 && page <= filteredTotalPages) {

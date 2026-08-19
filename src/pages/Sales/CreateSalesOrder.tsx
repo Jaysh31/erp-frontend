@@ -510,7 +510,7 @@ interface CustomerDropdownProps {
   error?: boolean;
   customerList?: Customer[];
   selectedCustomer?: Customer | null;
-  
+
   onAddNew: (searchTerm: string) => void;
 }
 
@@ -596,7 +596,7 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
     try {
       const response = await api.get(`/customer?page=1&limit=50&search=${encodeURIComponent(search)}`);
       const records = extractRecords(response.data);
-      
+
       const mappedCustomers: Customer[] = records.map((cust: any) => ({
         id: cust.id?.toString() || cust.name || '',
         name: cust.customer_name || cust.name || '',
@@ -609,7 +609,7 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
         contactPerson: cust.contact_person || '',
         contactMobile: cust.contact_mobile || cust.mobile_no || ''
       }));
-      
+
       setCustomers(mappedCustomers);
       setFilteredCustomers(mappedCustomers);
     } catch (error) {
@@ -663,7 +663,7 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
     return '';
   };
 
-  
+
 
   const menu = isOpen ? (
     <div
@@ -746,7 +746,7 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
                 'No customers available'
               )}
             </div>
-    
+
           </div>
         )}
       </div>
@@ -754,50 +754,50 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
       {/* Persistent footer action so "Add New Customer" is always reachable,
           even when there are matching results to scroll through. */}
       <div
-  className="cq-dropdown-add-new"
-  onMouseDown={(e) => {
-    e.preventDefault();
-    handleAddNewClick();
-  }}
-  style={{
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    padding: '10px 14px',
-    cursor: 'pointer',
-    borderTop: '0.5px solid var(--border-color, #e2e8f0)',
-    color: 'var(--primary-color, #2563eb)',
-    fontWeight: 600,
-    fontSize: '12px',
-    background: 'var(--layout-bg, #f8fafc)',
-    flexShrink: 0,
-    transition: 'background 0.15s, color 0.15s'
-  }}
-  onMouseEnter={(e) => {
-    e.currentTarget.style.background = 'var(--nav-hover, #eff6ff)';
-    e.currentTarget.style.color = 'var(--primary-color, #2563eb)';
-  }}
-  onMouseLeave={(e) => {
-    e.currentTarget.style.background = 'var(--layout-bg, #f8fafc)';
-    e.currentTarget.style.color = 'var(--primary-color, #2563eb)';
-  }}
->
-  <span
-    style={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center'
-    }}
-  >
-    <FaPlus size={10} />
-  </span>
+        className="cq-dropdown-add-new"
+        onMouseDown={(e) => {
+          e.preventDefault();
+          handleAddNewClick();
+        }}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          padding: '10px 14px',
+          cursor: 'pointer',
+          borderTop: '0.5px solid var(--border-color, #e2e8f0)',
+          color: 'var(--primary-color, #2563eb)',
+          fontWeight: 600,
+          fontSize: '12px',
+          background: 'var(--layout-bg, #f8fafc)',
+          flexShrink: 0,
+          transition: 'background 0.15s, color 0.15s'
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = 'var(--nav-hover, #eff6ff)';
+          e.currentTarget.style.color = 'var(--primary-color, #2563eb)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = 'var(--layout-bg, #f8fafc)';
+          e.currentTarget.style.color = 'var(--primary-color, #2563eb)';
+        }}
+      >
+        <span
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          <FaPlus size={10} />
+        </span>
 
-  <span>
-    {searchTerm.trim() && filteredCustomers.length === 0
-      ? `Add "${searchTerm.trim()}" as New Customer`
-      : 'Add New Customer'}
-  </span>
-</div>
+        <span>
+          {searchTerm.trim() && filteredCustomers.length === 0
+            ? `Add "${searchTerm.trim()}" as New Customer`
+            : 'Add New Customer'}
+        </span>
+      </div>
     </div>
   ) : null;
 
@@ -862,7 +862,7 @@ const QuickAddCustomerModal: React.FC<QuickAddCustomerModalProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
- 
+
   const DEFAULT_CUSTOMER_TYPE = 'Company';
   const DEFAULT_CUSTOMER_GROUP = 'Commercial';
 
@@ -896,7 +896,7 @@ const QuickAddCustomerModal: React.FC<QuickAddCustomerModalProps> = ({
 
     setSubmitting(true);
     try {
-      
+
       const contactPayload = {
         first_name: customerName.trim(),
         last_name: '',
@@ -1241,7 +1241,7 @@ const QuotationDropdown: React.FC<QuotationDropdownProps> = ({
     try {
       const response = await api.get(`/quotation?page=1&limit=50&search=${encodeURIComponent(search)}`);
       const records = extractRecords(response.data);
-      
+
       const mappedQuotations: QuotationApiRecord[] = records.map((q: any) => ({
         name: q.name || '',
         party_name: q.party_name || '',
@@ -1261,7 +1261,7 @@ const QuotationDropdown: React.FC<QuotationDropdownProps> = ({
         payment_schedule: q.payment_schedule || [],
         items: q.items || [],
       }));
-      
+
       setQuotations(mappedQuotations);
       setFilteredQuotations(mappedQuotations);
     } catch (error) {
@@ -1536,30 +1536,30 @@ const SuccessModal: React.FC<SuccessModalProps> = ({
         <div className="so-modal-success-icon">
           <FaCheckCircle size={48} />
         </div>
-        
+
         <h2 className="so-modal-title">✓ Success!</h2>
-        
+
         <p className="so-modal-message">{message}</p>
-        
+
         <div className="so-modal-details">
           <div className="so-modal-detail-item">
             <span className="so-modal-detail-label">Sales Order</span>
             <span className="so-modal-detail-value so-modal-so-number">{salesOrder}</span>
           </div>
-          
+
           {customerName && (
             <div className="so-modal-detail-item">
               <span className="so-modal-detail-label">Customer</span>
               <span className="so-modal-detail-value">{customerName}</span>
             </div>
           )}
-          
+
           <div className="so-modal-detail-item">
             <span className="so-modal-detail-label">Total Items</span>
             <span className="so-modal-detail-value">{totalItems}</span>
           </div>
         </div>
-        
+
         <div className="so-modal-actions">
           <button onClick={onViewDetails || onClose} className="so-modal-btn so-modal-btn-primary">
             View Sales Order
@@ -1605,7 +1605,7 @@ export default function CreateSalesOrder() {
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [saving, setSaving] = useState(false);
-  const [, setLoadingRecord] = useState(false);
+  const [loadingRecord, setLoadingRecord] = useState(false);
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
   const [showValidationSummary, setShowValidationSummary] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
@@ -1647,7 +1647,7 @@ export default function CreateSalesOrder() {
 
   // Inventory / stock check
   const [inventoryMap, setInventoryMap] = useState<{ [itemCode: string]: InventoryApiRecord }>({});
-  const [, setLoadingInventory] = useState(false);
+  const [loadingInventory, setLoadingInventory] = useState(false);
 
   // Item master catalog
   const [itemMasterMap, setItemMasterMap] = useState<{ [itemCode: string]: any }>({});
@@ -1858,54 +1858,7 @@ export default function CreateSalesOrder() {
     try {
       const response = await api.get('/item?type=product&page=1&limit=100');
       const records = extractRecords(response.data);
-      
-      const itemsData: Product[] = records.map((item: any) => ({
-        id: item.id?.toString() || item.name || '',
-        itemCode: item.item_code || item.name || '',
-        itemName: item.item_name || '',
-        hsn: item.HSN || item.hsn || '',
-        description: item.description || item.item_name || '',
-        unit: item.stock_uom || 'Nos',
-        rate: item.selling_price  || 0,
-        tax: item.tax_rate || 0,
-        stockUom: item.stock_uom,
-        standardRate: item.standard_rate,
-        creation: item.creation,
-        modified: item.modified,
-        modified_by: item.modified_by,
-        fg_item: item.fg_item,
-        fg_item_qty: item.fg_item_qty,
-        item_id: item.id,
-        warehouse: item.warehouse,
-        transaction_date: item.transaction_date,
-        uom: item.uom,
-        net_rate: item.net_rate,
-        net_amount: item.net_amount,
-      }));
-      
-      setAllProducts(itemsData);
-      setProducts(itemsData);
-    } catch (error) {
-      console.error('Error fetching items:', error);
-    } finally {
-      setIsLoadingItems(false);
-    }
-  };
 
-  useEffect(() => {
-    fetchAllItems();
-  }, []);
-
-  const handleItemSearch = useCallback(async (searchTerm: string) => {
-    if (!searchTerm.trim()) {
-      setProducts(allProducts);
-      return;
-    }
-
-    try {
-      const response = await api.get(`/item?type=product&page=1&limit=50&search=${encodeURIComponent(searchTerm)}`);
-      const records = extractRecords(response.data);
-      
       const itemsData: Product[] = records.map((item: any) => ({
         id: item.id?.toString() || item.name || '',
         itemCode: item.item_code || item.name || '',
@@ -1929,7 +1882,54 @@ export default function CreateSalesOrder() {
         net_rate: item.net_rate,
         net_amount: item.net_amount,
       }));
-      
+
+      setAllProducts(itemsData);
+      setProducts(itemsData);
+    } catch (error) {
+      console.error('Error fetching items:', error);
+    } finally {
+      setIsLoadingItems(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAllItems();
+  }, []);
+
+  const handleItemSearch = useCallback(async (searchTerm: string) => {
+    if (!searchTerm.trim()) {
+      setProducts(allProducts);
+      return;
+    }
+
+    try {
+      const response = await api.get(`/item?type=product&page=1&limit=50&search=${encodeURIComponent(searchTerm)}`);
+      const records = extractRecords(response.data);
+
+      const itemsData: Product[] = records.map((item: any) => ({
+        id: item.id?.toString() || item.name || '',
+        itemCode: item.item_code || item.name || '',
+        itemName: item.item_name || '',
+        hsn: item.HSN || item.hsn || '',
+        description: item.description || item.item_name || '',
+        unit: item.stock_uom || 'Nos',
+        rate: item.selling_price || 0,
+        tax: item.tax_rate || 0,
+        stockUom: item.stock_uom,
+        standardRate: item.standard_rate,
+        creation: item.creation,
+        modified: item.modified,
+        modified_by: item.modified_by,
+        fg_item: item.fg_item,
+        fg_item_qty: item.fg_item_qty,
+        item_id: item.id,
+        warehouse: item.warehouse,
+        transaction_date: item.transaction_date,
+        uom: item.uom,
+        net_rate: item.net_rate,
+        net_amount: item.net_amount,
+      }));
+
       setProducts(itemsData);
     } catch (error) {
       console.error('Search error:', error);
@@ -2068,7 +2068,7 @@ export default function CreateSalesOrder() {
     try {
       const response = await api.get('/customer?page=1&limit=100');
       const records = extractRecords(response.data);
-      
+
       const mappedCustomers: Customer[] = records.map((cust: any) => ({
         id: cust.id?.toString() || cust.name || '',
         name: cust.customer_name || cust.name || '',
@@ -2081,7 +2081,7 @@ export default function CreateSalesOrder() {
         contactPerson: cust.contact_person || '',
         contactMobile: cust.contact_mobile || cust.mobile_no || ''
       }));
-      
+
       setCustomers(mappedCustomers);
     } catch (error) {
       console.error('Error fetching customers:', error);
@@ -2092,7 +2092,7 @@ export default function CreateSalesOrder() {
     fetchCustomers();
   }, []);
 
- 
+
   useEffect(() => {
     const draftKey = getDraftStorageKey();
     try {
@@ -2107,7 +2107,7 @@ export default function CreateSalesOrder() {
           setCustomerData(draft.customerData);
           setSelectedCustomer(draft.customerData);
         }
-       
+
         if (isEditMode) {
           setRecordFetched(true);
         }
@@ -2184,7 +2184,7 @@ export default function CreateSalesOrder() {
         const itemName = it.item_name || master?.item_name || '';
         const hsn = it.hsn || master?.HSN || master?.hsn || '';
         const stockUom = it.stock_uom || master?.stock_uom || 'Nos';
-        
+
         // ===== FIX: Properly bind item_tax_id to tax field =====
         // Check for both tax_id and item_tax_id from the API response
         let tax_id: number | undefined = it.tax_id ? Number(it.tax_id) : undefined;
@@ -2192,11 +2192,11 @@ export default function CreateSalesOrder() {
           tax_id = Number(it.item_tax_id);
         }
         let tax = 0;
-        
+
         // If tax_id is provided, get the tax rate from tax options
         if (tax_id) {
           tax = getTaxValueFromId(tax_id, taxOptions);
-        } 
+        }
         // If only tax_rate is provided but no tax_id, try to find matching tax_id
         else if (it.tax_rate && it.tax_rate > 0) {
           tax = it.tax_rate;
@@ -2210,13 +2210,13 @@ export default function CreateSalesOrder() {
             tax_id = getTaxIdFromRate(masterTax, taxOptions);
           }
         }
-        
+
         const amount = it.amount ?? quantity * rate;
         const taxAmount = (amount * tax) / 100;
         const { status, availableQty } = getStockStatus(itemCode, quantity);
-        
+
         console.log(`Item ${itemCode}: tax_id=${tax_id}, tax=${tax}`); // Debug log
-        
+
         return {
           id: String(idx + 1),
           itemCode,
@@ -2395,13 +2395,13 @@ export default function CreateSalesOrder() {
     setApiError(null);
     try {
       const response = await api.get(`/sales-order/${orderId}`);
-      
+
       if (response.data.success !== 1) {
         throw new Error(response.data?.message || 'Failed to fetch sales order');
       }
 
       const record = response.data.data;
-      
+
       if (record) {
         loadSalesOrderIntoForm(record);
         setRecordFetched(true);
@@ -2423,8 +2423,8 @@ export default function CreateSalesOrder() {
 
     let customerMatch: Customer | undefined;
     if (record.customer_name) {
-      customerMatch = customers.find((c) => 
-        c.name === record.customer_name || 
+      customerMatch = customers.find((c) =>
+        c.name === record.customer_name ||
         c.id === String(record.customer_id)
       );
       if (customerMatch) {
@@ -2438,60 +2438,60 @@ export default function CreateSalesOrder() {
     const items: SalesOrderItem[] =
       Array.isArray(record.items) && record.items.length > 0
         ? record.items.map((it, idx) => {
-            const quantity = it.qty ?? 0;
-            const rate = it.rate ?? 0;
-            const itemCode = it.item_code || '';
-            
-            let tax = it.tax_rate ?? 0;
-           
-            let tax_id: number | undefined =
-              it.item_tax_id ? Number(it.item_tax_id) :
+          const quantity = it.qty ?? 0;
+          const rate = it.rate ?? 0;
+          const itemCode = it.item_code || '';
+
+          let tax = it.tax_rate ?? 0;
+
+          let tax_id: number | undefined =
+            it.item_tax_id ? Number(it.item_tax_id) :
               it.tax_id ? Number(it.tax_id) : undefined;
 
-            if (tax_id) {
-             
-              if (!tax || tax <= 0) {
-                tax = getTaxValueFromId(tax_id, taxOptions);
-              }
-            } else if (tax > 0) {
-              
-              tax_id = getTaxIdFromRate(tax, taxOptions);
-            } else if (parentTaxId) {
-              tax_id = parentTaxId;
-              tax = getTaxValueFromId(parentTaxId, taxOptions);
+          if (tax_id) {
+
+            if (!tax || tax <= 0) {
+              tax = getTaxValueFromId(tax_id, taxOptions);
             }
-            
-            const amount = it.amount ?? quantity * rate;
-            const taxAmount = (amount * tax) / 100;
-            const { status, availableQty } = getStockStatus(itemCode, quantity);
-            return {
-              id: String(idx + 1),
-              itemCode,
-              itemName: it.item_name || '',
-              hsn: it.hsn || '',
-              quantity,
-              rate,
-              stockUom: it.stock_uom || 'Nos',
-              tax,
-              tax_id,
-              amount,
-              taxAmount,
-              totalAmount: amount + taxAmount,
-              stockStatus: status,
-              availableQty,
-              creation: it.creation,
-              modified: it.modified,
-              modified_by: it.modified_by,
-              fg_item: it.fg_item ? parseInt(String(it.fg_item)) : 0,
-              fg_item_qty: it.fg_item_qty ? parseFloat(String(it.fg_item_qty)) : 0,
-              item_id: it.item_id ? parseInt(String(it.item_id)) : 0,
-              uom: it.uom || it.stock_uom || 'Nos',
-              net_rate: it.net_rate || rate,
-              net_amount: it.net_amount || amount,
-              warehouse: it.warehouse || formData.warehouse || 'Finished Goods',
-              transaction_date: it.transaction_date || record.transaction_date,
-            };
-          })
+          } else if (tax > 0) {
+
+            tax_id = getTaxIdFromRate(tax, taxOptions);
+          } else if (parentTaxId) {
+            tax_id = parentTaxId;
+            tax = getTaxValueFromId(parentTaxId, taxOptions);
+          }
+
+          const amount = it.amount ?? quantity * rate;
+          const taxAmount = (amount * tax) / 100;
+          const { status, availableQty } = getStockStatus(itemCode, quantity);
+          return {
+            id: String(idx + 1),
+            itemCode,
+            itemName: it.item_name || '',
+            hsn: it.hsn || '',
+            quantity,
+            rate,
+            stockUom: it.stock_uom || 'Nos',
+            tax,
+            tax_id,
+            amount,
+            taxAmount,
+            totalAmount: amount + taxAmount,
+            stockStatus: status,
+            availableQty,
+            creation: it.creation,
+            modified: it.modified,
+            modified_by: it.modified_by,
+            fg_item: it.fg_item ? parseInt(String(it.fg_item)) : 0,
+            fg_item_qty: it.fg_item_qty ? parseFloat(String(it.fg_item_qty)) : 0,
+            item_id: it.item_id ? parseInt(String(it.item_id)) : 0,
+            uom: it.uom || it.stock_uom || 'Nos',
+            net_rate: it.net_rate || rate,
+            net_amount: it.net_amount || amount,
+            warehouse: it.warehouse || formData.warehouse || 'Finished Goods',
+            transaction_date: it.transaction_date || record.transaction_date,
+          };
+        })
         : cached?.items && cached.items.length > 0
           ? cached.items
           : [{ id: '1', itemCode: '', itemName: '', hsn: '', quantity: 1, rate: 0, stockUom: 'Nos', tax: 0, tax_id: undefined, amount: 0, taxAmount: 0, totalAmount: 0 }];
@@ -2748,7 +2748,7 @@ export default function CreateSalesOrder() {
         const tax = product.tax || 0;
         const tax_id = getTaxIdFromRate(tax, taxOptions);
         const taxAmount = (amount * tax) / 100;
-        
+
         updatedItems[index].itemName = product.itemName || '';
         updatedItems[index].hsn = product.hsn || '';
         updatedItems[index].rate = rate;
@@ -2769,7 +2769,7 @@ export default function CreateSalesOrder() {
         updatedItems[index].net_amount = product.net_amount;
         updatedItems[index].warehouse = product.warehouse;
         updatedItems[index].transaction_date = product.transaction_date;
-        
+
         const { status, availableQty } = getStockStatus(String(value), quantity);
         updatedItems[index].stockStatus = status;
         updatedItems[index].availableQty = availableQty;
@@ -2783,11 +2783,11 @@ export default function CreateSalesOrder() {
       const amount = quantity * rate;
       const tax = updatedItems[index].tax || 0;
       const taxAmount = (amount * tax) / 100;
-      
+
       updatedItems[index].amount = amount;
       updatedItems[index].taxAmount = taxAmount;
       updatedItems[index].totalAmount = amount + taxAmount;
-      
+
       const { status, availableQty } = getStockStatus(itemCode, quantity);
       updatedItems[index].stockStatus = status;
       updatedItems[index].availableQty = availableQty;
@@ -2829,12 +2829,12 @@ export default function CreateSalesOrder() {
       ...prev,
       paymentSchedule: [
         ...prev.paymentSchedule,
-        { 
-          id: newId, 
-          paymentTerm: '', 
-          dueDate: '', 
-          durationDays: 0, 
-          invoicePortion: 0, 
+        {
+          id: newId,
+          paymentTerm: '',
+          dueDate: '',
+          durationDays: 0,
+          invoicePortion: 0,
           paymentAmount: 0,
           paidAmount: 0,
           status: 'Pending'
@@ -2855,12 +2855,12 @@ export default function CreateSalesOrder() {
     setFormData(prev => {
       const updated = [...prev.paymentSchedule];
       updated[index] = { ...updated[index], ...patch };
-      
+
       if (patch.invoicePortion !== undefined) {
         const grandTotal = prev.roundedTotal || 0;
         updated[index].paymentAmount = (patch.invoicePortion / 100) * grandTotal;
       }
-      
+
       return { ...prev, paymentSchedule: updated };
     });
   };
@@ -2891,17 +2891,24 @@ export default function CreateSalesOrder() {
     return date.split('T')[0];
   };
 
+  // ─── build API payload ────────────────────────
+  // NOTE: When editing, the record identifier (`name`) MUST be included in
+  // the payload so the backend/PUT endpoint knows which sales order to
+  // update instead of inserting a brand-new one (which was causing
+  // duplicate entries on edit/update).
   const buildApiPayload = () => {
     const validItems = formData.items.filter((item) => item.itemCode || item.itemName);
 
     const customerId = customerData?.id || selectedCustomer?.id || formData.customer || '';
 
-   
     const firstItemWithTax = validItems.find((item) => item.tax_id);
     const taxId = firstItemWithTax?.tax_id
       ?? (taxOptions.length > 0 ? taxOptions[0].tax_id : null);
 
     const payload: any = {
+      // Include the record identifier only in edit mode, so PUT updates the
+      // existing sales order instead of the backend creating a new one.
+      ...(isEditMode && recordName ? { name: recordName } : {}),
       company: 1,
       modified_by: "Administrator",
       customer_id: parseInt(customerId) || customerId,
@@ -2922,7 +2929,7 @@ export default function CreateSalesOrder() {
       items: validItems.map((item) => {
 
         const itemTaxId = item.tax_id || getTaxIdFromRate(item.tax, taxOptions) || taxId;
-        
+
         return {
           fg_item: item.fg_item || 0,
           fg_item_qty: item.fg_item_qty || 0,
@@ -2964,53 +2971,96 @@ export default function CreateSalesOrder() {
     try {
       const payload = buildApiPayload();
 
-      let response;
-      if (isEditMode && recordName) {
-        response = await api.put('/sales-order', payload);
-      } else {
-        response = await api.post('/sales-order', payload);
+      // In edit mode, backend requires the Sales Order ID
+      if (isEditMode) {
+        const salesOrderId = id || recordName;
+
+        if (!salesOrderId) {
+          throw new Error('Sales Order ID is missing');
+        }
+
+        payload.id = Number(salesOrderId);
       }
+
+      console.log('Sales Order PUT payload:', payload);
+
+      const response = isEditMode
+        ? await api.put('/sales-order', payload)
+        : await api.post('/sales-order', payload);
 
       if (response.data.success !== 1) {
-        throw new Error(response.data?.message || 'Failed to save sales order');
+        throw new Error(
+          response.data?.message ||
+          (isEditMode
+            ? 'Failed to update sales order'
+            : 'Failed to create sales order')
+        );
       }
 
-      const savedName = response.data?.data?.name || payload.name || generateSalesOrderName();
+      const savedName =
+        response.data?.data?.name ||
+        recordName ||
+        payload.name ||
+        generateSalesOrderName();
+
       cacheSalesOrderLineData(savedName, {
         items: formData.items,
         paymentSchedule: formData.paymentSchedule,
       });
 
-      const totalItems = formData.items.filter(i => i.itemCode && i.quantity > 0).length;
+      const totalItems = formData.items.filter(
+        i => i.itemCode && i.quantity > 0
+      ).length;
 
       setSuccessData({
         salesOrder: savedName,
-        totalItems: totalItems,
-        message: isEditMode ? 'Sales order updated successfully!' : 'Sales order created successfully!',
+        totalItems,
+        message: isEditMode
+          ? 'Sales order updated successfully!'
+          : 'Sales order created successfully!',
         customerName: formData.customerName
       });
+
       setShowSuccessModal(true);
 
-      toast.success(isEditMode ? 'Sales order updated successfully!' : 'Sales order created successfully!');
+      toast.success(
+        isEditMode
+          ? 'Sales order updated successfully!'
+          : 'Sales order created successfully!'
+      );
+
     } catch (error: any) {
       console.error('Error saving sales order:', error);
+
       let message = 'Failed to save sales order';
+
       if (error.response) {
-        message = error.response.data?.message || `Server error: ${error.response.status}`;
+        message =
+          error.response.data?.message ||
+          `Server error: ${error.response.status}`;
       } else if (error.request) {
         message = 'Network error. Please check your connection.';
       } else if (error.message) {
         message = error.message;
       }
+
       setApiError(message);
       toast.error(message);
+
     } finally {
       setSaving(false);
     }
   };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Do not allow an edit submission while the existing record is still
+    // being loaded. Once loaded, saveSalesOrder uses the URL id as a fallback
+    // so the PUT request is guaranteed to target the existing record.
+    if (isEditMode && loadingRecord) {
+      toast.error('Please wait until the sales order finishes loading.');
+      return;
+    }
 
     if (!validateForm()) {
       toast.error('Please fix the errors before submitting');
@@ -3769,7 +3819,12 @@ export default function CreateSalesOrder() {
         <button type="button" className="so-btn so-btn-secondary" onClick={handleCancel}>
           <FaTimes size={11} /> Cancel
         </button>
-        <button type="button" className="so-btn so-btn-submit" onClick={handleSubmit} disabled={saving}>
+        <button
+          type="button"
+          className="so-btn so-btn-submit"
+          onClick={handleSubmit}
+          disabled={saving || (isEditMode && loadingRecord)}
+        >
           {saving && <FaSpinner className="so-spinning" />}
           <FaSave /> {isEditMode ? 'Update Sales Order' : 'Create Sales Order'}
         </button>
