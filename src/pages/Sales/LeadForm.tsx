@@ -203,6 +203,7 @@ function extractCustomerRecords(payload: any): any[] {
 
 const customerIdOf = (c: any) => c?.name ?? c?.id ?? c?.customer_code ?? "";
 
+
 const LeadForm: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -280,6 +281,7 @@ const LeadForm: React.FC = () => {
   }, [customers, formData.organizationName]);
 
   // ─── Updated: Simplified Organization Name handler ──────────────────
+
 
   // ─── load existing lead when editing ──────────────────────────────────
 

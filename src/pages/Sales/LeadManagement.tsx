@@ -93,6 +93,7 @@ export default function LeadManagement() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selected] = useState<Set<string>>(new Set());
+
   const [] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");

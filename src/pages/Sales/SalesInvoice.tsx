@@ -658,10 +658,20 @@ const SalesInvoice: React.FC = () => {
   // ===== ACTIONS =====
   const handleCreate = () => navigate('/sales-bill/new');
   const handleRefresh = () => fetchInvoices();
-  const handleView = (id: string | number) => navigate(`/sales-bill/view/${id}`);
-  const handleEdit = (id: string | number) => {
+  const handleView = (id: string | number) => {
+    const invoiceId = String(id);
     setShowMoreMenu(null);
-    navigate(`/sales-bill/edit/${id}`);
+    navigate(`/sales-bill/view/${invoiceId}`, {
+      state: { invoiceId, mode: 'view' }
+    });
+  };
+
+  const handleEdit = (id: string | number) => {
+    const invoiceId = String(id);
+    setShowMoreMenu(null);
+    navigate(`/sales-bill/edit/${invoiceId}`, {
+      state: { invoiceId, mode: 'edit' }
+    });
   };
   const handleDuplicate = (id: string | number) => navigate(`/sales-bill/duplicate/${id}`);
 

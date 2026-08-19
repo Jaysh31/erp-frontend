@@ -4,10 +4,8 @@ import {
   FaSearch, FaPlus, FaEye, FaEdit, FaTrash, FaFilePdf, FaPrint,
   FaFilter, FaCheckCircle, FaClock, FaTimesCircle,
   FaFileAlt, FaExternalLinkAlt,
-  FaChartLine, FaTimes, FaSpinner,
-  FaEnvelope, FaClipboardList, FaDollarSign,
-  FaChevronLeft, FaChevronRight,
-  FaAngleDoubleLeft, FaAngleDoubleRight,
+  FaChartLine, FaTimes,  FaSpinner,
+  FaEnvelope
 
 } from 'react-icons/fa';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
@@ -566,14 +564,16 @@ export default function QuotationPage() {
     return Math.min(currentPage * itemsPerPage, totalRecords);
   };
 
-  const getStatusCount = (status: string) => {
-    return 0; // Placeholder
-  };
+  // const getStatusCount = (status: string) => {
+  //   return quotations.filter(q => q.status === status).length;
+  // };
+
 
 
   const totalAmount = quotations.reduce((sum, q) => sum + q.totalAmount, 0);
   const acceptedAmount = quotations.filter(q => q.status === 'Accepted').reduce((sum, q) => sum + q.totalAmount, 0);
   const conversionRate = totalAmount > 0 ? Math.round((acceptedAmount / totalAmount) * 100) : 0;
+
   const totalQuotes = totalRecords;
 
 

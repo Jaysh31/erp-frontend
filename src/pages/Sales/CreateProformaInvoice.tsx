@@ -26,7 +26,7 @@ import {
   FaFileAlt,
   FaFileInvoice
 } from 'react-icons/fa';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
@@ -851,7 +851,11 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
 
 const CreateProformaInvoice: React.FC = () => {
   const navigate = useNavigate();
+  const { id } = useParams<{ id?: string }>();
   const { theme } = useAdminTheme();
+  const isViewMode = Boolean(id);
+  const [loadingExistingRecord, setLoadingExistingRecord] = useState<boolean>(false);
+  const [recordLoaded, setRecordLoaded] = useState<boolean>(false);
 
   const [selectedCustomer, setSelectedCustomer] = useState<string>('');
   const [isService, setIsService] = useState<boolean>(false);
@@ -1070,6 +1074,154 @@ const CreateProformaInvoice: React.FC = () => {
     fetchAllItems();
     fetchWarehouses();
   }, []);
+
+  // ─── Load the Sales Order used as the Proforma Invoice source ───────────
+  // The Proforma list is backed by /sales-order, so View must load the same
+  // record instead of opening a fresh Create Proforma form.
+  useEffect(() => {
+    if (!id || recordLoaded) return;
+    fetchExistingSalesOrder(id);
+  }, [id, recordLoaded]);
+
+  const normalizeDate = (value: any): string => {
+    if (!value) return '';
+    const raw = String(value);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+    const date = new Date(raw);
+    return Number.isNaN(date.getTime()) ? '' : date.toISOString().split('T')[0];
+  };
+
+  const fetchExistingSalesOrder = async (orderId: string) => {
+    setLoadingExistingRecord(true);
+    try {
+      const response = await api.get(`/sales-order/${orderId}`);
+      if (response.data?.success !== 1) {
+        throw new Error(response.data?.message || 'Failed to load proforma invoice');
+      }
+
+      const raw = response.data?.data;
+      const record = Array.isArray(raw) ? raw[0] : (raw?.record ?? raw);
+      if (!record) throw new Error('Proforma invoice record not found');
+
+      loadExistingSalesOrderIntoForm(record);
+      setRecordLoaded(true);
+    } catch (error: any) {
+      console.error('Error loading proforma invoice:', error);
+      toast.error(error?.response?.data?.message || error?.message || 'Failed to load proforma invoice');
+    } finally {
+      setLoadingExistingRecord(false);
+    }
+  };
+
+  const loadExistingSalesOrderIntoForm = (record: any) => {
+    const transactionDate = normalizeDate(record.transaction_date);
+    const deliveryDate = normalizeDate(record.delivery_date || record.valid_till);
+
+    // Keep the exact customer values from the source order so the dropdown
+    // and the payload both retain the saved customer.
+    const customerName = record.customer_name || record.party_name || '';
+    const customerCode = record.party_name || record.customer_code || customerName;
+    const fallbackCustomer: Customer = {
+      id: String(record.customer_id ?? customerName),
+      name: customerName,
+      code: customerCode,
+      email: record.contact_email || record.email || '',
+      phone: record.contact_mobile || record.mobile_no || '',
+      address: record.customer_address || record.address_display || '',
+      shippingAddress: record.shipping_address || '',
+      gstin: record.customer_gstin || record.gstin || '',
+      contactPerson: record.contact_person || '',
+      contactMobile: record.contact_mobile || ''
+    };
+
+    setCustomerData(fallbackCustomer);
+    // CustomerDropdown resolves selected value by id/name. Prefer name when
+    // available because customer_name is what the dropdown displays.
+    setSelectedCustomer(customerName || String(record.customer_id || record.party_name || ''));
+
+    setProformaDate(transactionDate || new Date().toISOString().split('T')[0]);
+    setValidUntil(deliveryDate || transactionDate || new Date().toISOString().split('T')[0]);
+    setRemarks(record.notes || record.remarks || '');
+    setProformaStatus(record.status || 'Draft');
+    setIsService(record.order_type === 'Service' || record.is_service === 1 || record.is_service === true);
+
+    // Restore warehouse from the saved child row. The form stores the
+    // warehouse id, while the API stores the warehouse name on each item.
+    const sourceItems = Array.isArray(record.items) ? record.items : [];
+    const firstWarehouseName = sourceItems.find((it: any) => it?.warehouse)?.warehouse || record.set_warehouse || '';
+    if (firstWarehouseName) {
+      const matchingWarehouse = warehouses.find((w) =>
+        w.warehouse_name === firstWarehouseName ||
+        w.warehouse_name.toLowerCase() === String(firstWarehouseName).toLowerCase()
+      );
+      if (matchingWarehouse) setWarehouse(String(matchingWarehouse.id));
+    }
+
+    const loadedItems: ProformaItem[] = sourceItems.map((it: any, index: number) => {
+      const quantity = Number(it.qty ?? it.quantity ?? 0);
+      const rate = Number(it.rate ?? 0);
+      const amount = Number(it.amount ?? quantity * rate);
+      const tax = Number(it.tax_rate ?? it.gst_rate ?? it.tax ?? 0);
+      const taxAmount = Number(it.tax_amount ?? ((amount * tax) / 100));
+      const itemCode = it.item_code || it.item_name || '';
+      return {
+        id: String(it.id ?? index + 1),
+        itemCode,
+        itemName: it.item_name || itemCode,
+        hsn: it.hsn || it.hsn_code || it.gst_hsn_code || '',
+        description: it.description || it.item_name || itemCode,
+        quantity,
+        unit: it.uom || it.stock_uom || 'pcs',
+        rate,
+        amount,
+        tax,
+        tax_id: it.item_tax_id ? Number(it.item_tax_id) : (it.tax_id ? Number(it.tax_id) : getTaxIdFromRate(tax, taxOptions)),
+        taxAmount,
+        totalAmount: Number(it.net_amount ?? (amount + taxAmount)),
+        type: isService ? 'service' : 'product',
+        itemGroup: it.item_group || 'Products',
+        incomeAccount: it.income_account || 'Sales - A',
+        costCenter: it.cost_center || 'Main - A',
+        weightPerUnit: Number(it.weight_per_unit ?? 0),
+        weightUom: it.weight_uom || 'kg',
+        discountPercentage: Number(it.discount_percentage ?? 0),
+        discountAmount: Number(it.discount_amount ?? 0),
+        inventoryId: it.item_id ? Number(it.item_id) : undefined
+      };
+    });
+
+    setItems(loadedItems.length > 0 ? loadedItems : [{
+      id: '1', itemCode: '', itemName: '', hsn: '', description: '', quantity: 1,
+      unit: 'pcs', rate: 0, amount: 0, tax: 0, tax_id: undefined, taxAmount: 0,
+      totalAmount: 0, type: isService ? 'service' : 'product', itemGroup: 'Products',
+      incomeAccount: 'Sales - A', costCenter: 'Main - A', weightPerUnit: 0, weightUom: 'kg'
+    }]);
+
+    const rawSchedule = Array.isArray(record.payment_schedule) ? record.payment_schedule : [];
+    if (rawSchedule.length > 0) {
+      setPaymentSchedule(rawSchedule.map((p: any, index: number) => ({
+        id: String(p.id ?? index + 1),
+        paymentTerm: p.payment_term || p.paymentTerm || 'On Delivery',
+        dueDate: normalizeDate(p.due_date || p.dueDate) || transactionDate,
+        durationDays: Number(p.due_days ?? p.durationDays ?? 0),
+        invoicePortion: Number(p.invoice_portion ?? p.invoicePortion ?? 100),
+        paymentAmount: Number(p.payment_amount ?? p.paymentAmount ?? 0),
+        paidAmount: Number(p.paid_amount ?? p.paidAmount ?? 0),
+        status: p.status || 'Pending'
+      })));
+    } else {
+      const grandTotal = Number(record.rounded_total ?? record.grand_total ?? record.total ?? 0);
+      setPaymentSchedule([{
+        id: '1', paymentTerm: 'On Delivery', dueDate: deliveryDate || transactionDate,
+        durationDays: transactionDate && deliveryDate ? daysBetween(transactionDate, deliveryDate) : 0,
+        invoicePortion: 100, paymentAmount: grandTotal, paidAmount: 0, status: 'Pending'
+      }]);
+    }
+
+    const savedGrandTotal = Number(record.rounded_total ?? record.grand_total ?? 0);
+    const calculatedGrandTotal = loadedItems.reduce((sum, item) => sum + (item.totalAmount || 0), 0);
+    setRoundOff(Number((savedGrandTotal - calculatedGrandTotal).toFixed(2)));
+  };
 
   // Update payment amounts when grand total changes
   useEffect(() => {
@@ -1492,6 +1644,17 @@ const CreateProformaInvoice: React.FC = () => {
   const subTotal = getTotalAmount();
   const totalTax = getTotalTax();
   const grandTotalWithRound = getGrandTotalWithRound();
+
+  if (loadingExistingRecord) {
+    return (
+      <div className={`npi-page ${theme}`} style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14 }}>
+          <FaSpinner className="npi-spinning" />
+          Loading proforma invoice details...
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`npi-page ${theme}`}>

@@ -184,6 +184,7 @@ export default function ItemQuickAdd({ onClose, onEditFull }: ItemQuickAddProps)
   };
 
 
+
   const handleSave = async () => {
     // Validate required fields
     if (!data.itemCode.trim()) {

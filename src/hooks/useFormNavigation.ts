@@ -6,67 +6,92 @@ export const useFormNavigation = (moduleType: string) => {
   const location = useLocation();
   const formState = useFormState();
 
-  const navigateToQualityInspection = (
-    formData: any,
+  const buildQualityInspectionQuery = (
     options: {
       docNo: string;
+      sourceId?: string | number;
       partProductName?: string;
       partNo?: string;
       customerName?: string;
       challanNoDate?: string;
       invoiceQty?: string | number;
       reportNo?: string;
-    }
+    },
+    view = false
   ) => {
-    // Save current form state
-    formState.saveFormState(moduleType, formData);
-
-    // Build URL parameters
     const params = new URLSearchParams();
-    params.set('docNo', encodeURIComponent(options.docNo));
+    params.set('docNo', options.docNo || '');
     params.set('sourceType', moduleType);
-    params.set('returnFromQI', '1');
-    
-    if (options.partProductName) {
-      params.set('partProductName', encodeURIComponent(options.partProductName));
+
+    if (options.sourceId !== undefined && options.sourceId !== null && String(options.sourceId) !== '') {
+      params.set('sourceId', String(options.sourceId));
     }
-    if (options.partNo) {
-      params.set('partNo', encodeURIComponent(options.partNo));
-    }
-    if (options.customerName) {
-      params.set('customerName', encodeURIComponent(options.customerName));
-    }
-    if (options.challanNoDate) {
-      params.set('challanNoDate', encodeURIComponent(options.challanNoDate));
-    }
-    if (options.invoiceQty) {
+    if (options.partProductName) params.set('partProductName', options.partProductName);
+    if (options.partNo) params.set('partNo', options.partNo);
+    if (options.customerName) params.set('customerName', options.customerName);
+    if (options.challanNoDate) params.set('challanNoDate', options.challanNoDate);
+    if (options.invoiceQty !== undefined && options.invoiceQty !== null && String(options.invoiceQty) !== '') {
       params.set('invoiceQty', String(options.invoiceQty));
     }
-    if (options.reportNo) {
-      params.set('reportNo', encodeURIComponent(options.reportNo));
-    }
+    if (options.reportNo) params.set('reportNo', options.reportNo);
+    if (view) params.set('view', '1');
 
+    return params;
+  };
+
+  const navigateToQualityInspection = (
+    formData: any,
+    options: {
+      docNo: string;
+      sourceId?: string | number;
+      partProductName?: string;
+      partNo?: string;
+      customerName?: string;
+      challanNoDate?: string;
+      invoiceQty?: string | number;
+      reportNo?: string;
+    },
+    id?: string | number
+  ) => {
+    formState.saveFormState(moduleType, formData, id);
+    const params = buildQualityInspectionQuery(options);
+    navigate(`/quality-inspection/new?${params.toString()}`);
+  };
+
+  const navigateToQualityInspectionView = (
+    formData: any,
+    options: {
+      docNo: string;
+      sourceId?: string | number;
+      partProductName?: string;
+      partNo?: string;
+      customerName?: string;
+      challanNoDate?: string;
+      invoiceQty?: string | number;
+      reportNo?: string;
+    },
+    id?: string | number
+  ) => {
+    // Preserve the exact source/DC state so the report can display the
+    // complete pending inspection without duplicating its table in the DC.
+    formState.saveFormState(moduleType, formData, id);
+    const params = buildQualityInspectionQuery(options, true);
     navigate(`/quality-inspection/new?${params.toString()}`);
   };
 
   const returnFromQualityInspection = () => {
     const params = new URLSearchParams(location.search);
-    const returnFlag = params.get('returnFromQI');
-    
-    if (returnFlag === '1') {
-      const savedState = formState.restoreFormState(moduleType);
-      return savedState;
-    }
-    return null;
+    if (params.get('returnFromQI') !== '1') return null;
+
+    const sourceId = params.get('sourceId');
+    return formState.restoreFormState(moduleType, sourceId ? sourceId : undefined);
   };
 
   const goBack = () => {
     const savedState = returnFromQualityInspection();
     if (savedState) {
-      // State restored, just navigate back
       navigate(-1);
     } else {
-      // Navigate to listing
       const path = formState.getModulePath(moduleType);
       navigate(path);
     }
@@ -74,8 +99,9 @@ export const useFormNavigation = (moduleType: string) => {
 
   return {
     navigateToQualityInspection,
+    navigateToQualityInspectionView,
     returnFromQualityInspection,
     goBack,
-    hasSavedState: formState.hasSavedState(moduleType)
+    hasSavedState: formState.hasSavedState(moduleType),
   };
 };
