@@ -4,7 +4,7 @@ import {
   FaSearch, FaPlus, FaEye, FaEdit, FaTrash, FaPrint,
   FaFilter, FaCheckCircle, FaTimesCircle,
    FaSpinner, FaTimes,
-  FaClipboardCheck, FaClipboardList, FaPercentage
+  FaClipboardCheck, 
 } from 'react-icons/fa';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
@@ -134,7 +134,6 @@ export default function QualityInspectionList() {
 
   const totalReports = reports.length;
   const passedCount = reports.filter((r) => r.overallResult?.toLowerCase() === 'pass').length;
-  const failedCount = reports.filter((r) => r.overallResult?.toLowerCase() === 'fail').length;
   const passRate = totalReports > 0 ? Math.round((passedCount / totalReports) * 100) : 0;
 
   const handleView = (report: InspectionListItem) => {

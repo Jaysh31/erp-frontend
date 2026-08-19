@@ -28,7 +28,7 @@ interface OperationRow {
 
 interface RequiredItemRow {
   id: string;
-  item_id?: number;  // Fixed: Added optional item_id
+  item_id?: number;
   item_code: string;
   item_name: string;
   source_warehouse: string;
@@ -39,7 +39,7 @@ interface RequiredItemRow {
   returned_qty: number;
   rate?: number;
   amount?: number;
-  operation?: string;  // Fixed: Added optional operation
+  operation?: string;
 }
 
 interface CommentRow {
@@ -227,6 +227,7 @@ interface BomItemWarehouseStock {
 
 interface BomApiItem {
   id: number;
+  item_Id?: number; 
   item_code: string;
   item_name: string;
   qty: number;
@@ -235,9 +236,6 @@ interface BomApiItem {
   source_warehouse?: string | null;
   rate: number;
   amount: number;
-  // Stock/availability fields returned alongside each BOM item line —
-  // used to check whether enough raw material exists to manufacture a
-  // given qty of the finished item.
   actual_qty?: number;
   available_qty?: number;
   total_available_stock?: number;
@@ -350,7 +348,7 @@ interface JobCardListResponse {
 
 interface JobCardDetailResponse {
   success: number;
-  data: JobCardRecord;
+  data: JobCardRecord | JobCardRecord[];
 }
 
 // ─── Payload to POST ──────────────────────────────────────────────────────────
@@ -370,8 +368,8 @@ interface WOPayloadItem {
   stock_uom: string;
   rate: number;
   amount: number;
-  source_warehouse: string;
-  operation: string;
+  source_warehouse: number | string;
+    operation: string;
 }
 
 interface WOPayload {
@@ -389,8 +387,8 @@ interface WOPayload {
   produced_qty: number;
   process_loss_qty: number;
   disassembled_qty: number;
-  source_warehouse: string;
-  wip_warehouse: string;
+  source_warehouse: number | string;
+    wip_warehouse: string | number;
   fg_warehouse: string;
   scrap_warehouse: string;
   transfer_material_against: string;
@@ -432,17 +430,17 @@ interface WOPayload {
   selected_grn_id?: number;
   order_type?: OrderType;
   type: string;
-  // Operations + Required Items, sent alongside the flat fields above so the
-  // backend can create/update BOM-style operation and item line records for
-  // this Work Order (mirrors the /bom create payload shape).
   operations: WOPayloadOperation[];
   items: WOPayloadItem[];
 }
+
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const uid = () => Math.random().toString(36).slice(2, 9);
 
+const normalizeJobCard = (data: JobCardRecord | JobCardRecord[] | undefined): JobCardRecord | undefined =>
+  Array.isArray(data) ? data[0] : data;
 const STATUS_OPTIONS: Status[] = ["Draft", "Not Started", "In Process", "Completed", "Stopped"];
 const STATUS_CLASS: Record<Status, string> = {
   Draft: "s-draft",
@@ -466,7 +464,7 @@ const emptyOp = (): OperationRow => ({
 
 const emptyItem = (): RequiredItemRow => ({
   id: uid(), 
-  item_id: undefined,  // Fixed: Now valid
+  item_id: undefined,
   item_code: "", 
   item_name: "", 
   source_warehouse: "", 
@@ -477,7 +475,7 @@ const emptyItem = (): RequiredItemRow => ({
   returned_qty: 0, 
   rate: 0, 
   amount: 0, 
-  operation: "",  // Fixed: Now valid
+  operation: "",
 });
 
 const emptyWO = (): WorkOrderData => ({
@@ -1217,7 +1215,7 @@ export default function WorkOrderForm() {
   // BOM state (External WO) — used only to pull Operations rows; required
   // items for External WOs always come from the selected GRN, never a BOM.
   const [selectedExternalBomLabel, setSelectedExternalBomLabel] = useState("");
-  const [externalBomDetail, setExternalBomDetail] = useState<
+  const [, setExternalBomDetail] = useState<
     { bom: BomDetail; items: BomApiItem[]; operations: BomApiOperation[] } | null
   >(null);
 
@@ -1235,6 +1233,23 @@ export default function WorkOrderForm() {
   >([]);
 
   const disabled = submitting || loading;
+
+  // ─── Warehouse map (name → id) ──────────────────────────────────────
+  const [warehouseMap, setWarehouseMap] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    api.get<WarehouseResponse>("/warehouse")
+      .then(res => {
+        if (res.data?.success === 1) {
+          const map: Record<string, number> = {};
+          (res.data.data?.records || []).forEach(w => {
+            map[w.warehouse_name] = w.id;
+          });
+          setWarehouseMap(map);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // ─── Load GRNs (External type only) ───────────────────────────────────
   const loadGRNs = async (page = 1, limit = 10) => {
@@ -1420,8 +1435,7 @@ export default function WorkOrderForm() {
 
                     const items: RequiredItemRow[] = detail.items.map(it => ({
                       id: uid(),
-                      item_id: it.id, // Fixed: Now valid
-                      item_code: it.item_code,
+                      item_id: it.item_Id ?? it.id,                      item_code: it.item_code,
                       item_name: it.item_name,
                       source_warehouse: it.source_warehouse || detail.bom.default_source_warehouse || "",
                       required_qty: Math.round(it.qty * scale * 1000) / 1000,
@@ -1431,7 +1445,7 @@ export default function WorkOrderForm() {
                       returned_qty: 0,
                       rate: it.rate || 0,
                       amount: Math.round((it.amount || 0) * scale * 100) / 100,
-                      operation: "", // Fixed: Now valid
+                      operation: "",
                     }));
 
                     setWo(prev => ({
@@ -1577,10 +1591,9 @@ export default function WorkOrderForm() {
       hour_rate: op.hour_rate,
       operating_cost: Math.round(op.operating_cost * scale * 100) / 100,
     }));
-
     const items: RequiredItemRow[] = detail.items.map(it => ({
       id: uid(),
-      item_id: it.id, // Fixed: Now valid
+      item_id: it.item_Id ?? it.id,
       item_code: it.item_code,
       item_name: it.item_name,
       source_warehouse: it.source_warehouse || detail.bom.default_source_warehouse || "",
@@ -1591,7 +1604,7 @@ export default function WorkOrderForm() {
       returned_qty: 0,
       rate: it.rate || 0,
       amount: Math.round((it.amount || 0) * scale * 100) / 100,
-      operation: "", // Fixed: Now valid
+      operation: "",
     }));
 
     const totalTime = ops.reduce((s, o) => s + o.time_in_mins, 0);
@@ -1607,7 +1620,15 @@ export default function WorkOrderForm() {
   };
 
   // ─── Material availability check ──────────────────────────────────────
-  const getItemAvailableQty = (item: BomApiItem) => {
+  // Only counts stock sitting in the SOURCE warehouse (where raw materials
+  // are picked from for this WO) — not other warehouses like WIP, which
+  // would otherwise inflate the "available" number.
+  const getItemAvailableQty = (item: BomApiItem, warehouseName?: string) => {
+    if (warehouseName && Array.isArray(item.stock_by_warehouse)) {
+      const match = item.stock_by_warehouse.find(w => w.warehouse_name === warehouseName);
+      if (match) return match.actual_qty || 0;
+    }
+    // Fallback: no specific warehouse matched (or none provided) — sum all.
     if (Array.isArray(item.stock_by_warehouse) && item.stock_by_warehouse.length > 0) {
       return item.stock_by_warehouse.reduce((sum, w) => sum + (w.actual_qty || 0), 0);
     }
@@ -1623,9 +1644,13 @@ export default function WorkOrderForm() {
   ) => {
     const base = detail.bom.quantity > 0 ? detail.bom.quantity : 1;
 
+    // Prefer the WO's currently selected Source Warehouse; fall back to
+    // the BOM's default source warehouse if the WO field isn't set yet.
+    const sourceWarehouseName = wo.source_warehouse || detail.bom.default_source_warehouse || "";
+
     const constraints = detail.items.map(it => {
       const perUnitQty = it.qty / base;
-      const available = getItemAvailableQty(it);
+      const available = getItemAvailableQty(it, sourceWarehouseName);
       const required = Math.round(perUnitQty * qty * 1000) / 1000;
       return {
         item_code: it.item_code,
@@ -1683,7 +1708,7 @@ export default function WorkOrderForm() {
 
     const items: RequiredItemRow[] = (detail.items || []).map(it => ({
       id: uid(),
-      item_id: it.item_id, // Fixed: Now valid
+      item_id: it.item_id,
       item_code: codeOf(it),
       item_name: nameOf(it),
       source_warehouse: detail.warehouse_name || "",
@@ -1694,7 +1719,7 @@ export default function WorkOrderForm() {
       returned_qty: 0,
       rate: it.rate || 0,
       amount: it.amount || 0,
-      operation: "", // Fixed: Now valid
+      operation: "",
     }));
 
     setWo(prev => ({
@@ -1882,7 +1907,7 @@ export default function WorkOrderForm() {
       }
 
       const jcDetailRes = await api.get<JobCardDetailResponse>(`/job-card/${matched.id}`);
-      const jc = jcDetailRes.data?.data;
+      const jc = normalizeJobCard(jcDetailRes.data?.data);
       if (!jc) {
         setCompletionSummary({ show: true, loading: false, error: "Failed to load job card details." });
         return;
@@ -2061,7 +2086,7 @@ export default function WorkOrderForm() {
       }
 
       const jcDetailRes = await api.get<JobCardDetailResponse>(`/job-card/${completedJobCard.id}`);
-      const jc = jcDetailRes.data?.data;
+      const jc = normalizeJobCard(jcDetailRes.data?.data);
       if (!jc) {
         setCompletionSummary({ 
           show: true, 
@@ -2112,76 +2137,88 @@ export default function WorkOrderForm() {
     }
 
     setCompletionSummary(prev => (prev ? { ...prev, inventoryPosting: true, inventoryError: null } : prev));
+// ── Post required items to WIP warehouse ──────────────────────────────
+// ── Post required items to WIP warehouse ──────────────────────────────
+setCompletionSummary(prev => (prev ? { ...prev, inventoryPosting: true, inventoryError: null } : prev));
 
-    try {
-      const itemId = bomDetail?.bom?.item_Id || externalBomDetail?.bom?.item_Id || 62;
-      
-      // Step 1: Post to inventory first
-      await api.post("/inventory", {
-        name: `INV-${wo.item_to_manufacture}-${Date.now()}`,
-        item_Id: itemId,
-        item_code: wo.item_to_manufacture,
-        warehouse_Id: completionSummary.fgWarehouseId,
-        actual_qty: completionSummary.totalCompletedQty,
-        planned_qty: 0,
-        indented_qty: 0,
-        ordered_qty: 0,
-        reserved_qty: 0,
-        reserved_qty_for_production: 0,
-        reserved_qty_for_sub_contract: 0,
-        reserved_qty_for_production_plan: 0,
-        reserved_stock: 0,
-        stock_uom: wo.stock_uom,
-        company: wo.company || "SculptorTech",
-        valuation_rate: 0,
-        modified_by: "Administrator",
-        type: "Internal",
-      });
+// ── Post the FINISHED PRODUCT (not raw materials) to the Finished
+// Goods warehouse. Quantity comes from the completed job card total. ──
+try {
+  const fgWarehouseId = completionSummary.fgWarehouseId;
 
-      // Step 2: Now that inventory is posted, update Work Order status to "Completed"
-      if (wo.id) {
-        try {
-          const completedPayload = {
-            ...buildPayload("Completed"),  // Use "Completed" status
-            id: wo.id,
-          };
-          
-          console.log("🔄 Updating Work Order to Completed after inventory posted:", completedPayload);
-          await api.put("/work-order", completedPayload);
-          
-          // Update local state
-          setWo(prev => ({ ...prev, status: "Completed" }));
-          
-          setCompletionSummary(prev => (prev 
-            ? { 
-                ...prev, 
-                inventoryPosting: false, 
-                inventoryPosted: true,
-                woStatusUpdated: true  // Now it's truly updated
-              } 
-            : prev));
-            
-        } catch (woErr: any) {
-          console.error("Error updating work order status:", woErr);
-          setCompletionSummary(prev => (prev
-            ? { 
-                ...prev, 
-                inventoryPosting: false, 
-                inventoryPosted: true,  // Inventory was posted successfully
-                woStatusUpdated: false,
-                inventoryError: "Inventory posted successfully, but failed to update Work Order status to Completed. Please try updating the status manually or contact support."
-              }
-            : prev));
+  if (!fgWarehouseId) {
+    console.warn("FG warehouse ID not found.");
+  } else {
+        // item_Id for the finished product comes from the BOM detail
+        // (bom.item_Id), not the job card — job cards only carry the
+        // item CODE (production_item), not its numeric id.
+        let productItemId = bomDetail?.bom.item_Id ?? 0;
+        if (!productItemId && wo.bom_no) {
+          try {
+            const br = await api.get<BomDetailResponse>(`/bom/${wo.bom_no}`);
+            if (br.data.success === 1) {
+              productItemId = br.data.data.bom.item_Id ?? 0;
+            }
+          } catch (e) {
+            console.error("Failed to resolve product item_Id from BOM:", e);
+          }
         }
-      }
-    } catch (err: any) {
-      console.error("Error posting finished-goods inventory:", err);
-      setCompletionSummary(prev => (prev
-        ? { ...prev, inventoryPosting: false, inventoryError: err.response?.data?.message || "Failed to post inventory." }
-        : prev));
-    }
-  };
 
+        if (!productItemId) {
+          console.warn("Could not resolve item_Id for finished product; skipping inventory post.");
+          setCompletionSummary(prev => (prev ? { ...prev, inventoryPosting: false, inventoryError: "Could not resolve finished product's item ID from BOM." } : prev));
+          return;
+        }
+
+        const inventoryPayload = {
+          name: `INV-${wo.item_to_manufacture}-${Date.now()}`,
+          item_Id: productItemId,
+          item_code: wo.item_to_manufacture,
+      warehouse_Id: fgWarehouseId,
+      actual_qty: completionSummary.totalCompletedQty,
+      planned_qty: 0,
+      indented_qty: 0,
+      ordered_qty: 0,
+      reserved_qty: 0,
+      reserved_qty_for_production: 0,
+      reserved_qty_for_sub_contract: 0,
+      reserved_qty_for_production_plan: 0,
+      reserved_stock: 0,
+      stock_uom: wo.stock_uom || "Nos",
+      company: wo.company || "SculptorTech",
+      valuation_rate: 0,
+      modified_by: "Administrator",
+      type: wo.type === "internal" ? "Internal" : "External",
+    };
+
+    await api.post("/inventory", inventoryPayload);
+    console.log(`✅ Inventory posted for finished product ${wo.item_to_manufacture} (${completionSummary.totalCompletedQty} ${wo.stock_uom}) to ${completionSummary.fgWarehouseName || fgWarehouseId}`);
+
+    // Mark inventory step done, then update WO status to Completed.
+    setCompletionSummary(prev => (prev ? { ...prev, inventoryPosting: false, inventoryPosted: true } : prev));
+
+    if (wo.id) {
+      try {
+        // Workaround: the backend's SQL builder doesn't JSON.stringify
+        // `operations`/`items` before interpolating them into the UPDATE
+        // query, which throws a MySQL syntax error. Until that's fixed
+        // server-side, omit them here since this call only needs to
+        // change the status.
+        const { operations, items, ...updatePayload } = { ...buildPayload("Completed"), id: wo.id };
+        await api.put("/work-order", updatePayload);
+        setWo(prev => ({ ...prev, status: "Completed" }));
+        setCompletionSummary(prev => (prev ? { ...prev, woStatusUpdated: true } : prev));
+      } catch (statusErr: any) {
+        console.error("Error updating Work Order status to Completed:", statusErr);
+        setCompletionSummary(prev => (prev ? { ...prev, inventoryError: "Inventory posted, but failed to mark Work Order as Completed." } : prev));
+      }
+    }
+  }
+} catch (invErr) {
+  console.error("Error posting finished product to inventory:", invErr);
+  setCompletionSummary(prev => (prev ? { ...prev, inventoryPosting: false, inventoryError: "Failed to post finished product to inventory." } : prev));
+}
+};
   // ─── Field helpers ────────────────────────────────────────────────────
   const set = <K extends keyof WorkOrderData>(k: K, v: WorkOrderData[K]) =>
     setWo(prev => ({ ...prev, [k]: v }));
@@ -2305,8 +2342,8 @@ export default function WorkOrderForm() {
     produced_qty: wo.manufactured_qty,
     process_loss_qty: 0,
     disassembled_qty: wo.disassembled_qty,
-    source_warehouse: wo.source_warehouse,
-    wip_warehouse: wo.wip_warehouse,
+    source_warehouse: warehouseMap[wo.source_warehouse] ?? wo.source_warehouse,
+        wip_warehouse:warehouseMap[wo.wip_warehouse] ?? wo.wip_warehouse ,
     fg_warehouse: wo.target_warehouse,
     scrap_warehouse: "",
     transfer_material_against: wo.transfer_material_against,
@@ -2368,67 +2405,88 @@ export default function WorkOrderForm() {
         stock_uom: ri.uom,
         rate: ri.rate || 0,
         amount: ri.amount || 0,
-        source_warehouse: ri.source_warehouse,
-        operation: ri.operation || firstOperationName,
+        source_warehouse: warehouseMap[ri.source_warehouse] ?? ri.source_warehouse,
+                operation: ri.operation || firstOperationName,
       })),
   };
   };
 
   // ─── Submit ───────────────────────────────────────────────────────────
- const handleSave = async (e: FormEvent) => {
-  e.preventDefault();
-  setApiError(null);
-  const errs = validate();
-  if (errs.length) {
-    setValidationErrors(errs);
-    // Remove popup - just show inline errors
-    // Scroll to the first error
-    const firstErrorField = errs[0]?.field;
-    if (firstErrorField) {
-      const element = document.querySelector(`[data-field="${firstErrorField}"]`);
-      if (element) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-    }
-    return;
-  }
-  setSubmitting(true);
-  try {
-    let response;
-
-    const isUpdate = !isNew && wo.id !== undefined && wo.id !== null;
-
-    if (isUpdate) {
-      const updatePayload = {
-        ...buildPayload(),
-        id: wo.id,
-      };
-
-      console.log("🔄 Updating Work Order with ID:", wo.id);
-      console.log("Update Payload:", updatePayload);
-
-      response = await api.put("/work-order", updatePayload);
-
-      if (response.data?.success === 1) {
-        const workOrderId = wo.id;
-
-        if (pendingMedia.length > 0 && workOrderId) {
-          await uploadMediaFiles(pendingMedia.map(p => p.file), workOrderId);
-          pendingMedia.forEach(p => URL.revokeObjectURL(p.url));
-          setPendingMedia([]);
+  const handleSave = async (e: FormEvent) => {
+    e.preventDefault();
+    setApiError(null);
+    const errs = validate();
+    if (errs.length) {
+      setValidationErrors(errs);
+      const firstErrorField = errs[0]?.field;
+      if (firstErrorField) {
+        const element = document.querySelector(`[data-field="${firstErrorField}"]`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
+      }
+      return;
+    }
+    setSubmitting(true);
+    try {
+      let response;
 
-        // Create job cards after successful update
-        try {
-          console.log("📋 Creating job cards for Work Order ID:", workOrderId);
-          const jobCardResponse = await api.post(`/job-card/create-job-cards-from-wo/${workOrderId}`);
-          console.log("📦 Job Card Response:", jobCardResponse.data);
-          
-          if (jobCardResponse.data?.success === 0) {
-            const errorMessage = jobCardResponse.data?.message || "";
-            if (errorMessage.toLowerCase().includes("insufficient stock") ||
-                errorMessage.toLowerCase().includes("insufficient material")) {
-              const itemMatch = errorMessage.match(/for\s+([A-Z0-9\-_]+)/i);
+      const isUpdate = !isNew && wo.id !== undefined && wo.id !== null;
+
+      if (isUpdate) {
+        const updatePayload = {
+          ...buildPayload(),
+          id: wo.id,
+        };
+
+        console.log("🔄 Updating Work Order with ID:", wo.id);
+        console.log("Update Payload:", updatePayload);
+
+        response = await api.put("/work-order", updatePayload);
+
+        if (response.data?.success === 1) {
+          const workOrderId = wo.id;
+
+          if (pendingMedia.length > 0 && workOrderId) {
+            await uploadMediaFiles(pendingMedia.map(p => p.file), workOrderId);
+            pendingMedia.forEach(p => URL.revokeObjectURL(p.url));
+            setPendingMedia([]);
+          }
+
+          // Create job cards after successful update
+          try {
+            console.log("📋 Creating job cards for Work Order ID:", workOrderId);
+            const jobCardResponse = await api.post(`/job-card/create-job-cards-from-wo/${workOrderId}`);
+            console.log("📦 Job Card Response:", jobCardResponse.data);
+            
+            if (jobCardResponse.data?.success === 0) {
+              const errorMessage = jobCardResponse.data?.message || "";
+              if (errorMessage.toLowerCase().includes("insufficient stock") ||
+                  errorMessage.toLowerCase().includes("insufficient material")) {
+                const itemMatch = errorMessage.match(/for\s+([A-Z0-9\-_]+)/i);
+                const itemName = itemMatch ? itemMatch[1] : "material";
+
+                setStockWarningModal({
+                  show: true,
+                  message: `Work Order has been updated but remains in "Draft" status due to insufficient stock of "${itemName}". Please check your inventory levels and update the Work Order when stock is available.`,
+                  itemName: itemName,
+                  woId: workOrderId,
+                });
+
+                setWo(prev => ({ ...prev, status: "Draft" }));
+                setSubmitting(false);
+                return;
+              }
+            } else if (jobCardResponse.data?.success === 1) {
+              console.log("✅ Job cards updated successfully");
+            }
+          } catch (jobCardErr: any) {
+            console.error("❌ Error creating job cards for update:", jobCardErr);
+            const errorData = jobCardErr?.response?.data;
+            if (errorData?.success === 0 &&
+                (errorData?.message?.toLowerCase().includes("insufficient stock") ||
+                 errorData?.message?.toLowerCase().includes("insufficient material"))) {
+              const itemMatch = errorData.message.match(/for\s+([A-Z0-9\-_]+)/i);
               const itemName = itemMatch ? itemMatch[1] : "material";
 
               setStockWarningModal({
@@ -2442,62 +2500,110 @@ export default function WorkOrderForm() {
               setSubmitting(false);
               return;
             }
-          } else if (jobCardResponse.data?.success === 1) {
-            console.log("✅ Job cards updated successfully");
           }
-        } catch (jobCardErr: any) {
-          console.error("❌ Error creating job cards for update:", jobCardErr);
-          const errorData = jobCardErr?.response?.data;
-          if (errorData?.success === 0 &&
-              (errorData?.message?.toLowerCase().includes("insufficient stock") ||
-               errorData?.message?.toLowerCase().includes("insufficient material"))) {
-            const itemMatch = errorData.message.match(/for\s+([A-Z0-9\-_]+)/i);
-            const itemName = itemMatch ? itemMatch[1] : "material";
 
-            setStockWarningModal({
-              show: true,
-              message: `Work Order has been updated but remains in "Draft" status due to insufficient stock of "${itemName}". Please check your inventory levels and update the Work Order when stock is available.`,
-              itemName: itemName,
-              woId: workOrderId,
-            });
+        // ── Post required RAW MATERIAL items to WIP warehouse ──────────────
+// (NOT the finished product — that only enters inventory once it's
+// actually manufactured, via the completion flow.)
+// try {
+//   const wipWarehouseId = warehouseMap[wo.wip_warehouse];
+//   if (!wipWarehouseId) {
+//     console.warn("WIP warehouse ID not found for:", wo.wip_warehouse);
+//   } else {
+//     const itemsToPost = wo.required_items.filter(
+//       ri => ri.item_id && ri.required_qty > 0
+//     );
 
-            setWo(prev => ({ ...prev, status: "Draft" }));
-            setSubmitting(false);
-            return;
-          }
+//     if (itemsToPost.length === 0) {
+//       console.warn("No required items with valid IDs to post to inventory.");
+//     } else {
+//       for (const ri of itemsToPost) {
+//         const inventoryPayload = {
+//           name: `INV-${ri.item_code}-${Date.now()}`,
+//           item_Id: ri.item_id!,
+//           item_code: ri.item_code,
+//           warehouse_Id: wipWarehouseId,
+//           actual_qty: ri.required_qty,
+//           planned_qty: 0,
+//           indented_qty: 0,
+//           ordered_qty: 0,
+//           reserved_qty: 0,
+//           reserved_qty_for_production: 0,
+//           reserved_qty_for_sub_contract: 0,
+//           reserved_qty_for_production_plan: 0,
+//           reserved_stock: 0,
+//           stock_uom: ri.uom || "Nos",
+//           company: wo.company || "SculptorTech",
+//           valuation_rate: ri.rate || 0,
+//           modified_by: "Administrator",
+//           type: wo.type === "internal" ? "Internal" : "External",
+//         };
+
+//         await api.post("/inventory", inventoryPayload);
+//         console.log(`✅ Inventory posted for ${ri.item_code} (${ri.item_name}) to ${wo.wip_warehouse}`);
+//       }
+//     }
+//   }
+// } catch (invErr) {
+//   console.error("Error posting required items to inventory:", invErr);
+// }
+
+          navigate("/work-order");
+        } else {
+          setApiError(response.data?.message || "Failed to update work order");
         }
-        navigate("/work-order");
       } else {
-        setApiError(response.data?.message || "Failed to update work order");
-      }
-    } else {
-      console.log("✨ Creating new Work Order, type:", wo.type);
-      response = await api.post("/work-order", buildPayload());
+        console.log("✨ Creating new Work Order, type:", wo.type);
+        response = await api.post("/work-order", buildPayload());
 
-      if (response.data?.success === 1) {
-        // Fix: Access workOrderId correctly from the response
-        const workOrderId = response.data?.data?.workOrderId || response.data?.data?.insertId;
-        console.log("📝 Work Order created with ID:", workOrderId);
-        
-        if (workOrderId) {
-          if (pendingMedia.length > 0) {
-            await uploadMediaFiles(pendingMedia.map(p => p.file), workOrderId);
-            pendingMedia.forEach(p => URL.revokeObjectURL(p.url));
-            setPendingMedia([]);
-          }
+        if (response.data?.success === 1) {
+          const workOrderId = response.data?.data?.workOrderId || response.data?.data?.insertId;
+          console.log("📝 Work Order created with ID:", workOrderId);
+          
+          if (workOrderId) {
+            if (pendingMedia.length > 0) {
+              await uploadMediaFiles(pendingMedia.map(p => p.file), workOrderId);
+              pendingMedia.forEach(p => URL.revokeObjectURL(p.url));
+              setPendingMedia([]);
+            }
 
-          // Create job cards after successful creation
-          try {
-            console.log("📋 Creating job cards for Work Order ID:", workOrderId);
-            const jobCardResponse = await api.post(`/job-card/create-job-cards-from-wo/${workOrderId}`);
-            console.log("📦 Job Card Response:", jobCardResponse.data);
-            
-            if (jobCardResponse.data?.success === 0) {
-              const errorMessage = jobCardResponse.data?.message || "";
+            // Create job cards after successful creation
+            try {
+              console.log("📋 Creating job cards for Work Order ID:", workOrderId);
+              const jobCardResponse = await api.post(`/job-card/create-job-cards-from-wo/${workOrderId}`);
+              console.log("📦 Job Card Response:", jobCardResponse.data);
+              
+              if (jobCardResponse.data?.success === 0) {
+                const errorMessage = jobCardResponse.data?.message || "";
 
-              if (errorMessage.toLowerCase().includes("insufficient stock") ||
-                  errorMessage.toLowerCase().includes("insufficient material")) {
-                const itemMatch = errorMessage.match(/for\s+([A-Z0-9\-_]+)/i);
+                if (errorMessage.toLowerCase().includes("insufficient stock") ||
+                    errorMessage.toLowerCase().includes("insufficient material")) {
+                  const itemMatch = errorMessage.match(/for\s+([A-Z0-9\-_]+)/i);
+                  const itemName = itemMatch ? itemMatch[1] : "material";
+
+                  setStockWarningModal({
+                    show: true,
+                    message: `Work Order has been created but remains in "Draft" status due to insufficient stock of "${itemName}". Please check your inventory levels and update the Work Order when stock is available.`,
+                    itemName: itemName,
+                    woId: workOrderId,
+                  });
+
+                  setWo(prev => ({ ...prev, status: "Draft" }));
+                  setSubmitting(false);
+                  return;
+                } else {
+                  console.warn("⚠️ Job card creation returned non-success:", errorMessage);
+                }
+              } else if (jobCardResponse.data?.success === 1) {
+                console.log("✅ Job cards created successfully");
+              }
+            } catch (jobCardErr: any) {
+              console.error("❌ Error creating job cards:", jobCardErr);
+              const errorData = jobCardErr?.response?.data;
+              if (errorData?.success === 0 &&
+                  (errorData?.message?.toLowerCase().includes("insufficient stock") ||
+                   errorData?.message?.toLowerCase().includes("insufficient material"))) {
+                const itemMatch = errorData.message.match(/for\s+([A-Z0-9\-_]+)/i);
                 const itemName = itemMatch ? itemMatch[1] : "material";
 
                 setStockWarningModal({
@@ -2510,63 +2616,85 @@ export default function WorkOrderForm() {
                 setWo(prev => ({ ...prev, status: "Draft" }));
                 setSubmitting(false);
                 return;
-              } else {
-                console.warn("⚠️ Job card creation returned non-success:", errorMessage);
               }
-            } else if (jobCardResponse.data?.success === 1) {
-              console.log("✅ Job cards created successfully");
             }
-          } catch (jobCardErr: any) {
-            console.error("❌ Error creating job cards:", jobCardErr);
-            const errorData = jobCardErr?.response?.data;
-            if (errorData?.success === 0 &&
-                (errorData?.message?.toLowerCase().includes("insufficient stock") ||
-                 errorData?.message?.toLowerCase().includes("insufficient material"))) {
-              const itemMatch = errorData.message.match(/for\s+([A-Z0-9\-_]+)/i);
-              const itemName = itemMatch ? itemMatch[1] : "material";
 
-              setStockWarningModal({
-                show: true,
-                message: `Work Order has been created but remains in "Draft" status due to insufficient stock of "${itemName}". Please check your inventory levels and update the Work Order when stock is available.`,
-                itemName: itemName,
-                woId: workOrderId,
-              });
+           // ── Post required RAW MATERIAL items to WIP warehouse ──────────────
+// (NOT the finished product — that only enters inventory once it's
+// actually manufactured, via the completion flow.)
+// try {
+//   const wipWarehouseId = warehouseMap[wo.wip_warehouse];
+//   if (!wipWarehouseId) {
+//     console.warn("WIP warehouse ID not found for:", wo.wip_warehouse);
+//   } else {
+//     const itemsToPost = wo.required_items.filter(
+//       ri => ri.item_id && ri.required_qty > 0
+//     );
 
-              setWo(prev => ({ ...prev, status: "Draft" }));
-              setSubmitting(false);
-              return;
-            }
+//     if (itemsToPost.length === 0) {
+//       console.warn("No required items with valid IDs to post to inventory.");
+//     } else {
+//       for (const ri of itemsToPost) {
+//         const inventoryPayload = {
+//           name: `INV-${ri.item_code}-${Date.now()}`,
+//           item_Id: ri.item_id!,
+//           item_code: ri.item_code,
+//           warehouse_Id: wipWarehouseId,
+//           actual_qty: ri.required_qty,
+//           planned_qty: 0,
+//           indented_qty: 0,
+//           ordered_qty: ri.required_qty,
+//           reserved_qty: 0,
+//           reserved_qty_for_production: 0,
+//           reserved_qty_for_sub_contract: 0,
+//           reserved_qty_for_production_plan: 0,
+//           reserved_stock: 0,
+//           stock_uom: ri.uom || "Nos",
+//           company: wo.company || "SculptorTech",
+//           valuation_rate: ri.rate || 0,
+//           modified_by: "Administrator",
+//           type: wo.type === "internal" ? "Internal" : "External",
+//         };
+
+//         await api.post("/inventory", inventoryPayload);
+//         console.log(`✅ Inventory posted for ${ri.item_code} (${ri.item_name}) to ${wo.wip_warehouse}`);
+//       }
+//     }
+//   }
+// } catch (invErr) {
+//   console.error("Error posting required items to inventory:", invErr);
+//   // Optionally display a non‑blocking notification
+// }
           }
+          navigate("/work-order");
+        } else {
+          setApiError(response.data?.message || "Failed to create work order");
         }
-        navigate("/work-order");
-      } else {
-        setApiError(response.data?.message || "Failed to create work order");
       }
-    }
-  } catch (err: any) {
-    console.error("Error saving work order:", err);
-    const errorData = err?.response?.data;
-    if (errorData?.success === 0 &&
-        (errorData?.message?.toLowerCase().includes("insufficient stock") ||
-         errorData?.message?.toLowerCase().includes("insufficient material"))) {
-      const itemMatch = errorData.message.match(/for\s+([A-Z0-9\-_]+)/i);
-      const itemName = itemMatch ? itemMatch[1] : "material";
+    } catch (err: any) {
+      console.error("Error saving work order:", err);
+      const errorData = err?.response?.data;
+      if (errorData?.success === 0 &&
+          (errorData?.message?.toLowerCase().includes("insufficient stock") ||
+           errorData?.message?.toLowerCase().includes("insufficient material"))) {
+        const itemMatch = errorData.message.match(/for\s+([A-Z0-9\-_]+)/i);
+        const itemName = itemMatch ? itemMatch[1] : "material";
 
-      setStockWarningModal({
-        show: true,
-        message: `Work Order ${isNew ? 'creation' : 'update'} failed due to insufficient stock of "${itemName}". Please check your inventory levels and try again.`,
-        itemName: itemName,
-        woId: isNew ? undefined : wo.id,
-      });
+        setStockWarningModal({
+          show: true,
+          message: `Work Order ${isNew ? 'creation' : 'update'} failed due to insufficient stock of "${itemName}". Please check your inventory levels and try again.`,
+          itemName: itemName,
+          woId: isNew ? undefined : wo.id,
+        });
 
+        setSubmitting(false);
+        return;
+      }
+      setApiError(err.response?.data?.message || "Network error. Please try again.");
+    } finally {
       setSubmitting(false);
-      return;
     }
-    setApiError(err.response?.data?.message || "Network error. Please try again.");
-  } finally {
-    setSubmitting(false);
-  }
-};
+  };
 
   const handleCloseStockWarning = () => {
     setStockWarningModal({ show: false, message: "", itemName: "", woId: undefined });
@@ -3175,7 +3303,7 @@ export default function WorkOrderForm() {
                                               item_name: it.item_name,
                                               uom: it.stock_uom,
                                               rate: it.standard_rate ?? it.valuation_rate ?? 0,
-                                              operation: r.operation || "", // Fixed: Now valid
+                                              operation: r.operation || "",
                                             }
                                           : r
                                       ),
@@ -3636,7 +3764,7 @@ export default function WorkOrderForm() {
                                           item_name: it.item_name,
                                           uom: it.stock_uom,
                                           rate: it.standard_rate ?? it.valuation_rate ?? 0,
-                                          operation: r.operation || "", // Fixed: Now valid
+                                          operation: r.operation || "",
                                         }
                                       : r
                                   ),
@@ -4170,3 +4298,5 @@ export default function WorkOrderForm() {
     </div>
   );
 }
+
+
