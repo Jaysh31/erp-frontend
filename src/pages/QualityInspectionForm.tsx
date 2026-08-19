@@ -2270,7 +2270,7 @@ export default function QualityInspectionForm() {
     const inspectionNo = isEditMode && recordName ? recordName : `QIR-${Date.now().toString(36).toUpperCase()}`;
     const overallResult = outOfSpecCount > 0 ? 'Fail' : 'Pass';
 
-    const details = formData.parameters.map((param, index) => {
+    const details = formData.parameters.map((param) => {
       const paramOutOfSpec = param.observations.some(v => isObservationOutOfSpec(param.specification, v));
       const paramResult = paramOutOfSpec ? 'Fail' : 'Pass';
 

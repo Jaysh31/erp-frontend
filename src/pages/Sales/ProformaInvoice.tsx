@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  FaSearch, FaPlus, FaEye, FaEdit, FaTrash, FaFilePdf, FaPrint,
+  FaSearch, FaPlus, FaEye,  FaTrash, FaFilePdf, FaPrint,
   FaFilter, FaCheckCircle, FaClock, FaTimesCircle,
   FaFileAlt, FaExternalLinkAlt,
   FaChartLine, FaTimes, FaSpinner, FaBoxOpen, FaEnvelope,
@@ -528,18 +528,7 @@ export default function ProformaInvoice() {
     navigate(`/proforma-invoice/${order.id}`, { state: { proforma: order } });
   };
 
-  const handleEdit = (order: SalesOrder) => {
-    if (!order.id) {
-      toast.error('Unable to open this proforma — missing ID');
-      return;
-    }
-    navigate(`/proforma-invoice/edit/${order.id}`, { state: { proforma: order } });
-  };
 
-  const handleDeleteClick = (order: SalesOrder) => {
-    setSelectedOrder(order);
-    setShowDeleteModal(true);
-  };
 
   const confirmDelete = async () => {
     if (!selectedOrder) return;
