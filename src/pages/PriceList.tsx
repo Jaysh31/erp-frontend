@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { 
   FaSearch, FaPlus, FaEdit, FaTrash,  FaFilter, 
   FaCheckCircle, FaTimesCircle, FaSave, FaSpinner, FaTimes,
-  FaToggleOn, FaToggleOff, FaCopy, FaList, FaDollarSign
+  FaToggleOn, FaToggleOff, FaCopy, FaList, FaDollarSign,
+  FaAngleDoubleLeft, FaAngleLeft, FaAngleRight, FaAngleDoubleRight,
+  FaRegHeart, FaEye
 } from 'react-icons/fa';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
@@ -39,6 +41,13 @@ export default function PriceList() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedPriceList, setSelectedPriceList] = useState<PriceList | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Row selection (visual, matches reference image checkboxes)
+  const [selectedRows, setSelectedRows] = useState<string[]>([]);
+
+  // Pagination (matches reference image "Show: 10 entries" footer)
+  const [pageSize, setPageSize] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const [priceLists, setPriceLists] = useState<PriceList[]>([
     {
@@ -112,6 +121,45 @@ export default function PriceList() {
     pl.currency.toLowerCase().includes(filterText.toLowerCase()) ||
     pl.country.toLowerCase().includes(filterText.toLowerCase())
   );
+
+  // ── Pagination derived values ──────────────────────────────
+  const totalEntries = filteredPriceLists.length;
+  const totalPages = Math.max(1, Math.ceil(totalEntries / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const startIndex = (safePage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, totalEntries);
+  const paginatedPriceLists = filteredPriceLists.slice(startIndex, endIndex);
+
+  const goToPage = (page: number) => {
+    if (page < 1 || page > totalPages) return;
+    setCurrentPage(page);
+  };
+
+  const handlePageSizeChange = (size: number) => {
+    setPageSize(size);
+    setCurrentPage(1);
+  };
+
+  const isAllOnPageSelected =
+    paginatedPriceLists.length > 0 &&
+    paginatedPriceLists.every(pl => selectedRows.includes(pl.id));
+
+  const toggleSelectAllOnPage = () => {
+    if (isAllOnPageSelected) {
+      setSelectedRows(prev => prev.filter(id => !paginatedPriceLists.some(pl => pl.id === id)));
+    } else {
+      setSelectedRows(prev => [
+        ...prev,
+        ...paginatedPriceLists.filter(pl => !prev.includes(pl.id)).map(pl => pl.id)
+      ]);
+    }
+  };
+
+  const toggleSelectRow = (id: string) => {
+    setSelectedRows(prev =>
+      prev.includes(id) ? prev.filter(rowId => rowId !== id) : [...prev, id]
+    );
+  };
 
   const handleCreate = () => {
     setFormData({
@@ -238,16 +286,17 @@ export default function PriceList() {
         </div>
       </div>
 
-      {/* Search & Filter Bar */}
+      {/* Search Bar - REMOVED BOX CONTAINER */}
       <div className="search-bar">
-        <div className="search-wrapper">
+        <div className="search-wrapper" style={{ background: 'transparent', border: 'none', padding: '0 10px' }}>
           <FaSearch className="search-icon" />
           <input
             type="text"
             placeholder="Search price lists..."
             value={filterText}
-            onChange={(e) => setFilterText(e.target.value)}
+            onChange={(e) => { setFilterText(e.target.value); setCurrentPage(1); }}
             className="search-input"
+            style={{ padding: '4px 8px' }}
           />
           {filterText && (
             <button className="clear-btn" onClick={() => setFilterText('')}>×</button>
@@ -260,7 +309,6 @@ export default function PriceList() {
           >
             <FaFilter size={12} /> Filter
           </button>
-          <span className="result-count">{filteredPriceLists.length} of {priceLists.length}</span>
         </div>
       </div>
 
@@ -308,88 +356,171 @@ export default function PriceList() {
             </button>
           </div>
         ) : viewMode === 'list' ? (
-          <div className="table-wrapper">
-            <table className="price-list-table">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Price List Name</th>
-                  <th>Currency</th>
-                  <th>Status</th>
-                  <th>Buying</th>
-                  <th>Selling</th>
-                  <th>Country</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredPriceLists.map((pl) => (
-                  <tr key={pl.id} className="price-list-row">
-                    <td className="id-cell">{pl.id}</td>
-                    <td className="name-cell">
-                      <span className="pl-name">{pl.name}</span>
-                      {pl.priceNotUOMDependent && (
-                        <span className="badge-uom">Not UOM Dependent</span>
-                      )}
-                    </td>
-                    <td className="currency-cell">{pl.currency}</td>
-                    <td>
-                      <button 
-                        className={`status-toggle ${pl.enabled ? 'enabled' : 'disabled'}`}
-                        onClick={() => handleToggleEnable(pl.id)}
-                      >
-                        {pl.enabled ? (
-                          <><FaCheckCircle size={12} /> Enabled</>
-                        ) : (
-                          <><FaTimesCircle size={12} /> Disabled</>
-                        )}
-                      </button>
-                    </td>
-                    <td className="type-cell">
-                      {pl.buying ? (
-                        <span className="type-badge buying">Buying</span>
-                      ) : (
-                        <span className="type-badge inactive">-</span>
-                      )}
-                    </td>
-                    <td className="type-cell">
-                      {pl.selling ? (
-                        <span className="type-badge selling">Selling</span>
-                      ) : (
-                        <span className="type-badge inactive">-</span>
-                      )}
-                    </td>
-                    <td className="country-cell">{pl.country}</td>
-                    <td>
-                      <div className="action-group">
-                        <button 
-                          className="action-btn edit" 
-                          title="Edit"
-                          onClick={() => handleEdit(pl)}
-                        >
-                          <FaEdit size={12} />
-                        </button>
-                        <button 
-                          className="action-btn copy" 
-                          title="Duplicate"
-                          onClick={() => handleDuplicate(pl)}
-                        >
-                          <FaCopy size={12} />
-                        </button>
-                        <button 
-                          className="action-btn delete" 
-                          title="Delete"
-                          onClick={() => handleDelete(pl)}
-                        >
-                          <FaTrash size={12} />
-                        </button>
-                      </div>
-                    </td>
+          <>
+            {/* Result count bar - matches "8 OF 8 ♡" in reference image */}
+            <div className="table-toolbar">
+              <span className="table-result-count">
+                {totalEntries} OF {priceLists.length}
+              </span>
+              <FaRegHeart size={13} className="table-heart-icon" />
+            </div>
+
+            <div className="table-wrapper">
+              <table className="price-list-table">
+                <thead>
+                  <tr>
+                    <th className="checkbox-col">
+                      <input
+                        type="checkbox"
+                        checked={isAllOnPageSelected}
+                        onChange={toggleSelectAllOnPage}
+                      />
+                    </th>
+                    <th>ID</th>
+                    <th>Price List Name</th>
+                    <th>Currency</th>
+                    <th>Status</th>
+                    <th>Buying</th>
+                    <th>Selling</th>
+                    <th>Country</th>
+                    <th className="actions-col">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {paginatedPriceLists.map((pl) => (
+                    <tr key={pl.id} className="price-list-row">
+                      <td className="checkbox-col">
+                        <input
+                          type="checkbox"
+                          checked={selectedRows.includes(pl.id)}
+                          onChange={() => toggleSelectRow(pl.id)}
+                        />
+                      </td>
+                      <td className="id-cell">{pl.id}</td>
+                      <td className="name-cell">
+                        <span className="pl-name">{pl.name}</span>
+                        {pl.priceNotUOMDependent && (
+                          <span className="badge-uom">Not UOM Dependent</span>
+                        )}
+                      </td>
+                      <td className="currency-cell">{pl.currency}</td>
+                      <td>
+                        <button 
+                          className={`status-toggle ${pl.enabled ? 'enabled' : 'disabled'}`}
+                          onClick={() => handleToggleEnable(pl.id)}
+                        >
+                          {pl.enabled ? (
+                            <><FaCheckCircle size={12} /> Enabled</>
+                          ) : (
+                            <><FaTimesCircle size={12} /> Disabled</>
+                          )}
+                        </button>
+                      </td>
+                      <td className="type-cell">
+                        {pl.buying ? (
+                          <span className="type-badge buying">Buying</span>
+                        ) : (
+                          <span className="type-badge inactive">-</span>
+                        )}
+                      </td>
+                      <td className="type-cell">
+                        {pl.selling ? (
+                          <span className="type-badge selling">Selling</span>
+                        ) : (
+                          <span className="type-badge inactive">-</span>
+                        )}
+                      </td>
+                      <td className="country-cell">{pl.country}</td>
+                      <td className="actions-col">
+                        <div className="action-group">
+                          <button 
+                            className="action-btn edit" 
+                            title="Edit"
+                            onClick={() => handleEdit(pl)}
+                          >
+                            <FaEdit size={12} />
+                          </button>
+                          <button 
+                            className="action-btn copy" 
+                            title="Duplicate"
+                            onClick={() => handleDuplicate(pl)}
+                          >
+                            <FaCopy size={12} />
+                          </button>
+                          <button 
+                            className="action-btn delete" 
+                            title="Delete"
+                            onClick={() => handleDelete(pl)}
+                          >
+                            <FaTrash size={12} />
+                          </button>
+                          <button
+                            className="action-btn view"
+                            title="View"
+                          >
+                            <FaEye size={12} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination footer - matches "Show: 10 entries ... Showing 1 to 8 of 8 entries" in reference image */}
+            <div className="pagination-bar">
+              <div className="show-entries">
+                <span>Show:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+                <span>entries</span>
+              </div>
+
+              <div className="pagination-controls">
+                <button
+                  className="page-nav-btn"
+                  onClick={() => goToPage(1)}
+                  disabled={safePage === 1}
+                >
+                  <FaAngleDoubleLeft size={12} />
+                </button>
+                <button
+                  className="page-nav-btn"
+                  onClick={() => goToPage(safePage - 1)}
+                  disabled={safePage === 1}
+                >
+                  <FaAngleLeft size={12} />
+                </button>
+                <span className="page-number active">{safePage}</span>
+                <button
+                  className="page-nav-btn"
+                  onClick={() => goToPage(safePage + 1)}
+                  disabled={safePage === totalPages}
+                >
+                  <FaAngleRight size={12} />
+                </button>
+                <button
+                  className="page-nav-btn"
+                  onClick={() => goToPage(totalPages)}
+                  disabled={safePage === totalPages}
+                >
+                  <FaAngleDoubleRight size={12} />
+                </button>
+              </div>
+
+              <span className="showing-text">
+                Showing {totalEntries === 0 ? 0 : startIndex + 1} to {endIndex} of {totalEntries} entries
+              </span>
+            </div>
+          </>
         ) : (
           <div className="grid-view">
             {filteredPriceLists.map((pl) => (
@@ -420,17 +551,7 @@ export default function PriceList() {
         )}
       </div>
 
-      {/* Footer */}
-      <div className="list-footer">
-        <span>{filteredPriceLists.length} of {priceLists.length} price lists</span>
-        <div className="footer-actions">
-          <span className="conversion-badge">
-            <FaDollarSign size={11} /> {priceLists.filter(p => p.enabled).length} active
-          </span>
-        </div>
-      </div>
-
-      {/* ====== CREATE/EDIT MODAL (SCROLLABLE) ====== */}
+      {/* ====== CREATE/EDIT MODAL ====== */}
       {(showCreateModal || showEditModal) && (
         <div className="modal-overlay" onClick={() => {
           setShowCreateModal(false);

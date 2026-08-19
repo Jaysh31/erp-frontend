@@ -374,6 +374,8 @@
   padding: 6px 8px;
   border-bottom: 1px solid var(--border-color);
   vertical-align: middle;
+  overflow: visible;
+  position: relative;
 }
 
 .sef-editable-table tbody tr:last-child td {
@@ -959,7 +961,7 @@
   margin: 0;
   padding: 0;
   pointer-events: auto;
-  z-index: 99999;
+  z-index: 99999 !important;
 }
 
 .item-dropdown-portal::-webkit-scrollbar {
@@ -1101,22 +1103,243 @@
   font-size: 16px;
 }
 
-/* ─── Make sure table cells don't clip the dropdown ─────────────────── */
-.sef-editable-table td {
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--border-color);
-  vertical-align: middle;
-  overflow: visible;
-  position: relative;
+/* ─── Work Order Dropdown - Portal Based ─────────────────────────────── */
+.wo-dropdown-portal {
+  position: fixed !important;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+  animation: dropdownFadeIn 0.15s ease-out;
+  overflow-y: auto;
+  max-height: 280px;
+  margin: 0;
+  padding: 0;
+  pointer-events: auto;
+  z-index: 99999 !important;
+  min-width: 300px;
 }
 
-/* ─── Responsive adjustments for item search ────────────────────────── */
+.wo-dropdown-portal::-webkit-scrollbar {
+  width: 5px;
+}
+
+.wo-dropdown-portal::-webkit-scrollbar-track {
+  background: var(--layout-bg);
+  border-radius: 0 10px 10px 0;
+}
+
+.wo-dropdown-portal::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+
+.wo-dropdown-portal::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+.wo-dropdown-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px 0;
+  pointer-events: auto;
+}
+
+.wo-dropdown-item {
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: all 0.12s;
+  border-bottom: 1px solid var(--border-color);
+  pointer-events: auto;
+  user-select: none;
+}
+
+.wo-dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.wo-dropdown-item:hover {
+  background: color-mix(in srgb, var(--primary-color) 6%, var(--card-bg));
+}
+
+.wo-dropdown-item.selected {
+  background: color-mix(in srgb, var(--primary-color) 10%, var(--card-bg));
+  border-left: 3px solid var(--primary-color);
+}
+
+.wo-main-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.wo-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.wo-status-badge {
+  font-size: 10px;
+  padding: 1px 8px;
+  border-radius: 12px;
+  font-weight: 500;
+}
+
+.wo-status-draft {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.wo-status-in-progress {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.wo-status-completed {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.wo-sub-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 3px;
+  padding-left: 2px;
+}
+
+.wo-tag {
+  font-size: 10px;
+  color: var(--text-secondary);
+  background: var(--layout-bg);
+  padding: 1px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+}
+
+.wo-dropdown-loading,
+.wo-dropdown-empty {
+  padding: 16px 14px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.wo-dropdown-loading .spinning {
+  font-size: 16px;
+}
+
+/* ─── Dropdown Wrapper for Work Order ────────────────────────────────── */
+.dropdown-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.dropdown-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.dropdown-input-wrapper .form-field {
+  padding-right: 30px;
+}
+
+.dropdown-arrow {
+  position: absolute;
+  right: 10px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  pointer-events: auto;
+  z-index: 2;
+}
+
+.dropdown-clear {
+  position: absolute;
+  right: 28px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  z-index: 2;
+}
+
+.dropdown-clear:hover {
+  color: var(--text-primary);
+}
+
+/* ─── Item Dropdown Wrapper ──────────────────────────────────────────── */
+.item-dropdown-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+/* ─── Dark Theme ──────────────────────────────────────────────────────── */
+.dark-theme .item-dropdown-portal,
+.dark-theme .wo-dropdown-portal {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+.dark-theme .item-dropdown-item:hover,
+.dark-theme .wo-dropdown-item:hover {
+  background: #2d3748;
+}
+
+.dark-theme .item-dropdown-item.selected,
+.dark-theme .wo-dropdown-item.selected {
+  background: rgba(59, 130, 246, 0.15);
+}
+
+.dark-theme .item-code {
+  background: #2d3748;
+}
+
+.dark-theme .item-name {
+  color: #94a3b8;
+}
+
+.dark-theme .wo-name {
+  color: #f8fafc;
+}
+
+.dark-theme .wo-status-draft {
+  background: #451a03;
+  color: #fcd34d;
+}
+
+.dark-theme .wo-status-in-progress {
+  background: #1e3a5f;
+  color: #93c5fd;
+}
+
+.dark-theme .wo-status-completed {
+  background: #064e3b;
+  color: #6ee7b7;
+}
+
+/* ─── Responsive adjustments for dropdowns ───────────────────────────── */
 @media (max-width: 768px) {
-  .item-search-field {
-    min-width: 120px;
+  .item-dropdown-portal,
+  .wo-dropdown-portal {
+    max-height: 200px;
+    min-width: 200px;
   }
 
-  .item-main-info {
+  .item-main-info,
+  .wo-main-info {
     flex-wrap: wrap;
   }
 
@@ -1131,15 +1354,14 @@
 }
 
 @media (max-width: 520px) {
-  .item-search-field {
-    min-width: 80px;
+  .item-dropdown-portal,
+  .wo-dropdown-portal {
+    max-height: 160px;
+    min-width: 160px;
   }
 
-  .item-dropdown-item {
+  .item-dropdown-item,
+  .wo-dropdown-item {
     padding: 6px 10px;
-  }
-
-  .item-search-input {
-    font-size: 12px;
   }
 }

@@ -1084,10 +1084,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
               {apiError}
             </div>
           )}
-          <button className="nbom-btn-save" onClick={handleSave} disabled={saving}>
-            <Save size={13} />
-            {saving ? 'Saving...' : 'Save'}
-          </button>
+         
         </div>
       </div>
 

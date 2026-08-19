@@ -25,6 +25,7 @@ import {
 import './Customer.css';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import api from '../services/api';
+import toast from 'react-hot-toast';
 
 interface Contact {
   id: number;
@@ -105,6 +106,7 @@ const Customer: React.FC = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedItem, setSelectedItem] = useState<CustomerDisplay | null>(null);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
   // Fetch customers from API
   const fetchCustomers = async () => {
@@ -173,30 +175,24 @@ const Customer: React.FC = () => {
 
   const totalFilteredItems = filteredData.length;
   
-  // ✅ FIXED: Use totalItems from API for pagination when no filters are applied
-  // When filters are applied, use filteredData length
   const hasFilters = searchTerm !== '' || statusFilter !== 'all';
   const totalPages = hasFilters 
     ? Math.ceil(totalFilteredItems / itemsPerPage) 
     : Math.ceil(totalItems / itemsPerPage);
 
-  // ✅ FIXED: Determine what to display in pagination
   const displayTotal = hasFilters ? totalFilteredItems : totalItems;
 
-  // Ensure current page is valid when data changes
   const validCurrentPage = Math.min(currentPage, totalPages || 1);
   if (validCurrentPage !== currentPage && totalPages > 0) {
     setCurrentPage(validCurrentPage);
   }
 
-  // ✅ FIXED: Pagination - when no filters, use API pagination
-  // When filters are applied, use client-side pagination
   const paginatedData = hasFilters 
     ? filteredData.slice(
         (validCurrentPage - 1) * itemsPerPage,
         validCurrentPage * itemsPerPage
       )
-    : filteredData; // When no filters, data is already paginated from API
+    : filteredData;
 
   const goToPage = (page: number) => {
     if (page >= 1 && page <= totalPages) {
@@ -229,17 +225,70 @@ const Customer: React.FC = () => {
     setShowDeleteConfirm(true);
   };
 
+  // ✅ अपडेटेड Delete फंक्शन
   const confirmDelete = async () => {
     if (!selectedItem) return;
 
-    try {
-      await api.delete(`/customer/${selectedItem.id}`);
+    // ✅ डबल कन्फर्मेशन
+    const userConfirmed = window.confirm(
+      `Are you sure you want to delete "${selectedItem.customerName}"?\n\nThis action cannot be undone!`
+    );
+    if (!userConfirmed) {
       setShowDeleteConfirm(false);
-      setSelectedItem(null);
-      fetchCustomers();
-    } catch (err) {
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      console.log(`Deleting customer with ID: ${selectedItem.id}`);
+      
+      const response = await api.delete(`/customer/${selectedItem.id}`);
+      
+      console.log('Delete response:', response.data);
+
+      if (response.data.success === 1) {
+        setShowDeleteConfirm(false);
+        toast.success(`Customer "${selectedItem.customerName}" deleted successfully!`);
+        setSelectedItem(null);
+        fetchCustomers(); // Refresh list
+      } else {
+        // API ने एरर मेसेज दिला
+        const errorMsg = response.data.message || 'Failed to delete customer';
+        toast.error(errorMsg);
+      }
+    } catch (err: any) {
       console.error('Error deleting customer:', err);
-      alert('Failed to delete customer');
+      
+      // ✅ एरर हँडलिंग
+      if (err.response) {
+        // सर्व्हरने एरर रिस्पॉन्स दिला
+        const status = err.response.status;
+        const errorMsg = err.response.data?.message || err.response.statusText || 'Server error';
+        
+        if (status === 500) {
+          toast.error(
+            `Server Error (500): The customer could not be deleted. This may be due to:\n` +
+            `• The customer has related records (orders, invoices, contacts)\n` +
+            `• Database constraint violation\n` +
+            `• Server configuration issue\n\n` +
+            `Please contact system administrator.`
+          );
+        } else if (status === 404) {
+          toast.error('Customer not found. It may have been already deleted.');
+        } else if (status === 403) {
+          toast.error('You do not have permission to delete this customer.');
+        } else {
+          toast.error(`Error ${status}: ${errorMsg}`);
+        }
+      } else if (err.request) {
+        // सर्व्हरला रिक्वेस्ट पोहोचली नाही
+        toast.error('Network error. Please check your internet connection.');
+      } else {
+        toast.error('An unexpected error occurred. Please try again.');
+      }
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
     }
   };
 
@@ -505,6 +554,7 @@ const Customer: React.FC = () => {
                                 className="igl-action-btn igl-action-delete"
                                 onClick={(e) => { e.stopPropagation(); handleDelete(row); }}
                                 title="Delete"
+                                disabled={isDeleting}
                               >
                                 <FaTrash size={12} />
                               </button>
@@ -649,15 +699,29 @@ const Customer: React.FC = () => {
               </button>
             </div>
             <div className="igl-modal-body">
-              <p>Are you sure you want to delete "{selectedItem?.customerName}"?</p>
+              <p>Are you sure you want to delete <strong>"{selectedItem?.customerName}"</strong>?</p>
+              {selectedItem?.contacts && selectedItem.contacts.length > 0 && (
+                <p style={{ color: '#e74c3c', fontSize: '13px', marginTop: '8px' }}>
+                  ⚠️ This customer has {selectedItem.contacts.length} contact(s). 
+                  They may need to be deleted first.
+                </p>
+              )}
               <p className="igl-modal-warning">This action cannot be undone.</p>
             </div>
             <div className="igl-modal-footer">
-              <button className="igl-btn-cancel" onClick={() => setShowDeleteConfirm(false)}>
+              <button 
+                className="igl-btn-cancel" 
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={isDeleting}
+              >
                 Cancel
               </button>
-              <button className="igl-btn-delete" onClick={confirmDelete}>
-                <FaTrash size={12} /> Delete
+              <button 
+                className="igl-btn-delete" 
+                onClick={confirmDelete}
+                disabled={isDeleting}
+              >
+                {isDeleting ? 'Deleting...' : <><FaTrash size={12} /> Delete</>}
               </button>
             </div>
           </div>

@@ -363,8 +363,6 @@ export default function WarehouseList() {
                       <td className="wl-td">{row.parent_warehouse || '-'}</td>
                       <td className="wl-td">{row.warehouse_type || '-'}</td>
                       <td className="wl-td wl-td-meta">
-                        <span className="wl-ago">-</span>
-                        <span className="wl-dot">·</span>
                         <div className="wl-action-buttons">
                           <button 
                             className="wl-action-btn wl-action-view" 

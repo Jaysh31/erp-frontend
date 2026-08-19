@@ -148,6 +148,7 @@ interface GRNItem {
   taxType?: string;
   taxRate?: number;
   hsn?: string;
+  isDraft?: boolean; // Flag to identify draft items
 }
 
 interface ValidationError {
@@ -471,6 +472,8 @@ const escapeHtml = (value: string | number | undefined | null): string => {
     .replace(/"/g, '&quot;');
 };
 
+// ─── MAIN COMPONENT ──────────────────────────────────────────────────────
+
 export default function GRNForm() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -576,6 +579,10 @@ export default function GRNForm() {
   // ─── Tax Types State ───────────────────────────────────────────────
   const [taxTypes, setTaxTypes] = useState<TaxType[]>([]);
   const [loadingTaxTypes, setLoadingTaxTypes] = useState(false);
+
+  // ─── PO Items Cache ─────────────────────────────────────────────────
+  const [poItemsCache, setPoItemsCache] = useState<{ [poId: number]: POItem[] }>({});
+  const [loadingPOItems, setLoadingPOItems] = useState<{ [poId: number]: boolean }>({});
 
   // ─── Fetch Warehouses ──────────────────────────────────────────────
   const fetchWarehouses = async () => {
@@ -701,6 +708,13 @@ export default function GRNForm() {
       
       if (response.data.success === 1) {
         const poDetail = response.data.data;
+        // Cache the items
+        if (poDetail.items) {
+          setPoItemsCache(prev => ({
+            ...prev,
+            [poId]: poDetail.items
+          }));
+        }
         populateGRNFromPO(poDetail);
         setShowPODropdown(false);
       }
@@ -750,32 +764,17 @@ export default function GRNForm() {
   };
 
   // ─── Resolve the actual Item Master id for a GRN item ────────────────
-  // IMPORTANT: `item.itemId` coming from a Purchase Order line is NOT
-  // guaranteed to be the Item Master's id (it can be the PO line/item id).
-  // The Item Master id is only reliable when the item was picked from the
-  // item-master search (handleItemMasterSelect) or when we look it up by
-  // item_code against the loaded itemsMaster list. This helper is the
-  // single source of truth used whenever we need to send `item_Id` to
-  // another API (e.g. /inventory).
   const resolveItemMasterId = (item: GRNItem): number | undefined => {
-    // 1. item_code is authoritative — always prefer matching on it first.
-    //    This protects against a stale/wrong `itemId` that happens to match
-    //    a *different* record in itemsMaster (e.g. itemId=94 left over from
-    //    an earlier row selection, while itemCode was later changed to
-    //    "COOLANT" — itemId=94 is "Valve Guide", not Coolant).
     if (item.itemCode) {
       const matchByCode = itemsMaster.find(
         im => (im.item_code || '').trim().toLowerCase() === item.itemCode.trim().toLowerCase()
       );
       if (matchByCode) return matchByCode.id;
     }
-    // 2. Only fall back to the stored itemId if no code match was found
-    //    AND that id actually exists in itemsMaster.
     if (item.itemId) {
       const matchById = itemsMaster.find(im => im.id === item.itemId);
       if (matchById) return matchById.id;
     }
-    // 3. Last resort: whatever was on the item (may be wrong, but better than nothing).
     return item.itemId;
   };
 
@@ -784,9 +783,6 @@ export default function GRNForm() {
     const items: GRNItem[] = (poDetail.items || []).map((item, index) => {
       const taxInfo = resolveTaxInfo(item);
 
-      // Try to resolve the real Item Master id right away by matching item_code.
-      // (itemsMaster may not have loaded yet — that's fine, resolveItemMasterId()
-      // is called again at save/post time as the authoritative check.)
       const masterMatch = itemsMaster.find(
         im => (im.item_code || '').toLowerCase() === (item.item_code || '').toLowerCase()
       );
@@ -801,12 +797,13 @@ export default function GRNForm() {
         uom: item.uom || '',
         rate: item.rate || 0,
         remarks: '',
-        poItemId: item.id,                 // PO line id — used only for PO reference, never for inventory item_Id
-        itemId: masterMatch?.id,            // real Item Master id (may be undefined until resolved later)
+        poItemId: item.id,
+        itemId: masterMatch?.id,
         taxId: taxInfo.taxId,
         taxType: taxInfo.taxType,
         taxRate: taxInfo.taxRate || 0,
         hsn: item.hsn || '',
+        isDraft: false, // Items from PO are not draft
       };
     });
 
@@ -826,7 +823,7 @@ export default function GRNForm() {
       }
     }
 
-    const poName = poDetail.name || '';
+    const poName = poDetail.name || `PO-${String(poDetail.id).padStart(5, '0')}`;
 
     setFormData(prev => ({
       ...prev,
@@ -890,13 +887,40 @@ export default function GRNForm() {
     ? customers.find(c => c.id === formData.customerId)
     : undefined;
 
+  // ─── Fetch PO items on hover ──────────────────────────────────────────
+  const fetchPOItems = async (poId: number) => {
+    if (poItemsCache[poId]) return;
+    setLoadingPOItems(prev => ({ ...prev, [poId]: true }));
+    try {
+      const response = await api.get<PODetailApiResponse>(`/purchase-order/${poId}`);
+      if (response.data.success === 1) {
+        setPoItemsCache(prev => ({
+          ...prev,
+          [poId]: response.data.data.items || []
+        }));
+      }
+    } catch (err) {
+      console.error('Error fetching PO items:', err);
+    } finally {
+      setLoadingPOItems(prev => ({ ...prev, [poId]: false }));
+    }
+  };
+
+  // ─── Get display name for PO ──────────────────────────────────────────
+  const getPODisplayName = (po: PurchaseOrder): string => {
+    if (po.name && po.name !== 'N/A' && po.name !== 'Draft') {
+      return po.name;
+    }
+    return `PO-${String(po.id).padStart(5, '0')}`;
+  };
+
   const filteredPOs = purchaseOrders.filter(po => {
     const searchLower = (poSearchTerm || '').toLowerCase();
-    const poName = (po.name || '').toLowerCase();
+    const poDisplayName = getPODisplayName(po).toLowerCase();
     const supplierName = (po.supplier_name || '').toLowerCase();
     const poIdString = (po.id?.toString() || '');
     
-    const matchesSearch = poName.includes(searchLower) || 
+    const matchesSearch = poDisplayName.includes(searchLower) || 
                           supplierName.includes(searchLower) || 
                           poIdString.includes(searchLower);
     
@@ -999,16 +1023,11 @@ export default function GRNForm() {
   }, [showPODropdown, poCurrentPage, formData.supplierId]);
 
   // ─── Once Item Master finishes loading, backfill itemId on any items ──
-  // (PO-sourced items, or items loaded in edit mode) that don't have a
-  // confirmed Item Master id yet, by matching on item_code.
   useEffect(() => {
     if (itemsMaster.length === 0) return;
     setFormData(prev => {
       let changed = false;
       const items = prev.items.map(it => {
-        // Always re-check against item_code — this catches the case where
-        // itemId is "valid" (exists in itemsMaster) but belongs to a
-        // different item_code than the one currently on the row.
         const codeMatch = itemsMaster.find(
           im => (im.item_code || '').trim().toLowerCase() === (it.itemCode || '').trim().toLowerCase()
         );
@@ -1019,12 +1038,10 @@ export default function GRNForm() {
           }
           return it;
         }
-        // No code match available (e.g. itemCode not typed yet) — leave as-is.
         return it;
       });
       return changed ? { ...prev, items } : prev;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemsMaster]);
 
   // ─── Fetch GRN Data for Edit ──────────────────────────────────────
@@ -1049,9 +1066,6 @@ export default function GRNForm() {
         const items: GRNItem[] = (data.items || []).map((item, index) => {
           const taxInfo = resolveTaxInfo(item);
 
-          // Resolve real Item Master id: prefer explicit item_id from the API,
-          // but verify/backfill via item_code against itemsMaster (handled again
-          // by the useEffect above once itemsMaster has loaded).
           const masterMatch = itemsMaster.find(
             im => (im.item_code || '').toLowerCase() === (item.item_code || '').toLowerCase()
           );
@@ -1072,6 +1086,7 @@ export default function GRNForm() {
             taxType: taxInfo.taxType || item.tax_type,
             taxRate: taxInfo.taxRate || 0,
             hsn: item.hsn || '',
+            isDraft: false,
           };
         }) || [];
 
@@ -1310,7 +1325,7 @@ export default function GRNForm() {
   };
 
   const handlePOSelect = (po: PurchaseOrder) => {
-    const poName = po.name || '';
+    const poName = getPODisplayName(po);
     setPOSearchTerm(poName);
     setFormData(prev => ({
       ...prev,
@@ -1345,6 +1360,7 @@ export default function GRNForm() {
       taxType: taxInfo.taxType,
       taxRate: taxInfo.taxRate || 0,
       hsn: master.HSN || '',
+      isDraft: true,
     };
     setFormData(prev => ({ ...prev, items: updatedItems }));
     setActiveItemSearchIndex(null);
@@ -1378,6 +1394,7 @@ export default function GRNForm() {
       remarks: '',
       taxRate: 0,
       hsn: '',
+      isDraft: true,
     };
     setFormData(prev => ({ ...prev, items: [...prev.items, newItem] }));
     setIsDirty(true);
@@ -1406,20 +1423,19 @@ export default function GRNForm() {
   const deliveryChargeAmount = formData.freeDelivery ? 0 : (formData.deliveryCharge || 0);
   const grandTotal = billTotals.itemsTotal + deliveryChargeAmount;
 
+  // ─── Get draft items ──────────────────────────────────────────────────
+  const draftItems = formData.items.filter(item => item.isDraft === true);
+
   // ─── Inventory Sync ───────────────────────────────────────────────────
   const postInventoryForItems = async (items: GRNItem[]) => {
     const inventoryType = formData.isService ? 'External' : 'Internal';
     const role = getUserRole();
 
-    // Get GRN ID and GRN number for existing GRNs (edit mode)
     const grnId = isEditMode && id ? parseInt(id) : undefined;
     const grnNumber = isEditMode ? formData.grn_number : undefined;
 
     const results = await Promise.allSettled(
       items.map((item) => {
-        // IMPORTANT: item_Id must be the Item Master's id (e.g. Coolant -> 97),
-        // never the PO line id / GRN item id. resolveItemMasterId() looks it up
-        // by id first, falling back to a match on item_code.
         const resolvedItemId = resolveItemMasterId(item);
 
         const payload = {
@@ -1433,8 +1449,8 @@ export default function GRNForm() {
           valuation_rate: item.rate || 0,
           modified_by: role?.name,
           type: inventoryType,
-          grn_id: grnId,           // GRN ID for reference
-          grn_number: grnNumber,   // GRN Number for reference
+          grn_id: grnId,
+          grn_number: grnNumber,
         };
 
         if (!resolvedItemId) {
@@ -2106,26 +2122,75 @@ export default function GRNForm() {
                               {showPODropdown && (
                                 <div ref={poDropdownRef} className="grnf-warehouse-dropdown grnf-po-dropdown">
                                   {filteredPOs.length > 0 ? (
-                                    filteredPOs.map(po => (
-                                      <div
-                                        key={po.id}
-                                        className={`grnf-warehouse-item ${formData.purchaseOrderId === po.id ? 'grnf-warehouse-item-selected' : ''}`}
-                                        onClick={() => handlePOSelect(po)}
-                                      >
-                                        <div className="grnf-warehouse-item-name">
-                                          <FaFileInvoice className="grnf-warehouse-item-icon" size={12} />
-                                          {po.name || 'N/A'}
-                                          <span className={`grnf-po-status-badge ${getPOStatusBadgeClass(po.status || '')}`}>
-                                            {po.status || 'Unknown'}
-                                          </span>
+                                    filteredPOs.map(po => {
+                                      const poItems = poItemsCache[po.id] || [];
+                                      const isLoadingItems = loadingPOItems[po.id];
+                                      const itemCount = poItems.length;
+                                      const poDisplayName = getPODisplayName(po);
+                                      
+                                      // Get unique items by item_code to show only once per PO
+                                      const uniqueItems = poItems.reduce((acc, current) => {
+                                        const exists = acc.find(item => item.item_code === current.item_code);
+                                        if (!exists) {
+                                          acc.push(current);
+                                        }
+                                        return acc;
+                                      }, [] as POItem[]);
+                                      
+                                      return (
+                                        <div
+                                          key={po.id}
+                                          className={`grnf-warehouse-item ${formData.purchaseOrderId === po.id ? 'grnf-warehouse-item-selected' : ''}`}
+                                          onClick={() => handlePOSelect(po)}
+                                          onMouseEnter={() => {
+                                            if (!poItemsCache[po.id] && !loadingPOItems[po.id]) {
+                                              fetchPOItems(po.id);
+                                            }
+                                          }}
+                                        >
+                                          <div className="grnf-warehouse-item-name" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
+                                            <FaFileInvoice className="grnf-warehouse-item-icon" size={12} />
+                                            <span className="grnf-po-display-name">{poDisplayName}</span>
+                                            <span className={`grnf-po-status-badge ${getPOStatusBadgeClass(po.status || '')}`}>
+                                              {po.status || 'Unknown'}
+                                            </span>
+                                            {uniqueItems.length > 0 && (
+                                              <>
+                                                <span className="grnf-po-item-count" style={{ marginLeft: '4px' }}>
+                                                  <FaBox size={10} /> {uniqueItems.length} item{uniqueItems.length !== 1 ? 's' : ''}
+                                                </span>
+                                                {/* Products show inline next to PO name */}
+                                                <div className="grnf-po-items-preview" style={{ display: 'inline-flex', flexWrap: 'wrap', gap: '4px', marginTop: '2px', alignItems: 'center' }}>
+                                                  {uniqueItems.map((item, idx) => (
+                                                    <div key={idx} className="grnf-po-item-chip" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '10px', background: '#f9fafb', padding: '1px 6px', borderRadius: '4px', border: '1px solid #e5e7eb' }}>
+                                                      {/* <span className="grnf-po-item-code" style={{ fontWeight: 500, color: '#111827' }}>{item.item_code}</span> */}
+                                                      <span className="grnf-po-item-name" style={{ color: '#6b7280' }}>{item.item_name}</span>
+                                                      <span className="grnf-po-item-qty" style={{ color: '#3b82f6', fontWeight: 500 }}>×{item.qty}</span>
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              </>
+                                            )}
+                                          </div>
+                                          <div className="grnf-warehouse-item-details">
+                                            <span>{po.supplier_name || 'N/A'}</span>
+                                            <span>• {po.currency || 'INR'} {(po.grand_total || 0).toFixed(2)}</span>
+                                            <span>• Received: {(po.per_received || 0)}%</span>
+                                          </div>
+                                          
+                                          {isLoadingItems && (
+                                            <div className="grnf-po-items-loading">
+                                              <FaSpinner className="grnf-spinning" size={10} /> Loading items...
+                                            </div>
+                                          )}
+                                          {!isLoadingItems && uniqueItems.length === 0 && (
+                                            <div className="grnf-po-items-empty">
+                                              <FaInfoCircle size={10} /> No items in this PO
+                                            </div>
+                                          )}
                                         </div>
-                                        <div className="grnf-warehouse-item-details">
-                                          <span>{po.supplier_name || 'N/A'}</span>
-                                          <span>• {po.currency || 'INR'} {(po.grand_total || 0).toFixed(2)}</span>
-                                          <span>• Received: {(po.per_received || 0)}%</span>
-                                        </div>
-                                      </div>
-                                    ))
+                                      );
+                                    })
                                   ) : (
                                     <div className="grnf-warehouse-no-results">No POs found</div>
                                   )}
@@ -2624,6 +2689,45 @@ export default function GRNForm() {
                       })}
                     </tbody>
                   </table>
+
+                  {/* ─── Draft Items Section ───────────────────────────── */}
+                  {draftItems.length > 0 && (
+                    <div className="grnf-draft-items-section">
+                      <div className="grnf-draft-items-header">
+                        <h3>Draft Items</h3>
+                        <span className="grnf-draft-badge">
+                          <FaBox size={10} /> {draftItems.length} item{draftItems.length !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      <div className="grnf-draft-items-list">
+                        {draftItems.map((item, index) => (
+                          <div key={item.id} className="grnf-draft-item">
+                            <div className="grnf-draft-item-left">
+                              <span className="grnf-draft-item-index">#{index + 1}</span>
+                              <span className="grnf-draft-item-name">{item.itemName || 'Unnamed Item'}</span>
+                              <div className="grnf-draft-item-details">
+                                <span>Code: {item.itemCode || 'N/A'}</span>
+                                <span>Qty: <span className="grnf-draft-item-qty">{item.receivedQty}</span></span>
+                                <span>UOM: {item.uom || 'N/A'}</span>
+                                <span>Rate: {item.rate || 0}</span>
+                              </div>
+                            </div>
+                            <div className="grnf-draft-item-right">
+                              <span className="grnf-draft-item-status">Draft</span>
+                              <button
+                                className="grnf-draft-item-remove"
+                                onClick={() => removeItem(formData.items.indexOf(item))}
+                                type="button"
+                                disabled={submitting}
+                              >
+                                <FaTrash size={12} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* ─── Bill Summary ─────────────────────────────────── */}
                   <div className="grnf-bill-summary">

@@ -310,7 +310,7 @@ export default function StockEntryForm() {
   const [itemSearch, setItemSearch] = useState<{ [key: string]: string }>({});
   const [filteredWorkOrders, setFilteredWorkOrders] = useState<WorkOrderOption[]>([]);
   
-  // Refs for dropdowns
+  // Refs for dropdowns - FIXED: using proper ref types
   const workOrderRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
@@ -385,7 +385,10 @@ export default function StockEntryForm() {
       }
       
       Object.keys(itemRefs.current).forEach((key) => {
-        if (itemRefs.current[key] && !itemRefs.current[key]?.contains(target)) {
+        const ref = itemRefs.current[key];
+        if (ref && !ref.contains(target)) {
+          // Don't close if clicking on the view button inside dropdown
+          if (target.closest('.dropdown-view-btn')) return;
           setShowItemDropdown(null);
         }
       });
@@ -809,7 +812,7 @@ export default function StockEntryForm() {
         {/* ─── Header ────────────────────────────────────────────────── */}
         <div className="sef-header">
           <button onClick={() => navigate("/stock-entry")} className="back-btn">
-            <FaArrowLeft size={28} />
+            <FaArrowLeft size={14} /> Back
           </button>
           <div className="header-title">
             <h1>{isNew ? "Add New Stock Entry" : `Edit: ${se.name || "Stock Entry"}`}</h1>

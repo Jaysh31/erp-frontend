@@ -391,19 +391,6 @@ export default function UOMList() {
 
   return (
     <div className={`uoml-page ${theme}`}>
-      {/* Stats Cards */}
-      {/* <div className="uoml-stats-container">
-        {stats.map((stat, index) => (
-          <div key={index} className="uoml-stat-card" style={{ background: `linear-gradient(135deg, ${stat.color} 0%, ${stat.color}cc 100%)` }}>
-            <div className="uoml-stat-icon">{stat.icon}</div>
-            <div className="uoml-stat-content">
-              <p className="uoml-stat-title">{stat.title}</p>
-              <p className="uoml-stat-value">{stat.value}</p>
-            </div>
-          </div>
-        ))}
-      </div> */}
-
       {/* Search and Filter Bar */}
       <div className="uoml-filter-bar">
         <div className="uoml-filter-left">
@@ -824,13 +811,11 @@ export default function UOMList() {
             </div>
 
             <div className="uoml-modal-footer">
-              <button className="uoml-btn-edit-full" onClick={() => {
-                if (formData.name.trim()) {
-                  navigate(`/uom/${encodeURIComponent(formData.name)}`);
-                  handleCloseModal();
-                }
-              }}>
-                <FaEdit size={12} /> Edit Full Form
+              <button 
+                className="uoml-btn-cancel" 
+                onClick={handleCloseModal}
+              >
+                Cancel
               </button>
               <button 
                 className="uoml-btn-save" 

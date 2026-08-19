@@ -1,5 +1,5 @@
 import { useState, useEffect, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   FaSearch,
   FaFilter,
@@ -16,6 +16,7 @@ import {
   FaSpinner,
   FaTag,
   FaFolder,
+  FaArrowLeft,
 } from 'react-icons/fa';
 import "./Itemgrouplist.css";
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
@@ -42,9 +43,35 @@ interface ItemGroupDisplay {
   comments: number;
 }
 
+// ─── Detail View Interface ──────────────────────────────────────────────
+interface ItemGroupDetail {
+  id: string;
+  item_group_name: string;
+  parent_item_group: string;
+  is_group: number;
+  is_editable: number;
+  image: string | null;
+  creation: string;
+  modified: string;
+  company: string;
+  item_tax_template: string;
+  tax_category: string;
+  valid_from: string;
+  min_net_rate: number;
+  max_net_rate: number;
+  default_warehouse: string;
+  default_price_list: string;
+  comments: string;
+}
+
 interface ApiResponse {
   success: number;
   data: ItemGroup[];
+}
+
+interface ApiDetailResponse {
+  success: number;
+  data: ItemGroupDetail;
 }
 
 interface EditFormState {
@@ -56,8 +83,10 @@ interface EditFormState {
 
 export default function ItemGroupList() {
   const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
   const { theme } = useAdminTheme();
 
+  // ─── List View State ──────────────────────────────────────────────────────
   const [itemGroups, setItemGroups] = useState<ItemGroupDisplay[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -71,13 +100,21 @@ export default function ItemGroupList() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedItem, setSelectedItem] = useState<ItemGroupDisplay | null>(null);
 
+  // ─── Detail View State ────────────────────────────────────────────────────
+  const [detailData, setDetailData] = useState<ItemGroupDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+
   // ─── Edit Modal State ──────────────────────────────────────────────────
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState<EditFormState | null>(null);
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
-  // Format date to "X h" or "X d" format
+  // ─── Check if we are in detail view ─────────────────────────────────────
+  const isDetailView = !!id;
+
+  // ─── Format date to "X h" or "X d" format ──────────────────────────────
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -95,7 +132,41 @@ export default function ItemGroupList() {
     return `${Math.floor(diffDays / 365)} y`;
   };
 
-  // Fetch item groups from API
+  // ─── Format date for display ──────────────────────────────────────────────
+  const formatDisplayDate = (dateString: string) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  // ─── Fetch Item Group Detail - THIS IS THE API CALL ─────────────────────
+  const fetchItemGroupDetail = async (groupId: string) => {
+    setDetailLoading(true);
+    setDetailError(null);
+    try {
+      // ✅ CORRECT API CALL: https://erp.sculptortechpvtltd.com/api/item-group/{id}
+      const response = await api.get<ApiDetailResponse>(`/item-group/${groupId}`);
+      
+      if (response.data.success === 1) {
+        setDetailData(response.data.data);
+      } else {
+        setDetailError('Failed to fetch item group details');
+      }
+    } catch (err) {
+      console.error('Error fetching item group detail:', err);
+      setDetailError('An error occurred while fetching item group details');
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  // ─── Fetch item groups from API ──────────────────────────────────────────
   const fetchItemGroups = async () => {
     setLoading(true);
     setError(null);
@@ -106,7 +177,6 @@ export default function ItemGroupList() {
         const data = response.data.data;
         setTotalItems(data.length);
 
-        // Transform API data to display format
         const transformedData: ItemGroupDisplay[] = data.map((item: ItemGroup) => ({
           id: item.id.toString(),
           itemGroupName: item.item_group_name,
@@ -129,17 +199,28 @@ export default function ItemGroupList() {
     }
   };
 
-  // Fetch when dependencies change
+  // ─── WHEN ID IS PRESENT, FETCH DETAIL DATA ──────────────────────────────
   useEffect(() => {
-    fetchItemGroups();
-  }, [currentPage, itemsPerPage]);
+    if (id) {
+      fetchItemGroupDetail(id);
+    }
+  }, [id]);
 
-  // Reset page when filters change
+  // ─── Fetch list when dependencies change ────────────────────────────────
   useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, statusFilter]);
+    if (!isDetailView) {
+      fetchItemGroups();
+    }
+  }, [currentPage, itemsPerPage, isDetailView]);
 
-  // Filter data based on search and status
+  // ─── Reset page when filters change ─────────────────────────────────────
+  useEffect(() => {
+    if (!isDetailView) {
+      setCurrentPage(1);
+    }
+  }, [searchTerm, statusFilter, isDetailView]);
+
+  // ─── Filter data based on search and status ─────────────────────────────
   const filteredData = itemGroups.filter(item => {
     const matchesSearch = item.itemGroupName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           item.id.toLowerCase().includes(searchTerm.toLowerCase());
@@ -151,10 +232,9 @@ export default function ItemGroupList() {
 
   const totalFilteredItems = filteredData.length;
   const totalPages = Math.ceil(totalFilteredItems / itemsPerPage);
-
-  // Ensure current page is valid when data changes
   const validCurrentPage = Math.min(currentPage, totalPages || 1);
-  if (validCurrentPage !== currentPage) {
+  
+  if (validCurrentPage !== currentPage && !isDetailView) {
     setCurrentPage(validCurrentPage);
   }
 
@@ -163,7 +243,6 @@ export default function ItemGroupList() {
     validCurrentPage * itemsPerPage
   );
 
-  // Distinct list of parent item groups from the fetched data, for the edit dropdown
   const parentGroupOptions = Array.from(
     new Set(
       itemGroups
@@ -277,7 +356,6 @@ export default function ItemGroupList() {
       const response = await api.put('/item-group', payload);
 
       if (response.data && response.data.success === 1) {
-        // Reflect the change immediately in the table
         setItemGroups((prev) =>
           prev.map((g) =>
             g.id === editForm.id
@@ -304,8 +382,14 @@ export default function ItemGroupList() {
     }
   };
 
+  // ─── View Handler - Navigate to detail page ──────────────────────────────
   const handleView = (item: ItemGroupDisplay) => {
     navigate(`/item-group/${encodeURIComponent(item.id)}`);
+  };
+
+  // ─── Go Back to List ──────────────────────────────────────────────────────
+  const goBackToList = () => {
+    navigate('/item-group');
   };
 
   const clearFilters = () => {
@@ -321,6 +405,185 @@ export default function ItemGroupList() {
     return Math.min(validCurrentPage * itemsPerPage, totalFilteredItems);
   };
 
+  // ─── RENDER: Detail View (View Page) ────────────────────────────────────
+  if (isDetailView) {
+    return (
+      <div className={`igl-page ${theme}`}>
+        {/* Back Button */}
+        <div className="igl-detail-header">
+          <button className="igl-back-btn" onClick={goBackToList}>
+            <FaArrowLeft size={14} /> Back to List
+          </button>
+          <h1 className="igl-detail-title">
+            {detailLoading ? 'Loading...' : detailData?.item_group_name || 'Item Group Details'}
+          </h1>
+        </div>
+
+        {/* Loading State */}
+        {detailLoading && (
+          <div className="igl-loading">
+            <FaSpinner className="igl-spin" size={32} />
+            <p>Loading item group details...</p>
+          </div>
+        )}
+
+        {/* Error State */}
+        {detailError && (
+          <div className="igl-error">
+            <p>{detailError}</p>
+            <button onClick={() => id && fetchItemGroupDetail(id)} className="igl-retry-btn">
+              Retry
+            </button>
+          </div>
+        )}
+
+        {/* Detail Content - Shows the data from API */}
+        {!detailLoading && !detailError && detailData && (
+          <div className="igl-detail-content">
+            {/* GENERAL SETTINGS */}
+            <div className="igl-detail-section">
+              <h3 className="igl-detail-section-title">GENERAL SETTINGS</h3>
+              <div className="igl-detail-row">
+                <div className="igl-detail-field">
+                  <label>PARENT ITEM GROUP</label>
+                  <span>{detailData.parent_item_group || 'N/A'}</span>
+                </div>
+              </div>
+              <div className="igl-detail-row">
+                <div className="igl-detail-field">
+                  <label>Is Group</label>
+                  <span>{detailData.is_group === 1 ? 'Parent Group' : 'Sub Item'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* ITEM GROUP DEFAULTS */}
+            <div className="igl-detail-section">
+              <h3 className="igl-detail-section-title">ITEM GROUP DEFAULTS</h3>
+              <div className="igl-detail-row">
+                <div className="igl-detail-field">
+                  <label>NO. COMPANY</label>
+                  <span>{detailData.company || 'N/A'}</span>
+                </div>
+              </div>
+              <div className="igl-detail-row">
+                <div className="igl-detail-field">
+                  <label>ITEM TAX</label>
+                  <span>{detailData.item_tax_template || 'N/A'}</span>
+                </div>
+              </div>
+              <div className="igl-detail-row">
+                <div className="igl-detail-field">
+                  <label>TAX CATEGORY</label>
+                  <span>{detailData.tax_category || 'N/A'}</span>
+                </div>
+              </div>
+              <div className="igl-detail-row">
+                <div className="igl-detail-field">
+                  <label>VALID FROM</label>
+                  <span>{detailData.valid_from ? formatDisplayDate(detailData.valid_from) : 'N/A'}</span>
+                </div>
+              </div>
+              <div className="igl-detail-row">
+                <div className="igl-detail-field">
+                  <label>MIN NET RATE</label>
+                  <span>{detailData.min_net_rate ?? 'N/A'}</span>
+                </div>
+              </div>
+              <div className="igl-detail-row">
+                <div className="igl-detail-field">
+                  <label>MAX NET RATE</label>
+                  <span>{detailData.max_net_rate ?? 'N/A'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* COMMENTS */}
+            <div className="igl-detail-section">
+              <h3 className="igl-detail-section-title">COMMENTS</h3>
+              <div className="igl-detail-row">
+                <div className="igl-detail-field">
+                  <span>{detailData.comments || 'No comments'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* DEFAULT WAREHOUSE */}
+            <div className="igl-detail-section">
+              <h3 className="igl-detail-section-title">DEFAULT WAREHOUSE</h3>
+              <div className="igl-detail-row">
+                <div className="igl-detail-field">
+                  <label>DEFAULT PRICE LIST</label>
+                  <span>{detailData.default_price_list || 'N/A'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* DEFAULTS */}
+            <div className="igl-detail-section">
+              <h3 className="igl-detail-section-title">DEFAULTS</h3>
+              <div className="igl-detail-row">
+                <div className="igl-detail-field">
+                  <label>DEFAULT PRICE LIST</label>
+                  <span>{detailData.default_price_list || 'N/A'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* TAX CATEGORY */}
+            <div className="igl-detail-section">
+              <h3 className="igl-detail-section-title">TAX CATEGORY</h3>
+              <div className="igl-detail-row">
+                <div className="igl-detail-field">
+                  <label>TAX CATEGORY</label>
+                  <span>{detailData.tax_category || 'N/A'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Meta Information */}
+            <div className="igl-detail-section">
+              <h3 className="igl-detail-section-title">META INFORMATION</h3>
+              <div className="igl-detail-row">
+                <div className="igl-detail-field">
+                  <label>Created</label>
+                  <span>{formatDisplayDate(detailData.creation)}</span>
+                </div>
+              </div>
+              <div className="igl-detail-row">
+                <div className="igl-detail-field">
+                  <label>Modified</label>
+                  <span>{formatDisplayDate(detailData.modified)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Edit Button */}
+            {detailData.is_editable !== 0 && (
+              <div className="igl-detail-actions">
+                <button 
+                  className="igl-btn-save" 
+                  onClick={() => {
+                    // Navigate back to list and open edit modal
+                    navigate('/item-group');
+                    // The edit modal will open after navigation
+                    setTimeout(() => {
+                      const item = itemGroups.find(g => g.id === detailData.id.toString());
+                      if (item) handleEdit(item);
+                    }, 100);
+                  }}
+                >
+                  <FaEdit size={12} /> Edit
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ─── RENDER: List View ──────────────────────────────────────────────────
   return (
     <div className={`igl-page ${theme}`}>
       {/* Search and Filter Bar */}
@@ -363,12 +626,6 @@ export default function ItemGroupList() {
             Created On
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </button>
-        
-          {/* <button className="igl-btn-primary" onClick={() => navigate("/item-group/new")}>
-            <FaPlus size={12} />
-            Add Item Group
-          </button> */}
-
         </div>
       </div>
 
@@ -503,7 +760,7 @@ export default function ItemGroupList() {
             </table>
           </div>
 
-          {/* Pagination - Always visible */}
+          {/* Pagination */}
           <div className="igl-pagination">
             <div className="igl-pagination-left">
               <span className="igl-pagination-label">Show:</span>
