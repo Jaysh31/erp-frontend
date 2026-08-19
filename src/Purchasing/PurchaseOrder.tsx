@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   FaSearch, FaPlus, FaEdit, FaTrash, FaFilter,
   FaTimes, FaEye,
@@ -7,6 +7,7 @@ import {
   FaSpinner,
   FaChevronLeft, FaChevronRight,
   FaAngleDoubleLeft, FaAngleDoubleRight,
+  FaCalendarAlt,
 } from 'react-icons/fa';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import { useNavigate } from 'react-router-dom';
@@ -54,6 +55,7 @@ interface PurchaseOrder {
 interface ApiPurchaseOrder {
   id: number;
   name: string;
+  title?: string;
   supplier: string;
   supplier_name: string;
   company: string;
@@ -80,6 +82,134 @@ interface ApiResponse {
   };
 }
 
+// ─── Date helpers (for the calendar picker) ───────────────────
+
+const toISODate = (d: Date): string => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const formatDisplayDate = (iso: string): string => {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+const WEEKDAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+
+// ─── Range Calendar Component ─────────────────────────────────
+
+interface RangeCalendarProps {
+  month: Date;
+  onMonthChange: (d: Date) => void;
+  fromDate: string;
+  toDate: string;
+  onSelect: (from: string, to: string) => void;
+}
+
+function RangeCalendar({ month, onMonthChange, fromDate, toDate, onSelect }: RangeCalendarProps) {
+  const year = month.getFullYear();
+  const monthIndex = month.getMonth();
+  const firstDayOfMonth = new Date(year, monthIndex, 1);
+  const startWeekday = firstDayOfMonth.getDay();
+  const totalDaysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+  const monthLabel = month.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  const handleDayClick = (day: number) => {
+    const clickedStr = toISODate(new Date(year, monthIndex, day));
+    if (!fromDate || (fromDate && toDate)) {
+      // Start a fresh range
+      onSelect(clickedStr, '');
+    } else if (clickedStr < fromDate) {
+      // Clicked before current "from" -> becomes new "from"
+      onSelect(clickedStr, fromDate);
+    } else {
+      onSelect(fromDate, clickedStr);
+    }
+  };
+
+  const cells: (number | null)[] = [];
+  for (let i = 0; i < startWeekday; i++) cells.push(null);
+  for (let d = 1; d <= totalDaysInMonth; d++) cells.push(d);
+
+  return (
+    <div style={{ userSelect: 'none' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+        <button
+          type="button"
+          onClick={() => onMonthChange(new Date(year, monthIndex - 1, 1))}
+          style={{
+            background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px',
+            borderRadius: '4px', color: '#4a5568', display: 'flex', alignItems: 'center'
+          }}
+        >
+          <FaChevronLeft size={11} />
+        </button>
+        <span style={{ fontWeight: 600, fontSize: '13px', color: '#1a202c' }}>{monthLabel}</span>
+        <button
+          type="button"
+          onClick={() => onMonthChange(new Date(year, monthIndex + 1, 1))}
+          style={{
+            background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px',
+            borderRadius: '4px', color: '#4a5568', display: 'flex', alignItems: 'center'
+          }}
+        >
+          <FaChevronRight size={11} />
+        </button>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', marginBottom: '4px' }}>
+        {WEEKDAY_LABELS.map((wd) => (
+          <span key={wd} style={{ fontSize: '10px', fontWeight: 600, color: '#a0aec0', textAlign: 'center', padding: '4px 0' }}>
+            {wd}
+          </span>
+        ))}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', rowGap: '2px' }}>
+        {cells.map((day, idx) => {
+          if (day === null) return <span key={`empty-${idx}`} />;
+          const dateStr = toISODate(new Date(year, monthIndex, day));
+          const isFrom = dateStr === fromDate;
+          const isTo = dateStr === toDate;
+          const isEndpoint = isFrom || isTo;
+          const inRange = !!fromDate && !!toDate && dateStr > fromDate && dateStr < toDate;
+          const isToday = dateStr === toISODate(new Date());
+
+          let borderRadius = '6px';
+          if (isFrom && toDate) borderRadius = '6px 0 0 6px';
+          else if (isTo && fromDate) borderRadius = '0 6px 6px 0';
+
+          return (
+            <button
+              type="button"
+              key={dateStr}
+              onClick={() => handleDayClick(day)}
+              style={{
+                width: '100%',
+                aspectRatio: '1',
+                border: isToday && !isEndpoint ? '1px solid #3182ce' : 'none',
+                borderRadius,
+                background: isEndpoint ? '#3182ce' : inRange ? '#ebf8ff' : 'transparent',
+                color: isEndpoint ? 'white' : '#2d3748',
+                fontSize: '12px',
+                fontWeight: isEndpoint ? 600 : 400,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {day}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Component ────────────────────────────────────────
 
 export default function PurchaseOrder() {
@@ -91,6 +221,16 @@ export default function PurchaseOrder() {
   const [selectedStatus, setSelectedStatus] = useState('All');
   const [selectedSupplier, setSelectedSupplier] = useState('All');
   const [showFilters, setShowFilters] = useState(false);
+
+  // Date filters - single From / To range (applied to Order Date)
+  // Sent to API as: api/purchase-order?date_from=YYYY-MM-DD&date_to=YYYY-MM-DD
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+
+  // Date filter dropdown state
+  const [showDateFilterDropdown, setShowDateFilterDropdown] = useState(false);
+  const [calMonth, setCalMonth] = useState<Date>(new Date());
+  const dateFilterRef = useRef<HTMLDivElement>(null);
 
   // Modals
   const [showViewModal, setShowViewModal] = useState(false);
@@ -108,6 +248,20 @@ export default function PurchaseOrder() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
+  // ─── Click outside handler ──────────────────────────────
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dateFilterRef.current && !dateFilterRef.current.contains(event.target as Node)) {
+        setShowDateFilterDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
   // ─── API Helpers ──────────────────────────────────────────
 
   const mapStatus = (apiStatus: string): PurchaseOrder['status'] => {
@@ -124,7 +278,27 @@ export default function PurchaseOrder() {
     }
   };
 
-  // Fetch current page from the server
+  // Debounce function for search
+  const useDebounce = (value: string, delay: number) => {
+    const [debouncedValue, setDebouncedValue] = useState(value);
+
+    useEffect(() => {
+      const handler = setTimeout(() => {
+        setDebouncedValue(value);
+      }, delay);
+
+      return () => {
+        clearTimeout(handler);
+      };
+    }, [value, delay]);
+
+    return debouncedValue;
+  };
+
+  const debouncedFilterText = useDebounce(filterText, 500);
+  const debouncedSupplier = useDebounce(selectedSupplier, 300);
+
+  // Fetch current page from the server with all filters
   const fetchPurchaseOrders = useCallback(async () => {
     setFetching(true);
     setApiError(null);
@@ -133,10 +307,24 @@ export default function PurchaseOrder() {
       params.append('page', String(currentPage));
       params.append('limit', String(itemsPerPage));
 
-      // Optional: send filters if your API supports them
-      // if (filterText.trim()) params.append('search', filterText.trim());
-      // if (selectedStatus !== 'All') params.append('status', selectedStatus);
-      // if (selectedSupplier !== 'All') params.append('supplier', selectedSupplier);
+      // Search filter - works for PO number, title, and supplier
+      if (debouncedFilterText.trim()) {
+        params.append('search', debouncedFilterText.trim());
+      }
+
+      // Status filter - /api/purchase-order?status=Draft
+      if (selectedStatus !== 'All') {
+        params.append('status', selectedStatus);
+      }
+
+      // Date range filter (From / To) - applied to Order Date
+      // api/purchase-order?date_from=2026-08-01&date_to=2026-08-14
+      if (dateFrom) {
+        params.append('date_from', dateFrom);
+      }
+      if (dateTo) {
+        params.append('date_to', dateTo);
+      }
 
       const response = await api.get<ApiResponse>(`/purchase-order?${params.toString()}`);
       if (response.data.success === 1) {
@@ -146,7 +334,7 @@ export default function PurchaseOrder() {
         const transformedOrders: PurchaseOrder[] = records.map((item) => ({
           id: String(item.id),
           poNumber: item.name || `PO-${String(item.id).padStart(5, '0')}`,
-          title: `PO-${item.name || item.id}`,
+          title: item.title || `PO-${item.name || item.id}`,
           supplier: item.supplier_name || item.supplier || 'N/A',
           supplierCode: item.supplier || 'N/A',
           status: mapStatus(item.status),
@@ -183,7 +371,7 @@ export default function PurchaseOrder() {
     } finally {
       setFetching(false);
     }
-  }, [currentPage, itemsPerPage]);
+  }, [currentPage, itemsPerPage, debouncedFilterText, selectedStatus, debouncedSupplier, dateFrom, dateTo]);
 
   // ─── Effects ──────────────────────────────────────────────
 
@@ -191,10 +379,10 @@ export default function PurchaseOrder() {
     fetchPurchaseOrders();
   }, [fetchPurchaseOrders]);
 
-  // Reset page when filters change (client‑side filtering)
+  // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterText, selectedStatus, selectedSupplier]);
+  }, [filterText, selectedStatus, selectedSupplier, dateFrom, dateTo]);
 
   // ─── Filtering (client‑side on the current page) ─────────
 
@@ -270,6 +458,43 @@ export default function PurchaseOrder() {
     }
   };
 
+  // ─── Quick presets for the calendar ──────────────────────
+
+  const applyPreset = (preset: 'today' | 'last7' | 'last30' | 'thisMonth') => {
+    const today = new Date();
+    let from = today;
+    let to = today;
+
+    if (preset === 'last7') {
+      from = new Date(today);
+      from.setDate(today.getDate() - 6);
+    } else if (preset === 'last30') {
+      from = new Date(today);
+      from.setDate(today.getDate() - 29);
+    } else if (preset === 'thisMonth') {
+      from = new Date(today.getFullYear(), today.getMonth(), 1);
+    }
+
+    const fromStr = toISODate(from);
+    const toStr = toISODate(to);
+
+    setDateFrom(fromStr);
+    setDateTo(toStr);
+    setCalMonth(from);
+  };
+
+  const clearDateRange = () => {
+    setDateFrom('');
+    setDateTo('');
+  };
+
+  const dateButtonLabel = () => {
+    if (dateFrom) {
+      return `${formatDisplayDate(dateFrom)}${dateTo ? ' – ' + formatDisplayDate(dateTo) : ''}`;
+    }
+    return 'From - To';
+  };
+
   // ─── Action Handlers ──────────────────────────────────────
 
   const handleCreate = () => navigate('/purchase-order/new');
@@ -310,6 +535,9 @@ export default function PurchaseOrder() {
     setFilterText('');
     setSelectedStatus('All');
     setSelectedSupplier('All');
+    setDateFrom('');
+    setDateTo('');
+    setShowDateFilterDropdown(false);
   };
 
   // ─── Data for filters ────────────────────────────────────
@@ -334,9 +562,6 @@ export default function PurchaseOrder() {
 
   return (
     <div className={`po-page ${theme}`}>
-      {/* ─── Header with breadcrumb ──────────────────────── */}
-    
-
       {/* ─── Filter Bar ────────────────────────────────────── */}
       <div className="po-filter-bar">
         <div className="po-filter-left">
@@ -371,13 +596,133 @@ export default function PurchaseOrder() {
           >
             <FaFilter size={12} /> Filter
           </button>
-          <button className="po-sort-btn">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="9" y2="18"/>
-            </svg>
-            Order Date
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-          </button>
+
+          {/* Date Range Button with Calendar Dropdown */}
+          <div ref={dateFilterRef} style={{ position: 'relative', display: 'inline-block' }}>
+            <button
+              className="po-sort-btn"
+              onClick={() => setShowDateFilterDropdown(!showDateFilterDropdown)}
+              style={dateFrom ? { borderColor: '#3182ce', color: '#3182ce' } : undefined}
+            >
+              <FaCalendarAlt size={13} />
+              <span style={{ maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {dateButtonLabel()}
+              </span>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </button>
+
+            {/* Calendar Date Filter Dropdown */}
+            {showDateFilterDropdown && (
+              <div className="po-date-filter-dropdown" style={{
+                position: 'absolute',
+                top: '100%',
+                right: '0',
+                marginTop: '4px',
+                backgroundColor: 'white',
+                border: '1px solid #e2e8f0',
+                borderRadius: '8px',
+                boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+                padding: '16px',
+                minWidth: '300px',
+                zIndex: 1000,
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <span style={{ fontWeight: 600, fontSize: '14px', color: '#1a202c' }}>Filter by Date</span>
+                  <button onClick={() => setShowDateFilterDropdown(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#718096' }}>
+                    <FaTimes size={14} />
+                  </button>
+                </div>
+
+                {/* Selected range readout */}
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+                  <div style={{
+                    flex: 1, padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: '4px',
+                    fontSize: '12px', color: dateFrom ? '#1a202c' : '#a0aec0'
+                  }}>
+                    {dateFrom ? formatDisplayDate(dateFrom) : 'From'}
+                  </div>
+                  <div style={{
+                    flex: 1, padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: '4px',
+                    fontSize: '12px', color: dateTo ? '#1a202c' : '#a0aec0'
+                  }}>
+                    {dateTo ? formatDisplayDate(dateTo) : 'To'}
+                  </div>
+                </div>
+
+                {/* Quick presets */}
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '12px' }}>
+                  {([
+                    { key: 'today', label: 'Today' },
+                    { key: 'last7', label: 'Last 7 Days' },
+                    { key: 'last30', label: 'Last 30 Days' },
+                    { key: 'thisMonth', label: 'This Month' },
+                  ] as const).map((p) => (
+                    <button
+                      key={p.key}
+                      type="button"
+                      onClick={() => applyPreset(p.key)}
+                      style={{
+                        padding: '4px 10px',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '999px',
+                        backgroundColor: '#f7fafc',
+                        fontSize: '11px',
+                        color: '#4a5568',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Calendar */}
+                <RangeCalendar
+                  month={calMonth}
+                  onMonthChange={setCalMonth}
+                  fromDate={dateFrom}
+                  toDate={dateTo}
+                  onSelect={(from, to) => { setDateFrom(from); setDateTo(to); }}
+                />
+
+                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '14px' }}>
+                  <button
+                    onClick={clearDateRange}
+                    style={{
+                      padding: '6px 16px',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '4px',
+                      backgroundColor: 'white',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      color: '#4a5568'
+                    }}
+                  >
+                    Clear
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowDateFilterDropdown(false);
+                      fetchPurchaseOrders();
+                    }}
+                    style={{
+                      padding: '6px 16px',
+                      border: 'none',
+                      borderRadius: '4px',
+                      backgroundColor: '#3182ce',
+                      color: 'white',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      fontWeight: 500
+                    }}
+                  >
+                    Apply Filters
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
           <button className="po-btn-primary" onClick={handleCreate}>
             <FaPlus size={12} /> Add PO
           </button>
@@ -385,13 +730,15 @@ export default function PurchaseOrder() {
       </div>
 
       {/* ─── Active filters ────────────────────────────────── */}
-      {(filterText || selectedStatus !== 'All' || selectedSupplier !== 'All') && (
+      {(filterText || selectedStatus !== 'All' || selectedSupplier !== 'All' || dateFrom || dateTo) && (
         <div className="po-active-filters">
           <FaFilter size={12} style={{ color: 'var(--primary-color)' }} />
           <span>Active filters:</span>
           {filterText && <span><strong>Search:</strong> "{filterText}"</span>}
           {selectedStatus !== 'All' && <span><strong>Status:</strong> {selectedStatus}</span>}
           {selectedSupplier !== 'All' && <span><strong>Supplier:</strong> {selectedSupplier}</span>}
+          {dateFrom && <span><strong>From:</strong> {dateFrom}</span>}
+          {dateTo && <span><strong>To:</strong> {dateTo}</span>}
           <button onClick={clearFilters} className="po-clear-filters">
             <FaTimes size={10} /> Clear All
           </button>
@@ -420,6 +767,7 @@ export default function PurchaseOrder() {
               {suppliers.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
+
           <div className="po-filter-group">
             <label>Currency</label>
             <select>
@@ -434,7 +782,7 @@ export default function PurchaseOrder() {
               {paymentTerms.map((p) => <option key={p} value={p}>{p}</option>)}
             </select>
           </div>
-          <button className="po-apply-filters">Apply</button>
+          <button className="po-apply-filters" onClick={fetchPurchaseOrders}>Apply</button>
         </div>
       )}
 
@@ -447,6 +795,7 @@ export default function PurchaseOrder() {
               <th className="po-th">Title</th>
               <th className="po-th">Supplier</th>
               <th className="po-th">Order Date</th>
+              <th className="po-th">Delivery Date</th>
               <th className="po-th">Amount</th>
               <th className="po-th">Status</th>
               <th className="po-th po-th-meta">
@@ -464,7 +813,7 @@ export default function PurchaseOrder() {
           <tbody>
             {filteredOrders.length === 0 ? (
               <tr>
-                <td colSpan={7} className="po-empty-state">
+                <td colSpan={8} className="po-empty-state">
                   <div className="po-empty-content">
                     <FaFileAlt size={48} />
                     <p>No purchase orders found</p>
@@ -482,6 +831,7 @@ export default function PurchaseOrder() {
                   <td className="po-td">{po.title}</td>
                   <td className="po-td">{po.supplier}</td>
                   <td className="po-td">{po.orderDate}</td>
+                  <td className="po-td">{po.deliveryDate}</td>
                   <td className="po-td">{po.currency} {po.totalAmount.toLocaleString()}</td>
                   <td className="po-td">
                     <span className={`po-status-badge ${getStatusColor(po.status)}`}>

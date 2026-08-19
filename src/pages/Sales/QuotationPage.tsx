@@ -1,11 +1,13 @@
-import  { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   FaSearch, FaPlus, FaEye, FaEdit, FaTrash, FaFilePdf, FaPrint,
   FaFilter, FaCheckCircle, FaClock, FaTimesCircle,
   FaFileAlt, FaExternalLinkAlt,
-  FaChartLine, FaTimes,  FaSpinner,
-  FaEnvelope, FaClipboardList, FaDollarSign
+  FaChartLine, FaTimes, FaSpinner,
+  FaEnvelope, FaClipboardList, FaDollarSign,
+  FaChevronLeft, FaChevronRight,
+  FaAngleDoubleLeft, FaAngleDoubleRight,
 } from 'react-icons/fa';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
@@ -130,6 +132,17 @@ interface QuotationApiRecord {
     cgst_rate?: number;
     sgst_rate?: number;
   }>;
+}
+
+interface ApiResponse {
+  success: number;
+  data: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+    records: QuotationApiRecord[];
+  };
 }
 
 const companyDetails = {
@@ -268,38 +281,81 @@ export default function QuotationPage() {
   const [printLoadingId, setPrintLoadingId] = useState<string | null>(null);
 
   const [quotations, setQuotations] = useState<Quotation[]>([]);
+  
+  // Server-side pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
 
   // Modal states
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [selectedQuote, setSelectedQuote] = useState<Quotation | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [pdfModalLoading, ] = useState(false);
+  const [pdfModalLoading] = useState(false);
 
-  // ─── load from GET /quotation ───────────────────────────────────────
+  // ─── Debounce function for search ──────────────────────────────────
+  const useDebounce = (value: string, delay: number) => {
+    const [debouncedValue, setDebouncedValue] = useState(value);
+
+    useEffect(() => {
+      const handler = setTimeout(() => {
+        setDebouncedValue(value);
+      }, delay);
+
+      return () => {
+        clearTimeout(handler);
+      };
+    }, [value, delay]);
+
+    return debouncedValue;
+  };
+
+  const debouncedFilterText = useDebounce(filterText, 500);
+
+  // ─── load from GET /quotation with server-side pagination ──────
 
   const fetchQuotations = async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await api.get('/quotation');
+      const params = new URLSearchParams();
+      params.append('page', String(currentPage));
+      params.append('limit', String(itemsPerPage));
 
-      if (response.data.success !== 1) {
-        throw new Error(response.data?.message || 'Failed to fetch quotations');
+      // Add search filter if present
+      if (debouncedFilterText.trim()) {
+        params.append('search', debouncedFilterText.trim());
       }
 
-      const raw = response.data.data;
-      let all: QuotationApiRecord[] =
-        raw?.records ??
-        (Array.isArray(raw) ? raw : raw?.data) ??
-        [];
-
-      if (!Array.isArray(all)) {
-        console.warn('Unexpected /quotation response shape, defaulting to empty list:', raw);
-        all = [];
+      // Add status filter if not 'All'
+      if (selectedStatus !== 'All') {
+        params.append('status', selectedStatus);
       }
 
-      const transformedData: Quotation[] = all.map((q) => ({
+      // Add currency filter if not 'All'
+      if (selectedCurrency !== 'All') {
+        params.append('currency', selectedCurrency);
+      }
+
+      const response = await api.get<ApiResponse>(`/quotation?${params.toString()}`);
+
+     
+
+      const { records, total, page, limit, totalPages: apiTotalPages } = response.data.data;
+
+      // Update pagination info from server
+      setTotalRecords(total);
+      setTotalPages(apiTotalPages);
+      
+      // Ensure current page is valid
+      if (currentPage > apiTotalPages && apiTotalPages > 0) {
+        setCurrentPage(apiTotalPages);
+        return; // Will re-fetch with corrected page
+      }
+
+      const transformedData: Quotation[] = records.map((q) => ({
         id: q.name,
         quotationNumber: q.name,
         customer: q.party_name || '',
@@ -339,9 +395,15 @@ export default function QuotationPage() {
     }
   };
 
+  // Fetch when page, itemsPerPage, or filters change
   useEffect(() => {
     fetchQuotations();
-  }, []);
+  }, [currentPage, itemsPerPage, debouncedFilterText, selectedStatus, selectedCurrency]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterText, selectedStatus, selectedCurrency]);
 
   const fetchFullQuotationRecord = async (quotationId: string): Promise<QuotationApiRecord | null> => {
     try {
@@ -457,22 +519,60 @@ export default function QuotationPage() {
     }
   };
 
-  const filteredQuotations = quotations.filter(q => {
-    const matchesSearch = q.quotationNumber.toLowerCase().includes(filterText.toLowerCase()) ||
-                         q.customerName.toLowerCase().includes(filterText.toLowerCase());
-    const matchesStatus = selectedStatus === 'All' || q.status === selectedStatus;
-    const matchesCurrency = selectedCurrency === 'All' || q.currency === selectedCurrency;
-    return matchesSearch && matchesStatus && matchesCurrency;
-  });
+  // ─── Pagination Handlers ──────────────────────────────────────────
+  const goToPage = (page: number) => {
+    if (page < 1) {
+      setCurrentPage(1);
+    } else if (page > totalPages) {
+      setCurrentPage(totalPages);
+    } else {
+      setCurrentPage(page);
+    }
+  };
+
+  const goToFirstPage = () => goToPage(1);
+  const goToLastPage = () => goToPage(totalPages);
+  const goToNextPage = () => goToPage(currentPage + 1);
+  const goToPrevPage = () => goToPage(currentPage - 1);
+
+  const handlePageSizeChange = (newSize: number) => {
+    setItemsPerPage(newSize);
+    setCurrentPage(1);
+  };
+
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisible = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+    
+    if (endPage - startPage + 1 < maxVisible) {
+      startPage = Math.max(1, endPage - maxVisible + 1);
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i);
+    }
+    return pages;
+  };
+
+  const getStartIndexDisplay = () => {
+    if (totalRecords === 0) return 0;
+    return (currentPage - 1) * itemsPerPage + 1;
+  };
+
+  const getEndIndexDisplay = () => {
+    return Math.min(currentPage * itemsPerPage, totalRecords);
+  };
 
   const getStatusCount = (status: string) => {
-    return quotations.filter(q => q.status === status).length;
+    return 0; // Placeholder
   };
 
   const totalAmount = quotations.reduce((sum, q) => sum + q.totalAmount, 0);
   const acceptedAmount = quotations.filter(q => q.status === 'Accepted').reduce((sum, q) => sum + q.totalAmount, 0);
   const conversionRate = totalAmount > 0 ? Math.round((acceptedAmount / totalAmount) * 100) : 0;
-  const totalQuotes = quotations.length;
+  const totalQuotes = totalRecords;
 
   const handleView = (quote: Quotation) => {
     navigate(`/quotation/${quote.id}`, { state: { quotation: quote } });
@@ -482,7 +582,6 @@ export default function QuotationPage() {
     navigate(`/quotation/${quote.id}`, { state: { quotation: quote } });
   };
 
-  // ✅ FIXED: Delete Quotation with better error handling
   const handleDeleteClick = (quote: Quotation) => {
     setSelectedQuote(quote);
     setShowDeleteModal(true);
@@ -492,10 +591,11 @@ export default function QuotationPage() {
     if (!selectedQuote) return;
     setIsSubmitting(true);
     try {
-      // Log the delete URL for debugging
-      console.log(`Attempting to delete quotation: ${selectedQuote.id}`);
-      console.log(`DELETE URL: /quotation/${selectedQuote.id}`);
+      // Log the delete attempt
+      console.log('Attempting to delete quotation:', selectedQuote.id);
+      console.log('Quotation data:', selectedQuote);
       
+      // Try different delete endpoints if needed
       const response = await api.delete(`/quotation/${selectedQuote.id}`);
       console.log('Delete response:', response);
       
@@ -503,7 +603,8 @@ export default function QuotationPage() {
         setShowDeleteModal(false);
         setSelectedQuote(null);
         toast.success(response.data.message || 'Quotation deleted successfully!');
-        fetchQuotations();
+        // Refresh the list
+        await fetchQuotations();
       } else {
         const errorMsg = response.data?.message || 'Failed to delete quotation';
         console.error('Delete failed:', errorMsg);
@@ -512,9 +613,8 @@ export default function QuotationPage() {
     } catch (err: any) {
       console.error('Error deleting quotation:', err);
       
-      // Detailed error logging
+      // Check if error has response (server responded)
       if (err.response) {
-        // Server responded with error
         console.error('Error response status:', err.response.status);
         console.error('Error response data:', err.response.data);
         console.error('Error response headers:', err.response.headers);
@@ -526,17 +626,19 @@ export default function QuotationPage() {
           toast.error('Quotation not found. It may have already been deleted.');
         } else if (err.response.status === 403) {
           toast.error('You do not have permission to delete this quotation.');
+        } else if (err.response.status === 400) {
+          toast.error(err.response.data?.message || 'Bad request. Please check the quotation data.');
         } else {
           toast.error(err.response.data?.message || 'Failed to delete quotation');
         }
       } else if (err.request) {
-        // No response received
+        // Request was made but no response received
         console.error('No response received:', err.request);
         toast.error('Network error - Please check your connection');
       } else {
-        // Request setup error
+        // Something else happened
         console.error('Request setup error:', err.message);
-        toast.error('An unexpected error occurred');
+        toast.error('An unexpected error occurred: ' + err.message);
       }
     } finally {
       setIsSubmitting(false);
@@ -1010,7 +1112,7 @@ export default function QuotationPage() {
       {/* Table */}
       {!loading && !error && (
         <div className="qt-table-wrap">
-          {filteredQuotations.length === 0 ? (
+          {quotations.length === 0 ? (
             <div className="qt-empty-state">
               <div className="qt-empty-content">
                 <FaFileAlt size={48} />
@@ -1019,81 +1121,254 @@ export default function QuotationPage() {
               </div>
             </div>
           ) : (
-            <table className="qt-table">
-              <thead>
-                <tr>
-                  <th className="qt-th">Quote #</th>
-                  <th className="qt-th">Customer</th>
-                  <th className="qt-th">Date</th>
-                  <th className="qt-th">Status</th>
-                  <th className="qt-th qt-text-right">Amount</th>
-                  <th className="qt-th qt-th-meta">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredQuotations.map((quote) => (
-                  <tr key={quote.id} className="qt-tr">
-                    <td className="qt-td qt-td-id">{quote.quotationNumber}</td>
-                    <td className="qt-td">
-                      <div>
-                        <div className="qt-td-link">{quote.customerName}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{quote.customer}</div>
-                      </div>
-                    </td>
-                    <td className="qt-td">
-                      <div>{quote.date ? new Date(quote.date).toLocaleDateString() : '-'}</div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                        Valid: {quote.validTill ? new Date(quote.validTill).toLocaleDateString() : '-'}
-                      </div>
-                    </td>
-                    <td className="qt-td">
-                      <span className={`qt-status-badge ${getStatusColor(quote.status)}`}>
-                        {getStatusIcon(quote.status)}
-                        {quote.status}
-                      </span>
-                    </td>
-                    <td className="qt-td qt-text-right qt-amount-cell">
-                      <span className="qt-currency">{quote.currency}</span>
-                      {quote.totalAmount.toLocaleString()}
-                    </td>
-                    <td className="qt-td qt-td-meta">
-                      <div className="qt-action-buttons">
-                        <button className="qt-action-btn qt-action-view" onClick={() => handleView(quote)} title="View / Edit">
-                          <FaEye size={12} />
-                        </button>
-                        <button
-                          className="qt-action-btn qt-action-print"
-                          onClick={() => handlePrintQuotation(quote)}
-                          title="Print"
-                          disabled={printLoadingId === quote.id}
-                        >
-                          {printLoadingId === quote.id ? <FaSpinner className="spinning" size={12} /> : <FaPrint size={12} />}
-                        </button>
-                        <button className="qt-action-btn qt-action-edit" onClick={() => handleEdit(quote)} title="Edit">
-                          <FaEdit size={12} />
-                        </button>
-                        <button className="qt-action-btn qt-action-delete" onClick={() => handleDeleteClick(quote)} title="Delete">
-                          <FaTrash size={12} />
-                        </button>
-                      </div>
-                    </td>
+            <>
+              <table className="qt-table">
+                <thead>
+                  <tr>
+                    <th className="qt-th">Quote #</th>
+                    <th className="qt-th">Customer</th>
+                    <th className="qt-th">Date</th>
+                    <th className="qt-th">Status</th>
+                    <th className="qt-th qt-text-right">Amount</th>
+                    <th className="qt-th qt-th-meta">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {quotations.map((quote) => (
+                    <tr key={quote.id} className="qt-tr">
+                      <td className="qt-td qt-td-id">{quote.quotationNumber}</td>
+                      <td className="qt-td">
+                        <div>
+                          <div className="qt-td-link">{quote.customerName}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{quote.customer}</div>
+                        </div>
+                      </td>
+                      <td className="qt-td">
+                        <div>{quote.date ? new Date(quote.date).toLocaleDateString() : '-'}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                          Valid: {quote.validTill ? new Date(quote.validTill).toLocaleDateString() : '-'}
+                        </div>
+                      </td>
+                      <td className="qt-td">
+                        <span className={`qt-status-badge ${getStatusColor(quote.status)}`}>
+                          {getStatusIcon(quote.status)}
+                          {quote.status}
+                        </span>
+                      </td>
+                      <td className="qt-td qt-text-right qt-amount-cell">
+                        <span className="qt-currency">{quote.currency}</span>
+                        {quote.totalAmount.toLocaleString()}
+                      </td>
+                      <td className="qt-td qt-td-meta">
+                        <div className="qt-action-buttons">
+                          <button className="qt-action-btn qt-action-view" onClick={() => handleView(quote)} title="View / Edit">
+                            <FaEye size={12} />
+                          </button>
+                          <button
+                            className="qt-action-btn qt-action-print"
+                            onClick={() => handlePrintQuotation(quote)}
+                            title="Print"
+                            disabled={printLoadingId === quote.id}
+                          >
+                            {printLoadingId === quote.id ? <FaSpinner className="spinning" size={12} /> : <FaPrint size={12} />}
+                          </button>
+                          <button className="qt-action-btn qt-action-edit" onClick={() => handleEdit(quote)} title="Edit">
+                            <FaEdit size={12} />
+                          </button>
+                          <button className="qt-action-btn qt-action-delete" onClick={() => handleDeleteClick(quote)} title="Delete">
+                            <FaTrash size={12} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {/* ─── Pagination ────────────────────────────── */}
+              {totalRecords > 0 && (
+                <div className="qt-pagination" style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center',
+                  padding: '12px 0',
+                  borderTop: '1px solid var(--border-color, #e5e7eb)',
+                  marginTop: '8px'
+                }}>
+                  {/* Left side - Show entries dropdown */}
+                  <div className="qt-pagination-left" style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '8px',
+                    color: 'var(--text-secondary, #6b7280)',
+                    fontSize: '13px'
+                  }}>
+                    <span className="qt-pagination-label">Show:</span>
+                    <select
+                      value={itemsPerPage}
+                      onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                      className="qt-page-size-select"
+                      style={{
+                        padding: '4px 8px',
+                        border: '1px solid var(--border-color, #d1d5db)',
+                        borderRadius: '4px',
+                        background: 'var(--bg-color, white)',
+                        color: 'var(--text-primary, #1f2937)',
+                        fontSize: '13px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <option value={10}>10</option>
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                    </select>
+                    <span className="qt-pagination-label">entries</span>
+                  </div>
+
+                  {/* Center - Page navigation */}
+                  <div className="qt-pagination-center" style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '4px'
+                  }}>
+                    <button 
+                      onClick={goToFirstPage} 
+                      className="qt-page-btn" 
+                      disabled={currentPage === 1 || totalPages === 0}
+                      style={{
+                        padding: '4px 8px',
+                        border: '1px solid var(--border-color, #d1d5db)',
+                        borderRadius: '4px',
+                        background: 'var(--bg-color, white)',
+                        color: 'var(--text-primary, #1f2937)',
+                        cursor: currentPage === 1 || totalPages === 0 ? 'not-allowed' : 'pointer',
+                        opacity: currentPage === 1 || totalPages === 0 ? 0.5 : 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '12px'
+                      }}
+                    >
+                      <FaAngleDoubleLeft size={12} />
+                    </button>
+                    <button 
+                      onClick={goToPrevPage} 
+                      className="qt-page-btn" 
+                      disabled={currentPage === 1 || totalPages === 0}
+                      style={{
+                        padding: '4px 8px',
+                        border: '1px solid var(--border-color, #d1d5db)',
+                        borderRadius: '4px',
+                        background: 'var(--bg-color, white)',
+                        color: 'var(--text-primary, #1f2937)',
+                        cursor: currentPage === 1 || totalPages === 0 ? 'not-allowed' : 'pointer',
+                        opacity: currentPage === 1 || totalPages === 0 ? 0.5 : 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '12px'
+                      }}
+                    >
+                      <FaChevronLeft size={12} />
+                    </button>
+                    
+                    {totalPages > 0 && getPageNumbers().map((page) => (
+                      <button
+                        key={page}
+                        onClick={() => goToPage(page)}
+                        className={`qt-page-btn ${currentPage === page ? 'qt-page-btn-active' : ''}`}
+                        style={{
+                          padding: '4px 10px',
+                          border: currentPage === page ? '1px solid var(--primary-color, #3b82f6)' : '1px solid var(--border-color, #d1d5db)',
+                          borderRadius: '4px',
+                          background: currentPage === page ? 'var(--primary-color, #3b82f6)' : 'var(--bg-color, white)',
+                          color: currentPage === page ? 'white' : 'var(--text-primary, #1f2937)',
+                          cursor: 'pointer',
+                          fontSize: '13px',
+                          fontWeight: currentPage === page ? '600' : '400',
+                          minWidth: '32px'
+                        }}
+                      >
+                        {page}
+                      </button>
+                    ))}
+                    
+                    <button 
+                      onClick={goToNextPage} 
+                      className="qt-page-btn" 
+                      disabled={currentPage === totalPages || totalPages === 0}
+                      style={{
+                        padding: '4px 8px',
+                        border: '1px solid var(--border-color, #d1d5db)',
+                        borderRadius: '4px',
+                        background: 'var(--bg-color, white)',
+                        color: 'var(--text-primary, #1f2937)',
+                        cursor: currentPage === totalPages || totalPages === 0 ? 'not-allowed' : 'pointer',
+                        opacity: currentPage === totalPages || totalPages === 0 ? 0.5 : 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '12px'
+                      }}
+                    >
+                      <FaChevronRight size={12} />
+                    </button>
+                    <button 
+                      onClick={goToLastPage} 
+                      className="qt-page-btn" 
+                      disabled={currentPage === totalPages || totalPages === 0}
+                      style={{
+                        padding: '4px 8px',
+                        border: '1px solid var(--border-color, #d1d5db)',
+                        borderRadius: '4px',
+                        background: 'var(--bg-color, white)',
+                        color: 'var(--text-primary, #1f2937)',
+                        cursor: currentPage === totalPages || totalPages === 0 ? 'not-allowed' : 'pointer',
+                        opacity: currentPage === totalPages || totalPages === 0 ? 0.5 : 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '12px'
+                      }}
+                    >
+                      <FaAngleDoubleRight size={12} />
+                    </button>
+                  </div>
+
+                  {/* Right side - Showing entries info */}
+                  <div className="qt-pagination-right" style={{ 
+                    color: 'var(--text-secondary, #6b7280)',
+                    fontSize: '13px'
+                  }}>
+                    <span className="qt-pagination-info">
+                      {totalRecords > 0
+                        ? `Showing ${getStartIndexDisplay()} to ${getEndIndexDisplay()} of ${totalRecords} entries`
+                        : 'No entries to show'}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
 
-      {/* Footer */}
-      <div className="qt-pagination">
+      {/* Footer Stats */}
+      <div className="qt-footer-stats" style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: '8px 0',
+        marginTop: '4px'
+      }}>
         <div className="qt-pagination-left">
-          <span className="qt-pagination-info">
-            {filteredQuotations.length} of {quotations.length} quotes
+          <span className="qt-pagination-info" style={{ color: 'var(--text-secondary, #6b7280)', fontSize: '13px' }}>
+            {totalRecords} total quotes
           </span>
         </div>
         <div className="qt-pagination-right">
-          <span className="qt-pagination-info" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span className="qt-pagination-info" style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary, #6b7280)', fontSize: '13px' }}>
             <FaChartLine size={14} style={{ color: 'var(--primary-color)' }} />
             {conversionRate}% conversion rate
           </span>

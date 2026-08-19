@@ -759,7 +759,192 @@
     justify-content: center;
   }
 }
-/* GRNForm.css - Add these styles */
+
+/* ─── NEW: Draft Items Section ───────────────────────────────────────── */
+.grnf-draft-items-section {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 2px dashed var(--border-color);
+}
+
+.grnf-draft-items-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.grnf-draft-items-header h3 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0;
+}
+
+.grnf-draft-badge {
+  font-size: 10px;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-weight: 600;
+  background: #fef3c7;
+  color: #92400e;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.grnf-draft-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.grnf-draft-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--layout-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  border-left: 3px solid #f59e0b;
+  transition: all 0.15s;
+}
+
+.grnf-draft-item:hover {
+  background: color-mix(in srgb, var(--primary-color) 4%, var(--layout-bg));
+  border-color: color-mix(in srgb, var(--primary-color) 30%, var(--border-color));
+}
+
+.grnf-draft-item-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+.grnf-draft-item-index {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  min-width: 24px;
+}
+
+.grnf-draft-item-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.grnf-draft-item-details {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.grnf-draft-item-details span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.grnf-draft-item-qty {
+  font-weight: 600;
+  color: var(--primary-color);
+}
+
+.grnf-draft-item-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.grnf-draft-item-status {
+  font-size: 10px;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-weight: 600;
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.grnf-draft-item-remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  padding: 4px 6px;
+  border-radius: 4px;
+  transition: all 0.15s;
+  font-size: 14px;
+}
+
+.grnf-draft-item-remove:hover {
+  color: var(--danger-color);
+  background: color-mix(in srgb, var(--danger-color) 10%, transparent);
+}
+
+.grnf-draft-item-empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 13px;
+  background: var(--layout-bg);
+  border-radius: 8px;
+  border: 1px dashed var(--border-color);
+}
+
+/* ─── Dark theme for draft items ────────────────────────────────────── */
+.dark-theme .grnf-draft-item {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+.dark-theme .grnf-draft-item:hover {
+  background: #2d3748;
+}
+
+.dark-theme .grnf-draft-item-status {
+  background: #451a03;
+  color: #fcd34d;
+}
+
+.dark-theme .grnf-draft-badge {
+  background: #451a03;
+  color: #fcd34d;
+}
+
+.dark-theme .grnf-draft-item-empty {
+  background: #1e293b;
+  border-color: #334155;
+  color: #94a3b8;
+}
+
+/* ─── Responsive for draft items ────────────────────────────────────── */
+@media (max-width: 768px) {
+  .grnf-draft-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .grnf-draft-item-left {
+    flex-wrap: wrap;
+  }
+
+  .grnf-draft-item-right {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .grnf-draft-item-details {
+    flex-wrap: wrap;
+  }
+}
 
 /* ─── Warehouse Dropdown ────────────────────────────────────────────── */
 .grnf-warehouse-wrapper {
@@ -842,6 +1027,137 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
+}
+
+/* ─── PO Dropdown with Items ──────────────────────────────────────────── */
+
+.grnf-po-dropdown {
+  max-height: 500px !important;
+  overflow-y: auto;
+}
+
+.grnf-po-display-name {
+  font-weight: 600;
+  color: #111827;
+}
+
+.grnf-po-item-count {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #e5e7eb;
+  color: #6b7280;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 6px;
+}
+
+.grnf-po-items-preview {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed #e5e7eb;
+}
+
+.grnf-po-items-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: #6b7280;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.grnf-po-items-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.grnf-po-item-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  background: #f9fafb;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid #e5e7eb;
+}
+
+.grnf-po-item-code {
+  font-weight: 500;
+  color: #111827;
+}
+
+.grnf-po-item-name {
+  color: #6b7280;
+}
+
+.grnf-po-item-qty {
+  color: #3b82f6;
+  font-weight: 500;
+}
+
+.grnf-po-items-more {
+  font-size: 11px;
+  color: #6b7280;
+  padding: 2px 8px;
+}
+
+.grnf-po-items-loading {
+  font-size: 11px;
+  color: #6b7280;
+  padding: 4px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.grnf-po-items-empty {
+  font-size: 11px;
+  color: #9ca3af;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+/* ─── Dark Theme Overrides ──────────────────────────────────────────────── */
+
+.dark-theme .grnf-po-display-name {
+  color: #f9fafb;
+}
+
+.dark-theme .grnf-po-item-count {
+  background: #374151;
+  color: #9ca3af;
+}
+
+.dark-theme .grnf-po-items-preview {
+  border-top-color: #374151;
+}
+
+.dark-theme .grnf-po-items-label {
+  color: #9ca3af;
+}
+
+.dark-theme .grnf-po-item-chip {
+  background: #1f2937;
+  border-color: #374151;
+}
+
+.dark-theme .grnf-po-item-code {
+  color: #f9fafb;
+}
+
+.dark-theme .grnf-po-item-name {
+  color: #9ca3af;
+}
+
+.dark-theme .grnf-po-items-empty {
+  color: #6b7280;
 }
 
 /* ─── PO Selection Modal ────────────────────────────────────────────── */
@@ -1305,10 +1621,6 @@
 /* ═══════════════════════════════════════════════════════════════════
    GRNForm additions — Service toggle, Entry mode toggle,
    Item-master search dropdown, GST columns, Bill summary
-   Append to the bottom of GRNForm.css. Uses the same CSS custom
-   properties as the rest of the file (--card-bg, --border-color,
-   --text-primary, --text-secondary, --primary-color, --primary-hover,
-   --primary-gradient, --danger-color, --layout-bg, --shadow-color).
    ═══════════════════════════════════════════════════════════════════ */
 
 /* ─── Service toggle row ──────────────────────────────────────────── */
@@ -1404,11 +1716,6 @@
   border-radius: 8px;
   box-shadow: 0 8px 24px var(--shadow-color);
 }
-
-/* Reuses .grnf-warehouse-item / .grnf-warehouse-item-name /
-   .grnf-warehouse-item-details / .grnf-warehouse-no-results
-   already defined above for the warehouse/employee/PO/customer
-   dropdowns — no duplication needed here. */
 
 /* ─── GST / SGST / CGST / Amount columns ───────────────────────────── */
 .grnf-items-table select.grnf-cell-input {
@@ -2100,4 +2407,319 @@
     grid-template-columns: 1fr;
     gap: 10px;
   }
+}
+
+/* ─── PO Status Badge ─────────────────────────────────────────────────── */
+.grnf-po-status-badge {
+  font-size: 9px;
+  padding: 1px 8px;
+  border-radius: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.grnf-po-status-badge.grn-status-draft {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.grnf-po-status-badge.grn-status-submitted {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.grnf-po-status-badge.grn-status-partial {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.grnf-po-status-badge.grn-status-completed {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.grnf-po-status-badge.grn-status-rejected {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.grnf-po-status-badge.grn-status-closed {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.grnf-warehouse-item-selected {
+  background: var(--bg-selected, #eef2ff);
+  border-left: 3px solid var(--primary-color, #4f46e5);
+}
+
+/* ─── Print Footer Button ────────────────────────────────────────────── */
+.grnf-print-footer-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 20px;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  border-radius: 30px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: background 0.18s, border-color 0.18s, color 0.18s, box-shadow 0.18s;
+}
+
+.grnf-print-footer-btn:hover {
+  background: color-mix(in srgb, var(--primary-color) 6%, var(--card-bg));
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+/* ─── Print Button in Header ──────────────────────────────────────────── */
+.grnf-print-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  border-radius: 30px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  transition: background 0.18s, border-color 0.18s, color 0.18s, box-shadow 0.18s;
+}
+
+.grnf-print-btn:hover {
+  background: color-mix(in srgb, var(--primary-color) 6%, var(--card-bg));
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+/* ─── HSN Badge ──────────────────────────────────────────────────────── */
+.grnf-hsn-badge {
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--border-color);
+  color: var(--text-secondary);
+  margin-left: 4px;
+}
+
+/* ─── Digit Input Styles ────────────────────────────────────────────── */
+.digit-input-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.digit-input-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.digit-input {
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 11.5px;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  height: 28px;
+  box-sizing: border-box;
+}
+
+.digit-input:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 12%, transparent);
+}
+
+.digit-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: var(--layout-bg);
+}
+
+.digit-input-disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: var(--layout-bg);
+}
+
+.grnf-rate-input {
+  min-width: 70px;
+}
+
+/* ─── PO Item Search ─────────────────────────────────────────────────── */
+.grnf-item-search-dropdown .grnf-warehouse-item {
+  padding: 8px 12px;
+}
+
+.grnf-item-search-dropdown .grnf-warehouse-item-name {
+  font-size: 13px;
+}
+
+.grnf-item-search-dropdown .grnf-warehouse-item-details {
+  font-size: 11px;
+  gap: 8px;
+}
+
+/* ─── Dark theme overrides for new styles ───────────────────────────── */
+.dark-theme .grnf-po-status-badge.grn-status-draft {
+  background: #451a03;
+  color: #fcd34d;
+}
+
+.dark-theme .grnf-po-status-badge.grn-status-submitted {
+  background: #1e3a5f;
+  color: #93c5fd;
+}
+
+.dark-theme .grnf-po-status-badge.grn-status-partial {
+  background: #451a03;
+  color: #fcd34d;
+}
+
+.dark-theme .grnf-po-status-badge.grn-status-completed {
+  background: #064e3b;
+  color: #6ee7b7;
+}
+
+.dark-theme .grnf-po-status-badge.grn-status-rejected {
+  background: #7f1d1d;
+  color: #fca5a5;
+}
+
+.dark-theme .grnf-po-status-badge.grn-status-closed {
+  background: #1f2937;
+  color: #9ca3af;
+}
+
+.dark-theme .grnf-warehouse-item-selected {
+  background: #1e293b;
+}
+
+.dark-theme .grnf-print-btn:hover,
+.dark-theme .grnf-print-footer-btn:hover {
+  background: color-mix(in srgb, #7c3aed 15%, #1e293b);
+}
+
+.dark-theme .grnf-hsn-badge {
+  background: #1f2937;
+  color: #9ca3af;
+}
+
+.dark-theme .grnf-item-search-dropdown {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+.dark-theme .grnf-item-search-dropdown .grnf-warehouse-item:hover {
+  background: #2d3748;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   NEW: PO Dropdown UI with Products on Separate Line
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* PO Header - First line with PO name, status, items count */
+.grnf-po-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.grnf-po-header-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.grnf-po-header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: var(--text-secondary, #6b7280);
+}
+
+.grnf-po-supplier {
+  font-weight: 500;
+}
+
+.grnf-po-amount {
+  font-weight: 600;
+  color: var(--text-primary, #111827);
+}
+
+.grnf-po-received {
+  color: var(--text-secondary, #6b7280);
+  font-size: 10px;
+}
+
+/* PO Products - Second line with product chips */
+.grnf-po-products {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px 0 2px 0;
+  border-top: 1px dashed var(--border-color, #e5e7eb);
+  margin-top: 4px;
+}
+
+.grnf-po-product-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  background: var(--bg-hover, #f9fafb);
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color, #e5e7eb);
+}
+
+.grnf-po-product-code {
+  font-weight: 500;
+  color: var(--text-primary, #111827);
+}
+
+.grnf-po-product-name {
+  color: var(--text-secondary, #6b7280);
+}
+
+.grnf-po-product-qty {
+  color: var(--primary-color, #3b82f6);
+  font-weight: 500;
+}
+
+/* Dark theme for new PO styles */
+.dark-theme .grnf-po-product-chip {
+  background: #1f2937;
+  border-color: #374151;
+}
+
+.dark-theme .grnf-po-product-code {
+  color: #f9fafb;
+}
+
+.dark-theme .grnf-po-product-name {
+  color: #9ca3af;
+}
+
+.dark-theme .grnf-po-products {
+  border-top-color: #374151;
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   FaSearch, FaPlus, FaEdit, FaTrash, FaFilter, 
@@ -10,11 +10,140 @@ import {
   FaAngleDoubleRight,
   FaChevronLeft,
   FaChevronRight,
+  FaCalendarAlt,
 } from 'react-icons/fa';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
 import api from '../services/api';
 import './PurchaseInvoice.css';
+
+// ─── Date helpers ─────────────────────────────────────────────────
+
+const toISODate = (d: Date): string => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const formatDisplayDate = (iso: string): string => {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+const WEEKDAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+
+// ─── Range Calendar Component ────────────────────────────────────
+
+interface RangeCalendarProps {
+  month: Date;
+  onMonthChange: (d: Date) => void;
+  fromDate: string;
+  toDate: string;
+  onSelect: (from: string, to: string) => void;
+}
+
+function RangeCalendar({ month, onMonthChange, fromDate, toDate, onSelect }: RangeCalendarProps) {
+  const year = month.getFullYear();
+  const monthIndex = month.getMonth();
+  const firstDayOfMonth = new Date(year, monthIndex, 1);
+  const startWeekday = firstDayOfMonth.getDay();
+  const totalDaysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+  const monthLabel = month.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  const handleDayClick = (day: number) => {
+    const clickedStr = toISODate(new Date(year, monthIndex, day));
+    if (!fromDate || (fromDate && toDate)) {
+      onSelect(clickedStr, '');
+    } else if (clickedStr < fromDate) {
+      onSelect(clickedStr, fromDate);
+    } else {
+      onSelect(fromDate, clickedStr);
+    }
+  };
+
+  const cells: (number | null)[] = [];
+  for (let i = 0; i < startWeekday; i++) cells.push(null);
+  for (let d = 1; d <= totalDaysInMonth; d++) cells.push(d);
+
+  return (
+    <div style={{ userSelect: 'none' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+        <button
+          type="button"
+          onClick={() => onMonthChange(new Date(year, monthIndex - 1, 1))}
+          style={{
+            background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px',
+            borderRadius: '4px', color: '#4a5568', display: 'flex', alignItems: 'center'
+          }}
+        >
+          <FaChevronLeft size={11} />
+        </button>
+        <span style={{ fontWeight: 600, fontSize: '13px', color: '#1a202c' }}>{monthLabel}</span>
+        <button
+          type="button"
+          onClick={() => onMonthChange(new Date(year, monthIndex + 1, 1))}
+          style={{
+            background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px',
+            borderRadius: '4px', color: '#4a5568', display: 'flex', alignItems: 'center'
+          }}
+        >
+          <FaChevronRight size={11} />
+        </button>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', marginBottom: '4px' }}>
+        {WEEKDAY_LABELS.map((wd) => (
+          <span key={wd} style={{ fontSize: '10px', fontWeight: 600, color: '#a0aec0', textAlign: 'center', padding: '4px 0' }}>
+            {wd}
+          </span>
+        ))}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', rowGap: '2px' }}>
+        {cells.map((day, idx) => {
+          if (day === null) return <span key={`empty-${idx}`} />;
+          const dateStr = toISODate(new Date(year, monthIndex, day));
+          const isFrom = dateStr === fromDate;
+          const isTo = dateStr === toDate;
+          const isEndpoint = isFrom || isTo;
+          const inRange = !!fromDate && !!toDate && dateStr > fromDate && dateStr < toDate;
+          const isToday = dateStr === toISODate(new Date());
+
+          let borderRadius = '6px';
+          if (isFrom && toDate) borderRadius = '6px 0 0 6px';
+          else if (isTo && fromDate) borderRadius = '0 6px 6px 0';
+
+          return (
+            <button
+              type="button"
+              key={dateStr}
+              onClick={() => handleDayClick(day)}
+              style={{
+                width: '100%',
+                aspectRatio: '1',
+                border: isToday && !isEndpoint ? '1px solid #3182ce' : 'none',
+                borderRadius,
+                background: isEndpoint ? '#3182ce' : inRange ? '#ebf8ff' : 'transparent',
+                color: isEndpoint ? 'white' : '#2d3748',
+                fontSize: '12px',
+                fontWeight: isEndpoint ? 600 : 400,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {day}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Types ─────────────────────────────────────────────────────────
 
 interface PurchaseInvoice {
   id: string;
@@ -66,6 +195,8 @@ interface ApiResponse {
   };
 }
 
+// ─── Main Component ──────────────────────────────────────────────
+
 export default function PurchaseInvoice() {
   const navigate = useNavigate();
   
@@ -82,6 +213,13 @@ export default function PurchaseInvoice() {
   const [selectedSupplier, setSelectedSupplier] = useState('All');
   const [showFilters, setShowFilters] = useState(false);
   
+  // Date filters
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [showDateFilterDropdown, setShowDateFilterDropdown] = useState(false);
+  const [calMonth, setCalMonth] = useState<Date>(new Date());
+  const dateFilterRef = useRef<HTMLDivElement>(null);
+  
   const [showViewModal, setShowViewModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<PurchaseInvoice | null>(null);
@@ -96,6 +234,57 @@ export default function PurchaseInvoice() {
   const [invoices, setInvoices] = useState<PurchaseInvoice[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
   const [suppliersList, setSuppliersList] = useState<string[]>([]);
+
+  // ─── Click outside handler ──────────────────────────────────────
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dateFilterRef.current && !dateFilterRef.current.contains(event.target as Node)) {
+        setShowDateFilterDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // ─── Quick presets for the calendar ──────────────────────────
+
+  const applyPreset = (preset: 'today' | 'last7' | 'last30' | 'thisMonth') => {
+    const today = new Date();
+    let from = today;
+    let to = today;
+
+    if (preset === 'last7') {
+      from = new Date(today);
+      from.setDate(today.getDate() - 6);
+    } else if (preset === 'last30') {
+      from = new Date(today);
+      from.setDate(today.getDate() - 29);
+    } else if (preset === 'thisMonth') {
+      from = new Date(today.getFullYear(), today.getMonth(), 1);
+    }
+
+    const fromStr = toISODate(from);
+    const toStr = toISODate(to);
+
+    setDateFrom(fromStr);
+    setDateTo(toStr);
+    setCalMonth(from);
+  };
+
+  const clearDateRange = () => {
+    setDateFrom('');
+    setDateTo('');
+  };
+
+  const dateButtonLabel = () => {
+    if (dateFrom) {
+      return `${formatDisplayDate(dateFrom)}${dateTo ? ' – ' + formatDisplayDate(dateTo) : ''}`;
+    }
+    return 'From - To';
+  };
 
   // Map API status to component status
   const mapStatus = (apiStatus: string): PurchaseInvoice['status'] => {
@@ -117,7 +306,19 @@ export default function PurchaseInvoice() {
     setFetching(true);
     setApiError(null);
     try {
-      const response = await api.get<ApiResponse>(`/purchase-invoice?page=${currentPage}&limit=${itemsPerPage}`);
+      const params = new URLSearchParams();
+      params.append('page', String(currentPage));
+      params.append('limit', String(itemsPerPage));
+
+      // Date filters
+      if (dateFrom) {
+        params.append('date_from', dateFrom);
+      }
+      if (dateTo) {
+        params.append('date_to', dateTo);
+      }
+
+      const response = await api.get<ApiResponse>(`/purchase-invoice?${params.toString()}`);
       
       if (response.data.success === 1) {
         const records = response.data.data.records || [];
@@ -162,12 +363,12 @@ export default function PurchaseInvoice() {
   // Fetch when dependencies change
   useEffect(() => {
     fetchPurchaseInvoices();
-  }, [currentPage, itemsPerPage]);
+  }, [currentPage, itemsPerPage, dateFrom, dateTo]);
 
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterText, selectedStatus, selectedSupplier]);
+  }, [filterText, selectedStatus, selectedSupplier, dateFrom, dateTo]);
 
   // Filter data based on search and status
   const filteredInvoices = invoices.filter(inv => {
@@ -287,12 +488,13 @@ export default function PurchaseInvoice() {
     }
   };
 
-  
-
   const clearFilters = () => {
     setFilterText('');
     setSelectedStatus('All');
     setSelectedSupplier('All');
+    setDateFrom('');
+    setDateTo('');
+    setShowDateFilterDropdown(false);
   };
 
   const statusOptions = ['Draft', 'Submitted', 'Partially Paid', 'Fully Paid', 'Overdue', 'Cancelled'];
@@ -306,10 +508,6 @@ export default function PurchaseInvoice() {
           <p>Loading purchase invoices...</p>
         </div>
       </div>
-
-
-
-
     );
   }
 
@@ -356,6 +554,133 @@ export default function PurchaseInvoice() {
             <option value="All">All Status</option>
             {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
+          
+          {/* Date Range Button with Calendar Dropdown */}
+          <div ref={dateFilterRef} style={{ position: 'relative', display: 'inline-block' }}>
+            <button
+              className="inv-filter-btn"
+              onClick={() => setShowDateFilterDropdown(!showDateFilterDropdown)}
+              style={dateFrom ? { borderColor: '#3182ce', color: '#3182ce' } : undefined}
+            >
+              <FaCalendarAlt size={13} />
+              <span style={{ maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {dateButtonLabel()}
+              </span>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </button>
+
+            {/* Calendar Date Filter Dropdown */}
+            {showDateFilterDropdown && (
+              <div className="inv-date-filter-dropdown" style={{
+                position: 'absolute',
+                top: '100%',
+                right: '0',
+                marginTop: '4px',
+                backgroundColor: 'white',
+                border: '1px solid #e2e8f0',
+                borderRadius: '8px',
+                boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+                padding: '16px',
+                minWidth: '300px',
+                zIndex: 1000,
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <span style={{ fontWeight: 600, fontSize: '14px', color: '#1a202c' }}>Filter by Date</span>
+                  <button onClick={() => setShowDateFilterDropdown(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#718096' }}>
+                    <FaTimes size={14} />
+                  </button>
+                </div>
+
+                {/* Selected range readout */}
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+                  <div style={{
+                    flex: 1, padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: '4px',
+                    fontSize: '12px', color: dateFrom ? '#1a202c' : '#a0aec0'
+                  }}>
+                    {dateFrom ? formatDisplayDate(dateFrom) : 'From'}
+                  </div>
+                  <div style={{
+                    flex: 1, padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: '4px',
+                    fontSize: '12px', color: dateTo ? '#1a202c' : '#a0aec0'
+                  }}>
+                    {dateTo ? formatDisplayDate(dateTo) : 'To'}
+                  </div>
+                </div>
+
+                {/* Quick presets */}
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '12px' }}>
+                  {([
+                    { key: 'today', label: 'Today' },
+                    { key: 'last7', label: 'Last 7 Days' },
+                    { key: 'last30', label: 'Last 30 Days' },
+                    { key: 'thisMonth', label: 'This Month' },
+                  ] as const).map((p) => (
+                    <button
+                      key={p.key}
+                      type="button"
+                      onClick={() => applyPreset(p.key)}
+                      style={{
+                        padding: '4px 10px',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '999px',
+                        backgroundColor: '#f7fafc',
+                        fontSize: '11px',
+                        color: '#4a5568',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Calendar */}
+                <RangeCalendar
+                  month={calMonth}
+                  onMonthChange={setCalMonth}
+                  fromDate={dateFrom}
+                  toDate={dateTo}
+                  onSelect={(from, to) => { setDateFrom(from); setDateTo(to); }}
+                />
+
+                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '14px' }}>
+                  <button
+                    onClick={clearDateRange}
+                    style={{
+                      padding: '6px 16px',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '4px',
+                      backgroundColor: 'white',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      color: '#4a5568'
+                    }}
+                  >
+                    Clear
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowDateFilterDropdown(false);
+                      fetchPurchaseInvoices();
+                    }}
+                    style={{
+                      padding: '6px 16px',
+                      border: 'none',
+                      borderRadius: '4px',
+                      backgroundColor: '#3182ce',
+                      color: 'white',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      fontWeight: 500
+                    }}
+                  >
+                    Apply Filters
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
           <button 
             className={`inv-filter-btn ${showFilters ? 'active' : ''}`}
             onClick={() => setShowFilters(!showFilters)}
@@ -376,7 +701,7 @@ export default function PurchaseInvoice() {
       )}
 
       {/* Active filters indicator */}
-      {(filterText || selectedStatus !== 'All' || selectedSupplier !== 'All') && (
+      {(filterText || selectedStatus !== 'All' || selectedSupplier !== 'All' || dateFrom || dateTo) && (
         <div className="inv-active-filters">
           <FaFilter size={12} style={{ color: 'var(--primary-color)' }} />
           <span style={{ color: 'var(--text-primary)' }}>Active filters:</span>
@@ -395,6 +720,8 @@ export default function PurchaseInvoice() {
               <strong>Supplier:</strong> {selectedSupplier}
             </span>
           )}
+          {dateFrom && <span><strong>From:</strong> {dateFrom}</span>}
+          {dateTo && <span><strong>To:</strong> {dateTo}</span>}
           <button 
             onClick={clearFilters}
             className="inv-clear-filters"
@@ -424,7 +751,7 @@ export default function PurchaseInvoice() {
               {currencies.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
-          <button className="inv-apply-filters">Apply</button>
+          <button className="inv-apply-filters" onClick={fetchPurchaseInvoices}>Apply</button>
         </div>
       )}
 

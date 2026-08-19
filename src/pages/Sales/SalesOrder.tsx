@@ -1,18 +1,18 @@
-import  { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   FaSearch, FaPlus, FaEye, FaEdit, FaTrash, FaFilePdf, FaPrint,
   FaFilter, FaCheckCircle, FaClock, FaTimesCircle,
   FaFileAlt, FaExternalLinkAlt,
   FaChartLine, FaTimes, FaSpinner, FaBoxOpen, FaEnvelope,
-  
+  FaChevronLeft, FaChevronRight,
+  FaAngleDoubleLeft, FaAngleDoubleRight,
 } from 'react-icons/fa';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
 import './SalesOrder.css';
 import api from '../../services/api';
 import { FaFileInvoice } from 'react-icons/fa6';
-// import { FaFileInvoice } from 'react-icons/fa6';
 
 interface SalesOrderItem {
   id: string;
@@ -109,6 +109,17 @@ interface SalesOrderApiRecord {
   }>;
 }
 
+interface ApiResponse {
+  success: number;
+  data: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+    records: SalesOrderApiRecord[];
+  };
+}
+
 const companyDetails = {
   name: 'Sculptor Tech Pvt Ltd',
   address: 'c-1006, gc, Pune, Maharashtra 411028, India',
@@ -116,7 +127,6 @@ const companyDetails = {
   email: 'jayeshwakle@sculptortechpvtltd.com',
   contact: '8668584275',
 };
-
 
 const companyPrintDetails = {
   gstin: '',
@@ -189,7 +199,6 @@ const escapeHtml = (val: unknown): string => {
     .replace(/"/g, '&quot;');
 };
 
-
 const SALES_ORDER_LINE_CACHE_PREFIX = 'sales_order_line_data:';
 
 interface CachedSalesOrderLineData {
@@ -257,39 +266,81 @@ export default function SalesOrder() {
 
   const [salesOrders, setSalesOrders] = useState<SalesOrder[]>([]);
 
+  // Server-side pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+
   // Modal states
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<SalesOrder | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [pdfModalLoading, ] = useState(false);
+  const [pdfModalLoading] = useState(false);
 
-  // ─── load from GET /sales-order ───────────────────────────────────────
+  // ─── Debounce function for search ──────────────────────────────────
+  const useDebounce = (value: string, delay: number) => {
+    const [debouncedValue, setDebouncedValue] = useState(value);
+
+    useEffect(() => {
+      const handler = setTimeout(() => {
+        setDebouncedValue(value);
+      }, delay);
+
+      return () => {
+        clearTimeout(handler);
+      };
+    }, [value, delay]);
+
+    return debouncedValue;
+  };
+
+  const debouncedFilterText = useDebounce(filterText, 500);
+
+  // ─── load from GET /sales-order with server-side pagination ──────
 
   const fetchSalesOrders = async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await api.get('/sales-order');
+      const params = new URLSearchParams();
+      params.append('page', String(currentPage));
+      params.append('limit', String(itemsPerPage));
 
-      if (response.data.success !== 1) {
-        throw new Error(response.data?.message || 'Failed to fetch sales orders');
+      // Add search filter if present
+      if (debouncedFilterText.trim()) {
+        params.append('search', debouncedFilterText.trim());
       }
 
-      const raw = response.data.data;
-      let all: SalesOrderApiRecord[] =
-        raw?.records ??
-        (Array.isArray(raw) ? raw : raw?.data) ??
-        [];
-
-      if (!Array.isArray(all)) {
-        console.warn('Unexpected /sales-order response shape, defaulting to empty list:', raw);
-        all = [];
+      // Add status filter if not 'All'
+      if (selectedStatus !== 'All') {
+        params.append('status', selectedStatus);
       }
 
-      const transformedData: SalesOrder[] = all.map((o, idx) => {
-        // Prefer a real numeric/string id from the API for delete/navigate.
-        // Fall back to `name` if no id field is present at all.
+      // Add order type filter if not 'All'
+      if (selectedOrderType !== 'All') {
+        params.append('order_type', selectedOrderType);
+      }
+
+      const response = await api.get<ApiResponse>(`/sales-order?${params.toString()}`);
+
+     
+
+      const { records, total, page, limit, totalPages: apiTotalPages } = response.data.data;
+
+      // Update pagination info from server
+      setTotalRecords(total);
+      setTotalPages(apiTotalPages || Math.ceil(total / limit));
+
+      // Ensure current page is valid
+      const validTotalPages = apiTotalPages || Math.ceil(total / limit);
+      if (currentPage > validTotalPages && validTotalPages > 0) {
+        setCurrentPage(validTotalPages);
+        return; // Will re-fetch with corrected page
+      }
+
+      const transformedData: SalesOrder[] = records.map((o, idx) => {
         const resolvedId =
           o.id !== undefined && o.id !== null && String(o.id).trim() !== ''
             ? String(o.id)
@@ -338,11 +389,16 @@ export default function SalesOrder() {
     }
   };
 
+  // Fetch when page, itemsPerPage, or filters change
   useEffect(() => {
     fetchSalesOrders();
-  }, []);
+  }, [currentPage, itemsPerPage, debouncedFilterText, selectedStatus, selectedOrderType]);
 
-  
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterText, selectedStatus, selectedOrderType]);
+
   const fetchFullSalesOrderRecord = async (orderId: string): Promise<SalesOrderApiRecord | null> => {
     try {
       const response = await api.get(`/sales-order/${orderId}`);
@@ -370,8 +426,6 @@ export default function SalesOrder() {
     }
   };
 
- 
-  
   const enrichItemsFromCatalog = async (items: SalesOrderItem[]): Promise<SalesOrderItem[]> => {
     return Promise.all(items.map(async (item) => {
       const needsLookup = !item.itemName || !item.rate;
@@ -460,19 +514,55 @@ export default function SalesOrder() {
     }
   };
 
-  const filteredOrders = salesOrders.filter(o => {
-    const matchesSearch = (o.salesOrderNumber || '').toLowerCase().includes(filterText.toLowerCase()) ||
-      (o.customerName || '').toLowerCase().includes(filterText.toLowerCase());
-    const matchesStatus = selectedStatus === 'All' || o.status === selectedStatus;
-    const matchesOrderType = selectedOrderType === 'All' || o.orderType === selectedOrderType;
-    return matchesSearch && matchesStatus && matchesOrderType;
-  });
+  // ─── Pagination Handlers ──────────────────────────────────────────
+  const goToPage = (page: number) => {
+    if (page < 1) {
+      setCurrentPage(1);
+    } else if (page > totalPages) {
+      setCurrentPage(totalPages);
+    } else {
+      setCurrentPage(page);
+    }
+  };
 
+  const goToFirstPage = () => goToPage(1);
+  const goToLastPage = () => goToPage(totalPages);
+  const goToNextPage = () => goToPage(currentPage + 1);
+  const goToPrevPage = () => goToPage(currentPage - 1);
+
+  const handlePageSizeChange = (newSize: number) => {
+    setItemsPerPage(newSize);
+    setCurrentPage(1);
+  };
+
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisible = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+
+    if (endPage - startPage + 1 < maxVisible) {
+      startPage = Math.max(1, endPage - maxVisible + 1);
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i);
+    }
+    return pages;
+  };
+
+  const getStartIndexDisplay = () => {
+    if (totalRecords === 0) return 0;
+    return (currentPage - 1) * itemsPerPage + 1;
+  };
+
+  const getEndIndexDisplay = () => {
+    return Math.min(currentPage * itemsPerPage, totalRecords);
+  };
 
   const totalAmount = salesOrders.reduce((sum, o) => sum + o.totalAmount, 0);
   const completedAmount = salesOrders.filter(o => o.status === 'Completed').reduce((sum, o) => sum + o.totalAmount, 0);
   const fulfillmentRate = totalAmount > 0 ? Math.round((completedAmount / totalAmount) * 100) : 0;
-  // const totalOrders = salesOrders.length;
 
   // View / Edit — both route to the CreateSalesOrder form (edit mode).
   const handleView = (order: SalesOrder) => {
@@ -520,8 +610,6 @@ export default function SalesOrder() {
       setIsSubmitting(false);
     }
   };
-
-
 
   const getCompanyDetails = () => companyDetails;
 
@@ -1258,7 +1346,6 @@ export default function SalesOrder() {
   };
 
   const handleProformaInvoice = async (order: SalesOrder) => {
-    // Check if order is confirmed or completed before generating proforma invoice
     if (order.status === 'Draft') {
       toast('Please confirm the sales order before generating a proforma invoice');
       return;
@@ -1291,9 +1378,6 @@ export default function SalesOrder() {
 
   return (
     <div className={`sales-order-page ${theme}-theme`}>
-      {/* Stats Cards */}
-    
-
       {/* Search and Filter Bar */}
       <div className="qt-filter-bar">
         <div className="qt-filter-left">
@@ -1389,7 +1473,7 @@ export default function SalesOrder() {
       {/* Table */}
       {!loading && !error && (
         <div className="qt-table-wrap">
-          {filteredOrders.length === 0 ? (
+          {salesOrders.length === 0 ? (
             <div className="qt-empty-state">
               <div className="qt-empty-content">
                 <FaBoxOpen size={48} />
@@ -1398,91 +1482,264 @@ export default function SalesOrder() {
               </div>
             </div>
           ) : (
-            <table className="qt-table">
-              <thead>
-                <tr>
-                  <th className="qt-th">Order #</th>
-                  <th className="qt-th">Customer</th>
-                  <th className="qt-th">Date</th>
-                  <th className="qt-th">Order Type</th>
-                  <th className="qt-th">Status</th>
-                  <th className="qt-th qt-text-right">Amount</th>
-                  <th className="qt-th qt-th-meta">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredOrders.map((order, index) => (
-                  <tr key={order.id || `so-${index}`} className="qt-tr">
-                    <td className="qt-td qt-td-id">{order.salesOrderNumber}</td>
-                    <td className="qt-td">
-                      <div>
-                        <div className="qt-td-link">{order.customerName}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{order.customer}</div>
-                      </div>
-                    </td>
-                    <td className="qt-td">
-                      <div>{order.date ? new Date(order.date).toLocaleDateString() : '-'}</div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                        Delivery: {order.deliveryDate ? new Date(order.deliveryDate).toLocaleDateString() : '-'}
-                      </div>
-                    </td>
-                    <td className="qt-td">{order.orderType}</td>
-                    <td className="qt-td">
-                      <span className={`qt-status-badge ${getStatusColor(order.status)}`}>
-                        {getStatusIcon(order.status)}
-                        {order.status}
-                      </span>
-                    </td>
-                    <td className="qt-td qt-text-right qt-amount-cell">
-                      <span className="qt-currency">{order.currency}</span>
-                      {order.totalAmount.toLocaleString()}
-                    </td>
-                    <td className="qt-td qt-td-meta">
-                      <div className="qt-action-buttons">
-                        <button className="qt-action-btn qt-action-view" onClick={() => handleView(order)} title="View / Edit">
-                          <FaEye size={12} />
-                        </button>
-                        <button
-                          className="qt-action-btn qt-action-print"
-                          onClick={() => handlePrintOrder(order)}
-                          title="Print Sales Order"
-                          disabled={printLoadingId === order.id}
-                        >
-                          {printLoadingId === order.id ? <FaSpinner className="spinning" size={12} /> : <FaPrint size={12} />}
-                        </button>
-                        <button
-                          className="qt-action-btn qt-action-proforma"
-                          onClick={() => handleProformaInvoice(order)}
-                          title="Proforma Invoice"
-                          disabled={proformaLoadingId === order.id || order.status === 'Draft'}
-                        >
-                          {proformaLoadingId === order.id ? <FaSpinner className="spinning" size={12} /> : <FaFileInvoice size={12} />}
-                        </button>
-                        <button className="qt-action-btn qt-action-edit" onClick={() => handleEdit(order)} title="Edit">
-                          <FaEdit size={12} />
-                        </button>
-                        <button className="qt-action-btn qt-action-delete" onClick={() => handleDeleteClick(order)} title="Delete">
-                          <FaTrash size={12} />
-                        </button>
-                      </div>
-                    </td>
+            <>
+              <table className="qt-table">
+                <thead>
+                  <tr>
+                    <th className="qt-th">Order #</th>
+                    <th className="qt-th">Customer</th>
+                    <th className="qt-th">Date</th>
+                    <th className="qt-th">Order Type</th>
+                    <th className="qt-th">Status</th>
+                    <th className="qt-th qt-text-right">Amount</th>
+                    <th className="qt-th qt-th-meta">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {salesOrders.map((order, index) => (
+                    <tr key={order.id || `so-${index}`} className="qt-tr">
+                      <td className="qt-td qt-td-id">{order.salesOrderNumber}</td>
+                      <td className="qt-td">
+                        <div>
+                          <div className="qt-td-link">{order.customerName}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{order.customer}</div>
+                        </div>
+                      </td>
+                      <td className="qt-td">
+                        <div>{order.date ? new Date(order.date).toLocaleDateString() : '-'}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                          Delivery: {order.deliveryDate ? new Date(order.deliveryDate).toLocaleDateString() : '-'}
+                        </div>
+                      </td>
+                      <td className="qt-td">{order.orderType}</td>
+                      <td className="qt-td">
+                        <span className={`qt-status-badge ${getStatusColor(order.status)}`}>
+                          {getStatusIcon(order.status)}
+                          {order.status}
+                        </span>
+                      </td>
+                      <td className="qt-td qt-text-right qt-amount-cell">
+                        <span className="qt-currency">{order.currency}</span>
+                        {order.totalAmount.toLocaleString()}
+                      </td>
+                      <td className="qt-td qt-td-meta">
+                        <div className="qt-action-buttons">
+                          <button className="qt-action-btn qt-action-view" onClick={() => handleView(order)} title="View / Edit">
+                            <FaEye size={12} />
+                          </button>
+                          <button
+                            className="qt-action-btn qt-action-print"
+                            onClick={() => handlePrintOrder(order)}
+                            title="Print Sales Order"
+                            disabled={printLoadingId === order.id}
+                          >
+                            {printLoadingId === order.id ? <FaSpinner className="spinning" size={12} /> : <FaPrint size={12} />}
+                          </button>
+                          <button
+                            className="qt-action-btn qt-action-proforma"
+                            onClick={() => handleProformaInvoice(order)}
+                            title="Proforma Invoice"
+                            disabled={proformaLoadingId === order.id || order.status === 'Draft'}
+                          >
+                            {proformaLoadingId === order.id ? <FaSpinner className="spinning" size={12} /> : <FaFileInvoice size={12} />}
+                          </button>
+                          <button className="qt-action-btn qt-action-edit" onClick={() => handleEdit(order)} title="Edit">
+                            <FaEdit size={12} />
+                          </button>
+                          <button className="qt-action-btn qt-action-delete" onClick={() => handleDeleteClick(order)} title="Delete">
+                            <FaTrash size={12} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {/* ─── Pagination ────────────────────────────────────── */}
+              {totalRecords > 0 && totalPages > 0 && (
+                <div className="qt-pagination" style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center',
+                  padding: '12px 0',
+                  borderTop: '1px solid var(--border-color, #e5e7eb)',
+                  marginTop: '8px'
+                }}>
+                  {/* Left side - Show entries dropdown */}
+                  <div className="qt-pagination-left" style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '8px',
+                    color: 'var(--text-secondary, #6b7280)',
+                    fontSize: '13px'
+                  }}>
+                    <span className="qt-pagination-label">Show:</span>
+                    <select
+                      value={itemsPerPage}
+                      onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                      className="qt-page-size-select"
+                      style={{
+                        padding: '4px 8px',
+                        border: '1px solid var(--border-color, #d1d5db)',
+                        borderRadius: '4px',
+                        background: 'var(--bg-color, white)',
+                        color: 'var(--text-primary, #1f2937)',
+                        fontSize: '13px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <option value={10}>10</option>
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                    </select>
+                    <span className="qt-pagination-label">entries</span>
+                  </div>
+
+                  {/* Center - Page navigation */}
+                  <div className="qt-pagination-center" style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '4px'
+                  }}>
+                    <button 
+                      onClick={goToFirstPage} 
+                      className="qt-page-btn" 
+                      disabled={currentPage === 1 || totalPages === 0}
+                      style={{
+                        padding: '4px 8px',
+                        border: '1px solid var(--border-color, #d1d5db)',
+                        borderRadius: '4px',
+                        background: 'var(--bg-color, white)',
+                        color: 'var(--text-primary, #1f2937)',
+                        cursor: currentPage === 1 || totalPages === 0 ? 'not-allowed' : 'pointer',
+                        opacity: currentPage === 1 || totalPages === 0 ? 0.5 : 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '12px'
+                      }}
+                    >
+                      <FaAngleDoubleLeft size={12} />
+                    </button>
+                    <button 
+                      onClick={goToPrevPage} 
+                      className="qt-page-btn" 
+                      disabled={currentPage === 1 || totalPages === 0}
+                      style={{
+                        padding: '4px 8px',
+                        border: '1px solid var(--border-color, #d1d5db)',
+                        borderRadius: '4px',
+                        background: 'var(--bg-color, white)',
+                        color: 'var(--text-primary, #1f2937)',
+                        cursor: currentPage === 1 || totalPages === 0 ? 'not-allowed' : 'pointer',
+                        opacity: currentPage === 1 || totalPages === 0 ? 0.5 : 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '12px'
+                      }}
+                    >
+                      <FaChevronLeft size={12} />
+                    </button>
+                    
+                    {totalPages > 0 && getPageNumbers().map((page) => (
+                      <button
+                        key={page}
+                        onClick={() => goToPage(page)}
+                        className={`qt-page-btn ${currentPage === page ? 'qt-page-btn-active' : ''}`}
+                        style={{
+                          padding: '4px 10px',
+                          border: currentPage === page ? '1px solid var(--primary-color, #3b82f6)' : '1px solid var(--border-color, #d1d5db)',
+                          borderRadius: '4px',
+                          background: currentPage === page ? 'var(--primary-color, #3b82f6)' : 'var(--bg-color, white)',
+                          color: currentPage === page ? 'white' : 'var(--text-primary, #1f2937)',
+                          cursor: 'pointer',
+                          fontSize: '13px',
+                          fontWeight: currentPage === page ? '600' : '400',
+                          minWidth: '32px'
+                        }}
+                      >
+                        {page}
+                      </button>
+                    ))}
+                    
+                    <button 
+                      onClick={goToNextPage} 
+                      className="qt-page-btn" 
+                      disabled={currentPage === totalPages || totalPages === 0}
+                      style={{
+                        padding: '4px 8px',
+                        border: '1px solid var(--border-color, #d1d5db)',
+                        borderRadius: '4px',
+                        background: 'var(--bg-color, white)',
+                        color: 'var(--text-primary, #1f2937)',
+                        cursor: currentPage === totalPages || totalPages === 0 ? 'not-allowed' : 'pointer',
+                        opacity: currentPage === totalPages || totalPages === 0 ? 0.5 : 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '12px'
+                      }}
+                    >
+                      <FaChevronRight size={12} />
+                    </button>
+                    <button 
+                      onClick={goToLastPage} 
+                      className="qt-page-btn" 
+                      disabled={currentPage === totalPages || totalPages === 0}
+                      style={{
+                        padding: '4px 8px',
+                        border: '1px solid var(--border-color, #d1d5db)',
+                        borderRadius: '4px',
+                        background: 'var(--bg-color, white)',
+                        color: 'var(--text-primary, #1f2937)',
+                        cursor: currentPage === totalPages || totalPages === 0 ? 'not-allowed' : 'pointer',
+                        opacity: currentPage === totalPages || totalPages === 0 ? 0.5 : 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '12px'
+                      }}
+                    >
+                      <FaAngleDoubleRight size={12} />
+                    </button>
+                  </div>
+
+                  {/* Right side - Showing entries info */}
+                  <div className="qt-pagination-right" style={{ 
+                    color: 'var(--text-secondary, #6b7280)',
+                    fontSize: '13px'
+                  }}>
+                    <span className="qt-pagination-info">
+                      {totalRecords > 0
+                        ? `Showing ${getStartIndexDisplay()} to ${getEndIndexDisplay()} of ${totalRecords} entries`
+                        : 'No entries to show'}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
 
       {/* Footer */}
-      <div className="qt-pagination">
+      <div className="qt-pagination" style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: '8px 0',
+        marginTop: '4px'
+      }}>
         <div className="qt-pagination-left">
-          <span className="qt-pagination-info">
-            {filteredOrders.length} of {salesOrders.length} orders
+          <span className="qt-pagination-info" style={{ color: 'var(--text-secondary, #6b7280)', fontSize: '13px' }}>
+            {totalRecords} total orders
           </span>
         </div>
         <div className="qt-pagination-right">
-          <span className="qt-pagination-info" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span className="qt-pagination-info" style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary, #6b7280)', fontSize: '13px' }}>
             <FaChartLine size={14} style={{ color: 'var(--primary-color)' }} />
             {fulfillmentRate}% fulfillment rate
           </span>

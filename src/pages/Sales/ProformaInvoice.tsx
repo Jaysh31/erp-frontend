@@ -5,7 +5,9 @@ import {
   FaFilter, FaCheckCircle, FaClock, FaTimesCircle,
   FaFileAlt, FaExternalLinkAlt,
   FaChartLine, FaTimes, FaSpinner, FaBoxOpen, FaEnvelope,
-  FaFileInvoice, FaBuilding, FaBan
+  FaFileInvoice, FaBuilding, FaBan,
+  FaChevronLeft, FaChevronRight,
+  FaAngleDoubleLeft, FaAngleDoubleRight,
 } from 'react-icons/fa';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
@@ -105,6 +107,17 @@ interface SalesOrderApiRecord {
     cgst_rate?: number;
     sgst_rate?: number;
   }>;
+}
+
+interface ApiResponse {
+  success: number;
+  data: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+    records: SalesOrderApiRecord[];
+  };
 }
 
 interface Company {
@@ -280,12 +293,37 @@ export default function ProformaInvoice() {
   const [selectedCompanyId, setSelectedCompanyId] = useState<number | null>(null);
   const [selectedBankId, setSelectedBankId] = useState<number | null>(null);
 
+  // Server-side pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+
   // Modal states
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<SalesOrder | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pdfModalLoading] = useState(false);
+
+  // ─── Debounce function for search ──────────────────────────────────
+  const useDebounce = (value: string, delay: number) => {
+    const [debouncedValue, setDebouncedValue] = useState(value);
+
+    useEffect(() => {
+      const handler = setTimeout(() => {
+        setDebouncedValue(value);
+      }, delay);
+
+      return () => {
+        clearTimeout(handler);
+      };
+    }, [value, delay]);
+
+    return debouncedValue;
+  };
+
+  const debouncedFilterText = useDebounce(filterText, 500);
 
   // ─── Fetch Companies ───────────────────────────────────────
   const fetchCompanies = async () => {
@@ -315,30 +353,50 @@ export default function ProformaInvoice() {
     }
   };
 
-  // ─── load from GET /sales-order ───────────────────────────────────────
+  // ─── load from GET /sales-order with server-side pagination ──────
+
   const fetchSalesOrders = async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await api.get('/sales-order');
+      const params = new URLSearchParams();
+      params.append('page', String(currentPage));
+      params.append('limit', String(itemsPerPage));
 
-      if (response.data.success !== 1) {
-        throw new Error(response.data?.message || 'Failed to fetch sales orders');
+      // Add search filter if present
+      if (debouncedFilterText.trim()) {
+        params.append('search', debouncedFilterText.trim());
       }
 
-      const raw = response.data.data;
-      let all: SalesOrderApiRecord[] =
-        raw?.records ??
-        (Array.isArray(raw) ? raw : raw?.data) ??
-        [];
+      // Add status filter if not 'All'
+      if (selectedStatus !== 'All') {
+        params.append('status', selectedStatus);
+      }
 
-      if (!Array.isArray(all)) {
-        console.warn('Unexpected /sales-order response shape, defaulting to empty list:', raw);
-        all = [];
+      // Add order type filter if not 'All'
+      if (selectedOrderType !== 'All') {
+        params.append('order_type', selectedOrderType);
+      }
+
+      const response = await api.get<ApiResponse>(`/sales-order?${params.toString()}`);
+
+     
+
+      const { records, total, page, limit, totalPages: apiTotalPages } = response.data.data;
+
+      // Update pagination info from server
+      setTotalRecords(total);
+      setTotalPages(apiTotalPages || Math.ceil(total / limit));
+
+      // Ensure current page is valid
+      const validTotalPages = apiTotalPages || Math.ceil(total / limit);
+      if (currentPage > validTotalPages && validTotalPages > 0) {
+        setCurrentPage(validTotalPages);
+        return; // Will re-fetch with corrected page
       }
 
       // Show ALL sales orders as proforma - NO FILTERING
-      const transformedData: SalesOrder[] = all.map((o, idx) => {
+      const transformedData: SalesOrder[] = records.map((o, idx) => {
         const resolvedId =
           o.id !== undefined && o.id !== null && String(o.id).trim() !== ''
             ? String(o.id)
@@ -387,8 +445,17 @@ export default function ProformaInvoice() {
     }
   };
 
+  // Fetch when page, itemsPerPage, or filters change
   useEffect(() => {
     fetchSalesOrders();
+  }, [currentPage, itemsPerPage, debouncedFilterText, selectedStatus, selectedOrderType]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterText, selectedStatus, selectedOrderType]);
+
+  useEffect(() => {
     fetchCompanies();
   }, []);
 
@@ -507,13 +574,51 @@ export default function ProformaInvoice() {
     }
   };
 
-  const filteredOrders = salesOrders.filter(o => {
-    const matchesSearch = (o.salesOrderNumber || '').toLowerCase().includes(filterText.toLowerCase()) ||
-      (o.customerName || '').toLowerCase().includes(filterText.toLowerCase());
-    const matchesStatus = selectedStatus === 'All' || o.status === selectedStatus;
-    const matchesOrderType = selectedOrderType === 'All' || o.orderType === selectedOrderType;
-    return matchesSearch && matchesStatus && matchesOrderType;
-  });
+  // ─── Pagination Handlers ──────────────────────────────────────────
+  const goToPage = (page: number) => {
+    if (page < 1) {
+      setCurrentPage(1);
+    } else if (page > totalPages) {
+      setCurrentPage(totalPages);
+    } else {
+      setCurrentPage(page);
+    }
+  };
+
+  const goToFirstPage = () => goToPage(1);
+  const goToLastPage = () => goToPage(totalPages);
+  const goToNextPage = () => goToPage(currentPage + 1);
+  const goToPrevPage = () => goToPage(currentPage - 1);
+
+  const handlePageSizeChange = (newSize: number) => {
+    setItemsPerPage(newSize);
+    setCurrentPage(1);
+  };
+
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisible = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+
+    if (endPage - startPage + 1 < maxVisible) {
+      startPage = Math.max(1, endPage - maxVisible + 1);
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i);
+    }
+    return pages;
+  };
+
+  const getStartIndexDisplay = () => {
+    if (totalRecords === 0) return 0;
+    return (currentPage - 1) * itemsPerPage + 1;
+  };
+
+  const getEndIndexDisplay = () => {
+    return Math.min(currentPage * itemsPerPage, totalRecords);
+  };
 
   const totalAmount = salesOrders.reduce((sum, o) => sum + o.totalAmount, 0);
   const completedAmount = salesOrders.filter(o => o.status === 'Completed').reduce((sum, o) => sum + o.totalAmount, 0);
@@ -973,7 +1078,7 @@ export default function ProformaInvoice() {
           </div>
           <div className="pq-stat-content">
             <span className="pq-stat-label">Total Proformas</span>
-            <span className="pq-stat-value">{salesOrders.length}</span>
+            <span className="pq-stat-value">{totalRecords}</span>
           </div>
         </div>
         <div className="pq-stat-card">
@@ -1162,7 +1267,7 @@ export default function ProformaInvoice() {
       {/* Table */}
       {!loading && !error && (
         <div className="pq-table-wrap">
-          {filteredOrders.length === 0 ? (
+          {salesOrders.length === 0 ? (
             <div className="pq-empty-state">
               <div className="pq-empty-content">
                 <FaBoxOpen size={48} />
@@ -1171,85 +1276,258 @@ export default function ProformaInvoice() {
               </div>
             </div>
           ) : (
-            <table className="pq-table">
-              <thead>
-                <tr>
-                  <th className="pq-th">Proforma #</th>
-                  <th className="pq-th">Customer</th>
-                  <th className="pq-th">Date</th>
-                  <th className="pq-th">Order Type</th>
-                  <th className="pq-th">Status</th>
-                  <th className="pq-th pq-text-right">Amount</th>
-                  <th className="pq-th pq-th-meta">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredOrders.map((order, index) => (
-                  <tr key={order.id || `so-${index}`} className="pq-tr">
-                    <td className="pq-td pq-td-id">
-                      {order.salesOrderNumber}
-                    </td>
-                    <td className="pq-td">
-                      <div>
-                        <div className="pq-td-link">{order.customerName}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{order.customer}</div>
-                      </div>
-                    </td>
-                    <td className="pq-td">
-                      <div>{order.date ? new Date(order.date).toLocaleDateString() : '-'}</div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                        Valid Until: {order.deliveryDate ? new Date(order.deliveryDate).toLocaleDateString() : '-'}
-                      </div>
-                    </td>
-                    <td className="pq-td">{order.orderType}</td>
-                    <td className="pq-td">
-                      <span className={`pq-status-badge ${getStatusColor(order.status)}`}>
-                        {getStatusIcon(order.status)}
-                        {order.status}
-                      </span>
-                    </td>
-                    <td className="pq-td pq-text-right pq-amount-cell">
-                      <span className="pq-currency">{order.currency}</span>
-                      {order.totalAmount.toLocaleString()}
-                    </td>
-                    <td className="pq-td pq-td-meta">
-                      <div className="pq-action-buttons">
-                        <button className="pq-action-btn pq-action-view" onClick={() => handleView(order)} title="View / Edit">
-                          <FaEye size={12} />
-                        </button>
-                        <button
-                          className="pq-action-btn pq-action-print"
-                          onClick={() => handlePrintOrder(order)}
-                          title="Print Proforma Invoice"
-                          disabled={printLoadingId === order.id}
-                        >
-                          {printLoadingId === order.id ? <FaSpinner className="spinning" size={12} /> : <FaPrint size={12} />}
-                        </button>
-                        <button className="pq-action-btn pq-action-edit" onClick={() => handleEdit(order)} title="Edit">
-                          <FaEdit size={12} />
-                        </button>
-                        <button className="pq-action-btn pq-action-delete" onClick={() => handleDeleteClick(order)} title="Delete">
-                          <FaTrash size={12} />
-                        </button>
-                      </div>
-                    </td>
+            <>
+              <table className="pq-table">
+                <thead>
+                  <tr>
+                    <th className="pq-th">Proforma #</th>
+                    <th className="pq-th">Customer</th>
+                    <th className="pq-th">Date</th>
+                    <th className="pq-th">Order Type</th>
+                    <th className="pq-th">Status</th>
+                    <th className="pq-th pq-text-right">Amount</th>
+                    <th className="pq-th pq-th-meta">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {salesOrders.map((order, index) => (
+                    <tr key={order.id || `so-${index}`} className="pq-tr">
+                      <td className="pq-td pq-td-id">
+                        {order.salesOrderNumber}
+                      </td>
+                      <td className="pq-td">
+                        <div>
+                          <div className="pq-td-link">{order.customerName}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{order.customer}</div>
+                        </div>
+                      </td>
+                      <td className="pq-td">
+                        <div>{order.date ? new Date(order.date).toLocaleDateString() : '-'}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                          Valid Until: {order.deliveryDate ? new Date(order.deliveryDate).toLocaleDateString() : '-'}
+                        </div>
+                      </td>
+                      <td className="pq-td">{order.orderType}</td>
+                      <td className="pq-td">
+                        <span className={`pq-status-badge ${getStatusColor(order.status)}`}>
+                          {getStatusIcon(order.status)}
+                          {order.status}
+                        </span>
+                      </td>
+                      <td className="pq-td pq-text-right pq-amount-cell">
+                        <span className="pq-currency">{order.currency}</span>
+                        {order.totalAmount.toLocaleString()}
+                      </td>
+                      <td className="pq-td pq-td-meta">
+                        <div className="pq-action-buttons">
+                          <button className="pq-action-btn pq-action-view" onClick={() => handleView(order)} title="View / Edit">
+                            <FaEye size={12} />
+                          </button>
+                          <button
+                            className="pq-action-btn pq-action-print"
+                            onClick={() => handlePrintOrder(order)}
+                            title="Print Proforma Invoice"
+                            disabled={printLoadingId === order.id}
+                          >
+                            {printLoadingId === order.id ? <FaSpinner className="spinning" size={12} /> : <FaPrint size={12} />}
+                          </button>
+                          <button className="pq-action-btn pq-action-edit" onClick={() => handleEdit(order)} title="Edit">
+                            <FaEdit size={12} />
+                          </button>
+                          <button className="pq-action-btn pq-action-delete" onClick={() => handleDeleteClick(order)} title="Delete">
+                            <FaTrash size={12} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {/* ─── Pagination ────────────────────────────────────── */}
+              {totalRecords > 0 && totalPages > 0 && (
+                <div className="pq-pagination" style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center',
+                  padding: '12px 0',
+                  borderTop: '1px solid var(--border-color, #e5e7eb)',
+                  marginTop: '8px'
+                }}>
+                  {/* Left side - Show entries dropdown */}
+                  <div className="pq-pagination-left" style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '8px',
+                    color: 'var(--text-secondary, #6b7280)',
+                    fontSize: '13px'
+                  }}>
+                    <span className="pq-pagination-label">Show:</span>
+                    <select
+                      value={itemsPerPage}
+                      onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                      className="pq-page-size-select"
+                      style={{
+                        padding: '4px 8px',
+                        border: '1px solid var(--border-color, #d1d5db)',
+                        borderRadius: '4px',
+                        background: 'var(--bg-color, white)',
+                        color: 'var(--text-primary, #1f2937)',
+                        fontSize: '13px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <option value={10}>10</option>
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                    </select>
+                    <span className="pq-pagination-label">entries</span>
+                  </div>
+
+                  {/* Center - Page navigation */}
+                  <div className="pq-pagination-center" style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '4px'
+                  }}>
+                    <button 
+                      onClick={goToFirstPage} 
+                      className="pq-page-btn" 
+                      disabled={currentPage === 1 || totalPages === 0}
+                      style={{
+                        padding: '4px 8px',
+                        border: '1px solid var(--border-color, #d1d5db)',
+                        borderRadius: '4px',
+                        background: 'var(--bg-color, white)',
+                        color: 'var(--text-primary, #1f2937)',
+                        cursor: currentPage === 1 || totalPages === 0 ? 'not-allowed' : 'pointer',
+                        opacity: currentPage === 1 || totalPages === 0 ? 0.5 : 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '12px'
+                      }}
+                    >
+                      <FaAngleDoubleLeft size={12} />
+                    </button>
+                    <button 
+                      onClick={goToPrevPage} 
+                      className="pq-page-btn" 
+                      disabled={currentPage === 1 || totalPages === 0}
+                      style={{
+                        padding: '4px 8px',
+                        border: '1px solid var(--border-color, #d1d5db)',
+                        borderRadius: '4px',
+                        background: 'var(--bg-color, white)',
+                        color: 'var(--text-primary, #1f2937)',
+                        cursor: currentPage === 1 || totalPages === 0 ? 'not-allowed' : 'pointer',
+                        opacity: currentPage === 1 || totalPages === 0 ? 0.5 : 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '12px'
+                      }}
+                    >
+                      <FaChevronLeft size={12} />
+                    </button>
+                    
+                    {totalPages > 0 && getPageNumbers().map((page) => (
+                      <button
+                        key={page}
+                        onClick={() => goToPage(page)}
+                        className={`pq-page-btn ${currentPage === page ? 'pq-page-btn-active' : ''}`}
+                        style={{
+                          padding: '4px 10px',
+                          border: currentPage === page ? '1px solid var(--primary-color, #3b82f6)' : '1px solid var(--border-color, #d1d5db)',
+                          borderRadius: '4px',
+                          background: currentPage === page ? 'var(--primary-color, #3b82f6)' : 'var(--bg-color, white)',
+                          color: currentPage === page ? 'white' : 'var(--text-primary, #1f2937)',
+                          cursor: 'pointer',
+                          fontSize: '13px',
+                          fontWeight: currentPage === page ? '600' : '400',
+                          minWidth: '32px'
+                        }}
+                      >
+                        {page}
+                      </button>
+                    ))}
+                    
+                    <button 
+                      onClick={goToNextPage} 
+                      className="pq-page-btn" 
+                      disabled={currentPage === totalPages || totalPages === 0}
+                      style={{
+                        padding: '4px 8px',
+                        border: '1px solid var(--border-color, #d1d5db)',
+                        borderRadius: '4px',
+                        background: 'var(--bg-color, white)',
+                        color: 'var(--text-primary, #1f2937)',
+                        cursor: currentPage === totalPages || totalPages === 0 ? 'not-allowed' : 'pointer',
+                        opacity: currentPage === totalPages || totalPages === 0 ? 0.5 : 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '12px'
+                      }}
+                    >
+                      <FaChevronRight size={12} />
+                    </button>
+                    <button 
+                      onClick={goToLastPage} 
+                      className="pq-page-btn" 
+                      disabled={currentPage === totalPages || totalPages === 0}
+                      style={{
+                        padding: '4px 8px',
+                        border: '1px solid var(--border-color, #d1d5db)',
+                        borderRadius: '4px',
+                        background: 'var(--bg-color, white)',
+                        color: 'var(--text-primary, #1f2937)',
+                        cursor: currentPage === totalPages || totalPages === 0 ? 'not-allowed' : 'pointer',
+                        opacity: currentPage === totalPages || totalPages === 0 ? 0.5 : 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '12px'
+                      }}
+                    >
+                      <FaAngleDoubleRight size={12} />
+                    </button>
+                  </div>
+
+                  {/* Right side - Showing entries info */}
+                  <div className="pq-pagination-right" style={{ 
+                    color: 'var(--text-secondary, #6b7280)',
+                    fontSize: '13px'
+                  }}>
+                    <span className="pq-pagination-info">
+                      {totalRecords > 0
+                        ? `Showing ${getStartIndexDisplay()} to ${getEndIndexDisplay()} of ${totalRecords} entries`
+                        : 'No entries to show'}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
 
       {/* Footer */}
-      <div className="pq-pagination">
+      <div className="pq-pagination" style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: '8px 0',
+        marginTop: '4px'
+      }}>
         <div className="pq-pagination-left">
-          <span className="pq-pagination-info">
-            {filteredOrders.length} of {salesOrders.length} proformas
+          <span className="pq-pagination-info" style={{ color: 'var(--text-secondary, #6b7280)', fontSize: '13px' }}>
+            {totalRecords} total proformas
           </span>
         </div>
         <div className="pq-pagination-right">
-          <span className="pq-pagination-info" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span className="pq-pagination-info" style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary, #6b7280)', fontSize: '13px' }}>
             <FaChartLine size={14} style={{ color: 'var(--primary-color)' }} />
             {fulfillmentRate}% conversion rate
           </span>
