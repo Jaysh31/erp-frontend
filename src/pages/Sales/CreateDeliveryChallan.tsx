@@ -29,6 +29,7 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
+import { useFormState } from '../../context/FormStateContext';
 import './CreateDeliveryChallan.css';
 import { FaTrash } from 'react-icons/fa6';
 
@@ -162,7 +163,9 @@ interface DeliveryNotePayload {
     rate: number;
     amount: number;
     tax: number;
+    tax_rate: number;
     tax_id: number | null;
+    item_tax_id: number | null;
     tax_amount: number;
     total_amount: number;
     warehouse: string;
@@ -743,16 +746,22 @@ const SalesOrderDropdown: React.FC<SalesOrderDropdownProps> = ({
           po_no: record.po_no || '',
           po_date: record.po_date || '',
           tax_id: record.tax_id || '',
-          items: (record.sales_items || []).map((item: any) => ({
-            item_code: item.item_code || '',
-            description: item.description || '',
-            qty: item.qty || 0,
-            uom: item.uom || item.stock_uom || 'pcs',
-            rate: item.rate || 0,
-            amount: item.amount || 0,
-            tax_id: item.tax_id || record.tax_id || null,
-            tax: item.tax || 0,
-          }))
+          items: (record.sales_items || []).map((item: any) => {
+        
+            const lineTaxId = item.item_tax_id
+              ? Number(item.item_tax_id)
+              : (item.tax_id ? Number(item.tax_id) : (record.tax_id ? Number(record.tax_id) : null));
+            return {
+              item_code: item.item_code || '',
+              description: item.description || '',
+              qty: item.qty || 0,
+              uom: item.uom || item.stock_uom || 'pcs',
+              rate: item.rate || 0,
+              amount: item.amount || 0,
+              tax_id: lineTaxId,
+              tax: item.tax_rate || item.tax || 0,
+            };
+          })
         }));
         
         setOrders(mappedOrders);
@@ -923,6 +932,9 @@ interface CustomerDropdownProps {
   disabled?: boolean;
   error?: boolean;
   fullWidth?: boolean;
+  onAddNewCustomer?: (searchTerm: string) => void;
+  
+  presetCustomer?: Customer | null;
 }
 
 const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
@@ -931,6 +943,8 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
   placeholder = 'Search Customer...',
   disabled = false,
   error = false,
+  onAddNewCustomer,
+  presetCustomer = null,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -944,12 +958,23 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const deliveryChallanAPI = new DeliveryChallanAPI();
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const navigate = useNavigate();
 
   const menuPos = useDropdownPosition(isOpen, wrapperRef);
 
   useEffect(() => {
     fetchCustomers('');
   }, []);
+
+  useEffect(() => {
+    if (!value) {
+      setSelectedCustomer(null);
+      return;
+    }
+    if (presetCustomer && presetCustomer.id === value) {
+      setSelectedCustomer(prev => (prev && prev.id === presetCustomer.id ? prev : presetCustomer));
+    }
+  }, [value, presetCustomer]);
 
   useEffect(() => {
     if (!searchTerm.trim()) {
@@ -1057,6 +1082,15 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
     }
   };
 
+  const handleAddNewCustomer = () => {
+    setIsOpen(false);
+    if (onAddNewCustomer) {
+      onAddNewCustomer(searchTerm.trim());
+    } else {
+      navigate('/customer/add');
+    }
+  };
+
   const getDisplayValue = () => {
     if (selectedCustomer) {
       return `${selectedCustomer.name}`;
@@ -1078,61 +1112,84 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
         borderRadius: '6px',
         boxShadow: '0 4px 16px var(--shadow-color, rgba(0,0,0,0.15))',
         zIndex: 99999,
-        maxHeight: '280px',
-        overflowY: 'auto',
-        overflowX: 'hidden'
+        maxHeight: '320px',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden'
       }}
     >
-      {loading ? (
-        <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
-          <FaSpinner className="ndc-spinning" style={{ display: 'inline-block', marginRight: '8px' }} /> Loading...
-        </div>
-      ) : filteredCustomers.length > 0 ? (
-        filteredCustomers.map((customer, index) => (
-          <div
-            key={customer.id}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              handleSelect(customer);
-            }}
-            style={{
-              padding: '10px 14px',
-              cursor: 'pointer',
-              background: highlightedIndex === index ? 'var(--nav-hover, #eff6ff)' : 'transparent',
-              borderLeft: value === customer.id ? '3px solid var(--primary-color, #2563eb)' : '3px solid transparent',
-              transition: 'background 0.15s',
-              borderBottom: index < filteredCustomers.length - 1 ? '0.5px solid var(--border-color, #f1f5f9)' : 'none'
-            }}
-            onMouseEnter={() => setHighlightedIndex(index)}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary, #0f172a)' }}>{customer.name}</span>
-              </div>
-              {customer.gstin && (
-                <span style={{ fontSize: '10px', color: 'var(--text-secondary, #94a3b8)', background: 'var(--layout-bg, #f1f5f9)', padding: '2px 8px', borderRadius: '4px' }}>
-                  GST: {customer.gstin}
-                </span>
-              )}
-            </div>
-            <div style={{ display: 'flex', gap: '16px', marginTop: '4px', fontSize: '11px', color: 'var(--text-secondary, #64748b)' }}>
-              {customer.contactPerson && (
-                <span><FaUser size={10} style={{ marginRight: '4px' }} />{customer.contactPerson}</span>
-              )}
-              {customer.phone && (
-                <span><FaPhone size={10} style={{ marginRight: '4px' }} />{customer.phone}</span>
-              )}
-              {customer.email && (
-                <span><FaEnvelope size={10} style={{ marginRight: '4px' }} />{customer.email}</span>
-              )}
-            </div>
+      <div className="ndc-custom-scroll" style={{ overflowY: 'auto', overflowX: 'hidden', flex: '1 1 auto' }}>
+        {loading ? (
+          <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
+            <FaSpinner className="ndc-spinning" style={{ display: 'inline-block', marginRight: '8px' }} /> Loading...
           </div>
-        ))
-      ) : (
-        <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
-          {searchTerm ? 'No matching customers found' : 'No customers available'}
-        </div>
-      )}
+        ) : filteredCustomers.length > 0 ? (
+          filteredCustomers.map((customer, index) => (
+            <div
+              key={customer.id}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                handleSelect(customer);
+              }}
+              style={{
+                padding: '10px 14px',
+                cursor: 'pointer',
+                background: highlightedIndex === index ? 'var(--nav-hover, #eff6ff)' : 'transparent',
+                borderLeft: value === customer.id ? '3px solid var(--primary-color, #2563eb)' : '3px solid transparent',
+                transition: 'background 0.15s',
+                borderBottom: index < filteredCustomers.length - 1 ? '0.5px solid var(--border-color, #f1f5f9)' : 'none'
+              }}
+              onMouseEnter={() => setHighlightedIndex(index)}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary, #0f172a)' }}>{customer.name}</span>
+                </div>
+                {customer.gstin && (
+                  <span style={{ fontSize: '10px', color: 'var(--text-secondary, #94a3b8)', background: 'var(--layout-bg, #f1f5f9)', padding: '2px 8px', borderRadius: '4px' }}>
+                    GST: {customer.gstin}
+                  </span>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: '16px', marginTop: '4px', fontSize: '11px', color: 'var(--text-secondary, #64748b)' }}>
+                {customer.contactPerson && (
+                  <span><FaUser size={10} style={{ marginRight: '4px' }} />{customer.contactPerson}</span>
+                )}
+                {customer.phone && (
+                  <span><FaPhone size={10} style={{ marginRight: '4px' }} />{customer.phone}</span>
+                )}
+                {customer.email && (
+                  <span><FaEnvelope size={10} style={{ marginRight: '4px' }} />{customer.email}</span>
+                )}
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="ndc-dropdown-no-results">
+            <FaInfoCircle size={13} />
+            <span>
+              {searchTerm ? `No customer found for "${searchTerm}"` : 'No customers available'}
+            </span>
+          </div>
+        )}
+      </div>
+
+      <div
+        className="ndc-dropdown-add-new"
+        onMouseDown={(e) => {
+          e.preventDefault();
+          handleAddNewCustomer();
+        }}
+      >
+        <span className="ndc-dropdown-add-new-icon">
+          <FaPlus size={10} />
+        </span>
+        <span>
+          {searchTerm && filteredCustomers.length === 0
+            ? `Add "${searchTerm}" as New Customer`
+            : 'Add New Customer'}
+        </span>
+      </div>
     </div>
   ) : null;
 
@@ -1170,6 +1227,339 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
       </div>
 
       {menu && ReactDOM.createPortal(menu, document.body)}
+    </div>
+  );
+};
+
+interface QuickAddCustomerModalProps {
+  isOpen: boolean;
+  prefillName?: string;
+  onClose: () => void;
+  onCreated: (customer: Customer) => void;
+  onOpenFullForm: () => void;
+}
+
+const QuickAddCustomerModal: React.FC<QuickAddCustomerModalProps> = ({
+  isOpen,
+  prefillName = '',
+  onClose,
+  onCreated,
+  onOpenFullForm,
+}) => {
+  const [customerName, setCustomerName] = useState('');
+  const [mobileNo, setMobileNo] = useState('');
+  const [emailId, setEmailId] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const DEFAULT_CUSTOMER_TYPE = 'Company';
+  const DEFAULT_CUSTOMER_GROUP = 'Commercial';
+
+  useEffect(() => {
+    if (isOpen) {
+      setCustomerName(prefillName || '');
+      setMobileNo('');
+      setEmailId('');
+      setErrors({});
+    }
+  }, [isOpen, prefillName]);
+
+  if (!isOpen) return null;
+
+  const validate = (): boolean => {
+    const errs: Record<string, string> = {};
+    if (!customerName.trim()) errs.customerName = 'Customer name is required';
+    if (!mobileNo.trim()) errs.mobileNo = 'Mobile number is required';
+    if (!emailId.trim()) {
+      errs.emailId = 'Email is required';
+    } else if (!/\S+@\S+\.\S+/.test(emailId)) {
+      errs.emailId = 'Enter a valid email address';
+    }
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validate()) return;
+
+    setSubmitting(true);
+    try {
+      // No separate contact-person name is collected here, so the contact
+      // record reuses the customer name/mobile/email.
+      const contactPayload = {
+        first_name: customerName.trim(),
+        last_name: '',
+        contact_name: customerName.trim(),
+        mobile_no: mobileNo.trim(),
+        alternate_mobile: '',
+        email_id: emailId.trim(),
+        telephone: '',
+        extension: '',
+        is_primary: 1,
+        is_billing_contact: 0,
+        is_saler_contact: 1,
+        remarks: '',
+      };
+
+      const payload = {
+        customer_name: customerName.trim(),
+        customer_group: DEFAULT_CUSTOMER_GROUP,
+        territory: '',
+        customer_type: DEFAULT_CUSTOMER_TYPE,
+        mobile_no: mobileNo.trim(),
+        email_id: emailId.trim(),
+        customer_primary_address: '',
+        primary_address: '',
+        contacts: [contactPayload],
+      };
+
+      const response = await api.post('/customer', payload);
+      if (response.data && response.data.success === 0) {
+        throw new Error(response.data?.message || 'Failed to add customer');
+      }
+
+      const apiData = response?.data?.data;
+
+      const created: Customer = {
+        id: apiData?.id?.toString() || apiData?.name?.toString() || '',
+        name: apiData?.customer_name || payload.customer_name,
+        code: apiData?.customer_code || (apiData?.id != null ? `CUST-${apiData.id}` : ''),
+        email: apiData?.email_id || payload.email_id,
+        phone: apiData?.mobile_no || payload.mobile_no,
+        address: apiData?.customer_primary_address || '',
+        shippingAddress: apiData?.primary_address || '',
+        gstin: '',
+        contactPerson: contactPayload.contact_name,
+        contactMobile: contactPayload.mobile_no,
+      };
+
+      toast.success(`Customer "${created.name}" added and selected`);
+      onCreated(created);
+    } catch (err: any) {
+      console.error('Error quick-adding customer:', err);
+      const message =
+        err.response?.data?.message || err.message || 'Failed to add customer';
+      toast.error(message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const labelStyle: React.CSSProperties = {
+    fontSize: '11px',
+    fontWeight: 600,
+    color: 'var(--text-secondary, #64748b)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
+    marginBottom: '4px',
+    display: 'block',
+  };
+
+  const inputStyle = (hasError: boolean): React.CSSProperties => ({
+    width: '100%',
+    padding: '7px 10px',
+    border: hasError
+      ? '1.5px solid var(--danger-color, #ef4444)'
+      : '1.5px solid var(--border-color, #e2e8f0)',
+    borderRadius: '8px',
+    background: 'var(--card-bg, #ffffff)',
+    color: 'var(--text-primary, #0f172a)',
+    fontSize: '13px',
+    fontFamily: 'inherit',
+    boxSizing: 'border-box',
+    minHeight: '34px',
+  });
+
+  const fieldWrapStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: '2px' };
+  const errorTextStyle: React.CSSProperties = { fontSize: '10px', color: 'var(--danger-color, #ef4444)' };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(17, 24, 39, 0.45)',
+        backdropFilter: 'blur(3px)',
+        zIndex: 300,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '20px',
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: 'var(--card-bg, #ffffff)',
+          borderRadius: '12px',
+          width: '100%',
+          maxWidth: '420px',
+          boxShadow: '0 16px 40px rgba(0, 0, 0, 0.18)',
+          overflow: 'hidden',
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '16px 20px',
+            borderBottom: '1px solid var(--border-color, #e2e8f0)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <FaUser style={{ color: 'var(--primary-color, #2563eb)' }} />
+            <h2 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: 'var(--text-primary, #0f172a)' }}>
+              Quick Add Customer
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              width: '28px',
+              height: '28px',
+              borderRadius: '50%',
+              border: 'none',
+              background: 'none',
+              fontSize: '18px',
+              color: 'var(--text-secondary, #6b7280)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <FaTimes />
+          </button>
+        </div>
+
+        {/* Body */}
+        <form onSubmit={handleSubmit}>
+          <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={fieldWrapStyle}>
+              <label style={labelStyle}>
+                Customer Name <span style={{ color: 'var(--danger-color, #ef4444)' }}>*</span>
+              </label>
+              <input
+                type="text"
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                placeholder="Enter customer name"
+                style={inputStyle(!!errors.customerName)}
+                autoFocus
+              />
+              {errors.customerName && <span style={errorTextStyle}>{errors.customerName}</span>}
+            </div>
+
+            <div style={fieldWrapStyle}>
+              <label style={labelStyle}>
+                Mobile Number <span style={{ color: 'var(--danger-color, #ef4444)' }}>*</span>
+              </label>
+              <input
+                type="tel"
+                value={mobileNo}
+                onChange={(e) => setMobileNo(e.target.value)}
+                placeholder="Mobile number"
+                style={inputStyle(!!errors.mobileNo)}
+              />
+              {errors.mobileNo && <span style={errorTextStyle}>{errors.mobileNo}</span>}
+            </div>
+
+            <div style={fieldWrapStyle}>
+              <label style={labelStyle}>
+                Email <span style={{ color: 'var(--danger-color, #ef4444)' }}>*</span>
+              </label>
+              <input
+                type="email"
+                value={emailId}
+                onChange={(e) => setEmailId(e.target.value)}
+                placeholder="Email address"
+                style={inputStyle(!!errors.emailId)}
+              />
+              {errors.emailId && <span style={errorTextStyle}>{errors.emailId}</span>}
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div
+            style={{
+              padding: '14px 20px',
+              borderTop: '1px solid var(--border-color, #e2e8f0)',
+              background: 'var(--layout-bg, #f8fafc)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '10px',
+              flexWrap: 'wrap',
+            }}
+          >
+            <button
+              type="button"
+              onClick={onOpenFullForm}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 14px',
+                borderRadius: '20px',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                background: 'transparent',
+                border: '1px solid var(--border-color, #e2e8f0)',
+                color: 'var(--primary-color, #2563eb)',
+              }}
+              title="Fill in the full customer form instead (address, contact person, etc.)"
+            >
+              <FaBuilding size={11} /> Add All Details
+            </button>
+
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={onClose}
+                style={{
+                  padding: '8px 18px',
+                  borderRadius: '20px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  background: 'var(--card-bg, #ffffff)',
+                  border: '1px solid var(--border-color, #e2e8f0)',
+                  color: 'var(--text-secondary, #64748b)',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={submitting}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 18px',
+                  borderRadius: '20px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: submitting ? 'not-allowed' : 'pointer',
+                  opacity: submitting ? 0.7 : 1,
+                  background: 'var(--primary-gradient, linear-gradient(135deg, #2563eb 0%, #1e40af 100%))',
+                  border: 'none',
+                  color: '#ffffff',
+                }}
+              >
+                {submitting && <FaSpinner className="ndc-spinning" size={11} />}
+                Add Customer
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
     </div>
   );
 };
@@ -1247,10 +1637,10 @@ const NewDeliveryChallan: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const location = useLocation();
   const { theme } = useAdminTheme();
+  const formState = useFormState();
 
   const isEditMode = !!id;
   const isViewMode = location.pathname.includes('/view/');
-  // const isReadOnly = isViewMode;
   
   const [hasSalesOrder, setHasSalesOrder] = useState<boolean>(true);
   
@@ -1265,9 +1655,14 @@ const NewDeliveryChallan: React.FC = () => {
   const [transporter, setTransporter] = useState<string>('');
   const [vehicleNumber, setVehicleNumber] = useState<string>('');
   const [remarks, setRemarks] = useState<string>('');
-  const [qualityInspection] = useState<boolean>(false);
+  const [qualityInspection, setQualityInspection] = useState<boolean>(false);
   const [items, setItems] = useState<DeliveryChallanItem[]>([]);
   const [customerData, setCustomerData] = useState<Customer | null>(null);
+
+  // ─── Quick Add Customer modal state ─────────────────────────────
+  const [showQuickAddModal, setShowQuickAddModal] = useState<boolean>(false);
+  const [quickAddPrefillName, setQuickAddPrefillName] = useState<string>('');
+
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [dcNumber, setDcNumber] = useState<string>(`DN-${new Date().getFullYear()}-001`);
@@ -1464,8 +1859,26 @@ const NewDeliveryChallan: React.FC = () => {
         if (data.items && Array.isArray(data.items) && data.items.length > 0) {
           const mappedItems: DeliveryChallanItem[] = data.items.map((item: any, index: number) => {
             const product = allProducts.find(p => p.itemCode === item.item_code);
-            const taxRate = item.tax || 0;
-            const taxId = item.tax_id || getTaxIdFromRate(taxRate, taxOptions);
+
+            let taxId: number | undefined =
+              item.item_tax_id ? Number(item.item_tax_id) :
+              item.tax_id ? Number(item.tax_id) : undefined;
+            let taxRate: number = item.tax_rate ?? item.tax ?? 0;
+
+            if (taxId) {
+            
+              if (!taxRate || taxRate <= 0) {
+                taxRate = getTaxRateFromId(taxId, taxOptions);
+              }
+            } else if (taxRate > 0) {
+             
+              taxId = getTaxIdFromRate(taxRate, taxOptions);
+            } else if (product?.tax) {
+             
+              taxRate = product.tax;
+              taxId = getTaxIdFromRate(taxRate, taxOptions);
+            }
+
             const amount = (item.qty || 0) * (item.rate || 0);
             const taxAmount = (amount * taxRate) / 100;
             const { status: stockStatus, availableQty, inventoryRecords } = getStockStatus(item.item_code || '', item.qty || 0);
@@ -1511,6 +1924,196 @@ const NewDeliveryChallan: React.FC = () => {
       setIsLoadingData(false);
     }
   };
+
+  // ===== RESTORE STATE FROM QUALITY INSPECTION =====
+  const restoreStateFromQI = useCallback(() => {
+    const returnFlag = new URLSearchParams(location.search).get('returnFromQI');
+    
+    if (returnFlag === '1' && !isEditMode && !isViewMode) {
+      const savedState = formState.restoreFormState('delivery_challan');
+      if (savedState) {
+        // Restore all form fields
+        if (savedState.selectedCustomer) {
+          setSelectedCustomer(savedState.selectedCustomer);
+          // Find and set customer data
+          const customer = customers.find(c => c.id === savedState.selectedCustomer);
+          if (customer) {
+            setCustomerData(customer);
+          }
+        }
+        if (savedState.selectedSalesOrder !== undefined) {
+          setSelectedSalesOrder(savedState.selectedSalesOrder);
+        }
+        if (savedState.isService !== undefined) {
+          setIsService(savedState.isService);
+        }
+        if (savedState.dcDate) {
+          setDcDate(savedState.dcDate);
+        }
+        if (savedState.warehouse) {
+          setWarehouse(savedState.warehouse);
+        }
+        if (savedState.transporter) {
+          setTransporter(savedState.transporter);
+        }
+        if (savedState.vehicleNumber) {
+          setVehicleNumber(savedState.vehicleNumber);
+        }
+        if (savedState.remarks) {
+          setRemarks(savedState.remarks);
+        }
+        if (savedState.items && Array.isArray(savedState.items)) {
+          setItems(savedState.items);
+        }
+        if (savedState.dcNumber) {
+          setDcNumber(savedState.dcNumber);
+        }
+        if (savedState.hasSalesOrder !== undefined) {
+          setHasSalesOrder(savedState.hasSalesOrder);
+        }
+        if (savedState.roundOff !== undefined) {
+          setRoundOff(savedState.roundOff);
+        }
+        
+        toast.success('Delivery Challan data restored from Quality Inspection');
+        
+        // Clean up URL
+        const cleanUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, cleanUrl);
+      }
+    }
+  }, [location.search, formState, customers, isEditMode, isViewMode]);
+
+  useEffect(() => {
+    restoreStateFromQI();
+  }, [restoreStateFromQI]);
+
+
+  const handleAddNewCustomer = useCallback((searchTerm: string) => {
+    setQuickAddPrefillName(searchTerm || '');
+    setShowQuickAddModal(true);
+  }, []);
+
+  const navigateToFullCustomerForm = useCallback((searchTerm: string) => {
+    const formDataToSave = {
+      selectedCustomer,
+      selectedSalesOrder,
+      isService,
+      dcDate,
+      warehouse,
+      transporter,
+      vehicleNumber,
+      remarks,
+      items,
+      customerData,
+      dcNumber,
+      hasSalesOrder,
+      roundOff
+    };
+    formState.saveFormState('delivery_challan', formDataToSave, id);
+
+    const returnUrl = `${location.pathname}?returnFromCustomerAdd=1`;
+    const params = new URLSearchParams();
+    params.set('returnUrl', returnUrl);
+    if (searchTerm) {
+      params.set('name', searchTerm);
+    }
+
+    toast('Add the new customer, and you\'ll be brought back here automatically.', { icon: 'ℹ️' });
+    navigate(`/customer/add?${params.toString()}`);
+  }, [
+    selectedCustomer, selectedSalesOrder, isService, dcDate, warehouse,
+    transporter, vehicleNumber, remarks, items, customerData, dcNumber,
+    hasSalesOrder, roundOff, formState, id, location.pathname, navigate
+  ]);
+
+  // ===== RESTORE STATE AFTER ADDING A NEW CUSTOMER =====
+  const restoreStateFromCustomerAdd = useCallback(async () => {
+    const searchParams = new URLSearchParams(location.search);
+    const returnFlag = searchParams.get('returnFromCustomerAdd');
+
+    if (returnFlag !== '1' || isEditMode || isViewMode) {
+      return;
+    }
+
+    const newCustomerId = searchParams.get('newCustomerId') || searchParams.get('customerId');
+
+    const savedState = formState.restoreFormState('delivery_challan');
+    if (savedState) {
+      if (savedState.selectedSalesOrder !== undefined) setSelectedSalesOrder(savedState.selectedSalesOrder);
+      if (savedState.isService !== undefined) setIsService(savedState.isService);
+      if (savedState.dcDate) setDcDate(savedState.dcDate);
+      if (savedState.warehouse) setWarehouse(savedState.warehouse);
+      if (savedState.transporter) setTransporter(savedState.transporter);
+      if (savedState.vehicleNumber) setVehicleNumber(savedState.vehicleNumber);
+      if (savedState.remarks) setRemarks(savedState.remarks);
+      if (savedState.items && Array.isArray(savedState.items)) setItems(savedState.items);
+      if (savedState.dcNumber) setDcNumber(savedState.dcNumber);
+      if (savedState.hasSalesOrder !== undefined) setHasSalesOrder(savedState.hasSalesOrder);
+      if (savedState.roundOff !== undefined) setRoundOff(savedState.roundOff);
+      if (!newCustomerId && savedState.selectedCustomer) {
+        setSelectedCustomer(savedState.selectedCustomer);
+        const customer = (customers.length > 0 ? customers : []).find(c => c.id === savedState.selectedCustomer);
+        if (customer) setCustomerData(customer);
+      }
+    }
+
+    if (newCustomerId) {
+      setIsLoading(true);
+      try {
+        const response = await deliveryChallanAPI.getCustomers({ page: 1, limit: 100 });
+        if (response.success && response.data) {
+          let customerList: any[] = [];
+          if (response.data.data && Array.isArray(response.data.data.records)) {
+            customerList = response.data.data.records;
+          } else if (Array.isArray(response.data)) {
+            customerList = response.data;
+          } else if (response.data.data && Array.isArray(response.data.data)) {
+            customerList = response.data.data;
+          }
+
+          const mappedCustomers: Customer[] = customerList.map((cust: any) => ({
+            id: cust.id?.toString() || cust.customer_id?.toString() || '',
+            name: cust.customer_name || cust.name || '',
+            code: cust.customer_code || cust.code || '',
+            email: cust.email_id || cust.email || '',
+            phone: cust.mobile_no || cust.phone || '',
+            address: cust.address || '',
+            shippingAddress: cust.shipping_address || cust.address || '',
+            gstin: cust.gstin || '',
+            contactPerson: cust.contact_person || '',
+            contactMobile: cust.contact_mobile || cust.mobile_no || ''
+          }));
+
+          setCustomers(mappedCustomers);
+
+          const newCustomer = mappedCustomers.find(c => c.id === String(newCustomerId));
+          if (newCustomer) {
+            setSelectedCustomer(newCustomer.id);
+            setCustomerData(newCustomer);
+            setSelectedSalesOrder('');
+            setSelectedOrderData(null);
+            toast.success(`New customer "${newCustomer.name}" added and selected`);
+          } else {
+            toast.error('Customer was added, but could not be auto-selected. Please select it manually.');
+          }
+        }
+      } catch (error) {
+        console.error('Error refreshing customers after add:', error);
+        toast.error('Failed to refresh customer list');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    const cleanUrl = window.location.pathname;
+    window.history.replaceState({}, document.title, cleanUrl);
+  }, [location.search, formState, isEditMode, isViewMode, customers]);
+
+  useEffect(() => {
+    restoreStateFromCustomerAdd();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search]);
 
   useEffect(() => {
     fetchTaxOptions();
@@ -1633,7 +2236,7 @@ const NewDeliveryChallan: React.FC = () => {
           hsn: item.HSN || item.hsn || '',
           description: item.description || item.item_name || '',
           unit: item.stock_uom || 'pcs',
-          rate: item.selling_price  || 0,
+          rate: item.selling_price || 0,
           tax: item.gst_rate || item.tax_rate || 0,
           type: 'product' as 'product' | 'service',
           stockUom: item.stock_uom,
@@ -1966,46 +2569,65 @@ const NewDeliveryChallan: React.FC = () => {
     );
   };
 
-// ===== NAVIGATE TO QUALITY INSPECTION =====
-const navigateToQualityInspection = () => {
-  // Check if there are items to inspect
-  const hasItems = items.some(item => item.itemCode && item.quantity > 0);
-  if (!hasItems) {
-    toast.error('Please add at least one item before creating a Quality Inspection');
-    return;
-  }
+  // ===== NAVIGATE TO QUALITY INSPECTION =====
+  const navigateToQualityInspection = () => {
+    // Check if there are items to inspect
+    const hasItems = items.some(item => item.itemCode && item.quantity > 0);
+    if (!hasItems) {
+      toast.error('Please add at least one item before creating a Quality Inspection');
+      return;
+    }
 
-  // Build the URL for the Quality Inspection form
-  const baseUrl = '/quality-inspection/new';
-  
-  // Get the first item's name and code for the inspection
-  const firstItem = items.find(item => item.itemCode && item.quantity > 0);
-  const partProductName = encodeURIComponent(firstItem?.itemName || firstItem?.itemCode || '');
-  const partNo = encodeURIComponent(firstItem?.itemCode || '');
-  
-  // Use the delivery challan number as the doc no
-  const docNo = encodeURIComponent(dcNumber || '');
-  
-  // Get customer name
-  const customerName = encodeURIComponent(customerData?.name || '');
-  
-  // Use challan number as challanNoDate (or you can use date)
-  const challanNoDate = encodeURIComponent(dcNumber || '');
-  
-  // Invoice Qty - total quantity of all items
-  const invoiceQty = encodeURIComponent(String(getTotalQty()));
-  
-  // Report No - can use the delivery challan number or generate one
-  const reportNo = encodeURIComponent(`QIR-${dcNumber || Date.now()}`);
-  
-  // Construct the URL with all query parameters
-  const url = `${baseUrl}?docNo=${docNo}&sourceType=delivery_challan&sourceId=${id || ''}&partProductName=${partProductName}&partNo=${partNo}&customerName=${customerName}&challanNoDate=${challanNoDate}&invoiceQty=${invoiceQty}&reportNo=${reportNo}`;
-  
-  // Navigate to the Quality Inspection form
-  navigate(url);
-  
-  toast(`Opening Quality Inspection for this delivery challan`);
-};
+    // Save current form state BEFORE navigating
+    const formDataToSave = {
+      selectedCustomer,
+      selectedSalesOrder,
+      isService,
+      dcDate,
+      warehouse,
+      transporter,
+      vehicleNumber,
+      remarks,
+      items,
+      customerData,
+      dcNumber,
+      hasSalesOrder,
+      roundOff
+    };
+    formState.saveFormState('delivery_challan', formDataToSave, id);
+
+    // Get the first item's name and code for the inspection
+    const firstItem = items.find(item => item.itemCode && item.quantity > 0);
+    const partProductName = encodeURIComponent(firstItem?.itemName || firstItem?.itemCode || '');
+    const partNo = encodeURIComponent(firstItem?.itemCode || '');
+    
+    // Use the delivery challan number as the doc no
+    const docNo = encodeURIComponent(dcNumber || '');
+    
+    // Get customer name
+    const customerName = encodeURIComponent(customerData?.name || '');
+    
+    // Use challan number as challanNoDate
+    const challanNoDate = encodeURIComponent(dcNumber || '');
+    
+    // Invoice Qty - total quantity of all items
+    const invoiceQty = encodeURIComponent(String(getTotalQty()));
+    
+    // Report No - use the delivery challan number
+    const reportNo = encodeURIComponent(`QIR-${dcNumber || Date.now()}`);
+    
+    // Build the URL with all query parameters
+    const baseUrl = '/quality-inspection/new';
+    const url = `${baseUrl}?docNo=${docNo}&sourceType=delivery_challan&sourceId=${id || ''}&partProductName=${partProductName}&partNo=${partNo}&customerName=${customerName}&challanNoDate=${challanNoDate}&invoiceQty=${invoiceQty}&reportNo=${reportNo}`;
+    
+    // Set quality inspection flag
+    setQualityInspection(true);
+    
+    // Navigate to the Quality Inspection form
+    navigate(url);
+    
+    toast.success('Opening Quality Inspection for this delivery challan');
+  };
 
   const getTotalQty = () => items.reduce((sum, item) => sum + (item.quantity || 0), 0);
   const getTotalAmount = () => items.reduce((sum, item) => sum + (item.amount || 0), 0);
@@ -2056,7 +2678,7 @@ const navigateToQualityInspection = () => {
         reserved_qty_for_production_plan: record.reserved_qty_for_production_plan || 0,
         reserved_stock: record.reserved_stock || 0,
         stock_uom: record.stock_uom || 'Nos',
-        company: record.company || 'SculptorTech Pvt Ltd',
+        company: record.company || 'SculptERP Pvt Ltd',
         valuation_rate: record.valuation_rate || 0,
         type: record.type || 'Internal',
       };
@@ -2102,22 +2724,28 @@ const navigateToQualityInspection = () => {
       type: isService ? 'Services' : 'Products',
       items: items
         .filter(item => item.itemCode && item.quantity > 0)
-        .map(item => ({
-          name: item.itemName || item.itemCode,
-          item_code: item.itemCode,
-          item_name: item.itemName || item.itemCode,
-          description: item.description || item.itemName || item.itemCode,
-          qty: item.quantity,
-          uom: item.unit,
-          rate: item.rate,
-          amount: item.amount,
-          tax: item.tax || 0,
-          tax_id: item.tax_id ?? null,
-          tax_amount: item.taxAmount || 0,
-          total_amount: item.totalAmount || 0,
-          warehouse: selectedWarehouse?.warehouse_name || warehouse || '',
-          type: item.type
-        }))
+        .map(item => {
+          
+          const itemTaxId = item.tax_id ?? getTaxIdFromRate(item.tax || 0, taxOptions) ?? null;
+          return {
+            name: item.itemName || item.itemCode,
+            item_code: item.itemCode,
+            item_name: item.itemName || item.itemCode,
+            description: item.description || item.itemName || item.itemCode,
+            qty: item.quantity,
+            uom: item.unit,
+            rate: item.rate,
+            amount: item.amount,
+            tax: item.tax || 0,
+            tax_rate: item.tax || 0,
+            tax_id: itemTaxId,
+            item_tax_id: itemTaxId,
+            tax_amount: item.taxAmount || 0,
+            total_amount: item.totalAmount || 0,
+            warehouse: selectedWarehouse?.warehouse_name || warehouse || '',
+            type: item.type
+          };
+        })
     };
 
     if (isEditMode && id) {
@@ -2175,14 +2803,11 @@ const navigateToQualityInspection = () => {
   };
 
   const scrollToFirstError = () => {
-    // Get all error keys and sort them by their order in the form
     const errorKeys = Object.keys(errors);
     if (errorKeys.length === 0) return;
     
-    // Priority order for errors (top to bottom in form)
     const priorityOrder = ['customer', 'salesOrder', 'dcDate', 'warehouse', 'items'];
     
-    // Sort error keys by priority order first, then by string order
     const sortedErrorKeys = errorKeys.sort((a, b) => {
       const indexA = priorityOrder.indexOf(a);
       const indexB = priorityOrder.indexOf(b);
@@ -2195,44 +2820,31 @@ const navigateToQualityInspection = () => {
     const firstErrorKey = sortedErrorKeys[0];
     if (!firstErrorKey) return;
     
-    // Find the element with the error
     let element: Element | null = null;
-    
-    // Strategy 1: Look for data-error-key attribute
     element = document.querySelector(`[data-error-key="${firstErrorKey}"]`);
     
-    // Strategy 2: If it's an item error, find the corresponding input
     if (!element && firstErrorKey.startsWith('item_')) {
       const match = firstErrorKey.match(/item_(\d+)_(code|name|qty)/);
       if (match) {
         const index = parseInt(match[1]);
         const field = match[2];
-        // Find the item row and scroll to it
         const rows = document.querySelectorAll('.ndc-items-table tbody tr');
         if (rows[index]) {
           element = rows[index];
-          // If field is code, try to find the searchable select input
           if (field === 'code') {
             const input = rows[index].querySelector('.ndc-col-code input');
-            if (input) {
-              element = input;
-            }
+            if (input) element = input;
           } else if (field === 'name') {
             const input = rows[index].querySelector('.ndc-col-name input');
-            if (input) {
-              element = input;
-            }
+            if (input) element = input;
           } else if (field === 'qty') {
             const input = rows[index].querySelector('.ndc-col-qty input');
-            if (input) {
-              element = input;
-            }
+            if (input) element = input;
           }
         }
       }
     }
     
-    // Strategy 3: Look for any element with error class
     if (!element) {
       const errorElements = document.querySelectorAll('.ndc-input-error, .ndc-select-error, .ndc-table-input.ndc-input-error');
       if (errorElements.length > 0) {
@@ -2240,7 +2852,6 @@ const navigateToQualityInspection = () => {
       }
     }
     
-    // Strategy 4: If still not found, look for any field with error text
     if (!element) {
       const errorTexts = document.querySelectorAll('.ndc-error-text');
       if (errorTexts.length > 0) {
@@ -2252,10 +2863,7 @@ const navigateToQualityInspection = () => {
     }
     
     if (element) {
-      // Scroll to the element
       element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      
-      // If it's an input, focus it
       const input = element.querySelector('input, select, textarea') || element;
       if (input && typeof (input as HTMLElement).focus === 'function') {
         setTimeout(() => {
@@ -2266,7 +2874,6 @@ const navigateToQualityInspection = () => {
         }, 350);
       }
     } else {
-      // Fallback: scroll to top
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
@@ -2320,6 +2927,9 @@ const navigateToQualityInspection = () => {
           }
         }
       }
+      
+      // Clear saved form state after successful submission
+      formState.clearFormState('delivery_challan');
       
       toast.success(isEditMode ? 'Updated!' : 'Created!', { id: toastId });
       
@@ -2375,6 +2985,9 @@ const navigateToQualityInspection = () => {
                           createdDC?.name || 
                           dcNumber;
       
+      // Clear saved form state after saving draft
+      formState.clearFormState('delivery_challan');
+      
       toast.success(`${isEditMode ? 'Draft updated' : 'Draft saved'}: ${deliveryNote}`, { id: toastId });
       setTimeout(() => navigate('/delivery-challan'), 1000);
     } catch (error: any) {
@@ -2390,6 +3003,8 @@ const navigateToQualityInspection = () => {
       return;
     }
     if (window.confirm('Are you sure? Unsaved data will be lost.')) {
+      // Clear saved form state on cancel
+      formState.clearFormState('delivery_challan');
       navigate('/delivery-challan');
     }
   };
@@ -2587,6 +3202,23 @@ const navigateToQualityInspection = () => {
         onViewDetails={handleViewDeliveryNote}
       />
 
+      {/* Quick Add Customer Modal — same popup and flow as Create Quotation */}
+      <QuickAddCustomerModal
+        isOpen={showQuickAddModal}
+        prefillName={quickAddPrefillName}
+        onClose={() => setShowQuickAddModal(false)}
+        onCreated={(customer) => {
+          setCustomers(prev => [customer, ...prev.filter(c => c.id !== customer.id)]);
+          setSelectedCustomer(customer.id);
+          loadCustomerData(customer.id, customer);
+          setShowQuickAddModal(false);
+        }}
+        onOpenFullForm={() => {
+          setShowQuickAddModal(false);
+          navigateToFullCustomerForm(quickAddPrefillName);
+        }}
+      />
+
       {/* Header with IsService on right */}
       <div className="ndc-header">
         <div className="ndc-header-left">
@@ -2685,6 +3317,8 @@ const navigateToQualityInspection = () => {
                     placeholder="Search Customer..."
                     disabled={isLoading || isEditMode || isViewMode}
                     error={!!errors.customer}
+                    presetCustomer={customerData}
+                    onAddNewCustomer={handleAddNewCustomer}
                   />
                   {errors.customer && <span className="ndc-error-text">{errors.customer}</span>}
                 </div>
@@ -2718,6 +3352,8 @@ const navigateToQualityInspection = () => {
                     disabled={isLoading || isEditMode || isViewMode}
                     error={!!errors.customer}
                     fullWidth={true}
+                    presetCustomer={customerData}
+                    onAddNewCustomer={handleAddNewCustomer}
                   />
                   {errors.customer && <span className="ndc-error-text">{errors.customer}</span>}
                 </div>
@@ -3043,7 +3679,7 @@ const navigateToQualityInspection = () => {
               />
             </div>
 
-            {/* Quality Inspection Section - Replaces checkbox with button */}
+            {/* Quality Inspection Section - Button to navigate to QI */}
             <div className="ndc-qi-section">
               <span className="ndc-qi-label">
                 <FaClipboardCheck size={14} style={{ marginRight: '6px' }} />

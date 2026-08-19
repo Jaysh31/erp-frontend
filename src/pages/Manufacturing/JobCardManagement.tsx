@@ -10,8 +10,7 @@ import {
   FaTrash,
   FaBuilding,
   FaClipboardList,
-  FaCheckCircle,
-  FaClock,
+  
   FaChevronLeft,
   FaChevronRight,
   FaAngleDoubleLeft,
@@ -23,6 +22,21 @@ import { useAdminTheme } from "../../admin-theme/AdminThemeContext";
 import api from "../../services/api";
 
 type Status = "Open" | "Work In Progress" | "Completed" | "On Hold" | "Cancelled";
+
+// ── Raw item line (raw material) that comes back on each job card record ──
+interface JobCardItemRaw {
+  id: number;
+  uom: string;
+  item_code: string;
+  item_name: string;
+  stock_uom: string;
+  description?: string | null;
+  consumed_qty: number;
+  required_qty: number;
+  transferred_qty: number;
+  source_warehouse?: string | null;
+  allow_alternative_item?: number;
+}
 
 interface JobCardApiRecord {
   id: number;
@@ -44,6 +58,9 @@ interface JobCardApiRecord {
   actual_start_date?: string | null;
   actual_end_date?: string | null;
   production_item: string;
+  // Raw materials tied to this job card. Passed through to JobCardForm so it
+  // can prefill the "Materials Sent to Vendor" table on the Subcontracting tab.
+  items?: JobCardItemRaw[];
 }
 
 interface JobCardDisplay {
@@ -149,7 +166,11 @@ export default function JobCardManagement() {
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
 
-  const [jobCards, setJobCards] = useState<JobCardDisplay[]>([]);
+  const [, setJobCards] = useState<JobCardDisplay[]>([]);
+  // Keep the raw (untransformed) API records around too, so we can hand the
+  // full record — including its `items` (raw materials) array — to
+  // JobCardForm via navigation state without re-fetching.
+  const [rawRecords, setRawRecords] = useState<JobCardApiRecord[]>([]);
   const [groups, setGroups] = useState<WorkOrderGroup[]>([]);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
@@ -181,7 +202,7 @@ export default function JobCardManagement() {
     if (diffHours < 24) return `${diffHours} h`;
     if (diffDays < 7) return `${diffDays} d`;
     if (diffDays < 30) return `${Math.floor(diffDays / 7)} w`;
-    if (diffDays < 365) return `${Math.floor(diffDays / 30)} mo`;
+    if (diffDays < 365) return `${Math.floor(diffDays / 365)} y`;
     return `${Math.floor(diffDays / 365)} y`;
   };
 
@@ -199,25 +220,25 @@ export default function JobCardManagement() {
       const params = new URLSearchParams();
       params.append('page', currentPage.toString());
       params.append('limit', itemsPerPage.toString());
-      
+
       if (searchTerm.trim()) {
         params.append('search', searchTerm.trim());
       }
-      
+
       if (statusFilter !== "all") {
         params.append('status', statusFilter);
       }
 
       console.log(`Calling API: /job-card?${params.toString()}`);
       const response = await api.get(`/job-card?${params.toString()}`);
-      
+
       if (response.data.success !== 1) {
         throw new Error(response.data?.message || "Failed to fetch job cards");
       }
 
       const rawData = response.data.data;
       let records: JobCardApiRecord[] = [];
-      
+
       if (Array.isArray(rawData)) {
         records = rawData;
         // Since API returns all data, use total from response
@@ -236,6 +257,10 @@ export default function JobCardManagement() {
         setTotalItems(0);
         setTotalPages(1);
       }
+
+      // Keep the raw records so we can look them up by id later (e.g. to
+      // pass their `items` array along when navigating to the form).
+      setRawRecords(records);
 
       // Transform records
       const transformed = records.map((item) => {
@@ -266,13 +291,13 @@ export default function JobCardManagement() {
           actualEndDate: item.actual_end_date ? new Date(item.actual_end_date) : null,
         };
       });
-      
+
       // Sort by creation date (latest first)
       transformed.sort((a, b) => new Date(b.createdOn).getTime() - new Date(a.createdOn).getTime());
-      
+
       setJobCards(transformed);
       groupByWorkOrder(transformed);
-      
+
     } catch (err: any) {
       console.error("Error fetching job cards:", err);
       setError(err.response?.data?.message || "An error occurred while loading job cards");
@@ -292,12 +317,12 @@ export default function JobCardManagement() {
 
     const grouped: WorkOrderGroup[] = Array.from(groupMap.entries()).map(([workOrder, cards]) => {
       const sortedCards = [...cards].sort((a, b) => a.sequenceId - b.sequenceId);
-      
+
       const totalQty = sortedCards.reduce((sum, c) => sum + c.qty, 0);
       const completedQty = sortedCards.reduce((sum, c) => sum + c.completedQty, 0);
       const lossQty = sortedCards.reduce((sum, c) => sum + c.lossQty, 0);
       const progress = totalQty > 0 ? Math.round(((completedQty + lossQty) / totalQty) * 100) : 0;
-      
+
       return {
         workOrder,
         jobCards: sortedCards,
@@ -356,8 +381,6 @@ export default function JobCardManagement() {
     return filtered;
   };
 
-
-
   const goToFirstPage = () => {
     if (totalPages > 0) {
       console.log('Going to first page');
@@ -398,8 +421,6 @@ export default function JobCardManagement() {
     setCurrentPage(1);
   };
 
-
-
   const getStartIndex = () => (currentPage - 1) * itemsPerPage + 1;
   const getEndIndex = () => Math.min(currentPage * itemsPerPage, totalItems);
 
@@ -438,16 +459,25 @@ export default function JobCardManagement() {
     }
   };
 
+  // Look up the raw (untransformed) API record for a given row, so we can
+  // forward its `items` (raw materials) array to JobCardForm.
+  const getRawRecordFor = (item: JobCardDisplay): JobCardApiRecord | undefined => {
+    return rawRecords.find((r) => r.id === item.recordId);
+  };
+
   const handleRowClick = (item: JobCardDisplay) => {
-    navigate(`/job-cards/${item.recordId}`);
+    const raw = getRawRecordFor(item);
+    navigate(`/job-cards/${item.recordId}`, { state: { jobCard: raw } });
   };
 
   const handleEdit = (item: JobCardDisplay) => {
-    navigate(`/job-cards/${item.recordId}`);
+    const raw = getRawRecordFor(item);
+    navigate(`/job-cards/${item.recordId}`, { state: { jobCard: raw } });
   };
 
   const handleView = (item: JobCardDisplay) => {
-    navigate(`/job-cards/${item.recordId}`);
+    const raw = getRawRecordFor(item);
+    navigate(`/job-cards/${item.recordId}`, { state: { jobCard: raw } });
   };
 
   const clearFilters = () => {
@@ -456,15 +486,10 @@ export default function JobCardManagement() {
     setCurrentPage(1);
   };
 
-  const totalQty = jobCards.reduce((sum, jc) => sum + jc.qty, 0);
-  const totalCompleted = jobCards.reduce((sum, jc) => sum + jc.completedQty, 0);
-  const totalLoss = jobCards.reduce((sum, jc) => sum + jc.lossQty, 0);
-  const overallProgress = totalQty > 0 ? Math.round(((totalCompleted + totalLoss) / totalQty) * 100) : 0;
-  // const totalJobCards = jobCards.length;
 
   return (
     <div className={`jc-page ${theme}`}>
-   
+
 
       {/* Search and Filter Bar */}
       <div className="jc-filter-bar">
@@ -498,7 +523,7 @@ export default function JobCardManagement() {
             <option value="On Hold">On Hold</option>
             <option value="Cancelled">Cancelled</option>
           </select>
-         
+
         </div>
       </div>
 
@@ -661,23 +686,23 @@ export default function JobCardManagement() {
                                   <span className="jc-ago">{row.createdAgo}</span>
                                   <span className="jc-dot">·</span>
                                   <div className="jc-action-buttons">
-                                    <button 
-                                      className="jc-action-btn jc-action-view" 
-                                      onClick={(e) => { e.stopPropagation(); handleView(row); }} 
+                                    <button
+                                      className="jc-action-btn jc-action-view"
+                                      onClick={(e) => { e.stopPropagation(); handleView(row); }}
                                       title="View"
                                     >
                                       <FaEye size={12} />
                                     </button>
-                                    <button 
-                                      className="jc-action-btn jc-action-edit" 
-                                      onClick={(e) => { e.stopPropagation(); handleEdit(row); }} 
+                                    <button
+                                      className="jc-action-btn jc-action-edit"
+                                      onClick={(e) => { e.stopPropagation(); handleEdit(row); }}
                                       title="Edit"
                                     >
                                       <FaEdit size={12} />
                                     </button>
-                                    <button 
-                                      className="jc-action-btn jc-action-delete" 
-                                      onClick={(e) => { e.stopPropagation(); handleDelete(row); }} 
+                                    <button
+                                      className="jc-action-btn jc-action-delete"
+                                      onClick={(e) => { e.stopPropagation(); handleDelete(row); }}
                                       title="Delete"
                                       disabled={deletingId === row.recordId}
                                     >

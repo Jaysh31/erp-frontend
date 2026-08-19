@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactDOM from 'react-dom';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
   FaArrowLeft, FaSpinner, FaPlus,
   FaTrash, FaFileAlt,
-  FaBarcode, 
+  FaBarcode,
   FaTimes, FaExclamationTriangle, FaInfoCircle,
   FaUser, FaCreditCard, FaCalendarAlt,
   FaBuilding, FaPhone, FaEnvelope,
@@ -215,7 +215,14 @@ const readCachedQuotationLineData = (name: string): CachedQuotationLineData | nu
   }
 };
 
-/** Normalizes a list-style API response: { success, data: { records, total } } or { success, data: [...] } */
+const QUOTATION_DRAFT_PREFIX = 'cq_quotation_draft:';
+
+interface QuotationDraftPayload {
+  formData: QuotationForm;
+  recordName: string | null;
+  recordId: number | null;
+  customerData: Customer | null;
+}
 const extractRecords = (payload: any): any[] => {
   if (!payload) return [];
   const data = payload.success === 1 || payload.success === 0 ? payload.data : payload;
@@ -224,16 +231,11 @@ const extractRecords = (payload: any): any[] => {
   return [];
 };
 
-/** Blurs a number input on wheel so an accidental scroll over it (e.g. while
- *  scrolling the items table) cannot silently increment/decrement its value.
- *  Browsers apply the scroll-to-change behavior only while the input is
- *  focused, so removing focus synchronously inside the wheel event stops it
- *  while leaving the page's normal scroll untouched. */
+
 const blurOnWheel = (e: React.WheelEvent<HTMLInputElement>) => {
   (e.target as HTMLInputElement).blur();
 };
 
-// ===== SHARED: portal-based dropdown menu position hook =====
 function useDropdownPosition(isOpen: boolean, triggerRef: React.RefObject<HTMLDivElement | null>) {
   const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
 
@@ -465,6 +467,8 @@ interface CustomerDropdownProps {
   placeholder?: string;
   disabled?: boolean;
   error?: boolean;
+  presetCustomer?: Customer | null;
+  onAddNew: (searchTerm: string) => void;
 }
 
 const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
@@ -473,6 +477,8 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
   placeholder = 'Search Customer...',
   disabled = false,
   error = false,
+  presetCustomer = null,
+  onAddNew,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -491,6 +497,17 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
   useEffect(() => {
     fetchCustomers('');
   }, []);
+
+
+  useEffect(() => {
+    if (!value) {
+      setSelectedCustomer(null);
+      return;
+    }
+    if (presetCustomer && presetCustomer.id === value) {
+      setSelectedCustomer(prev => (prev && prev.id === presetCustomer.id ? prev : presetCustomer));
+    }
+  }, [value, presetCustomer]);
 
   useEffect(() => {
     if (!searchTerm.trim()) {
@@ -538,10 +555,7 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
       if (records.length > 0) {
         const mappedCustomers: Customer[] = records.map((cust: any) => {
           const contacts = cust.contacts || [];
-          // The API's "is_primary" contact is frequently a blank placeholder
-          // record (empty name/mobile/email) while the real details sit on a
-          // different, non-primary contact. Prefer whichever contact — primary
-          // or not — actually has usable info, instead of trusting the flag.
+
           const contactsWithInfo = contacts.filter(
             (c: any) => c.mobile_no || c.email_id || c.contact_name || c.telephone
           );
@@ -569,6 +583,9 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
         });
         setCustomers(mappedCustomers);
         setFilteredCustomers(mappedCustomers);
+      } else {
+        setCustomers([]);
+        setFilteredCustomers([]);
       }
     } catch (error) {
       console.error('Error fetching customers:', error);
@@ -610,6 +627,11 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
     }
   };
 
+  const handleAddNewClick = () => {
+    setIsOpen(false);
+    onAddNew(searchTerm.trim());
+  };
+
   const getDisplayValue = () => {
     if (selectedCustomer) {
       return `${selectedCustomer.name}`;
@@ -617,78 +639,143 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
     return '';
   };
 
+
   const menu = isOpen ? (
     <div
       ref={menuRef}
-      className="cq-custom-scroll"
       style={{
         position: 'fixed',
         top: menuPos.top,
         left: menuPos.left,
-        width: menuPos.width,
+        width: `${Math.max(menuPos.width, 230)}px`,
         background: 'var(--card-bg, #ffffff)',
         border: '0.5px solid var(--border-color, #e2e8f0)',
         borderRadius: '6px',
         boxShadow: '0 4px 16px var(--shadow-color, rgba(0,0,0,0.15))',
         zIndex: 99999,
-        maxHeight: '280px',
-        overflowY: 'auto',
-        overflowX: 'hidden'
+        display: 'flex',
+        flexDirection: 'column',
+        maxHeight: '360px',
+        overflow: 'hidden'
       }}
     >
-      {loading ? (
-        <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
-          <FaSpinner className="cq-spinning" style={{ display: 'inline-block', marginRight: '8px' }} /> Loading...
-        </div>
-      ) : filteredCustomers.length > 0 ? (
-        filteredCustomers.map((customer, index) => (
-          <div
-            key={customer.id}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              handleSelect(customer);
-            }}
-            style={{
-              padding: '10px 14px',
-              cursor: 'pointer',
-              background: highlightedIndex === index ? 'var(--nav-hover, #eff6ff)' : 'transparent',
-              borderLeft: value === customer.id ? '3px solid var(--primary-color, #2563eb)' : '3px solid transparent',
-              transition: 'background 0.15s',
-              borderBottom: index < filteredCustomers.length - 1 ? '0.5px solid var(--border-color, #f1f5f9)' : 'none'
-            }}
-            onMouseEnter={() => setHighlightedIndex(index)}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary, #0f172a)' }}>{customer.name}</span>
-              </div>
-              {(customer.gstin || customer.customerType) && (
-                <span style={{ fontSize: '10px', color: 'var(--text-secondary, #94a3b8)', background: 'var(--layout-bg, #f1f5f9)', padding: '2px 8px', borderRadius: '4px' }}>
-                  {customer.gstin ? `GST: ${customer.gstin}` : customer.customerType}
-                </span>
-              )}
-            </div>
-            <div style={{ display: 'flex', gap: '16px', marginTop: '4px', fontSize: '11px', color: 'var(--text-secondary, #64748b)', flexWrap: 'wrap' }}>
-              {customer.contactPerson && (
-                <span><FaUser size={10} style={{ marginRight: '4px' }} />{customer.contactPerson}</span>
-              )}
-              {customer.phone && (
-                <span><FaPhone size={10} style={{ marginRight: '4px' }} />{customer.phone}</span>
-              )}
-              {customer.email && (
-                <span><FaEnvelope size={10} style={{ marginRight: '4px' }} />{customer.email}</span>
-              )}
-              {customer.territory && (
-                <span>{customer.territory}</span>
-              )}
-            </div>
+      <div
+        className="cq-custom-scroll"
+        style={{
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          maxHeight: '260px'
+        }}
+      >
+        {loading ? (
+          <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
+            <FaSpinner className="cq-spinning" style={{ display: 'inline-block', marginRight: '8px' }} /> Loading...
           </div>
-        ))
-      ) : (
-        <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
-          {searchTerm ? 'No matching customers found' : 'No customers available'}
-        </div>
-      )}
+        ) : filteredCustomers.length > 0 ? (
+          filteredCustomers.map((customer, index) => (
+            <div
+              key={customer.id}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                handleSelect(customer);
+              }}
+              style={{
+                padding: '10px 14px',
+                cursor: 'pointer',
+                background: highlightedIndex === index ? 'var(--nav-hover, #eff6ff)' : 'transparent',
+                borderLeft: value === customer.id ? '3px solid var(--primary-color, #2563eb)' : '3px solid transparent',
+                transition: 'background 0.15s',
+                borderBottom: index < filteredCustomers.length - 1 ? '0.5px solid var(--border-color, #f1f5f9)' : 'none'
+              }}
+              onMouseEnter={() => setHighlightedIndex(index)}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary, #0f172a)' }}>{customer.name}</span>
+                </div>
+                {(customer.gstin || customer.customerType) && (
+                  <span style={{ fontSize: '10px', color: 'var(--text-secondary, #94a3b8)', background: 'var(--layout-bg, #f1f5f9)', padding: '2px 8px', borderRadius: '4px' }}>
+                    {customer.gstin ? `GST: ${customer.gstin}` : customer.customerType}
+                  </span>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: '16px', marginTop: '4px', fontSize: '11px', color: 'var(--text-secondary, #64748b)', flexWrap: 'wrap' }}>
+                {customer.contactPerson && (
+                  <span><FaUser size={10} style={{ marginRight: '4px' }} />{customer.contactPerson}</span>
+                )}
+                {customer.phone && (
+                  <span><FaPhone size={10} style={{ marginRight: '4px' }} />{customer.phone}</span>
+                )}
+                {customer.email && (
+                  <span><FaEnvelope size={10} style={{ marginRight: '4px' }} />{customer.email}</span>
+                )}
+                {customer.territory && (
+                  <span>{customer.territory}</span>
+                )}
+              </div>
+            </div>
+          ))
+        ) : (
+          <div style={{ padding: '16px 14px', textAlign: 'center' }}>
+            <div style={{ fontSize: '12px', color: 'var(--text-secondary, #94a3b8)', marginBottom: '10px' }}>
+              {searchTerm.trim() ? (
+                <>No customer found for &quot;<strong>{searchTerm.trim()}</strong>&quot;</>
+              ) : (
+                'No customers available'
+              )}
+            </div>
+
+          </div>
+        )}
+      </div>
+
+      {/* Persistent footer action so "Add New Customer" is always reachable,
+          even when there are matching results to scroll through. */}
+      <div
+  className="cq-dropdown-add-new"
+  onMouseDown={(e) => {
+    e.preventDefault();
+    handleAddNewClick();
+  }}
+  style={{
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '10px 14px',
+    cursor: 'pointer',
+    borderTop: '0.5px solid var(--border-color, #e2e8f0)',
+    color: 'var(--primary-color, #2563eb)',
+    fontWeight: 600,
+    fontSize: '12px',
+    background: 'var(--layout-bg, #f8fafc)',
+    flexShrink: 0,
+    transition: 'background 0.15s, color 0.15s'
+  }}
+  onMouseEnter={(e) => {
+    e.currentTarget.style.background = 'var(--nav-hover, #eff6ff)';
+    e.currentTarget.style.color = 'var(--primary-color, #2563eb)';
+  }}
+  onMouseLeave={(e) => {
+    e.currentTarget.style.background = 'var(--layout-bg, #f8fafc)';
+    e.currentTarget.style.color = 'var(--primary-color, #2563eb)';
+  }}
+>
+  <span
+    style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center'
+    }}
+  >
+    <FaPlus size={10} />
+  </span>
+
+  <span>
+    {searchTerm.trim() && filteredCustomers.length === 0
+      ? `Add "${searchTerm.trim()}" as New Customer`
+      : 'Add New Customer'}
+  </span>
+</div>
     </div>
   ) : null;
 
@@ -730,13 +817,354 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
   );
 };
 
+// ===== QUICK ADD CUSTOMER MODAL =====
+interface QuickAddCustomerModalProps {
+  isOpen: boolean;
+  prefillName?: string;
+  onClose: () => void;
+  onCreated: (customer: Customer) => void;
+  onOpenFullForm: () => void;
+}
+
+const QuickAddCustomerModal: React.FC<QuickAddCustomerModalProps> = ({
+  isOpen,
+  prefillName = '',
+  onClose,
+  onCreated,
+  onOpenFullForm,
+}) => {
+  const [customerName, setCustomerName] = useState('');
+  const [mobileNo, setMobileNo] = useState('');
+  const [emailId, setEmailId] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const DEFAULT_CUSTOMER_TYPE = 'Company';
+  const DEFAULT_CUSTOMER_GROUP = 'Commercial';
+
+  useEffect(() => {
+    if (isOpen) {
+      setCustomerName(prefillName || '');
+      setMobileNo('');
+      setEmailId('');
+      setErrors({});
+    }
+  }, [isOpen, prefillName]);
+
+  if (!isOpen) return null;
+
+  const validate = (): boolean => {
+    const errs: Record<string, string> = {};
+    if (!customerName.trim()) errs.customerName = 'Customer name is required';
+    if (!mobileNo.trim()) errs.mobileNo = 'Mobile number is required';
+    if (!emailId.trim()) {
+      errs.emailId = 'Email is required';
+    } else if (!/\S+@\S+\.\S+/.test(emailId)) {
+      errs.emailId = 'Enter a valid email address';
+    }
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validate()) return;
+
+    setSubmitting(true);
+    try {
+
+      const contactPayload = {
+        first_name: customerName.trim(),
+        last_name: '',
+        contact_name: customerName.trim(),
+        mobile_no: mobileNo.trim(),
+        alternate_mobile: '',
+        email_id: emailId.trim(),
+        telephone: '',
+        extension: '',
+        is_primary: 1,
+        is_billing_contact: 0,
+        is_saler_contact: 1,
+        remarks: '',
+      };
+
+      const payload = {
+        customer_name: customerName.trim(),
+        customer_group: DEFAULT_CUSTOMER_GROUP,
+        territory: '',
+        customer_type: DEFAULT_CUSTOMER_TYPE,
+        mobile_no: mobileNo.trim(),
+        email_id: emailId.trim(),
+        customer_primary_address: '',
+        primary_address: '',
+        contacts: [contactPayload],
+      };
+
+      const response = await api.post('/customer', payload);
+      if (response.data && response.data.success === 0) {
+        throw new Error(response.data?.message || 'Failed to add customer');
+      }
+
+      const apiData = response?.data?.data;
+
+      const created: Customer = {
+        id: apiData?.id?.toString() || apiData?.name?.toString() || '',
+        name: apiData?.customer_name || payload.customer_name,
+        code: apiData?.customer_code || (apiData?.id != null ? `CUST-${apiData.id}` : ''),
+        email: apiData?.email_id || payload.email_id,
+        phone: apiData?.mobile_no || payload.mobile_no,
+        address: apiData?.customer_primary_address || '',
+        shippingAddress: apiData?.primary_address || '',
+        gstin: '',
+        contactPerson: contactPayload.contact_name,
+        contactMobile: contactPayload.mobile_no,
+        customerType: apiData?.customer_type || payload.customer_type,
+        customerGroup: apiData?.customer_group || payload.customer_group,
+        territory: apiData?.territory || '',
+        contacts: apiData?.contacts || (payload.contacts as any),
+      };
+
+      toast.success(`Customer "${created.name}" added and selected`);
+      onCreated(created);
+    } catch (err: any) {
+      console.error('Error quick-adding customer:', err);
+      const message =
+        err.response?.data?.message || err.message || 'Failed to add customer';
+      toast.error(message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const labelStyle: React.CSSProperties = {
+    fontSize: '11px',
+    fontWeight: 600,
+    color: 'var(--text-secondary, #64748b)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
+    marginBottom: '4px',
+    display: 'block',
+  };
+
+  const inputStyle = (hasError: boolean): React.CSSProperties => ({
+    width: '100%',
+    padding: '7px 10px',
+    border: hasError
+      ? '1.5px solid var(--danger-color, #ef4444)'
+      : '1.5px solid var(--border-color, #e2e8f0)',
+    borderRadius: '8px',
+    background: 'var(--card-bg, #ffffff)',
+    color: 'var(--text-primary, #0f172a)',
+    fontSize: '13px',
+    fontFamily: 'inherit',
+    boxSizing: 'border-box',
+    minHeight: '34px',
+  });
+
+  const fieldWrapStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: '2px' };
+  const errorTextStyle: React.CSSProperties = { fontSize: '10px', color: 'var(--danger-color, #ef4444)' };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(17, 24, 39, 0.45)',
+        backdropFilter: 'blur(3px)',
+        zIndex: 300,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '20px',
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: 'var(--card-bg, #ffffff)',
+          borderRadius: '12px',
+          width: '100%',
+          maxWidth: '420px',
+          boxShadow: '0 16px 40px rgba(0, 0, 0, 0.18)',
+          overflow: 'hidden',
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '16px 20px',
+            borderBottom: '1px solid var(--border-color, #e2e8f0)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <FaUser style={{ color: 'var(--primary-color, #2563eb)' }} />
+            <h2 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: 'var(--text-primary, #0f172a)' }}>
+              Quick Add Customer
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              width: '28px',
+              height: '28px',
+              borderRadius: '50%',
+              border: 'none',
+              background: 'none',
+              fontSize: '18px',
+              color: 'var(--text-secondary, #6b7280)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <FaTimes />
+          </button>
+        </div>
+
+        {/* Body */}
+        <form onSubmit={handleSubmit}>
+          <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={fieldWrapStyle}>
+              <label style={labelStyle}>
+                Customer Name <span style={{ color: 'var(--danger-color, #ef4444)' }}>*</span>
+              </label>
+              <input
+                type="text"
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                placeholder="Enter customer name"
+                style={inputStyle(!!errors.customerName)}
+                autoFocus
+              />
+              {errors.customerName && <span style={errorTextStyle}>{errors.customerName}</span>}
+            </div>
+
+            <div style={fieldWrapStyle}>
+              <label style={labelStyle}>
+                Mobile Number <span style={{ color: 'var(--danger-color, #ef4444)' }}>*</span>
+              </label>
+              <input
+                type="tel"
+                value={mobileNo}
+                onChange={(e) => setMobileNo(e.target.value)}
+                placeholder="Mobile number"
+                style={inputStyle(!!errors.mobileNo)}
+              />
+              {errors.mobileNo && <span style={errorTextStyle}>{errors.mobileNo}</span>}
+            </div>
+
+            <div style={fieldWrapStyle}>
+              <label style={labelStyle}>
+                Email <span style={{ color: 'var(--danger-color, #ef4444)' }}>*</span>
+              </label>
+              <input
+                type="email"
+                value={emailId}
+                onChange={(e) => setEmailId(e.target.value)}
+                placeholder="Email address"
+                style={inputStyle(!!errors.emailId)}
+              />
+              {errors.emailId && <span style={errorTextStyle}>{errors.emailId}</span>}
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div
+            style={{
+              padding: '14px 20px',
+              borderTop: '1px solid var(--border-color, #e2e8f0)',
+              background: 'var(--layout-bg, #f8fafc)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '10px',
+              flexWrap: 'wrap',
+            }}
+          >
+            <button
+              type="button"
+              onClick={onOpenFullForm}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 14px',
+                borderRadius: '20px',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                background: 'transparent',
+                border: '1px solid var(--border-color, #e2e8f0)',
+                color: 'var(--primary-color, #2563eb)',
+              }}
+              title="Fill in the full customer form instead (customer type/group, contact person, address, etc.)"
+            >
+              <FaBuilding size={11} /> Add All Details
+            </button>
+
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={onClose}
+                style={{
+                  padding: '8px 18px',
+                  borderRadius: '20px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  background: 'var(--card-bg, #ffffff)',
+                  border: '1px solid var(--border-color, #e2e8f0)',
+                  color: 'var(--text-secondary, #64748b)',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={submitting}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 18px',
+                  borderRadius: '20px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: submitting ? 'not-allowed' : 'pointer',
+                  opacity: submitting ? 0.7 : 1,
+                  background: 'var(--primary-gradient, linear-gradient(135deg, #2563eb 0%, #1e40af 100%))',
+                  border: 'none',
+                  color: '#ffffff',
+                }}
+              >
+                {submitting && <FaSpinner className="cq-spinning" size={11} />}
+                Add Customer
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 /* ─────────────────────────── Main Component ─────────────────────────── */
 
 export default function CreateQuotation() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
 
   const isEditMode = !!id && id !== 'new';
+
+  // ===== ADD CUSTOMER FLOW: stable per-record key for the draft this
+
+  const getDraftStorageKey = () => `${QUOTATION_DRAFT_PREFIX}${id || 'new'}`;
 
   let theme = 'light';
   try {
@@ -749,7 +1177,7 @@ export default function CreateQuotation() {
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [saving, setSaving] = useState(false);
   const [loadingRecord, setLoadingRecord] = useState(false);
-  const [focusedField, ] = useState<string | null>(null);
+  const [focusedField,] = useState<string | null>(null);
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
   const [scanBarcode, setScanBarcode] = useState('');
   const [showValidationSummary, setShowValidationSummary] = useState(false);
@@ -763,19 +1191,17 @@ export default function CreateQuotation() {
   const [, setSelectedCustomer] = useState<Customer | null>(null);
   const [customerData, setCustomerData] = useState<Customer | null>(null);
 
+  // ─── Quick Add Customer modal state ─────────────────────────────
+  const [showQuickAddModal, setShowQuickAddModal] = useState(false);
+  const [quickAddPrefillName, setQuickAddPrefillName] = useState('');
+
   // ─── Item lookup ────────────────────────────────────────────────
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoadingItems, setIsLoadingItems] = useState(false);
   const [taxOptions, setTaxOptions] = useState<TaxOption[]>([]);
   const [loadingTaxOptions, setLoadingTaxOptions] = useState(false);
-  // ===== FIX: track whether tax options have finished loading (success or
-  // failure) so the edit-mode quotation load can wait for them. Previously
-  // the quotation was fetched and mapped as soon as `id` was available, in a
-  // separate effect from the async tax-options fetch — the quotation almost
-  // always finished loading before taxOptions had arrived, so every item's
-  // item_tax_id -> tax_type lookup silently matched nothing and every line
-  // fell back to 0%, even though the correct GST had been saved.
+
   const [taxOptionsLoaded, setTaxOptionsLoaded] = useState(false);
   const [recordFetched, setRecordFetched] = useState(false);
 
@@ -935,9 +1361,6 @@ export default function CreateQuotation() {
       setTaxOptions([]);
     } finally {
       setLoadingTaxOptions(false);
-      // ===== FIX: mark tax options as loaded regardless of success/failure
-      // so the edit-mode quotation fetch (gated below) isn't blocked forever
-      // if this call ever fails.
       setTaxOptionsLoaded(true);
     }
   };
@@ -1011,10 +1434,7 @@ export default function CreateQuotation() {
     }
   }, [allProducts, formData.isService]);
 
-  // ===== FIX: fetch tax options exactly once on mount, independent of
-  // formData.isService. Tax options don't vary by item type, and keeping
-  // this separate from the items fetch means taxOptionsLoaded only flips
-  // once and can't be misread as "still loading" by a later toggle.
+
   useEffect(() => {
     fetchTaxOptions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1024,6 +1444,48 @@ export default function CreateQuotation() {
     fetchAllItems();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.isService]);
+
+
+  useEffect(() => {
+    const draftKey = getDraftStorageKey();
+    try {
+      const raw = sessionStorage.getItem(draftKey);
+      if (raw) {
+        const draft = JSON.parse(raw) as QuotationDraftPayload;
+        if (draft.formData) {
+          setFormData(prev => ({ ...prev, ...draft.formData }));
+        }
+        if (draft.recordName) setRecordName(draft.recordName);
+        if (draft.recordId != null) setRecordId(draft.recordId);
+        if (draft.customerData) {
+          setCustomerData(draft.customerData);
+          setSelectedCustomer(draft.customerData);
+        }
+
+        if (isEditMode) {
+          setRecordFetched(true);
+        }
+        sessionStorage.removeItem(draftKey);
+      }
+    } catch (e) {
+      console.error('Failed to restore quotation draft:', e);
+    }
+
+    const newCustomer = (location.state as any)?.newCustomer as Customer | undefined;
+    if (newCustomer) {
+      setSelectedCustomer(newCustomer);
+      setCustomerData(newCustomer);
+      setFormData(prev => ({
+        ...prev,
+        customer: newCustomer.id,
+        customerName: newCustomer.name,
+      }));
+      toast.success(`Customer "${newCustomer.name}" added and selected`);
+
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ─── Handle Customer Change ────────────────────────────────────
   const handleCustomerChange = (customerId: string, customerData?: Customer) => {
@@ -1045,6 +1507,34 @@ export default function CreateQuotation() {
         customerName: '',
       }));
     }
+  };
+
+  // ===== ADD CUSTOMER FLOW: instead of navigating straight to the full
+
+  const handleAddNewCustomer = (prefillName: string) => {
+    setQuickAddPrefillName(prefillName || '');
+    setShowQuickAddModal(true);
+  };
+
+  const navigateToFullCustomerForm = (prefillName: string) => {
+    try {
+      const draftPayload: QuotationDraftPayload = {
+        formData,
+        recordName,
+        recordId,
+        customerData,
+      };
+      sessionStorage.setItem(getDraftStorageKey(), JSON.stringify(draftPayload));
+    } catch (e) {
+      console.error('Failed to save quotation draft before navigating to Add Customer:', e);
+    }
+
+    navigate('/customer/add', {
+      state: {
+        returnTo: location.pathname,
+        prefillCustomerName: prefillName || '',
+      },
+    });
   };
 
   // ─── Handle IsService Change ──────────────────────────────────
@@ -1106,9 +1596,7 @@ export default function CreateQuotation() {
 
   // ─── load existing quotation when editing ────────────────────────
 
-  // ===== FIX: wait for taxOptionsLoaded before fetching the quotation, and
-  // only fetch once (recordFetched guards against re-fetching if this effect
-  // re-runs, e.g. after isService gets set from the loaded record).
+
   useEffect(() => {
     if (isEditMode && id && taxOptionsLoaded && !recordFetched) {
       fetchQuotationById(id);
@@ -1183,10 +1671,8 @@ export default function CreateQuotation() {
           let cgst = it.cgst_rate ?? 0;
           let sgst = it.sgst_rate ?? 0;
           let tax = cgst + sgst;
-          
-          // If we have item_tax_id, try to get the tax rate. By the time this
-          // runs, taxOptionsLoaded is guaranteed true (see the gated useEffect
-          // above), so `taxOptions` here is the real list, not the initial [].
+
+
           if (it.item_tax_id) {
             const taxOption = taxOptions.find(t => t.tax_id === it.item_tax_id);
             if (taxOption) {
@@ -1196,7 +1682,7 @@ export default function CreateQuotation() {
               sgst = taxRate / 2;
             }
           }
-          
+
           const amount = it.amount ?? quantity * rate;
           const taxAmount = (amount * tax) / 100;
           return {
@@ -1421,7 +1907,7 @@ export default function CreateQuotation() {
 
   const handleItemChange = (index: number, field: keyof QuotationItem, value: string | number) => {
     const updatedItems = [...formData.items];
-    
+
     if (field === 'tax') {
       const taxRate = Number(value);
       const half = taxRate / 2;
@@ -1431,7 +1917,7 @@ export default function CreateQuotation() {
         cgst: half,
         sgst: half,
       };
-      
+
       // Recalculate taxAmount and totalAmount
       const amount = updatedItems[index].amount;
       const taxAmount = (amount * taxRate) / 100;
@@ -1556,12 +2042,12 @@ export default function CreateQuotation() {
       ...prev,
       paymentSchedule: [
         ...prev.paymentSchedule,
-        { 
-          id: newId, 
-          paymentTerm: '', 
-          dueDate: '', 
-          durationDays: 0, 
-          invoicePortion: 0, 
+        {
+          id: newId,
+          paymentTerm: '',
+          dueDate: '',
+          durationDays: 0,
+          invoicePortion: 0,
           paymentAmount: 0,
           paidAmount: 0,
           status: 'Pending'
@@ -1582,12 +2068,12 @@ export default function CreateQuotation() {
     setFormData(prev => {
       const updated = [...prev.paymentSchedule];
       updated[index] = { ...updated[index], ...patch };
-      
+
       if (patch.invoicePortion !== undefined) {
         const grandTotal = prev.roundedTotal || 0;
         updated[index].paymentAmount = (patch.invoicePortion / 100) * grandTotal;
       }
-      
+
       return { ...prev, paymentSchedule: updated };
     });
   };
@@ -1668,7 +2154,7 @@ export default function CreateQuotation() {
     payload.payment_terms_template = formData.paymentTermsTemplate;
     payload.tc_name = formData.tcName;
     payload.terms = formData.termDetails;
-    
+
     payload.items = formData.items
       .filter((item) => item.itemCode || item.itemName)
       .map((item) => {
@@ -1716,7 +2202,7 @@ export default function CreateQuotation() {
 
     try {
       const payload = buildApiPayload();
-      
+
       console.log('Saving quotation with payload:', payload);
 
       let response;
@@ -1809,6 +2295,21 @@ export default function CreateQuotation() {
         </div>
       )}
 
+      {/* Quick Add Customer Modal */}
+      <QuickAddCustomerModal
+        isOpen={showQuickAddModal}
+        prefillName={quickAddPrefillName}
+        onClose={() => setShowQuickAddModal(false)}
+        onCreated={(customer) => {
+          handleCustomerChange(customer.id, customer);
+          setShowQuickAddModal(false);
+        }}
+        onOpenFullForm={() => {
+          setShowQuickAddModal(false);
+          navigateToFullCustomerForm(quickAddPrefillName);
+        }}
+      />
+
       {/* Header */}
       <div className="cq-header">
         <div className="cq-header-left">
@@ -1882,6 +2383,8 @@ export default function CreateQuotation() {
                     placeholder="Search Customer..."
                     disabled={isEditMode}
                     error={!!errors.customer}
+                    presetCustomer={customerData}
+                    onAddNew={handleAddNewCustomer}
                   />
                   {errors.customer && <span className="cq-error-text">{errors.customer}</span>}
                 </div>
@@ -1977,30 +2480,6 @@ export default function CreateQuotation() {
                   <div className="cq-card-content">
                     <h3>{customerData.name}</h3>
                     <div className="cq-card-info">
-                      {/* {customerData.code && (
-                        <div className="cq-info-item">
-                          <span className="cq-info-label">Code</span>
-                          <span className="cq-info-value">{customerData.code}</span>
-                        </div>
-                      )} */}
-                      {/* {customerData.customerType && (
-                        <div className="cq-info-item">
-                          <span className="cq-info-label">Type</span>
-                          <span className="cq-info-value">{customerData.customerType}</span>
-                        </div>
-                      )}
-                      {customerData.customerGroup && (
-                        <div className="cq-info-item">
-                          <span className="cq-info-label">Group</span>
-                          <span className="cq-info-value">{customerData.customerGroup}</span>
-                        </div>
-                      )}
-                      {customerData.territory && (
-                        <div className="cq-info-item">
-                          <span className="cq-info-label">Territory</span>
-                          <span className="cq-info-value">{customerData.territory}</span>
-                        </div>
-                      )} */}
                       {customerData.contactPerson && (
                         <div className="cq-info-item">
                           <span className="cq-info-label">Contact</span>

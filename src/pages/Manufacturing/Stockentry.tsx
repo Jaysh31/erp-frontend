@@ -475,14 +475,7 @@ export default function Stockentry() {
   );
 
   // ─── Stats Summary ─────────────────────────────────────────────────
-  const stats = {
-    total: stockEntries.length,
-    totalValue: stockEntries.reduce((sum, item) => sum + item.totalAmount, 0),
-    manufacture: stockEntries.filter(item => item.entryType === "Manufacture").length,
-    transfer: stockEntries.filter(item => item.entryType === "Material Transfer").length,
-    receipt: stockEntries.filter(item => item.entryType === "Material Receipt").length,
-    issue: stockEntries.filter(item => item.entryType === "Material Issue").length,
-  };
+  
 
   return (
     <div className={`se-page ${theme}`}>

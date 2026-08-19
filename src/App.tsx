@@ -104,6 +104,8 @@ import InputShowcase from "./pages/accounts/InputShowcase";
 import CustomerInvoices from "./pages/Sales/customerinvoices";
 import SupplierBills from "./pages/Sales/supplierbills";
 import InventoryDetail from "./pages/Manufacturing/InventoryDetail";
+import { FormStateProvider } from "./context/FormStateContext";
+
 import ProformaInvoice from "./pages/Sales/ProformaInvoice";
 import CreateProformaInvoice from "./pages/Sales/CreateProformaInvoice";
 
@@ -112,6 +114,7 @@ function App() {
   return (
     <AdminThemeProvider>
       <ModuleProvider> {/* Move ModuleProvider here to wrap ALL routes */}
+        <FormStateProvider>
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<LoginPage />} />
@@ -259,6 +262,7 @@ function App() {
               <Route path="/purchase-order/view/:id" element={<PurchaseOrderForm />} />
               <Route path="/proforma-invoice" element={<ProformaInvoice />} />
               <Route path="/proforma-invoice/new" element={<CreateProformaInvoice />} />
+              <Route path="/proforma-invoice/:id" element={<CreateProformaInvoice />} />
 
               
               {/* Organization Routes */}
@@ -359,7 +363,9 @@ function App() {
               <Route path="/settings" element={<Settings />} />
             </Route>
           </Routes>
+          
         </BrowserRouter>
+        </FormStateProvider>
       </ModuleProvider>
     </AdminThemeProvider>
   );

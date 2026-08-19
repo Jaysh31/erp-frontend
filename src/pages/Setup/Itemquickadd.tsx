@@ -183,17 +183,6 @@ export default function ItemQuickAdd({ onClose, onEditFull }: ItemQuickAddProps)
     }
   };
 
-  const handleNumberChange = (field: keyof QuickAddData, value: string) => {
-    // If value is empty, keep it empty (show placeholder)
-    if (value === '') {
-      set(field, '');
-      return;
-    }
-    // Allow only numbers and decimal point
-    if (/^\d*\.?\d*$/.test(value)) {
-      set(field, value);
-    }
-  };
 
   const handleSave = async () => {
     // Validate required fields

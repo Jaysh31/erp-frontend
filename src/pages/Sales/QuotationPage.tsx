@@ -8,6 +8,7 @@ import {
   FaEnvelope, FaClipboardList, FaDollarSign,
   FaChevronLeft, FaChevronRight,
   FaAngleDoubleLeft, FaAngleDoubleRight,
+
 } from 'react-icons/fa';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
@@ -569,10 +570,12 @@ export default function QuotationPage() {
     return 0; // Placeholder
   };
 
+
   const totalAmount = quotations.reduce((sum, q) => sum + q.totalAmount, 0);
   const acceptedAmount = quotations.filter(q => q.status === 'Accepted').reduce((sum, q) => sum + q.totalAmount, 0);
   const conversionRate = totalAmount > 0 ? Math.round((acceptedAmount / totalAmount) * 100) : 0;
   const totalQuotes = totalRecords;
+
 
   const handleView = (quote: Quotation) => {
     navigate(`/quotation/${quote.id}`, { state: { quotation: quote } });

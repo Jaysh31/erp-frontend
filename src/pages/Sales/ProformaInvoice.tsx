@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  FaSearch, FaPlus, FaEye, FaEdit, FaTrash, FaFilePdf, FaPrint,
+  FaSearch, FaPlus, FaEye,  FaTrash, FaFilePdf, FaPrint,
   FaFilter, FaCheckCircle, FaClock, FaTimesCircle,
   FaFileAlt, FaExternalLinkAlt,
   FaChartLine, FaTimes, FaSpinner, FaBoxOpen, FaEnvelope,
@@ -633,18 +633,7 @@ export default function ProformaInvoice() {
     navigate(`/proforma-invoice/${order.id}`, { state: { proforma: order } });
   };
 
-  const handleEdit = (order: SalesOrder) => {
-    if (!order.id) {
-      toast.error('Unable to open this proforma — missing ID');
-      return;
-    }
-    navigate(`/proforma-invoice/edit/${order.id}`, { state: { proforma: order } });
-  };
 
-  const handleDeleteClick = (order: SalesOrder) => {
-    setSelectedOrder(order);
-    setShowDeleteModal(true);
-  };
 
   const confirmDelete = async () => {
     if (!selectedOrder) return;
@@ -1276,17 +1265,69 @@ export default function ProformaInvoice() {
               </div>
             </div>
           ) : (
-            <>
-              <table className="pq-table">
-                <thead>
-                  <tr>
-                    <th className="pq-th">Proforma #</th>
-                    <th className="pq-th">Customer</th>
-                    <th className="pq-th">Date</th>
-                    <th className="pq-th">Order Type</th>
-                    <th className="pq-th">Status</th>
-                    <th className="pq-th pq-text-right">Amount</th>
-                    <th className="pq-th pq-th-meta">Actions</th>
+
+            <table className="pq-table">
+              <thead>
+                <tr>
+                  <th className="pq-th">Proforma #</th>
+                  <th className="pq-th">Customer</th>
+                  <th className="pq-th">Date</th>
+                  <th className="pq-th">Order Type</th>
+                  <th className="pq-th">Status</th>
+                  <th className="pq-th pq-text-right">Amount</th>
+                  <th className="pq-th pq-th-meta">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredOrders.map((order, index) => (
+                  <tr key={order.id || `so-${index}`} className="pq-tr">
+                    <td className="pq-td pq-td-id">
+                      {order.salesOrderNumber}
+                    </td>
+                    <td className="pq-td">
+                      <div>
+                        <div className="pq-td-link">{order.customerName}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{order.customer}</div>
+                      </div>
+                    </td>
+                    <td className="pq-td">
+                      <div>{order.date ? new Date(order.date).toLocaleDateString() : '-'}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                        Valid Until: {order.deliveryDate ? new Date(order.deliveryDate).toLocaleDateString() : '-'}
+                      </div>
+                    </td>
+                    <td className="pq-td">{order.orderType}</td>
+                    <td className="pq-td">
+                      <span className={`pq-status-badge ${getStatusColor(order.status)}`}>
+                        {getStatusIcon(order.status)}
+                        {order.status}
+                      </span>
+                    </td>
+                    <td className="pq-td pq-text-right pq-amount-cell">
+                      <span className="pq-currency">{order.currency}</span>
+                      {order.totalAmount.toLocaleString()}
+                    </td>
+                    <td className="pq-td pq-td-meta">
+                      <div className="pq-action-buttons">
+                        <button className="pq-action-btn pq-action-view" onClick={() => handleView(order)} title="View ">
+                          <FaEye size={12} />
+                        </button>
+                        <button
+                          className="pq-action-btn pq-action-print"
+                          onClick={() => handlePrintOrder(order)}
+                          title="Print Proforma Invoice"
+                          disabled={printLoadingId === order.id}
+                        >
+                          {printLoadingId === order.id ? <FaSpinner className="spinning" size={12} /> : <FaPrint size={12} />}
+                        </button>
+                        {/* <button className="pq-action-btn pq-action-edit" onClick={() => handleEdit(order)} title="Edit">
+                          <FaEdit size={12} />
+                        </button>
+                        <button className="pq-action-btn pq-action-delete" onClick={() => handleDeleteClick(order)} title="Delete">
+                          <FaTrash size={12} />
+                        </button> */}
+                      </div>
+                    </td>
                   </tr>
                 </thead>
                 <tbody>

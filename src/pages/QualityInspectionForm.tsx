@@ -9,6 +9,7 @@ import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import './QualityInspectionForm.css';
 import toast from 'react-hot-toast';
 import api from '../services/api';
+import { useFormState } from '../context/FormStateContext';
 
 /* ─────────────────────────── Types ─────────────────────────── */
 
@@ -1018,6 +1019,8 @@ export default function QualityInspectionForm() {
     console.log('Using default light theme');
   }
 
+  const formState = useFormState();
+
   const [formData, setFormData] = useState<InspectionForm>(defaultFormData());
   const [recordName, setRecordName] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -1042,130 +1045,171 @@ export default function QualityInspectionForm() {
   // Check if coming from a source (Delivery Challan, Sales Invoice, etc.)
   const isFromSource = !!formData.sourceType;
 
+  // Get the source path for navigation
+  const getSourcePath = () => {
+    const paths: Record<string, string> = {
+      'delivery_challan': '/delivery-challan',
+      'sales_invoice': '/sales-bill',
+      'sales-bill': '/sales-bill',
+      'purchase_order': '/purchase-order',
+      'purchase_invoice': '/purchase-invoice',
+      'purchase-invoice': '/purchase-invoice',
+      'sales_order': '/sales-order',
+      'quotation': '/quotation',
+      'grn': '/grn',
+      'material_request': '/material-request',
+      'supplier_quotation': '/supplier-quotation',
+      'job_card': '/job-cards',
+      'work_order': '/work-order',
+      'stock_entry': '/stock-entry',
+    };
+    
+    const basePath = paths[formData.sourceType || ''] || '/quality-inspection';
+    if (formData.sourceId) {
+      return `${basePath}/edit/${formData.sourceId}?returnFromQI=1`;
+    }
+    if (formData.sourceType) {
+      return `${basePath}/new?returnFromQI=1`;
+    }
+    return '/quality-inspection';
+  };
+
   /* ─── Read query parameters ────────────────────────────────────── */
 
-/* ─── Read query parameters ────────────────────────────────────── */
+  useEffect(() => {
+    // Get all query params
+    const docNoParam = searchParams.get('docNo');
+    const sourceType = searchParams.get('sourceType');
+    const sourceId = searchParams.get('sourceId');
+    const partProductNameParam = searchParams.get('partProductName');
+    const partNoParam = searchParams.get('partNo');
+    const customerNameParam = searchParams.get('customerName');
+    const challanNoDateParam = searchParams.get('challanNoDate');
+    const invoiceQtyParam = searchParams.get('invoiceQty');
+    const reportNoParam = searchParams.get('reportNo');
+    
+    // Set docNo, sourceType, sourceId
+    if (docNoParam) {
+      setFormData(prev => ({
+        ...prev,
+        docNo: docNoParam,
+        sourceType: sourceType || undefined,
+        sourceId: sourceId ? parseInt(sourceId, 10) : undefined,
+      }));
+    }
 
-useEffect(() => {
-  // Get all query params
-  const docNoParam = searchParams.get('docNo');
-  const sourceType = searchParams.get('sourceType');
-  const sourceId = searchParams.get('sourceId');
-  const partProductNameParam = searchParams.get('partProductName');
-  const partNoParam = searchParams.get('partNo');
-  const customerNameParam = searchParams.get('customerName');
-  const challanNoDateParam = searchParams.get('challanNoDate');
-  const invoiceQtyParam = searchParams.get('invoiceQty');
-  const reportNoParam = searchParams.get('reportNo');
-  
-  // Set docNo, sourceType, sourceId
-  if (docNoParam) {
-    setFormData(prev => ({
-      ...prev,
-      docNo: docNoParam,
-      sourceType: sourceType || undefined,
-      sourceId: sourceId ? parseInt(sourceId, 10) : undefined,
-    }));
-  }
+    // Auto-populate partProductName and partNo from URL params
+    if (partProductNameParam) {
+      const decodedName = decodeURIComponent(partProductNameParam);
+      setFormData(prev => ({
+        ...prev,
+        partProductName: decodedName,
+      }));
+    }
 
-  // Auto-populate partProductName and partNo from URL params
-  if (partProductNameParam) {
-    const decodedName = decodeURIComponent(partProductNameParam);
-    setFormData(prev => ({
-      ...prev,
-      partProductName: decodedName,
-    }));
-  }
+    if (partNoParam) {
+      const decodedPartNo = decodeURIComponent(partNoParam);
+      setFormData(prev => ({
+        ...prev,
+        partNo: decodedPartNo,
+      }));
+    }
 
-  if (partNoParam) {
-    const decodedPartNo = decodeURIComponent(partNoParam);
-    setFormData(prev => ({
-      ...prev,
-      partNo: decodedPartNo,
-    }));
-  }
+    // Auto-populate customer name
+    if (customerNameParam) {
+      const decodedCustomerName = decodeURIComponent(customerNameParam);
+      setFormData(prev => ({
+        ...prev,
+        customerName: decodedCustomerName,
+      }));
+    }
 
-  // Auto-populate customer name
-  if (customerNameParam) {
-    const decodedCustomerName = decodeURIComponent(customerNameParam);
-    setFormData(prev => ({
-      ...prev,
-      customerName: decodedCustomerName,
-    }));
-  }
+    // Auto-populate challan no / date
+    if (challanNoDateParam) {
+      const decodedChallanNoDate = decodeURIComponent(challanNoDateParam);
+      setFormData(prev => ({
+        ...prev,
+        challanNoDate: decodedChallanNoDate,
+      }));
+    }
 
-  // Auto-populate challan no / date
-  if (challanNoDateParam) {
-    const decodedChallanNoDate = decodeURIComponent(challanNoDateParam);
-    setFormData(prev => ({
-      ...prev,
-      challanNoDate: decodedChallanNoDate,
-    }));
-  }
+    // Auto-populate invoice qty
+    if (invoiceQtyParam) {
+      const decodedInvoiceQty = decodeURIComponent(invoiceQtyParam);
+      setFormData(prev => ({
+        ...prev,
+        invoiceQty: decodedInvoiceQty,
+      }));
+    }
 
-  // Auto-populate invoice qty
-  if (invoiceQtyParam) {
-    const decodedInvoiceQty = decodeURIComponent(invoiceQtyParam);
-    setFormData(prev => ({
-      ...prev,
-      invoiceQty: decodedInvoiceQty,
-    }));
-  }
+    // Auto-populate report no
+    if (reportNoParam) {
+      const decodedReportNo = decodeURIComponent(reportNoParam);
+      setFormData(prev => ({
+        ...prev,
+        reportNo: decodedReportNo,
+      }));
+    }
 
-  // Auto-populate report no
-  if (reportNoParam) {
-    const decodedReportNo = decodeURIComponent(reportNoParam);
-    setFormData(prev => ({
-      ...prev,
-      reportNo: decodedReportNo,
-    }));
-  }
+    // If we have partProductName, try to find the item and load its template
+    if (partProductNameParam) {
+      const decodedName = decodeURIComponent(partProductNameParam);
+      // Search for the item by name
+      const searchItemAndLoadTemplate = async () => {
+        try {
+          const response = await api.get('/item', {
+            params: {
+              page: 1,
+              limit: 10,
+              search: decodedName
+            }
+          });
 
-  // If we have partProductName, try to find the item and load its template
-  if (partProductNameParam) {
-    const decodedName = decodeURIComponent(partProductNameParam);
-    // Search for the item by name
-    const searchItemAndLoadTemplate = async () => {
-      try {
-        const response = await api.get('/item', {
-          params: {
-            page: 1,
-            limit: 10,
-            search: decodedName
+          if (response.data.success === 1) {
+            let items = [];
+            if (Array.isArray(response.data.data)) {
+              items = response.data.data;
+            } else if (response.data.data?.records) {
+              items = response.data.data.records;
+            } else if (response.data.data?.data) {
+              items = response.data.data.data;
+            }
+
+            // Find exact match by name
+            const matchedItem = items.find(
+              (item: any) => item.item_name === decodedName || item.item_code === partNoParam
+            );
+
+            if (matchedItem) {
+              setSelectedItemId(matchedItem.id);
+              // Load the quality template for this item
+              await loadQualityTemplate(matchedItem.id);
+              toast.success(`Loaded item: ${matchedItem.item_name}`);
+            }
           }
-        });
-
-        if (response.data.success === 1) {
-          let items = [];
-          if (Array.isArray(response.data.data)) {
-            items = response.data.data;
-          } else if (response.data.data?.records) {
-            items = response.data.data.records;
-          } else if (response.data.data?.data) {
-            items = response.data.data.data;
-          }
-
-          // Find exact match by name
-          const matchedItem = items.find(
-            (item: any) => item.item_name === decodedName || item.item_code === partNoParam
-          );
-
-          if (matchedItem) {
-            setSelectedItemId(matchedItem.id);
-            // Load the quality template for this item
-            await loadQualityTemplate(matchedItem.id);
-            toast.success(`Loaded item: ${matchedItem.item_name}`);
-          }
+        } catch (error) {
+          console.error('Error searching for item:', error);
+          // Don't show error toast - just use the name as provided
         }
-      } catch (error) {
-        console.error('Error searching for item:', error);
-        // Don't show error toast - just use the name as provided
-      }
-    };
+      };
 
-    searchItemAndLoadTemplate();
-  }
-}, [searchParams]);
+      searchItemAndLoadTemplate();
+    }
+
+    // Check if returning from another module and restore state
+    const returnFlag = searchParams.get('returnFromQI');
+    if (returnFlag === '1' && sourceType) {
+      const moduleType = sourceType;
+      const savedState = formState.restoreFormState(moduleType);
+      if (savedState) {
+        toast.success(`Restored data from ${moduleType}`);
+        // Clean up URL
+        const newParams = new URLSearchParams(searchParams);
+        newParams.delete('returnFromQI');
+        window.history.replaceState({}, document.title, `${window.location.pathname}?${newParams.toString()}`);
+      }
+    }
+  }, [searchParams, formState]);
 
   const compareParameters = (templateParams: any[], formParams: ParameterRow[]): boolean => {
     if (templateParams.length !== formParams.length) {
@@ -1716,14 +1760,19 @@ useEffect(() => {
     doc.close();
   };
 
+  // ===== FIXED: validate with observations check and visual indicators =====
   const validate = (): boolean => {
     const newErrors: { [key: string]: string } = {};
+    
+    // Basic required fields
     if (!formData.docNo.trim()) newErrors.docNo = 'Doc No is required';
     if (!formData.reportNo.trim()) newErrors.reportNo = 'Report No is required';
     if (!formData.partProductName.trim()) newErrors.partProductName = 'Part / Product Name is required';
     if (!formData.customerName.trim()) newErrors.customerName = 'Customer Name is required';
     if (!formData.date) newErrors.date = 'Date is required';
 
+    // Check each parameter row
+    let hasObservationError = false;
     formData.parameters.forEach((row, index) => {
       if (!row.parameter.trim()) {
         newErrors[`parameter_${index}`] = 'Parameter name is required';
@@ -1731,10 +1780,25 @@ useEffect(() => {
       if (!row.inspectionMethod.trim()) {
         newErrors[`method_${index}`] = 'Inspection method is required';
       }
+      
+      // ===== CRITICAL: Check if at least one observation has a value =====
+      const hasObservation = row.observations.some(obs => obs && obs.trim() !== '');
+      if (!hasObservation) {
+        newErrors[`observation_${index}`] = 'At least one observation value is required';
+        hasObservationError = true;
+      }
     });
 
     setErrors(newErrors);
+    
     if (Object.keys(newErrors).length > 0) {
+      // Show a toast message for observation errors
+      if (hasObservationError) {
+        toast.error('Please fill in at least one observation value for each parameter');
+      } else {
+        toast.error('Please fill in all required fields');
+      }
+      
       const firstKey = Object.keys(newErrors)[0];
       inputRefs.current[firstKey]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       inputRefs.current[firstKey]?.focus();
@@ -1801,14 +1865,19 @@ useEffect(() => {
 
         if (response.data.success === 1 && response.data.data) {
           const paramData = response.data.data;
-          const id = paramData.id || paramData.insertId;
+          const id = paramData.id || paramData.parameter_id || paramData.insertId;
           if (id) {
             savedParameters[paramName] = id;
-            console.log(`Parameter "${paramName}" saved with ID: ${id}`);
+            console.log(`✅ Parameter "${paramName}" saved with ID: ${id}`);
+          } else {
+            console.error(`❌ Parameter "${paramName}" saved but no ID returned:`, paramData);
+            throw new Error(`No ID returned for parameter: ${paramName}`);
           }
+        } else {
+          throw new Error(response.data.message || `Failed to save parameter: ${paramName}`);
         }
       } catch (error) {
-        console.error(`Failed to save parameter "${paramName}":`, error);
+        console.error(`❌ Failed to save parameter "${paramName}":`, error);
         throw new Error(`Failed to save parameter: ${paramName}`);
       }
     }
@@ -1823,14 +1892,19 @@ useEffect(() => {
 
         if (response.data.success === 1 && response.data.data) {
           const methodData = response.data.data;
-          const id = methodData.id || methodData.insertId;
+          const id = methodData.id || methodData.method_id || methodData.insertId;
           if (id) {
             savedMethods[methodName] = id;
-            console.log(`Method "${methodName}" saved with ID: ${id}`);
+            console.log(`✅ Method "${methodName}" saved with ID: ${id}`);
+          } else {
+            console.error(`❌ Method "${methodName}" saved but no ID returned:`, methodData);
+            throw new Error(`No ID returned for method: ${methodName}`);
           }
+        } else {
+          throw new Error(response.data.message || `Failed to save method: ${methodName}`);
         }
       } catch (error) {
-        console.error(`Failed to save method "${methodName}":`, error);
+        console.error(`❌ Failed to save method "${methodName}":`, error);
         throw new Error(`Failed to save method: ${methodName}`);
       }
     }
@@ -1975,8 +2049,55 @@ useEffect(() => {
     }
   };
 
+  // ===== FIXED: performSave with correct flow =====
   const performSave = async (payload: any) => {
     try {
+      // STEP 1: Detect and save missing parameters and methods FIRST
+      const { newParameters, newMethods } = detectNewParametersAndMethods();
+      
+      let savedParameters: { [key: string]: number } = {};
+      let savedMethods: { [key: string]: number } = {};
+      
+      // Save missing masters BEFORE the QI save
+      if (newParameters.length > 0 || newMethods.length > 0) {
+        toast.loading('Creating new parameters and methods...', { id: 'master-save' });
+        try {
+          const result = await saveMissingMasters(newParameters, newMethods);
+          savedParameters = result.savedParameters;
+          savedMethods = result.savedMethods;
+          
+          // Update the payload with the new IDs
+          payload.details = payload.details.map((detail: any, index: number) => {
+            const row = formData.parameters[index];
+            if (row) {
+              // If this parameter was newly created, use the new ID
+              if (!row.parameterId && row.parameter.trim()) {
+                const paramName = row.parameter.trim();
+                if (savedParameters[paramName]) {
+                  detail.parameter_id = savedParameters[paramName];
+                  console.log(`✅ Updated parameter "${paramName}" with ID: ${savedParameters[paramName]}`);
+                }
+              }
+              // If this method was newly created, use the new ID
+              if (!row.inspectionMethodId && row.inspectionMethod.trim()) {
+                const methodName = row.inspectionMethod.trim();
+                if (savedMethods[methodName]) {
+                  detail.inspection_method_id = savedMethods[methodName];
+                  console.log(`✅ Updated method "${methodName}" with ID: ${savedMethods[methodName]}`);
+                }
+              }
+            }
+            return detail;
+          });
+          
+          toast.success('Parameters and methods created!', { id: 'master-save' });
+        } catch (err: any) {
+          toast.error(`Failed to create masters: ${err.message}`, { id: 'master-save' });
+          throw err;
+        }
+      }
+
+      // STEP 2: Now save the QI form with the updated payload (all IDs should be valid)
       let response;
       if (isEditMode && recordName) {
         response = await api.put(`/quality-inspection`, { ...payload, id: parseInt(id!) });
@@ -1992,17 +2113,40 @@ useEffect(() => {
 
       toast.success(isEditMode ? 'Inspection report updated!' : 'Inspection report saved!');
 
+      // STEP 3: Handle template creation/update
+      const sourceType = formData.sourceType;
+      const sourceId = formData.sourceId;
+      
       if (formData.qualityTemplateId) {
         if (currentTemplate) {
           const hasChanges = compareParameters(currentTemplate.parameters, formData.parameters);
           if (hasChanges) {
             setShowTemplateUpdateModal(true);
-            return { success: true, inspectionId, templateChanged: true };
+            return { 
+              success: true, 
+              inspectionId, 
+              templateChanged: true,
+              sourceType,
+              sourceId
+            };
           }
         }
-        navigate('/quality-inspection');
+        // No template changes, navigate back
+        const targetPath = isFromSource ? getSourcePath() : '/quality-inspection';
+        if (sourceType) {
+          formState.clearFormState(sourceType);
+        }
+        navigate(targetPath);
       } else {
+        // No template exists, show creation modal
         setShowTemplateCreationModal(true);
+        return { 
+          success: true, 
+          inspectionId, 
+          templateExists: false,
+          sourceType,
+          sourceId
+        };
       }
 
       return { success: true, inspectionId, templateExists: !!formData.qualityTemplateId };
@@ -2024,7 +2168,7 @@ useEffect(() => {
 
   const handleSave = async () => {
     if (!validate()) {
-      toast.error('Please fill in the required fields');
+      // Error toast is shown inside validate()
       return;
     }
 
@@ -2048,13 +2192,25 @@ useEffect(() => {
     try {
       const success = await createTemplateFromForm();
       if (success) {
-        navigate('/quality-inspection');
+        const targetPath = isFromSource ? getSourcePath() : '/quality-inspection';
+        if (formData.sourceType) {
+          formState.clearFormState(formData.sourceType);
+        }
+        navigate(targetPath);
       } else {
-        navigate('/quality-inspection');
+        const targetPath = isFromSource ? getSourcePath() : '/quality-inspection';
+        if (formData.sourceType) {
+          formState.clearFormState(formData.sourceType);
+        }
+        navigate(targetPath);
       }
     } catch (err) {
       console.error('Error in template creation:', err);
-      navigate('/quality-inspection');
+      const targetPath = isFromSource ? getSourcePath() : '/quality-inspection';
+      if (formData.sourceType) {
+        formState.clearFormState(formData.sourceType);
+      }
+      navigate(targetPath);
     } finally {
       setSaving(false);
     }
@@ -2062,7 +2218,11 @@ useEffect(() => {
 
   const handleSkipTemplateCreation = () => {
     setShowTemplateCreationModal(false);
-    navigate('/quality-inspection');
+    if (formData.sourceType) {
+      formState.clearFormState(formData.sourceType);
+    }
+    const targetPath = isFromSource ? getSourcePath() : '/quality-inspection';
+    navigate(targetPath);
   };
 
   const handleUpdateTemplate = async () => {
@@ -2072,13 +2232,25 @@ useEffect(() => {
     try {
       const success = await updateTemplateFromForm();
       if (success) {
-        navigate('/quality-inspection');
+        if (formData.sourceType) {
+          formState.clearFormState(formData.sourceType);
+        }
+        const targetPath = isFromSource ? getSourcePath() : '/quality-inspection';
+        navigate(targetPath);
       } else {
-        navigate('/quality-inspection');
+        if (formData.sourceType) {
+          formState.clearFormState(formData.sourceType);
+        }
+        const targetPath = isFromSource ? getSourcePath() : '/quality-inspection';
+        navigate(targetPath);
       }
     } catch (err) {
       console.error('Error in template update:', err);
-      navigate('/quality-inspection');
+      if (formData.sourceType) {
+        formState.clearFormState(formData.sourceType);
+      }
+      const targetPath = isFromSource ? getSourcePath() : '/quality-inspection';
+      navigate(targetPath);
     } finally {
       setSaving(false);
     }
@@ -2086,14 +2258,19 @@ useEffect(() => {
 
   const handleSkipTemplateUpdate = () => {
     setShowTemplateUpdateModal(false);
-    navigate('/quality-inspection');
+    if (formData.sourceType) {
+      formState.clearFormState(formData.sourceType);
+    }
+    const targetPath = isFromSource ? getSourcePath() : '/quality-inspection';
+    navigate(targetPath);
   };
 
+  // ===== FIXED: buildApiPayload - Use 0 as fallback =====
   const buildApiPayload = () => {
     const inspectionNo = isEditMode && recordName ? recordName : `QIR-${Date.now().toString(36).toUpperCase()}`;
     const overallResult = outOfSpecCount > 0 ? 'Fail' : 'Pass';
 
-    const details = formData.parameters.map((param, index) => {
+    const details = formData.parameters.map((param) => {
       const paramOutOfSpec = param.observations.some(v => isObservationOutOfSpec(param.specification, v));
       const paramResult = paramOutOfSpec ? 'Fail' : 'Pass';
 
@@ -2104,9 +2281,10 @@ useEffect(() => {
         remarks: null
       }));
 
+      // Use 0 as fallback - will be updated in performSave if needed
       return {
-        parameter_id: param.parameterId || (index + 1),
-        inspection_method_id: param.inspectionMethodId || 1,
+        parameter_id: param.parameterId || 0,
+        inspection_method_id: param.inspectionMethodId || 0,
         specification: param.specification || null,
         result: paramResult,
         remarks: null,
@@ -2174,13 +2352,21 @@ useEffect(() => {
     return payload;
   };
 
+  const handleBack = () => {
+    if (formData.sourceType) {
+      formState.clearFormState(formData.sourceType);
+    }
+    const targetPath = isFromSource ? getSourcePath() : '/quality-inspection';
+    navigate(targetPath);
+  };
+
   /* ─────────────────────────── Render ─────────────────────────── */
 
   return (
     <div className={`qir-page ${theme}-theme`}>
       <div className="qir-header-wrap qir-no-print">
         <div className="qir-header-row">
-          <button type="button" className="qir-back-btn" onClick={() => navigate('/quality-inspection')}>
+          <button type="button" className="qir-back-btn" onClick={handleBack}>
             <FaArrowLeft size={12} /> Back
           </button>
           <h1 className="qir-title"><FaClipboardCheck size={15} /> {isEditMode ? 'Edit Inspection Report' : 'New Inspection Report'}</h1>
@@ -2344,11 +2530,26 @@ useEffect(() => {
               </td>
               <td className="qir-meta-label">Challan No / Date :</td>
               <td className="qir-meta-value" colSpan={2}>
-                <input name="challanNoDate" value={formData.challanNoDate} onChange={handleFieldChange} ref={setRef('challanNoDate')} />
+                <input 
+                  name="challanNoDate" 
+                  value={formData.challanNoDate} 
+                  onChange={handleFieldChange} 
+                  ref={setRef('challanNoDate')}
+                  readOnly={isFromSource}
+                  style={isFromSource ? { backgroundColor: '#f9fafb', cursor: 'not-allowed' } : {}}
+                />
               </td>
               <td className="qir-meta-label">Invoice Qty :</td>
               <td className="qir-meta-value">
-                <input name="invoiceQty" value={formData.invoiceQty} onChange={handleFieldChange} placeholder="Nos" ref={setRef('invoiceQty')} />
+                <input 
+                  name="invoiceQty" 
+                  value={formData.invoiceQty} 
+                  onChange={handleFieldChange} 
+                  placeholder="Nos" 
+                  ref={setRef('invoiceQty')}
+                  readOnly={isFromSource}
+                  style={isFromSource ? { backgroundColor: '#f9fafb', cursor: 'not-allowed' } : {}}
+                />
               </td>
             </tr>
             <tr>
@@ -2358,7 +2559,15 @@ useEffect(() => {
               <td className="qir-meta-value" colSpan={2}></td>
               <td className="qir-meta-label">Report No :</td>
               <td className="qir-meta-value">
-                <input name="reportNo" value={formData.reportNo} onChange={handleFieldChange} className={errors.reportNo ? 'qir-input-error' : ''} ref={setRef('reportNo')} />
+                <input 
+                  name="reportNo" 
+                  value={formData.reportNo} 
+                  onChange={handleFieldChange} 
+                  className={errors.reportNo ? 'qir-input-error' : ''} 
+                  ref={setRef('reportNo')}
+                  readOnly={isFromSource}
+                  style={isFromSource ? { backgroundColor: '#f9fafb', cursor: 'not-allowed' } : {}}
+                />
               </td>
             </tr>
           </tbody>
@@ -2380,7 +2589,7 @@ useEffect(() => {
           </div>
         </div>
 
-        {/* ── Observation table (NO INTERNAL SCROLL) ──────────── */}
+        {/* ── Observation table with observation validation indicator ── */}
         <div className="qir-obs-table-wrapper">
           <table className="qir-obs-table">
             <thead>
@@ -2399,68 +2608,85 @@ useEffect(() => {
               </tr>
             </thead>
             <tbody>
-              {formData.parameters.map((row, rowIndex) => (
-                <tr key={row.id}>
-                  <td className="qir-col-sr qir-text-center">{rowIndex + 1}</td>
-                  <td className="qir-col-param">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              {formData.parameters.map((row, rowIndex) => {
+                const hasObservation = row.observations.some(obs => obs && obs.trim() !== '');
+                const hasObservationError = errors[`observation_${rowIndex}`] && !hasObservation;
+                
+                return (
+                  <tr key={row.id} className={hasObservationError ? 'qir-row-error' : ''}>
+                    <td className="qir-col-sr qir-text-center">{rowIndex + 1}</td>
+                    <td className="qir-col-param">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <AutocompleteInput
+                          value={row.parameter}
+                          onChange={(value) => handleParameterNameChange(rowIndex, value)}
+                          onSelect={(item) => handleParameterSelect(rowIndex, item)}
+                          placeholder="Search parameter..."
+                          apiEndpoint="/quality-parameter"
+                          displayField="parameter_name"
+                          labelField="parameter_code"
+                          subLabelField="unit"
+                          searchParam="search"
+                        />
+                        {row.isMandatory === 1 && (
+                          <span style={{ color: '#dc2626', fontSize: '14px', fontWeight: 'bold' }} title="Mandatory parameter">*</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="qir-col-spec">
+                      <SpecificationInput
+                        value={row.specification}
+                        onChange={(value) => handleParameterFieldChange(rowIndex, 'specification', value)}
+                        placeholder="e.g. 9±0.2"
+                      />
+                    </td>
+                    <td className="qir-col-method">
                       <AutocompleteInput
-                        value={row.parameter}
-                        onChange={(value) => handleParameterNameChange(rowIndex, value)}
-                        onSelect={(item) => handleParameterSelect(rowIndex, item)}
-                        placeholder="Search parameter..."
-                        apiEndpoint="/quality-parameter"
-                        displayField="parameter_name"
-                        labelField="parameter_code"
-                        subLabelField="unit"
+                        value={row.inspectionMethod}
+                        onChange={(value) => handleMethodNameChange(rowIndex, value)}
+                        onSelect={(item) => handleMethodSelect(rowIndex, item)}
+                        placeholder="Search method..."
+                        apiEndpoint="/inspection-method"
+                        displayField="method_name"
+                        labelField="description"
                         searchParam="search"
                       />
-                      {row.isMandatory === 1 && (
-                        <span style={{ color: '#dc2626', fontSize: '14px', fontWeight: 'bold' }} title="Mandatory parameter">*</span>
+                    </td>
+                    {row.observations.map((value, colIndex) => {
+                      const outOfSpec = isObservationOutOfSpec(row.specification, value);
+                      const isObservationCellError = hasObservationError && !value.trim();
+                      return (
+                        <td key={colIndex} className="qir-col-obs">
+                          <input
+                            value={value}
+                            onChange={(e) => handleObservationChange(rowIndex, colIndex, e.target.value)}
+                            className={
+                              outOfSpec ? 'qir-out-of-spec' : 
+                              isObservationCellError ? 'qir-observation-error' : ''
+                            }
+                            title={
+                              outOfSpec ? 'Reading is outside the specification tolerance' :
+                              isObservationCellError ? 'At least one observation value is required' : undefined
+                            }
+                          />
+                        </td>
+                      );
+                    })}
+                    <td className="qir-col-del qir-no-print">
+                      {formData.parameters.length > 1 && (
+                        <button type="button" className="qir-remove-btn" onClick={() => removeParameterRow(rowIndex)} title="Delete row">
+                          <FaTrash size={10} />
+                        </button>
                       )}
-                    </div>
-                  </td>
-                  <td className="qir-col-spec">
-                    <SpecificationInput
-                      value={row.specification}
-                      onChange={(value) => handleParameterFieldChange(rowIndex, 'specification', value)}
-                      placeholder="e.g. 9±0.2"
-                    />
-                  </td>
-                  <td className="qir-col-method">
-                    <AutocompleteInput
-                      value={row.inspectionMethod}
-                      onChange={(value) => handleMethodNameChange(rowIndex, value)}
-                      onSelect={(item) => handleMethodSelect(rowIndex, item)}
-                      placeholder="Search method..."
-                      apiEndpoint="/inspection-method"
-                      displayField="method_name"
-                      labelField="description"
-                      searchParam="search"
-                    />
-                  </td>
-                  {row.observations.map((value, colIndex) => {
-                    const outOfSpec = isObservationOutOfSpec(row.specification, value);
-                    return (
-                      <td key={colIndex} className="qir-col-obs">
-                        <input
-                          value={value}
-                          onChange={(e) => handleObservationChange(rowIndex, colIndex, e.target.value)}
-                          className={outOfSpec ? 'qir-out-of-spec' : ''}
-                          title={outOfSpec ? 'Reading is outside the specification tolerance' : undefined}
-                        />
-                      </td>
-                    );
-                  })}
-                  <td className="qir-col-del qir-no-print">
-                    {formData.parameters.length > 1 && (
-                      <button type="button" className="qir-remove-btn" onClick={() => removeParameterRow(rowIndex)} title="Delete row">
-                        <FaTrash size={10} />
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
+                      {hasObservationError && (
+                        <div className="qir-error-indicator" title="At least one observation value is required">
+                          <FaExclamationTriangle size={10} color="#dc2626" />
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
