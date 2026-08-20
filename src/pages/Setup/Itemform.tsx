@@ -238,7 +238,6 @@ function SelectInput({
   allowOnlyAlphabets = false,
   showAddButton = false,
   onAddClick,
-  theme = "light",
   onCustomValueConfirm,
   entityLabel = "option",
 }: {
@@ -258,7 +257,7 @@ function SelectInput({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [showAddPrompt, setShowAddPrompt] = useState(false);
+  const [, setShowAddPrompt] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const filteredOptions = options.filter((opt) => {
@@ -865,115 +864,6 @@ function NumberInput({
 // ────────────────────────────────────────────────────────────────────────
 // Add Item Group Modal
 // ────────────────────────────────────────────────────────────────────────
-function AddItemGroupModal({
-  isOpen,
-  onClose,
-  onSave,
-  saving,
-  theme = "light",
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-  onSave: (name: string, company: string) => void;
-  saving: boolean;
-  theme?: string;
-}) {
-  const [groupName, setGroupName] = useState("");
-  const [company, setCompany] = useState("");
-
-  useEffect(() => {
-    if (isOpen) {
-      setGroupName("");
-      setCompany("");
-    }
-  }, [isOpen]);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!groupName.trim()) {
-      toast.error("Item Group Name is required");
-      return;
-    }
-    if (!company.trim()) {
-      toast.error("Company is required");
-      return;
-    }
-    onSave(groupName.trim(), company.trim());
-  };
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="itf-modal-overlay" onClick={onClose}>
-      <div className="itf-modal itf-modal-light" onClick={(e) => e.stopPropagation()}>
-        <div className="itf-modal-header">
-          <div className="itf-modal-header-left">
-            <span className="itf-modal-icon">
-              <FaTag size={18} />
-            </span>
-            <h3>Add New Item Group</h3>
-          </div>
-          <button type="button" className="itf-modal-close" onClick={onClose}>
-            <FaTimes size={18} />
-          </button>
-        </div>
-        
-        <form onSubmit={handleSubmit}>
-          <div className="itf-modal-body">
-            <p className="itf-modal-subtitle">Create a new item group to organize your items.</p>
-            
-            <div className="itf-modal-form-group">
-              <label className="itf-modal-label">
-                Item Group Name <span className="itf-req">*</span>
-              </label>
-              <div className="itf-modal-input-wrap">
-                <input
-                  type="text"
-                  className="itf-modal-input itf-modal-input-light"
-                  value={groupName}
-                  onChange={(e) => setGroupName(e.target.value.replace(/[^a-zA-Z0-9\s]/g, ""))}
-                  placeholder="Enter item group name (e.g. Raw Material)"
-                  autoFocus
-                />
-              </div>
-              <p className="itf-modal-hint">Only alphabets, digits, and spaces are allowed</p>
-            </div>
-
-            <div className="itf-modal-form-group">
-              <label className="itf-modal-label">
-                Company <span className="itf-req">*</span>
-              </label>
-              <div className="itf-modal-input-wrap">
-                <input
-                  type="text"
-                  className="itf-modal-input itf-modal-input-light"
-                  value={company}
-                  onChange={(e) => setCompany(e.target.value.replace(/[^a-zA-Z0-9\s]/g, ""))}
-                  placeholder="Enter company name"
-                />
-              </div>
-              <p className="itf-modal-hint">Only alphabets, digits, and spaces are allowed</p>
-            </div>
-          </div>
-
-          <div className="itf-modal-footer">
-            <button type="button" className="itf-modal-btn-cancel" onClick={onClose}>
-              Cancel
-            </button>
-            <button 
-              type="submit" 
-              className="itf-modal-btn-save itf-modal-btn-save-light" 
-              disabled={saving}
-            >
-              {saving ? <FaSpinner className="itf-spin" size={14} /> : <FaPlus size={14} />}
-              {saving ? "Adding..." : "Add Group"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
 
 // ────────────────────────────────────────────────────────────────────────
 // Add UOM Modal - with Category dropdown from API
@@ -983,7 +873,6 @@ function AddUOMModal({
   onClose,
   onSave,
   saving,
-  theme = "light",
   categoryOptions = [],
   loadingCategories = false,
   initialUOMName = "",

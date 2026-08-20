@@ -5,7 +5,11 @@ import {
   FaFilter, FaCheckCircle, FaClock, FaTimesCircle,
   FaFileAlt, FaExternalLinkAlt,
   FaChartLine, FaTimes,  FaSpinner,
-  FaEnvelope
+  FaEnvelope,
+  FaAngleDoubleLeft,
+  FaAngleDoubleRight,
+  FaChevronLeft,
+  FaChevronRight
 
 } from 'react-icons/fa';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
@@ -342,7 +346,7 @@ export default function QuotationPage() {
 
      
 
-      const { records, total, page, limit, totalPages: apiTotalPages } = response.data.data;
+      const { records, total, totalPages: apiTotalPages } = response.data.data;
 
       // Update pagination info from server
       setTotalRecords(total);
@@ -574,7 +578,6 @@ export default function QuotationPage() {
   const acceptedAmount = quotations.filter(q => q.status === 'Accepted').reduce((sum, q) => sum + q.totalAmount, 0);
   const conversionRate = totalAmount > 0 ? Math.round((acceptedAmount / totalAmount) * 100) : 0;
 
-  const totalQuotes = totalRecords;
 
 
   const handleView = (quote: Quotation) => {
