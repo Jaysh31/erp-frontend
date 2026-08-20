@@ -902,11 +902,9 @@ function AddItemGroupModal({
 
   if (!isOpen) return null;
 
-  const isDark = theme === "dark";
-
   return (
     <div className="itf-modal-overlay" onClick={onClose}>
-      <div className={`itf-modal ${isDark ? "itf-modal-dark" : "itf-modal-light"}`} onClick={(e) => e.stopPropagation()}>
+      <div className="itf-modal itf-modal-light" onClick={(e) => e.stopPropagation()}>
         <div className="itf-modal-header">
           <div className="itf-modal-header-left">
             <span className="itf-modal-icon">
@@ -930,7 +928,7 @@ function AddItemGroupModal({
               <div className="itf-modal-input-wrap">
                 <input
                   type="text"
-                  className={`itf-modal-input ${isDark ? "itf-modal-input-dark" : "itf-modal-input-light"}`}
+                  className="itf-modal-input itf-modal-input-light"
                   value={groupName}
                   onChange={(e) => setGroupName(e.target.value.replace(/[^a-zA-Z0-9\s]/g, ""))}
                   placeholder="Enter item group name (e.g. Raw Material)"
@@ -947,7 +945,7 @@ function AddItemGroupModal({
               <div className="itf-modal-input-wrap">
                 <input
                   type="text"
-                  className={`itf-modal-input ${isDark ? "itf-modal-input-dark" : "itf-modal-input-light"}`}
+                  className="itf-modal-input itf-modal-input-light"
                   value={company}
                   onChange={(e) => setCompany(e.target.value.replace(/[^a-zA-Z0-9\s]/g, ""))}
                   placeholder="Enter company name"
@@ -963,7 +961,7 @@ function AddItemGroupModal({
             </button>
             <button 
               type="submit" 
-              className={`itf-modal-btn-save ${isDark ? "itf-modal-btn-save-dark" : "itf-modal-btn-save-light"}`} 
+              className="itf-modal-btn-save itf-modal-btn-save-light" 
               disabled={saving}
             >
               {saving ? <FaSpinner className="itf-spin" size={14} /> : <FaPlus size={14} />}
@@ -1042,12 +1040,11 @@ function AddUOMModal({
 
   if (!isOpen) return null;
 
-  const isDark = theme === "dark";
   const selectedCategoryLabel = categoryOptions.find(opt => opt.value === selectedCategory)?.label || "";
 
   return (
     <div className="itf-modal-overlay" onClick={onClose}>
-      <div className={`itf-modal ${isDark ? "itf-modal-dark" : "itf-modal-light"}`} onClick={(e) => e.stopPropagation()}>
+      <div className="itf-modal itf-modal-light" onClick={(e) => e.stopPropagation()}>
         <div className="itf-modal-header">
           <div className="itf-modal-header-left">
             <span className="itf-modal-icon">
@@ -1071,7 +1068,7 @@ function AddUOMModal({
               <div className="itf-modal-input-wrap">
                 <input
                   type="text"
-                  className={`itf-modal-input ${isDark ? "itf-modal-input-dark" : "itf-modal-input-light"}`}
+                  className="itf-modal-input itf-modal-input-light"
                   value={uomName}
                   onChange={(e) => setUomName(e.target.value.replace(/[^a-zA-Z0-9\s]/g, ""))}
                   placeholder="Enter UOM name (e.g. Kilogram, Meter)"
@@ -1088,7 +1085,7 @@ function AddUOMModal({
               <div className="itf-modal-input-wrap">
                 <input
                   type="text"
-                  className={`itf-modal-input ${isDark ? "itf-modal-input-dark" : "itf-modal-input-light"}`}
+                  className="itf-modal-input itf-modal-input-light"
                   value={symbol}
                   onChange={(e) => setSymbol(e.target.value.replace(/[^a-zA-Z0-9]/g, ""))}
                   placeholder="Enter symbol (e.g. kg, m)"
@@ -1104,7 +1101,7 @@ function AddUOMModal({
               </label>
               <div className="itf-select-wrapper-main" ref={categoryDropdownRef}>
                 <div
-                  className={`itf-select-wrapper ${isCategoryOpen ? "itf-select-wrapper-open" : ""} ${isDark ? "itf-select-add-btn-dark" : "itf-select-add-btn-light"}`}
+                  className={`itf-select-wrapper ${isCategoryOpen ? "itf-select-wrapper-open" : ""} itf-select-add-btn-light`}
                   onClick={() => setIsCategoryOpen(!isCategoryOpen)}
                 >
                   <span className={`itf-select-display ${!selectedCategory ? "itf-select-placeholder" : ""}`}>
@@ -1159,7 +1156,7 @@ function AddUOMModal({
             </button>
             <button 
               type="submit" 
-              className={`itf-modal-btn-save ${isDark ? "itf-modal-btn-save-dark" : "itf-modal-btn-save-light"}`} 
+              className="itf-modal-btn-save itf-modal-btn-save-light" 
               disabled={saving}
             >
               {saving ? <FaSpinner className="itf-spin" size={14} /> : <FaPlus size={14} />}
@@ -1526,7 +1523,7 @@ export default function ItemForm() {
 
     if (exists) {
       s("defaultUOM", customValue.trim());
-      toast.info(`UOM "${customValue}" already exists. Selected.`);
+      toast.success(`UOM "${customValue}" already exists. Selected.`);
       return;
     }
 
@@ -2120,7 +2117,7 @@ export default function ItemForm() {
 
   if (loading) {
     return (
-      <div className={`itf-page ${theme}`}>
+      <div className="itf-page">
         <div className="itf-loading-state">
           <FaSpinner className="itf-spin" size={28} />
           <p>Loading item data…</p>
@@ -2130,10 +2127,9 @@ export default function ItemForm() {
   }
 
   const isRawMaterial = isRawMaterialGroup(form.itemGroup);
-  const isDark = theme === "dark";
 
   return (
-    <div className={`itf-page ${theme}`}>
+    <div className="itf-page">
       {/* Top Bar */}
       <div className="itf-topbar">
         <div className="itf-breadcrumb">
@@ -2493,7 +2489,7 @@ export default function ItemForm() {
               </button>
               <button 
                 type="submit" 
-                className={`itf-btn-save-bottom ${isDark ? "itf-btn-save-dark" : "itf-btn-save-light"}`}
+                className="itf-btn-save-bottom itf-btn-save-light"
                 disabled={submitting}
               >
                 {submitting ? <FaSpinner className="itf-spin" size={13} /> : <FaSave size={13} />}
