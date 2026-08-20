@@ -2538,3 +2538,108 @@ select.jcf-input {
   display: block;
   width: 100%;
 }
+
+/* ══════════════════════════════════════════════════════════════
+   NEW: Compact quick-info row (Work Order / Qty / Posting Date +
+   Pending / Completed / Loss stats) — replaces the two separate
+   full-width grid rows that used to take up a lot of card space.
+   ══════════════════════════════════════════════════════════════ */
+
+.jcf-quick-info-row {
+  display: flex;
+  flex-wrap: wrap;
+  /* align-items: flex-end; */
+  gap: 14px;
+  /* margin-bottom: 20px; */
+  /* padding-bottom: 18px; */
+  /* border-bottom: 1px solid var(--jcf-border); */
+}
+
+.jcf-quick-info-item {
+  flex: 0 1 30px;
+  min-width: 200px;
+}
+
+.jcf-quick-info-divider {
+  width: 1px;
+  align-self: stretch;
+  background: var(--jcf-border);
+  margin: 0 2px;
+}
+
+.jcf-quick-info-stat {
+  flex: 0 1 90px;
+  min-width: 80px;
+}
+
+.jcf-quick-static {
+  height: 36px;
+  display: flex;
+  align-items: center;
+  padding: 0 11px;
+  background: var(--jcf-surface-2);
+  border: 1px solid var(--jcf-border);
+  border-radius: var(--jcf-radius-sm);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--jcf-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 900px) {
+  .jcf-quick-info-divider {
+    display: none;
+  }
+}
+
+@media (max-width: 680px) {
+  .jcf-quick-info-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .jcf-quick-info-item,
+  .jcf-quick-info-stat {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   NEW: GRN summary stat chips (Total Sent / Received / Rejected /
+   Remaining) shown in the Material Receipt (GRN) card.
+   ══════════════════════════════════════════════════════════════ */
+
+.jcf-grn-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.jcf-stat-chip {
+  flex: 1 1 100px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  background: var(--bg-secondary, #f8fafc);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 8px;
+  min-width: 90px;
+}
+
+.jcf-stat-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary, #64748b);
+}
+
+.jcf-stat-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary, #0f172a);
+}
