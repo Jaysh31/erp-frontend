@@ -13,6 +13,7 @@ import {
   FaCalculator,
   FaWarehouse,
   FaInfoCircle,
+  FaPlus,
 } from "react-icons/fa";
 import "./ItemForm.css";
 import { useAdminTheme } from "../../admin-theme/AdminThemeContext";
