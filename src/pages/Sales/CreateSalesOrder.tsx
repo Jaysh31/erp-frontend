@@ -1648,7 +1648,7 @@ export default function CreateSalesOrder() {
 
   // Inventory / stock check
   const [inventoryMap, setInventoryMap] = useState<{ [itemCode: string]: InventoryApiRecord }>({});
-  const [loadingInventory, setLoadingInventory] = useState(false);
+  const [, setLoadingInventory] = useState(false);
 
   // Item master catalog
   const [itemMasterMap, setItemMasterMap] = useState<{ [itemCode: string]: any }>({});

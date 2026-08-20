@@ -2125,7 +2125,6 @@ export default function GRNForm() {
                                     filteredPOs.map(po => {
                                       const poItems = poItemsCache[po.id] || [];
                                       const isLoadingItems = loadingPOItems[po.id];
-                                      const itemCount = poItems.length;
                                       const poDisplayName = getPODisplayName(po);
                                       
                                       // Get unique items by item_code to show only once per PO

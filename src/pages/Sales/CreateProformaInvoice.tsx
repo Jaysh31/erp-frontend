@@ -853,7 +853,6 @@ const CreateProformaInvoice: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id?: string }>();
   const { theme } = useAdminTheme();
-  const isViewMode = Boolean(id);
   const [loadingExistingRecord, setLoadingExistingRecord] = useState<boolean>(false);
   const [recordLoaded, setRecordLoaded] = useState<boolean>(false);
 
