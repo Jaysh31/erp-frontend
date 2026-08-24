@@ -1,3 +1,4 @@
+// PurchaseInvoiceForm.tsx - Modified with is_create_from_grn and grn_ids
 import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   FaSave, FaSpinner, FaArrowLeft,
@@ -95,13 +96,6 @@ interface GRNSummary {
 }
 
 interface InvoiceItem {
-  // NOTE: `id` is now ALWAYS populated (for every construction path — manual,
-  // GRN-derived, PO-only, and loaded-from-existing-invoice rows) and is the
-  // ONLY thing used to target a specific row for edits/removal/selection.
-  // Never use array index to look up or mutate a row — indexes shift when
-  // rows are added/removed/reordered and were the root cause of a row
-  // picking up another row's item_id (e.g. item_code "COOLANT" going out
-  // with item_Id belonging to a different catalog item).
   id: string;
   db_item_id?: number;
   po_item_id?: number;
@@ -163,11 +157,18 @@ const statusOptions = ['Draft', 'Submitted', 'Partially Paid', 'Fully Paid', 'Ov
 const billSourceOptions = ['GRN', 'Without GRN'] as const;
 type BillSource = typeof billSourceOptions[number];
 
-// Small helper: generates a unique, stable id for a new row. Using this
-// everywhere a row is created guarantees every InvoiceItem.id is unique and
-// present, which is what lets all the row-lookup functions below key off
-// `id` instead of index.
 const makeRowId = () => `row-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
+const getItemTaxTemplate = (taxRate: number): string => {
+  const rate = taxRate || 0;
+  return `GST${rate} ${rate}%`;
+};
+
+const parseTaxRateFromTemplate = (template: string | null | undefined): number => {
+  if (!template) return 0;
+  const match = template.match(/(\d+(?:\.\d+)?)\s*%/);
+  return match ? parseFloat(match[1]) : 0;
+};
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -196,6 +197,9 @@ export default function PurchaseInvoiceForm() {
     sgst: 0,
     gstTotal: 0,
     grandTotal: 0,
+    // NEW: GRN related fields
+    isCreateFromGrn: 0, // 0 or 1
+    grnIds: [] as number[],
   });
 
   const [items, setItems] = useState<InvoiceItem[]>([]);
@@ -245,15 +249,10 @@ export default function PurchaseInvoiceForm() {
   const [, setLoadingItems] = useState(false);
   const [itemSearch, setItemSearch] = useState('');
   const [showItemDropdown, setShowItemDropdown] = useState(false);
-  // FIX: was `selectedItemIndex: number | null`. Array index is not a safe
-  // row identifier — it can point at the wrong row if items are added,
-  // removed, or if two dropdown interactions race each other. Track the
-  // row's stable `id` instead.
   const [selectedItemRowId, setSelectedItemRowId] = useState<string | null>(null);
   const itemSearchRef = useRef<HTMLDivElement>(null);
 
   // ── Note popover state ───────────────────────────────────────────────────────
-  // FIX: same reasoning as selectedItemRowId — key off the row's stable id.
   const [notePopoverRowId, setNotePopoverRowId] = useState<string | null>(null);
 
   // ── Tax state ───────────────────────────────────────────────────────────────
@@ -268,7 +267,7 @@ export default function PurchaseInvoiceForm() {
 
   // ── Success modal state ─────────────────────────────────────────────────────
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [savedInvoiceNumber, setSavedInvoiceNumber] = useState<string>('');
+  const [, setSavedInvoiceNumber] = useState<string>('');
 
   // ─── Fetch data on mount ──────────────────────────────────────────────────
   useEffect(() => {
@@ -325,11 +324,6 @@ export default function PurchaseInvoiceForm() {
     calculateGST();
   }, [items, formData.deliveryCharges]);
 
-  // ── GST FIX: previously this derived cgst/sgst amounts from `formData.cgst` /
-  //    `formData.sgst`, but nothing in the UI ever set those two fields, so they
-  //    were always 0 no matter what tax % you picked per item. Tax now comes from
-  //    each row's own `tax_rate` (the Tax% dropdown), split evenly into a CGST
-  //    half and an SGST half for display, matching standard India GST invoicing.
   const calculateGST = () => {
     const subTotal = items.reduce((s, r) => s + (r.amount || 0), 0);
     const taxTotal = items.reduce((s, r) => s + ((r.amount || 0) * (r.tax_rate || 0)) / 100, 0);
@@ -528,6 +522,12 @@ export default function PurchaseInvoiceForm() {
     setItems([]);
     setGrnSearch('');
     setPoSearch('');
+    // Reset GRN fields in formData
+    setFormData(prev => ({
+      ...prev,
+      isCreateFromGrn: 0,
+      grnIds: [],
+    }));
   };
 
   // ─── When supplier is selected ─────────────────────────────────────────────
@@ -558,6 +558,26 @@ export default function PurchaseInvoiceForm() {
       if (next.has(grnId)) next.delete(grnId); else next.add(grnId);
       return next;
     });
+    
+    // Update formData.grnIds to match selectedGRNIds
+    const updatedGrnIds = Array.from(selectedGRNIds);
+    if (selectedGRNIds.has(grnId)) {
+      // Removed - filter it out
+      const newGrnIds = updatedGrnIds.filter(id => id !== grnId);
+      setFormData(prev => ({
+        ...prev,
+        grnIds: newGrnIds,
+        isCreateFromGrn: newGrnIds.length > 0 ? 1 : 0,
+      }));
+    } else {
+      // Added - include it
+      const newGrnIds = [...updatedGrnIds, grnId];
+      setFormData(prev => ({
+        ...prev,
+        grnIds: newGrnIds,
+        isCreateFromGrn: 1,
+      }));
+    }
   };
 
   // ─── When a PO is selected (GRN mode) — auto-loads its linked GRNs ────────
@@ -577,7 +597,14 @@ export default function PurchaseInvoiceForm() {
       }
       setLinkedGRNsForPO(grnSummaries || []);
       // auto-include every GRN linked to this PO; user can uncheck any of them
-      setSelectedGRNIds(new Set((grnSummaries || []).map(g => g.id)));
+      const grnIds = (grnSummaries || []).map(g => g.id);
+      setSelectedGRNIds(new Set(grnIds));
+      // Update formData with GRN ids
+      setFormData(prev => ({
+        ...prev,
+        grnIds: grnIds,
+        isCreateFromGrn: grnIds.length > 0 ? 1 : 0,
+      }));
     } catch (err) {
       console.error('Error loading PO/GRN:', err);
       toast.error('Error loading PO data');
@@ -596,6 +623,12 @@ export default function PurchaseInvoiceForm() {
       if (poDetail) {
         setSelectedPO(poDetail);
         buildInvoiceItemsFromPOOnly(poDetail);
+        // No GRNs selected in this mode
+        setFormData(prev => ({
+          ...prev,
+          isCreateFromGrn: 0,
+          grnIds: [],
+        }));
       } else {
         toast.error('Failed to load PO details');
       }
@@ -649,10 +682,8 @@ export default function PurchaseInvoiceForm() {
         });
       });
 
-      // FIX: every row now gets a stable `id` at creation time (makeRowId()),
-      // used by every downstream lookup/mutation instead of array index.
       const invoiceRows: InvoiceItem[] = (poDetail.items || []).map(pi => {
-        const rec = receivedMap[pi.id] || { qty: 0, grnNums: [], grnItemId: undefined };
+        const rec = receivedMap[pi.item_id] || { qty: 0, grnNums: [], grnItemId: undefined };
         const totalReceived = rec.qty;
         const alreadyBilledQty = pi.rate > 0 ? (pi.billed_amt || 0) / pi.rate : 0;
         const unbilledQty = Math.max(0, totalReceived - alreadyBilledQty);
@@ -788,17 +819,10 @@ export default function PurchaseInvoiceForm() {
     }, 100);
   };
 
-  // FIX: was `(index: number)`. Removing by index is unsafe if the array
-  // was mutated between render and click (e.g. a GRN rebuild firing while
-  // the user has a row's remove button focused). Removing by `id` is
-  // unambiguous no matter what else changed.
   const handleRemoveManualItem = (rowId: string) => {
     setItems(prev => prev.filter(item => item.id !== rowId));
   };
 
-  // FIX: was `(index: number, field, value)`. This is the function that sets
-  // `rate`/`bill_qty`/etc. — keying it by `id` means a field edit can never
-  // land on a different row than the one the user is typing into.
   const handleItemFieldChange = (rowId: string, field: keyof InvoiceItem, value: any) => {
     setItems(prev => prev.map(item => {
       if (item.id !== rowId) return item;
@@ -810,13 +834,6 @@ export default function PurchaseInvoiceForm() {
     }));
   };
 
-  // FIX: was `(item: Item, index: number)`. THIS is the function most
-  // directly responsible for the bug you hit — it's what writes item_id,
-  // item_code, rate, etc. onto a row all in the same object spread. Keying
-  // it by the row's stable `id` (instead of an `index` that can go stale
-  // between when the dropdown opened and when the user clicked an option)
-  // guarantees item_id and item_code can never end up describing two
-  // different catalog items.
   const handleSelectItem = (item: Item, rowId: string) => {
     const tax = (taxes || []).find(t => t.tax_id === item.tax_id);
     const taxRate = tax ? parseInt((tax.tax_type || '').replace('GST', '')) : 0;
@@ -842,7 +859,6 @@ export default function PurchaseInvoiceForm() {
     setSelectedItemRowId(null);
   };
 
-  // FIX: was `(index: number, val: number)`.
   const handleBillQtyChange = (rowId: string, val: number) => {
     setItems(prev => prev.map(row => {
       if (row.id !== rowId) return row;
@@ -863,19 +879,15 @@ export default function PurchaseInvoiceForm() {
       if (res.data?.success === 1) {
         const inv = res.data.data;
 
-        // ── EDIT-MODE BINDING FIX: the previous mapping referenced a bunch of
-        //    fields (buyer_order_type, payment_terms, delivery_charges,
-        //    cgst_rate, sgst_rate, gst_total, delivery_date, vehicle_number,
-        //    delivery_terms, buyer_order_number) that simply don't exist on the
-        //    real /purchase-invoice/:id response — so every one of them always
-        //    fell back to its default. Only map fields that are actually
-        //    present. CGST/SGST/grand total now get recomputed from the loaded
-        //    items instead (see calculateGST), so they aren't set here at all.
-        //    billSource is forced to 'Without GRN' on edit so every item row is
-        //    fully editable — we don't have a reliable signal in the response
-        //    to reconstruct whether this was originally a GRN-based bill, and
-        //    locking rows to a GRN's "unbilled qty" ceiling on edit would block
-        //    legitimate corrections.
+        // ── NEW: Read is_create_from_grn and grn_ids from API ──
+        const isCreateFromGrn = inv.is_create_from_grn || 0;
+        const grnIds = inv.grn_ids || [];
+
+        // ── BILL SOURCE FIX: determine bill source from is_create_from_grn ──
+        const resolvedBillSource: BillSource = isCreateFromGrn === 1 ? 'GRN' : 'Without GRN';
+
+        const itemsFromApi: any[] = Array.isArray(inv.items) ? inv.items : [];
+
         setFormData(prev => ({
           ...prev,
           invoiceNumber: inv.name || '',
@@ -884,46 +896,77 @@ export default function PurchaseInvoiceForm() {
           billNo: inv.bill_no || '',
           billDate: inv.bill_date ? inv.bill_date.split('T')[0] : '',
           notes: inv.remarks || '',
-          billSource: 'Without GRN',
+          billSource: resolvedBillSource,
+          // NEW: Set GRN fields
+          isCreateFromGrn: isCreateFromGrn,
+          grnIds: grnIds,
         }));
 
-        // Supplier: resolved once the supplier list itself has loaded (see the
-        // pendingSupplierId effect above) — avoids the stale-closure bug where
-        // `suppliers` was still [] at the moment this ran.
+       // Restore selected GRN IDs
+if (grnIds.length > 0) {
+  setSelectedGRNIds(new Set(grnIds));
+
+  // Load GRN details for these IDs
+  const missingIds = grnIds.filter(
+    (gid: string | number) => !grnDetailCache[Number(gid)]
+  );
+
+  if (missingIds.length) {
+    const fetched = await Promise.all(
+      missingIds.map((gid: string | number) =>
+        fetchGRNDetail(Number(gid))
+      )
+    );
+
+    const nextCache = { ...grnDetailCache };
+
+    fetched.forEach((g) => {
+      if (g) nextCache[g.id] = g;
+    });
+
+    setGrnDetailCache(nextCache);
+  }
+}
+
+        // Supplier: resolved once the supplier list itself has loaded
         if (inv.supplier != null) {
           setPendingSupplierId(Number(inv.supplier));
         } else if (inv.supplier_name) {
-          // fallback if only the name came back
           setSupplierSearch(inv.supplier_name);
         }
 
-        if (inv.items?.length) {
-          const rows: InvoiceItem[] = inv.items.map((it: any) => ({
-            id: makeRowId(),
-            db_item_id: it.id ? Number(it.id) : undefined,
-            po_item_id: it.po_detail || undefined,
-            item_id: it.item_id || undefined,
-            item_code: it.item_code || '',
-            item_name: it.item_name || '',
-            uom: it.uom || 'Nos',
-            rate: it.rate || 0,
-            ordered_rate: it.ordered_rate ?? (it.rate || 0),
-            ordered_qty: it.qty || 0,
-            total_received_qty: it.qty || 0,
-            unbilled_qty: it.qty || 0,
-            bill_qty: it.qty || 0,
-            amount: it.amount || 0,
-            grn_refs: it.grn_refs || [],
-            tax_rate: it.item_tax_rate ? parseFloat(it.item_tax_rate) : (it.tax_rate || 0),
-            tax_id: it.tax_id || 1,
-            HSN: it.hsn_code || it.HSN || '',
-            note: it.note || '',
-          }));
+        if (itemsFromApi.length) {
+          const rows: InvoiceItem[] = itemsFromApi.map((it: any) => {
+            const resolvedTaxRate = it.item_tax_rate
+              ? parseFloat(it.item_tax_rate)
+              : (it.tax_rate ?? parseTaxRateFromTemplate(it.item_tax_template));
+
+            return {
+              id: makeRowId(),
+              db_item_id: it.id ? Number(it.id) : undefined,
+              po_item_id: it.po_detail ?? undefined,
+              grn_item_id: it.pr_detail ?? undefined,
+              item_id: it.item_id ?? undefined,
+              item_code: it.item_code || '',
+              item_name: it.item_name || '',
+              uom: it.uom || 'Nos',
+              rate: it.rate || 0,
+              ordered_rate: it.ordered_rate ?? (it.rate || 0),
+              ordered_qty: it.qty || 0,
+              total_received_qty: it.qty || 0,
+              unbilled_qty: it.qty || 0,
+              bill_qty: it.qty || 0,
+              amount: it.amount || 0,
+              grn_refs: it.grn_refs || [],
+              tax_rate: resolvedTaxRate || 0,
+              tax_id: it.tax_id || 1,
+              HSN: it.hsn_code || it.HSN || '',
+              note: it.note || '',
+            };
+          });
           setItems(rows);
 
-          // Warehouse: every loaded item carries its own `warehouse` id — use
-          // the first item's warehouse as the invoice-level warehouse selection.
-          const firstWarehouse = inv.items.find((it: any) => it.warehouse)?.warehouse;
+          const firstWarehouse = itemsFromApi.find((it: any) => it.warehouse)?.warehouse;
           if (firstWarehouse != null) {
             setPendingWarehouseId(Number(firstWarehouse));
           }
@@ -938,8 +981,6 @@ export default function PurchaseInvoiceForm() {
   };
 
   // ─── Computed totals ────────────────────────────────────────────────────────
-  // GST FIX: derive tax entirely from each row's own tax_rate — see calculateGST
-  // above for why formData.cgst/sgst can no longer be trusted as the source.
   const subTotal = items.reduce((s, r) => s + (r.amount || 0), 0);
   const totalTax = items.reduce((s, r) => s + ((r.amount || 0) * (r.tax_rate || 0)) / 100, 0);
   const cgstAmount = totalTax / 2;
@@ -963,8 +1004,6 @@ export default function PurchaseInvoiceForm() {
     ? (allGRNs || []).filter(g => g.supplier_id === selectedSupplier.id)
     : [];
 
-  // POs (for this supplier) that don't have any GRN linked to them at all —
-  // these are the ones eligible to be billed "Without GRN".
   const poIdsWithGRN = useMemo(
     () => new Set((allGRNs || []).filter(g => g.purchase_order_id).map(g => g.purchase_order_id as number)),
     [allGRNs]
@@ -997,10 +1036,12 @@ export default function PurchaseInvoiceForm() {
   const isManual = formData.billSource === 'Without GRN';
   const isGRNMode = formData.billSource === 'GRN';
 
-  // GRNs shown as removable chips — linked-to-PO list first, then supplier-wide list
   const selectedGRNSummaries: GRNSummary[] = Array.from(selectedGRNIds).map(gid =>
     (linkedGRNsForPO || []).find(g => g.id === gid) || (grnsForSelectedSupplier || []).find(g => g.id === gid)
   ).filter((g): g is GRNSummary => Boolean(g));
+
+  const getGRNReceivedQty = (g: GRNSummary): number =>
+    grnDetailCache[g.id]?.total_received_qty ?? g.total_received_qty ?? 0;
 
   // ─── Validation ────────────────────────────────────────────────────────────
   const validate = (): ValidationError[] => {
@@ -1103,11 +1144,6 @@ export default function PurchaseInvoiceForm() {
   const syncManualInventory = async (billableItems: InvoiceItem[]) => {
     const warehouseId = selectedWarehouseId === '' ? 0 : selectedWarehouseId;
     await Promise.all((billableItems || []).map(async (item) => {
-      // FIX: hard guard against exactly the bug you hit — item_code and
-      // item_id silently belonging to two different catalog rows. If the
-      // catalog id doesn't exist, or exists but its item_code doesn't match
-      // what's on this row, refuse to sync rather than posting bad stock
-      // data, and surface it clearly instead of failing silently.
       const catalogMatch = itemsList.find(i => i.id === item.item_id);
       if (!item.item_id || !catalogMatch || catalogMatch.item_code !== item.item_code) {
         console.error(
@@ -1211,10 +1247,19 @@ export default function PurchaseInvoiceForm() {
       status: formData.status,
       remarks: formData.notes || '',
 
+      // ── NEW: Use is_create_from_grn and grn_ids instead of bill_source ──
+      is_create_from_grn: formData.isCreateFromGrn,
+      grn_ids: formData.isCreateFromGrn === 1 ? formData.grnIds : [],
+
+      // ── PO linkage at header level, where available ──
+      // purchase_order: selectedPO?.id || undefined,
+
       items: billableItems.map((r, idx) => ({
         ...(isEdit && r.db_item_id ? { id: r.db_item_id } : {}),
         name: `item-${idx + 1}`,
-        item_id: r.po_item_id ?? r.grn_item_id ?? r.item_id,
+        item_id: r.item_id ?? undefined,
+        po_detail: r.po_item_id ?? undefined,
+        pr_detail: r.grn_item_id ?? undefined,
         item_code: r.item_code || '',
         item_name: r.item_name || '',
         warehouse: resolvedWarehouseId,
@@ -1223,9 +1268,8 @@ export default function PurchaseInvoiceForm() {
         rate: r.rate || 0,
         ordered_rate: r.ordered_rate || 0,
         amount: r.amount || 0,
-        // ── GST FIX: these three were never sent before, so any tax you picked
-        //    per item was silently dropped and never reached the backend.
         item_tax_rate: String(r.tax_rate || 0),
+        item_tax_template: getItemTaxTemplate(r.tax_rate || 0),
         tax_id: r.tax_id || undefined,
         hsn_code: r.HSN || undefined,
         note: r.note || undefined,
@@ -1291,10 +1335,7 @@ export default function PurchaseInvoiceForm() {
               <p className="pif-success-message">
                 Your Purchase Invoice has been saved successfully.
               </p>
-              <div className="pif-success-number-box">
-                <span className="pif-success-label">Invoice Number</span>
-                <span className="pif-success-number">{savedInvoiceNumber}</span>
-              </div>
+           
               <div className="pif-success-actions">
                 <button className="pif-success-btn pif-success-btn-primary" onClick={handleSuccessModalOk}>
                   View All Invoices
@@ -1468,6 +1509,11 @@ export default function PurchaseInvoiceForm() {
                   </label>
                 ))}
               </div>
+              {isEdit && (
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4, display: 'block' }}>
+                  This invoice was originally created {formData.billSource === 'GRN' ? 'from a GRN' : 'without a GRN'}.
+                </span>
+              )}
             </div>
 
             <div className="pif-divider" />
@@ -1785,7 +1831,7 @@ export default function PurchaseInvoiceForm() {
                                         {selectedGRNIds.has(g.id) && <FaCheckCircle style={{ color: '#22c55e', marginLeft: 6 }} />}
                                       </div>
                                       <div className="warehouse-item-company">
-                                        {g.purchase_order_number || 'No PO'} · {g.total_received_qty || 0} received · {g.status || ''}
+                                        {g.purchase_order_number || 'No PO'} · {getGRNReceivedQty(g)} received · {g.status || ''}
                                       </div>
                                     </li>
                                   ))}
@@ -1806,7 +1852,7 @@ export default function PurchaseInvoiceForm() {
                           {selectedGRNSummaries.map(g => (
                             <span key={g.id} className={`pif-grn-chip pif-grn-chip--${(g.status || 'draft').toLowerCase()}`}>
                               {g.grn_number || ''}
-                              <span className="pif-grn-badge-qty"> · {g.total_received_qty || 0} rcvd</span>
+                              <span className="pif-grn-badge-qty"> · {getGRNReceivedQty(g)} rcvd</span>
                               <button type="button" onClick={() => toggleGRNSelection(g.id)} title="Remove">
                                 <FaTimesCircle size={11} />
                               </button>
@@ -1834,7 +1880,7 @@ export default function PurchaseInvoiceForm() {
                                   onChange={() => toggleGRNSelection(g.id)}
                                 />
                                 {g.grn_number || ''}
-                                <span className="pif-grn-badge-qty"> · {g.total_received_qty || 0} rcvd</span>
+                                <span className="pif-grn-badge-qty"> · {getGRNReceivedQty(g)} rcvd</span>
                               </label>
                             ))}
                           </div>
@@ -2000,8 +2046,7 @@ export default function PurchaseInvoiceForm() {
                   </div>
                 </div>
 
-                {/* GST Summary — live preview of what will be submitted, driven
-                    entirely by each item row's own Tax% dropdown */}
+                {/* GST Summary */}
                 <div className="pif-party-detail-card">
                   <div className="pif-party-card-header">
                     <FaMoneyBillWave size={14} />

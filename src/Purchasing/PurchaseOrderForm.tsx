@@ -107,7 +107,7 @@ interface PurchaseOrderItem {
   itemId: number;
   itemCode: string;
   itemName: string;
-  quantity: number;
+  quantity: number; // ✅ Supports decimals like 1.5
   uom: string;
   rate: number;
   orderRate: number;
@@ -1050,19 +1050,19 @@ export default function PurchaseOrderForm() {
     setFormData(prev => ({ ...prev, items: updatedItems }));
   };
 
-  // ─── Handle Digit Input for Quantity ──────────────────────────────
+  // ✅ FIXED: Handle Digit Input for Quantity - Now supports decimals
   const handleDigitQuantityChange = (index: number, value: string) => {
     setDigitValues(prev => ({
       ...prev,
       [index]: { ...prev[index], quantity: value }
     }));
-    const numericValue = parseInt(value) || 0;
+    const numericValue = parseFloat(value) || 0; // ✅ Changed from parseInt to parseFloat
     if (numericValue >= 0) {
       handleItemChange(index, 'quantity', numericValue);
     }
   };
 
-  // ─── Handle Digit Input for Rate ──────────────────────────────────
+  // ✅ FIXED: Handle Digit Input for Rate - Already supports decimals
   const handleDigitRateChange = (index: number, value: string) => {
     setDigitValues(prev => ({
       ...prev,
@@ -1168,6 +1168,7 @@ export default function PurchaseOrderForm() {
 
     // Don't push to errors array - only use for visual validation
     
+    // ✅ FIXED: Updated validation to work with decimal quantities
     if (formData.items.some(item => !item.itemCode.trim() || !item.itemName.trim() || item.quantity <= 0 || (item.orderRate || item.rate) <= 0)) {
       errors.push({ field: 'items', label: 'Items', message: 'All items must have code, name, quantity > 0 and rate > 0' });
     }
@@ -1223,6 +1224,7 @@ export default function PurchaseOrderForm() {
 
     setLoading(true);
     
+    // ✅ FIXED: Calculate total quantity with decimals
     const totalQty = formData.items.reduce((sum, item) => sum + item.quantity, 0);
     const selectedSupplier = suppliers.find(s => s.supplier_name === formData.supplier);
     
@@ -1323,7 +1325,7 @@ export default function PurchaseOrderForm() {
         item_group: item.itemGroup || "Raw Material",
         description: item.description || item.itemName || "",
         image: "",
-        qty: item.quantity,
+        qty: item.quantity, // ✅ Decimal quantity preserved
         stock_uom: item.uom || "Nos",
         subcontracted_qty: 0,
         uom: item.uom || "Nos",
@@ -1945,12 +1947,14 @@ export default function PurchaseOrderForm() {
                           />
                         </td>
                         <td className="pof-itd">
+                          {/* ✅ FIXED: Quantity input now allows decimals */}
                           <DigitInput
                             value={digitValues[index]?.quantity || String(item.quantity)}
                             onChange={(val) => handleDigitQuantityChange(index, val)}
                             placeholder="Qty"
                             maxLength={10}
                             className="pof-digit-input"
+                            allowDecimal={true} // ✅ Added this to allow decimals
                             min={0}
                           />
                         </td>
@@ -1960,6 +1964,7 @@ export default function PurchaseOrderForm() {
                           </span>
                         </td>
                         <td className="pof-itd">
+                          {/* ✅ Rate input already supports decimals */}
                           <DigitInput
                             value={digitValues[index]?.rate || String(item.rate)}
                             onChange={(val) => handleDigitRateChange(index, val)}

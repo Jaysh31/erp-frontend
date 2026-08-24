@@ -1,4 +1,5 @@
 // GRNForm.tsx - Service/Customer + Supplier/Manual item entry + GST billing + Print + Success modal
+// Status is always set to "submitted" - removed from UI
 import { useState, useEffect, type FormEvent, useRef } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { getUserRole } from '../utils/storage';
@@ -22,7 +23,7 @@ import {
   FaUserCircle,
   FaUsers,
   FaPercentage,
-  FaClipboardList,
+  
   FaReceipt,
   FaSearch,
   FaPrint,
@@ -68,13 +69,11 @@ const DigitInput: React.FC<DigitInputProps> = ({
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;
-    // Allow empty string
     if (raw === '') {
       setDisplayValue('');
       onChange(0);
       return;
     }
-    // Only allow digits
     const digits = raw.replace(/[^0-9]/g, '');
     if (digits.length <= maxLength) {
       setDisplayValue(digits);
@@ -103,7 +102,6 @@ const DigitInput: React.FC<DigitInputProps> = ({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    // Prevent wheel from changing value
     if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
       e.preventDefault();
     }
@@ -148,7 +146,7 @@ interface GRNItem {
   taxType?: string;
   taxRate?: number;
   hsn?: string;
-  isDraft?: boolean; // Flag to identify draft items
+  isDraft?: boolean;
 }
 
 interface ValidationError {
@@ -178,7 +176,6 @@ interface GRNData {
   invoiceNo: string;
   freeDelivery: boolean;
   deliveryCharge: number;
-  status: 'draft' | 'submitted' | 'completed' | 'rejected';
   items: GRNItem[];
 }
 
@@ -503,7 +500,6 @@ export default function GRNForm() {
     invoiceNo: '',
     freeDelivery: true,
     deliveryCharge: 0,
-    status: 'draft',
     items: [],
   });
 
@@ -521,6 +517,7 @@ export default function GRNForm() {
   // ─── Success Modal ───────────────────────────────────────────────────
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [savedGrnNumber, setSavedGrnNumber] = useState<string>('');
+  const [isUpdateMode, setIsUpdateMode] = useState<boolean>(false);
 
   // ─── Service Toggle Confirmation ─────────────────────────────────────
   const [showServiceToggleConfirm, setShowServiceToggleConfirm] = useState(false);
@@ -649,30 +646,47 @@ export default function GRNForm() {
   };
 
   // ─── Fetch Item Master ──────────────────────────────────────────────
-  const fetchItemsMaster = async () => {
+  // FIX: returns the fetched array so callers that run immediately after
+  // (e.g. the mount-time fetchGRNData) don't rely on the `itemsMaster`
+  // state variable, which won't have updated yet inside the same closure.
+  const fetchItemsMaster = async (): Promise<ItemMaster[]> => {
     setLoadingItemsMaster(true);
     try {
       const response = await api.get<ItemMasterApiResponse>('/item');
       if (response.data.success === 1) {
-        setItemsMaster(response.data.data || []);
+        const records = response.data.data || [];
+        setItemsMaster(records);
+        return records;
       }
+      return [];
     } catch (err) {
       console.error('Error fetching items:', err);
+      return [];
     } finally {
       setLoadingItemsMaster(false);
     }
   };
 
   // ─── Fetch Tax Types ────────────────────────────────────────────────
-  const fetchTaxTypes = async () => {
+  // FIX: same pattern as fetchItemsMaster — return the fetched array
+  // directly instead of only writing it to state. This is the root fix
+  // for the "Select GST" not binding on load: the mount effect awaits
+  // this call and then immediately calls fetchGRNData(), but `taxTypes`
+  // state wouldn't be updated yet inside that same closure — only the
+  // returned value is guaranteed fresh at that point.
+  const fetchTaxTypes = async (): Promise<TaxType[]> => {
     setLoadingTaxTypes(true);
     try {
       const response = await api.get<TaxApiResponse>('/item/get-tax');
       if (response.data.success === 1) {
-        setTaxTypes(response.data.data || []);
+        const records = response.data.data || [];
+        setTaxTypes(records);
+        return records;
       }
+      return [];
     } catch (err) {
       console.error('Error fetching tax types:', err);
+      return [];
     } finally {
       setLoadingTaxTypes(false);
     }
@@ -708,7 +722,6 @@ export default function GRNForm() {
       
       if (response.data.success === 1) {
         const poDetail = response.data.data;
-        // Cache the items
         if (poDetail.items) {
           setPoItemsCache(prev => ({
             ...prev,
@@ -727,30 +740,58 @@ export default function GRNForm() {
   };
 
   // ─── Resolve tax info from various sources ──────────────────────────
-  const resolveTaxInfo = (item: any): { taxId?: number; taxType?: string; taxRate?: number } => {
+  // FIX: accepts an optional `taxTypesOverride` so callers that just
+  // fetched a fresh tax list (before React has committed it to state)
+  // can pass it in directly, instead of this function silently reading
+  // the stale closed-over `taxTypes` state variable.
+  const resolveTaxInfo = (item: any, taxTypesOverride?: TaxType[]): { taxId?: number; taxType?: string; taxRate?: number } => {
+    const taxList = taxTypesOverride ?? taxTypes;
+
+    // First check if we have tax_id directly
     if (item.tax_id) {
-      const tax = taxTypes.find(t => t.tax_id === item.tax_id);
+      const tax = taxList.find(t => t.tax_id === item.tax_id);
       if (tax) {
         const { rate } = extractTaxInfo(tax.tax_type);
         return { taxId: item.tax_id, taxType: tax.tax_type, taxRate: rate };
       }
     }
-    
+
+    // Check for item_tax_template
     if (item.item_tax_template) {
-      const { rate, type } = extractTaxInfo(undefined, item.item_tax_template);
-      const matchingTax = taxTypes.find(t => {
-        const { rate: tRate, type: tType } = extractTaxInfo(t.tax_type);
-        return tRate === rate && (tType === type || t.tax_type.includes(item.item_tax_template));
+      const { rate } = extractTaxInfo(undefined, item.item_tax_template);
+
+      // Try multiple matching strategies
+      let matchingTax: TaxType | undefined = undefined;
+
+      // Strategy 1: Find by exact rate
+      matchingTax = taxList.find(t => {
+        const { rate: tRate } = extractTaxInfo(t.tax_type);
+        return tRate === rate;
       });
+
+      // Strategy 2: Find by string matching
+      if (!matchingTax) {
+        const templateClean = item.item_tax_template.replace(/\s/g, '').toLowerCase();
+        matchingTax = taxList.find(t => {
+          const taxClean = t.tax_type.replace(/\s/g, '').toLowerCase();
+          return taxClean.includes(templateClean) || templateClean.includes(taxClean);
+        });
+      }
+
       if (matchingTax) {
-        return { taxId: matchingTax.tax_id, taxType: matchingTax.tax_type, taxRate: rate };
+        return {
+          taxId: matchingTax.tax_id,
+          taxType: matchingTax.tax_type,
+          taxRate: rate
+        };
       }
       return { taxType: item.item_tax_template, taxRate: rate };
     }
-    
+
+    // Check for tax_type
     if (item.tax_type) {
       const { rate } = extractTaxInfo(item.tax_type);
-      const matchingTax = taxTypes.find(t => {
+      const matchingTax = taxList.find(t => {
         const { rate: tRate } = extractTaxInfo(t.tax_type);
         return tRate === rate;
       });
@@ -759,7 +800,7 @@ export default function GRNForm() {
       }
       return { taxType: item.tax_type, taxRate: rate };
     }
-    
+
     return {};
   };
 
@@ -803,7 +844,7 @@ export default function GRNForm() {
         taxType: taxInfo.taxType,
         taxRate: taxInfo.taxRate || 0,
         hsn: item.hsn || '',
-        isDraft: false, // Items from PO are not draft
+        isDraft: false,
       };
     });
 
@@ -999,21 +1040,40 @@ export default function GRNForm() {
   }, []);
 
   // ─── Fetch data on mount ────────────────────────────────────────────
+  // FIX: Promise.all's resolved values are captured directly here and
+  // passed straight into fetchGRNData, instead of letting fetchGRNData
+  // read `taxTypes` / `itemsMaster` state (which is not guaranteed to be
+  // updated yet at this point in the same render/closure).
   useEffect(() => {
-    if (isEditMode && id) {
-      fetchGRNData(id);
-    }
-    if (location.state?.poData) {
-      const poData = location.state.poData as PurchaseOrderDetail;
-      populateGRNFromPO(poData);
-    }
-    fetchWarehouses();
-    fetchEmployees();
-    fetchPurchaseOrders();
-    fetchCustomers();
-    fetchSuppliers();
-    fetchItemsMaster();
-    fetchTaxTypes();
+    const loadData = async () => {
+      // Load all master data first
+      const [, , , , fetchedItemsMaster, fetchedTaxTypes] = await Promise.all([
+        fetchWarehouses(),
+        fetchEmployees(),
+        fetchCustomers(),
+        fetchSuppliers(),
+        fetchItemsMaster(),
+        fetchTaxTypes(),
+      ]);
+
+      // Then load GRN data if in edit mode — pass the freshly-fetched
+      // arrays directly so tax/item lookups inside fetchGRNData don't
+      // race the state update.
+      if (isEditMode && id) {
+        await fetchGRNData(id, fetchedTaxTypes, fetchedItemsMaster);
+      }
+
+      if (location.state?.poData) {
+        const poData = location.state.poData as PurchaseOrderDetail;
+        populateGRNFromPO(poData);
+      }
+
+      if (showPODropdown) {
+        await fetchPurchaseOrders();
+      }
+    };
+
+    loadData();
   }, [id, isEditMode, location.state]);
 
   useEffect(() => {
@@ -1044,9 +1104,25 @@ export default function GRNForm() {
     });
   }, [itemsMaster]);
 
+  // ─── Helper to find tax by rate ──────────────────────────────────────
+
   // ─── Fetch GRN Data for Edit ──────────────────────────────────────
-  const fetchGRNData = async (grnId: string) => {
+  // FIX: accepts optional `taxTypesOverride` / `itemsMasterOverride` so the
+  // mount effect can hand this function the arrays it JUST fetched, rather
+  // than this function reading the `taxTypes` / `itemsMaster` state
+  // variables — which, at mount time, are still their initial empty arrays
+  // inside this closure even though the fetches have already resolved.
+  // This is what was causing "Select GST" to never bind on load, since
+  // every taxTypes.find(...) below was searching an empty list.
+  const fetchGRNData = async (
+    grnId: string,
+    taxTypesOverride?: TaxType[],
+    itemsMasterOverride?: ItemMaster[]
+  ) => {
     setLoading(true);
+    const taxList = taxTypesOverride ?? taxTypes;
+    const itemMasterList = itemsMasterOverride ?? itemsMaster;
+
     try {
       const response = await api.get<GRNApiResponse>(`/grn/${grnId}`);
       if (response.data.success === 1) {
@@ -1064,9 +1140,84 @@ export default function GRNForm() {
         }
         
         const items: GRNItem[] = (data.items || []).map((item, index) => {
-          const taxInfo = resolveTaxInfo(item);
+          // Try to find tax from item_tax_template first
+          let taxId: number | undefined = item.tax_id || undefined;
+          let taxType: string | undefined = item.tax_type || undefined;
+          let taxRate: number = 0;
+          
+          // Check if we have item_tax_template (e.g., "GST18 18%")
+          if (item.item_tax_template) {
+            // Extract the rate from the template
+            const rateMatch = item.item_tax_template.match(/(\d+(\.\d+)?)/);
+            const rate = rateMatch ? parseFloat(rateMatch[1]) : 0;
+            taxRate = rate;
+            
+            // Try to find matching tax in taxList (freshly-fetched, not stale state)
+            let matchingTax: TaxType | undefined = undefined;
+            
+            // Strategy 1: Find by exact rate match
+            matchingTax = taxList.find(t => {
+              const tRateMatch = t.tax_type.match(/(\d+(\.\d+)?)/);
+              const tRate = tRateMatch ? parseFloat(tRateMatch[1]) : 0;
+              return tRate === rate;
+            });
+            
+            // Strategy 2: If no match, try to find by string matching (remove spaces)
+            if (!matchingTax) {
+              const templateClean = item.item_tax_template.replace(/\s/g, '').toLowerCase();
+              matchingTax = taxList.find(t => {
+                const taxClean = t.tax_type.replace(/\s/g, '').toLowerCase();
+                return taxClean.includes(templateClean) || templateClean.includes(taxClean);
+              });
+            }
+            
+            // Strategy 3: Try to find by tax_type that contains the rate
+            if (!matchingTax && rate > 0) {
+              matchingTax = taxList.find(t => {
+                const taxLower = t.tax_type.toLowerCase();
+                return taxLower.includes(rate.toString()) && taxLower.includes('gst');
+              });
+            }
+            
+            // Strategy 4: Try to find by exact rate with any GST variant
+            if (!matchingTax && rate > 0) {
+              matchingTax = taxList.find(t => {
+                const tRateMatch = t.tax_type.match(/(\d+(\.\d+)?)/);
+                const tRate = tRateMatch ? parseFloat(tRateMatch[1]) : 0;
+                return tRate === rate;
+              });
+            }
+            
+            if (matchingTax) {
+              taxId = matchingTax.tax_id;
+              taxType = matchingTax.tax_type;
+            } else {
+              // If no matching tax found, store the template as taxType
+              taxType = item.item_tax_template;
+              // Try to find by creating a new tax entry in the dropdown options
+              // by searching for any tax with the same rate
+              const taxByRate = taxList.find(t => {
+                const tRateMatch = t.tax_type.match(/(\d+(\.\d+)?)/);
+                const tRate = tRateMatch ? parseFloat(tRateMatch[1]) : 0;
+                return tRate === rate;
+              });
+              if (taxByRate) {
+                taxId = taxByRate.tax_id;
+                taxType = taxByRate.tax_type;
+              }
+            }
+          }
+          
+          // If no tax found from item_tax_template, use resolveTaxInfo
+          // (passing taxList through so it doesn't fall back to stale state)
+          if (!taxId && !taxType) {
+            const resolved = resolveTaxInfo(item, taxList);
+            taxId = resolved.taxId;
+            taxType = resolved.taxType;
+            taxRate = resolved.taxRate || 0;
+          }
 
-          const masterMatch = itemsMaster.find(
+          const masterMatch = itemMasterList.find(
             im => (im.item_code || '').toLowerCase() === (item.item_code || '').toLowerCase()
           );
 
@@ -1082,9 +1233,9 @@ export default function GRNForm() {
             remarks: item.remarks || '',
             poItemId: item.po_item_id || item.id,
             itemId: masterMatch?.id || item.item_id,
-            taxId: taxInfo.taxId || item.tax_id,
-            taxType: taxInfo.taxType || item.tax_type,
-            taxRate: taxInfo.taxRate || 0,
+            taxId: taxId,
+            taxType: taxType,
+            taxRate: taxRate,
             hsn: item.hsn || '',
             isDraft: false,
           };
@@ -1124,7 +1275,6 @@ export default function GRNForm() {
           invoiceNo: data.invoice_number || '',
           freeDelivery: data.is_free_delivery === undefined ? true : data.is_free_delivery === 1,
           deliveryCharge: data.delivery_charge || 0,
-          status: data.status || 'draft',
           items: items,
         });
 
@@ -1174,7 +1324,7 @@ export default function GRNForm() {
       }
     }
 
-    if (!(formData.warehouse || '').trim()) {
+    if (!formData.warehouseId) {
       allErrors.push({ field: 'warehouse', label: 'Warehouse', message: 'Warehouse is required' });
     }
 
@@ -1197,8 +1347,12 @@ export default function GRNForm() {
       if (!(item.itemName || '').trim()) {
         allErrors.push({ field: `items[${index}].itemName`, label: `Item ${index + 1} Name`, message: 'Item name is required' });
       }
-      if (item.receivedQty <= 0) {
-        allErrors.push({ field: `items[${index}].receivedQty`, label: `Item ${index + 1} Received Qty`, message: 'Received quantity must be greater than 0' });
+      if (!Number.isFinite(item.receivedQty) || item.receivedQty <= 0) {
+        allErrors.push({
+          field: `items[${index}].receivedQty`,
+          label: `Item ${index + 1} Received Qty`,
+          message: 'Received quantity must be greater than 0'
+        });
       }
       if (item.rejectedQty < 0) {
         allErrors.push({ field: `items[${index}].rejectedQty`, label: `Item ${index + 1} Rejected Qty`, message: 'Rejected quantity cannot be negative' });
@@ -1613,7 +1767,7 @@ export default function GRNForm() {
         is_service: formData.isService ? 1 : 0,
         entry_mode: formData.entryMode,
         type: grnType,
-        status: formData.status,
+        status: 'submitted',
         received_by: formData.receivedBy,
         received_by_id: formData.receivedById,
         warehouse_id: formData.warehouseId,
@@ -1662,11 +1816,19 @@ export default function GRNForm() {
       }
 
       let response;
-      if (isEditMode && id) {
-        payload.id = parseInt(id);
+      let isUpdate = false;
+      
+      const editId = id && id !== 'new' && id !== 'view' ? parseInt(id) : null;
+
+      if (editId && !isNaN(editId) && isEditMode) {
+        payload.id = editId;
+        console.log('🔄 Updating GRN with ID:', editId);
         response = await api.put(`/grn`, payload);
+        isUpdate = true;
       } else {
+        console.log('✨ Creating new GRN');
         response = await api.post('/grn', payload);
+        isUpdate = false;
       }
 
       if (response.data && response.data.success === 1) {
@@ -1674,6 +1836,7 @@ export default function GRNForm() {
         setIsDirty(false);
         const generatedNumber = response.data?.data?.grn_number || payload.grn_number;
         setSavedGrnNumber(generatedNumber);
+        setIsUpdateMode(isUpdate);
 
         await postInventoryForItems(formData.items);
 
@@ -1743,9 +1906,11 @@ export default function GRNForm() {
               <div className="grnf-success-icon-circle">
                 <FaCheckCircle size={48} />
               </div>
-              <h2>GRN Created Successfully!</h2>
+              <h2>{isUpdateMode ? 'GRN Updated Successfully!' : 'GRN Created Successfully!'}</h2>
               <p className="grnf-success-message">
-                Your Goods Receipt Note has been saved successfully.
+                {isUpdateMode 
+                  ? 'Your Goods Receipt Note has been updated successfully.'
+                  : 'Your Goods Receipt Note has been saved successfully.'}
               </p>
               <div className="grnf-success-grn-box">
                 <span className="grnf-success-label">GRN Number</span>
@@ -2127,7 +2292,6 @@ export default function GRNForm() {
                                       const isLoadingItems = loadingPOItems[po.id];
                                       const poDisplayName = getPODisplayName(po);
                                       
-                                      // Get unique items by item_code to show only once per PO
                                       const uniqueItems = poItems.reduce((acc, current) => {
                                         const exists = acc.find(item => item.item_code === current.item_code);
                                         if (!exists) {
@@ -2158,11 +2322,9 @@ export default function GRNForm() {
                                                 <span className="grnf-po-item-count" style={{ marginLeft: '4px' }}>
                                                   <FaBox size={10} /> {uniqueItems.length} item{uniqueItems.length !== 1 ? 's' : ''}
                                                 </span>
-                                                {/* Products show inline next to PO name */}
                                                 <div className="grnf-po-items-preview" style={{ display: 'inline-flex', flexWrap: 'wrap', gap: '4px', marginTop: '2px', alignItems: 'center' }}>
                                                   {uniqueItems.map((item, idx) => (
                                                     <div key={idx} className="grnf-po-item-chip" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '10px', background: '#f9fafb', padding: '1px 6px', borderRadius: '4px', border: '1px solid #e5e7eb' }}>
-                                                      {/* <span className="grnf-po-item-code" style={{ fontWeight: 500, color: '#111827' }}>{item.item_code}</span> */}
                                                       <span className="grnf-po-item-name" style={{ color: '#6b7280' }}>{item.item_name}</span>
                                                       <span className="grnf-po-item-qty" style={{ color: '#3b82f6', fontWeight: 500 }}>×{item.qty}</span>
                                                     </div>
@@ -2461,26 +2623,9 @@ export default function GRNForm() {
                   </div>
                 </div>
 
-                {/* Status Section */}
-                <div className="grnf-party-detail-card">
-                  <div className="grnf-party-card-header">
-                    <FaClipboardList size={16} />
-                    <span>Status</span>
-                  </div>
-                  <div className="grnf-party-card-content">
-                    <select
-                      value={formData.status}
-                      onChange={(e) => handleFieldChange('status', e.target.value as any)}
-                      className="grnf-form-field"
-                      disabled={submitting}
-                    >
-                      <option value="draft">Draft</option>
-                      <option value="submitted">Submitted</option>
-                      <option value="completed">Completed</option>
-                      <option value="rejected">Rejected</option>
-                    </select>
-                  </div>
-                </div>
+                {/* ─── STATUS SECTION REMOVED ─────────────────────────── */}
+                {/* The status dropdown has been removed from the UI */}
+
               </div>
             </div>
 

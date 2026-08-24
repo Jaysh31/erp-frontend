@@ -177,10 +177,10 @@ export default function Sidebar({
       items: [
         { title: 'Item', icon: <ItemIcon />, path: '/item-list' },
         { title: 'Item Group', icon: <FolderIcon />, path: '/item-group' },
-        { title: 'Price List', icon: <TagIcon />, path: '/price-list' },
-        { title: 'Item Price', icon: <BrandIcon />, path: '/item-price' },
-        { title: 'Pricing Rule', icon: <RulerIcon />, path: '/pricing-rule' },
-        { title: 'Coupon Code', icon: <CouponIcon />, path: '/coupon-code' }
+        // { title: 'Price List', icon: <TagIcon />, path: '/price-list' },
+        // { title: 'Item Price', icon: <BrandIcon />, path: '/item-price' },
+        // { title: 'Pricing Rule', icon: <RulerIcon />, path: '/pricing-rule' },
+        // { title: 'Coupon Code', icon: <CouponIcon />, path: '/coupon-code' }
       ]
     },
     {
@@ -250,18 +250,17 @@ export default function Sidebar({
       icon: <SupplierContactsIcon />,
       items: [
         { title: 'Supplier', icon: <SupplierIcon />, path: '/supplier' },
-        { title: 'Contacts', icon: <ContactsIcon />, path: '/contacts' },
       ]
     },
     // ─── PRICING & LISTS ───
-    {
-      title: 'Pricing & Lists',
-      module: 'purchasing',
-      icon: <PricingListIcon />,
-      items: [
-        { title: 'Price List', icon: <PriceListIcon />, path: '/price-list' },
-      ]
-    },
+    // {
+    //   title: 'Pricing & Lists',
+    //   module: 'purchasing',
+    //   icon: <PricingListIcon />,
+    //   items: [
+    //     { title: 'Price List', icon: <PriceListIcon />, path: '/price-list' },
+    //   ]
+    // },
     {
       title: 'Accounting',
       module: 'accounting',
@@ -400,7 +399,7 @@ export default function Sidebar({
               <img src={logo} alt="SculptERP Logo" className="logo-image" />
             </div>
             <div>
-              <div className="logo-text">SculptERP</div>
+              <div className="logo-text">ChandraTara Ind</div>
               {!isMinimized && currentModule !== 'home' && (
                 <div className="module-indicator">
                   {getModuleName()} Module
@@ -643,11 +642,6 @@ const TagIcon = () => (
   </svg>
 );
 
-const BrandIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M4 8h16M4 16h16M8 4v16M16 4v16"/>
-  </svg>
-);
 
 const RulerIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -655,13 +649,6 @@ const RulerIcon = () => (
   </svg>
 );
 
-const CouponIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M20 12L12 4L4 12L12 20L20 12Z"/>
-    <path d="M12 8L12 16"/>
-    <path d="M8 12L16 12"/>
-  </svg>
-);
 
 const ReceiptIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -874,35 +861,9 @@ const SupplierIcon = () => (
   </svg>
 );
 
-const ContactsIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-    <circle cx="12" cy="7" r="4"/>
-    <path d="M16 11l2 2 4-4"/>
-    <path d="M19 13v4"/>
-    <path d="M14 11h4"/>
-    <path d="M14 15h6"/>
-  </svg>
-);
 
 // ─── PRICING & LISTS ICONS ───
-const PricingListIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 2H2v10l9.17 9.17a2 2 0 0 0 2.83 0l7-7a2 2 0 0 0 0-2.83L12 2z"/>
-    <circle cx="7" cy="7" r="2" fill="none"/>
-    <path d="M17 10l-2 2"/>
-    <path d="M14 14l-2 2"/>
-    <path d="M19 7l-4 4"/>
-  </svg>
-);
 
-const PriceListIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 2H2v10l9.17 9.17a2 2 0 0 0 2.83 0l7-7a2 2 0 0 0 0-2.83L12 2z"/>
-    <circle cx="7" cy="7" r="2" fill="none"/>
-    <path d="M17 10l-2 2"/>
-  </svg>
-);
 
 // ─── ACCOUNTING ICONS ───
 const AccountingIcon = () => (

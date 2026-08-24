@@ -2887,7 +2887,7 @@ const NewDeliveryChallan: React.FC = () => {
         reserved_qty_for_production_plan: record.reserved_qty_for_production_plan || 0,
         reserved_stock: record.reserved_stock || 0,
         stock_uom: record.stock_uom || 'Nos',
-        company: record.company || 'SculptERP Pvt Ltd',
+        company: record.company || 'ChandraTara Industries',
         valuation_rate: record.valuation_rate || 0,
         type: record.type || 'Internal',
       };
@@ -2919,7 +2919,7 @@ const NewDeliveryChallan: React.FC = () => {
       customer_id: customerData?.id ? parseInt(customerData.id, 10) : 0,
       customer_name: customerData?.name || '',
       posting_date: dcDate,
-      company: 'SculptERP Pvt Ltd',
+      company: 'ChandraTara Industries',
       set_warehouse: selectedWarehouse?.warehouse_name || warehouse || '',
       transporter: transporter || '',
       vehicle_no: vehicleNumber || '',

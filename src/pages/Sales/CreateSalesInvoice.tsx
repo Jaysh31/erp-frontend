@@ -3603,7 +3603,7 @@ const CreateSalesBill: React.FC = () => {
     return {
 
       customer: customerData?.code || customerData?.id || '',
-      company: 'SculptERP Pvt Ltd',
+      company: 'ChandraTara Industries',
       modified_by: 'Administrator',
       customer_name: customerData?.name || '',
       posting_date: billDate,

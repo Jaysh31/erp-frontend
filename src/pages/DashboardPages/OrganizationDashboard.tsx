@@ -84,7 +84,7 @@ export default function OrganizationDashboard() {
       setCompanies([
         {
           id: 1,
-          name: "SculptERP Solutions",
+          name: "ChandraTara Industries",
           code: "SES",
           type: "Private Limited",
           status: "Active",

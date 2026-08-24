@@ -1,129 +1,38 @@
-import { useState, useEffect, useRef, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   FaArrowLeft,
   FaSave,
   FaSpinner,
   FaExclamationCircle,
-  FaInfoCircle,
   FaUser,
   FaEnvelope,
   FaPhone,
   FaLock,
   FaStore,
-  FaSearch,
-  FaBuilding,
-  FaBriefcase,
-  FaIdBadge,
 } from 'react-icons/fa';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
 import "./UserForm.css";
 
-// interface User {
-//   id: number;
-//   name: string;
-//   email: string;
-//   full_name: string;
-//   first_name: string;
-//   last_name: string;
-//   middle_name: string;
-//   mobile_no?: string;
-//   role_profile_name?: string;
-//   gender?: string;
-//   birth_date?: string;
-//   location?: string;
-//   redirect_url?: string;
-//   creation: string;
-//   modified: string;
-//   modified_by: string | null;
-//   owner: string | null;
-// }
-
-interface Employee {
-  id: number;
-  first_name: string;
-  middle_name?: string;
-  last_name: string;
-  employee_name: string;
-  gender: string;
-  date_of_birth?: string;
-  company: string;
-  department: string;
-  designation: string;
-  cell_number: string;
-  company_email: string;
-  personal_email: string;
-  employee: string;
-  employee_number?: string;
-}
-
 interface Role {
   id: number;
   name: string;
+  role_name: string;
 }
-
-// Hardcoded roles
-const ROLES: Role[] = [
-  { id: 1, name: "Academics User" },
-  { id: 2, name: "Accounts Manager" },
-  { id: 3, name: "Accounts User" },
-  { id: 4, name: "Administrator" },
-  { id: 5, name: "All" },
-  { id: 6, name: "Auditor" },
-  { id: 7, name: "Customer" },
-  { id: 8, name: "Dashboard Manager" },
-  { id: 9, name: "Delivery Manager" },
-  { id: 10, name: "Delivery User" },
-  { id: 11, name: "Desk User" },
-  { id: 12, name: "Employee" },
-  { id: 13, name: "Fleet Manager" },
-  { id: 14, name: "Fulfillment User" },
-  { id: 15, name: "Guest" },
-  { id: 16, name: "HR Manager" },
-  { id: 17, name: "HR User" },
-  { id: 18, name: "Inbox User" },
-  { id: 19, name: "Item Manager" },
-  { id: 20, name: "Knowledge Base Contributor" },
-  { id: 21, name: "Knowledge Base Editor" },
-  { id: 22, name: "Maintenance Manager" },
-  { id: 23, name: "Maintenance User" },
-  { id: 24, name: "Manufacturing Manager" },
-  { id: 25, name: "Manufacturing User" },
-  { id: 26, name: "Marketing Manager" },
-  { id: 27, name: "Newsletter Manager" },
-  { id: 28, name: "Prepared Report User" },
-  { id: 29, name: "Projects Manager" },
-  { id: 30, name: "Projects User" },
-  { id: 31, name: "Purchase Manager" },
-  { id: 32, name: "Purchase Master Manager" },
-  { id: 33, name: "Purchase User" },
-  { id: 34, name: "Quality Manager" },
-  { id: 35, name: "Report Manager" },
-  { id: 36, name: "Sales Manager" },
-  { id: 37, name: "Sales Master Manager" },
-  { id: 38, name: "Sales User" },
-  { id: 39, name: "Script Manager" },
-  { id: 40, name: "Stock Manager" },
-  { id: 41, name: "Stock User" },
-  { id: 42, name: "Supplier" },
-  { id: 43, name: "Support Team" },
-  { id: 44, name: "System Manager" },
-  { id: 45, name: "Translator" },
-  { id: 46, name: "Website Manager" },
-  { id: 47, name: "Workspace Manager" },
-];
 
 export default function UserForm() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { theme } = useAdminTheme();
-  const isNew = id === "new";
+  
+  const isNew = id === "new" || id === "create" || id === "add" || !id;
   const userId = isNew ? null : parseInt(id || "0");
 
   // ─── Form State ────────────────────────────────────────────────────────
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [middleName, setMiddleName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -132,19 +41,36 @@ export default function UserForm() {
   const [birthDate, setBirthDate] = useState('');
   const [location, setLocation] = useState('');
   const [roleProfileName, setRoleProfileName] = useState('');
-  const [redirectUrl] = useState('/dashboard');
-  const [selectedRoles, setSelectedRoles] = useState<number[]>([]);
+  const [selectedRoles, ] = useState<number[]>([]);
 
-  // ─── Employee Search State ────────────────────────────────────────────
-  const [employeeFound, setEmployeeFound] = useState<boolean>(false);
-  const [employeeData, setEmployeeData] = useState<Employee | null>(null);
-  const [searching, setSearching] = useState<boolean>(false);
-  const emailTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // ─── Roles ─────────────────────────────────────────────────────────────
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [rolesLoading, setRolesLoading] = useState(false);
+  const [selectedRoleId, setSelectedRoleId] = useState<number | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  // ─── Fetch Roles ──────────────────────────────────────────────────────
+  useEffect(() => {
+    fetchRoles();
+  }, []);
+
+  const fetchRoles = async () => {
+    setRolesLoading(true);
+    try {
+      const response = await api.get('/role');
+      if (response.data.success === 1 && response.data.data) {
+        setRoles(response.data.data);
+      }
+    } catch (err) {
+      console.error('Error fetching roles:', err);
+    } finally {
+      setRolesLoading(false);
+    }
+  };
 
   // ─── Fetch User Data (for edit mode) ──────────────────────────────────
   useEffect(() => {
@@ -168,7 +94,6 @@ export default function UserForm() {
         setBirthDate(user.birth_date ? user.birth_date.split('T')[0] : '');
         setLocation(user.location || '');
         setRoleProfileName(user.role_profile_name || '');
-        setSelectedRoles([]);
       }
     } catch (err) {
       console.error('Error fetching user:', err);
@@ -178,77 +103,18 @@ export default function UserForm() {
     }
   };
 
-  // ─── Employee Search ──────────────────────────────────────────────────
-  const searchEmployee = async (searchEmail: string) => {
-    clearEmployeeData();
-
-    if (!searchEmail.trim()) {
+  const handleRoleSelect = (roleIdValue: string) => {
+    if (!roleIdValue) {
+      setRoleProfileName('');
+      setSelectedRoleId(null);
       return;
     }
-
-    const emailRegex = /^\S+@\S+\.\S+$/;
-    if (!emailRegex.test(searchEmail)) {
-      return;
-    }
-
-    setSearching(true);
-    try {
-      const response = await api.get(`/employee/email/${encodeURIComponent(searchEmail)}`);
-      
-      if (response.status === 200 && response.data && response.data.success === 1) {
-        const employee = response.data.data;
-        setEmployeeData(employee);
-        setEmployeeFound(true);
-        
-        setFirstName(employee.first_name || '');
-        setMiddleName(employee.middle_name || '');
-        setLastName(employee.last_name || '');
-        setGender(employee.gender || '');
-        setBirthDate(employee.date_of_birth ? employee.date_of_birth.split('T')[0] : '');
-        setMobileNo(employee.cell_number || '');
-        setLocation(employee.department || '');
-      }
-    } catch (err: any) {
-      if (err.response && err.response.status === 404) {
-        clearEmployeeData();
-      } else {
-        clearEmployeeData();
-        setApiError('Unable to verify employee. Please try again.');
-        console.error('Error searching employee:', err);
-      }
-    } finally {
-      setSearching(false);
-    }
+    const role = roles.find(r => String(r.id) === roleIdValue);
+    if (!role) return;
+    setRoleProfileName(role.role_name || role.name);
+    setSelectedRoleId(role.id);
+    handleFieldBlur('roleProfileName', role.role_name || role.name);
   };
-
-  const clearEmployeeData = () => {
-    setEmployeeFound(false);
-    setEmployeeData(null);
-  };
-
-  const handleEmailBlur = () => {
-    if (emailTimeoutRef.current) {
-      clearTimeout(emailTimeoutRef.current);
-      emailTimeoutRef.current = null;
-    }
-
-    emailTimeoutRef.current = setTimeout(() => {
-      const emailRegex = /^\S+@\S+\.\S+$/;
-      if (email.trim() && emailRegex.test(email)) {
-        searchEmployee(email);
-      } else {
-        clearEmployeeData();
-      }
-    }, 500);
-  };
-
-  useEffect(() => {
-    return () => {
-      if (emailTimeoutRef.current) {
-        clearTimeout(emailTimeoutRef.current);
-      }
-    };
-  }, []);
 
   // ─── Validation ──────────────────────────────────────────────────────
   const validateField = (field: string, value: any): string => {
@@ -259,19 +125,20 @@ export default function UserForm() {
         return '';
       case 'password':
         if (isNew && !value?.trim()) return 'Password is required';
-        if (isNew && value?.length < 6) return 'Password must be at least 6 characters';
+        if (value && value.length < 6) return 'Password must be at least 6 characters';
+        return '';
+      case 'confirmPassword':
+        if (isNew && !value?.trim()) return 'Please confirm your password';
+        if (isNew && value !== password) return 'Passwords do not match';
         return '';
       case 'firstName':
         if (!value?.trim()) return 'First name is required';
         return '';
       case 'mobileNo':
         if (!value?.trim()) return 'Mobile number is required';
-        // Allow 10-11 digits, with optional leading zero
         if (!/^[0-9]{10,11}$/.test(value)) return 'Mobile must be 10-11 digits';
         return '';
-      case 'roleProfileName':
-        if (!value) return 'Role profile name is required';
-        return '';
+     
       default:
         return '';
     }
@@ -283,7 +150,7 @@ export default function UserForm() {
   };
 
   const validateAllFields = (): boolean => {
-    const fieldsToValidate = {
+    const fieldsToValidate: Record<string, { label: string; value: any }> = {
       email: { label: 'Email', value: email },
       firstName: { label: 'First Name', value: firstName },
       mobileNo: { label: 'Mobile Number', value: mobileNo },
@@ -291,7 +158,8 @@ export default function UserForm() {
     };
 
     if (isNew) {
-      Object.assign(fieldsToValidate, { password: { label: 'Password', value: password } });
+      fieldsToValidate.password = { label: 'Password', value: password };
+      fieldsToValidate.confirmPassword = { label: 'Confirm Password', value: confirmPassword };
     }
 
     const newErrors: Record<string, string> = {};
@@ -305,104 +173,95 @@ export default function UserForm() {
       }
     });
 
+    if (isNew && password && confirmPassword && password !== confirmPassword) {
+      newErrors.confirmPassword = 'Passwords do not match';
+      hasError = true;
+    }
+
     setFieldErrors(newErrors);
     return !hasError;
   };
 
-// ─── Handlers ────────────────────────────────────────────────────────
-const handleSave = async (e: FormEvent<HTMLFormElement>) => {
-  e.preventDefault();
-  setApiError(null);
+  // ─── Handle Save ──────────────────────────────────────────────────────
+  const handleSave = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setApiError(null);
 
-  if (!validateAllFields()) {
-    const firstErrorField = document.querySelector('.field-error');
-    if (firstErrorField) {
-      firstErrorField.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      (firstErrorField as HTMLElement).focus();
-    }
-    return;
-  }
-
-  setSubmitting(true);
-  try {
-    let response;
-    
-    if (employeeFound && employeeData) {
-      // Case 1: Employee exists - POST /user
-      const payload = {
-        employee_id: employeeData.id,
-        email: email.trim(),
-        password: password.trim(),
-        roles: selectedRoles,
-        mobile_no: mobileNo.trim(),
-        role_profile_name: roleProfileName,
-        first_name: firstName.trim(),
-        middle_name: middleName.trim(),
-        last_name: lastName.trim(),
-        gender: gender,
-        birth_date: birthDate || null,
-        location: location.trim(),
-        redirect_url: redirectUrl,
-        modified_by: 1,
-      };
-
-      response = await api.post('/user', payload);
-    } else {
-      // Case 2: Employee not found - POST /user/create-with-employee
-      // All employee fields should be at the root level, not nested under "employee"
-      const payload = {
-        // User fields
-        email: email.trim(),
-        password: password.trim(),
-        mobile_no: mobileNo.trim(),
-        role_profile_name: roleProfileName,
-        redirect_url: redirectUrl,
-        modified_by: 1,
-        roles: selectedRoles,
-        
-        // Employee fields - at root level (not nested)
-        first_name: firstName.trim(),
-        middle_name: middleName.trim(),
-        last_name: lastName.trim(),
-        gender: gender,
-        date_of_birth: birthDate || null,
-        cell_number: mobileNo.trim(),
-        personal_email: email.trim(),
-        company: '',
-        department: location.trim() || '',
-        designation: '',
-        employee: '',
-        employee_name: `${firstName.trim()} ${lastName.trim()}`.trim(),
-      };
-
-      response = await api.post('/user/create-with-employee', payload);
-    }
-
-    if (response.data.success === 1) {
-      navigate('/user-management');
-    } else {
-      setApiError(response.data.message || 'Failed to save user');
-    }
-  } catch (err: any) {
-    console.error('Error saving user:', err);
-    
-    if (err.response) {
-      if (err.response.status === 409) {
-        setApiError('A user with this email already exists');
-      } else if (err.response.status === 400) {
-        setApiError(err.response.data?.message || 'Invalid data provided');
-      } else {
-        setApiError(err.response.data?.message || 'Failed to save user');
+    if (!validateAllFields()) {
+      const firstErrorField = document.querySelector('.field-error');
+      if (firstErrorField) {
+        firstErrorField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        (firstErrorField as HTMLElement).focus();
       }
-    } else if (err.request) {
-      setApiError('Network error. Please check your connection.');
-    } else {
-      setApiError('An unexpected error occurred. Please try again.');
+      return;
     }
-  } finally {
-    setSubmitting(false);
-  }
-};
+
+    setSubmitting(true);
+    try {
+      let response;
+
+      if (!isNew) {
+        // Edit mode
+        const payload: Record<string, any> = {
+          id: userId,
+          email: email.trim(),
+          mobile_no: mobileNo.trim(),
+          role_profile_name: roleProfileName,
+          roles: selectedRoles,
+          first_name: firstName.trim(),
+          middle_name: middleName.trim(),
+          last_name: lastName.trim(),
+          gender: gender,
+          birth_date: birthDate || null,
+          location: location.trim(),
+          modified_by: 1,
+        };
+
+        if (password.trim()) {
+          payload.password = password.trim();
+        }
+
+        response = await api.put('/user', payload);
+      } else {
+        // Create new user
+        const payload = {
+          email: email.trim(),
+          password: password.trim(),
+          mobile_no: mobileNo.trim(),
+          role_profile_name: roleProfileName,
+          roles: selectedRoles,
+          first_name: firstName.trim(),
+          middle_name: middleName.trim(),
+          last_name: lastName.trim(),
+          gender: gender,
+          birth_date: birthDate || null,
+          location: location.trim(),
+          modified_by: 1,
+        };
+
+        response = await api.post('/user', payload);
+      }
+
+      if (response.data.success === 1) {
+        navigate('/user-management');
+      } else {
+        setApiError(response.data.message || 'Failed to save user');
+      }
+    } catch (err: any) {
+      console.error('Error saving user:', err);
+      if (err.response) {
+        if (err.response.status === 409) {
+          setApiError('A user with this email already exists');
+        } else {
+          setApiError(err.response.data?.message || 'Failed to save user');
+        }
+      } else {
+        setApiError('Network error. Please check your connection.');
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   // ─── Loading State ──────────────────────────────────────────────────
   if (loading) {
@@ -420,7 +279,6 @@ const handleSave = async (e: FormEvent<HTMLFormElement>) => {
     <div className={`uf-page ${theme}`}>
       <div className="uf-inner">
 
-        {/* ─── API Error Display ────────────────────────────────────── */}
         {apiError && (
           <div className="uf-api-error">
             <FaExclamationCircle className="error-icon" />
@@ -429,22 +287,18 @@ const handleSave = async (e: FormEvent<HTMLFormElement>) => {
           </div>
         )}
 
-        {/* ─── Header ────────────────────────────────────────────────── */}
         <div className="uf-header">
           <button onClick={() => navigate('/user-management')} className="back-btn">
             <FaArrowLeft size={9} /> Back
           </button>
           <div className="header-title">
-            <h1>{isNew ? 'Add New User' : `Edit User`}</h1>
+            <h1>{isNew ? 'Add New User' : 'Edit User'}</h1>
           </div>
         </div>
 
         <form onSubmit={handleSave}>
-
-          {/* ─── Main Form Card ────────────────────────────────────────── */}
           <div className="uf-card">
 
-            {/* General Settings */}
             <span className="uf-section-title">User Information</span>
 
             {/* Row 1: Email, First Name, Middle Name */}
@@ -453,72 +307,20 @@ const handleSave = async (e: FormEvent<HTMLFormElement>) => {
                 <label className="uf-label">
                   <FaEnvelope className="uf-label-icon" /> Email <span className="uf-required">*</span>
                 </label>
-                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    onBlur={handleEmailBlur}
-                    className={`form-field ${fieldErrors.email ? 'field-error' : ''}`}
-                    placeholder="Enter email address"
-                    disabled={submitting || searching}
-                    style={{ 
-                      paddingRight: searching ? '110px' : undefined,
-                      opacity: searching ? 0.7 : 1
-                    }}
-                  />
-                  {searching && (
-                    <div style={{ 
-                      position: 'absolute', 
-                      right: '12px', 
-                      display: 'flex', 
-                      alignItems: 'center',
-                      gap: '6px'
-                    }}>
-                      <FaSpinner 
-                        className="uf-spinning" 
-                        style={{ 
-                          fontSize: '16px',
-                          color: 'var(--primary-color)'
-                        }} 
-                      />
-                      <span style={{ 
-                        fontSize: '11px', 
-                        color: 'var(--text-secondary)',
-                        fontWeight: 500
-                      }}>
-                        Searching...
-                      </span>
-                    </div>
-                  )}
-                  {!searching && employeeFound && (
-                    <FaSearch 
-                      style={{ 
-                        position: 'absolute', 
-                        right: '12px', 
-                        fontSize: '16px',
-                        color: 'var(--success-color, #10b981)'
-                      }} 
-                    />
-                  )}
-                </div>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onBlur={() => handleFieldBlur('email', email)}
+                  className={`form-field ${fieldErrors.email ? 'field-error' : ''}`}
+                  placeholder="Enter email address"
+                  disabled={submitting || !isNew}
+                  style={!isNew ? { backgroundColor: 'var(--layout-bg)' } : {}}
+                />
                 {fieldErrors.email && (
                   <div style={{ color: 'var(--danger-color)', fontSize: '11px', marginTop: '4px' }}>
                     <FaExclamationCircle style={{ marginRight: '4px', fontSize: '10px' }} />
                     {fieldErrors.email}
-                  </div>
-                )}
-                {employeeFound && employeeData && (
-                  <div style={{ 
-                    marginTop: '4px', 
-                    fontSize: '11px', 
-                    color: 'var(--success-color, #10b981)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px'
-                  }}>
-                    <FaInfoCircle size={10} />
-                    <span>Employee found - {employeeData.employee_name}</span>
                   </div>
                 )}
               </div>
@@ -545,9 +347,7 @@ const handleSave = async (e: FormEvent<HTMLFormElement>) => {
               </div>
 
               <div className="uf-field">
-                <label className="uf-label">
-                  <FaUser className="uf-label-icon" /> Middle Name
-                </label>
+                <label className="uf-label">Middle Name</label>
                 <input
                   type="text"
                   value={middleName}
@@ -562,9 +362,7 @@ const handleSave = async (e: FormEvent<HTMLFormElement>) => {
             {/* Row 2: Last Name, Mobile, Gender */}
             <div className="uf-grid-3">
               <div className="uf-field">
-                <label className="uf-label">
-                  <FaUser className="uf-label-icon" /> Last Name
-                </label>
+                <label className="uf-label">Last Name</label>
                 <input
                   type="text"
                   value={lastName}
@@ -583,7 +381,6 @@ const handleSave = async (e: FormEvent<HTMLFormElement>) => {
                   type="text"
                   value={mobileNo}
                   onChange={(e) => {
-                    // Allow only digits and preserve leading zeros
                     const cleaned = e.target.value.replace(/\D/g, '');
                     setMobileNo(cleaned);
                   }}
@@ -647,16 +444,16 @@ const handleSave = async (e: FormEvent<HTMLFormElement>) => {
               <div className="uf-field">
                 <label className="uf-label">Role Profile Name <span className="uf-required">*</span></label>
                 <select
-                  value={roleProfileName}
-                  onChange={(e) => setRoleProfileName(e.target.value)}
+                  value={selectedRoleId ?? ''}
+                  onChange={(e) => handleRoleSelect(e.target.value)}
                   onBlur={() => handleFieldBlur('roleProfileName', roleProfileName)}
                   className={`form-field ${fieldErrors.roleProfileName ? 'field-error' : ''}`}
-                  disabled={submitting}
+                  disabled={submitting || rolesLoading}
                 >
-                  <option value="">Select Role Profile</option>
-                  {ROLES.map((role) => (
-                    <option key={role.id} value={role.name}>
-                      {role.name}
+                  <option value="">{rolesLoading ? 'Loading roles...' : 'Select Role Profile'}</option>
+                  {roles.map((role) => (
+                    <option key={role.id} value={role.id}>
+                      {role.role_name || role.name}
                     </option>
                   ))}
                 </select>
@@ -669,87 +466,57 @@ const handleSave = async (e: FormEvent<HTMLFormElement>) => {
               </div>
             </div>
 
-            {/* Password - shown separately for new users */}
+            {/* ─── Password Fields (Only for New Users) ────────────────── */}
             {isNew && (
-              <div className="uf-field" style={{ maxWidth: '400px', marginTop: '8px' }}>
-                <label className="uf-label">
-                  <FaLock className="uf-label-icon" /> Password <span className="uf-required">*</span>
-                </label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  onBlur={() => handleFieldBlur('password', password)}
-                  className={`form-field ${fieldErrors.password ? 'field-error' : ''}`}
-                  placeholder="Enter password (min 6 chars)"
-                  disabled={submitting}
-                />
-                {fieldErrors.password && (
-                  <div style={{ color: 'var(--danger-color)', fontSize: '11px', marginTop: '4px' }}>
-                    <FaExclamationCircle style={{ marginRight: '4px', fontSize: '10px' }} />
-                    {fieldErrors.password}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Employee details - shown only when employee is found */}
-            {employeeFound && employeeData && (
               <>
                 <div className="uf-divider" />
-                <span className="uf-section-title">Employee Details</span>
+                <span className="uf-section-title">Security Settings</span>
                 
-                <div className="uf-grid-3">
+                <div className="uf-grid-2">
                   <div className="uf-field">
                     <label className="uf-label">
-                      <FaBuilding className="uf-label-icon" /> Company
+                      <FaLock className="uf-label-icon" /> Password <span className="uf-required">*</span>
                     </label>
                     <input
-                      type="text"
-                      value={employeeData.company}
-                      className="form-field"
-                      disabled
-                      style={{ backgroundColor: 'var(--layout-bg)' }}
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      onBlur={() => handleFieldBlur('password', password)}
+                      className={`form-field ${fieldErrors.password ? 'field-error' : ''}`}
+                      placeholder="Enter password (min 6 chars)"
+                      disabled={submitting}
                     />
+                    {fieldErrors.password && (
+                      <div style={{ color: 'var(--danger-color)', fontSize: '11px', marginTop: '4px' }}>
+                        <FaExclamationCircle style={{ marginRight: '4px', fontSize: '10px' }} />
+                        {fieldErrors.password}
+                      </div>
+                    )}
                   </div>
+
                   <div className="uf-field">
                     <label className="uf-label">
-                      <FaBriefcase className="uf-label-icon" /> Department
+                      <FaLock className="uf-label-icon" /> Confirm Password <span className="uf-required">*</span>
                     </label>
                     <input
-                      type="text"
-                      value={employeeData.department}
-                      className="form-field"
-                      disabled
-                      style={{ backgroundColor: 'var(--layout-bg)' }}
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      onBlur={() => handleFieldBlur('confirmPassword', confirmPassword)}
+                      className={`form-field ${fieldErrors.confirmPassword ? 'field-error' : ''}`}
+                      placeholder="Confirm your password"
+                      disabled={submitting}
                     />
-                  </div>
-                  <div className="uf-field">
-                    <label className="uf-label">
-                      <FaBriefcase className="uf-label-icon" /> Designation
-                    </label>
-                    <input
-                      type="text"
-                      value={employeeData.designation}
-                      className="form-field"
-                      disabled
-                      style={{ backgroundColor: 'var(--layout-bg)' }}
-                    />
+                    {fieldErrors.confirmPassword && (
+                      <div style={{ color: 'var(--danger-color)', fontSize: '11px', marginTop: '4px' }}>
+                        <FaExclamationCircle style={{ marginRight: '4px', fontSize: '10px' }} />
+                        {fieldErrors.confirmPassword}
+                      </div>
+                    )}
                   </div>
                 </div>
-                <div className="uf-grid-3">
-                  <div className="uf-field">
-                    <label className="uf-label">
-                      <FaIdBadge className="uf-label-icon" /> Employee #
-                    </label>
-                    <input
-                      type="text"
-                      value={employeeData.employee || employeeData.employee_number || 'N/A'}
-                      className="form-field"
-                      disabled
-                      style={{ backgroundColor: 'var(--layout-bg)' }}
-                    />
-                  </div>
+                <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '-4px', marginBottom: '4px' }}>
+                  Password must be at least 6 characters long
                 </div>
               </>
             )}

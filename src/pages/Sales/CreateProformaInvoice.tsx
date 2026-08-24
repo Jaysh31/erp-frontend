@@ -1478,7 +1478,7 @@ const CreateProformaInvoice: React.FC = () => {
 
     return {
       customer: customerData?.code || '',
-      company: 'SculptERP Pvt Ltd',
+      company: 'ChandraTara Industries',
       modified_by: 'Administrator',
       customer_name: customerData?.name || '',
       transaction_date: proformaDate,
