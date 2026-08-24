@@ -7,7 +7,7 @@ import {
    FaPlay, FaPause, FaCheck, FaUserPlus, FaTimes,
   FaBuilding, FaUser, FaUserCheck, FaExchangeAlt, FaWarehouse,
   FaTruck, FaMoneyBillWave,
-  FaClipboardList, FaBoxes, FaIndustry, FaPlus, FaTrash,
+  FaClipboardList, FaBoxes, FaIndustry, FaPlus,
   FaFileAlt,
   FaExclamationCircle
 } from "react-icons/fa";

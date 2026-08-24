@@ -8,10 +8,11 @@ import {
   FaClipboardCheck,
   FaChartBar,
   FaTools,
-  FaSignOutAlt,
-  FaShoppingCart,
   FaBuilding,
   FaMoneyBillWave,
+  FaSignOutAlt,
+  FaShoppingCart,
+  
 } from "react-icons/fa";
 import logo from '../assets/logo.png';
 import "./HomePage.css";
@@ -38,22 +39,7 @@ export default function HomePage() {
       description: "Configure master data",
       color: "#8b5cf6"
     },
-    {
-      title: "Stock",
-      icon: <FaBoxes />,
-      path: "/dashboard/stock", // Changed - you might want a Stock module
-      module: 'setup' as const,
-      description: "Manage inventory",
-      color: "#06b6d4"
-    },
-    {
-      title: "Quality",
-      icon: <FaClipboardCheck />,
-      path: "/dashboard/quality", // Changed
-      module: 'manufacturing' as const,
-      description: "Quality control",
-      color: "#10b981"
-    },
+
     {
       title: "Sales",
       icon: <FaShoppingCart />,
@@ -69,6 +55,22 @@ export default function HomePage() {
       module: 'purchasing' as const,
       description: "Manage purchase orders",
       color: "#f59e0b"
+    },
+    {
+      title: "Stock",
+      icon: <FaBoxes />,
+      path: "/dashboard/stock", // Changed - you might want a Stock module
+      module: 'setup' as const,
+      description: "Manage inventory",
+      color: "#06b6d4"
+    },
+    {
+      title: "Quality",
+      icon: <FaClipboardCheck />,
+      path: "/dashboard/quality", // Changed
+      module: 'manufacturing' as const,
+      description: "Quality control",
+      color: "#10b981"
     },
     {
       title: "Organization",
@@ -119,7 +121,7 @@ export default function HomePage() {
               <img src={logo} alt="SculptERP Logo" className="home-logo-image" />
             </div>
             <div className="home-header-content">
-              <h1>SculptERP</h1>
+              <h1>ChandraTara Industries</h1>
               <p>Select a module to begin your journey</p>
             </div>
           </div>

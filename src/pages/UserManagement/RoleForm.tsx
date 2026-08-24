@@ -113,6 +113,9 @@ export default function RoleForm() {
     e.preventDefault();
     setApiError(null);
 
+    // 调试：打印当前模式，确认 isNew 是否为 true
+    console.log('🔍 isNew:', isNew, 'roleId:', roleId);
+
     if (!validateAllFields()) {
       const firstErrorField = document.querySelector('.field-error');
       if (firstErrorField) {
@@ -133,7 +136,6 @@ export default function RoleForm() {
         is_custom: isCustom,
         home_page: homePage || null,
         restrict_to_domain: restrictToDomain || null,
-        modified_by: 1,
       };
 
       let response;

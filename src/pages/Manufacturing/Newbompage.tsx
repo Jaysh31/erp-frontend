@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Home,
   ChevronRight,
   X,
   Trash2,
   AlertTriangle,
-
   InfoIcon,
   Save,
   Plus,
@@ -140,6 +139,142 @@ interface Item {
   valuation_rate: number;
   standard_rate: number;
 }
+
+// ─── SearchableSelect Component ───────────────────────────────────────────────
+
+interface SearchableSelectProps {
+  options: any[];
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  loading?: boolean;
+  className?: string;
+  getOptionLabel: (option: any) => string;
+  getOptionValue: (option: any) => string;
+  filterKeys?: string[];
+}
+
+const SearchableSelect: React.FC<SearchableSelectProps> = ({
+  options,
+  value,
+  onChange,
+  placeholder,
+  disabled = false,
+  loading = false,
+  className = "",
+  getOptionLabel,
+  getOptionValue,
+  filterKeys = ['item_code', 'item_name'],
+}) => {
+  const [search, setSearch] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
+  const [highlightIndex, setHighlightIndex] = useState(-1);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const selectedOption = options.find(opt => getOptionValue(opt) === value);
+  const displayValue = isFocused ? search : (selectedOption ? getOptionLabel(selectedOption) : '');
+
+  const filteredOptions = search
+    ? options.filter(opt =>
+        filterKeys.some(key =>
+          String(opt[key]).toLowerCase().includes(search.toLowerCase())
+        )
+      )
+    : options;
+
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+        setIsFocused(false);
+        setSearch('');
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
+
+  const handleSelect = (option: any) => {
+    onChange(getOptionValue(option));
+    setSearch('');
+    setIsOpen(false);
+    setIsFocused(false);
+    setHighlightIndex(-1);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!isOpen) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightIndex(prev => (prev < filteredOptions.length - 1 ? prev + 1 : 0));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightIndex(prev => (prev > 0 ? prev - 1 : filteredOptions.length - 1));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (highlightIndex >= 0 && filteredOptions[highlightIndex]) {
+        handleSelect(filteredOptions[highlightIndex]);
+      }
+    } else if (e.key === 'Escape') {
+      setIsOpen(false);
+      setIsFocused(false);
+      setSearch('');
+    }
+  };
+
+  return (
+    <div ref={containerRef} className={`nbom-searchable-select ${className}`}>
+      <input
+        type="text"
+        value={displayValue}
+        onChange={e => {
+          setSearch(e.target.value);
+          setIsOpen(true);
+          setHighlightIndex(0);
+        }}
+        onFocus={() => {
+          setIsFocused(true);
+          setIsOpen(true);
+          setSearch('');
+          // Clear the input when focused
+          if (selectedOption) {
+            setSearch('');
+          }
+        }}
+        onKeyDown={handleKeyDown}
+        placeholder={placeholder || 'Search...'}
+        disabled={disabled}
+      />
+      {isOpen && !disabled && (
+        <div>
+          {loading ? (
+            <div>Loading...</div>
+          ) : filteredOptions.length === 0 ? (
+            <div>No results found</div>
+          ) : (
+            filteredOptions.map((option, idx) => {
+              const isHighlighted = idx === highlightIndex;
+              const isSelected = getOptionValue(option) === value;
+              return (
+                <div
+                  key={getOptionValue(option)}
+                  className={`${isSelected ? 'selected' : ''} ${isHighlighted ? 'highlighted' : ''}`}
+                  onMouseDown={e => e.preventDefault()}
+                  onClick={() => handleSelect(option)}
+                  onMouseEnter={() => setHighlightIndex(idx)}
+                >
+                  {getOptionLabel(option)}
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
 // ─── DigitInput Component ─────────────────────────────────────────────────────
 
@@ -290,7 +425,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
   const [opsPanelOpen, setOpsPanelOpen] = useState(true);
   const [withOperations, setWithOperations] = useState(false);
   const [itemToManufacture, setItemToManufacture] = useState("");
-  const [quantity, setQuantity] = useState<string>("1"); // Changed to "1"
+  const [quantity, setQuantity] = useState<string>("1");
   const [, setBomNo] = useState("");
   const [bomId, setBomId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
@@ -1130,27 +1265,23 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
             {/* Item */}
             <div className="nbom-field nbom-flex-item" data-field="itemToManufacture">
               <Label text="Item to Manufacture" required info />
-              <select
-                className="nbom-input"
+              <SearchableSelect
+                options={items}
                 value={itemToManufacture}
-                onChange={e => {
-                  setItemToManufacture(e.target.value);
-                  // Clear error when user selects
+                onChange={val => {
+                  setItemToManufacture(val);
                   if (fieldErrors.itemToManufacture) {
                     setFieldErrors(prev => ({ ...prev, itemToManufacture: '' }));
                   }
                 }}
+                placeholder={itemsLoading ? 'Loading items...' : 'Search item code or name...'}
                 disabled={itemsLoading}
-              >
-                <option value="">
-                  {itemsLoading ? 'Loading items...' : 'Select an item...'}
-                </option>
-                {items.map(item => (
-                  <option key={item.id} value={item.item_code}>
-                    {item.item_code} - {item.item_name} ({item.item_group})
-                  </option>
-                ))}
-              </select>
+                loading={itemsLoading}
+                getOptionLabel={(item) => `${item.item_code} - ${item.item_name} (${item.item_group})`}
+                getOptionValue={(item) => item.item_code}
+                filterKeys={['item_code', 'item_name', 'item_group']}
+                className="nbom-searchable-select"
+              />
               {getFieldError('itemToManufacture') && (
                 <div style={{ color: '#dc2626', fontSize: '13px', fontWeight: '500', marginTop: '6px' }}>
                   {getFieldError('itemToManufacture')}
@@ -1204,15 +1335,15 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                       <tr key={row.id}>
                         <td className="nbom-table-no">{idx + 1}</td>
                         <td>
-                          <select
-                            className="nbom-table-select"
+                          <SearchableSelect
+                            options={rawItems}
                             value={row.itemCode}
-                            onChange={e => {
-                              const selectedItem = rawItems.find(i => i.item_code === e.target.value);
+                            onChange={val => {
+                              const selectedItem = rawItems.find(i => i.item_code === val);
                               const rate = selectedItem?.standard_rate ?? selectedItem?.valuation_rate ?? 0;
                               setCompRows(rs => rs.map((r, i) => i === idx ? {
                                 ...r,
-                                itemCode: e.target.value,
+                                itemCode: val,
                                 itemName: selectedItem?.item_name || '',
                                 itemGroup: selectedItem?.item_group || '',
                                 uom: selectedItem?.stock_uom || r.uom,
@@ -1222,17 +1353,14 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                                 amount: `₹ ${(rate * (parseFloat(r.qty) || 0)).toFixed(2)}`
                               } : r));
                             }}
+                            placeholder={rawItemsLoading ? 'Loading...' : 'Search item code or name...'}
                             disabled={rawItemsLoading}
-                          >
-                            <option value="">
-                              {rawItemsLoading ? 'Loading...' : 'Select item...'}
-                            </option>
-                            {rawItems.map(item => (
-                              <option key={item.id} value={item.item_code}>
-                                {item.item_code} - {item.item_name}
-                              </option>
-                            ))}
-                          </select>
+                            loading={rawItemsLoading}
+                            getOptionLabel={(item) => `${item.item_code} - ${item.item_name}`}
+                            getOptionValue={(item) => item.item_code}
+                            filterKeys={['item_code', 'item_name']}
+                            className="nbom-searchable-select"
+                          />
                         </td>
                         <td>
                           <input

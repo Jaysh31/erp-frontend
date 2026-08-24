@@ -1315,7 +1315,7 @@ export default function CreateQuotation() {
     ],
     tcName: '',
     termDetails: '',
-    company: 'SculptERP Pvt Ltd'
+    company: 'ChandraTara Industries'
   });
 
   const [formData, setFormData] = useState<QuotationForm>(defaultFormData());

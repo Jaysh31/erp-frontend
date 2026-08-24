@@ -107,7 +107,7 @@ export default function LoginPage() {
             <div className="login-logo">
               <img src={logo} alt="SculptERP Logo" className="login-logo-image" />
             </div>
-            <h1>SculptERP</h1>
+            <h1>ChandraTara ERP</h1>
             <p>Sign in to your account to continue</p>
           </div>
 
