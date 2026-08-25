@@ -109,6 +109,7 @@ import { FormStateProvider } from "./context/FormStateContext";
 import ProformaInvoice from "./pages/Sales/ProformaInvoice";
 import CreateProformaInvoice from "./pages/Sales/CreateProformaInvoice";
 import ItemBulkUpload from "./pages/Setup/Itembulkupload";
+import RolePermissions from "./pages/UserManagement/RoleForm";
 
 
 function App() {
@@ -119,6 +120,8 @@ function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<LoginPage />} />
+            <Route path="/Login" element={<LoginPage />} />
+
             <Route path="/home" element={<HomePage />} />
 
             <Route element={<MainLayout />}>
@@ -339,6 +342,7 @@ function App() {
               <Route path="/role" element={<RoleList />} />
 <Route path="/role/:id" element={<RoleForm />} />
 <Route path="/role/permissions/:roleId" element={<ModulePermissions />} />
+<Route path="/role/permissions/:roleId" element={<RolePermissions />} />
 
               {/* UOM Routes */}
               <Route path="/uom" element={<UOMList />} />

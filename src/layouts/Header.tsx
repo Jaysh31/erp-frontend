@@ -1,7 +1,9 @@
-import { useLocation, Link } from "react-router-dom";
+import { useLocation, Link, useNavigate } from "react-router-dom";
 import "./Header.css";
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import { useModule } from '../context/ModuleContext';
+import { useState, useEffect, useRef } from 'react';
+import { getUserName, getUserEmail, getUserRole } from '../utils/storage';
 
 const PAGE_TITLES: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -126,9 +128,71 @@ const getPageTitle = (path: string): string => {
 
 export default function Header() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { theme } = useAdminTheme();
   const { currentModule } = useModule();
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   
+  // State for user data
+  const [userData, setUserData] = useState({
+    fullName: 'User',
+    email: '',
+    role: '',
+    initials: 'U'
+  });
+
+  // Load user data from localStorage on component mount
+  useEffect(() => {
+    loadUserData();
+  }, []);
+
+  // Function to load user data from storage
+  const loadUserData = () => {
+    const fullName = getUserName() || 'User';
+    const email = getUserEmail() || '';
+    const role = getUserRole()?.name || '';
+    
+    // Generate initials from full name
+    const initials = fullName
+      .split(' ')
+      .map(name => name[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+
+    setUserData({
+      fullName,
+      email,
+      role,
+      initials: initials || 'U'
+    });
+  };
+
+  // Listen for storage changes (if user data updates in another tab)
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'user' || e.key === 'userName' || e.key === 'userEmail' || e.key === 'userRole') {
+        loadUserData();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   // Get the page title
   const pageTitle = getPageTitle(location.pathname);
   
@@ -146,6 +210,26 @@ export default function Header() {
 
   // Check if we're on the home page
   const isHomePage = location.pathname === '/home';
+
+  // Handle logout - prevents going back
+  const handleLogout = () => {
+    // Clear user data from localStorage
+    localStorage.removeItem('user');
+    localStorage.removeItem('userName');
+    localStorage.removeItem('userEmail');
+    localStorage.removeItem('userRole');
+    localStorage.removeItem('token');
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('expandedCategories');
+    localStorage.removeItem('sidebarMinimized');
+    
+    // Clear all session storage
+    sessionStorage.clear();
+    
+    // Navigate to login with replace option
+    // This prevents the user from going back to the previous page
+    navigate('/Login', { replace: true });
+  };
 
   return (
     <header className={`header ${theme}`}>
@@ -202,14 +286,72 @@ export default function Header() {
           </>
         )}
       </div>
+      
       <div className="header-right">
-        <button className="header-icon-btn" aria-label="More options">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <circle cx="12" cy="5" r="1"/>
-            <circle cx="12" cy="12" r="1"/>
-            <circle cx="12" cy="19" r="1"/>
-          </svg>
-        </button>
+        {/* User Profile Section */}
+        <div className="header-user-section" ref={dropdownRef}>
+          <div 
+            className="header-user-profile" 
+            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+          >
+            <div className="header-user-avatar">{userData.initials}</div>
+            <div className="header-user-info">
+              <div className="header-user-name">{userData.fullName}</div>
+              <div className="header-user-role">{userData.role || 'User'}</div>
+            </div>
+            <svg 
+              className={`header-dropdown-arrow ${isDropdownOpen ? 'open' : ''}`}
+              width="16" 
+              height="16" 
+              viewBox="0 0 24 24" 
+              fill="none" 
+              stroke="currentColor" 
+              strokeWidth="2" 
+              strokeLinecap="round" 
+              strokeLinejoin="round"
+            >
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </div>
+
+          {/* Dropdown Menu */}
+          {isDropdownOpen && (
+            <div className="header-dropdown-menu">
+              <div className="dropdown-user-info">
+                <div className="dropdown-user-avatar-large">{userData.initials}</div>
+                <div className="dropdown-user-details">
+                  <div className="dropdown-user-name">{userData.fullName}</div>
+                  <div className="dropdown-user-email">{userData.email}</div>
+                  <div className="dropdown-user-role">{userData.role || 'User'}</div>
+                </div>
+              </div>
+              <div className="dropdown-divider"></div>
+              <button className="dropdown-item" onClick={() => {/* Navigate to profile */}}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                  <circle cx="12" cy="7" r="4"/>
+                </svg>
+                Profile
+              </button>
+              <button className="dropdown-item" onClick={() => {/* Navigate to settings */}}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="3"/>
+                  <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                </svg>
+                Settings
+              </button>
+              <div className="dropdown-divider"></div>
+              <button className="dropdown-item logout-item" onClick={handleLogout}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                  <polyline points="16 17 21 12 16 7"/>
+                  <line x1="21" y1="12" x2="9" y2="12"/>
+                </svg>
+                Logout
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );

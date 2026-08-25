@@ -9,7 +9,15 @@ import {
   FaEnvelope,
   FaPhone,
   FaLock,
-  FaStore,
+  FaPlus,
+  FaTimes,
+  FaCalendarAlt,
+  FaVenusMars,
+  FaMapMarkerAlt,
+  FaUserTag,
+  FaShieldAlt,
+  FaCheck,
+  FaSearch,
 } from 'react-icons/fa';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
@@ -19,7 +27,10 @@ interface Role {
   id: number;
   name: string;
   role_name: string;
+  disabled: number;
+  desk_access?: number;
 }
+
 
 export default function UserForm() {
   const { id } = useParams<{ id: string }>();
@@ -41,29 +52,32 @@ export default function UserForm() {
   const [birthDate, setBirthDate] = useState('');
   const [location, setLocation] = useState('');
   const [roleProfileName, setRoleProfileName] = useState('');
-  const [selectedRoles, ] = useState<number[]>([]);
-
-  // ─── Roles ─────────────────────────────────────────────────────────────
-  const [roles, setRoles] = useState<Role[]>([]);
+  
+  // ─── Multiple Roles Management ──────────────────────────────────────
+  const [selectedRoles, setSelectedRoles] = useState<number[]>([]);
+  const [allRoles, setAllRoles] = useState<Role[]>([]);
   const [rolesLoading, setRolesLoading] = useState(false);
-  const [selectedRoleId, setSelectedRoleId] = useState<number | null>(null);
+  const [roleSearch, setRoleSearch] = useState('');
+  const [, setShowRoleDropdown] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // ─── Fetch Roles ──────────────────────────────────────────────────────
   useEffect(() => {
-    fetchRoles();
+    fetchAllRoles();
   }, []);
 
-  const fetchRoles = async () => {
+  const fetchAllRoles = async () => {
     setRolesLoading(true);
     try {
       const response = await api.get('/role');
       if (response.data.success === 1 && response.data.data) {
-        setRoles(response.data.data);
+        const activeRoles = response.data.data.filter((r: Role) => r.disabled === 0);
+        setAllRoles(activeRoles);
       }
     } catch (err) {
       console.error('Error fetching roles:', err);
@@ -94,6 +108,12 @@ export default function UserForm() {
         setBirthDate(user.birth_date ? user.birth_date.split('T')[0] : '');
         setLocation(user.location || '');
         setRoleProfileName(user.role_profile_name || '');
+        
+        // Set selected roles from user data
+        if (user.roles && Array.isArray(user.roles)) {
+          const roleIds = user.roles.map((r: any) => r.id);
+          setSelectedRoles(roleIds);
+        }
       }
     } catch (err) {
       console.error('Error fetching user:', err);
@@ -103,17 +123,46 @@ export default function UserForm() {
     }
   };
 
-  const handleRoleSelect = (roleIdValue: string) => {
-    if (!roleIdValue) {
-      setRoleProfileName('');
-      setSelectedRoleId(null);
-      return;
+  // ─── Role Management Functions ──────────────────────────────────────
+
+  const handleAddRole = (roleId: number) => {
+    if (!selectedRoles.includes(roleId)) {
+      setSelectedRoles([...selectedRoles, roleId]);
     }
-    const role = roles.find(r => String(r.id) === roleIdValue);
-    if (!role) return;
-    setRoleProfileName(role.role_name || role.name);
-    setSelectedRoleId(role.id);
-    handleFieldBlur('roleProfileName', role.role_name || role.name);
+    setShowRoleDropdown(false);
+    setRoleSearch('');
+  };
+
+  const handleRemoveRole = (roleId: number) => {
+    setSelectedRoles(selectedRoles.filter(id => id !== roleId));
+  };
+
+  const handleRoleProfileChange = (value: string) => {
+    setRoleProfileName(value);
+    // If a role profile is selected, also add it as a role if not already selected
+    if (value) {
+      const matchingRole = allRoles.find(r => 
+        (r.role_name || r.name).toLowerCase() === value.toLowerCase()
+      );
+      if (matchingRole && !selectedRoles.includes(matchingRole.id)) {
+        setSelectedRoles([...selectedRoles, matchingRole.id]);
+      }
+    }
+  };
+
+  // ─── Role Search Filter ──────────────────────────────────────────────
+  const filteredRoles = roleSearch
+    ? allRoles.filter(r => 
+        (r.role_name || r.name).toLowerCase().includes(roleSearch.toLowerCase()) &&
+        !selectedRoles.includes(r.id)
+      )
+    : allRoles.filter(r => !selectedRoles.includes(r.id));
+
+  // ─── Get selected role objects ──────────────────────────────────────
+  const getSelectedRoleObjects = () => {
+    return selectedRoles
+      .map(id => allRoles.find(r => r.id === id))
+      .filter((r): r is Role => r !== undefined);
   };
 
   // ─── Validation ──────────────────────────────────────────────────────
@@ -138,7 +187,9 @@ export default function UserForm() {
         if (!value?.trim()) return 'Mobile number is required';
         if (!/^[0-9]{10,11}$/.test(value)) return 'Mobile must be 10-11 digits';
         return '';
-     
+      case 'roleProfileName':
+        if (!value?.trim()) return 'Role profile is required';
+        return '';
       default:
         return '';
     }
@@ -178,6 +229,11 @@ export default function UserForm() {
       hasError = true;
     }
 
+    if (selectedRoles.length === 0) {
+      newErrors.roles = 'At least one role must be assigned';
+      hasError = true;
+    }
+
     setFieldErrors(newErrors);
     return !hasError;
   };
@@ -186,6 +242,7 @@ export default function UserForm() {
   const handleSave = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setApiError(null);
+    setSuccessMessage(null);
 
     if (!validateAllFields()) {
       const firstErrorField = document.querySelector('.field-error');
@@ -201,7 +258,7 @@ export default function UserForm() {
       let response;
 
       if (!isNew) {
-        // Edit mode
+        // Edit mode - use update with roles
         const payload: Record<string, any> = {
           id: userId,
           email: email.trim(),
@@ -223,7 +280,7 @@ export default function UserForm() {
 
         response = await api.put('/user', payload);
       } else {
-        // Create new user
+        // Create new user with roles
         const payload = {
           email: email.trim(),
           password: password.trim(),
@@ -243,7 +300,10 @@ export default function UserForm() {
       }
 
       if (response.data.success === 1) {
-        navigate('/user-management');
+        setSuccessMessage(response.data.message || 'User saved successfully!');
+        setTimeout(() => {
+          navigate('/user-management');
+        }, 1500);
       } else {
         setApiError(response.data.message || 'Failed to save user');
       }
@@ -251,7 +311,7 @@ export default function UserForm() {
       console.error('Error saving user:', err);
       if (err.response) {
         if (err.response.status === 409) {
-          setApiError('A user with this email already exists');
+          setApiError('A user with this email or mobile already exists');
         } else {
           setApiError(err.response.data?.message || 'Failed to save user');
         }
@@ -287,19 +347,33 @@ export default function UserForm() {
           </div>
         )}
 
+        {successMessage && (
+          <div className="uf-api-success">
+            <FaCheck className="success-icon" />
+            <span>{successMessage}</span>
+          </div>
+        )}
+
         <div className="uf-header">
           <button onClick={() => navigate('/user-management')} className="back-btn">
             <FaArrowLeft size={9} /> Back
           </button>
           <div className="header-title">
             <h1>{isNew ? 'Add New User' : 'Edit User'}</h1>
+            <span className="header-subtitle">
+              {isNew ? 'Create a new user account with role assignments' : 'Update user information and roles'}
+            </span>
           </div>
         </div>
 
         <form onSubmit={handleSave}>
           <div className="uf-card">
 
-            <span className="uf-section-title">User Information</span>
+            <div className="uf-section">
+              <span className="uf-section-title">
+                <FaUser className="uf-section-icon" /> User Information
+              </span>
+            </div>
 
             {/* Row 1: Email, First Name, Middle Name */}
             <div className="uf-grid-3">
@@ -318,8 +392,8 @@ export default function UserForm() {
                   style={!isNew ? { backgroundColor: 'var(--layout-bg)' } : {}}
                 />
                 {fieldErrors.email && (
-                  <div style={{ color: 'var(--danger-color)', fontSize: '11px', marginTop: '4px' }}>
-                    <FaExclamationCircle style={{ marginRight: '4px', fontSize: '10px' }} />
+                  <div className="uf-error-text">
+                    <FaExclamationCircle className="uf-error-icon" />
                     {fieldErrors.email}
                   </div>
                 )}
@@ -339,8 +413,8 @@ export default function UserForm() {
                   disabled={submitting}
                 />
                 {fieldErrors.firstName && (
-                  <div style={{ color: 'var(--danger-color)', fontSize: '11px', marginTop: '4px' }}>
-                    <FaExclamationCircle style={{ marginRight: '4px', fontSize: '10px' }} />
+                  <div className="uf-error-text">
+                    <FaExclamationCircle className="uf-error-icon" />
                     {fieldErrors.firstName}
                   </div>
                 )}
@@ -391,15 +465,17 @@ export default function UserForm() {
                   disabled={submitting}
                 />
                 {fieldErrors.mobileNo && (
-                  <div style={{ color: 'var(--danger-color)', fontSize: '11px', marginTop: '4px' }}>
-                    <FaExclamationCircle style={{ marginRight: '4px', fontSize: '10px' }} />
+                  <div className="uf-error-text">
+                    <FaExclamationCircle className="uf-error-icon" />
                     {fieldErrors.mobileNo}
                   </div>
                 )}
               </div>
 
               <div className="uf-field">
-                <label className="uf-label">Gender</label>
+                <label className="uf-label">
+                  <FaVenusMars className="uf-label-icon" /> Gender
+                </label>
                 <select
                   value={gender}
                   onChange={(e) => setGender(e.target.value)}
@@ -414,10 +490,12 @@ export default function UserForm() {
               </div>
             </div>
 
-            {/* Row 3: Birth Date, Location, Role Profile Name */}
+            {/* Row 3: Birth Date, Location, Role Profile */}
             <div className="uf-grid-3">
               <div className="uf-field">
-                <label className="uf-label">Birth Date</label>
+                <label className="uf-label">
+                  <FaCalendarAlt className="uf-label-icon" /> Birth Date
+                </label>
                 <input
                   type="date"
                   value={birthDate}
@@ -429,7 +507,7 @@ export default function UserForm() {
 
               <div className="uf-field">
                 <label className="uf-label">
-                  <FaStore className="uf-label-icon" /> Location
+                  <FaMapMarkerAlt className="uf-label-icon" /> Location
                 </label>
                 <input
                   type="text"
@@ -442,27 +520,141 @@ export default function UserForm() {
               </div>
 
               <div className="uf-field">
-                <label className="uf-label">Role Profile Name <span className="uf-required">*</span></label>
+                <label className="uf-label">
+                  <FaUserTag className="uf-label-icon" /> Role Profile <span className="uf-required">*</span>
+                </label>
                 <select
-                  value={selectedRoleId ?? ''}
-                  onChange={(e) => handleRoleSelect(e.target.value)}
+                  value={roleProfileName}
+                  onChange={(e) => handleRoleProfileChange(e.target.value)}
                   onBlur={() => handleFieldBlur('roleProfileName', roleProfileName)}
                   className={`form-field ${fieldErrors.roleProfileName ? 'field-error' : ''}`}
                   disabled={submitting || rolesLoading}
                 >
                   <option value="">{rolesLoading ? 'Loading roles...' : 'Select Role Profile'}</option>
-                  {roles.map((role) => (
-                    <option key={role.id} value={role.id}>
+                  {allRoles.map((role) => (
+                    <option key={role.id} value={role.role_name || role.name}>
                       {role.role_name || role.name}
                     </option>
                   ))}
                 </select>
                 {fieldErrors.roleProfileName && (
-                  <div style={{ color: 'var(--danger-color)', fontSize: '11px', marginTop: '4px' }}>
-                    <FaExclamationCircle style={{ marginRight: '4px', fontSize: '10px' }} />
+                  <div className="uf-error-text">
+                    <FaExclamationCircle className="uf-error-icon" />
                     {fieldErrors.roleProfileName}
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* ─── Roles Management Section ──────────────────────────────── */}
+            <div className="uf-divider" />
+            
+            <div className="uf-section">
+              <span className="uf-section-title">
+                <FaShieldAlt className="uf-section-icon" /> Role Assignments <span className="uf-required">*</span>
+              </span>
+              <span className="uf-section-subtitle">Assign one or more roles to this user</span>
+            </div>
+
+            {fieldErrors.roles && (
+              <div className="uf-error-text uf-error-block">
+                <FaExclamationCircle className="uf-error-icon" />
+                {fieldErrors.roles}
+              </div>
+            )}
+
+            <div className="uf-roles-container">
+              {/* Selected Roles */}
+              <div className="uf-selected-roles">
+                <div className="uf-selected-header">
+                  <label className="uf-label">Assigned Roles</label>
+                  <span className="uf-role-count">{selectedRoles.length}</span>
+                </div>
+                <div className="uf-role-tags-wrapper">
+                  {selectedRoles.length === 0 ? (
+                    <div className="uf-no-roles">
+                      <FaUserTag className="uf-no-roles-icon" />
+                      <span>No roles assigned yet</span>
+                      <span className="uf-no-roles-sub">Select roles from the right panel</span>
+                    </div>
+                  ) : (
+                    <div className="uf-role-tags">
+                      {getSelectedRoleObjects().map(role => (
+                        <div key={role.id} className="uf-role-tag">
+                          <FaCheck className="uf-role-tag-icon" size={10} />
+                          <span>{role.role_name || role.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveRole(role.id)}
+                            className="uf-remove-role"
+                            disabled={submitting}
+                            title="Remove role"
+                          >
+                            <FaTimes size={10} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Available Roles */}
+              <div className="uf-available-roles">
+                <div className="uf-available-header">
+                  <label className="uf-label">Available Roles</label>
+                  {rolesLoading && <FaSpinner className="uf-spinning-small" />}
+                </div>
+                <div className="uf-role-search">
+                  <FaSearch className="uf-search-icon" />
+                  <input
+                    type="text"
+                    value={roleSearch}
+                    onChange={(e) => {
+                      setRoleSearch(e.target.value);
+                      setShowRoleDropdown(true);
+                    }}
+                    onFocus={() => setShowRoleDropdown(true)}
+                    placeholder="Search available roles..."
+                    className="form-field uf-search-input"
+                    disabled={submitting || rolesLoading}
+                  />
+                </div>
+                <div className="uf-role-list">
+                  {rolesLoading ? (
+                    <div className="uf-loading-roles">
+                      <FaSpinner className="uf-spinning-small" />
+                      <span>Loading roles...</span>
+                    </div>
+                  ) : filteredRoles.length === 0 ? (
+                    <div className="uf-no-roles">
+                      <span>No available roles</span>
+                      {roleSearch && (
+                        <span className="uf-no-roles-sub">Try a different search term</span>
+                      )}
+                    </div>
+                  ) : (
+                    filteredRoles.map(role => (
+                      <div key={role.id} className="uf-role-item">
+                        <div className="uf-role-item-info">
+                          <span className="uf-role-item-name">{role.role_name || role.name}</span>
+                          {role.desk_access === 1 && (
+                            <span className="uf-role-item-badge">Desk Access</span>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleAddRole(role.id)}
+                          className="uf-add-role"
+                          disabled={submitting}
+                          title="Add role"
+                        >
+                          <FaPlus size={10} />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             </div>
 
@@ -470,7 +662,11 @@ export default function UserForm() {
             {isNew && (
               <>
                 <div className="uf-divider" />
-                <span className="uf-section-title">Security Settings</span>
+                <div className="uf-section">
+                  <span className="uf-section-title">
+                    <FaLock className="uf-section-icon" /> Security Settings
+                  </span>
+                </div>
                 
                 <div className="uf-grid-2">
                   <div className="uf-field">
@@ -487,8 +683,8 @@ export default function UserForm() {
                       disabled={submitting}
                     />
                     {fieldErrors.password && (
-                      <div style={{ color: 'var(--danger-color)', fontSize: '11px', marginTop: '4px' }}>
-                        <FaExclamationCircle style={{ marginRight: '4px', fontSize: '10px' }} />
+                      <div className="uf-error-text">
+                        <FaExclamationCircle className="uf-error-icon" />
                         {fieldErrors.password}
                       </div>
                     )}
@@ -508,14 +704,15 @@ export default function UserForm() {
                       disabled={submitting}
                     />
                     {fieldErrors.confirmPassword && (
-                      <div style={{ color: 'var(--danger-color)', fontSize: '11px', marginTop: '4px' }}>
-                        <FaExclamationCircle style={{ marginRight: '4px', fontSize: '10px' }} />
+                      <div className="uf-error-text">
+                        <FaExclamationCircle className="uf-error-icon" />
                         {fieldErrors.confirmPassword}
                       </div>
                     )}
                   </div>
                 </div>
-                <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '-4px', marginBottom: '4px' }}>
+                <div className="uf-password-hint">
+                  <FaLock size={10} />
                   Password must be at least 6 characters long
                 </div>
               </>
@@ -525,23 +722,32 @@ export default function UserForm() {
 
           {/* ─── Footer ────────────────────────────────────────────────── */}
           <div className="uf-footer">
-            <button
-              type="button"
-              onClick={() => navigate('/user-management')}
-              className="cancel-btn"
-              disabled={submitting}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="submit-btn"
-            >
-              {submitting && <FaSpinner className="spinning" />}
-              <FaSave size={12} />
-              {isNew ? 'Create User' : 'Update User'}
-            </button>
+            <div className="uf-footer-left">
+              {!isNew && (
+                <span className="uf-last-modified">
+                  Last modified: {new Date().toLocaleString()}
+                </span>
+              )}
+            </div>
+            <div className="uf-footer-right">
+              <button
+                type="button"
+                onClick={() => navigate('/user-management')}
+                className="cancel-btn"
+                disabled={submitting}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={submitting}
+                className="submit-btn"
+              >
+                {submitting && <FaSpinner className="spinning" />}
+                <FaSave size={12} />
+                {submitting ? 'Saving...' : isNew ? 'Create User' : 'Update User'}
+              </button>
+            </div>
           </div>
         </form>
       </div>

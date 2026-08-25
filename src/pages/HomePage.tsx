@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useModule } from '../context/ModuleContext';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
+import { hasModule, hasPermission } from '../utils/permissions';
 import {
   FaCogs,
   FaIndustry,
@@ -12,7 +13,7 @@ import {
   FaMoneyBillWave,
   FaSignOutAlt,
   FaShoppingCart,
-  
+
 } from "react-icons/fa";
 import logo from '../assets/logo.png';
 import "./HomePage.css";
@@ -26,85 +27,104 @@ export default function HomePage() {
     {
       title: "Manufacturing",
       icon: <FaIndustry />,
-      path: "/dashboard/manufacturing", // Changed to module-specific path
+      path: "/dashboard/manufacturing",
       module: 'manufacturing' as const,
       description: "Manage production & BOM",
-      color: "#6366f1"
+      color: "#6366f1",
+      apiModule: 'Manufacturing'
     },
     {
       title: "Setup",
       icon: <FaCogs />,
-      path: "/dashboard/setup", // Changed
+      path: "/dashboard/setup",
       module: 'setup' as const,
       description: "Configure master data",
-      color: "#8b5cf6"
+      color: "#8b5cf6",
+      apiModule: 'Setup'
     },
-
     {
       title: "Sales",
       icon: <FaShoppingCart />,
-      path: "/dashboard/sales", // Changed
+      path: "/dashboard/sales",
       module: 'sales' as const,
       description: "Manage sales orders",
-      color: "#f59e0b"
+      color: "#f59e0b",
+      apiModule: 'Sales'
     },
     {
       title: "Purchasing",
       icon: <FaShoppingCart />,
-      path: "/dashboard/purchasing", // Changed
+      path: "/dashboard/purchasing",
       module: 'purchasing' as const,
       description: "Manage purchase orders",
-      color: "#f59e0b"
+      color: "#f59e0b",
+      apiModule: 'Purchasing'
     },
     {
       title: "Stock",
       icon: <FaBoxes />,
-      path: "/dashboard/stock", // Changed - you might want a Stock module
+      path: "/dashboard/stock",
       module: 'setup' as const,
       description: "Manage inventory",
-      color: "#06b6d4"
+      color: "#06b6d4",
+      apiModule: 'Setup'
     },
     {
       title: "Quality",
       icon: <FaClipboardCheck />,
-      path: "/dashboard/quality", // Changed
+      path: "/dashboard/quality",
       module: 'manufacturing' as const,
       description: "Quality control",
-      color: "#10b981"
+      color: "#10b981",
+      apiModule: 'Setup',
+      apiSubmodule: 'Quality Inspection'
     },
     {
       title: "Organization",
       icon: <FaBuilding />,
-      path: "/dashboard/organization", // Changed
+      path: "/dashboard/organization",
       module: 'organization' as const,
       description: "Company & letter head",
-      color: "#8b5cf6"
+      color: "#8b5cf6",
+      apiModule: 'Organisation'
     },
     {
       title: "Reports",
       icon: <FaChartBar />,
-      path: "/dashboard/reports", // Changed
+      path: "/dashboard/reports",
       module: 'reports' as const,
       description: "Analytics & insights",
-      color: "#f59e0b"
+      color: "#f59e0b",
+      apiModule: 'Reports'
     },
     {
       title: "Accounting",
-      icon: <FaMoneyBillWave />, // Changed icon to be more specific
-      path: "/dashboard/accounting", // Changed
+      icon: <FaMoneyBillWave />,
+      path: "/dashboard/accounting",
       module: 'accounting' as const,
       description: "Manage financial records",
-      color: "#10b981"
+      color: "#10b981",
+      apiModule: 'Accounting'
     },
     {
       title: "Tools",
       icon: <FaTools />,
-      path: "/dashboard/tools", // Changed
+      path: "/dashboard/tools",
       module: 'tools' as const,
       description: "Utilities & helpers",
-      color: "#ef4444"
+      color: "#ef4444",
+      apiModule: 'Tools'
     },
   ];
+
+  // Only show a card if the logged-in user's modules array (from login response)
+  // actually contains that module — for Quality, also require the submodule.
+  // Order is preserved exactly as declared above.
+  const visibleModules = modules.filter(m =>
+    m.apiSubmodule
+      ? hasPermission(m.apiModule, m.apiSubmodule)
+      : hasModule(m.apiModule)
+  );
 
   const handleModuleClick = (module: typeof modules[0]) => {
     setCurrentModule(module.module as any);
@@ -128,7 +148,7 @@ export default function HomePage() {
 
           {/* Module Grid - 4 columns */}
           <div className="module-grid">
-            {modules.map((module) => (
+            {visibleModules.map((module) => (
               <div
                 key={module.title}
                 className="module-card"
