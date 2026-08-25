@@ -538,8 +538,8 @@ export default function SubModulePermissions() {
         <div className="sp-header">
           {/* FIX: Navigate back to ModulePermissions with roleId */}
           <button onClick={() => navigate(`/role/permissions/${roleId}`)} className="back-btn">
-            <FaArrowLeft size={12} /> Back
-          </button>
+  <FaArrowLeft size={12} /> Back
+</button>
           <div className="header-title">
             <div className="header-title-top">
               <h1>

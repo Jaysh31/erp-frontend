@@ -804,8 +804,12 @@ const SubcontractGrnModal: React.FC<SubcontractGrnModalProps> = ({
   if (!isOpen) return null;
 
   const totalThisEntry = (parseFloat(receivedQty) || 0) + (parseFloat(rejectedQty) || 0);
-  const isValid = totalThisEntry > 0 && totalThisEntry <= remainingQty;
+  // NOTE: entries are no longer capped at remainingQty — extra/over-received
+  // quantity (e.g. vendor sends back more good units than originally
+  // planned) is allowed through. remainingQty is still shown for reference.
+  const isValid = totalThisEntry > 0;
   const isPartial = totalThisEntry < remainingQty && totalThisEntry > 0;
+  const isOverage = totalThisEntry > remainingQty;
 
   const handleConfirm = () => {
     const received = parseFloat(receivedQty) || 0;
@@ -817,10 +821,6 @@ const SubcontractGrnModal: React.FC<SubcontractGrnModalProps> = ({
     }
     if (received === 0 && rejected === 0) {
       setError("Enter a received or rejected quantity");
-      return;
-    }
-    if (received + rejected > remainingQty) {
-      setError(`Total (${received} + ${rejected} = ${received + rejected}) cannot exceed remaining quantity (${remainingQty})`);
       return;
     }
 
@@ -858,13 +858,13 @@ const SubcontractGrnModal: React.FC<SubcontractGrnModalProps> = ({
               <label style={{ fontSize: '13px', fontWeight: 500, color: '#333', display: 'block', marginBottom: '4px' }}>
                 Received Qty (Good):
               </label>
-              <DigitInput value={receivedQty} onChange={setReceivedQty} placeholder="0" maxLength={10} max={remainingQty} />
+              <DigitInput value={receivedQty} onChange={setReceivedQty} placeholder="0" maxLength={10} />
             </div>
             <div>
               <label style={{ fontSize: '13px', fontWeight: 500, color: '#333', display: 'block', marginBottom: '4px' }}>
                 Rejected / Scrap Qty:
               </label>
-              <DigitInput value={rejectedQty} onChange={setRejectedQty} placeholder="0" maxLength={10} max={remainingQty} />
+              <DigitInput value={rejectedQty} onChange={setRejectedQty} placeholder="0" maxLength={10} />
             </div>
           </div>
 
@@ -894,6 +894,12 @@ const SubcontractGrnModal: React.FC<SubcontractGrnModalProps> = ({
               {totalThisEntry > 0 ? totalThisEntry : '0'} / {remainingQty} remaining
             </span>
           </div>
+
+          {isOverage && (
+            <div style={{ marginTop: "8px", background: "#fff3e0", padding: "8px 10px", borderRadius: "6px", color: "#e65100", fontSize: "13px", display: "flex", alignItems: "center", gap: "8px" }}>
+              <FaInfoCircle size={14} /> This entry is more than the remaining quantity — the extra will be recorded as an overage.
+            </div>
+          )}
 
           {error && (
             <div style={{ marginTop: "8px", textAlign: "center", color: "var(--danger-color)", fontSize: "13px" }}>{error}</div>
@@ -1120,6 +1126,11 @@ const JobCardForm: React.FC = () => {
   const [showGrnModal, setShowGrnModal] = useState(false);
   const [recordingGrn, setRecordingGrn] = useState(false);
 
+  // ── Job card's serial_and_batch_bundle, captured on load. Per the
+  //    Subcontracting Receipt API, this only needs to be sent on the
+  //    FIRST GRN entry recorded for a job card. ────────────────────────
+  const [jcSerialAndBatchBundle, setJcSerialAndBatchBundle] = useState<string>("");
+
   const getRemainingQty = () => {
     return Math.max(0, (formData.qty_to_manufacture || formData.for_quantity || 0) -
       (formData.total_completed_qty || 0) - (formData.process_loss_qty || 0));
@@ -1322,6 +1333,10 @@ const JobCardForm: React.FC = () => {
     // ── Keep the job card's raw `items` (raw materials) as-is for the
     //    read-only "Raw Materials" display card. ──────────────────────
     setRawMaterialItems(Array.isArray(jc.items) ? jc.items : []);
+
+    // ── Keep the job card's serial_and_batch_bundle for use on the first
+    //    Subcontracting Receipt (GRN) entry. ──────────────────────────
+    setJcSerialAndBatchBundle(jc.serial_and_batch_bundle || "");
 
     // ── Prefill "Materials Sent to Vendor" from the job card's own raw
     //    material `items` array (e.g. from /job-card or /job-card/:id). ──
@@ -1656,7 +1671,9 @@ const JobCardForm: React.FC = () => {
       process_loss_qty: formData.process_loss_qty,
       total_completed_qty: formData.total_completed_qty,
       transferred_qty: 0,
-      manufactured_qty: 0,
+      // ── manufactured_qty mirrors total_completed_qty (units actually
+      //    produced/manufactured so far equal what's been marked completed). ──
+      manufactured_qty: formData.total_completed_qty,
       operation: formData.operation || "",
       source_warehouse: formData.source_warehouse || "",
       wip_warehouse: formData.wip_warehouse || "",
@@ -1833,6 +1850,147 @@ const JobCardForm: React.FC = () => {
     return payload;
   };
 
+  // ── Build & submit the /api/subcontracting-receipt (GRN) payload. This
+  //    records material received back from the vendor against the
+  //    finished/production item of this job card (NOT the raw materials
+  //    sent out — those are tracked separately via the SCO's own items).
+  //
+  //    Field sourcing:
+  //      - item_code / item_name  -> job card's production_item / item_name
+  //      - bom                    -> job card's bom_no
+  //      - job_card                -> current job card id
+  //      - subcontracting_order    -> id of the SCO created for this job card
+  //      - subcontracting_order_item -> id of the first line item on that
+  //        SCO (formData.material_sent_items[0].id, which holds the SCO
+  //        item's own id once the order has been submitted and re-fetched)
+  //      - rm_cost_per_qty / service_cost_per_qty / additional_cost_per_qty
+  //        -> derived by spreading the Materials total / Service Charge /
+  //        (Transport + Other Charges) evenly across the Qty To Manufacture
+  //      - rm_supp_cost            -> rm_cost_per_qty * this entry's received_qty
+  //      - serial_and_batch_bundle -> only sent on the FIRST GRN entry for
+  //        this job card, taken from the job card's own value
+  //    Adjust these mappings if your backend expects different sourcing
+  //    (e.g. real warehouse/cost-center IDs instead of names). ───────────
+  const buildSubcontractingReceiptPayload = (receivedQty: number, rejectedQty: number, remarksNote?: string) => {
+    const now = new Date();
+    const grnBaseQty = getGrnBaseQty();
+
+    const materialTotal = getMaterialTotal();
+    const rmCostPerQty = grnBaseQty > 0 ? materialTotal / grnBaseQty : 0;
+    const serviceCostPerQty = grnBaseQty > 0 ? (formData.service_charge || 0) / grnBaseQty : 0;
+    const additionalCostPerQty = grnBaseQty > 0 ? ((formData.transport_cost || 0) + (formData.other_charges || 0)) / grnBaseQty : 0;
+    const rate = rmCostPerQty + serviceCostPerQty + additionalCostPerQty;
+    const amount = rate * grnBaseQty;
+    const rmSuppCost = rmCostPerQty * receivedQty;
+
+    const primarySentItem = formData.material_sent_items[0];
+    const subcontractingOrderItemId = primarySentItem?.id && !isNaN(Number(primarySentItem.id))
+      ? Number(primarySentItem.id)
+      : null;
+
+    const isFirstGrnEntry = formData.grn_entries.length === 0;
+
+    const receiptItem: any = {
+      item_code: formData.production_item || formData.item_name || "",
+      item_name: formData.item_name || formData.production_item || "",
+      type: "Finished Goods",
+      received_qty: receivedQty,
+      qty: grnBaseQty,
+      rejected_qty: rejectedQty,
+      returned_qty: 0,
+      process_loss_qty: 0,
+      stock_uom: "Nos",
+      conversion_factor: 1,
+      rate: Number(rate.toFixed(2)),
+      amount: Number(amount.toFixed(2)),
+      landed_cost_voucher_amount: 0,
+      rm_cost_per_qty: Number(rmCostPerQty.toFixed(2)),
+      service_cost_per_qty: Number(serviceCostPerQty.toFixed(2)),
+      additional_cost_per_qty: Number(additionalCostPerQty.toFixed(2)),
+      secondary_items_cost_per_qty: 0,
+      rm_supp_cost: Number(rmSuppCost.toFixed(2)),
+      warehouse: formData.target_warehouse || formData.source_warehouse || "",
+      rejected_warehouse: formData.source_warehouse || "",
+      subcontracting_order: scoRecordId,
+      subcontracting_order_item: subcontractingOrderItemId,
+      job_card: currentJobCardId,
+      bom: formData.bom_no || null,
+      include_exploded_items: 0,
+      quality_inspection: null,
+      schedule_date: formatDateOnly(formData.expected_return_date) || formatDateOnly(now),
+      reference_name: null,
+      serial_and_batch_bundle: isFirstGrnEntry ? (jcSerialAndBatchBundle || null) : null,
+      use_serial_batch_fields: 0,
+      rejected_serial_and_batch_bundle: null,
+      serial_no: null,
+      rejected_serial_no: null,
+      batch_no: null,
+      manufacturer: null,
+      manufacturer_part_no: null,
+      expense_account: null,
+      service_expense_account: null,
+      cost_center: null,
+      project: formData.project || null,
+    };
+
+    const totalDoneAfterThis = (formData.received_qty || 0) + (formData.rejected_qty || 0) + receivedQty + rejectedQty;
+
+    const payload: any = {
+      modified_by: "Administrator",
+      title: `Subcontracting Receipt - ${formData.subcontractor_name || "Vendor"}`,
+      naming_series: "SCR-.YYYY.-",
+      supplier: formData.supplier_id ? Number(formData.supplier_id) : null,
+      supplier_name: formData.subcontractor_name || "",
+      supplier_delivery_note: formData.delivery_challan_no || null,
+      company: formData.company || "",
+      posting_date: formatDateOnly(now),
+      posting_time: `${pad2(now.getHours())}:${pad2(now.getMinutes())}:${pad2(now.getSeconds())}`,
+      set_posting_time: 1,
+      is_return: 0,
+      return_against: null,
+      cost_center: null,
+      project: formData.project || null,
+      set_warehouse: formData.target_warehouse || formData.source_warehouse || null,
+      rejected_warehouse: formData.source_warehouse || null,
+      supplier_warehouse: formData.subcontractor_address || null,
+      in_words: null,
+      bill_no: null,
+      bill_date: null,
+      supplier_address: formData.subcontractor_address || null,
+      contact_person: null,
+      address_display: null,
+      contact_display: null,
+      contact_mobile: formData.subcontractor_contact || null,
+      contact_email: null,
+      shipping_address: null,
+      shipping_address_display: null,
+      billing_address: null,
+      billing_address_display: null,
+      distribute_additional_costs_based_on: "Qty",
+      total_additional_costs: (formData.transport_cost || 0) + (formData.other_charges || 0),
+      // ── Individual charge fields, straight from the Service Charges UI. ──
+      service_charges: formData.service_charge || 0,
+      transport_charges: formData.transport_cost || 0,
+      other_charges: formData.other_charges || 0,
+      // ── The Subcontracting Order this receipt is against (its own id,
+      //    e.g. 19 from POST /subcontracting-order's response, held in
+      //    scoRecordId once the order has been submitted to the vendor). ──
+      subcontracting_order_id: scoRecordId,
+      amended_from: null,
+      range: null,
+      represents_company: null,
+      status: grnBaseQty > 0 && totalDoneAfterThis >= grnBaseQty ? "Completed" : "Draft",
+      per_returned: 0,
+      remarks: remarksNote || "Material received back from vendor.",
+      transporter_name: null,
+      lr_no: null,
+      lr_date: null,
+      items: [receiptItem],
+    };
+
+    return payload;
+  };
+
   // ── Combined submit: updates the Job Card (marks it subcontracted, with
   //    the selected reason recorded in remarks) AND creates/updates its
   //    linked Subcontracting Order in one action. ─────────────────────
@@ -1903,9 +2061,11 @@ const JobCardForm: React.FC = () => {
   };
 
   // ── Record a GRN entry: opens from the "Record GRN Entry" button and,
-  //    on confirm, appends the entry, rolls up the running totals, and
-  //    (in edit mode) persists them onto the job card. Multiple entries
-  //    can be added over time until the full sent quantity is accounted for. ──
+  //    on confirm, (1) submits a Subcontracting Receipt to the vendor-side
+  //    API, then (2) appends the entry locally, rolls up the running
+  //    totals, and (in edit mode) persists them onto the job card. Multiple
+  //    entries can be added over time until the full sent quantity is
+  //    accounted for. ─────────────────────────────────────────────────
   const handleGrnConfirm = async (receivedQty: number, rejectedQty: number, remarksNote?: string) => {
     const timestamp = formatTimestamp(new Date());
     const newEntry: GrnEntry = {
@@ -1929,6 +2089,14 @@ const JobCardForm: React.FC = () => {
       const grnNote = `[${timestamp}] GRN: Received ${receivedQty}, Rejected ${rejectedQty}${remarksNote ? ` - ${remarksNote}` : ""}`;
       const updatedRemarks = formData.remarks ? `${formData.remarks}\n${grnNote}` : grnNote;
 
+      // 1. Submit the Subcontracting Receipt (GRN) to the vendor-side API
+      const receiptPayload = buildSubcontractingReceiptPayload(receivedQty, rejectedQty, remarksNote);
+      const receiptResponse = await api.post("/subcontracting-receipt", receiptPayload);
+      if (receiptResponse.data?.success === 0) {
+        throw new Error(receiptResponse.data?.message || "Failed to record Subcontracting Receipt");
+      }
+
+      // 2. Reflect the running totals onto the job card itself
       if (isEditMode && currentJobCardId) {
         const payload = buildApiPayload();
         payload.id = currentJobCardId;
@@ -1936,10 +2104,7 @@ const JobCardForm: React.FC = () => {
         payload.rejected_qty = newRejectedTotal;
         payload.receipt_status = newStatus;
         payload.remarks = updatedRemarks;
-        const response = await api.put("/job-card", payload);
-        if (response.data.success !== 1) {
-          throw new Error(response.data?.message || "Failed to record GRN entry");
-        }
+      
       }
 
       setFormData((prev) => ({
@@ -2052,7 +2217,8 @@ const JobCardForm: React.FC = () => {
 
   // ── Subcontracting workflow: Time Schedule + Reason (combined, single
   //    row) -> Vendor (single row) -> Materials (read-only, auto-filled)
-  //    -> Charges -> Submit Subcontract -> GRN receipts. ────────────────
+  //    -> Submit Subcontract -> Charges + GRN receipts (only once the
+  //    subcontract order has actually been submitted to the vendor). ────
   const renderSubcontractingSection = () => {
     if (selectedJobType !== 'subcontracting') return null;
 
@@ -2237,57 +2403,63 @@ const JobCardForm: React.FC = () => {
           </div>
         </div>
 
-        <div className="jcf-card jcf-charges-card">
-          <div className="jcf-card-header">
-            <FaMoneyBillWave size={14} /> Service Charges
+        {/* Service Charges — hidden until the Subcontracting Order has
+            actually been submitted to the vendor (formData.po_created).
+            Once submitted, this card (and the GRN card below it) appear
+            so charges/receipts can be recorded against the live order. */}
+        {formData.po_created && (
+          <div className="jcf-card jcf-charges-card">
+            <div className="jcf-card-header">
+              <FaMoneyBillWave size={14} /> Service Charges
+            </div>
+            <div className="jcf-grid-4">
+              <div>
+                <label className="jcf-label">Service Charge (₹)</label>
+                <DigitInput
+                  value={String(formData.service_charge)}
+                  onChange={(val) => handleNumberChange('service_charge', val)}
+                  placeholder="0.00"
+                  maxLength={15}
+                  allowDecimal={true}
+                  className="jcf-charge-input"
+                />
+              </div>
+              <div>
+                <label className="jcf-label">Transport Cost (₹)</label>
+                <DigitInput
+                  value={String(formData.transport_cost)}
+                  onChange={(val) => handleNumberChange('transport_cost', val)}
+                  placeholder="0.00"
+                  maxLength={15}
+                  allowDecimal={true}
+                  className="jcf-charge-input"
+                />
+              </div>
+              <div>
+                <label className="jcf-label">Other Charges (₹)</label>
+                <DigitInput
+                  value={String(formData.other_charges)}
+                  onChange={(val) => handleNumberChange('other_charges', val)}
+                  placeholder="0.00"
+                  maxLength={15}
+                  allowDecimal={true}
+                  className="jcf-charge-input"
+                />
+              </div>
+              <div className="jcf-grand-total-box">
+                <div className="jcf-grand-total-label">Grand Total</div>
+                <div className="jcf-grand-total-value">₹{getGrandTotal().toFixed(2)}</div>
+              </div>
+            </div>
+            <div className="jcf-charge-breakdown">
+              <span>Material Value: ₹{getMaterialTotal().toFixed(2)}</span>
+              <span>+</span>
+              <span>Service + Transport + Other: ₹{(formData.service_charge + formData.transport_cost + formData.other_charges).toFixed(2)}</span>
+              <span>=</span>
+              <span className="jcf-breakdown-total">Grand Total: ₹{getGrandTotal().toFixed(2)}</span>
+            </div>
           </div>
-          <div className="jcf-grid-4">
-            <div>
-              <label className="jcf-label">Service Charge (₹)</label>
-              <DigitInput
-                value={String(formData.service_charge)}
-                onChange={(val) => handleNumberChange('service_charge', val)}
-                placeholder="0.00"
-                maxLength={15}
-                allowDecimal={true}
-                className="jcf-charge-input"
-              />
-            </div>
-            <div>
-              <label className="jcf-label">Transport Cost (₹)</label>
-              <DigitInput
-                value={String(formData.transport_cost)}
-                onChange={(val) => handleNumberChange('transport_cost', val)}
-                placeholder="0.00"
-                maxLength={15}
-                allowDecimal={true}
-                className="jcf-charge-input"
-              />
-            </div>
-            <div>
-              <label className="jcf-label">Other Charges (₹)</label>
-              <DigitInput
-                value={String(formData.other_charges)}
-                onChange={(val) => handleNumberChange('other_charges', val)}
-                placeholder="0.00"
-                maxLength={15}
-                allowDecimal={true}
-                className="jcf-charge-input"
-              />
-            </div>
-            <div className="jcf-grand-total-box">
-              <div className="jcf-grand-total-label">Grand Total</div>
-              <div className="jcf-grand-total-value">₹{getGrandTotal().toFixed(2)}</div>
-            </div>
-          </div>
-          <div className="jcf-charge-breakdown">
-            <span>Material Value: ₹{getMaterialTotal().toFixed(2)}</span>
-            <span>+</span>
-            <span>Service + Transport + Other: ₹{(formData.service_charge + formData.transport_cost + formData.other_charges).toFixed(2)}</span>
-            <span>=</span>
-            <span className="jcf-breakdown-total">Grand Total: ₹{getGrandTotal().toFixed(2)}</span>
-          </div>
-        </div>
+        )}
 
         {/* GRN / Material Receipt — only shown once the subcontract has
             actually been submitted (PO / SCO created). Tracked against the

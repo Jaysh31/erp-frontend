@@ -1371,7 +1371,7 @@ export default function PurchaseOrderForm() {
         project: "",
         cost_center: "Main - STPL",
         is_fixed_asset: 0,
-        item_tax_rate: String(item.taxRate ?? 0),
+        item_tax_id: String(item.taxId ?? 0),
         production_plan: "",
         production_plan_item: "",
         production_plan_sub_assembly_item: "",

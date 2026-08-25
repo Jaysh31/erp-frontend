@@ -3587,7 +3587,6 @@ export default function WorkOrderForm() {
                         <tr>
                           <th className="wof-col-no">#</th>
                           <th>Item</th>
-                          <th>Operation</th>
                           <th>Source Warehouse</th>
                           <th>Required Qty</th>
                           <th>Available Qty</th>
@@ -3628,19 +3627,7 @@ export default function WorkOrderForm() {
                                   }}
                                 />
                               </td>
-                              <td>
-                                <select
-                                  value={ri.operation || ""}
-                                  onChange={e => updateItem(ri.id, "operation", e.target.value)}
-                                  className="form-field form-field-sm"
-                                  disabled={disabled}
-                                >
-                                  <option value="">— none —</option>
-                                  {wo.operations.filter(o => o.operation.trim()).map(o => (
-                                    <option key={o.id} value={o.operation}>{o.operation}</option>
-                                  ))}
-                                </select>
-                              </td>
+                         
                               <td>
                                 <input type="text" value={ri.source_warehouse}
                                   onChange={e => updateItem(ri.id, "source_warehouse", e.target.value)}

@@ -348,7 +348,7 @@ export default function RoleList() {
                       <td className="rl-td rl-td-meta" onClick={(e) => e.stopPropagation()}>
                         <div className="rl-action-wrapper">
                           {/* Settings Button - Left side */}
-                         <button
+<button
   className="rl-settings-btn"
   onClick={() => navigate(`/role/permissions/${row.id}`)}
   title="Module Permissions"
