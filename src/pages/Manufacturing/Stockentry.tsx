@@ -64,6 +64,7 @@ interface StockEntry {
   docstatus: number;
   fg_completed_qty: number;
   purpose: string;
+  item_name?: string;
 }
 
 interface StockEntryDisplay {
@@ -83,6 +84,8 @@ interface StockEntryDisplay {
   status: string;
   qty: number;
   itemName: string;
+  // ✅ Formatted display fields
+  displayPostingDate?: string;
 }
 
 interface ApiResponse {
@@ -136,7 +139,9 @@ const ENTRY_TYPES: EntryType[] = [
 
 export default function Stockentry() {
   const navigate = useNavigate();
-  const { theme } = useAdminTheme();
+  
+  // ✅ GET THE DATE FORMAT FUNCTION FROM CONTEXT
+  const { theme, formatDate, getApiDateFormat } = useAdminTheme();
 
   const [stockEntries, setStockEntries] = useState<StockEntryDisplay[]>([]);
   const [loading, setLoading] = useState(false);
@@ -153,7 +158,14 @@ export default function Stockentry() {
   const [selectedItem, setSelectedItem] = useState<StockEntryDisplay | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "cards">("list");
 
-  const formatDate = (dateString: string) => {
+  // ─── Date Filter States ────────────────────────────────────────────────
+  const [fromDate, setFromDate] = useState<string>("");
+  const [toDate, setToDate] = useState<string>("");
+  const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
+  const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
+
+  // ✅ UPDATED: Format date using context formatter
+  const formatDateAgo = (dateString: string) => {
     if (!dateString) return "N/A";
     try {
       const date = new Date(dateString);
@@ -175,6 +187,17 @@ export default function Stockentry() {
     }
   };
 
+  // ✅ NEW: Format display date using context
+  const formatDisplayDate = (dateString: string) => {
+    if (!dateString) return '';
+    return formatDate(dateString);
+  };
+
+  // ✅ NEW: Format date for API (YYYY-MM-DD)
+  const toApiDateFormat = (date: Date) => {
+    return getApiDateFormat(date);
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
@@ -184,12 +207,107 @@ export default function Stockentry() {
     }).format(amount || 0);
   };
 
+  // ✅ UPDATED: Format date display using context
+  const formatDateDisplay = (dateStr: string) => {
+    if (!dateStr) return '';
+    return formatDate(dateStr);
+  };
+
+  const getDaysInMonth = (date: Date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const firstDayOfMonth = new Date(year, month, 1).getDay();
+    return { daysInMonth, firstDayOfMonth };
+  };
+
+  const getMonthYear = (date: Date) => {
+    return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  };
+
+  const handlePrevMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
+  };
+
+  const handleNextMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
+  };
+
+  const isDateSelected = (day: number) => {
+    if (!fromDate || !toDate) return false;
+    const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+    const from = new Date(fromDate);
+    const to = new Date(toDate);
+    to.setHours(23, 59, 59, 999);
+    return date >= from && date <= to;
+  };
+
+  const handleDateClick = (day: number) => {
+    const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+    const dateStr = date.toISOString().split('T')[0];
+    
+    if (!fromDate || (fromDate && toDate)) {
+      setFromDate(dateStr);
+      setToDate('');
+    } else {
+      if (new Date(dateStr) < new Date(fromDate)) {
+        setToDate(fromDate);
+        setFromDate(dateStr);
+      } else {
+        setToDate(dateStr);
+      }
+    }
+  };
+
+  const handleApplyDateFilter = () => {
+    if (fromDate && toDate) {
+      setCurrentPage(1);
+      setShowDatePicker(false);
+      fetchStockEntries();
+    }
+  };
+
+  const handleClearDateFilter = () => {
+    setFromDate('');
+    setToDate('');
+    setCurrentPage(1);
+    setShowDatePicker(false);
+    fetchStockEntries();
+  };
+
+  const setQuickDateRange = (days: number) => {
+    const today = new Date();
+    const from = new Date(today);
+    from.setDate(today.getDate() - days);
+    setFromDate(from.toISOString().split('T')[0]);
+    setToDate(today.toISOString().split('T')[0]);
+    setCurrentPage(1);
+  };
+
   const fetchStockEntries = async () => {
     setLoading(true);
     setError(null);
     try {
-      // Remove pagination params to get all data
-      const response = await api.get<ApiResponse>(`/stock-entry`);
+      const params = new URLSearchParams();
+      
+      if (searchTerm.trim()) {
+        params.append('search', searchTerm.trim());
+        params.append('search_by', 'all');
+      }
+
+      if (typeFilter !== 'all') {
+        params.append('type', typeFilter);
+      }
+      
+      if (fromDate) {
+        params.append('date_from', fromDate);
+      }
+      if (toDate) {
+        params.append('date_to', toDate);
+      }
+
+      const url = `/stock-entry${params.toString() ? `?${params.toString()}` : ''}`;
+      const response = await api.get<ApiResponse>(url);
 
       if (response.data.success === 1 && response.data.data) {
         const { records, total, page, limit } = response.data.data;
@@ -197,20 +315,20 @@ export default function Stockentry() {
         setTotalPages(Math.ceil((total ?? 0) / (limit || itemsPerPage)));
         setCurrentPage(page ?? 1);
 
+        // ✅ TRANSFORM DATA WITH FORMATTED DATES
         const transformedData: StockEntryDisplay[] = (records ?? []).map((item: StockEntry) => {
-          // Extract item name from remarks or use default
           let itemName = "Unknown Item";
           let qty = item.fg_completed_qty || 0;
           
-          // Try to extract item info from remarks
-          if (item.remarks) {
+          if (item.item_name) {
+            itemName = item.item_name;
+          } else if (item.remarks) {
             const match = item.remarks.match(/[–-]\s*([^-]+)$/);
             if (match) {
               itemName = match[1].trim();
             }
           }
           
-          // If no item name found, use the entry type
           if (itemName === "Unknown Item" && item.stock_entry_type) {
             itemName = item.stock_entry_type;
           }
@@ -223,7 +341,7 @@ export default function Stockentry() {
             targetWarehouse: item.to_warehouse,
             company: item.company,
             postingDate: item.posting_date,
-            createdAgo: formatDate(item.posting_date),
+            createdAgo: formatDateAgo(item.posting_date),
             workOrder: item.work_order,
             supplier: item.supplier,
             totalAmount: item.total_amount || item.total_outgoing_value || 0,
@@ -232,6 +350,8 @@ export default function Stockentry() {
             status: item.status || (item.docstatus === 1 ? "Submitted" : "Draft"),
             qty: qty,
             itemName: itemName,
+            // ✅ ADD FORMATTED DATE FOR DISPLAY
+            displayPostingDate: item.posting_date ? formatDisplayDate(item.posting_date) : '',
           };
         });
 
@@ -253,21 +373,28 @@ export default function Stockentry() {
   }, []);
 
   useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, typeFilter]);
+    const timer = setTimeout(() => {
+      if (currentPage !== 1) {
+        setCurrentPage(1);
+      } else {
+        fetchStockEntries();
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    if (currentPage !== 1) {
+      setCurrentPage(1);
+    } else {
+      fetchStockEntries();
+    }
+  }, [typeFilter, fromDate, toDate]);
 
   const filteredData = stockEntries.filter((item) => {
-    const matchesSearch =
-      (item.name ?? "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (item.itemName ?? "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (item.sourceWarehouse ?? "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (item.targetWarehouse ?? "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (item.company ?? "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (item.workOrder ?? "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (item.supplier ?? "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (item.remarks ?? "").toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType = typeFilter === "all" || item.entryType === typeFilter;
-    return matchesSearch && matchesType;
+    return matchesType;
   });
 
   const totalFilteredItems = filteredData.length;
@@ -364,6 +491,9 @@ export default function Stockentry() {
   const clearFilters = () => {
     setSearchTerm("");
     setTypeFilter("all");
+    setFromDate("");
+    setToDate("");
+    setCurrentPage(1);
   };
 
   const getStartIndex = () => {
@@ -373,13 +503,6 @@ export default function Stockentry() {
   const getEndIndex = () => {
     return Math.min(validCurrentPage * itemsPerPage, totalFilteredItems);
   };
-
-  // const getDocStatusLabel = (docstatus: number) => {
-  //   if (docstatus === 0) return { label: "Draft", class: "status-draft" };
-  //   if (docstatus === 1) return { label: "Submitted", class: "status-submitted" };
-  //   if (docstatus === 2) return { label: "Cancelled", class: "status-cancelled" };
-  //   return { label: "Unknown", class: "status-unknown" };
-  // };
 
   const getEntryTypeIcon = (type: EntryType) => {
     return TYPE_ICONS[type] || <FaBoxes />;
@@ -430,7 +553,8 @@ export default function Stockentry() {
             <div className="se-card-meta">
               <div className="se-card-meta-item">
                 <FaCalendarAlt className="meta-icon" />
-                <span>{new Date(item.postingDate).toLocaleDateString("en-IN", { 
+                {/* ✅ USE FORMATTED DATE FOR DISPLAY */}
+                <span>{item.displayPostingDate || new Date(item.postingDate).toLocaleDateString("en-IN", { 
                   day: "2-digit", 
                   month: "short", 
                   year: "numeric" 
@@ -474,14 +598,8 @@ export default function Stockentry() {
     </div>
   );
 
-  // ─── Stats Summary ─────────────────────────────────────────────────
-  
-
   return (
     <div className={`se-page ${theme}`}>
-     
-
-
       {/* ─── Search and Filter Bar ─── */}
       <div className="se-filter-bar">
         <div className="se-filter-left">
@@ -489,7 +607,7 @@ export default function Stockentry() {
             <FaSearch className="se-search-icon" />
             <input
               type="text"
-              placeholder="Search by item, warehouse, WO, or supplier..."
+              placeholder="Search by item, warehouse, WO, supplier, or name..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="se-search-input"
@@ -512,6 +630,98 @@ export default function Stockentry() {
               <option key={t} value={t}>{t}</option>
             ))}
           </select>
+
+          {/* ─── Date Range Picker ─── */}
+          <div className="se-date-range-wrapper">
+            <button 
+              className={`se-date-toggle-btn ${showDatePicker ? 'active' : ''}`}
+              onClick={() => setShowDatePicker(!showDatePicker)}
+              title="Filter by date range"
+            >
+              <FaCalendarAlt size={14} />
+            </button>
+            {showDatePicker && (
+              <div className="se-date-picker-popup">
+                <div className="se-date-picker-header">
+                  <span className="se-date-picker-title">Filter by Date</span>
+                </div>
+                
+                {/* Date Range Display */}
+                <div className="se-date-range-display">
+                  {fromDate && toDate ? (
+                    <span>{formatDateDisplay(fromDate)} – {formatDateDisplay(toDate)}</span>
+                  ) : (
+                    <span className="se-date-range-placeholder">Select date range</span>
+                  )}
+                </div>
+
+                {/* Quick Filters */}
+                <div className="se-quick-filters">
+                  <button className="se-quick-filter-btn" onClick={() => setQuickDateRange(0)}>Today</button>
+                  <button className="se-quick-filter-btn" onClick={() => setQuickDateRange(7)}>Last 7 Days</button>
+                  <button className="se-quick-filter-btn" onClick={() => setQuickDateRange(30)}>Last 30 Days</button>
+                  <button className="se-quick-filter-btn" onClick={() => setQuickDateRange(90)}>This Month</button>
+                </div>
+
+                {/* Calendar */}
+                <div className="se-calendar">
+                  <div className="se-calendar-header">
+                    <button className="se-calendar-nav" onClick={handlePrevMonth}>
+                      <FaChevronLeft size={12} />
+                    </button>
+                    <span className="se-calendar-month">{getMonthYear(currentMonth)}</span>
+                    <button className="se-calendar-nav" onClick={handleNextMonth}>
+                      <FaChevronRight size={12} />
+                    </button>
+                  </div>
+                  <div className="se-calendar-weekdays">
+                    <span>Su</span>
+                    <span>Mo</span>
+                    <span>Tu</span>
+                    <span>We</span>
+                    <span>Th</span>
+                    <span>Fr</span>
+                    <span>Sa</span>
+                  </div>
+                  <div className="se-calendar-days">
+                    {Array.from({ length: getDaysInMonth(currentMonth).firstDayOfMonth }).map((_, i) => (
+                      <span key={`empty-${i}`} className="se-calendar-day-empty"></span>
+                    ))}
+                    {Array.from({ length: getDaysInMonth(currentMonth).daysInMonth }).map((_, i) => {
+                      const day = i + 1;
+                      const isSelected = isDateSelected(day);
+                      return (
+                        <button
+                          key={day}
+                          className={`se-calendar-day ${isSelected ? 'selected' : ''}`}
+                          onClick={() => handleDateClick(day)}
+                        >
+                          {day}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="se-date-actions">
+                  <button 
+                    className="se-btn-clear-filter" 
+                    onClick={handleClearDateFilter}
+                  >
+                    Clear
+                  </button>
+                  <button 
+                    className="se-btn-apply-filter" 
+                    onClick={handleApplyDateFilter}
+                    disabled={!fromDate || !toDate}
+                  >
+                    Apply Filters
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
 
           <div className="se-view-toggle">
             <button 
@@ -538,7 +748,7 @@ export default function Stockentry() {
       </div>
 
       {/* ─── Active filters indicator ─── */}
-      {(searchTerm || typeFilter !== "all") && (
+      {(searchTerm || typeFilter !== "all" || (fromDate && toDate)) && (
         <div className="se-active-filters">
           <FaFilter size={12} style={{ color: "var(--primary-color)" }} />
           <span style={{ color: "var(--text-primary)" }}>Active filters:</span>
@@ -550,6 +760,11 @@ export default function Stockentry() {
           {typeFilter !== "all" && (
             <span style={{ color: "var(--text-primary)" }}>
               <strong>Type:</strong> {typeFilter}
+            </span>
+          )}
+          {fromDate && toDate && (
+            <span style={{ color: "var(--text-primary)" }}>
+              <strong>Date Range:</strong> {formatDateDisplay(fromDate)} - {formatDateDisplay(toDate)}
             </span>
           )}
           <button onClick={clearFilters} className="se-clear-filters">
@@ -649,13 +864,15 @@ export default function Stockentry() {
                         <td className="se-td se-td-dates">
                           <div className="se-date-info">
                             <FaCalendarAlt size={10} className="se-date-icon" />
-                            {row.postingDate
-                              ? new Date(row.postingDate).toLocaleDateString("en-IN", { 
-                                  day: "2-digit", 
-                                  month: "short", 
-                                  year: "numeric" 
-                                })
-                              : "—"}
+                            {/* ✅ USE FORMATTED DATE FOR DISPLAY */}
+                            {row.displayPostingDate || 
+                              (row.postingDate
+                                ? new Date(row.postingDate).toLocaleDateString("en-IN", { 
+                                    day: "2-digit", 
+                                    month: "short", 
+                                    year: "numeric" 
+                                  })
+                                : "—")}
                             <span className="se-ago-badge">{row.createdAgo}</span>
                           </div>
                         </td>

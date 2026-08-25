@@ -19,6 +19,7 @@ import './PurchaseInvoice.css';
 
 // ─── Date helpers ─────────────────────────────────────────────────
 
+// ✅ NEW: Format date for API (YYYY-MM-DD)
 const toISODate = (d: Date): string => {
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -26,8 +27,13 @@ const toISODate = (d: Date): string => {
   return `${year}-${month}-${day}`;
 };
 
-const formatDisplayDate = (iso: string): string => {
+// ✅ UPDATED: Format display date using context (will be replaced in component)
+const formatDisplayDate = (iso: string, formatFn?: (date: string) => string): string => {
   if (!iso) return '';
+  if (formatFn) {
+    return formatFn(iso);
+  }
+  // Fallback if formatFn not provided
   const [y, m, d] = iso.split('-').map(Number);
   const date = new Date(y, m - 1, d);
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -43,9 +49,10 @@ interface RangeCalendarProps {
   fromDate: string;
   toDate: string;
   onSelect: (from: string, to: string) => void;
+  formatDisplayDateFn: (iso: string) => string;
 }
 
-function RangeCalendar({ month, onMonthChange, fromDate, toDate, onSelect }: RangeCalendarProps) {
+function RangeCalendar({ month, onMonthChange, fromDate, toDate, onSelect, formatDisplayDateFn }: RangeCalendarProps) {
   const year = month.getFullYear();
   const monthIndex = month.getMonth();
   const firstDayOfMonth = new Date(year, monthIndex, 1);
@@ -162,6 +169,9 @@ interface PurchaseInvoice {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+  // Formatted display fields
+  displayDate?: string;
+  displayDueDate?: string;
 }
 
 // API Response interface
@@ -200,13 +210,8 @@ interface ApiResponse {
 export default function PurchaseInvoice() {
   const navigate = useNavigate();
   
-  let theme = 'light';
-  try {
-    const context = useAdminTheme();
-    theme = context.theme;
-  } catch (error) {
-    console.log('Using default light theme');
-  }
+  // ✅ GET THE DATE FORMAT FUNCTION FROM CONTEXT
+  const { theme, formatDate, getApiDateFormat } = useAdminTheme();
 
   const [filterText, setFilterText] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('All');
@@ -234,6 +239,17 @@ export default function PurchaseInvoice() {
   const [invoices, setInvoices] = useState<PurchaseInvoice[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
   const [suppliersList, setSuppliersList] = useState<string[]>([]);
+
+  // ✅ NEW: Format display date using context
+  const formatDisplayDateWithContext = (dateString: string) => {
+    if (!dateString) return '';
+    return formatDate(dateString);
+  };
+
+  // ✅ NEW: Format date for API (YYYY-MM-DD)
+  const toApiDateFormat = (date: Date) => {
+    return getApiDateFormat(date);
+  };
 
   // ─── Click outside handler ──────────────────────────────────────
 
@@ -279,9 +295,10 @@ export default function PurchaseInvoice() {
     setDateTo('');
   };
 
+  // ✅ UPDATED: Date button label using context formatter
   const dateButtonLabel = () => {
     if (dateFrom) {
-      return `${formatDisplayDate(dateFrom)}${dateTo ? ' – ' + formatDisplayDate(dateTo) : ''}`;
+      return `${formatDisplayDateWithContext(dateFrom)}${dateTo ? ' – ' + formatDisplayDateWithContext(dateTo) : ''}`;
     }
     return 'From - To';
   };
@@ -310,7 +327,10 @@ export default function PurchaseInvoice() {
       params.append('page', String(currentPage));
       params.append('limit', String(itemsPerPage));
 
-      // Date filters
+      if (filterText.trim()) {
+        params.append('search', filterText.trim());
+      }
+
       if (dateFrom) {
         params.append('date_from', dateFrom);
       }
@@ -324,7 +344,7 @@ export default function PurchaseInvoice() {
         const records = response.data.data.records || [];
         setTotalRecords(response.data.data.total || 0);
         
-        // Transform API data to component format
+        // ✅ TRANSFORM DATA WITH FORMATTED DATES
         const transformedInvoices: PurchaseInvoice[] = records.map((item: ApiPurchaseInvoice) => ({
           id: String(item.id),
           invoiceNumber: `PINV-${String(item.id).padStart(5, '0')}`,
@@ -341,12 +361,14 @@ export default function PurchaseInvoice() {
           itemsCount: item.items_count || 0,
           createdBy: item.created_by || 'System',
           createdAt: item.creation || new Date().toISOString(),
-          updatedAt: item.modified || new Date().toISOString()
+          updatedAt: item.modified || new Date().toISOString(),
+          // ✅ ADD FORMATTED DATES FOR DISPLAY
+          displayDate: item.posting_date ? formatDisplayDateWithContext(item.posting_date) : '',
+          displayDueDate: item.due_date ? formatDisplayDateWithContext(item.due_date) : ''
         }));
         
         setInvoices(transformedInvoices);
         
-        // Extract unique suppliers for filter
         const uniqueSuppliers = [...new Set(transformedInvoices.map(inv => inv.supplier))];
         setSuppliersList(uniqueSuppliers);
       } else {
@@ -363,21 +385,18 @@ export default function PurchaseInvoice() {
   // Fetch when dependencies change
   useEffect(() => {
     fetchPurchaseInvoices();
-  }, [currentPage, itemsPerPage, dateFrom, dateTo]);
+  }, [currentPage, itemsPerPage, dateFrom, dateTo, filterText]);
 
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [filterText, selectedStatus, selectedSupplier, dateFrom, dateTo]);
 
-  // Filter data based on search and status
+  // Filter data based on search and status (only status and supplier since search is handled by API)
   const filteredInvoices = invoices.filter(inv => {
-    const matchesSearch = inv.invoiceNumber.toLowerCase().includes(filterText.toLowerCase()) ||
-                         inv.supplier.toLowerCase().includes(filterText.toLowerCase()) ||
-                         inv.purchaseOrder.toLowerCase().includes(filterText.toLowerCase());
     const matchesStatus = selectedStatus === 'All' || inv.status === selectedStatus;
     const matchesSupplier = selectedSupplier === 'All' || inv.supplier === selectedSupplier;
-    return matchesSearch && matchesStatus && matchesSupplier;
+    return matchesStatus && matchesSupplier;
   });
 
   // Pagination calculations
@@ -597,13 +616,13 @@ export default function PurchaseInvoice() {
                     flex: 1, padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: '4px',
                     fontSize: '12px', color: dateFrom ? '#1a202c' : '#a0aec0'
                   }}>
-                    {dateFrom ? formatDisplayDate(dateFrom) : 'From'}
+                    {dateFrom ? formatDisplayDateWithContext(dateFrom) : 'From'}
                   </div>
                   <div style={{
                     flex: 1, padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: '4px',
                     fontSize: '12px', color: dateTo ? '#1a202c' : '#a0aec0'
                   }}>
-                    {dateTo ? formatDisplayDate(dateTo) : 'To'}
+                    {dateTo ? formatDisplayDateWithContext(dateTo) : 'To'}
                   </div>
                 </div>
 
@@ -641,6 +660,7 @@ export default function PurchaseInvoice() {
                   fromDate={dateFrom}
                   toDate={dateTo}
                   onSelect={(from, to) => { setDateFrom(from); setDateTo(to); }}
+                  formatDisplayDateFn={formatDisplayDateWithContext}
                 />
 
                 <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '14px' }}>
@@ -720,8 +740,8 @@ export default function PurchaseInvoice() {
               <strong>Supplier:</strong> {selectedSupplier}
             </span>
           )}
-          {dateFrom && <span><strong>From:</strong> {dateFrom}</span>}
-          {dateTo && <span><strong>To:</strong> {dateTo}</span>}
+          {dateFrom && <span><strong>From:</strong> {formatDisplayDateWithContext(dateFrom)}</span>}
+          {dateTo && <span><strong>To:</strong> {formatDisplayDateWithContext(dateTo)}</span>}
           <button 
             onClick={clearFilters}
             className="inv-clear-filters"
@@ -800,7 +820,7 @@ export default function PurchaseInvoice() {
                     </div>
                   </td>
                   <td className="inv-td">{inv.supplier}</td>
-                  <td className="inv-td">{new Date(inv.date).toLocaleDateString()}</td>
+                  <td className="inv-td">{inv.displayDate || new Date(inv.date).toLocaleDateString()}</td>
                   <td className="inv-td">{inv.currency} {inv.totalAmount.toLocaleString()}</td>
                   <td className={`inv-td ${inv.balanceAmount > 0 && new Date(inv.dueDate) < new Date() ? 'inv-balance-overdue' : ''}`}>
                     {inv.currency} {inv.balanceAmount.toLocaleString()}
@@ -928,8 +948,8 @@ export default function PurchaseInvoice() {
                   <h4>Invoice Details</h4>
                   <div className="inv-view-row"><label>Number:</label><span>{selectedInvoice.invoiceNumber}</span></div>
                   <div className="inv-view-row"><label>Status:</label><span className={`inv-status-badge ${getStatusColor(selectedInvoice.status)}`}>{selectedInvoice.status}</span></div>
-                  <div className="inv-view-row"><label>Date:</label><span>{new Date(selectedInvoice.date).toLocaleDateString()}</span></div>
-                  <div className="inv-view-row"><label>Due Date:</label><span>{new Date(selectedInvoice.dueDate).toLocaleDateString()}</span></div>
+                  <div className="inv-view-row"><label>Date:</label><span>{selectedInvoice.displayDate || new Date(selectedInvoice.date).toLocaleDateString()}</span></div>
+                  <div className="inv-view-row"><label>Due Date:</label><span>{selectedInvoice.displayDueDate || new Date(selectedInvoice.dueDate).toLocaleDateString()}</span></div>
                 </div>
                 <div className="inv-view-section">
                   <h4>Supplier Details</h4>

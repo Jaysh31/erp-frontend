@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   FaSearch, FaPlus, FaEye, FaEdit, FaTrash, FaPrint,
   FaFilter, FaCheckCircle, FaTimesCircle,
-   FaSpinner, FaTimes,
-  FaClipboardCheck, 
+  FaSpinner, FaTimes,
+  FaClipboardCheck, FaCalendarAlt, FaChevronDown,
+  FaChevronLeft, FaChevronRight,
 } from 'react-icons/fa';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
@@ -25,9 +26,10 @@ export interface InspectionListItem {
   outOfSpecCount: number;
   status: string;
   overallResult: string;
+  // Formatted display fields
+  displayDate?: string;
 }
 
-// Updated to match actual API response
 interface InspectionApiRecord {
   id: number;
   inspection_no: string;
@@ -42,7 +44,6 @@ interface InspectionApiRecord {
   overall_result: string;
 }
 
-/** Normalizes a list-style API response: { success, data: { records, total } } or { success, data: [...] } */
 const extractRecords = (payload: any): any[] => {
   if (!payload) return [];
   const data = payload.success === 1 || payload.success === 0 ? payload.data : payload;
@@ -54,13 +55,8 @@ const extractRecords = (payload: any): any[] => {
 export default function QualityInspectionList() {
   const navigate = useNavigate();
 
-  let theme = 'light';
-  try {
-    const context = useAdminTheme();
-    theme = context.theme;
-  } catch (error) {
-    console.log('Using default light theme');
-  }
+  // ✅ GET THE DATE FORMAT FUNCTION FROM CONTEXT
+  const { theme, formatDate, getApiDateFormat } = useAdminTheme();
 
   const [filterText, setFilterText] = useState('');
   const [selectedResult, setSelectedResult] = useState('All');
@@ -73,13 +69,164 @@ export default function QualityInspectionList() {
   const [selectedReport, setSelectedReport] = useState<InspectionListItem | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // ─── Date Range Filter State (From - To, same UI as Workstation) ───
+  const [dateFrom, setDateFrom] = useState<Date | null>(null);
+  const [dateTo, setDateTo] = useState<Date | null>(null);
+  const [tempFrom, setTempFrom] = useState<Date | null>(null);
+  const [tempTo, setTempTo] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [calendarMonth, setCalendarMonth] = useState<Date>(new Date());
+  const datePickerRef = useRef<HTMLDivElement>(null);
+
+  // ✅ NEW: Format display date using context
+  const formatDisplayDate = (dateString: string) => {
+    if (!dateString) return '';
+    return formatDate(dateString);
+  };
+
+  // ✅ NEW: Format date for API (YYYY-MM-DD)
+  const toApiDateFormat = (date: Date) => {
+    return getApiDateFormat(date);
+  };
+
+  // ─── Format date for display using the context formatter ──────────
+  const formatDateShort = (d: Date) => {
+    // Use the context formatter for consistent date display
+    return formatDate(d.toISOString().split('T')[0]);
+  };
+
+  // ─── Format date for API (YYYY-MM-DD) ────────────────────────────
+  const toISODate = (d: Date) => {
+    return toApiDateFormat(d);
+  };
+
+  const isSameDay = (a: Date | null, b: Date | null) =>
+    !!a && !!b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+
+  const dateButtonLabel =
+    dateFrom && dateTo ? `${formatDateShort(dateFrom)} – ${formatDateShort(dateTo)}` : 'From - To';
+
+  const weekdayLabels = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+
+  const getCalendarDays = (monthDate: Date): (Date | null)[] => {
+    const year = monthDate.getFullYear();
+    const month = monthDate.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const startWeekday = firstDay.getDay();
+    const days: (Date | null)[] = [];
+    for (let i = 0; i < startWeekday; i++) days.push(null);
+    for (let d = 1; d <= lastDay.getDate(); d++) days.push(new Date(year, month, d));
+    return days;
+  };
+
+  const openDatePicker = () => {
+    setTempFrom(dateFrom);
+    setTempTo(dateTo);
+    setCalendarMonth(dateFrom || new Date());
+    setShowDatePicker((prev) => !prev);
+  };
+
+  const handleDayClick = (day: Date) => {
+    if (!tempFrom || (tempFrom && tempTo)) {
+      setTempFrom(day);
+      setTempTo(null);
+    } else if (day < tempFrom) {
+      setTempTo(tempFrom);
+      setTempFrom(day);
+    } else {
+      setTempTo(day);
+    }
+  };
+
+  const setQuickRange = (type: 'today' | '7days' | '30days' | 'month') => {
+    const now = new Date();
+    const todayOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    let from: Date;
+    let to: Date;
+    switch (type) {
+      case 'today':
+        from = todayOnly;
+        to = todayOnly;
+        break;
+      case '7days':
+        to = todayOnly;
+        from = new Date(todayOnly);
+        from.setDate(from.getDate() - 6);
+        break;
+      case '30days':
+        to = todayOnly;
+        from = new Date(todayOnly);
+        from.setDate(from.getDate() - 29);
+        break;
+      case 'month':
+        from = new Date(now.getFullYear(), now.getMonth(), 1);
+        to = todayOnly;
+        break;
+    }
+    setTempFrom(from);
+    setTempTo(to);
+    setCalendarMonth(from);
+  };
+
+  const prevMonth = () => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1));
+  const nextMonth = () => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1));
+
+  const applyDateFilter = () => {
+    setDateFrom(tempFrom);
+    setDateTo(tempTo);
+    setShowDatePicker(false);
+    // fetchReports will be triggered by useEffect
+  };
+
+  const clearDateFilterOnly = () => {
+    setTempFrom(null);
+    setTempTo(null);
+    setDateFrom(null);
+    setDateTo(null);
+  };
+
+  // Close the date picker popup when clicking outside of it
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (datePickerRef.current && !datePickerRef.current.contains(e.target as Node)) {
+        setShowDatePicker(false);
+      }
+    };
+    if (showDatePicker) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showDatePicker]);
+
   /* ─── load from GET /quality-inspection ────────────────────────── */
 
   const fetchReports = async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await api.get('/quality-inspection');
+      let url = '/quality-inspection';
+      const params = new URLSearchParams();
+      
+      if (filterText.trim()) {
+        params.append('search', filterText.trim());
+      }
+      
+      // Use 'from' and 'to' parameters like the Workstation file
+      if (dateFrom) {
+        params.append('from', toISODate(dateFrom));
+      }
+      
+      if (dateTo) {
+        params.append('to', toISODate(dateTo));
+      }
+      
+      const queryString = params.toString();
+      if (queryString) {
+        url += `?${queryString}`;
+      }
+
+      const response = await api.get(url);
 
       if (response.data.success !== 1) {
         throw new Error(response.data?.message || 'Failed to fetch inspection reports');
@@ -87,18 +234,21 @@ export default function QualityInspectionList() {
 
       const all: InspectionApiRecord[] = extractRecords(response.data);
 
+      // ✅ TRANSFORM DATA WITH FORMATTED DATES
       const transformed: InspectionListItem[] = all.map((r) => ({
         id: r.id,
         reportNo: r.inspection_no || `QI-${r.id}`,
         docNo: r.reference_type || '',
-        partProductName: `Item ${r.item_id}`, // You might want to fetch actual item name from another API
+        partProductName: `Item ${r.item_id}`,
         partNo: r.item_id?.toString() || '',
-        customerName: 'N/A', // This field isn't in the API response
+        customerName: 'N/A',
         date: r.inspection_date || '',
         sampleCount: r.inspection_qty ?? 0,
         outOfSpecCount: r.rejected_qty ?? 0,
         status: r.status || '',
-        overallResult: r.overall_result || ''
+        overallResult: r.overall_result || '',
+        // ✅ ADD FORMATTED DATE FOR DISPLAY
+        displayDate: r.inspection_date ? formatDisplayDate(r.inspection_date) : ''
       }));
 
       setReports(transformed);
@@ -110,26 +260,33 @@ export default function QualityInspectionList() {
     }
   };
 
+  // Debounced search - fetch reports when filterText changes
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchReports();
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [filterText]);
+
+  // Fetch when date range changes
+  useEffect(() => {
+    fetchReports();
+  }, [dateFrom, dateTo]);
+
+  // Initial fetch
   useEffect(() => {
     fetchReports();
   }, []);
 
-  // Fixed filter - now checking against actual data
+  // Fixed filter - now checking against actual data (only for result filter since search is done by API)
   const filteredReports = reports.filter((r) => {
-    const searchText = filterText.toLowerCase().trim();
-    const matchesSearch = searchText === '' ||
-      (r.reportNo && r.reportNo.toLowerCase().includes(searchText)) ||
-      (r.partProductName && r.partProductName.toLowerCase().includes(searchText)) ||
-      (r.customerName && r.customerName.toLowerCase().includes(searchText)) ||
-      (r.docNo && r.docNo.toLowerCase().includes(searchText)) ||
-      (r.status && r.status.toLowerCase().includes(searchText));
-    
     const matchesResult =
       selectedResult === 'All' ||
       (selectedResult === 'Pass' && r.overallResult?.toLowerCase() === 'pass') ||
       (selectedResult === 'Fail' && r.overallResult?.toLowerCase() === 'fail');
     
-    return matchesSearch && matchesResult;
+    return matchesResult;
   });
 
   const totalReports = reports.length;
@@ -176,12 +333,12 @@ export default function QualityInspectionList() {
   const clearFilters = () => {
     setFilterText('');
     setSelectedResult('All');
+    clearDateFilterOnly();
   };
 
   return (
     <div className={`qi-list-page ${theme}`}>
      
-
       {/* Search and Filter Bar */}
       <div className="qi-filter-bar">
         <div className="qi-filter-left">
@@ -211,6 +368,120 @@ export default function QualityInspectionList() {
             <option value="Pass">Pass</option>
             <option value="Fail">Fail</option>
           </select>
+
+          {/* ─── From - To Date Filter Button + Calendar Popup ─────────── */}
+          <div ref={datePickerRef} style={{ position: 'relative', display: 'inline-block' }}>
+            <button
+              type="button"
+              onClick={openDatePicker}
+              className="qi-date-filter-btn"
+            >
+              <FaCalendarAlt size={13} style={{ color: 'var(--primary-color, #2563eb)' }} />
+              {dateButtonLabel}
+              <FaChevronDown size={10} style={{ opacity: 0.6 }} />
+            </button>
+
+            {showDatePicker && (
+              <div className="qi-date-popup">
+                {/* Header */}
+                <div className="qi-date-popup-header">
+                  <span className="qi-date-popup-title">Filter by Date</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowDatePicker(false)}
+                    className="qi-date-popup-close"
+                  >
+                    <FaTimes size={14} />
+                  </button>
+                </div>
+
+                {/* Quick range chips */}
+                <div className="qi-quick-chips">
+                  {[
+                    { label: 'Today', type: 'today' as const },
+                    { label: 'Last 7 Days', type: '7days' as const },
+                    { label: 'Last 30 Days', type: '30days' as const },
+                    { label: 'This Month', type: 'month' as const },
+                  ].map((q) => (
+                    <button
+                      key={q.type}
+                      type="button"
+                      onClick={() => setQuickRange(q.type)}
+                      className="qi-quick-chip"
+                    >
+                      {q.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Month navigation */}
+                <div className="qi-month-nav">
+                  <button type="button" onClick={prevMonth} className="qi-month-nav-btn">
+                    <FaChevronLeft size={12} />
+                  </button>
+                  <span className="qi-month-label">
+                    {calendarMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                  </span>
+                  <button type="button" onClick={nextMonth} className="qi-month-nav-btn">
+                    <FaChevronRight size={12} />
+                  </button>
+                </div>
+
+                {/* Weekday header */}
+                <div className="qi-weekday-header">
+                  {weekdayLabels.map((wd) => (
+                    <span key={wd} className="qi-weekday-label">{wd}</span>
+                  ))}
+                </div>
+
+                {/* Day grid */}
+                <div className="qi-day-grid">
+                  {getCalendarDays(calendarMonth).map((day, idx) => {
+                    if (!day) return <div key={`empty-${idx}`} className="qi-day-empty" />;
+
+                    const isFrom = isSameDay(day, tempFrom);
+                    const isTo = isSameDay(day, tempTo);
+                    const inRange =
+                      tempFrom && tempTo && day > tempFrom && day < tempTo;
+                    const isEndpoint = isFrom || isTo;
+
+                    return (
+                      <button
+                        key={day.toISOString()}
+                        type="button"
+                        onClick={() => handleDayClick(day)}
+                        className={`qi-day-btn ${isEndpoint ? 'qi-day-selected' : ''} ${inRange ? 'qi-day-in-range' : ''}`}
+                      >
+                        {day.getDate()}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Footer actions */}
+                <div className="qi-date-popup-footer">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTempFrom(null);
+                      setTempTo(null);
+                    }}
+                    className="qi-popup-clear-btn"
+                  >
+                    Clear
+                  </button>
+                  <button
+                    type="button"
+                    onClick={applyDateFilter}
+                    className="qi-popup-apply-btn"
+                  >
+                    Apply Filters
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
           <button className="qi-btn-new" onClick={() => navigate('/quality-inspection/new')}>
             <FaPlus size={12} /> Add Quality Inspection
           </button>
@@ -218,7 +489,7 @@ export default function QualityInspectionList() {
       </div>
 
       {/* Active filters indicator */}
-      {(filterText || selectedResult !== 'All') && (
+      {(filterText || selectedResult !== 'All' || (dateFrom && dateTo)) && (
         <div className="qi-active-filters">
           <FaFilter size={12} style={{ color: 'var(--primary-color)' }} />
           <span style={{ color: 'var(--text-primary)' }}>Active filters:</span>
@@ -230,6 +501,11 @@ export default function QualityInspectionList() {
           {selectedResult !== 'All' && (
             <span style={{ color: 'var(--text-primary)' }}>
               <strong>Result:</strong> {selectedResult}
+            </span>
+          )}
+          {dateFrom && dateTo && (
+            <span style={{ color: 'var(--text-primary)' }}>
+              <strong>Date:</strong> {formatDateShort(dateFrom)} – {formatDateShort(dateTo)}
             </span>
           )}
           <button onClick={clearFilters} className="qi-clear-filters">
@@ -286,7 +562,8 @@ export default function QualityInspectionList() {
                     <td className="qi-td qi-td-id">{report.reportNo}</td>
                     <td className="qi-td">{report.docNo || '-'}</td>
                     <td className="qi-td">{report.partProductName || '-'}</td>
-                    <td className="qi-td">{report.date ? new Date(report.date).toLocaleDateString() : '-'}</td>
+                    {/* ✅ USE FORMATTED DATE FOR DISPLAY */}
+                    <td className="qi-td">{report.displayDate || '-'}</td>
                     <td className="qi-td qi-text-center">{report.sampleCount}</td>
                     <td className="qi-td">
                       <span className={`qi-status-badge qi-status-${report.status?.toLowerCase().replace(' ', '-') || 'unknown'}`}>

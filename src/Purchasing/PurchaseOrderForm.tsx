@@ -1,4 +1,9 @@
 // PurchaseOrderForm.tsx - Cleaner UI with Compact Layout, Customer Info on Right, Item Table with Order Rate, Editable Grand Total
+// UPDATED: Added "Item Code" dropdown with "+ Add New Item" popup (sticky at bottom)
+// UPDATED: Added item dropdown with "+ Add New Item" button in item search field
+// UPDATED: Added Quantity field in "Add New Item" popup
+// UPDATED: Removed HSN field from "Add New Item" popup
+
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { 
@@ -6,7 +11,8 @@ import {
   FaExclamationCircle, FaExclamationTriangle, FaInfoCircle,
   FaTimesCircle,  FaBuilding,
   FaCalendarAlt, FaFileAlt, FaBoxes, FaClipboardList,
-  FaSearch, FaFilter, FaPhone, FaEnvelope,  FaGlobeAsia
+  FaSearch, FaFilter, FaPhone, FaEnvelope,  FaGlobeAsia,
+  FaCheckCircle
 } from 'react-icons/fa';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
@@ -176,6 +182,7 @@ interface Supplier {
   mobile_no: string;
   email_id: string;
   address?: string;
+  primary_address?: string;
   disabled: number;
 }
 
@@ -194,6 +201,21 @@ interface Customer {
   email_id: string;
   default_currency: string;
   disabled: number;
+}
+
+// ─── Item interface for dropdown ───────────────────────────
+interface Item {
+  id: number;
+  item_code: string;
+  item_name: string;
+  item_group: string;
+  stock_uom: string;
+  standard_rate: number;
+  valuation_rate: number;
+  tax_id?: number;
+  hsn?: string;
+  description?: string;
+  brand?: string;
 }
 
 const statusOptions = ['Draft', 'Submitted', 'Partially Received', 'Fully Received', 'Cancelled', 'Closed'];
@@ -226,6 +248,45 @@ export default function PurchaseOrderForm() {
   const [showSupplierDropdown, setShowSupplierDropdown] = useState(false);
   const supplierInputRef = useRef<HTMLInputElement>(null);
   const supplierDropdownRef = useRef<HTMLDivElement>(null);
+
+  // ─── State for "Add New Supplier" Popup ──────────────────
+  const [showAddSupplierPopup, setShowAddSupplierPopup] = useState(false);
+  const [addingSupplier, setAddingSupplier] = useState(false);
+  const [newSupplier, setNewSupplier] = useState({
+    supplier_name: '',
+    supplier_type: 'Individual',
+    supplier_group: '',
+    country: 'India',
+    mobile_no: '',
+    email_id: '',
+    primary_address: '',
+  });
+
+  // ─── State for "Add New Item" Popup ──────────────────────
+  const [showAddItemPopup, setShowAddItemPopup] = useState(false);
+  const [addingItem, setAddingItem] = useState(false);
+  const [pendingItemSearch, setPendingItemSearch] = useState('');
+  const [activeRowIndex, setActiveRowIndex] = useState<number | null>(null);
+  const [newItem, setNewItem] = useState({
+    item_name: '',
+    item_code: '',
+    item_group: '',
+    stock_uom: 'NOS',
+    standard_rate: '',
+    valuation_rate: '',
+    description: '',
+    tax_id: '',
+    quantity: '1',
+  });
+
+  // ─── State for Item Code dropdown ────────────────────────
+  const [itemCodeSearchTerm, setItemCodeSearchTerm] = useState('');
+  const [showItemCodeDropdown, setShowItemCodeDropdown] = useState(false);
+  const [itemCodeOptions, setItemCodeOptions] = useState<Item[]>([]);
+  const [loadingItemCode, setLoadingItemCode] = useState(false);
+  const [selectedItemCode, setSelectedItemCode] = useState<Item | null>(null);
+  const itemCodeInputRef = useRef<HTMLInputElement>(null);
+  const itemCodeDropdownRef = useRef<HTMLDivElement>(null);
 
   // State for customers
   const [, setCustomers] = useState<Customer[]>([]);
@@ -339,6 +400,350 @@ export default function PurchaseOrderForm() {
                      taxType.includes('VAT') ? 'VAT' : 'Tax';
     return { rate, category };
   };
+
+  // ─── Handle Add New Supplier ──────────────────────────────
+  const handleAddNewSupplier = async () => {
+    if (!newSupplier.supplier_name.trim()) {
+      toast.error('Supplier name is required');
+      return;
+    }
+    if (!newSupplier.mobile_no.trim()) {
+      toast.error('Phone number is required');
+      return;
+    }
+    if (!newSupplier.email_id.trim()) {
+      toast.error('Email is required');
+      return;
+    }
+
+    setAddingSupplier(true);
+    try {
+      const payload = {
+        supplier_name: newSupplier.supplier_name.trim(),
+        supplier_type: newSupplier.supplier_type || 'Individual',
+        supplier_group: newSupplier.supplier_group || 'Local',
+        country: newSupplier.country || 'India',
+        mobile_no: newSupplier.mobile_no.trim(),
+        email_id: newSupplier.email_id.trim(),
+        primary_address: newSupplier.primary_address || '',
+      };
+
+      const response = await api.post('/supplier', payload);
+      
+      if (response.data && response.data.success === 1) {
+        toast.success('Supplier created successfully!');
+        await fetchSuppliers();
+        setShowAddSupplierPopup(false);
+        resetNewSupplierForm();
+        // Auto-select the newly created supplier
+        const newSupplierData = response.data.data;
+        if (newSupplierData) {
+          const supplierName = newSupplierData.supplier_name || newSupplier.supplier_name.trim();
+          setFormData(prev => ({ 
+            ...prev, 
+            supplier: supplierName,
+            supplierCode: newSupplierData.id?.toString() || ''
+          }));
+          setSupplierSearchTerm(supplierName);
+        }
+      } else {
+        toast.error(response.data?.message || 'Failed to create supplier');
+      }
+    } catch (err: any) {
+      console.error('Error creating supplier:', err);
+      toast.error(err.response?.data?.message || 'Failed to create supplier');
+    } finally {
+      setAddingSupplier(false);
+    }
+  };
+
+  const resetNewSupplierForm = () => {
+    setNewSupplier({
+      supplier_name: '',
+      supplier_type: 'Individual',
+      supplier_group: '',
+      country: 'India',
+      mobile_no: '',
+      email_id: '',
+      primary_address: '',
+    });
+  };
+
+  // ─── Handle Add New Item ──────────────────────────────────
+  const handleAddNewItem = async () => {
+    if (!newItem.item_name.trim()) {
+      toast.error('Item name is required');
+      return;
+    }
+    if (!newItem.item_group.trim()) {
+      toast.error('Item group is required');
+      return;
+    }
+    if (!newItem.stock_uom.trim()) {
+      toast.error('UOM is required');
+      return;
+    }
+    // Validate quantity
+    const qtyNum = parseFloat(newItem.quantity) || 0;
+    if (qtyNum <= 0) {
+      toast.error('Quantity must be greater than 0');
+      return;
+    }
+
+    setAddingItem(true);
+    try {
+      const payload = {
+        naming_series: "STO-ITEM-.YYYY.-",
+        item_code: newItem.item_code.trim() || newItem.item_name.trim().toUpperCase().replace(/\s+/g, "-"),
+        item_name: newItem.item_name.trim(),
+        item_group: newItem.item_group.trim(),
+        stock_uom: newItem.stock_uom.trim() || 'NOS',
+        disabled: 0,
+        tax_id: parseInt(newItem.tax_id) || 1,
+        is_stock_item: 1,
+        is_fixed_asset: 0,
+        auto_create_assets: 0,
+        is_grouped_asset: 0,
+        asset_category: null,
+        asset_naming_series: null,
+        is_sales_item: 1,
+        allow_alternative_item: 0,
+        has_variants: 0,
+        is_purchase_item: 1,
+        is_customer_provided_item: 0,
+        standard_rate: parseFloat(newItem.standard_rate) || 0,
+        selling_price: parseFloat(newItem.valuation_rate) || parseFloat(newItem.standard_rate) || 0,
+        opening_stock: 0,
+        over_delivery_receipt_allowance: 0,
+        over_billing_allowance: 0,
+        brand: null,
+        description: newItem.description || newItem.item_name,
+        no_of_months: 0,
+        purchase_tax_withholding_category: null,
+        sales_tax_withholding_category: null,
+        valuation_method: "FIFO",
+        valuation_rate: parseFloat(newItem.valuation_rate) || parseFloat(newItem.standard_rate) || 0,
+        end_of_life: "2099-12-31",
+        default_material_request_type: "Purchase",
+        warranty_period: null,
+        weight_per_unit: 0,
+        weight_uom: null,
+        allow_negative_stock: 0,
+        has_batch_no: 0,
+        create_new_batch: 0,
+        batch_number_series: null,
+        has_expiry_date: 0,
+        shelf_life_in_days: 0,
+        retain_sample: 0,
+        sample_quantity: 0,
+        has_serial_no: 0,
+        serial_no_series: null,
+        variant_of: null,
+        variant_based_on: "Item Attribute",
+        purchase_uom: null,
+        min_order_qty: 0,
+        safety_stock: 0,
+        lead_time_days: 0,
+        last_purchase_rate: parseFloat(newItem.standard_rate) || 0,
+        delivered_by_supplier: 0,
+        country_of_origin: "India",
+        customs_tariff_number: null,
+        sales_uom: null,
+        grant_commission: 1,
+        max_discount: 0,
+        include_item_in_manufacturing: 1,
+        is_sub_contracted_item: 0,
+        default_bom: null,
+        production_capacity: 0,
+        total_projected_qty: 0,
+        default_manufacturer_part_no: null,
+        default_item_manufacturer: null,
+        customer_code: null,
+        inspection_required_before_purchase: 0,
+        inspection_required_before_delivery: 0,
+        quality_inspection_template: null,
+        HSN: null,
+      };
+
+      const response = await api.post('/item', payload);
+
+      if (response.data && response.data.success === 1) {
+        toast.success(`Item "${newItem.item_name}" created successfully!`);
+        setShowAddItemPopup(false);
+        
+        // Refresh items list
+        await fetchAllItems();
+        await fetchItemCodeOptions();
+        
+        // Find the newly created item in the updated list and select it
+        const newItemId = response.data.data?.insertId || response.data.data?.id;
+        if (newItemId && activeRowIndex !== null) {
+          const updatedItemsResponse = await api.get('/item?type=raw');
+          if (updatedItemsResponse.data && updatedItemsResponse.data.success === 1) {
+            const items = updatedItemsResponse.data.data || [];
+            const newItemData = items.find((i: any) => i.id === newItemId || i.item_code === newItem.item_code);
+            if (newItemData) {
+              const mappedItem: ItemSuggestion = {
+                id: newItemData.id,
+                item_code: newItemData.item_code,
+                item_name: newItemData.item_name,
+                stock_uom: newItemData.stock_uom || 'NOS',
+                standard_rate: newItemData.standard_rate || 0,
+                valuation_rate: newItemData.valuation_rate || newItemData.standard_rate || 0,
+                description: newItemData.description,
+                brand: newItemData.brand,
+                item_group: newItemData.item_group || 'Uncategorized',
+                tax_id: newItemData.tax_id,
+                hsn: newItemData.HSN || '',
+              };
+              setAllItems(prev => {
+                const exists = prev.some(i => i.id === mappedItem.id);
+                if (!exists) {
+                  return [...prev, mappedItem];
+                }
+                return prev;
+              });
+              // Update filtered items for this row
+              let filtered = [...allItems, mappedItem];
+              if (itemGroupFilter !== 'all') {
+                filtered = filtered.filter(item => item.item_group === itemGroupFilter);
+              }
+              setFilteredItems(prev => ({ 
+                ...prev, 
+                [activeRowIndex]: filtered 
+              }));
+              // Select the newly created item with the specified quantity
+              // First update the selected item data
+              const updatedItems = [...formData.items];
+              const qtyNum = parseFloat(newItem.quantity) || 1;
+              const rate = mappedItem.standard_rate || mappedItem.valuation_rate || 0;
+              
+              let rowTaxId = formData.taxId;
+              let rowTaxRate = formData.taxRate;
+              if (mappedItem.tax_id) {
+                const matchedTax = taxOptions.find(t => t.tax_id === mappedItem.tax_id);
+                if (matchedTax) {
+                  rowTaxId = String(matchedTax.tax_id);
+                  rowTaxRate = extractTaxInfo(matchedTax.tax_type).rate;
+                }
+              }
+
+              updatedItems[activeRowIndex] = {
+                ...updatedItems[activeRowIndex],
+                itemId: mappedItem.id,
+                itemCode: mappedItem.item_code,
+                itemName: mappedItem.item_name,
+                uom: mappedItem.stock_uom || 'NOS',
+                rate: rate,
+                orderRate: rate,
+                quantity: qtyNum,
+                amount: rate * qtyNum,
+                balanceQty: qtyNum - updatedItems[activeRowIndex].receivedQty,
+                itemGroup: mappedItem.item_group || '',
+                brand: mappedItem.brand || '',
+                description: mappedItem.description || '',
+                taxId: rowTaxId,
+                taxRate: rowTaxRate,
+                hsn: mappedItem.hsn || '',
+              };
+              setFormData(prev => ({ ...prev, items: updatedItems }));
+              
+              // Update digit values
+              setDigitValues(prev => ({
+                ...prev,
+                [activeRowIndex]: {
+                  quantity: String(qtyNum),
+                  rate: String(rate)
+                }
+              }));
+              
+              // Update search term
+              setSearchTerms(prev => ({ ...prev, [activeRowIndex]: mappedItem.item_code }));
+              setShowSuggestions(prev => ({ ...prev, [activeRowIndex]: false }));
+            }
+          }
+        }
+        resetNewItemForm();
+        setPendingItemSearch('');
+        setActiveRowIndex(null);
+      } else {
+        toast.error(response.data?.message || 'Failed to create item');
+      }
+    } catch (err: any) {
+      console.error('Error creating item:', err);
+      if (err.response?.status === 409) {
+        toast.error('An item with this code already exists');
+      } else {
+        toast.error(err.response?.data?.message || 'Failed to create item');
+      }
+    } finally {
+      setAddingItem(false);
+    }
+  };
+
+  const resetNewItemForm = () => {
+    setNewItem({
+      item_name: '',
+      item_code: '',
+      item_group: '',
+      stock_uom: 'NOS',
+      standard_rate: '',
+      valuation_rate: '',
+      description: '',
+      tax_id: '',
+      quantity: '1',
+    });
+  };
+
+  // ─── Fetch Item Code Options ─────────────────────────────
+  const fetchItemCodeOptions = async () => {
+    setLoadingItemCode(true);
+    try {
+      const response = await api.get('/item?page=1&limit=10');
+      if (response.data && response.data.success === 1) {
+        const items = response.data.data?.records || response.data.data || [];
+        setItemCodeOptions(items);
+      }
+    } catch (err) {
+      console.error('Error fetching item codes:', err);
+    } finally {
+      setLoadingItemCode(false);
+    }
+  };
+
+  // ─── Handle Item Code Select ─────────────────────────────
+  const handleItemCodeSelect = (item: Item) => {
+    setSelectedItemCode(item);
+    setItemCodeSearchTerm(`${item.item_code} - ${item.item_name}`);
+    setShowItemCodeDropdown(false);
+    
+    // Pre-fill item details
+    setFormData(prev => ({
+      ...prev,
+      items: prev.items.map((row, idx) => {
+        if (idx === 0) {
+          return {
+            ...row,
+            itemId: item.id,
+            itemCode: item.item_code,
+            itemName: item.item_name,
+            uom: item.stock_uom || 'NOS',
+            rate: item.standard_rate || 0,
+            orderRate: item.standard_rate || 0,
+            hsn: item.hsn || '',
+            taxId: item.tax_id ? String(item.tax_id) : prev.taxId,
+          };
+        }
+        return row;
+      })
+    }));
+  };
+
+  // ─── Filtered Item Code Options ──────────────────────────
+  const filteredItemCodeOptions = itemCodeOptions.filter(item =>
+    item.item_code.toLowerCase().includes(itemCodeSearchTerm.toLowerCase()) ||
+    item.item_name.toLowerCase().includes(itemCodeSearchTerm.toLowerCase())
+  );
 
   // ─── Fetch Customers ─────────────────────────────────────────────────
   const fetchCustomers = async () => {
@@ -672,7 +1077,7 @@ export default function PurchaseOrderForm() {
     }
     
     setFilteredItems(prev => ({ ...prev, [index]: filtered }));
-    setShowSuggestions(prev => ({ ...prev, [index]: filtered.length > 0 }));
+    setShowSuggestions(prev => ({ ...prev, [index]: filtered.length > 0 || searchTerm.trim().length > 0 }));
     
     if (inputRefs.current[index]) {
       updateDropdownPosition(index);
@@ -893,6 +1298,14 @@ export default function PurchaseOrderForm() {
       ) {
         setShowCustomerDropdown(false);
       }
+      if (
+        itemCodeDropdownRef.current &&
+        !itemCodeDropdownRef.current.contains(event.target as Node) &&
+        itemCodeInputRef.current &&
+        !itemCodeInputRef.current.contains(event.target as Node)
+      ) {
+        setShowItemCodeDropdown(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -926,7 +1339,8 @@ export default function PurchaseOrderForm() {
           fetchSuppliers(),
           fetchAllItems(),
           fetchTaxOptions(),
-          fetchCustomers()
+          fetchCustomers(),
+          fetchItemCodeOptions()
         ]);
         setMasterDataLoaded(true);
       } catch (err) {
@@ -1165,7 +1579,7 @@ export default function PurchaseOrderForm() {
     }
     // ✅ FIXED: Delivery Date validation - ONLY check for field error, don't show in popup
     // We check it but don't add to errors array - only visual red border will show
-
+    const hasDeliveryDateError = !formData.deliveryDate;
     // Don't push to errors array - only use for visual validation
     
     if (formData.items.some(item => !item.itemCode.trim() || !item.itemName.trim() || item.quantity <= 0 || (item.orderRate || item.rate) <= 0)) {
@@ -1414,10 +1828,1064 @@ export default function PurchaseOrderForm() {
 
   const hasErrors = getAllValidationErrors().length > 0 || !formData.deliveryDate;
 
-  // ─── Render suggestions using portal ──────────────────────────────
-  const renderSuggestions = (index: number) => {
+  // ─── Render Add Supplier Popup ─────────────────────────────
+  const renderAddSupplierPopup = () => {
+    if (!showAddSupplierPopup) return null;
+
+    const primaryColor = '#6366f1';
+
+    return createPortal(
+      <div 
+        className="pof-modal-overlay" 
+        onClick={() => setShowAddSupplierPopup(false)}
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000,
+        }}
+      >
+        <div 
+          className="pof-add-supplier-popup" 
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            background: theme === 'dark' ? '#1e1e2f' : '#ffffff',
+            borderRadius: '12px',
+            maxWidth: '700px',
+            width: '95%',
+            maxHeight: '90vh',
+            overflow: 'hidden',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+          }}
+        >
+          <div 
+            className="pof-modal-header" 
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '16px 20px',
+              borderBottom: `2px solid ${primaryColor}`,
+              flexShrink: 0,
+            }}
+          >
+            <h2 style={{ 
+              margin: 0, 
+              fontSize: '18px', 
+              fontWeight: 600,
+              color: primaryColor,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <FaPlus style={{ color: primaryColor }} /> Add New Supplier
+            </h2>
+            <button 
+              className="pof-modal-close" 
+              onClick={() => setShowAddSupplierPopup(false)}
+              style={{
+                background: 'none',
+                border: 'none',
+                fontSize: '24px',
+                cursor: 'pointer',
+                color: theme === 'dark' ? '#9ca3af' : '#6b7280',
+              }}
+            >
+              ×
+            </button>
+          </div>
+          <div className="pof-modal-body" style={{ 
+            padding: '24px 20px',
+            overflow: 'visible',
+            maxHeight: 'calc(90vh - 140px)',
+          }}>
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: '1fr 1fr',
+              gap: '16px 20px',
+            }}>
+              <div className="pof-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: theme === 'dark' ? '#e5e7eb' : '#374151'
+                }}>
+                  Supplier Name <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newSupplier.supplier_name}
+                  onChange={(e) => setNewSupplier(prev => ({ ...prev, supplier_name: e.target.value }))}
+                  placeholder="Enter supplier name"
+                  className="pof-form-field"
+                  autoFocus
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: theme === 'dark' ? '#2a2a3a' : '#ffffff',
+                    color: theme === 'dark' ? '#e5e7eb' : '#111827',
+                  }}
+                />
+              </div>
+              <div className="pof-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: theme === 'dark' ? '#e5e7eb' : '#374151'
+                }}>
+                  Supplier Type
+                </label>
+                <select
+                  value={newSupplier.supplier_type}
+                  onChange={(e) => setNewSupplier(prev => ({ ...prev, supplier_type: e.target.value }))}
+                  className="pof-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: theme === 'dark' ? '#2a2a3a' : '#ffffff',
+                    color: theme === 'dark' ? '#e5e7eb' : '#111827',
+                  }}
+                >
+                  <option value="">Select type</option>
+                  <option value="Individual">Individual</option>
+                  <option value="Company">Company</option>
+                  <option value="Partnership">Partnership</option>
+                  <option value="LLP">LLP</option>
+                  <option value="Trust">Trust</option>
+                </select>
+              </div>
+              <div className="pof-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: theme === 'dark' ? '#e5e7eb' : '#374151'
+                }}>
+                  Supplier Group
+                </label>
+                <input
+                  type="text"
+                  value={newSupplier.supplier_group}
+                  onChange={(e) => setNewSupplier(prev => ({ ...prev, supplier_group: e.target.value }))}
+                  placeholder="e.g. Local, International"
+                  className="pof-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: theme === 'dark' ? '#2a2a3a' : '#ffffff',
+                    color: theme === 'dark' ? '#e5e7eb' : '#111827',
+                  }}
+                />
+              </div>
+              <div className="pof-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                }}>
+                  Country
+                </label>
+                <select
+                  value={newSupplier.country}
+                  onChange={(e) => setNewSupplier(prev => ({ ...prev, country: e.target.value }))}
+                  className="pof-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: theme === 'dark' ? '#2a2a3a' : '#ffffff',
+                    color: theme === 'dark' ? '#e5e7eb' : '#111827',
+                  }}
+                >
+                  <option value="India">India</option>
+                  <option value="UK">UK</option>
+                  <option value="USA">USA</option>
+                  <option value="Australia">Australia</option>
+                  <option value="Canada">Canada</option>
+                  <option value="Germany">Germany</option>
+                  <option value="France">France</option>
+                  <option value="Japan">Japan</option>
+                  <option value="China">China</option>
+                  <option value="UAE">UAE</option>
+                  <option value="Singapore">Singapore</option>
+                </select>
+              </div>
+              <div className="pof-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: theme === 'dark' ? '#e5e7eb' : '#374151'
+                }}>
+                  Email <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="email"
+                  value={newSupplier.email_id}
+                  onChange={(e) => setNewSupplier(prev => ({ ...prev, email_id: e.target.value }))}
+                  placeholder="Enter email address"
+                  className="pof-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: theme === 'dark' ? '#2a2a3a' : '#ffffff',
+                    color: theme === 'dark' ? '#e5e7eb' : '#111827',
+                  }}
+                />
+              </div>
+              <div className="pof-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: theme === 'dark' ? '#e5e7eb' : '#374151'
+                }}>
+                  Phone <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="tel"
+                  value={newSupplier.mobile_no}
+                  onChange={(e) => setNewSupplier(prev => ({ ...prev, mobile_no: e.target.value }))}
+                  placeholder="Enter phone number"
+                  className="pof-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: theme === 'dark' ? '#2a2a3a' : '#ffffff',
+                    color: theme === 'dark' ? '#e5e7eb' : '#111827',
+                  }}
+                />
+              </div>
+              <div className="pof-popup-field" style={{ marginBottom: '0', gridColumn: '1 / -1' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: theme === 'dark' ? '#e5e7eb' : '#374151'
+                }}>
+                  Address
+                </label>
+                <textarea
+                  value={newSupplier.primary_address}
+                  onChange={(e) => setNewSupplier(prev => ({ ...prev, primary_address: e.target.value }))}
+                  placeholder="Enter address"
+                  className="pof-form-field pof-textarea"
+                  rows={2}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: theme === 'dark' ? '#2a2a3a' : '#ffffff',
+                    color: theme === 'dark' ? '#e5e7eb' : '#111827',
+                    resize: 'vertical',
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+          <div 
+            className="pof-modal-footer" 
+            style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '10px',
+              padding: '16px 20px',
+              borderTop: `1px solid ${theme === 'dark' ? '#2a2a3a' : '#f3f4f6'}`,
+              flexShrink: 0,
+            }}
+          >
+            <button 
+              className="pof-btn-cancel" 
+              onClick={() => setShowAddSupplierPopup(false)}
+              disabled={addingSupplier}
+              style={{
+                padding: '8px 20px',
+                borderRadius: '6px',
+                border: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                background: 'transparent',
+                color: theme === 'dark' ? '#9ca3af' : '#6b7280',
+                cursor: 'pointer',
+                fontSize: '14px',
+                transition: 'background 0.15s',
+              }}
+            >
+              Cancel
+            </button>
+            <button 
+              className="pof-btn-submit" 
+              onClick={handleAddNewSupplier}
+              disabled={addingSupplier}
+              style={{
+                padding: '8px 20px',
+                borderRadius: '6px',
+                border: 'none',
+                background: primaryColor,
+                color: '#ffffff',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: 500,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'background 0.15s',
+              }}
+            >
+              {addingSupplier && <FaSpinner className="pof-spinning" />}
+              <FaPlus size={12} />
+              Create Supplier
+            </button>
+          </div>
+        </div>
+      </div>,
+      document.body
+    );
+  };
+
+  // ─── Render Add Item Popup (HSN removed) ────────────────────────
+  const renderAddItemPopup = () => {
+    if (!showAddItemPopup) return null;
+
+    const primaryColor = '#6366f1';
+
+    return createPortal(
+      <div 
+        className="pof-modal-overlay" 
+        onClick={() => setShowAddItemPopup(false)}
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000,
+        }}
+      >
+        <div 
+          className="pof-add-item-popup" 
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            background: theme === 'dark' ? '#1e1e2f' : '#ffffff',
+            borderRadius: '12px',
+            maxWidth: '800px',
+            width: '95%',
+            maxHeight: '90vh',
+            overflow: 'hidden',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+          }}
+        >
+          <div 
+            className="pof-modal-header" 
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '16px 20px',
+              borderBottom: `2px solid ${primaryColor}`,
+              flexShrink: 0,
+            }}
+          >
+            <h2 style={{ 
+              margin: 0, 
+              fontSize: '18px', 
+              fontWeight: 600,
+              color: primaryColor,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <FaPlus style={{ color: primaryColor }} /> Add New Item
+            </h2>
+            <button 
+              className="pof-modal-close" 
+              onClick={() => setShowAddItemPopup(false)}
+              style={{
+                background: 'none',
+                border: 'none',
+                fontSize: '24px',
+                cursor: 'pointer',
+                color: theme === 'dark' ? '#9ca3af' : '#6b7280',
+              }}
+            >
+              ×
+            </button>
+          </div>
+          <div className="pof-modal-body" style={{ 
+            padding: '24px 20px',
+            overflow: 'visible',
+            maxHeight: 'calc(90vh - 140px)',
+          }}>
+            <p className="pof-modal-subtitle" style={{ color: '#6b7280', fontSize: '13px', marginBottom: '16px' }}>
+              Fill in the item details below. Fields marked with <span style={{ color: '#ef4444' }}>*</span> are required.
+            </p>
+
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: '1fr 1fr',
+              gap: '16px 20px',
+            }}>
+              {/* Item Name - Required */}
+              <div className="pof-popup-field" style={{ marginBottom: '0', gridColumn: '1 / -1' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: theme === 'dark' ? '#e5e7eb' : '#374151'
+                }}>
+                  Item Name <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newItem.item_name}
+                  onChange={(e) => setNewItem(prev => ({ ...prev, item_name: e.target.value }))}
+                  placeholder="e.g. Cotton Yarn 40s"
+                  className="pof-form-field"
+                  autoFocus
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: theme === 'dark' ? '#2a2a3a' : '#ffffff',
+                    color: theme === 'dark' ? '#e5e7eb' : '#111827',
+                  }}
+                />
+                <span style={{ fontSize: '11px', color: '#6b7280' }}>Alphabets, digits, and spaces are allowed</span>
+              </div>
+
+              {/* Item Code - Optional */}
+              <div className="pof-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: theme === 'dark' ? '#e5e7eb' : '#374151'
+                }}>
+                  Item Code
+                </label>
+                <input
+                  type="text"
+                  value={newItem.item_code}
+                  onChange={(e) => setNewItem(prev => ({ ...prev, item_code: e.target.value.toUpperCase().replace(/[^a-zA-Z0-9\-]/g, "") }))}
+                  placeholder="Auto-generated if left empty"
+                  className="pof-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: theme === 'dark' ? '#2a2a3a' : '#ffffff',
+                    color: theme === 'dark' ? '#e5e7eb' : '#111827',
+                  }}
+                />
+                <span style={{ fontSize: '11px', color: '#6b7280' }}>Alphabets, digits, and hyphens are allowed. Auto-generated from name if empty.</span>
+              </div>
+
+              {/* Item Group - Required */}
+              <div className="pof-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: theme === 'dark' ? '#e5e7eb' : '#374151'
+                }}>
+                  Item Group <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newItem.item_group}
+                  onChange={(e) => setNewItem(prev => ({ ...prev, item_group: e.target.value }))}
+                  placeholder="e.g. Raw Material, Finished Goods"
+                  className="pof-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: theme === 'dark' ? '#2a2a3a' : '#ffffff',
+                    color: theme === 'dark' ? '#e5e7eb' : '#111827',
+                  }}
+                />
+                <span style={{ fontSize: '11px', color: '#6b7280' }}>Only alphabets and spaces are allowed</span>
+              </div>
+
+              {/* Default UOM - Required */}
+              <div className="pof-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: theme === 'dark' ? '#e5e7eb' : '#374151'
+                }}>
+                  Default UOM <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newItem.stock_uom}
+                  onChange={(e) => setNewItem(prev => ({ ...prev, stock_uom: e.target.value }))}
+                  placeholder="e.g. NOS, Kg, Meter"
+                  className="pof-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: theme === 'dark' ? '#2a2a3a' : '#ffffff',
+                    color: theme === 'dark' ? '#e5e7eb' : '#111827',
+                  }}
+                />
+                <span style={{ fontSize: '11px', color: '#6b7280' }}>Alphabets, digits, and spaces are allowed</span>
+              </div>
+
+              {/* Tax - Optional */}
+              <div className="pof-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: theme === 'dark' ? '#e5e7eb' : '#374151'
+                }}>
+                  Tax
+                </label>
+                <select
+                  value={newItem.tax_id}
+                  onChange={(e) => setNewItem(prev => ({ ...prev, tax_id: e.target.value }))}
+                  className="pof-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: theme === 'dark' ? '#2a2a3a' : '#ffffff',
+                    color: theme === 'dark' ? '#e5e7eb' : '#111827',
+                  }}
+                >
+                  <option value="">Default Tax</option>
+                  {taxOptions.map(tax => {
+                    const { rate, category } = extractTaxInfo(tax.tax_type);
+                    return (
+                      <option key={tax.tax_id} value={String(tax.tax_id)}>
+                        {category} {rate}%
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              {/* Quantity - NEW FIELD */}
+              <div className="pof-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: theme === 'dark' ? '#e5e7eb' : '#374151'
+                }}>
+                  Quantity <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  pattern="[0-9]*[.]?[0-9]*"
+                  value={newItem.quantity}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/[^0-9.]/g, "");
+                    setNewItem(prev => ({ ...prev, quantity: val }));
+                  }}
+                  placeholder="1"
+                  className="pof-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: theme === 'dark' ? '#2a2a3a' : '#ffffff',
+                    color: theme === 'dark' ? '#e5e7eb' : '#111827',
+                  }}
+                />
+                <span style={{ fontSize: '11px', color: '#6b7280' }}>Quantity for this purchase order line item</span>
+              </div>
+
+              {/* Pricing - Two columns */}
+              <div className="pof-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: theme === 'dark' ? '#e5e7eb' : '#374151'
+                }}>
+                  Purchase Rate (base price)
+                </label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  pattern="[0-9]*[.]?[0-9]*"
+                  value={newItem.standard_rate}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/[^0-9.]/g, "");
+                    setNewItem(prev => ({ ...prev, standard_rate: val }));
+                  }}
+                  placeholder="0.00"
+                  className="pof-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: theme === 'dark' ? '#2a2a3a' : '#ffffff',
+                    color: theme === 'dark' ? '#e5e7eb' : '#111827',
+                  }}
+                />
+                <span style={{ fontSize: '11px', color: '#6b7280' }}>The cost at which you purchase this item.</span>
+              </div>
+
+              <div className="pof-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: theme === 'dark' ? '#e5e7eb' : '#374151'
+                }}>
+                  Valuation Rate
+                </label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  pattern="[0-9]*[.]?[0-9]*"
+                  value={newItem.valuation_rate}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/[^0-9.]/g, "");
+                    setNewItem(prev => ({ ...prev, valuation_rate: val }));
+                  }}
+                  placeholder="0.00"
+                  className="pof-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: theme === 'dark' ? '#2a2a3a' : '#ffffff',
+                    color: theme === 'dark' ? '#e5e7eb' : '#111827',
+                  }}
+                />
+                <span style={{ fontSize: '11px', color: '#6b7280' }}>The rate at which this item is valued. Used as Price Before Tax.</span>
+              </div>
+
+              {/* Description - Optional */}
+              <div className="pof-popup-field" style={{ marginBottom: '0', gridColumn: '1 / -1' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: theme === 'dark' ? '#e5e7eb' : '#374151'
+                }}>
+                  Description
+                </label>
+                <input
+                  type="text"
+                  value={newItem.description}
+                  onChange={(e) => setNewItem(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Item description"
+                  className="pof-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: theme === 'dark' ? '#2a2a3a' : '#ffffff',
+                    color: theme === 'dark' ? '#e5e7eb' : '#111827',
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+          <div 
+            className="pof-modal-footer" 
+            style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '10px',
+              padding: '16px 20px',
+              borderTop: `1px solid ${theme === 'dark' ? '#2a2a3a' : '#f3f4f6'}`,
+              flexShrink: 0,
+            }}
+          >
+            <button 
+              className="pof-btn-cancel" 
+              onClick={() => setShowAddItemPopup(false)}
+              disabled={addingItem}
+              style={{
+                padding: '8px 20px',
+                borderRadius: '6px',
+                border: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                background: 'transparent',
+                color: theme === 'dark' ? '#9ca3af' : '#6b7280',
+                cursor: 'pointer',
+                fontSize: '14px',
+                transition: 'background 0.15s',
+              }}
+            >
+              Clear
+            </button>
+            <button 
+              className="pof-btn-submit" 
+              onClick={handleAddNewItem}
+              disabled={addingItem}
+              style={{
+                padding: '8px 20px',
+                borderRadius: '6px',
+                border: 'none',
+                background: primaryColor,
+                color: '#ffffff',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: 500,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'background 0.15s',
+              }}
+            >
+              {addingItem && <FaSpinner className="pof-spinning" />}
+              <FaPlus size={12} />
+              Add Item
+            </button>
+          </div>
+        </div>
+      </div>,
+      document.body
+    );
+  };
+
+  // ─── Render Supplier Dropdown with PINNED "+ Add New Supplier" ──
+  const renderSupplierDropdown = () => {
+    if (!showSupplierDropdown) return null;
+
+    const primaryColor = '#6366f1';
+
+    return (
+      <div 
+        ref={supplierDropdownRef} 
+        className="pof-supplier-dropdown"
+        style={{
+          position: 'absolute',
+          top: '100%',
+          left: 0,
+          right: 0,
+          maxHeight: '260px',
+          display: 'flex',
+          flexDirection: 'column',
+          background: theme === 'dark' ? '#1e1e2f' : '#ffffff',
+          border: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+          borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          zIndex: 100,
+          marginTop: '4px',
+          overflow: 'hidden',
+        }}
+      >
+        {/* ─── Scrollable supplier list ─── */}
+        <div
+          className="pof-supplier-dropdown-list"
+          style={{
+            overflowY: 'auto',
+            flex: '1 1 auto',
+            minHeight: 0,
+          }}
+        >
+          {filteredSuppliers.length > 0 ? (
+            filteredSuppliers.map((supplier) => (
+              <div
+                key={supplier.id}
+                className="pof-supplier-item"
+                onClick={() => handleSupplierSelect(supplier)}
+                style={{
+                  padding: '8px 12px',
+                  cursor: 'pointer',
+                  borderBottom: `1px solid ${theme === 'dark' ? '#2a2a3a' : '#f3f4f6'}`,
+                  transition: 'background 0.15s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = theme === 'dark' ? '#2a2a3a' : '#f9fafb';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                }}
+              >
+                <div className="pof-supplier-item-name" style={{ fontWeight: 500, fontSize: '13px', color: theme === 'dark' ? '#e5e7eb' : '#111827' }}>
+                  <FaBuilding className="pof-supplier-item-icon" size={12} style={{ marginRight: '6px' }} />
+                  {supplier.supplier_name}
+                </div>
+                <div className="pof-supplier-item-details" style={{ fontSize: '11px', color: theme === 'dark' ? '#6b7280' : '#9ca3af', marginTop: '2px' }}>
+                  {supplier.supplier_type && <span>{supplier.supplier_type}</span>}
+                  {supplier.mobile_no && <span style={{ marginLeft: '8px' }}><FaPhone size={10} /> {supplier.mobile_no}</span>}
+                  {supplier.email_id && <span style={{ marginLeft: '8px' }}><FaEnvelope size={10} /> {supplier.email_id}</span>}
+                </div>
+              </div>
+            ))
+          ) : (
+            <div style={{ padding: '16px 12px', textAlign: 'center', color: theme === 'dark' ? '#9ca3af' : '#6b7280' }}>
+              <FaInfoCircle size={14} style={{ marginBottom: '4px' }} />
+              <div style={{ fontSize: '13px' }}>No suppliers found</div>
+            </div>
+          )}
+        </div>
+
+        {/* ─── PINNED "+ Add New Supplier" footer ─── */}
+        <div 
+          className="pof-supplier-dropdown-footer" 
+          style={{
+            padding: '8px 12px',
+            borderTop: `1px solid ${theme === 'dark' ? '#2a2a3a' : '#f3f4f6'}`,
+            display: 'flex',
+            justifyContent: 'center',
+            background: theme === 'dark' ? '#1a1a2e' : '#fafafa',
+            flexShrink: 0,
+          }}
+        >
+          <button
+            type="button"
+            className="pof-add-new-dropdown-btn"
+            onClick={() => {
+              setShowSupplierDropdown(false);
+              setShowAddSupplierPopup(true);
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: 'transparent',
+              border: `1.5px dashed ${primaryColor}`,
+              borderRadius: '6px',
+              color: primaryColor,
+              cursor: 'pointer',
+              fontSize: '12px',
+              fontWeight: 500,
+              padding: '6px 16px',
+              transition: 'all 0.15s',
+              width: '100%',
+              justifyContent: 'center',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = `${primaryColor}15`;
+              e.currentTarget.style.borderStyle = 'solid';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.borderStyle = 'dashed';
+            }}
+          >
+            <FaPlus size={12} style={{ color: primaryColor }} />
+            Add New Supplier
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  // ─── Render Item Code Dropdown ──────────────────────────────
+  const renderItemCodeDropdown = () => {
+    if (!showItemCodeDropdown) return null;
+
+    const primaryColor = '#6366f1';
+
+    return (
+      <div 
+        ref={itemCodeDropdownRef}
+        className="pof-item-code-dropdown"
+        style={{
+          position: 'absolute',
+          top: '100%',
+          left: 0,
+          right: 0,
+          maxHeight: '260px',
+          display: 'flex',
+          flexDirection: 'column',
+          background: theme === 'dark' ? '#1e1e2f' : '#ffffff',
+          border: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+          borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          zIndex: 100,
+          marginTop: '4px',
+          overflow: 'hidden',
+        }}
+      >
+        {/* ─── Scrollable item list ─── */}
+        <div
+          className="pof-item-code-dropdown-list"
+          style={{
+            overflowY: 'auto',
+            flex: '1 1 auto',
+            minHeight: 0,
+          }}
+        >
+          {loadingItemCode ? (
+            <div style={{ padding: '12px', textAlign: 'center', color: '#6b7280' }}>
+              <FaSpinner className="pof-spinning" size={14} /> Loading items...
+            </div>
+          ) : filteredItemCodeOptions.length > 0 ? (
+            filteredItemCodeOptions.map((item) => (
+              <div
+                key={item.id}
+                className="pof-item-code-item"
+                onClick={() => handleItemCodeSelect(item)}
+                style={{
+                  padding: '8px 12px',
+                  cursor: 'pointer',
+                  borderBottom: `1px solid ${theme === 'dark' ? '#2a2a3a' : '#f3f4f6'}`,
+                  transition: 'background 0.15s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = theme === 'dark' ? '#2a2a3a' : '#f9fafb';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                }}
+              >
+                <div style={{ fontWeight: 500, fontSize: '13px', color: theme === 'dark' ? '#e5e7eb' : '#111827' }}>
+                  {item.item_code}
+                </div>
+                <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                  {item.item_name}
+                </div>
+                <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '2px' }}>
+                  {item.item_group} • {item.stock_uom}
+                </div>
+              </div>
+            ))
+          ) : (
+            <div style={{ padding: '16px 12px', textAlign: 'center', color: theme === 'dark' ? '#9ca3af' : '#6b7280' }}>
+              <FaInfoCircle size={14} style={{ marginBottom: '4px' }} />
+              <div style={{ fontSize: '13px' }}>No items found</div>
+            </div>
+          )}
+        </div>
+
+        {/* ─── PINNED "+ Add New Item" footer ─── */}
+        <div 
+          className="pof-item-code-dropdown-footer" 
+          style={{
+            padding: '8px 12px',
+            borderTop: `1px solid ${theme === 'dark' ? '#2a2a3a' : '#f3f4f6'}`,
+            display: 'flex',
+            justifyContent: 'center',
+            background: theme === 'dark' ? '#1a1a2e' : '#fafafa',
+            flexShrink: 0,
+          }}
+        >
+          <button
+            type="button"
+            className="pof-add-new-dropdown-btn"
+            onClick={() => {
+              setShowItemCodeDropdown(false);
+              setPendingItemSearch(itemCodeSearchTerm);
+              setActiveRowIndex(0);
+              setNewItem(prev => ({ ...prev, item_name: itemCodeSearchTerm }));
+              setShowAddItemPopup(true);
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: 'transparent',
+              border: `1.5px dashed ${primaryColor}`,
+              borderRadius: '6px',
+              color: primaryColor,
+              cursor: 'pointer',
+              fontSize: '12px',
+              fontWeight: 500,
+              padding: '6px 16px',
+              transition: 'all 0.15s',
+              width: '100%',
+              justifyContent: 'center',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = `${primaryColor}15`;
+              e.currentTarget.style.borderStyle = 'solid';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.borderStyle = 'dashed';
+            }}
+          >
+            <FaPlus size={12} style={{ color: primaryColor }} />
+            Add New Item
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  // ─── Render item search suggestions with "+ Add New Item" ──────────────
+  const renderItemSearchSuggestions = (index: number) => {
     const items = filteredItems[index] || [];
-    if (!showSuggestions[index] || items.length === 0) return null;
+    const searchTerm = searchTerms[index] || '';
+    const trimmedSearch = searchTerm.trim();
+    
+    // Check if search term matches any item exactly
+    const isExactMatch = items.some(item => 
+      item.item_code.toLowerCase() === trimmedSearch.toLowerCase() ||
+      item.item_name.toLowerCase() === trimmedSearch.toLowerCase()
+    );
+    
+    // Show dropdown if there are items OR there's a search term (for "Add New" button)
+    const showDropdown = showSuggestions[index] || trimmedSearch.length > 0;
+    
+    if (!showDropdown) return null;
 
     const position = dropdownPositions[index];
     if (!position) return null;
@@ -1431,50 +2899,128 @@ export default function PurchaseOrderForm() {
           top: position.top,
           left: position.left,
           width: position.width,
-          maxHeight: '250px',
-          overflowY: 'auto',
+          maxHeight: '280px',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
           zIndex: 9999,
+          background: theme === 'dark' ? '#1e1e2f' : '#ffffff',
+          borderRadius: '8px',
+          boxShadow: '0 10px 40px rgba(0,0,0,0.2)',
+          border: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#e5e7eb'}`,
         }}
       >
-        {items.map((suggestion) => (
-          <div
-            key={suggestion.id}
-            className="pof-suggestion-item"
-            onClick={() => handleSelectItem(index, suggestion)}
+        {/* Scrollable items list */}
+        <div style={{ 
+          overflowY: 'auto', 
+          flex: '1 1 auto',
+          maxHeight: '200px',
+        }}>
+          {loadingItems ? (
+            <div className="pof-suggestions-loading" style={{ padding: '12px', textAlign: 'center', color: '#6b7280' }}>
+              <FaSpinner className="pof-spinning" size={14} /> Loading items...
+            </div>
+          ) : items.length === 0 ? (
+            <div style={{ padding: '12px', textAlign: 'center', color: '#6b7280', fontSize: '13px' }}>
+              No items found
+            </div>
+          ) : (
+            items.map((suggestion) => (
+              <div
+                key={suggestion.id}
+                className="pof-suggestion-item"
+                onClick={() => handleSelectItem(index, suggestion)}
+                style={{
+                  padding: '8px 12px',
+                  cursor: 'pointer',
+                  borderBottom: `1px solid ${theme === 'dark' ? '#2a2a3a' : '#f3f4f6'}`,
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  transition: 'background 0.15s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = theme === 'dark' ? '#2a2a3a' : '#f3f4f6';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                }}
+              >
+                <div>
+                  <div className="pof-suggestion-code" style={{ fontWeight: 500, fontSize: '13px', color: theme === 'dark' ? '#e5e7eb' : '#111827' }}>
+                    {suggestion.item_code}
+                  </div>
+                  <div className="pof-suggestion-name" style={{ fontSize: '12px', color: '#6b7280' }}>
+                    {suggestion.item_name}
+                  </div>
+                  {suggestion.hsn && (
+                    <div className="pof-suggestion-hsn" style={{ fontSize: '10px', color: '#9ca3af' }}>HSN: {suggestion.hsn}</div>
+                  )}
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div className="pof-suggestion-rate" style={{ fontSize: '13px', fontWeight: 500, color: '#6366f1' }}>
+                    {formData.currency} {(suggestion.standard_rate || suggestion.valuation_rate || 0).toFixed(2)}
+                  </div>
+                  <div className="pof-suggestion-uom" style={{ fontSize: '10px', color: '#9ca3af' }}>
+                    UOM: {suggestion.stock_uom || 'NOS'}
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* ─── Sticky "Add New" button at the bottom ─── */}
+        {!loadingItems && (
+          <div 
+            className="pof-suggestion-item pof-add-new-suggestion"
+            onClick={() => {
+              const searchVal = trimmedSearch || 'New Item';
+              setPendingItemSearch(searchVal);
+              setActiveRowIndex(index);
+              setNewItem(prev => ({ ...prev, item_name: searchVal }));
+              setShowAddItemPopup(true);
+              setShowSuggestions(prev => ({ ...prev, [index]: false }));
+            }}
+            style={{
+              flexShrink: 0,
+              borderTop: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#e5e7eb'}`,
+              background: theme === 'dark' ? '#1e1e2f' : '#f8fafc',
+              cursor: 'pointer',
+              padding: '10px 12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              color: '#6366f1',
+              fontWeight: 500,
+              fontSize: '13px',
+              transition: 'background 0.15s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = theme === 'dark' ? '#2a2a3a' : '#eef2ff';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = theme === 'dark' ? '#1e1e2f' : '#f8fafc';
+            }}
           >
-            <div>
-              <div className="pof-suggestion-code">
-                {suggestion.item_code}
-              </div>
-              <div className="pof-suggestion-name">
-                {suggestion.item_name}
-              </div>
-              {suggestion.hsn && (
-                <div className="pof-suggestion-hsn">HSN: {suggestion.hsn}</div>
-              )}
-              <div style={{ display: 'flex', gap: '6px', marginTop: '2px' }}>
-                {suggestion.item_group && (
-                  <span className="pof-suggestion-chip">
-                    {suggestion.item_group}
-                  </span>
-                )}
-                {suggestion.brand && (
-                  <span className="pof-suggestion-chip pof-suggestion-chip-brand">
-                    {suggestion.brand}
-                  </span>
-                )}
-              </div>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <div className="pof-suggestion-rate">
-                {formData.currency} {(suggestion.standard_rate || suggestion.valuation_rate || 0).toFixed(2)}
-              </div>
-              <div className="pof-suggestion-uom">
-                UOM: {suggestion.stock_uom || 'NOS'}
-              </div>
-            </div>
+            <span
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '22px',
+                height: '22px',
+                borderRadius: '50%',
+                background: '#6366f1',
+                color: '#fff',
+                flexShrink: 0,
+              }}
+            >
+              <FaPlus size={10} />
+            </span>
+            {trimmedSearch ? `Add "${trimmedSearch}" as New Item` : 'Add New Item'}
           </div>
-        ))}
+        )}
       </div>
     );
 
@@ -1537,6 +3083,12 @@ export default function PurchaseOrderForm() {
           </div>
         )}
 
+        {/* ─── Add Supplier Popup ──────────────────────────────────── */}
+        {renderAddSupplierPopup()}
+
+        {/* ─── Add Item Popup ──────────────────────────────────────── */}
+        {renderAddItemPopup()}
+
         {/* ─── API Error Display ────────────────────────────────────── */}
         {apiError && (
           <div className="pof-api-error">
@@ -1585,7 +3137,7 @@ export default function PurchaseOrderForm() {
                     <div className="pof-info-row">
                       <div className="pof-info-field">
                         <label>Supplier <span className="pof-required">*</span></label>
-                        <div className="pof-supplier-wrapper">
+                        <div className="pof-supplier-wrapper" style={{ position: 'relative' }}>
                           <input
                             ref={supplierInputRef}
                             type="text"
@@ -1602,30 +3154,13 @@ export default function PurchaseOrderForm() {
                             autoComplete="off"
                           />
                           {loadingSuppliers && <FaSpinner className="pof-supplier-spinner pof-spinning" size={14} />}
-                          {showSupplierDropdown && filteredSuppliers.length > 0 && (
-                            <div ref={supplierDropdownRef} className="pof-supplier-dropdown">
-                              {filteredSuppliers.map((supplier) => (
-                                <div
-                                  key={supplier.id}
-                                  className="pof-supplier-item"
-                                  onClick={() => handleSupplierSelect(supplier)}
-                                >
-                                  <div className="pof-supplier-item-name">
-                                    <FaBuilding className="pof-supplier-item-icon" size={12} />
-                                    {supplier.supplier_name}
-                                  </div>
-                                  <div className="pof-supplier-item-details">
-                                    {supplier.supplier_type && <span>{supplier.supplier_type}</span>}
-                                    {supplier.mobile_no && <span><FaPhone size={10} /> {supplier.mobile_no}</span>}
-                                    {supplier.email_id && <span><FaEnvelope size={10} /> {supplier.email_id}</span>}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                          {!loadingSuppliers && suppliers.length === 0 && (
+                          
+                          {/* ─── Supplier Dropdown with PINNED "+ Add New" ─── */}
+                          {renderSupplierDropdown()}
+                          
+                          {!loadingSuppliers && suppliers.length === 0 && !showSupplierDropdown && (
                             <span className="pof-warning-msg">
-                              <FaExclamationCircle size={10} /> No suppliers found. Please add suppliers first.
+                              <FaExclamationCircle size={10} /> No suppliers found. Click "Add New Supplier" to create one.
                             </span>
                           )}
                           {validationErrors.some(e => e.field === 'supplier') && (
@@ -1725,7 +3260,6 @@ export default function PurchaseOrderForm() {
                         />
                         <FaCalendarAlt className="pof-calendar-icon" />
                       </div>
-                      {/* ✅ FIXED: Show red error message under delivery date field */}
                       {!formData.deliveryDate && (
                         <span className="pof-error-msg">
                           <FaExclamationCircle size={10} />Delivery date is required
@@ -1744,6 +3278,49 @@ export default function PurchaseOrderForm() {
                       >
                         {paymentTerms.map(p => <option key={p} value={p}>{p}</option>)}
                       </select>
+                    </div>
+                  </div>
+
+                  {/* ─── Item Code Dropdown ─────────────────── */}
+                  <div className="pof-info-row" style={{ marginTop: '12px' }}>
+                    <div className="pof-info-field" style={{ gridColumn: '1 / -1' }}>
+                      <label>Search Item Code</label>
+                      <div className="pof-supplier-wrapper" style={{ position: 'relative' }}>
+                        <input
+                          ref={itemCodeInputRef}
+                          type="text"
+                          value={itemCodeSearchTerm}
+                          onChange={(e) => {
+                            setItemCodeSearchTerm(e.target.value);
+                            setShowItemCodeDropdown(true);
+                            setSelectedItemCode(null);
+                          }}
+                          onFocus={() => {
+                            setShowItemCodeDropdown(true);
+                            fetchItemCodeOptions();
+                          }}
+                          className="pof-form-field"
+                          placeholder="Search item by code or name..."
+                          autoComplete="off"
+                        />
+                        {loadingItemCode && <FaSpinner className="pof-supplier-spinner pof-spinning" size={14} />}
+                        
+                        {/* ─── Item Code Dropdown ─── */}
+                        {renderItemCodeDropdown()}
+                      </div>
+                      {selectedItemCode && (
+                        <div style={{ 
+                          fontSize: '12px', 
+                          color: '#16a34a', 
+                          marginTop: '4px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}>
+                          <FaCheckCircle size={10} />
+                          Selected: {selectedItemCode.item_code} - {selectedItemCode.item_name}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -1897,25 +3474,8 @@ export default function PurchaseOrderForm() {
                               <FaSearch className="pof-search-icon" size={14} />
                             )}
                             
-                            {renderSuggestions(index)}
-                            
-                            {showSuggestions[index] && filteredItems[index]?.length === 0 && !loadingItems && (
-                              createPortal(
-                                <div 
-                                  className="pof-suggestions-dropdown-portal pof-suggestions-empty-state"
-                                  style={{
-                                    position: 'fixed',
-                                    top: dropdownPositions[index]?.top || 0,
-                                    left: dropdownPositions[index]?.left || 0,
-                                    width: dropdownPositions[index]?.width || 'auto',
-                                    zIndex: 9999,
-                                  }}
-                                >
-                                  No items found
-                                </div>,
-                                document.body
-                              )
-                            )}
+                            {/* ─── Item Search Suggestions with "+ Add New Item" ─── */}
+                            {renderItemSearchSuggestions(index)}
                           </div>
                         </td>
                         <td className="pof-itd">

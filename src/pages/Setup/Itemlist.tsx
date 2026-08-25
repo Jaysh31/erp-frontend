@@ -11,6 +11,7 @@ import {
   FaSpinner,
   FaEdit,
   FaTrash,
+  FaCalendarAlt,
 } from 'react-icons/fa';
 import "./ItemList.css";
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
@@ -62,6 +63,201 @@ export default function ItemList() {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [allItems, setAllItems] = useState<Item[]>([]);
 
+  // ===== DATE FILTER STATES =====
+  const [fromDate, setFromDate] = useState<string>('');
+  const [toDate, setToDate] = useState<string>('');
+  const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
+  const [tempFromDate, setTempFromDate] = useState<string>('');
+  const [tempToDate, setTempToDate] = useState<string>('');
+  const [selectedQuickFilter, setSelectedQuickFilter] = useState<string>('');
+
+  // ===== CALENDAR STATE =====
+  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
+  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+
+  // ===== DATE HELPER FUNCTIONS =====
+  const formatDateForDisplay = (dateStr: string): string => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+  };
+
+  const getTodayDate = (): string => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  };
+
+  const getDateDaysAgo = (days: number): string => {
+    const date = new Date();
+    date.setDate(date.getDate() - days);
+    return date.toISOString().split('T')[0];
+  };
+
+  const getFirstDayOfMonth = (): string => {
+    const date = new Date(currentYear, currentMonth, 1);
+    return date.toISOString().split('T')[0];
+  };
+
+  const getLastDayOfMonth = (): string => {
+    const date = new Date(currentYear, currentMonth + 1, 0);
+    return date.toISOString().split('T')[0];
+  };
+
+  // ===== QUICK FILTER HANDLERS =====
+  const applyQuickFilter = (filter: string) => {
+    setSelectedQuickFilter(filter);
+    let start = '';
+    let end = getTodayDate();
+
+    switch (filter) {
+      case 'today':
+        start = getTodayDate();
+        break;
+      case 'last7':
+        start = getDateDaysAgo(7);
+        break;
+      case 'last30':
+        start = getDateDaysAgo(30);
+        break;
+      case 'thisMonth':
+        start = getFirstDayOfMonth();
+        end = getLastDayOfMonth();
+        break;
+      default:
+        return;
+    }
+
+    setTempFromDate(start);
+    setTempToDate(end);
+  };
+
+  // ===== CALENDAR FUNCTIONS =====
+  const getDaysInMonth = (year: number, month: number): number => {
+    return new Date(year, month + 1, 0).getDate();
+  };
+
+  const getFirstDayOfMonthIndex = (year: number, month: number): number => {
+    return new Date(year, month, 1).getDay();
+  };
+
+  const generateCalendarDays = (): (number | null)[] => {
+    const daysInMonth = getDaysInMonth(currentYear, currentMonth);
+    const firstDayIndex = getFirstDayOfMonthIndex(currentYear, currentMonth);
+    const days: (number | null)[] = [];
+
+    for (let i = 0; i < firstDayIndex; i++) {
+      days.push(null);
+    }
+
+    for (let i = 1; i <= daysInMonth; i++) {
+      days.push(i);
+    }
+
+    return days;
+  };
+
+  const isDateInRange = (day: number): boolean => {
+    if (!tempFromDate && !tempToDate) return false;
+    const date = new Date(currentYear, currentMonth, day);
+    const dateStr = date.toISOString().split('T')[0];
+    
+    if (tempFromDate && tempToDate) {
+      return dateStr >= tempFromDate && dateStr <= tempToDate;
+    }
+    if (tempFromDate) {
+      return dateStr >= tempFromDate;
+    }
+    if (tempToDate) {
+      return dateStr <= tempToDate;
+    }
+    return false;
+  };
+
+  const isDateSelected = (day: number): boolean => {
+    const date = new Date(currentYear, currentMonth, day);
+    const dateStr = date.toISOString().split('T')[0];
+    return dateStr === tempFromDate || dateStr === tempToDate;
+  };
+
+  const handleDateClick = (day: number) => {
+    const date = new Date(currentYear, currentMonth, day);
+    const dateStr = date.toISOString().split('T')[0];
+    
+    if (!tempFromDate || (tempFromDate && tempToDate)) {
+      setTempFromDate(dateStr);
+      setTempToDate('');
+      setSelectedQuickFilter('');
+    } else if (tempFromDate && !tempToDate) {
+      if (dateStr < tempFromDate) {
+        setTempFromDate(dateStr);
+        setTempToDate('');
+      } else {
+        setTempToDate(dateStr);
+        setSelectedQuickFilter('');
+      }
+    }
+  };
+
+  const changeMonth = (delta: number) => {
+    const newMonth = currentMonth + delta;
+    if (newMonth < 0) {
+      setCurrentMonth(11);
+      setCurrentYear(currentYear - 1);
+    } else if (newMonth > 11) {
+      setCurrentMonth(0);
+      setCurrentYear(currentYear + 1);
+    } else {
+      setCurrentMonth(newMonth);
+    }
+  };
+
+  const getMonthName = (month: number): string => {
+    return new Date(currentYear, month).toLocaleString('en-US', { month: 'long' });
+  };
+
+  // ===== DATE PICKER HANDLERS =====
+  const openDatePicker = () => {
+    setTempFromDate(fromDate);
+    setTempToDate(toDate);
+    setShowDatePicker(true);
+  };
+
+  const applyDateFilter = () => {
+    setFromDate(tempFromDate);
+    setToDate(tempToDate);
+    setShowDatePicker(false);
+    setCurrentPage(1);
+    // API call will be triggered by useEffect when fromDate or toDate changes
+    if (tempFromDate || tempToDate) {
+      // toast will be handled by the component
+    }
+  };
+
+  const clearDateFilters = () => {
+    setTempFromDate('');
+    setTempToDate('');
+    setSelectedQuickFilter('');
+    setFromDate('');
+    setToDate('');
+    setShowDatePicker(false);
+  };
+
+  // ===== CLOSE DATE PICKER ON OUTSIDE CLICK =====
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      const datePickerContainer = document.querySelector('.itl-date-picker-container');
+      if (datePickerContainer && !datePickerContainer.contains(target)) {
+        setShowDatePicker(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
   // Fetch items from API with pagination
   const fetchItems = useCallback(async () => {
     setLoading(true);
@@ -80,6 +276,13 @@ export default function ItemList() {
       if (groupFilter !== 'all') {
         params.append('group', groupFilter);
       }
+      // Add date filters
+      if (fromDate) {
+        params.append('from_date', fromDate);
+      }
+      if (toDate) {
+        params.append('to_date', toDate);
+      }
 
       const response = await api.get<ApiResponse>(`/item?${params.toString()}`);
       console.log('API RESPONSE for page', currentPage, ':', response.data);
@@ -88,23 +291,16 @@ export default function ItemList() {
         const raw = response.data.data;
 
         if (Array.isArray(raw)) {
-          // Backend is ALREADY paginating (sends only `limit` items per page)
-          // but returns a bare array with no total count anywhere.
-          // We can't know the true total, so we estimate it from whether this
-          // page came back full:
-          //  - full page (raw.length === itemsPerPage) -> assume at least one more page exists
-          //  - partial/empty page -> this is the last page; total = everything up to here
           setItems(raw);
           setAllItems(raw);
 
           const isFullPage = raw.length === itemsPerPage;
           const estimatedTotal = isFullPage
-            ? currentPage * itemsPerPage + 1 // pretend there's at least 1 more beyond this page
-            : (currentPage - 1) * itemsPerPage + raw.length; // this is the true total (last page)
+            ? currentPage * itemsPerPage + 1
+            : (currentPage - 1) * itemsPerPage + raw.length;
 
           setTotalItems(estimatedTotal);
         } else if (raw && typeof raw === 'object') {
-          // Backend returned the proper { total, page, limit, records } shape.
           const records = raw.records || [];
           setItems(records);
           setTotalItems(raw.total || records.length || 0);
@@ -123,7 +319,7 @@ export default function ItemList() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, itemsPerPage, searchTerm, statusFilter, groupFilter]);
+  }, [currentPage, itemsPerPage, searchTerm, statusFilter, groupFilter, fromDate, toDate]);
 
   // Delete item
   const handleDeleteItem = async (id: number, e: React.MouseEvent) => {
@@ -166,7 +362,7 @@ export default function ItemList() {
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, statusFilter, groupFilter]);
+  }, [searchTerm, statusFilter, groupFilter, fromDate, toDate]);
 
   // Get unique item groups for filter
   const itemGroups = Array.from(new Set(allItems.map(item => item.item_group))).filter(Boolean);
@@ -207,7 +403,6 @@ export default function ItemList() {
     if (validCurrentPage < totalPages) {
       setCurrentPage(validCurrentPage + 1);
     } else {
-      // Wrap around to first page
       setCurrentPage(1);
     }
   };
@@ -216,7 +411,6 @@ export default function ItemList() {
     if (validCurrentPage > 1) {
       setCurrentPage(validCurrentPage - 1);
     } else {
-      // Wrap around to last page
       setCurrentPage(totalPages);
     }
   };
@@ -240,6 +434,12 @@ export default function ItemList() {
     setSearchTerm('');
     setStatusFilter('all');
     setGroupFilter('all');
+    setFromDate('');
+    setToDate('');
+    setTempFromDate('');
+    setTempToDate('');
+    setSelectedQuickFilter('');
+    setShowDatePicker(false);
   };
 
   const handleRowClick = (item: Item) => {
@@ -254,6 +454,322 @@ export default function ItemList() {
 
   return (
     <div className={`itl-page ${theme}`}>
+      <style>{`
+        /* ── Date Range Picker Styles ── */
+        .itl-date-picker-container {
+          position: relative;
+          display: inline-block;
+        }
+
+        .itl-date-picker-trigger {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          background: var(--card-bg, #fff);
+          border: 1px solid var(--border-color, #e5e7eb);
+          border-radius: 8px;
+          padding: 7px 14px;
+          cursor: pointer;
+          transition: all 0.2s;
+          color: var(--text-primary, #1e293b);
+          font-size: 13px;
+          min-height: 38px;
+        }
+
+        .itl-date-picker-trigger:hover {
+          border-color: var(--primary-color, #2563eb);
+          background: var(--hover-bg, #f8fafc);
+        }
+
+        .itl-date-picker-trigger.active {
+          border-color: var(--primary-color, #2563eb);
+          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .itl-date-picker-trigger .itl-calendar-icon {
+          color: var(--primary-color, #2563eb);
+          font-size: 16px;
+        }
+
+        .itl-date-picker-trigger .itl-date-label {
+          font-weight: 500;
+        }
+
+        .itl-date-picker-trigger .itl-date-label.placeholder {
+          color: var(--text-secondary, #6b7280);
+          font-weight: 400;
+        }
+
+        .itl-date-picker-trigger .itl-date-range-display {
+          color: var(--primary-color, #2563eb);
+          font-weight: 500;
+        }
+
+        .itl-date-picker-popup {
+          position: absolute;
+          top: calc(100% + 8px);
+          right: 0;
+          background: var(--card-bg, #fff);
+          border: 1px solid var(--border-color, #e5e7eb);
+          border-radius: 12px;
+          box-shadow: 0 10px 40px var(--shadow-color, rgba(0,0,0,0.15));
+          padding: 20px;
+          z-index: 1000;
+          min-width: 340px;
+          width: 340px;
+        }
+
+        .itl-date-picker-popup .itl-popup-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 12px;
+        }
+
+        .itl-date-picker-popup .itl-popup-header .itl-popup-title {
+          font-size: 14px;
+          font-weight: 600;
+          color: var(--text-primary, #1e293b);
+        }
+
+        .itl-date-picker-popup .itl-popup-header .itl-popup-close {
+          background: none;
+          border: none;
+          color: var(--text-secondary, #6b7280);
+          cursor: pointer;
+          font-size: 16px;
+          padding: 4px;
+        }
+
+        .itl-date-picker-popup .itl-popup-header .itl-popup-close:hover {
+          color: var(--text-primary, #1e293b);
+        }
+
+        .itl-date-picker-popup .itl-quick-filters {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+          margin-bottom: 16px;
+          padding-bottom: 12px;
+          border-bottom: 1px solid var(--border-color, #e5e7eb);
+        }
+
+        .itl-date-picker-popup .itl-quick-filter-btn {
+          padding: 4px 14px;
+          border: 1px solid var(--border-color, #e5e7eb);
+          border-radius: 16px;
+          background: var(--card-bg, #fff);
+          color: var(--text-secondary, #6b7280);
+          font-size: 12px;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .itl-date-picker-popup .itl-quick-filter-btn:hover {
+          border-color: var(--primary-color, #2563eb);
+          color: var(--primary-color, #2563eb);
+        }
+
+        .itl-date-picker-popup .itl-quick-filter-btn.active {
+          background: var(--primary-color, #2563eb);
+          border-color: var(--primary-color, #2563eb);
+          color: #fff;
+        }
+
+        .itl-date-picker-popup .itl-calendar-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 12px;
+        }
+
+        .itl-date-picker-popup .itl-calendar-header .itl-month-year {
+          font-size: 14px;
+          font-weight: 600;
+          color: var(--text-primary, #1e293b);
+        }
+
+        .itl-date-picker-popup .itl-calendar-header .itl-nav-btn {
+          background: none;
+          border: none;
+          color: var(--text-secondary, #6b7280);
+          cursor: pointer;
+          padding: 4px 8px;
+          font-size: 14px;
+          border-radius: 4px;
+          transition: all 0.2s;
+        }
+
+        .itl-date-picker-popup .itl-calendar-header .itl-nav-btn:hover {
+          background: var(--hover-bg, #f3f4f6);
+        }
+
+        .itl-date-picker-popup .itl-calendar-grid {
+          display: grid;
+          grid-template-columns: repeat(7, 1fr);
+          gap: 2px;
+          margin-bottom: 12px;
+        }
+
+        .itl-date-picker-popup .itl-calendar-grid .itl-day-header {
+          text-align: center;
+          font-size: 11px;
+          font-weight: 600;
+          color: var(--text-secondary, #6b7280);
+          padding: 4px 0;
+        }
+
+        .itl-date-picker-popup .itl-calendar-grid .itl-day-cell {
+          text-align: center;
+          padding: 6px 4px;
+          font-size: 13px;
+          border-radius: 6px;
+          cursor: pointer;
+          transition: all 0.2s;
+          color: var(--text-primary, #1e293b);
+          position: relative;
+        }
+
+        .itl-date-picker-popup .itl-calendar-grid .itl-day-cell.empty {
+          cursor: default;
+        }
+
+        .itl-date-picker-popup .itl-calendar-grid .itl-day-cell:hover:not(.empty):not(.in-range) {
+          background: var(--hover-bg, #f3f4f6);
+        }
+
+        .itl-date-picker-popup .itl-calendar-grid .itl-day-cell.in-range {
+          background: rgba(37, 99, 235, 0.1);
+        }
+
+        .itl-date-picker-popup .itl-calendar-grid .itl-day-cell.selected {
+          background: var(--primary-color, #2563eb);
+          color: #fff;
+          font-weight: 600;
+        }
+
+        .itl-date-picker-popup .itl-calendar-grid .itl-day-cell.selected-start {
+          background: var(--primary-color, #2563eb);
+          color: #fff;
+          font-weight: 600;
+          border-radius: 6px 0 0 6px;
+        }
+
+        .itl-date-picker-popup .itl-calendar-grid .itl-day-cell.selected-end {
+          background: var(--primary-color, #2563eb);
+          color: #fff;
+          font-weight: 600;
+          border-radius: 0 6px 6px 0;
+        }
+
+        .itl-date-picker-popup .itl-calendar-grid .itl-day-cell.range-middle {
+          background: rgba(37, 99, 235, 0.15);
+        }
+
+        .itl-date-picker-popup .itl-calendar-grid .itl-day-cell.today {
+          border: 1px solid var(--primary-color, #2563eb);
+        }
+
+        .itl-date-picker-popup .itl-popup-actions {
+          display: flex;
+          gap: 8px;
+          justify-content: flex-end;
+          padding-top: 12px;
+          border-top: 1px solid var(--border-color, #e5e7eb);
+        }
+
+        .itl-date-picker-popup .itl-popup-actions button {
+          padding: 6px 16px;
+          border: none;
+          border-radius: 6px;
+          font-size: 13px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .itl-date-picker-popup .itl-popup-actions .itl-btn-apply {
+          background: var(--primary-color, #2563eb);
+          color: #fff;
+        }
+
+        .itl-date-picker-popup .itl-popup-actions .itl-btn-apply:hover {
+          background: var(--primary-hover, #1d4ed8);
+        }
+
+        .itl-date-picker-popup .itl-popup-actions .itl-btn-clear {
+          background: transparent;
+          color: var(--text-secondary, #6b7280);
+        }
+
+        .itl-date-picker-popup .itl-popup-actions .itl-btn-clear:hover {
+          background: var(--hover-bg, #f3f4f6);
+        }
+
+        .itl-date-picker-popup .itl-popup-actions .itl-btn-cancel {
+          background: transparent;
+          color: var(--text-secondary, #6b7280);
+        }
+
+        .itl-date-picker-popup .itl-popup-actions .itl-btn-cancel:hover {
+          background: var(--hover-bg, #f3f4f6);
+        }
+
+        .itl-filter-right {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+
+        /* Dark theme overrides */
+        .dark-theme .itl-date-picker-trigger {
+          background: var(--card-bg, #1e293b);
+          border-color: var(--border-color, #334155);
+          color: var(--text-primary, #f8fafc);
+        }
+
+        .dark-theme .itl-date-picker-trigger:hover {
+          background: var(--nav-hover, rgba(255,255,255,0.05));
+        }
+
+        .dark-theme .itl-date-picker-popup {
+          background: var(--card-bg, #1e293b);
+          border-color: var(--border-color, #334155);
+        }
+
+        .dark-theme .itl-date-picker-popup .itl-popup-title {
+          color: var(--text-primary, #f8fafc);
+        }
+
+        .dark-theme .itl-date-picker-popup .itl-quick-filter-btn {
+          background: var(--card-bg, #1e293b);
+          border-color: var(--border-color, #334155);
+          color: var(--text-secondary, #94a3b8);
+        }
+
+        .dark-theme .itl-date-picker-popup .itl-quick-filter-btn.active {
+          background: var(--primary-color, #3b82f6);
+          color: #fff;
+        }
+
+        .dark-theme .itl-date-picker-popup .itl-calendar-grid .itl-day-cell {
+          color: var(--text-primary, #f8fafc);
+        }
+
+        .dark-theme .itl-date-picker-popup .itl-day-header {
+          color: var(--text-secondary, #94a3b8);
+        }
+
+        @media (max-width: 768px) {
+          .itl-date-picker-popup {
+            left: 0;
+            min-width: 100%;
+            width: 100%;
+          }
+        }
+      `}</style>
+
       {/* Search and Filter Bar */}
       <div className="itl-filter-bar">
         <div className="itl-filter-left">
@@ -305,6 +821,127 @@ export default function ItemList() {
               <option key={group} value={group}>{group}</option>
             ))}
           </select>
+
+          {/* ===== DATE RANGE PICKER ===== */}
+          <div className="itl-date-picker-container">
+            <div 
+              className={`itl-date-picker-trigger ${showDatePicker ? 'active' : ''}`}
+              onClick={openDatePicker}
+            >
+              <FaCalendarAlt className="itl-calendar-icon" />
+              <span className={`itl-date-label ${!fromDate && !toDate ? 'placeholder' : ''}`}>
+                {fromDate || toDate ? (
+                  <span className="itl-date-range-display">
+                    {fromDate ? formatDateForDisplay(fromDate) : 'Start'} – {toDate ? formatDateForDisplay(toDate) : 'End'}
+                  </span>
+                ) : (
+                  'Filter by Date'
+                )}
+              </span>
+            </div>
+            
+            {showDatePicker && (
+              <div className="itl-date-picker-popup">
+                <div className="itl-popup-header">
+                  <span className="itl-popup-title">Filter by Date</span>
+                  <button className="itl-popup-close" onClick={() => setShowDatePicker(false)}>
+                    <FaTimes size={14} />
+                  </button>
+                </div>
+                
+                {/* Quick Filters */}
+                <div className="itl-quick-filters">
+                  <button 
+                    className={`itl-quick-filter-btn ${selectedQuickFilter === 'today' ? 'active' : ''}`}
+                    onClick={() => applyQuickFilter('today')}
+                  >
+                    Today
+                  </button>
+                  <button 
+                    className={`itl-quick-filter-btn ${selectedQuickFilter === 'last7' ? 'active' : ''}`}
+                    onClick={() => applyQuickFilter('last7')}
+                  >
+                    Last 7 Days
+                  </button>
+                  <button 
+                    className={`itl-quick-filter-btn ${selectedQuickFilter === 'last30' ? 'active' : ''}`}
+                    onClick={() => applyQuickFilter('last30')}
+                  >
+                    Last 30 Days
+                  </button>
+                  <button 
+                    className={`itl-quick-filter-btn ${selectedQuickFilter === 'thisMonth' ? 'active' : ''}`}
+                    onClick={() => applyQuickFilter('thisMonth')}
+                  >
+                    This Month
+                  </button>
+                </div>
+                
+                {/* Calendar */}
+                <div className="itl-calendar-header">
+                  <button className="itl-nav-btn" onClick={() => changeMonth(-1)}>
+                    <FaChevronLeft size={12} />
+                  </button>
+                  <span className="itl-month-year">
+                    {getMonthName(currentMonth)} {currentYear}
+                  </span>
+                  <button className="itl-nav-btn" onClick={() => changeMonth(1)}>
+                    <FaChevronRight size={12} />
+                  </button>
+                </div>
+                
+                <div className="itl-calendar-grid">
+                  {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
+                    <div key={day} className="itl-day-header">{day}</div>
+                  ))}
+                  {generateCalendarDays().map((day, index) => {
+                    if (day === null) {
+                      return <div key={`empty-${index}`} className="itl-day-cell empty"></div>;
+                    }
+                    
+                    const dateObj = new Date(currentYear, currentMonth, day);
+                    const dateStr = dateObj.toISOString().split('T')[0];
+                    const isToday = dateStr === getTodayDate();
+                    const isInRange = isDateInRange(day);
+                    const isSelected = isDateSelected(day);
+                    const isStart = dateStr === tempFromDate;
+                    const isEnd = dateStr === tempToDate;
+                    
+                    let className = 'itl-day-cell';
+                    if (isToday) className += ' today';
+                    if (isInRange && !isSelected) className += ' in-range';
+                    if (isSelected) className += ' selected';
+                    if (isStart && tempToDate) className += ' selected-start';
+                    if (isEnd && tempFromDate) className += ' selected-end';
+                    if (isInRange && !isSelected && !isStart && !isEnd) className += ' range-middle';
+                    
+                    return (
+                      <div 
+                        key={day} 
+                        className={className}
+                        onClick={() => handleDateClick(day)}
+                      >
+                        {day}
+                      </div>
+                    );
+                  })}
+                </div>
+                
+                <div className="itl-popup-actions">
+                  <button className="itl-btn-clear" onClick={clearDateFilters}>
+                    Clear
+                  </button>
+                  <button className="itl-btn-cancel" onClick={() => setShowDatePicker(false)}>
+                    Cancel
+                  </button>
+                  <button className="itl-btn-apply" onClick={applyDateFilter}>
+                    Apply Filters
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
           <button className="itl-filter-btn">
             <FaFilter size={12} />
             Filter
@@ -326,7 +963,7 @@ export default function ItemList() {
       </div>
 
       {/* Active filters indicator */}
-      {(searchTerm || statusFilter !== 'all' || groupFilter !== 'all') && (
+      {(searchTerm || statusFilter !== 'all' || groupFilter !== 'all' || fromDate || toDate) && (
         <div className="itl-active-filters">
           <FaFilter size={12} style={{ color: 'var(--primary-color)' }} />
           <span style={{ color: 'var(--text-primary)' }}>Active filters:</span>
@@ -343,6 +980,11 @@ export default function ItemList() {
           {groupFilter !== 'all' && (
             <span style={{ color: 'var(--text-primary)' }}>
               <strong>Group:</strong> {groupFilter}
+            </span>
+          )}
+          {(fromDate || toDate) && (
+            <span style={{ color: 'var(--text-primary)' }}>
+              <strong>Date:</strong> {fromDate ? formatDateForDisplay(fromDate) : 'Any'} – {toDate ? formatDateForDisplay(toDate) : 'Any'}
             </span>
           )}
           <button

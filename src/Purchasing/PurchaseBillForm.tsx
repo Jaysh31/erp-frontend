@@ -95,13 +95,6 @@ interface GRNSummary {
 }
 
 interface InvoiceItem {
-  // NOTE: `id` is now ALWAYS populated (for every construction path — manual,
-  // GRN-derived, PO-only, and loaded-from-existing-invoice rows) and is the
-  // ONLY thing used to target a specific row for edits/removal/selection.
-  // Never use array index to look up or mutate a row — indexes shift when
-  // rows are added/removed/reordered and were the root cause of a row
-  // picking up another row's item_id (e.g. item_code "COOLANT" going out
-  // with item_Id belonging to a different catalog item).
   id: string;
   db_item_id?: number;
   po_item_id?: number;
@@ -163,10 +156,7 @@ const statusOptions = ['Draft', 'Submitted', 'Partially Paid', 'Fully Paid', 'Ov
 const billSourceOptions = ['GRN', 'Without GRN'] as const;
 type BillSource = typeof billSourceOptions[number];
 
-// Small helper: generates a unique, stable id for a new row. Using this
-// everywhere a row is created guarantees every InvoiceItem.id is unique and
-// present, which is what lets all the row-lookup functions below key off
-// `id` instead of index.
+// Small helper: generates a unique, stable id for a new row
 const makeRowId = () => `row-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -208,6 +198,19 @@ export default function PurchaseInvoiceForm() {
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const supplierSearchRef = useRef<HTMLDivElement>(null);
 
+  // ─── State for "Add New Supplier" Popup ──────────────────────────────────
+  const [showAddSupplierPopup, setShowAddSupplierPopup] = useState(false);
+  const [addingSupplier, setAddingSupplier] = useState(false);
+  const [newSupplier, setNewSupplier] = useState({
+    supplier_name: '',
+    supplier_type: 'Individual',
+    supplier_group: '',
+    country: 'India',
+    mobile_no: '',
+    email_id: '',
+    primary_address: '',
+  });
+
   // ── Pending edit-mode bindings that depend on lists still loading ──────────
   const [pendingSupplierId, setPendingSupplierId] = useState<number | null>(null);
   const [pendingWarehouseId, setPendingWarehouseId] = useState<number | null>(null);
@@ -245,15 +248,10 @@ export default function PurchaseInvoiceForm() {
   const [, setLoadingItems] = useState(false);
   const [itemSearch, setItemSearch] = useState('');
   const [showItemDropdown, setShowItemDropdown] = useState(false);
-  // FIX: was `selectedItemIndex: number | null`. Array index is not a safe
-  // row identifier — it can point at the wrong row if items are added,
-  // removed, or if two dropdown interactions race each other. Track the
-  // row's stable `id` instead.
   const [selectedItemRowId, setSelectedItemRowId] = useState<string | null>(null);
   const itemSearchRef = useRef<HTMLDivElement>(null);
 
   // ── Note popover state ───────────────────────────────────────────────────────
-  // FIX: same reasoning as selectedItemRowId — key off the row's stable id.
   const [notePopoverRowId, setNotePopoverRowId] = useState<string | null>(null);
 
   // ── Tax state ───────────────────────────────────────────────────────────────
@@ -269,6 +267,71 @@ export default function PurchaseInvoiceForm() {
   // ── Success modal state ─────────────────────────────────────────────────────
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [savedInvoiceNumber, setSavedInvoiceNumber] = useState<string>('');
+
+  // ─── Handle Add New Supplier ──────────────────────────────────────────────
+  const handleAddNewSupplier = async () => {
+    if (!newSupplier.supplier_name.trim()) {
+      toast.error('Supplier name is required');
+      return;
+    }
+    if (!newSupplier.mobile_no.trim()) {
+      toast.error('Phone number is required');
+      return;
+    }
+    if (!newSupplier.email_id.trim()) {
+      toast.error('Email is required');
+      return;
+    }
+
+    setAddingSupplier(true);
+    try {
+      const payload = {
+        supplier_name: newSupplier.supplier_name.trim(),
+        supplier_type: newSupplier.supplier_type || 'Individual',
+        supplier_group: newSupplier.supplier_group || 'Local',
+        country: newSupplier.country || 'India',
+        mobile_no: newSupplier.mobile_no.trim(),
+        email_id: newSupplier.email_id.trim(),
+        primary_address: newSupplier.primary_address || '',
+      };
+
+      const response = await api.post('/supplier', payload);
+      
+      if (response.data && response.data.success === 1) {
+        toast.success('Supplier created successfully!');
+        await fetchSuppliers();
+        setShowAddSupplierPopup(false);
+        resetNewSupplierForm();
+        // Auto-select the newly created supplier
+        const newSupplierData = response.data.data;
+        if (newSupplierData) {
+          const supplierName = newSupplierData.supplier_name || newSupplier.supplier_name.trim();
+          setSelectedSupplier(newSupplierData);
+          setSupplierSearch(supplierName);
+          setPendingSupplierId(null);
+        }
+      } else {
+        toast.error(response.data?.message || 'Failed to create supplier');
+      }
+    } catch (err: any) {
+      console.error('Error creating supplier:', err);
+      toast.error(err.response?.data?.message || 'Failed to create supplier');
+    } finally {
+      setAddingSupplier(false);
+    }
+  };
+
+  const resetNewSupplierForm = () => {
+    setNewSupplier({
+      supplier_name: '',
+      supplier_type: 'Individual',
+      supplier_group: '',
+      country: 'India',
+      mobile_no: '',
+      email_id: '',
+      primary_address: '',
+    });
+  };
 
   // ─── Fetch data on mount ──────────────────────────────────────────────────
   useEffect(() => {
@@ -298,8 +361,7 @@ export default function PurchaseInvoiceForm() {
   }, []);
 
   // ─── EDIT-MODE BINDING FIX: resolve the supplier once BOTH the invoice load
-  //     and the supplier list have finished, instead of the old code which read
-  //     `suppliers` from a stale closure captured before fetchSuppliers() resolved.
+  //     and the supplier list have finished
   useEffect(() => {
     if (pendingSupplierId != null && suppliers.length > 0) {
       const supplier = suppliers.find(s => s.id === pendingSupplierId);
@@ -311,7 +373,7 @@ export default function PurchaseInvoiceForm() {
     }
   }, [pendingSupplierId, suppliers]);
 
-  // ─── Same fix for warehouse: resolve once the warehouse list has loaded ────
+  // ─── Same fix for warehouse ──────────────────────────────────────────────
   useEffect(() => {
     if (pendingWarehouseId != null && warehouses.length > 0) {
       const wh = warehouses.find(w => w.id === pendingWarehouseId);
@@ -325,11 +387,6 @@ export default function PurchaseInvoiceForm() {
     calculateGST();
   }, [items, formData.deliveryCharges]);
 
-  // ── GST FIX: previously this derived cgst/sgst amounts from `formData.cgst` /
-  //    `formData.sgst`, but nothing in the UI ever set those two fields, so they
-  //    were always 0 no matter what tax % you picked per item. Tax now comes from
-  //    each row's own `tax_rate` (the Tax% dropdown), split evenly into a CGST
-  //    half and an SGST half for display, matching standard India GST invoicing.
   const calculateGST = () => {
     const subTotal = items.reduce((s, r) => s + (r.amount || 0), 0);
     const taxTotal = items.reduce((s, r) => s + ((r.amount || 0) * (r.tax_rate || 0)) / 100, 0);
@@ -505,7 +562,7 @@ export default function PurchaseInvoiceForm() {
     return null;
   };
 
-  // ─── Fetch full PO detail (used to compare ordered vs received qty) ───────
+  // ─── Fetch full PO detail ───────────────────────────────────────────────────
   const fetchPODetail = async (poId: number): Promise<PODetail | null> => {
     try {
       const res = await api.get(`/purchase-order/${poId}`);
@@ -551,7 +608,7 @@ export default function PurchaseInvoiceForm() {
     }
   };
 
-  // ─── Toggle a GRN's inclusion (used by both the search dropdown & badges) ──
+  // ─── Toggle a GRN's inclusion ──────────────────────────────────────────────
   const toggleGRNSelection = (grnId: number) => {
     setSelectedGRNIds(prev => {
       const next = new Set(prev);
@@ -560,7 +617,7 @@ export default function PurchaseInvoiceForm() {
     });
   };
 
-  // ─── When a PO is selected (GRN mode) — auto-loads its linked GRNs ────────
+  // ─── When a PO is selected (GRN mode) ──────────────────────────────────────
   const handleSelectPO = async (po: { id: number; name: string; supplier_name: string }) => {
     setPoSearch(po.name || '');
     setShowPoDropdown(false);
@@ -576,7 +633,6 @@ export default function PurchaseInvoiceForm() {
         toast.error('Failed to load PO details');
       }
       setLinkedGRNsForPO(grnSummaries || []);
-      // auto-include every GRN linked to this PO; user can uncheck any of them
       setSelectedGRNIds(new Set((grnSummaries || []).map(g => g.id)));
     } catch (err) {
       console.error('Error loading PO/GRN:', err);
@@ -604,14 +660,13 @@ export default function PurchaseInvoiceForm() {
     }
   };
 
-  // ─── When a GRN is picked from the search dropdown (multi-select) ─────────
+  // ─── When a GRN is picked from the search dropdown ─────────────────────────
   const handleSelectGRN = async (grn: GRNSummary) => {
     const wasSelected = selectedGRNIds.has(grn.id);
     toggleGRNSelection(grn.id);
     setShowGrnDropdown(false);
     setGrnSearch('');
 
-    // auto-load & display the PO this GRN belongs to, by comparing purchase_order_id
     if (!wasSelected && grn.purchase_order_id && (!selectedPO || selectedPO.id !== grn.purchase_order_id)) {
       setLoadingPODetail(true);
       try {
@@ -649,8 +704,6 @@ export default function PurchaseInvoiceForm() {
         });
       });
 
-      // FIX: every row now gets a stable `id` at creation time (makeRowId()),
-      // used by every downstream lookup/mutation instead of array index.
       const invoiceRows: InvoiceItem[] = (poDetail.items || []).map(pi => {
         const rec = receivedMap[pi.id] || { qty: 0, grnNums: [], grnItemId: undefined };
         const totalReceived = rec.qty;
@@ -689,8 +742,6 @@ export default function PurchaseInvoiceForm() {
       return;
     }
 
-    // No PO on record for these GRNs — build directly from GRN items, merging
-    // duplicate items across multiple selected GRNs.
     const merged: Record<string, InvoiceItem> = {};
     (grns || []).forEach(grn => {
       (grn.items || []).forEach(gi => {
@@ -788,17 +839,10 @@ export default function PurchaseInvoiceForm() {
     }, 100);
   };
 
-  // FIX: was `(index: number)`. Removing by index is unsafe if the array
-  // was mutated between render and click (e.g. a GRN rebuild firing while
-  // the user has a row's remove button focused). Removing by `id` is
-  // unambiguous no matter what else changed.
   const handleRemoveManualItem = (rowId: string) => {
     setItems(prev => prev.filter(item => item.id !== rowId));
   };
 
-  // FIX: was `(index: number, field, value)`. This is the function that sets
-  // `rate`/`bill_qty`/etc. — keying it by `id` means a field edit can never
-  // land on a different row than the one the user is typing into.
   const handleItemFieldChange = (rowId: string, field: keyof InvoiceItem, value: any) => {
     setItems(prev => prev.map(item => {
       if (item.id !== rowId) return item;
@@ -810,13 +854,6 @@ export default function PurchaseInvoiceForm() {
     }));
   };
 
-  // FIX: was `(item: Item, index: number)`. THIS is the function most
-  // directly responsible for the bug you hit — it's what writes item_id,
-  // item_code, rate, etc. onto a row all in the same object spread. Keying
-  // it by the row's stable `id` (instead of an `index` that can go stale
-  // between when the dropdown opened and when the user clicked an option)
-  // guarantees item_id and item_code can never end up describing two
-  // different catalog items.
   const handleSelectItem = (item: Item, rowId: string) => {
     const tax = (taxes || []).find(t => t.tax_id === item.tax_id);
     const taxRate = tax ? parseInt((tax.tax_type || '').replace('GST', '')) : 0;
@@ -842,7 +879,6 @@ export default function PurchaseInvoiceForm() {
     setSelectedItemRowId(null);
   };
 
-  // FIX: was `(index: number, val: number)`.
   const handleBillQtyChange = (rowId: string, val: number) => {
     setItems(prev => prev.map(row => {
       if (row.id !== rowId) return row;
@@ -863,19 +899,6 @@ export default function PurchaseInvoiceForm() {
       if (res.data?.success === 1) {
         const inv = res.data.data;
 
-        // ── EDIT-MODE BINDING FIX: the previous mapping referenced a bunch of
-        //    fields (buyer_order_type, payment_terms, delivery_charges,
-        //    cgst_rate, sgst_rate, gst_total, delivery_date, vehicle_number,
-        //    delivery_terms, buyer_order_number) that simply don't exist on the
-        //    real /purchase-invoice/:id response — so every one of them always
-        //    fell back to its default. Only map fields that are actually
-        //    present. CGST/SGST/grand total now get recomputed from the loaded
-        //    items instead (see calculateGST), so they aren't set here at all.
-        //    billSource is forced to 'Without GRN' on edit so every item row is
-        //    fully editable — we don't have a reliable signal in the response
-        //    to reconstruct whether this was originally a GRN-based bill, and
-        //    locking rows to a GRN's "unbilled qty" ceiling on edit would block
-        //    legitimate corrections.
         setFormData(prev => ({
           ...prev,
           invoiceNumber: inv.name || '',
@@ -887,13 +910,9 @@ export default function PurchaseInvoiceForm() {
           billSource: 'Without GRN',
         }));
 
-        // Supplier: resolved once the supplier list itself has loaded (see the
-        // pendingSupplierId effect above) — avoids the stale-closure bug where
-        // `suppliers` was still [] at the moment this ran.
         if (inv.supplier != null) {
           setPendingSupplierId(Number(inv.supplier));
         } else if (inv.supplier_name) {
-          // fallback if only the name came back
           setSupplierSearch(inv.supplier_name);
         }
 
@@ -921,8 +940,6 @@ export default function PurchaseInvoiceForm() {
           }));
           setItems(rows);
 
-          // Warehouse: every loaded item carries its own `warehouse` id — use
-          // the first item's warehouse as the invoice-level warehouse selection.
           const firstWarehouse = inv.items.find((it: any) => it.warehouse)?.warehouse;
           if (firstWarehouse != null) {
             setPendingWarehouseId(Number(firstWarehouse));
@@ -938,8 +955,6 @@ export default function PurchaseInvoiceForm() {
   };
 
   // ─── Computed totals ────────────────────────────────────────────────────────
-  // GST FIX: derive tax entirely from each row's own tax_rate — see calculateGST
-  // above for why formData.cgst/sgst can no longer be trusted as the source.
   const subTotal = items.reduce((s, r) => s + (r.amount || 0), 0);
   const totalTax = items.reduce((s, r) => s + ((r.amount || 0) * (r.tax_rate || 0)) / 100, 0);
   const cgstAmount = totalTax / 2;
@@ -963,8 +978,6 @@ export default function PurchaseInvoiceForm() {
     ? (allGRNs || []).filter(g => g.supplier_id === selectedSupplier.id)
     : [];
 
-  // POs (for this supplier) that don't have any GRN linked to them at all —
-  // these are the ones eligible to be billed "Without GRN".
   const poIdsWithGRN = useMemo(
     () => new Set((allGRNs || []).filter(g => g.purchase_order_id).map(g => g.purchase_order_id as number)),
     [allGRNs]
@@ -997,7 +1010,6 @@ export default function PurchaseInvoiceForm() {
   const isManual = formData.billSource === 'Without GRN';
   const isGRNMode = formData.billSource === 'GRN';
 
-  // GRNs shown as removable chips — linked-to-PO list first, then supplier-wide list
   const selectedGRNSummaries: GRNSummary[] = Array.from(selectedGRNIds).map(gid =>
     (linkedGRNsForPO || []).find(g => g.id === gid) || (grnsForSelectedSupplier || []).find(g => g.id === gid)
   ).filter((g): g is GRNSummary => Boolean(g));
@@ -1103,11 +1115,6 @@ export default function PurchaseInvoiceForm() {
   const syncManualInventory = async (billableItems: InvoiceItem[]) => {
     const warehouseId = selectedWarehouseId === '' ? 0 : selectedWarehouseId;
     await Promise.all((billableItems || []).map(async (item) => {
-      // FIX: hard guard against exactly the bug you hit — item_code and
-      // item_id silently belonging to two different catalog rows. If the
-      // catalog id doesn't exist, or exists but its item_code doesn't match
-      // what's on this row, refuse to sync rather than posting bad stock
-      // data, and surface it clearly instead of failing silently.
       const catalogMatch = itemsList.find(i => i.id === item.item_id);
       if (!item.item_id || !catalogMatch || catalogMatch.item_code !== item.item_code) {
         console.error(
@@ -1162,10 +1169,488 @@ export default function PurchaseInvoiceForm() {
     }));
   };
 
+  // ─── Render Add Supplier Popup ─────────────────────────────────────────────
+  const renderAddSupplierPopup = () => {
+    if (!showAddSupplierPopup) return null;
+
+    const primaryColor = '#6366f1';
+
+    return (
+      <div 
+        className="pif-modal-overlay" 
+        onClick={() => setShowAddSupplierPopup(false)}
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000,
+        }}
+      >
+        <div 
+          className="pif-add-supplier-popup" 
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            background: '#ffffff',
+            borderRadius: '12px',
+            maxWidth: '700px',
+            width: '95%',
+            maxHeight: '90vh',
+            overflow: 'hidden',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+          }}
+        >
+          <div 
+            className="pif-modal-header" 
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '16px 20px',
+              borderBottom: `2px solid ${primaryColor}`,
+              flexShrink: 0,
+            }}
+          >
+            <h2 style={{ 
+              margin: 0, 
+              fontSize: '18px', 
+              fontWeight: 600,
+              color: primaryColor,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <FaPlus style={{ color: primaryColor }} /> Add New Supplier
+            </h2>
+            <button 
+              className="pif-modal-close" 
+              onClick={() => setShowAddSupplierPopup(false)}
+              style={{
+                background: 'none',
+                border: 'none',
+                fontSize: '24px',
+                cursor: 'pointer',
+                color: '#6b7280',
+              }}
+            >
+              ×
+            </button>
+          </div>
+          <div className="pif-modal-body" style={{ 
+            padding: '24px 20px',
+            overflow: 'visible',
+            maxHeight: 'calc(90vh - 140px)',
+          }}>
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: '1fr 1fr',
+              gap: '16px 20px',
+            }}>
+              <div className="pif-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: '#374151'
+                }}>
+                  Supplier Name <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newSupplier.supplier_name}
+                  onChange={(e) => setNewSupplier(prev => ({ ...prev, supplier_name: e.target.value }))}
+                  placeholder="Enter supplier name"
+                  className="pif-form-field"
+                  autoFocus
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: '#ffffff',
+                    color: '#111827',
+                  }}
+                />
+              </div>
+              <div className="pif-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: '#374151'
+                }}>
+                  Supplier Type
+                </label>
+                <select
+                  value={newSupplier.supplier_type}
+                  onChange={(e) => setNewSupplier(prev => ({ ...prev, supplier_type: e.target.value }))}
+                  className="pif-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: '#ffffff',
+                    color: '#111827',
+                  }}
+                >
+                  <option value="">Select type</option>
+                  <option value="Individual">Individual</option>
+                  <option value="Company">Company</option>
+                  <option value="Partnership">Partnership</option>
+                  <option value="LLP">LLP</option>
+                  <option value="Trust">Trust</option>
+                </select>
+              </div>
+              <div className="pif-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: '#374151'
+                }}>
+                  Supplier Group
+                </label>
+                <input
+                  type="text"
+                  value={newSupplier.supplier_group}
+                  onChange={(e) => setNewSupplier(prev => ({ ...prev, supplier_group: e.target.value }))}
+                  placeholder="e.g. Local, International"
+                  className="pif-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: '#ffffff',
+                    color: '#111827',
+                  }}
+                />
+              </div>
+              <div className="pif-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                }}>
+                  Country
+                </label>
+                <select
+                  value={newSupplier.country}
+                  onChange={(e) => setNewSupplier(prev => ({ ...prev, country: e.target.value }))}
+                  className="pif-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: '#ffffff',
+                    color: '#111827',
+                  }}
+                >
+                  <option value="India">India</option>
+                  <option value="UK">UK</option>
+                  <option value="USA">USA</option>
+                  <option value="Australia">Australia</option>
+                  <option value="Canada">Canada</option>
+                  <option value="Germany">Germany</option>
+                  <option value="France">France</option>
+                  <option value="Japan">Japan</option>
+                  <option value="China">China</option>
+                  <option value="UAE">UAE</option>
+                  <option value="Singapore">Singapore</option>
+                </select>
+              </div>
+              <div className="pif-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: '#374151'
+                }}>
+                  Email <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="email"
+                  value={newSupplier.email_id}
+                  onChange={(e) => setNewSupplier(prev => ({ ...prev, email_id: e.target.value }))}
+                  placeholder="Enter email address"
+                  className="pif-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: '#ffffff',
+                    color: '#111827',
+                  }}
+                />
+              </div>
+              <div className="pif-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: '#374151'
+                }}>
+                  Phone <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="tel"
+                  value={newSupplier.mobile_no}
+                  onChange={(e) => setNewSupplier(prev => ({ ...prev, mobile_no: e.target.value }))}
+                  placeholder="Enter phone number"
+                  className="pif-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: '#ffffff',
+                    color: '#111827',
+                  }}
+                />
+              </div>
+              <div className="pif-popup-field" style={{ marginBottom: '0', gridColumn: '1 / -1' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: '#374151'
+                }}>
+                  Address
+                </label>
+                <textarea
+                  value={newSupplier.primary_address}
+                  onChange={(e) => setNewSupplier(prev => ({ ...prev, primary_address: e.target.value }))}
+                  placeholder="Enter address"
+                  className="pif-form-field pif-textarea"
+                  rows={2}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: '#ffffff',
+                    color: '#111827',
+                    resize: 'vertical',
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+          <div 
+            className="pif-modal-footer" 
+            style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '10px',
+              padding: '16px 20px',
+              borderTop: '1px solid #f3f4f6',
+              flexShrink: 0,
+            }}
+          >
+            <button 
+              className="pif-btn-cancel" 
+              onClick={() => setShowAddSupplierPopup(false)}
+              disabled={addingSupplier}
+              style={{
+                padding: '8px 20px',
+                borderRadius: '6px',
+                border: '1px solid #d1d5db',
+                background: 'transparent',
+                color: '#6b7280',
+                cursor: 'pointer',
+                fontSize: '14px',
+                transition: 'background 0.15s',
+              }}
+            >
+              Cancel
+            </button>
+            <button 
+              className="pif-btn-submit" 
+              onClick={handleAddNewSupplier}
+              disabled={addingSupplier}
+              style={{
+                padding: '8px 20px',
+                borderRadius: '6px',
+                border: 'none',
+                background: primaryColor,
+                color: '#ffffff',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: 500,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'background 0.15s',
+              }}
+            >
+              {addingSupplier && <FaSpinner className="pif-spinning" />}
+              <FaPlus size={12} />
+              Create Supplier
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ─── Render Supplier Dropdown with "+ Add New Supplier" ──────────────
+  const renderSupplierDropdown = () => {
+    if (!showSupplierDropdown) return null;
+
+    const primaryColor = '#6366f1';
+
+    return (
+      <div 
+        ref={supplierSearchRef} 
+        className="pif-supplier-dropdown"
+        style={{
+          position: 'absolute',
+          top: '100%',
+          left: 0,
+          right: 0,
+          maxHeight: '260px',
+          display: 'flex',
+          flexDirection: 'column',
+          background: '#ffffff',
+          border: '1px solid #d1d5db',
+          borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          zIndex: 100,
+          marginTop: '4px',
+          overflow: 'hidden',
+        }}
+      >
+        {/* ─── Scrollable supplier list ─── */}
+        <div
+          className="pif-supplier-dropdown-list"
+          style={{
+            overflowY: 'auto',
+            flex: '1 1 auto',
+            minHeight: 0,
+          }}
+        >
+          {filteredSuppliers.length > 0 ? (
+            filteredSuppliers.map((supplier) => (
+              <div
+                key={supplier.id}
+                className="pif-supplier-item"
+                onClick={() => handleSelectSupplier(supplier)}
+                style={{
+                  padding: '8px 12px',
+                  cursor: 'pointer',
+                  borderBottom: '1px solid #f3f4f6',
+                  transition: 'background 0.15s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#f9fafb';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                }}
+              >
+                <div className="pif-supplier-item-name" style={{ fontWeight: 500, fontSize: '13px', color: '#111827' }}>
+                  <FaBuilding className="pif-supplier-item-icon" size={12} style={{ marginRight: '6px' }} />
+                  {supplier.supplier_name}
+                </div>
+                <div className="pif-supplier-item-details" style={{ fontSize: '11px', color: '#9ca3af', marginTop: '2px' }}>
+                  {supplier.supplier_type && <span>{supplier.supplier_type}</span>}
+                  {supplier.mobile_no && <span style={{ marginLeft: '8px' }}><FaPhone size={10} /> {supplier.mobile_no}</span>}
+                  {supplier.email_id && <span style={{ marginLeft: '8px' }}><FaEnvelope size={10} /> {supplier.email_id}</span>}
+                </div>
+              </div>
+            ))
+          ) : (
+            <div style={{ padding: '16px 12px', textAlign: 'center', color: '#6b7280' }}>
+              <FaInfoCircle size={14} style={{ marginBottom: '4px' }} />
+              <div style={{ fontSize: '13px' }}>No suppliers found</div>
+            </div>
+          )}
+        </div>
+
+        {/* ─── "+ Add New Supplier" footer ─── */}
+        <div 
+          className="pif-supplier-dropdown-footer" 
+          style={{
+            padding: '8px 12px',
+            borderTop: '1px solid #f3f4f6',
+            display: 'flex',
+            justifyContent: 'center',
+            background: '#fafafa',
+            flexShrink: 0,
+          }}
+        >
+          <button
+            type="button"
+            className="pif-add-new-dropdown-btn"
+            onClick={() => {
+              setShowSupplierDropdown(false);
+              setShowAddSupplierPopup(true);
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: 'transparent',
+              border: `1.5px dashed ${primaryColor}`,
+              borderRadius: '6px',
+              color: primaryColor,
+              cursor: 'pointer',
+              fontSize: '12px',
+              fontWeight: 500,
+              padding: '6px 16px',
+              transition: 'all 0.15s',
+              width: '100%',
+              justifyContent: 'center',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = `${primaryColor}15`;
+              e.currentTarget.style.borderStyle = 'solid';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.borderStyle = 'dashed';
+            }}
+          >
+            <FaPlus size={12} style={{ color: primaryColor }} />
+            Add New Supplier
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   // ─── Submit ─────────────────────────────────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setApiError(null);
+
+    // FIX: Ensure supplier is selected before submitting
+    if (!selectedSupplier && !isEdit) {
+      toast.error('Please select a supplier');
+      return;
+    }
 
     const errs = validate();
     if (errs.length) {
@@ -1183,12 +1668,21 @@ export default function PurchaseInvoiceForm() {
 
     const now = new Date();
     const postingTime = now.toTimeString().slice(0, 8);
+    
+    // FIX: Ensure supplier ID is properly set - use selectedSupplier.id
+    const supplierId = selectedSupplier?.id;
+    if (!supplierId && !isEdit) {
+      setApiError('Supplier is required');
+      setLoading(false);
+      return;
+    }
+
     const payload: any = {
       ...(isEdit && id ? { id: Number(id) } : {}),
       name: isEdit ? (formData.invoiceNumber || 'PINV-') : 'PINV-',
       modified_by: 'Administrator',
       naming_series: 'PINV-',
-      supplier: selectedSupplier?.id,
+      supplier: supplierId,
       supplier_name: selectedSupplier?.supplier_name || '',
       company: selectedPO?.company || 'My Company',
       posting_date: formData.date,
@@ -1223,8 +1717,6 @@ export default function PurchaseInvoiceForm() {
         rate: r.rate || 0,
         ordered_rate: r.ordered_rate || 0,
         amount: r.amount || 0,
-        // ── GST FIX: these three were never sent before, so any tax you picked
-        //    per item was silently dropped and never reached the backend.
         item_tax_rate: String(r.tax_rate || 0),
         tax_id: r.tax_id || undefined,
         hsn_code: r.HSN || undefined,
@@ -1251,7 +1743,14 @@ export default function PurchaseInvoiceForm() {
         setApiError(res.data?.message || 'Failed to save invoice');
       }
     } catch (err: any) {
-      setApiError(err.response?.data?.message || 'Network error. Please try again.');
+      console.error('Error saving invoice:', err);
+      if (err.response?.data?.message) {
+        setApiError(err.response.data.message);
+      } else if (err.response?.data?.error) {
+        setApiError(err.response.data.error);
+      } else {
+        setApiError('Network error. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -1265,7 +1764,7 @@ export default function PurchaseInvoiceForm() {
   // ─── Render ────────────────────────────────────────────────────────────────
   if (pageLoading) {
     return (
-      <div className={`pif-page ${theme}`}>
+      <div className="pif-page">
         <div className="pif-inner pif-loading">
           <FaSpinner className="spinning" size={24} />
           <span>Loading invoice…</span>
@@ -1277,7 +1776,7 @@ export default function PurchaseInvoiceForm() {
   const hasErrors = validate().length > 0;
 
   return (
-    <div className={`pif-page ${theme}`}>
+    <div className="pif-page">
       <div className="pif-inner">
 
         {/* Success Modal */}
@@ -1332,6 +1831,9 @@ export default function PurchaseInvoiceForm() {
             </div>
           </div>
         )}
+
+        {/* ─── Add Supplier Popup ──────────────────────────────────── */}
+        {renderAddSupplierPopup()}
 
         {/* API Error */}
         {apiError && (
@@ -1533,26 +2035,8 @@ export default function PurchaseInvoiceForm() {
                         )}
                       </div>
 
-                      {showSupplierDropdown && filteredSuppliers.length > 0 && (
-                        <div className="warehouse-dropdown">
-                          <ul className="warehouse-dropdown-list">
-                            {filteredSuppliers.map((s) => (
-                              <li
-                                key={s.id}
-                                className="warehouse-dropdown-item"
-                                onClick={() => handleSelectSupplier(s)}
-                              >
-                                <div className="warehouse-item-name">
-                                  {s.supplier_name || ''}
-                                </div>
-                                <div className="warehouse-item-company">
-                                  {s.mobile_no || ''} · {s.supplier_group || ''}
-                                </div>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
+                      {/* ─── Supplier Dropdown with "+ Add New" ─── */}
+                      {renderSupplierDropdown()}
 
                       {showSupplierDropdown &&
                         filteredSuppliers.length === 0 &&
@@ -1567,7 +2051,7 @@ export default function PurchaseInvoiceForm() {
                   </div>
                 </div>
 
-                {/* ── PO Selection Section (Without GRN mode — POs with no GRN) ── */}
+                {/* ── PO Selection Section (Without GRN mode ── */}
                 {selectedSupplier && isManual && !isEdit && (
                   <>
                     <div className="pif-grn-po-section">
@@ -1815,7 +2299,7 @@ export default function PurchaseInvoiceForm() {
                         </div>
                       )}
 
-                      {/* Badge strip of GRNs linked to the selected PO, for quick toggling */}
+                      {/* Badge strip of GRNs linked to the selected PO */}
                       {linkedGRNsForPO.length > 0 && (
                         <div className="pif-grn-strip">
                           <span className="pif-grn-label">
@@ -2000,8 +2484,7 @@ export default function PurchaseInvoiceForm() {
                   </div>
                 </div>
 
-                {/* GST Summary — live preview of what will be submitted, driven
-                    entirely by each item row's own Tax% dropdown */}
+                {/* GST Summary */}
                 <div className="pif-party-detail-card">
                   <div className="pif-party-card-header">
                     <FaMoneyBillWave size={14} />

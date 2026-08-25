@@ -230,6 +230,206 @@
   box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
 }
 
+/* ── From - To Date Filter Button + Calendar Popup ────────── */
+.uoml-date-filter-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.uoml-date-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color, #e5e7eb);
+  background: var(--card-bg, white);
+  color: var(--text-primary, #374151);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+
+.uoml-date-btn:hover {
+  background: var(--nav-hover, #f9fafb);
+  border-color: var(--primary-color, #6366f1);
+}
+
+.uoml-date-btn-icon {
+  color: var(--primary-color, #6366f1);
+}
+
+.uoml-date-btn-chevron {
+  opacity: 0.6;
+}
+
+.uoml-date-popup {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 50;
+  width: 300px;
+  background: var(--card-bg, #ffffff);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px var(--shadow-color, rgba(0, 0, 0, 0.18));
+  border: 1px solid var(--border-color, #e5e7eb);
+  overflow: hidden;
+}
+
+.uoml-date-popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
+}
+
+.uoml-date-popup-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary, #1f2937);
+}
+
+.uoml-date-popup-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary, #6b7280);
+  display: flex;
+  align-items: center;
+}
+
+.uoml-date-quick-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 14px;
+}
+
+.uoml-date-quick-chip {
+  padding: 5px 10px;
+  font-size: 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-color, #e5e7eb);
+  background: var(--nav-hover, #f3f4f6);
+  color: var(--text-primary, #374151);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.uoml-date-quick-chip:hover {
+  background: color-mix(in srgb, var(--primary-color) 15%, transparent);
+}
+
+.uoml-date-month-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 14px;
+}
+
+.uoml-date-nav-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-primary, #374151);
+  display: flex;
+  align-items: center;
+}
+
+.uoml-date-month-label {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-primary, #1f2937);
+}
+
+.uoml-date-weekday-row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  padding: 4px 10px 0 10px;
+  text-align: center;
+}
+
+.uoml-date-weekday {
+  font-size: 11px;
+  color: var(--text-secondary, #9ca3af);
+  padding: 4px 0;
+}
+
+.uoml-date-day-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  padding: 0 10px 10px 10px;
+  text-align: center;
+}
+
+.uoml-date-day {
+  margin: 2px 0;
+  padding: 6px 0;
+  font-size: 12px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  background: transparent;
+  color: var(--text-primary, #1f2937);
+  font-weight: 400;
+  transition: background 0.15s ease;
+}
+
+.uoml-date-day:hover:not(.uoml-date-day-endpoint) {
+  background: var(--nav-hover, #f3f4f6);
+}
+
+.uoml-date-day-endpoint {
+  background: var(--primary-color, #6366f1);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.uoml-date-day-inrange {
+  background: color-mix(in srgb, var(--primary-color) 15%, transparent);
+}
+
+.uoml-date-popup-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border-color, #e5e7eb);
+}
+
+.uoml-date-clear-btn {
+  padding: 7px 14px;
+  font-size: 13px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color, #e5e7eb);
+  background: var(--card-bg, #ffffff);
+  color: var(--text-primary, #374151);
+  cursor: pointer;
+}
+
+.uoml-date-clear-btn:hover {
+  background: var(--nav-hover, #f3f4f6);
+}
+
+.uoml-date-apply-btn {
+  padding: 7px 14px;
+  font-size: 13px;
+  border-radius: 6px;
+  border: none;
+  background: var(--primary-color, #6366f1);
+  color: #ffffff;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.uoml-date-apply-btn:hover {
+  background: var(--primary-hover, #4f46e5);
+}
+
 /* ── Active Filters ──────────────────────────────────────── */
 .uoml-active-filters {
   display: flex;
@@ -1377,6 +1577,100 @@
   color: var(--text-secondary, #94a3b8);
 }
 
+/* ─── Date Filter Dark Theme Overrides ────────────────────── */
+.dark-theme .uoml-date-btn {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .uoml-date-btn:hover {
+  background: var(--nav-hover, rgba(255,255,255,0.05));
+  border-color: var(--primary-color, #3b82f6);
+}
+
+.dark-theme .uoml-date-btn-icon {
+  color: var(--primary-color, #3b82f6);
+}
+
+.dark-theme .uoml-date-popup {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+}
+
+.dark-theme .uoml-date-popup-header {
+  border-color: var(--border-color, #334155);
+}
+
+.dark-theme .uoml-date-popup-title {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .uoml-date-popup-close {
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .uoml-date-quick-chip {
+  background: var(--nav-hover, rgba(255,255,255,0.05));
+  border-color: var(--border-color, #334155);
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .uoml-date-quick-chip:hover {
+  background: color-mix(in srgb, var(--primary-color) 20%, transparent);
+}
+
+.dark-theme .uoml-date-nav-btn {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .uoml-date-month-label {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .uoml-date-weekday {
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .uoml-date-day {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .uoml-date-day:hover:not(.uoml-date-day-endpoint) {
+  background: var(--nav-hover, rgba(255,255,255,0.05));
+}
+
+.dark-theme .uoml-date-day-endpoint {
+  background: var(--primary-color, #3b82f6);
+  color: #ffffff;
+}
+
+.dark-theme .uoml-date-day-inrange {
+  background: color-mix(in srgb, var(--primary-color) 20%, transparent);
+}
+
+.dark-theme .uoml-date-popup-footer {
+  border-color: var(--border-color, #334155);
+}
+
+.dark-theme .uoml-date-clear-btn {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .uoml-date-clear-btn:hover {
+  background: var(--nav-hover, rgba(255,255,255,0.05));
+}
+
+.dark-theme .uoml-date-apply-btn {
+  background: var(--primary-color, #3b82f6);
+}
+
+.dark-theme .uoml-date-apply-btn:hover {
+  background: var(--primary-hover, #2563eb);
+}
+
 /* ─── Responsive ──────────────────────────────────────────── */
 @media (max-width: 1024px) {
   .uoml-stats-container {
@@ -1411,6 +1705,12 @@
   .uoml-filter-right {
     justify-content: flex-start;
     flex-wrap: wrap;
+  }
+
+  .uoml-date-popup {
+    width: 280px;
+    right: auto;
+    left: 0;
   }
 
   .uoml-pagination {
@@ -1508,6 +1808,21 @@
 
   .uoml-filter-right > * {
     width: 100%;
+  }
+
+  .uoml-date-filter-wrapper {
+    width: 100%;
+  }
+
+  .uoml-date-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .uoml-date-popup {
+    width: 100%;
+    left: 0;
+    right: 0;
   }
 
   .uoml-btn-primary {

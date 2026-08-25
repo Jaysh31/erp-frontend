@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FaSearch,
@@ -13,6 +13,8 @@ import {
   FaTrash,
   FaPlus,
   FaSpinner,
+  FaChevronDown,
+  FaCalendarAlt,
 } from 'react-icons/fa';
 import "./WarehouseList.css";
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
@@ -59,6 +61,123 @@ export default function WarehouseList() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedWarehouse, setSelectedWarehouse] = useState<Warehouse | null>(null);
 
+  // ─── Date Range Filter State (From - To, same UI as Purchase Order) ───
+  const [dateFrom, setDateFrom] = useState<Date | null>(null);
+  const [dateTo, setDateTo] = useState<Date | null>(null);
+  const [tempFrom, setTempFrom] = useState<Date | null>(null);
+  const [tempTo, setTempTo] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [calendarMonth, setCalendarMonth] = useState<Date>(new Date());
+  const datePickerRef = useRef<HTMLDivElement>(null);
+
+  // ─── Date Range Filter Helpers ─────────────────────────────────────────
+  const toISODate = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
+  const formatDateShort = (d: Date) =>
+    d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+  const isSameDay = (a: Date | null, b: Date | null) =>
+    !!a && !!b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+
+  const dateButtonLabel =
+    dateFrom && dateTo ? `${formatDateShort(dateFrom)} – ${formatDateShort(dateTo)}` : 'From - To';
+
+  const getCalendarDays = (monthDate: Date): (Date | null)[] => {
+    const year = monthDate.getFullYear();
+    const month = monthDate.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const startWeekday = firstDay.getDay();
+    const days: (Date | null)[] = [];
+    for (let i = 0; i < startWeekday; i++) days.push(null);
+    for (let d = 1; d <= lastDay.getDate(); d++) days.push(new Date(year, month, d));
+    return days;
+  };
+
+  const openDatePicker = () => {
+    setTempFrom(dateFrom);
+    setTempTo(dateTo);
+    setCalendarMonth(dateFrom || new Date());
+    setShowDatePicker((prev) => !prev);
+  };
+
+  const handleDayClick = (day: Date) => {
+    if (!tempFrom || (tempFrom && tempTo)) {
+      setTempFrom(day);
+      setTempTo(null);
+    } else if (day < tempFrom) {
+      setTempTo(tempFrom);
+      setTempFrom(day);
+    } else {
+      setTempTo(day);
+    }
+  };
+
+  const setQuickRange = (type: 'today' | '7days' | '30days' | 'month') => {
+    const now = new Date();
+    const todayOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    let from: Date;
+    let to: Date;
+    switch (type) {
+      case 'today':
+        from = todayOnly;
+        to = todayOnly;
+        break;
+      case '7days':
+        to = todayOnly;
+        from = new Date(todayOnly);
+        from.setDate(from.getDate() - 6);
+        break;
+      case '30days':
+        to = todayOnly;
+        from = new Date(todayOnly);
+        from.setDate(from.getDate() - 29);
+        break;
+      case 'month':
+        from = new Date(now.getFullYear(), now.getMonth(), 1);
+        to = todayOnly;
+        break;
+    }
+    setTempFrom(from);
+    setTempTo(to);
+    setCalendarMonth(from);
+  };
+
+  const prevMonth = () => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1));
+  const nextMonth = () => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1));
+
+  const applyDateFilter = () => {
+    setDateFrom(tempFrom);
+    setDateTo(tempTo);
+    setShowDatePicker(false);
+    setCurrentPage(1);
+  };
+
+  const clearDateFilterOnly = () => {
+    setTempFrom(null);
+    setTempTo(null);
+    setDateFrom(null);
+    setDateTo(null);
+  };
+
+  // Close the date picker popup when clicking outside of it
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (datePickerRef.current && !datePickerRef.current.contains(e.target as Node)) {
+        setShowDatePicker(false);
+      }
+    };
+    if (showDatePicker) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showDatePicker]);
+
   // Fetch warehouses from API
   const fetchWarehouses = async () => {
     setLoading(true);
@@ -70,6 +189,13 @@ export default function WarehouseList() {
       
       if (searchTerm) {
         params.append('search', searchTerm);
+      }
+
+      if (dateFrom) {
+        params.append('from', toISODate(dateFrom));
+      }
+      if (dateTo) {
+        params.append('to', toISODate(dateTo));
       }
 
       const response = await api.get<ApiResponse>(`/warehouse?${params.toString()}`);
@@ -91,12 +217,12 @@ export default function WarehouseList() {
   // Fetch when dependencies change
   useEffect(() => {
     fetchWarehouses();
-  }, [currentPage, itemsPerPage, searchTerm]);
+  }, [currentPage, itemsPerPage, searchTerm, dateFrom, dateTo]);
 
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, itemsPerPage]);
+  }, [searchTerm, itemsPerPage, dateFrom, dateTo]);
 
   // Filter data based on status
   const filteredData = warehouses.filter(item => {
@@ -202,6 +328,7 @@ export default function WarehouseList() {
   const clearFilters = () => {
     setSearchTerm('');
     setStatusFilter('all');
+    clearDateFilterOnly();
   };
 
   const getStartIndex = () => {
@@ -215,6 +342,8 @@ export default function WarehouseList() {
   const handleRowClick = (warehouse: Warehouse) => {
     navigate(`/warehouse/${warehouse.id}`);
   };
+
+  const weekdayLabels = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
   return (
     <div className={`wl-page ${theme}`}>
@@ -251,6 +380,234 @@ export default function WarehouseList() {
             <FaFilter size={12} />
             Filter
           </button>
+
+          {/* ─── From - To Date Filter Button + Calendar Popup ─────────── */}
+          <div ref={datePickerRef} style={{ position: 'relative', display: 'inline-block' }}>
+            <button
+              type="button"
+              onClick={openDatePicker}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '8px 14px',
+                borderRadius: '8px',
+                border: '1px solid var(--border-color, #d1d5db)',
+                background: 'var(--card-bg, #ffffff)',
+                color: 'var(--text-primary, #1f2937)',
+                fontSize: '13px',
+                fontWeight: 500,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <FaCalendarAlt size={13} style={{ color: 'var(--primary-color, #2563eb)' }} />
+              {dateButtonLabel}
+              <FaChevronDown size={10} style={{ opacity: 0.6 }} />
+            </button>
+
+            {showDatePicker && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 8px)',
+                  right: 0,
+                  zIndex: 50,
+                  width: '300px',
+                  background: 'var(--card-bg, #ffffff)',
+                  borderRadius: '10px',
+                  boxShadow: '0 10px 30px rgba(0,0,0,0.18)',
+                  border: '1px solid var(--border-color, #e5e7eb)',
+                  overflow: 'hidden',
+                }}
+              >
+                {/* Header */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '12px 14px',
+                    borderBottom: '1px solid var(--border-color, #e5e7eb)',
+                  }}
+                >
+                  <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text-primary, #1f2937)' }}>
+                    Filter by Date
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowDatePicker(false)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary, #6b7280)' }}
+                  >
+                    <FaTimes size={14} />
+                  </button>
+                </div>
+
+                {/* Quick range chips */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', padding: '10px 14px' }}>
+                  {[
+                    { label: 'Today', type: 'today' as const },
+                    { label: 'Last 7 Days', type: '7days' as const },
+                    { label: 'Last 30 Days', type: '30days' as const },
+                    { label: 'This Month', type: 'month' as const },
+                  ].map((q) => (
+                    <button
+                      key={q.type}
+                      type="button"
+                      onClick={() => setQuickRange(q.type)}
+                      style={{
+                        padding: '5px 10px',
+                        fontSize: '12px',
+                        borderRadius: '999px',
+                        border: '1px solid var(--border-color, #d1d5db)',
+                        background: 'var(--hover-bg, #f3f4f6)',
+                        color: 'var(--text-primary, #374151)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {q.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Month navigation */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '4px 14px',
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={prevMonth}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-primary, #374151)' }}
+                  >
+                    <FaChevronLeft size={12} />
+                  </button>
+                  <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary, #1f2937)' }}>
+                    {calendarMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={nextMonth}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-primary, #374151)' }}
+                  >
+                    <FaChevronRight size={12} />
+                  </button>
+                </div>
+
+                {/* Weekday header */}
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(7, 1fr)',
+                    padding: '4px 10px 0 10px',
+                    textAlign: 'center',
+                  }}
+                >
+                  {weekdayLabels.map((wd) => (
+                    <span key={wd} style={{ fontSize: '11px', color: 'var(--text-secondary, #9ca3af)', padding: '4px 0' }}>
+                      {wd}
+                    </span>
+                  ))}
+                </div>
+
+                {/* Day grid */}
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(7, 1fr)',
+                    padding: '0 10px 10px 10px',
+                    textAlign: 'center',
+                  }}
+                >
+                  {getCalendarDays(calendarMonth).map((day, idx) => {
+                    if (!day) return <div key={`empty-${idx}`} />;
+
+                    const isFrom = isSameDay(day, tempFrom);
+                    const isTo = isSameDay(day, tempTo);
+                    const inRange =
+                      tempFrom && tempTo && day > tempFrom && day < tempTo;
+                    const isEndpoint = isFrom || isTo;
+
+                    return (
+                      <button
+                        key={day.toISOString()}
+                        type="button"
+                        onClick={() => handleDayClick(day)}
+                        style={{
+                          margin: '2px 0',
+                          padding: '6px 0',
+                          fontSize: '12px',
+                          borderRadius: '6px',
+                          border: 'none',
+                          cursor: 'pointer',
+                          background: isEndpoint
+                            ? 'var(--primary-color, #2563eb)'
+                            : inRange
+                            ? 'var(--primary-color-light, #dbeafe)'
+                            : 'transparent',
+                          color: isEndpoint ? '#ffffff' : 'var(--text-primary, #1f2937)',
+                          fontWeight: isEndpoint ? 600 : 400,
+                        }}
+                      >
+                        {day.getDate()}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Footer actions */}
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'flex-end',
+                    gap: '8px',
+                    padding: '10px 14px',
+                    borderTop: '1px solid var(--border-color, #e5e7eb)',
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTempFrom(null);
+                      setTempTo(null);
+                    }}
+                    style={{
+                      padding: '7px 14px',
+                      fontSize: '13px',
+                      borderRadius: '6px',
+                      border: '1px solid var(--border-color, #d1d5db)',
+                      background: 'var(--card-bg, #ffffff)',
+                      color: 'var(--text-primary, #374151)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Clear
+                  </button>
+                  <button
+                    type="button"
+                    onClick={applyDateFilter}
+                    style={{
+                      padding: '7px 14px',
+                      fontSize: '13px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      background: 'var(--primary-color, #2563eb)',
+                      color: '#ffffff',
+                      cursor: 'pointer',
+                      fontWeight: 500,
+                    }}
+                  >
+                    Apply Filters
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
           <button className="wl-sort-btn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="9" y2="18"/>
@@ -266,7 +623,7 @@ export default function WarehouseList() {
       </div>
 
       {/* Active filters indicator */}
-      {(searchTerm || statusFilter !== 'all') && (
+      {(searchTerm || statusFilter !== 'all' || (dateFrom && dateTo)) && (
         <div className="wl-active-filters">
           <FaFilter size={12} style={{ color: 'var(--primary-color)' }} />
           <span style={{ color: 'var(--text-primary)' }}>Active filters:</span>
@@ -278,6 +635,11 @@ export default function WarehouseList() {
           {statusFilter !== 'all' && (
             <span style={{ color: 'var(--text-primary)' }}>
               <strong>Status:</strong> {statusFilter}
+            </span>
+          )}
+          {dateFrom && dateTo && (
+            <span style={{ color: 'var(--text-primary)' }}>
+              <strong>Date:</strong> {formatDateShort(dateFrom)} – {formatDateShort(dateTo)}
             </span>
           )}
           <button 

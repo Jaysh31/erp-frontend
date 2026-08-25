@@ -5,7 +5,7 @@ import {
   FaFilter, FaCheckCircle, FaClock, FaTimesCircle,
   FaFileAlt, FaExternalLinkAlt,
   FaChartLine, FaTimes,  FaSpinner,
-  FaEnvelope,
+  FaEnvelope, FaCalendarAlt,
   FaAngleDoubleLeft,
   FaAngleDoubleRight,
   FaChevronLeft,
@@ -201,8 +201,13 @@ const numberToIndianWords = (value: number): string => {
   return out.trim();
 };
 
-const formatPrintDate = (date: string): string => {
+// ✅ UPDATED: Format print date using context formatter
+const formatPrintDate = (date: string, formatFn?: (date: string) => string): string => {
   if (!date) return '';
+  if (formatFn) {
+    return formatFn(date);
+  }
+  // Fallback if formatFn not provided
   const d = new Date(date);
   if (isNaN(d.getTime())) return date;
   const day = String(d.getDate()).padStart(2, '0');
@@ -268,13 +273,8 @@ const mapApiItemsToQuotationItems = (record: QuotationApiRecord | null | undefin
 export default function QuotationPage() {
   const navigate = useNavigate();
 
-  let theme = 'light';
-  try {
-    const context = useAdminTheme();
-    theme = context.theme;
-  } catch (error) {
-    console.log('Using default light theme');
-  }
+  // ✅ GET THE DATE FORMAT FUNCTION FROM CONTEXT
+  const { theme, formatDate, getApiDateFormat } = useAdminTheme();
 
   const [filterText, setFilterText] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('All');
@@ -290,6 +290,12 @@ export default function QuotationPage() {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [totalRecords, setTotalRecords] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
+
+  // ─── Date Filter States ────────────────────────────────────────────────
+  const [fromDate, setFromDate] = useState<string>("");
+  const [toDate, setToDate] = useState<string>("");
+  const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
+  const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
 
   // Modal states
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -317,6 +323,96 @@ export default function QuotationPage() {
 
   const debouncedFilterText = useDebounce(filterText, 500);
 
+  // ✅ NEW: Format display date using context
+  const formatDisplayDate = (dateString: string) => {
+    if (!dateString) return '';
+    return formatDate(dateString);
+  };
+
+  // ✅ NEW: Format date for API (YYYY-MM-DD)
+  const toApiDateFormat = (date: Date) => {
+    return getApiDateFormat(date);
+  };
+
+  // ─── Date Filter Helper Functions ─────────────────────────────────────
+
+  // ✅ UPDATED: Format date display using context
+  const formatDateDisplay = (dateStr: string) => {
+    if (!dateStr) return '';
+    return formatDate(dateStr);
+  };
+
+  const getDaysInMonth = (date: Date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const firstDayOfMonth = new Date(year, month, 1).getDay();
+    return { daysInMonth, firstDayOfMonth };
+  };
+
+  const getMonthYear = (date: Date) => {
+    return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  };
+
+  const handlePrevMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
+  };
+
+  const handleNextMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
+  };
+
+  const isDateSelected = (day: number) => {
+    if (!fromDate || !toDate) return false;
+    const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+    const from = new Date(fromDate);
+    const to = new Date(toDate);
+    to.setHours(23, 59, 59, 999);
+    return date >= from && date <= to;
+  };
+
+  const handleDateClick = (day: number) => {
+    const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+    const dateStr = date.toISOString().split('T')[0];
+    
+    if (!fromDate || (fromDate && toDate)) {
+      setFromDate(dateStr);
+      setToDate('');
+    } else {
+      if (new Date(dateStr) < new Date(fromDate)) {
+        setToDate(fromDate);
+        setFromDate(dateStr);
+      } else {
+        setToDate(dateStr);
+      }
+    }
+  };
+
+  const handleApplyDateFilter = () => {
+    if (fromDate && toDate) {
+      setCurrentPage(1);
+      setShowDatePicker(false);
+      fetchQuotations();
+    }
+  };
+
+  const handleClearDateFilter = () => {
+    setFromDate('');
+    setToDate('');
+    setCurrentPage(1);
+    setShowDatePicker(false);
+    fetchQuotations();
+  };
+
+  const setQuickDateRange = (days: number) => {
+    const today = new Date();
+    const from = new Date(today);
+    from.setDate(today.getDate() - days);
+    setFromDate(from.toISOString().split('T')[0]);
+    setToDate(today.toISOString().split('T')[0]);
+    setCurrentPage(1);
+  };
+
   // ─── load from GET /quotation with server-side pagination ──────
 
   const fetchQuotations = async () => {
@@ -327,37 +423,39 @@ export default function QuotationPage() {
       params.append('page', String(currentPage));
       params.append('limit', String(itemsPerPage));
 
-      // Add search filter if present
       if (debouncedFilterText.trim()) {
         params.append('search', debouncedFilterText.trim());
+        params.append('search_by', 'all');
       }
 
-      // Add status filter if not 'All'
       if (selectedStatus !== 'All') {
         params.append('status', selectedStatus);
       }
 
-      // Add currency filter if not 'All'
       if (selectedCurrency !== 'All') {
         params.append('currency', selectedCurrency);
       }
 
-      const response = await api.get<ApiResponse>(`/quotation?${params.toString()}`);
+      if (fromDate) {
+        params.append('date_from', fromDate);
+      }
+      if (toDate) {
+        params.append('date_to', toDate);
+      }
 
-     
+      const response = await api.get<ApiResponse>(`/quotation?${params.toString()}`);
 
       const { records, total, totalPages: apiTotalPages } = response.data.data;
 
-      // Update pagination info from server
       setTotalRecords(total);
       setTotalPages(apiTotalPages);
       
-      // Ensure current page is valid
       if (currentPage > apiTotalPages && apiTotalPages > 0) {
         setCurrentPage(apiTotalPages);
-        return; // Will re-fetch with corrected page
+        return;
       }
 
+      // ✅ TRANSFORM DATA WITH FORMATTED DATES
       const transformedData: Quotation[] = records.map((q) => ({
         id: q.name,
         quotationNumber: q.name,
@@ -401,12 +499,12 @@ export default function QuotationPage() {
   // Fetch when page, itemsPerPage, or filters change
   useEffect(() => {
     fetchQuotations();
-  }, [currentPage, itemsPerPage, debouncedFilterText, selectedStatus, selectedCurrency]);
+  }, [currentPage, itemsPerPage, debouncedFilterText, selectedStatus, selectedCurrency, fromDate, toDate]);
 
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterText, selectedStatus, selectedCurrency]);
+  }, [filterText, selectedStatus, selectedCurrency, fromDate, toDate]);
 
   const fetchFullQuotationRecord = async (quotationId: string): Promise<QuotationApiRecord | null> => {
     try {
@@ -568,17 +666,9 @@ export default function QuotationPage() {
     return Math.min(currentPage * itemsPerPage, totalRecords);
   };
 
-  // const getStatusCount = (status: string) => {
-  //   return quotations.filter(q => q.status === status).length;
-  // };
-
-
-
   const totalAmount = quotations.reduce((sum, q) => sum + q.totalAmount, 0);
   const acceptedAmount = quotations.filter(q => q.status === 'Accepted').reduce((sum, q) => sum + q.totalAmount, 0);
   const conversionRate = totalAmount > 0 ? Math.round((acceptedAmount / totalAmount) * 100) : 0;
-
-
 
   const handleView = (quote: Quotation) => {
     navigate(`/quotation/${quote.id}`, { state: { quotation: quote } });
@@ -597,11 +687,9 @@ export default function QuotationPage() {
     if (!selectedQuote) return;
     setIsSubmitting(true);
     try {
-      // Log the delete attempt
       console.log('Attempting to delete quotation:', selectedQuote.id);
       console.log('Quotation data:', selectedQuote);
       
-      // Try different delete endpoints if needed
       const response = await api.delete(`/quotation/${selectedQuote.id}`);
       console.log('Delete response:', response);
       
@@ -609,7 +697,6 @@ export default function QuotationPage() {
         setShowDeleteModal(false);
         setSelectedQuote(null);
         toast.success(response.data.message || 'Quotation deleted successfully!');
-        // Refresh the list
         await fetchQuotations();
       } else {
         const errorMsg = response.data?.message || 'Failed to delete quotation';
@@ -619,13 +706,11 @@ export default function QuotationPage() {
     } catch (err: any) {
       console.error('Error deleting quotation:', err);
       
-      // Check if error has response (server responded)
       if (err.response) {
         console.error('Error response status:', err.response.status);
         console.error('Error response data:', err.response.data);
         console.error('Error response headers:', err.response.headers);
         
-        // Show specific error message based on status
         if (err.response.status === 500) {
           toast.error('Server error: The quotation may have related records (items, taxes) that need to be deleted first.');
         } else if (err.response.status === 404) {
@@ -638,11 +723,9 @@ export default function QuotationPage() {
           toast.error(err.response.data?.message || 'Failed to delete quotation');
         }
       } else if (err.request) {
-        // Request was made but no response received
         console.error('No response received:', err.request);
         toast.error('Network error - Please check your connection');
       } else {
-        // Something else happened
         console.error('Request setup error:', err.message);
         toast.error('An unexpected error occurred: ' + err.message);
       }
@@ -657,6 +740,9 @@ export default function QuotationPage() {
     setFilterText('');
     setSelectedStatus('All');
     setSelectedCurrency('All');
+    setFromDate('');
+    setToDate('');
+    setCurrentPage(1);
   };
 
   /* ─────────────────────── Print (Tax-Invoice format) ─────────────────────── */
@@ -669,6 +755,12 @@ export default function QuotationPage() {
     const sgstAmount = validItems.reduce((sum, it) => sum + ((it.amount || 0) * (it.sgst || 0)) / 100, 0);
     const totalQty = validItems.reduce((sum, it) => sum + (it.quantity || 0), 0);
     const grandTotal = quote.totalAmount || (baseTotal + cgstAmount + sgstAmount);
+
+    // ✅ Use formatDisplayDate for formatted dates in print
+    const formatPrintDateLocal = (dateStr: string) => {
+      if (!dateStr) return '';
+      return formatDisplayDate(dateStr);
+    };
 
     const itemRows = validItems.map((item, idx) => `
       <tr>
@@ -828,7 +920,7 @@ export default function QuotationPage() {
           </div>
           <div class="pq-meta-cell" style="border-right:none;">
             <div class="pq-meta-label">Dated</div>
-            <div class="pq-meta-value">${escapeHtml(formatPrintDate(quote.date))}</div>
+            <div class="pq-meta-value">${escapeHtml(formatPrintDateLocal(quote.date))}</div>
           </div>
         </div>
         <div class="pq-meta-row">
@@ -844,7 +936,7 @@ export default function QuotationPage() {
         <div class="pq-meta-row">
           <div class="pq-meta-cell" style="border-right:none;">
             <div class="pq-meta-label">Reference No. &amp; Date.</div>
-            <div class="pq-meta-value">${escapeHtml(quote.referenceNo || '')}${quote.referenceDate ? ` dt. ${escapeHtml(formatPrintDate(quote.referenceDate))}` : ''}</div>
+            <div class="pq-meta-value">${escapeHtml(quote.referenceNo || '')}${quote.referenceDate ? ` dt. ${escapeHtml(formatPrintDateLocal(quote.referenceDate))}` : ''}</div>
           </div>
         </div>
         <div class="pq-meta-row">
@@ -854,7 +946,7 @@ export default function QuotationPage() {
           </div>
           <div class="pq-meta-cell" style="border-right:none;">
             <div class="pq-meta-label">Dated</div>
-            <div class="pq-meta-value">${escapeHtml(formatPrintDate(quote.buyersOrderDate || ''))}</div>
+            <div class="pq-meta-value">${escapeHtml(formatPrintDateLocal(quote.buyersOrderDate || ''))}</div>
           </div>
         </div>
         <div class="pq-meta-row">
@@ -864,7 +956,7 @@ export default function QuotationPage() {
           </div>
           <div class="pq-meta-cell" style="border-right:none;">
             <div class="pq-meta-label">Delivery Note Date</div>
-            <div class="pq-meta-value">${escapeHtml(formatPrintDate(quote.deliveryNoteDate || ''))}</div>
+            <div class="pq-meta-value">${escapeHtml(formatPrintDateLocal(quote.deliveryNoteDate || ''))}</div>
           </div>
         </div>
         <div class="pq-meta-row">
@@ -887,7 +979,7 @@ export default function QuotationPage() {
         <div class="pq-meta-row">
           <div class="pq-meta-cell" style="border-right:none;">
             <div class="pq-meta-label">Status</div>
-            <div class="pq-meta-value">${escapeHtml(quote.status)} ${quote.validTill ? `&nbsp;•&nbsp; Valid Till: ${escapeHtml(formatPrintDate(quote.validTill))}` : ''}</div>
+            <div class="pq-meta-value">${escapeHtml(quote.status)} ${quote.validTill ? `&nbsp;•&nbsp; Valid Till: ${escapeHtml(formatPrintDateLocal(quote.validTill))}` : ''}</div>
           </div>
         </div>` : ''}
       </div>
@@ -1040,7 +1132,7 @@ export default function QuotationPage() {
             <FaSearch className="qt-search-icon" />
             <input
               type="text"
-              placeholder="Search by Quote # or Customer..."
+              placeholder="Search by Quote #, Customer Name, or Customer Code..."
               value={filterText}
               onChange={(e) => setFilterText(e.target.value)}
               className="qt-search-input"
@@ -1066,6 +1158,99 @@ export default function QuotationPage() {
             <option value="Expired">Expired</option>
             <option value="Converted">Converted</option>
           </select>
+
+          {/* ─── Date Range Picker ─── */}
+          <div className="qt-date-range-wrapper">
+            <button 
+              className={`qt-date-toggle-btn ${showDatePicker ? 'active' : ''}`}
+              onClick={() => setShowDatePicker(!showDatePicker)}
+              title="Filter by date range"
+            >
+              <FaCalendarAlt size={14} />
+            </button>
+            {showDatePicker && (
+              <div className="qt-date-picker-popup">
+                <div className="qt-date-picker-header">
+                  <span className="qt-date-picker-title">Filter by Date</span>
+                </div>
+                
+                {/* Date Range Display */}
+                <div className="qt-date-range-display">
+                  {fromDate && toDate ? (
+                    <span>{formatDateDisplay(fromDate)} – {formatDateDisplay(toDate)}</span>
+                  ) : (
+                    <span className="qt-date-range-placeholder">Select date range</span>
+                  )}
+                </div>
+
+                {/* Quick Filters */}
+                <div className="qt-quick-filters">
+                  <button className="qt-quick-filter-btn" onClick={() => setQuickDateRange(0)}>Today</button>
+                  <button className="qt-quick-filter-btn" onClick={() => setQuickDateRange(7)}>Last 7 Days</button>
+                  <button className="qt-quick-filter-btn" onClick={() => setQuickDateRange(30)}>Last 30 Days</button>
+                  <button className="qt-quick-filter-btn" onClick={() => setQuickDateRange(90)}>This Month</button>
+                </div>
+
+                {/* Calendar */}
+                <div className="qt-calendar">
+                  <div className="qt-calendar-header">
+                    <button className="qt-calendar-nav" onClick={handlePrevMonth}>
+                      <FaChevronLeft size={12} />
+                    </button>
+                    <span className="qt-calendar-month">{getMonthYear(currentMonth)}</span>
+                    <button className="qt-calendar-nav" onClick={handleNextMonth}>
+                      <FaChevronRight size={12} />
+                    </button>
+                  </div>
+                  <div className="qt-calendar-weekdays">
+                    <span>Su</span>
+                    <span>Mo</span>
+                    <span>Tu</span>
+                    <span>We</span>
+                    <span>Th</span>
+                    <span>Fr</span>
+                    <span>Sa</span>
+                  </div>
+                  <div className="qt-calendar-days">
+                    {Array.from({ length: getDaysInMonth(currentMonth).firstDayOfMonth }).map((_, i) => (
+                      <span key={`empty-${i}`} className="qt-calendar-day-empty"></span>
+                    ))}
+                    {Array.from({ length: getDaysInMonth(currentMonth).daysInMonth }).map((_, i) => {
+                      const day = i + 1;
+                      const isSelected = isDateSelected(day);
+                      return (
+                        <button
+                          key={day}
+                          className={`qt-calendar-day ${isSelected ? 'selected' : ''}`}
+                          onClick={() => handleDateClick(day)}
+                        >
+                          {day}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="qt-date-actions">
+                  <button 
+                    className="qt-btn-clear-filter" 
+                    onClick={handleClearDateFilter}
+                  >
+                    Clear
+                  </button>
+                  <button 
+                    className="qt-btn-apply-filter" 
+                    onClick={handleApplyDateFilter}
+                    disabled={!fromDate || !toDate}
+                  >
+                    Apply Filters
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
           <button className="qt-btn-new" onClick={() => navigate('/quotation/new')}>
             <FaPlus size={12} /> New Quotation
           </button>
@@ -1073,7 +1258,7 @@ export default function QuotationPage() {
       </div>
 
       {/* Active filters indicator */}
-      {(filterText || selectedStatus !== "All" || selectedCurrency !== "All") && (
+      {(filterText || selectedStatus !== "All" || selectedCurrency !== "All" || (fromDate && toDate)) && (
         <div className="qt-active-filters">
           <FaFilter size={12} style={{ color: "var(--primary-color)" }} />
           <span style={{ color: "var(--text-primary)" }}>Active filters:</span>
@@ -1090,6 +1275,11 @@ export default function QuotationPage() {
           {selectedCurrency !== "All" && (
             <span style={{ color: "var(--text-primary)" }}>
               <strong>Currency:</strong> {selectedCurrency}
+            </span>
+          )}
+          {fromDate && toDate && (
+            <span style={{ color: "var(--text-primary)" }}>
+              <strong>Date Range:</strong> {formatDateDisplay(fromDate)} - {formatDateDisplay(toDate)}
             </span>
           )}
           <button onClick={clearFilters} className="qt-clear-filters">
@@ -1150,9 +1340,10 @@ export default function QuotationPage() {
                         </div>
                       </td>
                       <td className="qt-td">
-                        <div>{quote.date ? new Date(quote.date).toLocaleDateString() : '-'}</div>
+                        {/* ✅ USE FORMATTED DATE FOR DISPLAY */}
+                        <div>{quote.date ? formatDisplayDate(quote.date) : '-'}</div>
                         <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                          Valid: {quote.validTill ? new Date(quote.validTill).toLocaleDateString() : '-'}
+                          Valid: {quote.validTill ? formatDisplayDate(quote.validTill) : '-'}
                         </div>
                       </td>
                       <td className="qt-td">
@@ -1444,8 +1635,9 @@ export default function QuotationPage() {
                   <div style={{ padding: '2px 0' }}><strong>Address:</strong> {selectedQuote.customerAddress || 'N/A'}</div>
                 </div>
                 <div style={{ fontSize: '13px', marginBottom: '16px' }}>
-                  <div style={{ padding: '2px 0' }}><strong>Date:</strong> {selectedQuote.date ? new Date(selectedQuote.date).toLocaleDateString() : 'N/A'}</div>
-                  <div style={{ padding: '2px 0' }}><strong>Valid Till:</strong> {selectedQuote.validTill ? new Date(selectedQuote.validTill).toLocaleDateString() : 'N/A'}</div>
+                  {/* ✅ USE FORMATTED DATES FOR DISPLAY */}
+                  <div style={{ padding: '2px 0' }}><strong>Date:</strong> {selectedQuote.date ? formatDisplayDate(selectedQuote.date) : 'N/A'}</div>
+                  <div style={{ padding: '2px 0' }}><strong>Valid Till:</strong> {selectedQuote.validTill ? formatDisplayDate(selectedQuote.validTill) : 'N/A'}</div>
                   <div style={{ padding: '2px 0' }}><strong>Status:</strong> {selectedQuote.status}</div>
                   <div style={{ padding: '2px 0' }}><strong>Currency:</strong> {selectedQuote.currency}</div>
                 </div>

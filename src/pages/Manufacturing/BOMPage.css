@@ -413,7 +413,311 @@
   left: auto;
 }
 
-/* ── Active filters indicator ──────────────────────────────────── */
+/* ─── Date Range Picker Styles ──────────────────────────────── */
+
+.bom-date-range-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.bom-date-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  height: 38px;
+  background: var(--bg-secondary, #f3f4f6);
+  border: 1px solid var(--border-color, #d1d5db);
+  border-radius: 8px;
+  color: var(--text-secondary, #6b7280);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 13px;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.bom-date-toggle-btn:hover {
+  background: var(--bg-hover, #e5e7eb);
+  border-color: var(--primary-color, #3b82f6);
+  color: var(--text-primary, #1f2433);
+}
+
+.bom-date-toggle-btn.active {
+  background: var(--primary-color, #3b82f6);
+  color: white;
+  border-color: var(--primary-color, #3b82f6);
+}
+
+.bom-date-toggle-btn .bom-date-display {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.bom-date-label {
+  font-size: 11px;
+  font-weight: 500;
+  opacity: 0.7;
+  margin: 0 2px;
+}
+
+.bom-date-input {
+  width: 100px;
+  padding: 2px 4px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.bom-date-input:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.bom-date-input:focus {
+  background: white;
+  border-color: var(--primary-color, #3b82f6);
+  color: var(--text-primary, #1f2433);
+}
+
+.bom-date-input::-webkit-calendar-picker-indicator {
+  opacity: 0.5;
+  cursor: pointer;
+}
+
+.bom-date-picker-popup {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  background: var(--bg-primary, #ffffff);
+  border: 1px solid var(--border-color, #d1d5db);
+  border-radius: 8px;
+  padding: 16px;
+  min-width: 280px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  animation: bomSlideDown 0.2s ease;
+}
+
+@keyframes bomSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.bom-date-picker-header {
+  margin-bottom: 12px;
+}
+
+.bom-date-picker-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #1f2937);
+}
+
+.bom-date-range-display {
+  padding: 8px 12px;
+  background: var(--bg-secondary, #f3f4f6);
+  border-radius: 6px;
+  margin-bottom: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary, #1f2937);
+  text-align: center;
+  border: 1px solid var(--border-color, #e5e7eb);
+}
+
+.bom-date-range-placeholder {
+  color: var(--text-secondary, #9ca3af);
+  font-weight: 400;
+}
+
+.bom-quick-filters {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.bom-quick-filter-btn {
+  padding: 4px 12px;
+  background: var(--bg-secondary, #f3f4f6);
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--text-secondary, #6b7280);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  height: 28px;
+  font-family: inherit;
+}
+
+.bom-quick-filter-btn:hover {
+  background: var(--primary-color, #3b82f6);
+  color: white;
+  border-color: var(--primary-color, #3b82f6);
+}
+
+.bom-quick-filter-btn.active {
+  background: var(--primary-color, #3b82f6);
+  color: white;
+  border-color: var(--primary-color, #3b82f6);
+}
+
+.bom-calendar {
+  background: var(--bg-secondary, #f9fafb);
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 14px;
+  border: 1px solid var(--border-color, #e5e7eb);
+}
+
+.bom-calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.bom-calendar-nav {
+  background: none;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 4px;
+  padding: 4px 8px;
+  cursor: pointer;
+  color: var(--text-secondary, #6b7280);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.bom-calendar-nav:hover {
+  background: var(--primary-color, #3b82f6);
+  color: white;
+  border-color: var(--primary-color, #3b82f6);
+}
+
+.bom-calendar-month {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #1f2937);
+}
+
+.bom-calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  margin-bottom: 4px;
+}
+
+.bom-calendar-weekdays span {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary, #6b7280);
+  text-align: center;
+  padding: 4px 0;
+}
+
+.bom-calendar-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.bom-calendar-day {
+  padding: 6px 0;
+  text-align: center;
+  font-size: 13px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-primary, #1f2937);
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.bom-calendar-day:hover {
+  background: var(--primary-color, #3b82f6);
+  color: white;
+}
+
+.bom-calendar-day.selected {
+  background: var(--primary-color, #3b82f6);
+  color: white;
+}
+
+.bom-calendar-day-empty {
+  padding: 6px 0;
+}
+
+.bom-date-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  border-top: 1px solid var(--border-color, #e5e7eb);
+  padding-top: 14px;
+}
+
+.bom-btn-clear-filter {
+  padding: 6px 16px;
+  background: var(--bg-secondary, #f3f4f6);
+  border: 1px solid var(--border-color, #d1d5db);
+  border-radius: 6px;
+  color: var(--text-secondary, #6b7280);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  height: 34px;
+}
+
+.bom-btn-clear-filter:hover {
+  background: var(--bg-hover, #e5e7eb);
+}
+
+.bom-btn-apply-filter {
+  padding: 6px 16px;
+  background: var(--primary-color, #3b82f6);
+  border: none;
+  border-radius: 6px;
+  color: white;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  height: 34px;
+}
+
+.bom-btn-apply-filter:hover:not(:disabled) {
+  background: var(--primary-dark, #2563eb);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+}
+
+.bom-btn-apply-filter:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ─── Active filters indicator ──────────────────────────────────── */
 .bom-active-filters {
   display: flex;
   align-items: center;
@@ -874,6 +1178,120 @@
   text-align: center;
 }
 
+/* ─── Dark Theme Date Picker ────────────────────────────── */
+
+.dark-theme .bom-date-toggle-btn {
+  background: var(--bg-secondary, #374151);
+  border-color: var(--border-color, #4b5563);
+  color: var(--text-secondary, #9ca3af);
+}
+
+.dark-theme .bom-date-toggle-btn:hover {
+  background: var(--bg-hover, #4b5563);
+  color: var(--text-primary, #f3f4f6);
+}
+
+.dark-theme .bom-date-toggle-btn.active {
+  background: var(--primary-color, #3b82f6);
+  color: white;
+}
+
+.dark-theme .bom-date-input {
+  color: var(--text-primary, #f3f4f6);
+}
+
+.dark-theme .bom-date-input:focus {
+  background: var(--bg-primary, #1f2937);
+  border-color: var(--primary-color, #3b82f6);
+  color: var(--text-primary, #f3f4f6);
+}
+
+.dark-theme .bom-date-picker-popup {
+  background: var(--bg-primary, #1f2937);
+  border-color: var(--border-color, #4b5563);
+}
+
+.dark-theme .bom-date-picker-title {
+  color: var(--text-primary, #f3f4f6);
+}
+
+.dark-theme .bom-date-range-display {
+  background: var(--bg-secondary, #374151);
+  border-color: var(--border-color, #4b5563);
+  color: var(--text-primary, #f3f4f6);
+}
+
+.dark-theme .bom-date-range-placeholder {
+  color: var(--text-secondary, #9ca3af);
+}
+
+.dark-theme .bom-quick-filter-btn {
+  background: var(--bg-secondary, #374151);
+  border-color: var(--border-color, #4b5563);
+  color: var(--text-secondary, #9ca3af);
+}
+
+.dark-theme .bom-quick-filter-btn:hover {
+  background: var(--primary-color, #3b82f6);
+  color: white;
+}
+
+.dark-theme .bom-quick-filter-btn.active {
+  background: var(--primary-color, #3b82f6);
+  color: white;
+}
+
+.dark-theme .bom-calendar {
+  background: var(--bg-secondary, #374151);
+  border-color: var(--border-color, #4b5563);
+}
+
+.dark-theme .bom-calendar-nav {
+  border-color: var(--border-color, #4b5563);
+  color: var(--text-secondary, #9ca3af);
+}
+
+.dark-theme .bom-calendar-nav:hover {
+  background: var(--primary-color, #3b82f6);
+  color: white;
+}
+
+.dark-theme .bom-calendar-month {
+  color: var(--text-primary, #f3f4f6);
+}
+
+.dark-theme .bom-calendar-weekdays span {
+  color: var(--text-secondary, #9ca3af);
+}
+
+.dark-theme .bom-calendar-day {
+  color: var(--text-primary, #f3f4f6);
+}
+
+.dark-theme .bom-calendar-day:hover {
+  background: var(--primary-color, #3b82f6);
+  color: white;
+}
+
+.dark-theme .bom-calendar-day.selected {
+  background: var(--primary-color, #3b82f6);
+  color: white;
+}
+
+.dark-theme .bom-date-actions {
+  border-top-color: var(--border-color, #4b5563);
+}
+
+.dark-theme .bom-btn-clear-filter {
+  background: var(--bg-secondary, #374151);
+  border-color: var(--border-color, #4b5563);
+  color: var(--text-secondary, #9ca3af);
+}
+
+.dark-theme .bom-btn-clear-filter:hover {
+  background: var(--bg-hover, #4b5563);
+}
+
 /* ==================================================================
    Responsive
    ================================================================== */
@@ -969,6 +1387,67 @@
   .bom-stat-value {
     font-size: 18px;
   }
+
+  .bom-tabs {
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .bom-tab {
+    justify-content: flex-start;
+    padding: 8px 12px;
+  }
+
+  /* Date Picker Responsive */
+  .bom-date-toggle-btn {
+    padding: 0 8px;
+  }
+
+  .bom-date-input {
+    width: 70px;
+    font-size: 11px;
+  }
+
+  .bom-date-label {
+    font-size: 10px;
+  }
+
+  .bom-date-picker-popup {
+    min-width: 260px;
+    right: -40px;
+    padding: 14px;
+  }
+
+  .bom-quick-filters {
+    gap: 4px;
+  }
+
+  .bom-quick-filter-btn {
+    font-size: 11px;
+    padding: 3px 8px;
+  }
+
+  .bom-calendar-days {
+    gap: 1px;
+  }
+
+  .bom-calendar-day {
+    padding: 4px 0;
+    font-size: 12px;
+  }
+
+  .bom-date-range-display {
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+
+  .bom-date-actions {
+    flex-direction: column;
+  }
+
+  .bom-date-actions button {
+    width: 100%;
+  }
 }
 
 @media (max-width: 480px) {
@@ -1019,6 +1498,39 @@
   .bom-pagination-center {
     flex-wrap: wrap;
     justify-content: center;
+  }
+
+  /* Date Picker Responsive */
+  .bom-date-toggle-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .bom-date-input {
+    width: 80px;
+  }
+
+  .bom-date-picker-popup {
+    min-width: 240px;
+    right: -20px;
+    padding: 12px;
+  }
+
+  .bom-calendar {
+    padding: 8px;
+  }
+
+  .bom-calendar-day {
+    padding: 3px 0;
+    font-size: 11px;
+  }
+
+  .bom-date-actions {
+    flex-direction: column;
+  }
+
+  .bom-date-actions button {
+    width: 100%;
   }
 }
 
@@ -1204,6 +1716,37 @@
   color: var(--text-secondary, #94a3b8);
 }
 
+.dark-theme .bom-tabs {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+}
+
+.dark-theme .bom-tab {
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .bom-tab:hover {
+  background: var(--nav-hover, rgba(255, 255, 255, 0.05));
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .bom-tab--active {
+  background: var(--primary-color, #3b82f6);
+  color: #ffffff;
+}
+
+.dark-theme .bom-type--internal {
+  background: rgba(59, 130, 246, 0.15);
+  color: #93c5fd;
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.dark-theme .bom-type--external {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fcd34d;
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
 /* ─── Loading State ────────────────────────────────────────────────────────── */
 .bom-loading-state {
   display: flex;
@@ -1313,122 +1856,8 @@
   color: #fca5a5;
   border-color: rgba(239, 68, 68, 0.3);
 }
-/* ── Tabs ────────────────────────────────────────────────── */
-.bom-tabs {
-  display: flex;
-  gap: 4px;
-  background: var(--card-bg, #ffffff);
-  border: 1px solid var(--border-color, #e5e7eb);
-  border-radius: 10px;
-  padding: 4px;
-  flex-shrink: 0;
-}
 
-.bom-tab {
-  flex: 1;
-  padding: 8px 20px;
-  border: none;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  background: transparent;
-  color: var(--text-secondary, #6b7280);
-  white-space: nowrap;
-}
-
-.bom-tab:hover {
-  background: var(--nav-hover, #f9fafb);
-  color: var(--text-primary, #1f2433);
-}
-
-.bom-tab--active {
-  background: var(--primary-color, #6366f1);
-  color: #ffffff;
-  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
-}
-
-.bom-tab--active:hover {
-  background: var(--primary-hover, #4f46e5);
-  color: #ffffff;
-}
-
-.bom-tab-count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 6px;
-  margin-left: 6px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 600;
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.bom-tab--active .bom-tab-count {
-  background: rgba(255, 255, 255, 0.3);
-}
-
-/* Dark theme for tabs */
-.dark-theme .bom-tabs {
-  background: var(--card-bg, #1e293b);
-  border-color: var(--border-color, #334155);
-}
-
-.dark-theme .bom-tab {
-  color: var(--text-secondary, #94a3b8);
-}
-
-.dark-theme .bom-tab:hover {
-  background: var(--nav-hover, rgba(255, 255, 255, 0.05));
-  color: var(--text-primary, #f8fafc);
-}
-
-.dark-theme .bom-tab--active {
-  background: var(--primary-color, #3b82f6);
-  color: #ffffff;
-}
-
-/* ── Type Badge ──────────────────────────────────────────── */
-.bom-type-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 24px;
-  padding: 0 10px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.bom-type--internal {
-  background: #eff6ff;
-  color: #1d4ed8;
-  border: 1px solid #bfdbfe;
-}
-
-.bom-type--external {
-  background: #fef3c7;
-  color: #92400e;
-  border: 1px solid #fde68a;
-}
-
-.dark-theme .bom-type--internal {
-  background: rgba(59, 130, 246, 0.15);
-  color: #93c5fd;
-  border-color: rgba(59, 130, 246, 0.3);
-}
-
-.dark-theme .bom-type--external {
-  background: rgba(245, 158, 11, 0.15);
-  color: #fcd34d;
-  border-color: rgba(245, 158, 11, 0.3);
-}/* ── Tabs ────────────────────────────────────────────────── */
+/* ─── Tabs ────────────────────────────────────────────────── */
 .bom-tabs {
   display: flex;
   gap: 4px;
@@ -1491,26 +1920,6 @@
   background: rgba(255, 255, 255, 0.25);
 }
 
-/* Dark theme for tabs */
-.dark-theme .bom-tabs {
-  background: var(--card-bg, #1e293b);
-  border-color: var(--border-color, #334155);
-}
-
-.dark-theme .bom-tab {
-  color: var(--text-secondary, #94a3b8);
-}
-
-.dark-theme .bom-tab:hover {
-  background: var(--nav-hover, rgba(255, 255, 255, 0.05));
-  color: var(--text-primary, #f8fafc);
-}
-
-.dark-theme .bom-tab--active {
-  background: var(--primary-color, #3b82f6);
-  color: #ffffff;
-}
-
 /* ── Type Badge ──────────────────────────────────────────── */
 .bom-type-badge {
   display: inline-flex;
@@ -1538,31 +1947,7 @@
   border: 1px solid #fde68a;
 }
 
-.dark-theme .bom-type--internal {
-  background: rgba(59, 130, 246, 0.15);
-  color: #93c5fd;
-  border-color: rgba(59, 130, 246, 0.3);
-}
-
-.dark-theme .bom-type--external {
-  background: rgba(245, 158, 11, 0.15);
-  color: #fcd34d;
-  border-color: rgba(245, 158, 11, 0.3);
-}
-
-/* Responsive tabs */
-@media (max-width: 768px) {
-  .bom-tabs {
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .bom-tab {
-    justify-content: flex-start;
-    padding: 8px 12px;
-  }
-}
-/* ── Delete Confirmation Modal ─────────────────────────────────── */
+/* ─── Delete Confirmation Modal ─────────────────────────────────── */
 .bom-modal-overlay {
   position: fixed;
   top: 0;

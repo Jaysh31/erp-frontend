@@ -17,6 +17,9 @@ import {
   AlertTriangle,
   CheckCircle,
   Info,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import "./BOMPage.css";
 import NewBOMPage from "./Newbompage";
@@ -115,6 +118,12 @@ const BOMPage: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
+  // ─── Date Filter States ──────────────────────────────────────────────────────
+  const [fromDate, setFromDate] = useState<string>("");
+  const [toDate, setToDate] = useState<string>("");
+  const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
+  const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
+
   // Delete modal state
   const [deleteModal, setDeleteModal] = useState<DeleteModal>({
     isOpen: false,
@@ -135,7 +144,6 @@ const BOMPage: React.FC = () => {
     const id = Date.now().toString();
     setToasts(prev => [...prev, { id, type, title, message }]);
     
-    // Auto remove after 4 seconds
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
     }, 4000);
@@ -144,6 +152,85 @@ const BOMPage: React.FC = () => {
   const removeToast = useCallback((id: string) => {
     setToasts(prev => prev.filter(t => t.id !== id));
   }, []);
+
+  // ─── Date Filter Helper Functions ───────────────────────────────────────────
+
+  const formatDateDisplay = (dateStr: string) => {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+  };
+
+  const getDaysInMonth = (date: Date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const firstDayOfMonth = new Date(year, month, 1).getDay();
+    return { daysInMonth, firstDayOfMonth };
+  };
+
+  const getMonthYear = (date: Date) => {
+    return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  };
+
+  const handlePrevMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
+  };
+
+  const handleNextMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
+  };
+
+  const isDateSelected = (day: number) => {
+    if (!fromDate || !toDate) return false;
+    const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+    const from = new Date(fromDate);
+    const to = new Date(toDate);
+    to.setHours(23, 59, 59, 999);
+    return date >= from && date <= to;
+  };
+
+  const handleDateClick = (day: number) => {
+    const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+    const dateStr = date.toISOString().split('T')[0];
+    
+    if (!fromDate || (fromDate && toDate)) {
+      setFromDate(dateStr);
+      setToDate('');
+    } else {
+      if (new Date(dateStr) < new Date(fromDate)) {
+        setToDate(fromDate);
+        setFromDate(dateStr);
+      } else {
+        setToDate(dateStr);
+      }
+    }
+  };
+
+  const handleApplyDateFilter = () => {
+    if (fromDate && toDate) {
+      setCurrentPage(1);
+      setShowDatePicker(false);
+      fetchAllBOMs();
+    }
+  };
+
+  const handleClearDateFilter = () => {
+    setFromDate('');
+    setToDate('');
+    setCurrentPage(1);
+    setShowDatePicker(false);
+    fetchAllBOMs();
+  };
+
+  const setQuickDateRange = (days: number) => {
+    const today = new Date();
+    const from = new Date(today);
+    from.setDate(today.getDate() - days);
+    setFromDate(from.toISOString().split('T')[0]);
+    setToDate(today.toISOString().split('T')[0]);
+    setCurrentPage(1);
+  };
 
   // ─── Fetch all BOMs from API ──────────────────────────────────────────────────
 
@@ -157,12 +244,26 @@ const BOMPage: React.FC = () => {
         limit: String(1000),
       });
 
+      // Search by BOM ID, Item Name, or Supplier Name
       if (searchTerm.trim()) {
+        // Check if search term matches supplier name pattern
+        // This will search across multiple fields: BOM ID, item name, and supplier name
         params.append('search', searchTerm.trim());
+        // Also add a separate parameter for supplier name search
+        // The backend should handle searching across multiple fields
+        params.append('search_by', 'all'); // This tells backend to search across all fields
       }
 
       if (statusFilter !== 'all') {
         params.append('status', statusFilter);
+      }
+
+      // Add date filters
+      if (fromDate) {
+        params.append('date_from', fromDate);
+      }
+      if (toDate) {
+        params.append('date_to', toDate);
       }
 
       const sortMap: Record<string, string> = {
@@ -202,17 +303,14 @@ const BOMPage: React.FC = () => {
   useEffect(() => {
     let filtered = [...allBomData];
 
-    // Filter by type based on active tab
     if (activeTab === 'internal') {
       filtered = filtered.filter(bom => bom.type === 'Internal');
     } else if (activeTab === 'external') {
       filtered = filtered.filter(bom => bom.type === 'External');
     }
 
-    // Update total records count
     setTotalRecords(filtered.length);
 
-    // Apply pagination
     const startIndex = (currentPage - 1) * itemsPerPage;
     const paginatedData = filtered.slice(startIndex, startIndex + itemsPerPage);
     
@@ -275,7 +373,7 @@ const BOMPage: React.FC = () => {
 
   useEffect(() => {
     fetchAllBOMs();
-  }, [sortField, statusFilter]);
+  }, [sortField, statusFilter, fromDate, toDate]);
 
   // Debounced search
   useEffect(() => {
@@ -303,6 +401,7 @@ const BOMPage: React.FC = () => {
 
   const closeAll = () => {
     setSortOpen(false);
+    setShowDatePicker(false);
   };
 
   const toggle = (
@@ -317,6 +416,8 @@ const BOMPage: React.FC = () => {
     setSearchTerm("");
     setStatusFilter("all");
     setActiveTab("all");
+    setFromDate("");
+    setToDate("");
     setCurrentPage(1);
   };
 
@@ -552,8 +653,6 @@ const BOMPage: React.FC = () => {
 
       {!showNewBOM && !showViewBOM && (
         <div className={`bom-page ${theme}`} ref={rootRef}>
-          
-
           {/* ── Tabs ──────────────────────────────────────────────────────── */}
           <div className="bom-tabs">
             <button
@@ -600,7 +699,7 @@ const BOMPage: React.FC = () => {
                 <Search className="bom-search-icon" size={14} />
                 <input
                   type="text"
-                  placeholder={`Search ${activeTab !== 'all' ? activeTab + ' ' : ''}BOMs by ID or Item...`}
+                  placeholder={`Search ${activeTab !== 'all' ? activeTab + ' ' : ''}BOMs by ID, Item, or Supplier...`}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="bom-search-input"
@@ -625,6 +724,99 @@ const BOMPage: React.FC = () => {
                 <option value="active">Active</option>
                 <option value="disabled">Disabled</option>
               </select>
+
+              {/* ─── Date Range Picker ─── */}
+              <div className="bom-date-range-wrapper">
+                <button 
+                  className={`bom-date-toggle-btn ${showDatePicker ? 'active' : ''}`}
+                  onClick={() => setShowDatePicker(!showDatePicker)}
+                  title="Filter by date range"
+                >
+                  <Calendar size={14} />
+                </button>
+                {showDatePicker && (
+                  <div className="bom-date-picker-popup">
+                    <div className="bom-date-picker-header">
+                      <span className="bom-date-picker-title">Filter by Date</span>
+                    </div>
+                    
+                    {/* Date Range Display */}
+                    <div className="bom-date-range-display">
+                      {fromDate && toDate ? (
+                        <span>{formatDateDisplay(fromDate)} – {formatDateDisplay(toDate)}</span>
+                      ) : (
+                        <span className="bom-date-range-placeholder">Select date range</span>
+                      )}
+                    </div>
+
+                    {/* Quick Filters */}
+                    <div className="bom-quick-filters">
+                      <button className="bom-quick-filter-btn" onClick={() => setQuickDateRange(0)}>Today</button>
+                      <button className="bom-quick-filter-btn" onClick={() => setQuickDateRange(7)}>Last 7 Days</button>
+                      <button className="bom-quick-filter-btn" onClick={() => setQuickDateRange(30)}>Last 30 Days</button>
+                      <button className="bom-quick-filter-btn" onClick={() => setQuickDateRange(90)}>This Month</button>
+                    </div>
+
+                    {/* Calendar */}
+                    <div className="bom-calendar">
+                      <div className="bom-calendar-header">
+                        <button className="bom-calendar-nav" onClick={handlePrevMonth}>
+                          <ChevronLeft size={12} />
+                        </button>
+                        <span className="bom-calendar-month">{getMonthYear(currentMonth)}</span>
+                        <button className="bom-calendar-nav" onClick={handleNextMonth}>
+                          <ChevronRight size={12} />
+                        </button>
+                      </div>
+                      <div className="bom-calendar-weekdays">
+                        <span>Su</span>
+                        <span>Mo</span>
+                        <span>Tu</span>
+                        <span>We</span>
+                        <span>Th</span>
+                        <span>Fr</span>
+                        <span>Sa</span>
+                      </div>
+                      <div className="bom-calendar-days">
+                        {Array.from({ length: getDaysInMonth(currentMonth).firstDayOfMonth }).map((_, i) => (
+                          <span key={`empty-${i}`} className="bom-calendar-day-empty"></span>
+                        ))}
+                        {Array.from({ length: getDaysInMonth(currentMonth).daysInMonth }).map((_, i) => {
+                          const day = i + 1;
+                          const isSelected = isDateSelected(day);
+                          return (
+                            <button
+                              key={day}
+                              className={`bom-calendar-day ${isSelected ? 'selected' : ''}`}
+                              onClick={() => handleDateClick(day)}
+                            >
+                              {day}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="bom-date-actions">
+                      <button 
+                        className="bom-btn-clear-filter" 
+                        onClick={handleClearDateFilter}
+                      >
+                        Clear
+                      </button>
+                      <button 
+                        className="bom-btn-apply-filter" 
+                        onClick={handleApplyDateFilter}
+                        disabled={!fromDate || !toDate}
+                      >
+                        Apply Filters
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <button className="bom-sort-btn" onClick={() => toggle(setSortOpen, sortOpen)}>
                 <ArrowUpDown size={12} />
                 {sortField}
@@ -662,7 +854,7 @@ const BOMPage: React.FC = () => {
           </div>
 
           {/* ── Active filters indicator ──────────────────────────────────── */}
-          {(searchTerm || statusFilter !== 'all' || activeTab !== 'all') && (
+          {(searchTerm || statusFilter !== 'all' || activeTab !== 'all' || (fromDate && toDate)) && (
             <div className="bom-active-filters">
               <FilterIcon size={12} style={{ color: 'var(--primary-color)' }} />
               <span>Active filters:</span>
@@ -674,6 +866,9 @@ const BOMPage: React.FC = () => {
               )}
               {statusFilter !== 'all' && (
                 <span><strong>Status:</strong> {statusFilter === 'active' ? 'Active' : 'Disabled'}</span>
+              )}
+              {fromDate && toDate && (
+                <span><strong>Date Range:</strong> {formatDateDisplay(fromDate)} - {formatDateDisplay(toDate)}</span>
               )}
               <button 
                 onClick={clearFilters}
@@ -715,7 +910,7 @@ const BOMPage: React.FC = () => {
                           <FileStack size={48} />
                           <p>No {activeTab !== 'all' ? activeTab + ' ' : ''}BOMs found</p>
                           <span>
-                            {searchTerm || statusFilter !== 'all' 
+                            {searchTerm || statusFilter !== 'all' || (fromDate && toDate)
                               ? 'Try adjusting your search criteria' 
                               : `Create your first ${activeTab !== 'all' ? activeTab + ' ' : ''}BOM by clicking "Add BOM"`}
                           </span>

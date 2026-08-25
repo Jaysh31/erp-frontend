@@ -232,6 +232,260 @@
   box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
 }
 
+/* ── Date Range Picker Styles ───────────────────────────── */
+.wo-date-range-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.wo-date-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 10px;
+  background: var(--bg-secondary, #f3f4f6);
+  border: 1px solid var(--border-color, #d1d5db);
+  border-radius: 8px;
+  color: var(--text-secondary, #6b7280);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 14px;
+  height: 38px;
+  width: 38px;
+}
+
+.wo-date-toggle-btn:hover {
+  background: var(--bg-hover, #e5e7eb);
+  border-color: var(--primary-color, #3b82f6);
+  color: var(--primary-color, #3b82f6);
+}
+
+.wo-date-toggle-btn.active {
+  background: var(--primary-color, #3b82f6);
+  color: white;
+  border-color: var(--primary-color, #3b82f6);
+}
+
+.wo-date-picker-popup {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  background: var(--bg-primary, #ffffff);
+  border: 1px solid var(--border-color, #d1d5db);
+  border-radius: 8px;
+  padding: 16px;
+  min-width: 280px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  animation: slideDown 0.2s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Date Range Display ──────────────────────────────────── */
+.wo-date-range-display {
+  padding: 8px 12px;
+  background: var(--bg-secondary, #f3f4f6);
+  border-radius: 6px;
+  margin-bottom: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary, #1f2937);
+  text-align: center;
+  border: 1px solid var(--border-color, #e5e7eb);
+}
+
+.wo-date-range-placeholder {
+  color: var(--text-secondary, #9ca3af);
+  font-weight: 400;
+}
+
+/* ── Quick Filters ────────────────────────────────────────── */
+.wo-quick-filters {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.wo-quick-filter-btn {
+  padding: 4px 12px;
+  background: var(--bg-secondary, #f3f4f6);
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--text-secondary, #6b7280);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  height: 28px;
+  font-family: inherit;
+}
+
+.wo-quick-filter-btn:hover {
+  background: var(--primary-color, #3b82f6);
+  color: white;
+  border-color: var(--primary-color, #3b82f6);
+}
+
+.wo-quick-filter-btn.active {
+  background: var(--primary-color, #3b82f6);
+  color: white;
+  border-color: var(--primary-color, #3b82f6);
+}
+
+/* ── Calendar ────────────────────────────────────────────── */
+.wo-calendar {
+  background: var(--bg-secondary, #f9fafb);
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 14px;
+  border: 1px solid var(--border-color, #e5e7eb);
+}
+
+.wo-calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.wo-calendar-nav {
+  background: none;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 4px;
+  padding: 4px 8px;
+  cursor: pointer;
+  color: var(--text-secondary, #6b7280);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.wo-calendar-nav:hover {
+  background: var(--primary-color, #3b82f6);
+  color: white;
+  border-color: var(--primary-color, #3b82f6);
+}
+
+.wo-calendar-month {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #1f2937);
+}
+
+.wo-calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  margin-bottom: 4px;
+}
+
+.wo-calendar-weekdays span {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary, #6b7280);
+  text-align: center;
+  padding: 4px 0;
+}
+
+.wo-calendar-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.wo-calendar-day {
+  padding: 6px 0;
+  text-align: center;
+  font-size: 13px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-primary, #1f2937);
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.wo-calendar-day:hover {
+  background: var(--primary-color, #3b82f6);
+  color: white;
+}
+
+.wo-calendar-day.selected {
+  background: var(--primary-color, #3b82f6);
+  color: white;
+}
+
+.wo-calendar-day-empty {
+  padding: 6px 0;
+}
+
+/* ── Date Actions ────────────────────────────────────────── */
+.wo-date-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  border-top: 1px solid var(--border-color, #e5e7eb);
+  padding-top: 14px;
+  margin-top: 0;
+}
+
+.wo-btn-clear-filter {
+  padding: 6px 16px;
+  background: var(--bg-secondary, #f3f4f6);
+  border: 1px solid var(--border-color, #d1d5db);
+  border-radius: 6px;
+  color: var(--text-secondary, #6b7280);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  height: 34px;
+}
+
+.wo-btn-clear-filter:hover {
+  background: var(--bg-hover, #e5e7eb);
+}
+
+.wo-btn-apply-filter {
+  padding: 6px 16px;
+  background: var(--primary-color, #3b82f6);
+  border: none;
+  border-radius: 6px;
+  color: white;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  height: 34px;
+}
+
+.wo-btn-apply-filter:hover:not(:disabled) {
+  background: var(--primary-dark, #2563eb);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+}
+
+.wo-btn-apply-filter:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* ── Active Filters ──────────────────────────────────────── */
 .wo-active-filters {
   display: flex;
@@ -868,7 +1122,434 @@
   background: #dc2626;
 }
 
-/* ─── Dark Theme Overrides ──────────────────────────────── */
+/* ── Progress Bar ────────────────────────────────────────── */
+.wo-progress-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 100px;
+}
+
+.wo-progress-bar {
+  flex: 1;
+  height: 6px;
+  background: var(--border-color, #e5e7eb);
+  border-radius: 3px;
+  overflow: hidden;
+  min-width: 50px;
+}
+
+.wo-progress-fill {
+  height: 100%;
+  background: var(--primary-color, #6366f1);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.wo-progress-text {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary, #6b7280);
+  min-width: 32px;
+  text-align: right;
+}
+
+/* ── Company Icon ────────────────────────────────────────── */
+.wo-company-icon {
+  margin-right: 4px;
+  color: var(--text-secondary, #9ca3af);
+}
+
+.wo-td-company {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ── Date Range ──────────────────────────────────────────── */
+.wo-td-dates {
+  font-size: 12px;
+}
+
+.wo-date-range {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: nowrap;
+  font-size: 11px;
+}
+
+.wo-date-label {
+  color: var(--text-secondary, #6b7280);
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.wo-date-sep {
+  color: var(--text-secondary, #9ca3af);
+  margin: 0 2px;
+}
+
+/* ── Number Alignment ────────────────────────────────────── */
+.wo-td-number {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.wo-th-number {
+  text-align: right;
+}
+
+/* ── Job Card Info Styles ───────────────────────────────── */
+.wo-job-card-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wo-job-card-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary, #111827);
+  min-width: 40px;
+}
+
+.wo-job-card-bar {
+  width: 50px;
+  height: 4px;
+  background: var(--bg-secondary, #e5e7eb);
+  border-radius: 2px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.wo-job-card-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.wo-job-card-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary, #6b7280);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wo-job-card-btn:hover {
+  background: var(--bg-secondary, #f3f4f6);
+  color: var(--primary-color, #3b82f6);
+}
+
+/* ── Complete Action Button ──────────────────────────────── */
+.wo-action-complete {
+  color: #22c55e;
+}
+
+.wo-action-complete:hover:not(:disabled) {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.wo-action-complete:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Complete Modal Styles ───────────────────────────────── */
+.wo-modal-complete .wo-modal-body {
+  padding: 24px;
+}
+
+.wo-complete-summary {
+  text-align: center;
+}
+
+.wo-complete-icon {
+  margin-bottom: 16px;
+}
+
+.wo-complete-summary h3 {
+  margin: 0 0 8px 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary, #111827);
+}
+
+.wo-complete-detail {
+  color: var(--text-secondary, #6b7280);
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+
+.wo-complete-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin: 16px 0;
+  padding: 16px;
+  background: var(--bg-secondary, #f9fafb);
+  border-radius: 8px;
+}
+
+.wo-complete-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wo-complete-stat span {
+  font-size: 12px;
+  color: var(--text-secondary, #6b7280);
+}
+
+.wo-complete-stat strong {
+  font-size: 16px;
+  color: var(--text-primary, #111827);
+}
+
+.wo-complete-progress {
+  margin: 16px 0;
+}
+
+.wo-complete-progress-bar {
+  height: 8px;
+  background: var(--bg-secondary, #e5e7eb);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.wo-complete-progress-bar .wo-progress-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+
+.wo-complete-warning {
+  font-size: 13px;
+  color: #f59e0b;
+  background: #fffbeb;
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid #fcd34d;
+  margin-top: 16px;
+}
+
+.wo-btn-complete {
+  padding: 8px 20px;
+  background: #22c55e;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: background 0.2s;
+}
+
+.wo-btn-complete:hover:not(:disabled) {
+  background: #16a34a;
+}
+
+.wo-btn-complete:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ── Tabs ────────────────────────────────────────────────── */
+.wo-tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 10px;
+  padding: 4px;
+  flex-shrink: 0;
+}
+
+.wo-tab {
+  flex: 1;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: transparent;
+  color: var(--text-secondary, #6b7280);
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.wo-tab:hover {
+  background: var(--nav-hover, #f9fafb);
+  color: var(--text-primary, #1f2433);
+}
+
+.wo-tab--active {
+  background: var(--primary-color, #6366f1);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+}
+
+.wo-tab--active:hover {
+  background: var(--primary-hover, #4f46e5);
+  color: #ffffff;
+}
+
+.wo-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  margin-left: 4px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.wo-tab--active .wo-tab-count {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* ── Type Badge ──────────────────────────────────────────── */
+.wo-type-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 12px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.wo-type--internal {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.wo-type--external {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+/* ── Date Picker Dark Theme ─────────────────────────────── */
+.dark-theme .wo-date-toggle-btn {
+  background: var(--bg-secondary, #374151);
+  border-color: var(--border-color, #4b5563);
+  color: var(--text-secondary, #9ca3af);
+}
+
+.dark-theme .wo-date-toggle-btn:hover {
+  background: var(--bg-hover, #4b5563);
+}
+
+.dark-theme .wo-date-picker-popup {
+  background: var(--bg-primary, #1f2937);
+  border-color: var(--border-color, #4b5563);
+}
+
+.dark-theme .wo-date-range-display {
+  background: var(--bg-secondary, #374151);
+  border-color: var(--border-color, #4b5563);
+  color: var(--text-primary, #f3f4f6);
+}
+
+.dark-theme .wo-date-range-placeholder {
+  color: var(--text-secondary, #9ca3af);
+}
+
+.dark-theme .wo-quick-filter-btn {
+  background: var(--bg-secondary, #374151);
+  border-color: var(--border-color, #4b5563);
+  color: var(--text-secondary, #9ca3af);
+}
+
+.dark-theme .wo-quick-filter-btn:hover {
+  background: var(--primary-color, #3b82f6);
+  color: white;
+}
+
+.dark-theme .wo-quick-filter-btn.active {
+  background: var(--primary-color, #3b82f6);
+  color: white;
+}
+
+.dark-theme .wo-calendar {
+  background: var(--bg-secondary, #374151);
+  border-color: var(--border-color, #4b5563);
+}
+
+.dark-theme .wo-calendar-nav {
+  border-color: var(--border-color, #4b5563);
+  color: var(--text-secondary, #9ca3af);
+}
+
+.dark-theme .wo-calendar-month {
+  color: var(--text-primary, #f3f4f6);
+}
+
+.dark-theme .wo-calendar-weekdays span {
+  color: var(--text-secondary, #9ca3af);
+}
+
+.dark-theme .wo-calendar-day {
+  color: var(--text-primary, #f3f4f6);
+}
+
+.dark-theme .wo-calendar-day:hover {
+  background: var(--primary-color, #3b82f6);
+  color: white;
+}
+
+.dark-theme .wo-calendar-day.selected {
+  background: var(--primary-color, #3b82f6);
+  color: white;
+}
+
+.dark-theme .wo-date-actions {
+  border-top-color: var(--border-color, #4b5563);
+}
+
+.dark-theme .wo-btn-clear-filter {
+  background: var(--bg-secondary, #374151);
+  border-color: var(--border-color, #4b5563);
+  color: var(--text-secondary, #9ca3af);
+}
+
+.dark-theme .wo-btn-clear-filter:hover {
+  background: var(--bg-hover, #4b5563);
+}
+
+.dark-theme .wo-date-input-group label {
+  color: var(--text-secondary, #9ca3af);
+}
+
+/* ── Dark Theme Overrides (Existing) ────────────────────── */
 .dark-theme .wo-filter-btn,
 .dark-theme .wo-sort-btn,
 .dark-theme .wo-filter-select,
@@ -979,90 +1660,6 @@
   background: var(--primary-hover, #2563eb);
 }
 
-
-/* Add these styles to WorkOrderList.css */
-
-/* ── Progress Bar ────────────────────────────────────────── */
-.wo-progress-container {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 100px;
-}
-
-.wo-progress-bar {
-  flex: 1;
-  height: 6px;
-  background: var(--border-color, #e5e7eb);
-  border-radius: 3px;
-  overflow: hidden;
-  min-width: 50px;
-}
-
-.wo-progress-fill {
-  height: 100%;
-  background: var(--primary-color, #6366f1);
-  border-radius: 3px;
-  transition: width 0.3s ease;
-}
-
-.wo-progress-text {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-secondary, #6b7280);
-  min-width: 32px;
-  text-align: right;
-}
-
-/* ── Company Icon ────────────────────────────────────────── */
-.wo-company-icon {
-  margin-right: 4px;
-  color: var(--text-secondary, #9ca3af);
-}
-
-.wo-td-company {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-/* ── Date Range ──────────────────────────────────────────── */
-.wo-td-dates {
-  font-size: 12px;
-}
-
-.wo-date-range {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-wrap: nowrap;
-  font-size: 11px;
-}
-
-.wo-date-label {
-  color: var(--text-secondary, #6b7280);
-  font-size: 10px;
-  font-weight: 500;
-  text-transform: uppercase;
-}
-
-.wo-date-sep {
-  color: var(--text-secondary, #9ca3af);
-  margin: 0 2px;
-}
-
-/* ── Number Alignment ────────────────────────────────────── */
-.wo-td-number {
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
-
-.wo-th-number {
-  text-align: right;
-}
-
-/* ── Dark Theme Overrides ────────────────────────────────── */
 .dark-theme .wo-progress-bar {
   background: var(--border-color, #334155);
 }
@@ -1083,24 +1680,76 @@
   color: var(--text-secondary, #475569);
 }
 
-/* ── Responsive ──────────────────────────────────────────── */
-@media (max-width: 768px) {
-  .wo-table {
-    min-width: 1100px;
-  }
-
-  .wo-progress-container {
-    min-width: 80px;
-  }
-
-  .wo-date-range {
-    flex-wrap: wrap;
-    font-size: 10px;
-  }
+.dark-theme .wo-tabs {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
 }
 
+.dark-theme .wo-tab {
+  color: var(--text-secondary, #94a3b8);
+}
 
-/* ─── Responsive ──────────────────────────────────────────── */
+.dark-theme .wo-tab:hover {
+  background: var(--nav-hover, rgba(255, 255, 255, 0.05));
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .wo-tab--active {
+  background: var(--primary-color, #3b82f6);
+  color: #ffffff;
+}
+
+.dark-theme .wo-type--internal {
+  background: rgba(59, 130, 246, 0.15);
+  color: #93c5fd;
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.dark-theme .wo-type--external {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fcd34d;
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.dark-theme .wo-job-card-text {
+  color: #f3f4f6;
+}
+
+.dark-theme .wo-job-card-bar {
+  background: #374151;
+}
+
+.dark-theme .wo-complete-summary h3 {
+  color: #f3f4f6;
+}
+
+.dark-theme .wo-complete-detail {
+  color: #9ca3af;
+}
+
+.dark-theme .wo-complete-stats {
+  background: #374151;
+}
+
+.dark-theme .wo-complete-stat strong {
+  color: #f3f4f6;
+}
+
+.dark-theme .wo-complete-warning {
+  background: #374151;
+  border-color: #f59e0b;
+  color: #fbbf24;
+}
+
+.dark-theme .wo-action-complete:hover:not(:disabled) {
+  background: #1a3a2a;
+}
+
+.dark-theme .wo-job-card-btn:hover {
+  background: #374151;
+}
+
+/* ── Responsive ──────────────────────────────────────────── */
 @media (max-width: 1024px) {
   .wo-stats-container {
     grid-template-columns: repeat(2, 1fr);
@@ -1201,6 +1850,77 @@
     flex: 1;
     justify-content: center;
   }
+
+  .wo-tabs {
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .wo-tab {
+    justify-content: flex-start;
+    padding: 8px 12px;
+  }
+
+  .wo-type-badge {
+    font-size: 10px;
+    padding: 0 8px;
+    height: 22px;
+  }
+
+  .wo-job-card-info {
+    flex-wrap: wrap;
+  }
+  
+  .wo-job-card-bar {
+    width: 40px;
+  }
+
+  .wo-complete-stats {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .wo-status-badge {
+    font-size: 11px;
+    padding: 3px 8px;
+  }
+
+  .wo-date-picker-popup {
+    min-width: 260px;
+    right: -40px;
+    padding: 14px;
+  }
+
+  .wo-quick-filters {
+    gap: 4px;
+  }
+
+  .wo-quick-filter-btn {
+    font-size: 11px;
+    padding: 3px 8px;
+  }
+
+  .wo-calendar-days {
+    gap: 1px;
+  }
+
+  .wo-calendar-day {
+    padding: 4px 0;
+    font-size: 12px;
+  }
+
+  .wo-date-range-display {
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+
+  .wo-date-actions {
+    flex-direction: column;
+  }
+
+  .wo-date-actions button {
+    width: 100%;
+  }
 }
 
 @media (max-width: 480px) {
@@ -1270,443 +1990,26 @@
     width: 100%;
   }
 
-
-
-
-}
-
-
-/* Add these styles to your existing WorkOrder.css file */
-
-/* Progress Bar Colors based on percentage */
-.wo-progress-fill {
-  transition: width 0.5s ease, background-color 0.3s ease;
-}
-
-/* Job Card Info Styles */
-.wo-job-card-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.wo-job-card-text {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-primary, #111827);
-  min-width: 40px;
-}
-
-.wo-job-card-bar {
-  width: 50px;
-  height: 4px;
-  background: var(--bg-secondary, #e5e7eb);
-  border-radius: 2px;
-  overflow: hidden;
-  flex-shrink: 0;
-}
-
-.wo-job-card-fill {
-  height: 100%;
-  border-radius: 2px;
-  transition: width 0.3s ease;
-}
-
-.wo-job-card-btn {
-  background: none;
-  border: none;
-  color: var(--text-secondary, #6b7280);
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.wo-job-card-btn:hover {
-  background: var(--bg-secondary, #f3f4f6);
-  color: var(--primary-color, #3b82f6);
-}
-
-/* Complete Action Button */
-.wo-action-complete {
-  color: #22c55e;
-}
-
-.wo-action-complete:hover:not(:disabled) {
-  background: #dcfce7;
-  color: #16a34a;
-}
-
-.wo-action-complete:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* Complete Modal Styles */
-.wo-modal-complete .wo-modal-body {
-  padding: 24px;
-}
-
-.wo-complete-summary {
-  text-align: center;
-}
-
-.wo-complete-icon {
-  margin-bottom: 16px;
-}
-
-.wo-complete-summary h3 {
-  margin: 0 0 8px 0;
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--text-primary, #111827);
-}
-
-.wo-complete-detail {
-  color: var(--text-secondary, #6b7280);
-  font-size: 14px;
-  margin-bottom: 20px;
-}
-
-.wo-complete-stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  margin: 16px 0;
-  padding: 16px;
-  background: var(--bg-secondary, #f9fafb);
-  border-radius: 8px;
-}
-
-.wo-complete-stat {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.wo-complete-stat span {
-  font-size: 12px;
-  color: var(--text-secondary, #6b7280);
-}
-
-.wo-complete-stat strong {
-  font-size: 16px;
-  color: var(--text-primary, #111827);
-}
-
-.wo-complete-progress {
-  margin: 16px 0;
-}
-
-.wo-complete-progress-bar {
-  height: 8px;
-  background: var(--bg-secondary, #e5e7eb);
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.wo-complete-progress-bar .wo-progress-fill {
-  height: 100%;
-  border-radius: 4px;
-  transition: width 0.5s ease;
-}
-
-.wo-complete-warning {
-  font-size: 13px;
-  color: #f59e0b;
-  background: #fffbeb;
-  padding: 12px;
-  border-radius: 6px;
-  border: 1px solid #fcd34d;
-  margin-top: 16px;
-}
-
-.wo-btn-complete {
-  padding: 8px 20px;
-  background: #22c55e;
-  color: #ffffff;
-  border: none;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  transition: background 0.2s;
-}
-
-.wo-btn-complete:hover:not(:disabled) {
-  background: #16a34a;
-}
-
-.wo-btn-complete:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-/* Dark mode overrides */
-.dark .wo-job-card-text {
-  color: #f3f4f6;
-}
-
-.dark .wo-job-card-bar {
-  background: #374151;
-}
-
-.dark .wo-complete-summary h3 {
-  color: #f3f4f6;
-}
-
-.dark .wo-complete-detail {
-  color: #9ca3af;
-}
-
-.dark .wo-complete-stats {
-  background: #374151;
-}
-
-.dark .wo-complete-stat strong {
-  color: #f3f4f6;
-}
-
-.dark .wo-complete-warning {
-  background: #374151;
-  border-color: #f59e0b;
-  color: #fbbf24;
-}
-
-.dark .wo-action-complete:hover:not(:disabled) {
-  background: #1a3a2a;
-}
-
-.dark .wo-job-card-btn:hover {
-  background: #374151;
-}
-
-/* Responsive styles */
-@media (max-width: 768px) {
-  .wo-job-card-info {
-    flex-wrap: wrap;
-  }
-  
-  .wo-job-card-bar {
-    width: 40px;
+  .wo-date-picker-popup {
+    min-width: 240px;
+    right: -20px;
+    padding: 12px;
   }
 
-  .wo-complete-stats {
-    grid-template-columns: 1fr;
-    gap: 8px;
+  .wo-calendar {
+    padding: 8px;
   }
 
-  .wo-status-badge {
+  .wo-calendar-day {
+    padding: 3px 0;
     font-size: 11px;
-    padding: 3px 8px;
   }
-}
-/* WorkOrder.css - Tabs & Type Badge Styles */
 
-/* ── Tabs ────────────────────────────────────────────────── */
-.wo-tabs {
-  display: flex;
-  gap: 4px;
-  background: var(--card-bg, #ffffff);
-  border: 1px solid var(--border-color, #e5e7eb);
-  border-radius: 10px;
-  padding: 4px;
-  flex-shrink: 0;
-}
-
-.wo-tab {
-  flex: 1;
-  padding: 10px 20px;
-  border: none;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  background: transparent;
-  color: var(--text-secondary, #6b7280);
-  white-space: nowrap;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-}
-
-.wo-tab:hover {
-  background: var(--nav-hover, #f9fafb);
-  color: var(--text-primary, #1f2433);
-}
-
-.wo-tab--active {
-  background: var(--primary-color, #6366f1);
-  color: #ffffff;
-  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
-}
-
-.wo-tab--active:hover {
-  background: var(--primary-hover, #4f46e5);
-  color: #ffffff;
-}
-
-.wo-tab-count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 6px;
-  margin-left: 4px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 600;
-  background: rgba(0, 0, 0, 0.1);
-}
-
-.wo-tab--active .wo-tab-count {
-  background: rgba(255, 255, 255, 0.25);
-}
-
-/* ── Type Badge ──────────────────────────────────────────── */
-.wo-type-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: 26px;
-  padding: 0 12px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  white-space: nowrap;
-}
-
-.wo-type--internal {
-  background: #eff6ff;
-  color: #1d4ed8;
-  border: 1px solid #bfdbfe;
-}
-
-.wo-type--external {
-  background: #fef3c7;
-  color: #92400e;
-  border: 1px solid #fde68a;
-}
-
-/* ── Active Filters ──────────────────────────────────────── */
-.wo-active-filters {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 16px;
-  background: color-mix(in srgb, var(--primary-color) 8%, transparent);
-  border-radius: 8px;
-  font-size: 12px;
-  flex-wrap: wrap;
-  border: 1px solid var(--border-color, #e5e7eb);
-  flex-shrink: 0;
-}
-
-.wo-active-filters span {
-  color: var(--text-primary, #111827);
-}
-
-.wo-clear-filters {
-  margin-left: auto;
-  padding: 4px 12px;
-  background: var(--card-bg, #ffffff);
-  border: 1px solid var(--border-color, #e5e7eb);
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 11px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--text-secondary, #6b7280);
-  transition: all 0.15s;
-}
-
-.wo-clear-filters:hover {
-  background: var(--layout-bg, #f9fafb);
-}
-
-/* ── Dark Theme Overrides ────────────────────────────────── */
-.dark-theme .wo-tabs,
-.dashboard.dark .wo-tabs {
-  background: var(--card-bg, #1e293b);
-  border-color: var(--border-color, #334155);
-}
-
-.dark-theme .wo-tab,
-.dashboard.dark .wo-tab {
-  color: var(--text-secondary, #94a3b8);
-}
-
-.dark-theme .wo-tab:hover,
-.dashboard.dark .wo-tab:hover {
-  background: var(--nav-hover, rgba(255, 255, 255, 0.05));
-  color: var(--text-primary, #f8fafc);
-}
-
-.dark-theme .wo-tab--active,
-.dashboard.dark .wo-tab--active {
-  background: var(--primary-color, #3b82f6);
-  color: #ffffff;
-}
-
-.dark-theme .wo-type--internal,
-.dashboard.dark .wo-type--internal {
-  background: rgba(59, 130, 246, 0.15);
-  color: #93c5fd;
-  border-color: rgba(59, 130, 246, 0.3);
-}
-
-.dark-theme .wo-type--external,
-.dashboard.dark .wo-type--external {
-  background: rgba(245, 158, 11, 0.15);
-  color: #fcd34d;
-  border-color: rgba(245, 158, 11, 0.3);
-}
-
-.dark-theme .wo-active-filters,
-.dashboard.dark .wo-active-filters {
-  background: rgba(99, 102, 241, 0.08);
-  border-color: var(--border-color, #334155);
-}
-
-.dark-theme .wo-active-filters span,
-.dashboard.dark .wo-active-filters span {
-  color: var(--text-primary, #f8fafc);
-}
-
-.dark-theme .wo-clear-filters,
-.dashboard.dark .wo-clear-filters {
-  background: var(--card-bg, #1e293b);
-  border-color: var(--border-color, #334155);
-  color: var(--text-secondary, #94a3b8);
-}
-
-/* ── Responsive ──────────────────────────────────────────── */
-@media (max-width: 768px) {
-  .wo-tabs {
+  .wo-date-actions {
     flex-direction: column;
-    gap: 2px;
   }
 
-  .wo-tab {
-    justify-content: flex-start;
-    padding: 8px 12px;
-  }
-
-  .wo-type-badge {
-    font-size: 10px;
-    padding: 0 8px;
-    height: 22px;
+  .wo-date-actions button {
+    width: 100%;
   }
 }
