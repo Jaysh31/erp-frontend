@@ -1,129 +1,49 @@
-import { useState, useEffect, useRef, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   FaArrowLeft,
   FaSave,
   FaSpinner,
   FaExclamationCircle,
-  FaInfoCircle,
   FaUser,
   FaEnvelope,
   FaPhone,
   FaLock,
-  FaStore,
+  FaPlus,
+  FaTimes,
+  FaCalendarAlt,
+  FaVenusMars,
+  FaMapMarkerAlt,
+  FaUserTag,
+  FaShieldAlt,
+  FaCheck,
   FaSearch,
-  FaBuilding,
-  FaBriefcase,
-  FaIdBadge,
 } from 'react-icons/fa';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
 import "./UserForm.css";
 
-// interface User {
-//   id: number;
-//   name: string;
-//   email: string;
-//   full_name: string;
-//   first_name: string;
-//   last_name: string;
-//   middle_name: string;
-//   mobile_no?: string;
-//   role_profile_name?: string;
-//   gender?: string;
-//   birth_date?: string;
-//   location?: string;
-//   redirect_url?: string;
-//   creation: string;
-//   modified: string;
-//   modified_by: string | null;
-//   owner: string | null;
-// }
-
-interface Employee {
-  id: number;
-  first_name: string;
-  middle_name?: string;
-  last_name: string;
-  employee_name: string;
-  gender: string;
-  date_of_birth?: string;
-  company: string;
-  department: string;
-  designation: string;
-  cell_number: string;
-  company_email: string;
-  personal_email: string;
-  employee: string;
-  employee_number?: string;
-}
-
 interface Role {
   id: number;
   name: string;
+  role_name: string;
+  disabled: number;
+  desk_access?: number;
 }
 
-// Hardcoded roles
-const ROLES: Role[] = [
-  { id: 1, name: "Academics User" },
-  { id: 2, name: "Accounts Manager" },
-  { id: 3, name: "Accounts User" },
-  { id: 4, name: "Administrator" },
-  { id: 5, name: "All" },
-  { id: 6, name: "Auditor" },
-  { id: 7, name: "Customer" },
-  { id: 8, name: "Dashboard Manager" },
-  { id: 9, name: "Delivery Manager" },
-  { id: 10, name: "Delivery User" },
-  { id: 11, name: "Desk User" },
-  { id: 12, name: "Employee" },
-  { id: 13, name: "Fleet Manager" },
-  { id: 14, name: "Fulfillment User" },
-  { id: 15, name: "Guest" },
-  { id: 16, name: "HR Manager" },
-  { id: 17, name: "HR User" },
-  { id: 18, name: "Inbox User" },
-  { id: 19, name: "Item Manager" },
-  { id: 20, name: "Knowledge Base Contributor" },
-  { id: 21, name: "Knowledge Base Editor" },
-  { id: 22, name: "Maintenance Manager" },
-  { id: 23, name: "Maintenance User" },
-  { id: 24, name: "Manufacturing Manager" },
-  { id: 25, name: "Manufacturing User" },
-  { id: 26, name: "Marketing Manager" },
-  { id: 27, name: "Newsletter Manager" },
-  { id: 28, name: "Prepared Report User" },
-  { id: 29, name: "Projects Manager" },
-  { id: 30, name: "Projects User" },
-  { id: 31, name: "Purchase Manager" },
-  { id: 32, name: "Purchase Master Manager" },
-  { id: 33, name: "Purchase User" },
-  { id: 34, name: "Quality Manager" },
-  { id: 35, name: "Report Manager" },
-  { id: 36, name: "Sales Manager" },
-  { id: 37, name: "Sales Master Manager" },
-  { id: 38, name: "Sales User" },
-  { id: 39, name: "Script Manager" },
-  { id: 40, name: "Stock Manager" },
-  { id: 41, name: "Stock User" },
-  { id: 42, name: "Supplier" },
-  { id: 43, name: "Support Team" },
-  { id: 44, name: "System Manager" },
-  { id: 45, name: "Translator" },
-  { id: 46, name: "Website Manager" },
-  { id: 47, name: "Workspace Manager" },
-];
 
 export default function UserForm() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { theme } = useAdminTheme();
-  const isNew = id === "new";
+  
+  const isNew = id === "new" || id === "create" || id === "add" || !id;
   const userId = isNew ? null : parseInt(id || "0");
 
   // ─── Form State ────────────────────────────────────────────────────────
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [middleName, setMiddleName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -132,19 +52,39 @@ export default function UserForm() {
   const [birthDate, setBirthDate] = useState('');
   const [location, setLocation] = useState('');
   const [roleProfileName, setRoleProfileName] = useState('');
-  const [redirectUrl] = useState('/dashboard');
+  
+  // ─── Multiple Roles Management ──────────────────────────────────────
   const [selectedRoles, setSelectedRoles] = useState<number[]>([]);
-
-  // ─── Employee Search State ────────────────────────────────────────────
-  const [employeeFound, setEmployeeFound] = useState<boolean>(false);
-  const [employeeData, setEmployeeData] = useState<Employee | null>(null);
-  const [searching, setSearching] = useState<boolean>(false);
-  const emailTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [allRoles, setAllRoles] = useState<Role[]>([]);
+  const [rolesLoading, setRolesLoading] = useState(false);
+  const [roleSearch, setRoleSearch] = useState('');
+  const [, setShowRoleDropdown] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // ─── Fetch Roles ──────────────────────────────────────────────────────
+  useEffect(() => {
+    fetchAllRoles();
+  }, []);
+
+  const fetchAllRoles = async () => {
+    setRolesLoading(true);
+    try {
+      const response = await api.get('/role');
+      if (response.data.success === 1 && response.data.data) {
+        const activeRoles = response.data.data.filter((r: Role) => r.disabled === 0);
+        setAllRoles(activeRoles);
+      }
+    } catch (err) {
+      console.error('Error fetching roles:', err);
+    } finally {
+      setRolesLoading(false);
+    }
+  };
 
   // ─── Fetch User Data (for edit mode) ──────────────────────────────────
   useEffect(() => {
@@ -168,7 +108,12 @@ export default function UserForm() {
         setBirthDate(user.birth_date ? user.birth_date.split('T')[0] : '');
         setLocation(user.location || '');
         setRoleProfileName(user.role_profile_name || '');
-        setSelectedRoles([]);
+        
+        // Set selected roles from user data
+        if (user.roles && Array.isArray(user.roles)) {
+          const roleIds = user.roles.map((r: any) => r.id);
+          setSelectedRoles(roleIds);
+        }
       }
     } catch (err) {
       console.error('Error fetching user:', err);
@@ -178,77 +123,47 @@ export default function UserForm() {
     }
   };
 
-  // ─── Employee Search ──────────────────────────────────────────────────
-  const searchEmployee = async (searchEmail: string) => {
-    clearEmployeeData();
+  // ─── Role Management Functions ──────────────────────────────────────
 
-    if (!searchEmail.trim()) {
-      return;
+  const handleAddRole = (roleId: number) => {
+    if (!selectedRoles.includes(roleId)) {
+      setSelectedRoles([...selectedRoles, roleId]);
     }
+    setShowRoleDropdown(false);
+    setRoleSearch('');
+  };
 
-    const emailRegex = /^\S+@\S+\.\S+$/;
-    if (!emailRegex.test(searchEmail)) {
-      return;
-    }
+  const handleRemoveRole = (roleId: number) => {
+    setSelectedRoles(selectedRoles.filter(id => id !== roleId));
+  };
 
-    setSearching(true);
-    try {
-      const response = await api.get(`/employee/email/${encodeURIComponent(searchEmail)}`);
-      
-      if (response.status === 200 && response.data && response.data.success === 1) {
-        const employee = response.data.data;
-        setEmployeeData(employee);
-        setEmployeeFound(true);
-        
-        setFirstName(employee.first_name || '');
-        setMiddleName(employee.middle_name || '');
-        setLastName(employee.last_name || '');
-        setGender(employee.gender || '');
-        setBirthDate(employee.date_of_birth ? employee.date_of_birth.split('T')[0] : '');
-        setMobileNo(employee.cell_number || '');
-        setLocation(employee.department || '');
+  const handleRoleProfileChange = (value: string) => {
+    setRoleProfileName(value);
+    // If a role profile is selected, also add it as a role if not already selected
+    if (value) {
+      const matchingRole = allRoles.find(r => 
+        (r.role_name || r.name).toLowerCase() === value.toLowerCase()
+      );
+      if (matchingRole && !selectedRoles.includes(matchingRole.id)) {
+        setSelectedRoles([...selectedRoles, matchingRole.id]);
       }
-    } catch (err: any) {
-      if (err.response && err.response.status === 404) {
-        clearEmployeeData();
-      } else {
-        clearEmployeeData();
-        setApiError('Unable to verify employee. Please try again.');
-        console.error('Error searching employee:', err);
-      }
-    } finally {
-      setSearching(false);
     }
   };
 
-  const clearEmployeeData = () => {
-    setEmployeeFound(false);
-    setEmployeeData(null);
+  // ─── Role Search Filter ──────────────────────────────────────────────
+  const filteredRoles = roleSearch
+    ? allRoles.filter(r => 
+        (r.role_name || r.name).toLowerCase().includes(roleSearch.toLowerCase()) &&
+        !selectedRoles.includes(r.id)
+      )
+    : allRoles.filter(r => !selectedRoles.includes(r.id));
+
+  // ─── Get selected role objects ──────────────────────────────────────
+  const getSelectedRoleObjects = () => {
+    return selectedRoles
+      .map(id => allRoles.find(r => r.id === id))
+      .filter((r): r is Role => r !== undefined);
   };
-
-  const handleEmailBlur = () => {
-    if (emailTimeoutRef.current) {
-      clearTimeout(emailTimeoutRef.current);
-      emailTimeoutRef.current = null;
-    }
-
-    emailTimeoutRef.current = setTimeout(() => {
-      const emailRegex = /^\S+@\S+\.\S+$/;
-      if (email.trim() && emailRegex.test(email)) {
-        searchEmployee(email);
-      } else {
-        clearEmployeeData();
-      }
-    }, 500);
-  };
-
-  useEffect(() => {
-    return () => {
-      if (emailTimeoutRef.current) {
-        clearTimeout(emailTimeoutRef.current);
-      }
-    };
-  }, []);
 
   // ─── Validation ──────────────────────────────────────────────────────
   const validateField = (field: string, value: any): string => {
@@ -259,18 +174,21 @@ export default function UserForm() {
         return '';
       case 'password':
         if (isNew && !value?.trim()) return 'Password is required';
-        if (isNew && value?.length < 6) return 'Password must be at least 6 characters';
+        if (value && value.length < 6) return 'Password must be at least 6 characters';
+        return '';
+      case 'confirmPassword':
+        if (isNew && !value?.trim()) return 'Please confirm your password';
+        if (isNew && value !== password) return 'Passwords do not match';
         return '';
       case 'firstName':
         if (!value?.trim()) return 'First name is required';
         return '';
       case 'mobileNo':
         if (!value?.trim()) return 'Mobile number is required';
-        // Allow 10-11 digits, with optional leading zero
         if (!/^[0-9]{10,11}$/.test(value)) return 'Mobile must be 10-11 digits';
         return '';
       case 'roleProfileName':
-        if (!value) return 'Role profile name is required';
+        if (!value?.trim()) return 'Role profile is required';
         return '';
       default:
         return '';
@@ -283,7 +201,7 @@ export default function UserForm() {
   };
 
   const validateAllFields = (): boolean => {
-    const fieldsToValidate = {
+    const fieldsToValidate: Record<string, { label: string; value: any }> = {
       email: { label: 'Email', value: email },
       firstName: { label: 'First Name', value: firstName },
       mobileNo: { label: 'Mobile Number', value: mobileNo },
@@ -291,7 +209,8 @@ export default function UserForm() {
     };
 
     if (isNew) {
-      Object.assign(fieldsToValidate, { password: { label: 'Password', value: password } });
+      fieldsToValidate.password = { label: 'Password', value: password };
+      fieldsToValidate.confirmPassword = { label: 'Confirm Password', value: confirmPassword };
     }
 
     const newErrors: Record<string, string> = {};
@@ -305,104 +224,104 @@ export default function UserForm() {
       }
     });
 
+    if (isNew && password && confirmPassword && password !== confirmPassword) {
+      newErrors.confirmPassword = 'Passwords do not match';
+      hasError = true;
+    }
+
+    if (selectedRoles.length === 0) {
+      newErrors.roles = 'At least one role must be assigned';
+      hasError = true;
+    }
+
     setFieldErrors(newErrors);
     return !hasError;
   };
 
-// ─── Handlers ────────────────────────────────────────────────────────
-const handleSave = async (e: FormEvent<HTMLFormElement>) => {
-  e.preventDefault();
-  setApiError(null);
+  // ─── Handle Save ──────────────────────────────────────────────────────
+  const handleSave = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setApiError(null);
+    setSuccessMessage(null);
 
-  if (!validateAllFields()) {
-    const firstErrorField = document.querySelector('.field-error');
-    if (firstErrorField) {
-      firstErrorField.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      (firstErrorField as HTMLElement).focus();
-    }
-    return;
-  }
-
-  setSubmitting(true);
-  try {
-    let response;
-    
-    if (employeeFound && employeeData) {
-      // Case 1: Employee exists - POST /user
-      const payload = {
-        employee_id: employeeData.id,
-        email: email.trim(),
-        password: password.trim(),
-        roles: selectedRoles,
-        mobile_no: mobileNo.trim(),
-        role_profile_name: roleProfileName,
-        first_name: firstName.trim(),
-        middle_name: middleName.trim(),
-        last_name: lastName.trim(),
-        gender: gender,
-        birth_date: birthDate || null,
-        location: location.trim(),
-        redirect_url: redirectUrl,
-        modified_by: 1,
-      };
-
-      response = await api.post('/user', payload);
-    } else {
-      // Case 2: Employee not found - POST /user/create-with-employee
-      // All employee fields should be at the root level, not nested under "employee"
-      const payload = {
-        // User fields
-        email: email.trim(),
-        password: password.trim(),
-        mobile_no: mobileNo.trim(),
-        role_profile_name: roleProfileName,
-        redirect_url: redirectUrl,
-        modified_by: 1,
-        roles: selectedRoles,
-        
-        // Employee fields - at root level (not nested)
-        first_name: firstName.trim(),
-        middle_name: middleName.trim(),
-        last_name: lastName.trim(),
-        gender: gender,
-        date_of_birth: birthDate || null,
-        cell_number: mobileNo.trim(),
-        personal_email: email.trim(),
-        company: '',
-        department: location.trim() || '',
-        designation: '',
-        employee: '',
-        employee_name: `${firstName.trim()} ${lastName.trim()}`.trim(),
-      };
-
-      response = await api.post('/user/create-with-employee', payload);
-    }
-
-    if (response.data.success === 1) {
-      navigate('/user-management');
-    } else {
-      setApiError(response.data.message || 'Failed to save user');
-    }
-  } catch (err: any) {
-    console.error('Error saving user:', err);
-    
-    if (err.response) {
-      if (err.response.status === 409) {
-        setApiError('A user with this email already exists');
-      } else if (err.response.status === 400) {
-        setApiError(err.response.data?.message || 'Invalid data provided');
-      } else {
-        setApiError(err.response.data?.message || 'Failed to save user');
+    if (!validateAllFields()) {
+      const firstErrorField = document.querySelector('.field-error');
+      if (firstErrorField) {
+        firstErrorField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        (firstErrorField as HTMLElement).focus();
       }
-    } else if (err.request) {
-      setApiError('Network error. Please check your connection.');
-    } else {
-      setApiError('An unexpected error occurred. Please try again.');
+      return;
     }
-  } finally {
-    setSubmitting(false);
-  }
-};
+
+    setSubmitting(true);
+    try {
+      let response;
+
+      if (!isNew) {
+        // Edit mode - use update with roles
+        const payload: Record<string, any> = {
+          id: userId,
+          email: email.trim(),
+          mobile_no: mobileNo.trim(),
+          role_profile_name: roleProfileName,
+          roles: selectedRoles,
+          first_name: firstName.trim(),
+          middle_name: middleName.trim(),
+          last_name: lastName.trim(),
+          gender: gender,
+          birth_date: birthDate || null,
+          location: location.trim(),
+          modified_by: 1,
+        };
+
+        if (password.trim()) {
+          payload.password = password.trim();
+        }
+
+        response = await api.put('/user', payload);
+      } else {
+        // Create new user with roles
+        const payload = {
+          email: email.trim(),
+          password: password.trim(),
+          mobile_no: mobileNo.trim(),
+          role_profile_name: roleProfileName,
+          roles: selectedRoles,
+          first_name: firstName.trim(),
+          middle_name: middleName.trim(),
+          last_name: lastName.trim(),
+          gender: gender,
+          birth_date: birthDate || null,
+          location: location.trim(),
+          modified_by: 1,
+        };
+
+        response = await api.post('/user', payload);
+      }
+
+      if (response.data.success === 1) {
+        setSuccessMessage(response.data.message || 'User saved successfully!');
+        setTimeout(() => {
+          navigate('/user-management');
+        }, 1500);
+      } else {
+        setApiError(response.data.message || 'Failed to save user');
+      }
+    } catch (err: any) {
+      console.error('Error saving user:', err);
+      if (err.response) {
+        if (err.response.status === 409) {
+          setApiError('A user with this email or mobile already exists');
+        } else {
+          setApiError(err.response.data?.message || 'Failed to save user');
+        }
+      } else {
+        setApiError('Network error. Please check your connection.');
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   // ─── Loading State ──────────────────────────────────────────────────
   if (loading) {
@@ -420,7 +339,6 @@ const handleSave = async (e: FormEvent<HTMLFormElement>) => {
     <div className={`uf-page ${theme}`}>
       <div className="uf-inner">
 
-        {/* ─── API Error Display ────────────────────────────────────── */}
         {apiError && (
           <div className="uf-api-error">
             <FaExclamationCircle className="error-icon" />
@@ -429,23 +347,33 @@ const handleSave = async (e: FormEvent<HTMLFormElement>) => {
           </div>
         )}
 
-        {/* ─── Header ────────────────────────────────────────────────── */}
+        {successMessage && (
+          <div className="uf-api-success">
+            <FaCheck className="success-icon" />
+            <span>{successMessage}</span>
+          </div>
+        )}
+
         <div className="uf-header">
           <button onClick={() => navigate('/user-management')} className="back-btn">
             <FaArrowLeft size={9} /> Back
           </button>
           <div className="header-title">
-            <h1>{isNew ? 'Add New User' : `Edit User`}</h1>
+            <h1>{isNew ? 'Add New User' : 'Edit User'}</h1>
+            <span className="header-subtitle">
+              {isNew ? 'Create a new user account with role assignments' : 'Update user information and roles'}
+            </span>
           </div>
         </div>
 
         <form onSubmit={handleSave}>
-
-          {/* ─── Main Form Card ────────────────────────────────────────── */}
           <div className="uf-card">
 
-            {/* General Settings */}
-            <span className="uf-section-title">User Information</span>
+            <div className="uf-section">
+              <span className="uf-section-title">
+                <FaUser className="uf-section-icon" /> User Information
+              </span>
+            </div>
 
             {/* Row 1: Email, First Name, Middle Name */}
             <div className="uf-grid-3">
@@ -453,72 +381,20 @@ const handleSave = async (e: FormEvent<HTMLFormElement>) => {
                 <label className="uf-label">
                   <FaEnvelope className="uf-label-icon" /> Email <span className="uf-required">*</span>
                 </label>
-                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    onBlur={handleEmailBlur}
-                    className={`form-field ${fieldErrors.email ? 'field-error' : ''}`}
-                    placeholder="Enter email address"
-                    disabled={submitting || searching}
-                    style={{ 
-                      paddingRight: searching ? '110px' : undefined,
-                      opacity: searching ? 0.7 : 1
-                    }}
-                  />
-                  {searching && (
-                    <div style={{ 
-                      position: 'absolute', 
-                      right: '12px', 
-                      display: 'flex', 
-                      alignItems: 'center',
-                      gap: '6px'
-                    }}>
-                      <FaSpinner 
-                        className="uf-spinning" 
-                        style={{ 
-                          fontSize: '16px',
-                          color: 'var(--primary-color)'
-                        }} 
-                      />
-                      <span style={{ 
-                        fontSize: '11px', 
-                        color: 'var(--text-secondary)',
-                        fontWeight: 500
-                      }}>
-                        Searching...
-                      </span>
-                    </div>
-                  )}
-                  {!searching && employeeFound && (
-                    <FaSearch 
-                      style={{ 
-                        position: 'absolute', 
-                        right: '12px', 
-                        fontSize: '16px',
-                        color: 'var(--success-color, #10b981)'
-                      }} 
-                    />
-                  )}
-                </div>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onBlur={() => handleFieldBlur('email', email)}
+                  className={`form-field ${fieldErrors.email ? 'field-error' : ''}`}
+                  placeholder="Enter email address"
+                  disabled={submitting || !isNew}
+                  style={!isNew ? { backgroundColor: 'var(--layout-bg)' } : {}}
+                />
                 {fieldErrors.email && (
-                  <div style={{ color: 'var(--danger-color)', fontSize: '11px', marginTop: '4px' }}>
-                    <FaExclamationCircle style={{ marginRight: '4px', fontSize: '10px' }} />
+                  <div className="uf-error-text">
+                    <FaExclamationCircle className="uf-error-icon" />
                     {fieldErrors.email}
-                  </div>
-                )}
-                {employeeFound && employeeData && (
-                  <div style={{ 
-                    marginTop: '4px', 
-                    fontSize: '11px', 
-                    color: 'var(--success-color, #10b981)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px'
-                  }}>
-                    <FaInfoCircle size={10} />
-                    <span>Employee found - {employeeData.employee_name}</span>
                   </div>
                 )}
               </div>
@@ -537,17 +413,15 @@ const handleSave = async (e: FormEvent<HTMLFormElement>) => {
                   disabled={submitting}
                 />
                 {fieldErrors.firstName && (
-                  <div style={{ color: 'var(--danger-color)', fontSize: '11px', marginTop: '4px' }}>
-                    <FaExclamationCircle style={{ marginRight: '4px', fontSize: '10px' }} />
+                  <div className="uf-error-text">
+                    <FaExclamationCircle className="uf-error-icon" />
                     {fieldErrors.firstName}
                   </div>
                 )}
               </div>
 
               <div className="uf-field">
-                <label className="uf-label">
-                  <FaUser className="uf-label-icon" /> Middle Name
-                </label>
+                <label className="uf-label">Middle Name</label>
                 <input
                   type="text"
                   value={middleName}
@@ -562,9 +436,7 @@ const handleSave = async (e: FormEvent<HTMLFormElement>) => {
             {/* Row 2: Last Name, Mobile, Gender */}
             <div className="uf-grid-3">
               <div className="uf-field">
-                <label className="uf-label">
-                  <FaUser className="uf-label-icon" /> Last Name
-                </label>
+                <label className="uf-label">Last Name</label>
                 <input
                   type="text"
                   value={lastName}
@@ -583,7 +455,6 @@ const handleSave = async (e: FormEvent<HTMLFormElement>) => {
                   type="text"
                   value={mobileNo}
                   onChange={(e) => {
-                    // Allow only digits and preserve leading zeros
                     const cleaned = e.target.value.replace(/\D/g, '');
                     setMobileNo(cleaned);
                   }}
@@ -594,15 +465,17 @@ const handleSave = async (e: FormEvent<HTMLFormElement>) => {
                   disabled={submitting}
                 />
                 {fieldErrors.mobileNo && (
-                  <div style={{ color: 'var(--danger-color)', fontSize: '11px', marginTop: '4px' }}>
-                    <FaExclamationCircle style={{ marginRight: '4px', fontSize: '10px' }} />
+                  <div className="uf-error-text">
+                    <FaExclamationCircle className="uf-error-icon" />
                     {fieldErrors.mobileNo}
                   </div>
                 )}
               </div>
 
               <div className="uf-field">
-                <label className="uf-label">Gender</label>
+                <label className="uf-label">
+                  <FaVenusMars className="uf-label-icon" /> Gender
+                </label>
                 <select
                   value={gender}
                   onChange={(e) => setGender(e.target.value)}
@@ -617,10 +490,12 @@ const handleSave = async (e: FormEvent<HTMLFormElement>) => {
               </div>
             </div>
 
-            {/* Row 3: Birth Date, Location, Role Profile Name */}
+            {/* Row 3: Birth Date, Location, Role Profile */}
             <div className="uf-grid-3">
               <div className="uf-field">
-                <label className="uf-label">Birth Date</label>
+                <label className="uf-label">
+                  <FaCalendarAlt className="uf-label-icon" /> Birth Date
+                </label>
                 <input
                   type="date"
                   value={birthDate}
@@ -632,7 +507,7 @@ const handleSave = async (e: FormEvent<HTMLFormElement>) => {
 
               <div className="uf-field">
                 <label className="uf-label">
-                  <FaStore className="uf-label-icon" /> Location
+                  <FaMapMarkerAlt className="uf-label-icon" /> Location
                 </label>
                 <input
                   type="text"
@@ -645,111 +520,200 @@ const handleSave = async (e: FormEvent<HTMLFormElement>) => {
               </div>
 
               <div className="uf-field">
-                <label className="uf-label">Role Profile Name <span className="uf-required">*</span></label>
+                <label className="uf-label">
+                  <FaUserTag className="uf-label-icon" /> Role Profile <span className="uf-required">*</span>
+                </label>
                 <select
                   value={roleProfileName}
-                  onChange={(e) => setRoleProfileName(e.target.value)}
+                  onChange={(e) => handleRoleProfileChange(e.target.value)}
                   onBlur={() => handleFieldBlur('roleProfileName', roleProfileName)}
                   className={`form-field ${fieldErrors.roleProfileName ? 'field-error' : ''}`}
-                  disabled={submitting}
+                  disabled={submitting || rolesLoading}
                 >
-                  <option value="">Select Role Profile</option>
-                  {ROLES.map((role) => (
-                    <option key={role.id} value={role.name}>
-                      {role.name}
+                  <option value="">{rolesLoading ? 'Loading roles...' : 'Select Role Profile'}</option>
+                  {allRoles.map((role) => (
+                    <option key={role.id} value={role.role_name || role.name}>
+                      {role.role_name || role.name}
                     </option>
                   ))}
                 </select>
                 {fieldErrors.roleProfileName && (
-                  <div style={{ color: 'var(--danger-color)', fontSize: '11px', marginTop: '4px' }}>
-                    <FaExclamationCircle style={{ marginRight: '4px', fontSize: '10px' }} />
+                  <div className="uf-error-text">
+                    <FaExclamationCircle className="uf-error-icon" />
                     {fieldErrors.roleProfileName}
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Password - shown separately for new users */}
-            {isNew && (
-              <div className="uf-field" style={{ maxWidth: '400px', marginTop: '8px' }}>
-                <label className="uf-label">
-                  <FaLock className="uf-label-icon" /> Password <span className="uf-required">*</span>
-                </label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  onBlur={() => handleFieldBlur('password', password)}
-                  className={`form-field ${fieldErrors.password ? 'field-error' : ''}`}
-                  placeholder="Enter password (min 6 chars)"
-                  disabled={submitting}
-                />
-                {fieldErrors.password && (
-                  <div style={{ color: 'var(--danger-color)', fontSize: '11px', marginTop: '4px' }}>
-                    <FaExclamationCircle style={{ marginRight: '4px', fontSize: '10px' }} />
-                    {fieldErrors.password}
-                  </div>
-                )}
+            {/* ─── Roles Management Section ──────────────────────────────── */}
+            <div className="uf-divider" />
+            
+            <div className="uf-section">
+              <span className="uf-section-title">
+                <FaShieldAlt className="uf-section-icon" /> Role Assignments <span className="uf-required">*</span>
+              </span>
+              <span className="uf-section-subtitle">Assign one or more roles to this user</span>
+            </div>
+
+            {fieldErrors.roles && (
+              <div className="uf-error-text uf-error-block">
+                <FaExclamationCircle className="uf-error-icon" />
+                {fieldErrors.roles}
               </div>
             )}
 
-            {/* Employee details - shown only when employee is found */}
-            {employeeFound && employeeData && (
+            <div className="uf-roles-container">
+              {/* Selected Roles */}
+              <div className="uf-selected-roles">
+                <div className="uf-selected-header">
+                  <label className="uf-label">Assigned Roles</label>
+                  <span className="uf-role-count">{selectedRoles.length}</span>
+                </div>
+                <div className="uf-role-tags-wrapper">
+                  {selectedRoles.length === 0 ? (
+                    <div className="uf-no-roles">
+                      <FaUserTag className="uf-no-roles-icon" />
+                      <span>No roles assigned yet</span>
+                      <span className="uf-no-roles-sub">Select roles from the right panel</span>
+                    </div>
+                  ) : (
+                    <div className="uf-role-tags">
+                      {getSelectedRoleObjects().map(role => (
+                        <div key={role.id} className="uf-role-tag">
+                          <FaCheck className="uf-role-tag-icon" size={10} />
+                          <span>{role.role_name || role.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveRole(role.id)}
+                            className="uf-remove-role"
+                            disabled={submitting}
+                            title="Remove role"
+                          >
+                            <FaTimes size={10} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Available Roles */}
+              <div className="uf-available-roles">
+                <div className="uf-available-header">
+                  <label className="uf-label">Available Roles</label>
+                  {rolesLoading && <FaSpinner className="uf-spinning-small" />}
+                </div>
+                <div className="uf-role-search">
+                  <FaSearch className="uf-search-icon" />
+                  <input
+                    type="text"
+                    value={roleSearch}
+                    onChange={(e) => {
+                      setRoleSearch(e.target.value);
+                      setShowRoleDropdown(true);
+                    }}
+                    onFocus={() => setShowRoleDropdown(true)}
+                    placeholder="Search available roles..."
+                    className="form-field uf-search-input"
+                    disabled={submitting || rolesLoading}
+                  />
+                </div>
+                <div className="uf-role-list">
+                  {rolesLoading ? (
+                    <div className="uf-loading-roles">
+                      <FaSpinner className="uf-spinning-small" />
+                      <span>Loading roles...</span>
+                    </div>
+                  ) : filteredRoles.length === 0 ? (
+                    <div className="uf-no-roles">
+                      <span>No available roles</span>
+                      {roleSearch && (
+                        <span className="uf-no-roles-sub">Try a different search term</span>
+                      )}
+                    </div>
+                  ) : (
+                    filteredRoles.map(role => (
+                      <div key={role.id} className="uf-role-item">
+                        <div className="uf-role-item-info">
+                          <span className="uf-role-item-name">{role.role_name || role.name}</span>
+                          {role.desk_access === 1 && (
+                            <span className="uf-role-item-badge">Desk Access</span>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleAddRole(role.id)}
+                          className="uf-add-role"
+                          disabled={submitting}
+                          title="Add role"
+                        >
+                          <FaPlus size={10} />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* ─── Password Fields (Only for New Users) ────────────────── */}
+            {isNew && (
               <>
                 <div className="uf-divider" />
-                <span className="uf-section-title">Employee Details</span>
+                <div className="uf-section">
+                  <span className="uf-section-title">
+                    <FaLock className="uf-section-icon" /> Security Settings
+                  </span>
+                </div>
                 
-                <div className="uf-grid-3">
+                <div className="uf-grid-2">
                   <div className="uf-field">
                     <label className="uf-label">
-                      <FaBuilding className="uf-label-icon" /> Company
+                      <FaLock className="uf-label-icon" /> Password <span className="uf-required">*</span>
                     </label>
                     <input
-                      type="text"
-                      value={employeeData.company}
-                      className="form-field"
-                      disabled
-                      style={{ backgroundColor: 'var(--layout-bg)' }}
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      onBlur={() => handleFieldBlur('password', password)}
+                      className={`form-field ${fieldErrors.password ? 'field-error' : ''}`}
+                      placeholder="Enter password (min 6 chars)"
+                      disabled={submitting}
                     />
+                    {fieldErrors.password && (
+                      <div className="uf-error-text">
+                        <FaExclamationCircle className="uf-error-icon" />
+                        {fieldErrors.password}
+                      </div>
+                    )}
                   </div>
+
                   <div className="uf-field">
                     <label className="uf-label">
-                      <FaBriefcase className="uf-label-icon" /> Department
+                      <FaLock className="uf-label-icon" /> Confirm Password <span className="uf-required">*</span>
                     </label>
                     <input
-                      type="text"
-                      value={employeeData.department}
-                      className="form-field"
-                      disabled
-                      style={{ backgroundColor: 'var(--layout-bg)' }}
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      onBlur={() => handleFieldBlur('confirmPassword', confirmPassword)}
+                      className={`form-field ${fieldErrors.confirmPassword ? 'field-error' : ''}`}
+                      placeholder="Confirm your password"
+                      disabled={submitting}
                     />
-                  </div>
-                  <div className="uf-field">
-                    <label className="uf-label">
-                      <FaBriefcase className="uf-label-icon" /> Designation
-                    </label>
-                    <input
-                      type="text"
-                      value={employeeData.designation}
-                      className="form-field"
-                      disabled
-                      style={{ backgroundColor: 'var(--layout-bg)' }}
-                    />
+                    {fieldErrors.confirmPassword && (
+                      <div className="uf-error-text">
+                        <FaExclamationCircle className="uf-error-icon" />
+                        {fieldErrors.confirmPassword}
+                      </div>
+                    )}
                   </div>
                 </div>
-                <div className="uf-grid-3">
-                  <div className="uf-field">
-                    <label className="uf-label">
-                      <FaIdBadge className="uf-label-icon" /> Employee #
-                    </label>
-                    <input
-                      type="text"
-                      value={employeeData.employee || employeeData.employee_number || 'N/A'}
-                      className="form-field"
-                      disabled
-                      style={{ backgroundColor: 'var(--layout-bg)' }}
-                    />
-                  </div>
+                <div className="uf-password-hint">
+                  <FaLock size={10} />
+                  Password must be at least 6 characters long
                 </div>
               </>
             )}
@@ -758,23 +722,32 @@ const handleSave = async (e: FormEvent<HTMLFormElement>) => {
 
           {/* ─── Footer ────────────────────────────────────────────────── */}
           <div className="uf-footer">
-            <button
-              type="button"
-              onClick={() => navigate('/user-management')}
-              className="cancel-btn"
-              disabled={submitting}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="submit-btn"
-            >
-              {submitting && <FaSpinner className="spinning" />}
-              <FaSave size={12} />
-              {isNew ? 'Create User' : 'Update User'}
-            </button>
+            <div className="uf-footer-left">
+              {!isNew && (
+                <span className="uf-last-modified">
+                  Last modified: {new Date().toLocaleString()}
+                </span>
+              )}
+            </div>
+            <div className="uf-footer-right">
+              <button
+                type="button"
+                onClick={() => navigate('/user-management')}
+                className="cancel-btn"
+                disabled={submitting}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={submitting}
+                className="submit-btn"
+              >
+                {submitting && <FaSpinner className="spinning" />}
+                <FaSave size={12} />
+                {submitting ? 'Saving...' : isNew ? 'Create User' : 'Update User'}
+              </button>
+            </div>
           </div>
         </form>
       </div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, type JSX } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import './Sidebar.css';
 import { useModule } from '../context/ModuleContext';
@@ -8,12 +8,21 @@ import { GiHumanCannonball } from 'react-icons/gi';
 import { RiQuillPenAiLine } from 'react-icons/ri';
 // Import storage functions
 import { getUserName, getUserEmail, getUserRole } from '../utils/storage';
+// Import permission helper
+import { hasSubmoduleByName } from '../utils/permissions';
 
 interface SidebarProps {
   isOpen?: boolean;
   onClose?: () => void;
   isMinimized?: boolean;
   onToggleMinimize?: () => void;
+}
+
+interface MenuItem {
+  title: string;
+  icon: JSX.Element;
+  path: string;
+  apiSubmodule?: string; // submodule name as returned by login API (omit to always show)
 }
 
 export default function Sidebar({ 
@@ -129,7 +138,7 @@ export default function Sidebar({
   };
 
   // All menu categories
-  const allMenuCategories = [
+  const allMenuCategories: { title: string; module: string; icon: JSX.Element; items: MenuItem[] }[] = [
     {
       title: 'Home',
       module: 'home',
@@ -148,17 +157,12 @@ export default function Sidebar({
       module: 'sales',
       icon: <SalesIcon />,
       items: [
-        { title: 'Lead', icon: <GiHumanCannonball />, path: '/lead'},
-        { title: 'Quotation', icon: <QuotationIcon />, path: '/quotation' },
-        { title: 'Sales Order', icon: <SalesOrderIcon />, path: '/sales-order' },
-        { title: 'Proforma Invoice', icon: <SalesOrderIcon />, path: '/proforma-invoice' },
-
-        {
-          title: 'Delivery Challans',
-          icon: <ReceiptIcon />,
-          path: '/delivery-challan'
-        },
-        { title: 'Tax Invoice/Sale Bill', icon: <InvoiceIcon />, path: '/sales-bill' }
+        { title: 'Lead', icon: <GiHumanCannonball />, path: '/lead', apiSubmodule: 'Lead' },
+        { title: 'Quotation', icon: <QuotationIcon />, path: '/quotation', apiSubmodule: 'Quotation' },
+        { title: 'Sales Order', icon: <SalesOrderIcon />, path: '/sales-order', apiSubmodule: 'Sales Order' },
+        { title: 'Proforma Invoice', icon: <SalesOrderIcon />, path: '/proforma-invoice', apiSubmodule: 'Proforma Invoice' },
+        { title: 'Delivery Challans', icon: <ReceiptIcon />, path: '/delivery-challan', apiSubmodule: 'Delivery Challans' },
+        { title: 'Tax Invoice/Sale Bill', icon: <InvoiceIcon />, path: '/sales-bill', apiSubmodule: 'Tax Invoice/Sale Bill' }
       ]
     },
     {
@@ -166,8 +170,7 @@ export default function Sidebar({
       module: 'sales',
       icon: <CustomersIcon />,
       items: [
-        { title: 'Customers', icon: <CustomersIcon />, path: '/customer' },
-        // { title: 'Add Customer', icon: <CustomersIcon />, path: '/customer/new' },
+        { title: 'Customers', icon: <CustomersIcon />, path: '/customer', apiSubmodule: 'Customers' },
       ]
     },
     {
@@ -175,12 +178,8 @@ export default function Sidebar({
       module: 'sales',
       icon: <ItemIcon />,
       items: [
-        { title: 'Item', icon: <ItemIcon />, path: '/item-list' },
-        { title: 'Item Group', icon: <FolderIcon />, path: '/item-group' },
-        { title: 'Price List', icon: <TagIcon />, path: '/price-list' },
-        { title: 'Item Price', icon: <BrandIcon />, path: '/item-price' },
-        { title: 'Pricing Rule', icon: <RulerIcon />, path: '/pricing-rule' },
-        { title: 'Coupon Code', icon: <CouponIcon />, path: '/coupon-code' }
+        { title: 'Item', icon: <ItemIcon />, path: '/item-list', apiSubmodule: 'Item' },
+        { title: 'Item Group', icon: <FolderIcon />, path: '/item-group', apiSubmodule: 'Item Group' },
       ]
     },
     {
@@ -188,11 +187,11 @@ export default function Sidebar({
       module: 'manufacturing',
       icon: <ManufacturingIcon />,
       items: [
-        { title: 'BOM', icon: <BomIcon />, path: '/bom' },
-        { title: 'Work Order', icon: <WorkOrderIcon />, path: '/work-order' },
-        { title: 'Job Card', icon: <JobCardIcon />, path: '/job-card' },
-        { title: 'Stock Entry', icon: <StockIcon />, path: '/stock-entry' },
-        { title: 'Inventory', icon: <BomIcon />, path: '/InventoryList' },
+        { title: 'BOM', icon: <BomIcon />, path: '/bom', apiSubmodule: 'BOM' },
+        { title: 'Work Order', icon: <WorkOrderIcon />, path: '/work-order', apiSubmodule: 'Work Order' },
+        { title: 'Job Card', icon: <JobCardIcon />, path: '/job-card', apiSubmodule: 'Job Card' },
+        { title: 'Stock Entry', icon: <StockIcon />, path: '/stock-entry', apiSubmodule: 'Stock Inventory' },
+        { title: 'Inventory', icon: <BomIcon />, path: '/InventoryList', apiSubmodule: 'Inventory' },
       ]
     },
     {
@@ -200,12 +199,12 @@ export default function Sidebar({
       module: 'organization',
       icon: <OrganizationIcon />,
       items: [
-        { title: 'Employee', icon: <WarehouseIcon />, path: '/employee' },
-        { title: 'User Management', icon: <UserIcon />, path: '/user-management' },
-        { title: 'Role Management', icon: <UserIcon />, path: '/role' },
-        { title: 'Company', icon: <CompanyIcon />, path: '/company' },
-        { title: 'Letter Head', icon: <LetterHeadIcon />, path: '/letter-head' },
-        { title: 'Bank Details', icon: <BankingIcon />, path: '/bank-details' }
+        { title: 'Employee', icon: <WarehouseIcon />, path: '/employee', apiSubmodule: 'Employee' },
+        { title: 'User Management', icon: <UserIcon />, path: '/user-management', apiSubmodule: 'User Managment' },
+        { title: 'Role Management', icon: <UserIcon />, path: '/role', apiSubmodule: 'Role Management' },
+        { title: 'Company', icon: <CompanyIcon />, path: '/company', apiSubmodule: 'Company' },
+        { title: 'Letter Head', icon: <LetterHeadIcon />, path: '/letter-head', apiSubmodule: 'Letter Head' },
+        { title: 'Bank Details', icon: <BankingIcon />, path: '/bank-details', apiSubmodule: 'Bank Details' }
       ]
     },
     {
@@ -213,15 +212,13 @@ export default function Sidebar({
       module: 'setup',
       icon: <SetupIcon />,
       items: [
-        { title: 'Item', icon: <ItemIcon />, path: '/item-list' },
-        { title: 'Item Group', icon: <FolderIcon />, path: '/item-group' },
-        // { title: 'Item Attribute', icon: <TagIcon />, path: '/item-attribute' },
-        // { title: 'Brand', icon: <BrandIcon />, path: '/brand' },
-        { title: 'Warehouse', icon: <WarehouseIcon />, path: '/warehouse' },
-        { title: 'Workstation', icon: <WarehouseIcon />, path: '/Workstation' },
-        { title: 'Operations', icon: <WarehouseIcon />, path: '/operations' },
-        { title: 'Unit of Measure (UOM)', icon: <RulerIcon />, path: '/uom' },
-        { title: 'Quality Inspection', icon: <RiQuillPenAiLine />, path: '/quality-inspection' },
+        { title: 'Item', icon: <ItemIcon />, path: '/item-list', apiSubmodule: 'Item' },
+        { title: 'Item Group', icon: <FolderIcon />, path: '/item-group', apiSubmodule: 'Item Group' },
+        { title: 'Warehouse', icon: <WarehouseIcon />, path: '/warehouse', apiSubmodule: 'Warehouse' },
+        { title: 'Workstation', icon: <WarehouseIcon />, path: '/Workstation', apiSubmodule: 'Workstation' },
+        { title: 'Operations', icon: <WarehouseIcon />, path: '/operations', apiSubmodule: 'Operations' },
+        { title: 'Unit of Measure (UOM)', icon: <RulerIcon />, path: '/uom', apiSubmodule: 'Unit Of Measure (UOM)' },
+        { title: 'Quality Inspection', icon: <RiQuillPenAiLine />, path: '/quality-inspection', apiSubmodule: 'Quality Inspection' },
       ]
     },
     {
@@ -229,7 +226,7 @@ export default function Sidebar({
       module: 'tools',
       icon: <ToolIcon />,
       items: [
-        { title: 'Tools', icon: <ToolIcon />, path: '/tools' }
+        { title: 'Tools', icon: <ToolIcon />, path: '/tools', apiSubmodule: 'Tools' }
       ]
     },
     // ─── BUYING - Purchase Documents ───
@@ -238,9 +235,9 @@ export default function Sidebar({
       module: 'purchasing',
       icon: <PurchaseDocumentsIcon />,
       items: [
-        { title: 'Purchase Order', icon: <PurchaseOrderIcon />, path: '/purchase-order' },
-        { title: 'Goods Receipt Note', icon: <GRNIcon />, path: '/grn' },
-        { title: 'Purchase Bill', icon: <PurchaseInvoiceIcon />, path: '/purchase-invoice' },
+        { title: 'Purchase Order', icon: <PurchaseOrderIcon />, path: '/purchase-order', apiSubmodule: 'Purchase Order' },
+        { title: 'Goods Receipt Note', icon: <GRNIcon />, path: '/grn', apiSubmodule: 'Goods Receipt Note' },
+        { title: 'Purchase Bill', icon: <PurchaseInvoiceIcon />, path: '/purchase-invoice', apiSubmodule: 'Purchase Bill' },
       ]
     },
     // ─── SUPPLIERS & CONTACTS ───
@@ -249,26 +246,7 @@ export default function Sidebar({
       module: 'purchasing',
       icon: <SupplierContactsIcon />,
       items: [
-        { title: 'Supplier', icon: <SupplierIcon />, path: '/supplier' },
-        { title: 'Contacts', icon: <ContactsIcon />, path: '/contacts' },
-      ]
-    },
-    // ─── PRICING & LISTS ───
-    {
-      title: 'Pricing & Lists',
-      module: 'purchasing',
-      icon: <PricingListIcon />,
-      items: [
-        { title: 'Price List', icon: <PriceListIcon />, path: '/price-list' },
-      ]
-    },
-    {
-      title: 'Accounting',
-      module: 'accounting',
-      icon: <AccountingIcon />,
-      items: [
-        { title: 'Dashboard', icon: <DashboardIcon />, path: '/accounting/dashboard' },
-        { title: 'Accounts', icon: <ChartOfAccountsIcon />, path: '/accounting/accounts' },
+        { title: 'Supplier', icon: <SupplierIcon />, path: '/supplier', apiSubmodule: 'Supplier' },
       ]
     },
     {
@@ -276,9 +254,9 @@ export default function Sidebar({
       module: 'accounting',
       icon: <AccountingIcon />,
       items: [
-        { title: 'Chart of Accounts', icon: <ChartOfAccountsIcon />, path: '/chart-of-accounts' },
-        { title: 'Ledger Accounts', icon: <LedgerIcon />, path: '/ledger-accounts' },
-        { title: 'Cost Centers', icon: <CostCenterIcon />, path: '/accounting/cost-centers' },
+        { title: 'Chart of Accounts', icon: <ChartOfAccountsIcon />, path: '/chart-of-accounts', apiSubmodule: 'Chart of Accounts' },
+        { title: 'Ledger Accounts', icon: <LedgerIcon />, path: '/ledger-accounts', apiSubmodule: 'Ledger Accounts' },
+        { title: 'Cost Centers', icon: <CostCenterIcon />, path: '/accounting/cost-centers', apiSubmodule: 'Cost Centers' },
       ]
     },
     {
@@ -289,23 +267,26 @@ export default function Sidebar({
         {
           title: 'Customer Invoices',
           icon: <InvoiceIcon />,
-          path: '/customer-invoices'
+          path: '/customer-invoices',
+          apiSubmodule: 'Customer Invoices'
         },
         {
           title: 'Customer Payments',
           icon: <PaymentIcon />,
-          path: '/Customer-payments'
+          path: '/Customer-payments',
+          apiSubmodule: 'Customer Payments'
         },
-        
         {
           title: 'Credit Notes',
           icon: <CreditNoteIcon />,
-          path: '/receivables/credit-notes'
+          path: '/receivables/credit-notes',
+          apiSubmodule: 'Credit Notes'
         },
         {
           title: 'Outstanding Receivables',
           icon: <CustomersIcon />,
-          path: '/outstanding-receivables'
+          path: '/outstanding-receivables',
+          apiSubmodule: 'Outstanding Receivables'
         }
       ]
     },
@@ -314,32 +295,28 @@ export default function Sidebar({
       module: 'accounting',
       icon: <PayablesIcon />,
       items: [
-        { title: 'Supplier Bills', icon: <SupplierIcon />, path: '/payables/supplier-bills' },
-        { title: 'Supplier Payments', icon: <PaymentIcon />, path: '/payables/supplier-payments' },
-        { title: 'Outstanding Payables', icon: <OutstandingIcon />, path: '/payables/outstanding-payables' }
+        { title: 'Supplier Bills', icon: <SupplierIcon />, path: '/payables/supplier-bills', apiSubmodule: 'Supplier Bills' },
+        { title: 'Supplier Payments', icon: <PaymentIcon />, path: '/payables/supplier-payments', apiSubmodule: 'Supplier Payments' },
+        { title: 'Outstanding Payables', icon: <OutstandingIcon />, path: '/payables/outstanding-payables', apiSubmodule: 'Outstanding Payables' }
       ]
     },
-
     {
       title: 'Banking',
       module: 'accounting',
       icon: <BankingIcon />,
       items: [
-        { title: 'Bank Accounts', icon: <BankAccountIcon />, path: '/banking/bank-accounts' },
-        { title: 'Bank Transactions', icon: <BankTransactionIcon />, path: '/banking/bank-transactions' },
-        { title: 'Bank Reconciliation', icon: <BankReconciliationIcon />, path: '/banking/bank-reconciliation' },
-        { title: 'Setups', icon: <TagIcon />, path: '/CompanyAccountingSetup' },
-
+        { title: 'Bank Accounts', icon: <BankAccountIcon />, path: '/banking/bank-accounts', apiSubmodule: 'Bank Accounts' },
+        { title: 'Bank Transactions', icon: <BankTransactionIcon />, path: '/banking/bank-transactions', apiSubmodule: 'Bank Transactions' },
+        { title: 'Bank Reconciliation', icon: <BankReconciliationIcon />, path: '/banking/bank-reconciliation', apiSubmodule: 'Bank Reconciliation' },
+        { title: 'Setups', icon: <TagIcon />, path: '/CompanyAccountingSetup', apiSubmodule: 'Setups' },
       ]
     },
-    
     {
       title: 'Expenses',
       module: 'accounting',
       icon: <ExpenseIcon />,
       items: [
-        { title: 'Expense', icon: <TagIcon />, path: '/expenses/expense' },
-        
+        { title: 'Expense', icon: <TagIcon />, path: '/expenses/expense', apiSubmodule: 'Expense' },
       ]
     },
     {
@@ -347,7 +324,7 @@ export default function Sidebar({
       module: 'theme',
       icon: <SettingsIcon />,
       items: [
-        { title: 'Settings', icon: <SettingsIcon />, path: '/settings' }
+        { title: 'Settings', icon: <SettingsIcon />, path: '/settings', apiSubmodule: 'Settings' }
       ]
     }
   ];
@@ -367,7 +344,26 @@ export default function Sidebar({
     }
   };
 
-  const menuCategories = getFilteredCategories();
+  // Filters out items the logged-in user has no permission for, matching purely
+  // by submodule NAME (searched across all of the user's modules) — so this
+  // keeps working even if a module's display name and API name drift apart.
+  // Items with no apiSubmodule are always kept (ungated).
+  // Category order and item order are both preserved exactly as declared above.
+  const applyPermissionFilter = (
+    categories: { title: string; module: string; icon: JSX.Element; items: MenuItem[] }[]
+  ) => {
+    return categories
+      .map(category => ({
+        ...category,
+        items: category.items.filter(item => {
+          if (!item.apiSubmodule) return true;
+          return hasSubmoduleByName(item.apiSubmodule);
+        })
+      }))
+      .filter(category => category.items.length > 0); // drop categories left with 0 visible items
+  };
+
+  const menuCategories = applyPermissionFilter(getFilteredCategories());
 
   // Get module display name
   const getModuleName = () => {
@@ -399,14 +395,9 @@ export default function Sidebar({
             <div className="logo-icon">
               <img src={logo} alt="SculptERP Logo" className="logo-image" />
             </div>
-            <div>
-              <div className="logo-text">SculptERP</div>
-              {!isMinimized && currentModule !== 'home' && (
-                <div className="module-indicator">
-                  {getModuleName()} Module
-                </div>
-              )}
-            </div>
+              <div className="logo-text">ChandraTara Ind</div>
+              
+          
           </div>
           {onClose && (
             <button className="mobile-close-btn" onClick={onClose}>
@@ -547,7 +538,6 @@ export default function Sidebar({
 
 // ===== ICON COMPONENTS =====
 
-// Home Icons
 const HomeIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
@@ -564,7 +554,6 @@ const DashboardIcon = () => (
   </svg>
 );
 
-// Sales Icons
 const SalesIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M12 2L2 7l10 5 10-5-10-5z"/>
@@ -573,7 +562,6 @@ const SalesIcon = () => (
   </svg>
 );
 
-// Customers Icon - Single definition
 const CustomersIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
@@ -613,7 +601,6 @@ const InvoiceIcon = () => (
   </svg>
 );
 
-// Items & Pricing Icons
 const ItemIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
@@ -643,23 +630,9 @@ const TagIcon = () => (
   </svg>
 );
 
-const BrandIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M4 8h16M4 16h16M8 4v16M16 4v16"/>
-  </svg>
-);
-
 const RulerIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M2 12h20M12 2v20M8 4v2M16 4v2M4 8h2M18 8h2M4 16h2M18 16h2M8 20v2M16 20v2"/>
-  </svg>
-);
-
-const CouponIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M20 12L12 4L4 12L12 20L20 12Z"/>
-    <path d="M12 8L12 16"/>
-    <path d="M8 12L16 12"/>
   </svg>
 );
 
@@ -682,7 +655,6 @@ const CreditNoteIcon = () => (
   </svg>
 );
 
-// Manufacturing Icons
 const ManufacturingIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M14 4h6v6M4 20L20 4M18 20h-6M4 8V4h4"/>
@@ -740,7 +712,6 @@ const LetterHeadIcon = () => (
   </svg>
 );
 
-// Setup Icons
 const SetupIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="12" r="3"/>
@@ -755,7 +726,6 @@ const WarehouseIcon = () => (
   </svg>
 );
 
-// ===== RECEIVABLES ICONS =====
 const ReceivablesIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M12 2L2 7l10 5 10-5-10-5z" />
@@ -778,7 +748,6 @@ const PaymentIcon = () => (
   </svg>
 );
 
-// ===== PAYABLES ICONS =====
 const PayablesIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M12 2L2 7l10 5 10-5-10-5z" />
@@ -802,14 +771,12 @@ const OutstandingIcon = () => (
   </svg>
 );
 
-// Tools & Reports Icons
 const ToolIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
   </svg>
 );
 
-// ─── BUYING ICONS ───
 const PurchaseDocumentsIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -852,7 +819,6 @@ const PurchaseInvoiceIcon = () => (
   </svg>
 );
 
-// ─── SUPPLIERS & CONTACTS ICONS ───
 const SupplierContactsIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
@@ -874,37 +840,6 @@ const SupplierIcon = () => (
   </svg>
 );
 
-const ContactsIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-    <circle cx="12" cy="7" r="4"/>
-    <path d="M16 11l2 2 4-4"/>
-    <path d="M19 13v4"/>
-    <path d="M14 11h4"/>
-    <path d="M14 15h6"/>
-  </svg>
-);
-
-// ─── PRICING & LISTS ICONS ───
-const PricingListIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 2H2v10l9.17 9.17a2 2 0 0 0 2.83 0l7-7a2 2 0 0 0 0-2.83L12 2z"/>
-    <circle cx="7" cy="7" r="2" fill="none"/>
-    <path d="M17 10l-2 2"/>
-    <path d="M14 14l-2 2"/>
-    <path d="M19 7l-4 4"/>
-  </svg>
-);
-
-const PriceListIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 2H2v10l9.17 9.17a2 2 0 0 0 2.83 0l7-7a2 2 0 0 0 0-2.83L12 2z"/>
-    <circle cx="7" cy="7" r="2" fill="none"/>
-    <path d="M17 10l-2 2"/>
-  </svg>
-);
-
-// ─── ACCOUNTING ICONS ───
 const AccountingIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <rect x="2" y="6" width="20" height="14" rx="2" ry="2" />
@@ -1008,7 +943,6 @@ const SettingsIcon = () => (
   </svg>
 );
 
-// Helper Icons
 const ChevronDownIcon = () => (
   <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
     <path d="M2 4l4 4 4-4" stroke="#9CA3AF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>

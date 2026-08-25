@@ -12,7 +12,6 @@ import {
   FaEye,
   FaEdit,
   FaTrash,
-  FaPlus,
   FaBuilding,
   FaBoxes,
   FaWarehouse,
@@ -476,9 +475,9 @@ export default function Stockentry() {
     }
   };
 
-  const handleRowClick = (item: StockEntryDisplay) => {
-    navigate(`/stock-entry/${encodeURIComponent(item.id)}`);
-  };
+  // const handleRowClick = (item: StockEntryDisplay) => {
+  //   navigate(`/stock-entry/${encodeURIComponent(item.id)}`);
+  // };
 
   const handleEdit = (item: StockEntryDisplay) => {
     navigate(`/stock-entry/${encodeURIComponent(item.id)}`);
@@ -515,7 +514,7 @@ export default function Stockentry() {
         <div 
           key={item.id} 
           className="se-card"
-          onClick={() => handleRowClick(item)}
+          // onClick={() => handleRowClick(item)}
         >
           <div className="se-card-header">
             <div className="se-card-type">
@@ -740,10 +739,7 @@ export default function Stockentry() {
             </button>
           </div>
 
-          <button className="se-btn-primary" onClick={() => navigate("/stock-entry/new")}>
-            <FaPlus size={12} />
-            Add Stock Entry
-          </button>
+         
         </div>
       </div>
 
@@ -811,7 +807,6 @@ export default function Stockentry() {
                     <th className="se-th">Qty</th>
                     <th className="se-th">Amount</th>
                     <th className="se-th">Posting Date</th>
-                    <th className="se-th se-th-meta">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -830,7 +825,7 @@ export default function Stockentry() {
                       <tr
                         key={row.id}
                         className={`se-tr ${selected.has(row.id) ? "se-tr-selected" : ""}`}
-                        onClick={() => handleRowClick(row)}
+                        // onClick={() => handleRowClick(row)}
                         style={{ cursor: "pointer" }}
                       >
                         <td className="se-td-check" onClick={(e) => { e.stopPropagation(); toggleRow(row.id); }}>
@@ -876,19 +871,7 @@ export default function Stockentry() {
                             <span className="se-ago-badge">{row.createdAgo}</span>
                           </div>
                         </td>
-                        <td className="se-td se-td-meta" onClick={(e) => e.stopPropagation()}>
-                          <div className="se-action-buttons">
-                            <button className="se-action-btn se-action-view" onClick={() => handleView(row)} title="View">
-                              <FaEye size={12} />
-                            </button>
-                            <button className="se-action-btn se-action-edit" onClick={() => handleEdit(row)} title="Edit">
-                              <FaEdit size={12} />
-                            </button>
-                            <button className="se-action-btn se-action-delete" onClick={() => handleDelete(row)} title="Delete">
-                              <FaTrash size={12} />
-                            </button>
-                          </div>
-                        </td>
+                       
                       </tr>
                     ))
                   )}

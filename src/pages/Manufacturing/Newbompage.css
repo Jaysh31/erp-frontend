@@ -1,7 +1,164 @@
 /* ========================================
    DEFAULT BLUE THEME
 ======================================== */
+/* ─── Searchable Select Styles ────────────────────────────────────────────── */
 
+.nbom-searchable-select {
+  position: relative;
+  z-index: 1;
+}
+
+.nbom-searchable-select input {
+  width: 100%;
+  box-sizing: border-box;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--c-radius-sm);
+  font-size: 13px;
+  color: var(--c-text);
+  background: var(--c-bg);
+  transition: border-color var(--c-transition), box-shadow var(--c-transition);
+  outline: none;
+  font-family: inherit;
+}
+
+.nbom-searchable-select input:hover {
+  border-color: var(--c-border-hover);
+}
+
+.nbom-searchable-select input:focus {
+  border-color: var(--c-primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.nbom-searchable-select input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Dropdown list container - this is the key fix */
+.nbom-searchable-select > div {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 9999 !important; /* Very high z-index */
+  max-height: 250px;
+  overflow-y: auto;
+  background: var(--c-bg);
+  border: 1px solid var(--c-border);
+  border-radius: 6px;
+  margin-top: 4px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15), 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+/* Individual options */
+.nbom-searchable-select > div > div {
+  padding: 10px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  border-bottom: 1px solid var(--c-border);
+}
+
+.nbom-searchable-select > div > div:last-child {
+  border-bottom: none;
+}
+
+.nbom-searchable-select > div > div:hover {
+  background: var(--c-bg-muted);
+}
+
+/* Selected option */
+.nbom-searchable-select > div > div.selected {
+  background: var(--c-primary);
+  color: #fff;
+}
+
+/* Highlighted option */
+.nbom-searchable-select > div > div.highlighted {
+  background: var(--c-primary-light, #e6f0ff);
+}
+
+/* Dark theme overrides */
+.admin-theme.dark-theme .nbom-searchable-select input {
+  background: var(--input-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+  color: var(--text-primary, #f8fafc);
+}
+
+.admin-theme.dark-theme .nbom-searchable-select input:hover {
+  border-color: var(--border-color, #475569);
+}
+
+.admin-theme.dark-theme .nbom-searchable-select input:focus {
+  border-color: var(--primary-color, #3b82f6);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.admin-theme.dark-theme .nbom-searchable-select > div {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3), 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+.admin-theme.dark-theme .nbom-searchable-select > div > div {
+  border-bottom-color: var(--border-color, #334155);
+  color: var(--text-primary, #f8fafc);
+}
+
+.admin-theme.dark-theme .nbom-searchable-select > div > div:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.admin-theme.dark-theme .nbom-searchable-select > div > div.selected {
+  background: var(--primary-color, #3b82f6);
+  color: #fff;
+}
+
+.admin-theme.dark-theme .nbom-searchable-select > div > div.highlighted {
+  background: rgba(59, 130, 246, 0.15);
+}
+
+/* Fix for table cells containing searchable select */
+.nbom-table td .nbom-searchable-select {
+  min-width: 180px;
+}
+
+/* Fix for table overflow */
+.nbom-table-wrap {
+  overflow: visible !important;
+}
+
+/* Alternative: If you need horizontal scroll, use this instead */
+/*
+.nbom-table-wrap {
+  overflow-x: auto;
+  overflow-y: visible;
+}
+*/
+
+/* Ensure the dropdown is not clipped by parent containers */
+.nbom-card {
+  overflow: visible !important;
+}
+
+.nbom-card__body {
+  overflow: visible !important;
+}
+
+.nbom-table {
+  overflow: visible !important;
+}
+
+.nbom-table tbody tr {
+  overflow: visible !important;
+}
+
+.nbom-table tbody td {
+  overflow: visible !important;
+}
 .admin-theme.blue-theme {
   --primary-color: #6366f1;
   --primary-hover: #4f46e5;

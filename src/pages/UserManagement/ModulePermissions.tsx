@@ -298,9 +298,11 @@ export default function ModulePermissions() {
   };
 
   const handleManageSubmodules = (moduleId: number) => {
+    // Navigate to SubModulePermissions with both moduleId and roleId
     navigate(`/module/${moduleId}/submodules?roleId=${roleIdNum}`);
     setOpenDropdownId(null);
   };
+  
 
   const handleModuleClick = (moduleId: number) => {
     navigate(`/module/${moduleId}/submodules?roleId=${roleIdNum}`);

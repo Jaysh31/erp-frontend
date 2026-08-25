@@ -6,6 +6,7 @@ import {
   FaSearch, FaBuilding, FaTruck,
   FaImage, FaCalendarAlt,
   FaCheckCircle, FaBoxOpen, FaCogs,
+  FaClipboardList, FaMoneyBillWave, FaWarehouse,
 } from "react-icons/fa";
 import "./WorkOrderForm.css";
 import { useAdminTheme } from "../../admin-theme/AdminThemeContext";
@@ -449,6 +450,29 @@ const STATUS_CLASS: Record<Status, string> = {
   Completed: "s-completed",
   Stopped: "s-stopped",
 };
+// ─── Lead time formatting ──────────────────────────────────────────────────
+// Converts total minutes into a "1 day 8 hrs 15 min" style string, based on
+// an 8-hour working day (480 mins/day). Used for display only — the
+// underlying wo.lead_time_mins value stays in raw minutes for calculations
+// and the payload.
+const WORKING_MINS_PER_DAY = 8 * 60; // 480
+
+const formatLeadTime = (totalMins: number): string => {
+  if (!totalMins || totalMins <= 0) return "0 min";
+
+  const rounded = Math.round(totalMins);
+  const days = Math.floor(rounded / WORKING_MINS_PER_DAY);
+  const remainderAfterDays = rounded % WORKING_MINS_PER_DAY;
+  const hours = Math.floor(remainderAfterDays / 60);
+  const mins = remainderAfterDays % 60;
+
+  const parts: string[] = [];
+  if (days > 0) parts.push(`${days} day${days !== 1 ? "s" : ""}`);
+  if (hours > 0) parts.push(`${hours} hr${hours !== 1 ? "s" : ""}`);
+  if (mins > 0) parts.push(`${mins} min${mins !== 1 ? "s" : ""}`);
+
+  return parts.length ? parts.join(" ") : "0 min";
+};
 
 type TabKey = "production_item" | "configuration" | "total_produced" | "grn_selection";
 const TABS: { key: TabKey; label: string }[] = [
@@ -457,6 +481,13 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "total_produced", label: "Total Produced" },
   { key: "grn_selection", label: "GRN Selection" },
 ];
+
+const TAB_ICON: Record<TabKey, React.ComponentType<any>> = {
+  production_item: FaBoxOpen,
+  configuration: FaCogs,
+  total_produced: FaCheckCircle,
+  grn_selection: FaTruck,
+};
 
 const emptyOp = (): OperationRow => ({
   id: uid(), operation: "", workstation: "", time_in_mins: 0, hour_rate: 0, operating_cost: 0,
@@ -777,7 +808,7 @@ function WarehouseSearchField({
             disabled={disabled || loading}
             className="form-field warehouse-search-input"
           />
-          {loading && <FaSpinner className="warehouse-loading-spinner spinning" />}
+          {loading && <FaSpinner className="warehouse-loading-spinner wof-spinning" />}
           {value && !disabled && (
             <button type="button" className="warehouse-clear-btn"
               onClick={() => { onChange(""); setTerm(""); setOpen(false); }}>×</button>
@@ -863,7 +894,7 @@ function BomSearchField({
             disabled={disabled || loading}
             className="form-field warehouse-search-input"
           />
-          {loading && <FaSpinner className="warehouse-loading-spinner spinning" />}
+          {loading && <FaSpinner className="warehouse-loading-spinner wof-spinning" />}
           {value && !disabled && (
             <button type="button" className="warehouse-clear-btn"
               onClick={() => { onClear(); setTerm(""); setOpen(false); }}>×</button>
@@ -932,7 +963,6 @@ function OperationPickerField({
     setOpen(true);
   };
 
-  // Reposition on scroll/resize while open (table scroll container, window resize, etc.)
   useEffect(() => {
     if (!open) return;
     const handler = () => positionDropdown();
@@ -944,7 +974,6 @@ function OperationPickerField({
     };
   }, [open]);
 
-  // Close on outside click
   useEffect(() => {
     if (!open) return;
     const h = (e: MouseEvent) => {
@@ -978,7 +1007,7 @@ function OperationPickerField({
             disabled={disabled || loading}
             className="form-field form-field-sm warehouse-search-input"
           />
-          {loading && <FaSpinner className="warehouse-loading-spinner spinning" />}
+          {loading && <FaSpinner className="warehouse-loading-spinner wof-spinning" />}
         </div>
       </div>
 
@@ -1094,7 +1123,7 @@ function ItemPickerField({
             disabled={disabled || loading}
             className="form-field form-field-sm warehouse-search-input"
           />
-          {loading && <FaSpinner className="warehouse-loading-spinner spinning" />}
+          {loading && <FaSpinner className="warehouse-loading-spinner wof-spinning" />}
         </div>
       </div>
 
@@ -1324,12 +1353,35 @@ export default function WorkOrderForm() {
   }, [wo.type]);
 
   // ─── Load existing WO ────────────────────────────────────────────────
-  useEffect(() => {
+   // ─── Load existing WO ────────────────────────────────────────────────
+   useEffect(() => {
     if (!isNew && id) {
+      // Wait for the warehouse id->name map (fetched on mount) before we
+      // hydrate source/wip/target warehouse fields — otherwise we'd briefly
+      // (or permanently, if this fires first) show raw numeric IDs instead
+      // of names in the warehouse fields.
+      if (Object.keys(warehouseMap).length === 0) {
+        return;
+      }
+
+      const whIdToName: Record<number, string> = {};
+      Object.entries(warehouseMap).forEach(([name, whId]) => {
+        whIdToName[whId] = name;
+      });
+
+      const resolveWhName = (val: unknown): string => {
+        if (val === null || val === undefined || val === "") return "";
+        const str = String(val).trim();
+        // Purely numeric -> treat as an id and look up its name.
+        // Falls back to the raw value if not found (e.g. disabled/deleted
+        // warehouse), or if it was already a name string.
+        return /^\d+$/.test(str) ? (whIdToName[Number(str)] || str) : str;
+      };
+
       setLoading(true);
       api.get(`/work-order/${id}`).then(async (r) => {
         console.log("GET work-order response:", r.data); // <- check this shape
-        
+
           if (r.data.success === 1) {
             const d = r.data.data;
 
@@ -1351,9 +1403,9 @@ export default function WorkOrderForm() {
               manufactured_qty: d.produced_qty ?? 0,
               additional_transferred_qty: d.additional_transferred_qty ?? 0,
               disassembled_qty: d.disassembled_qty ?? 0,
-              source_warehouse: d.source_warehouse ?? "",
-              target_warehouse: d.fg_warehouse ?? "",
-              wip_warehouse: d.wip_warehouse ?? "",
+              source_warehouse: resolveWhName(d.source_warehouse),
+              target_warehouse: resolveWhName(d.fg_warehouse),
+              wip_warehouse: resolveWhName(d.wip_warehouse),
               transfer_material_against: (d.transfer_material_against as "Work Order" | "Job Card") ?? prev.transfer_material_against,
               planned_start_date: d.planned_start_date?.split("T")[0] ?? new Date().toISOString().split("T")[0],
               actual_start_date: d.actual_start_date?.split("T")[0] ?? "",
@@ -1363,7 +1415,7 @@ export default function WorkOrderForm() {
               actual_operating_cost: d.actual_operating_cost ?? 0,
               additional_operating_cost: d.additional_operating_cost ?? 0,
               corrective_operation_cost: d.corrective_operation_cost ?? 0,
-           
+
               selected_grn_id: d.selected_grn_id ?? undefined,
               operations: prev.operations,
               required_items: prev.required_items,
@@ -1435,9 +1487,10 @@ export default function WorkOrderForm() {
 
                     const items: RequiredItemRow[] = detail.items.map(it => ({
                       id: uid(),
-                      item_id: it.item_Id ?? it.id,                      item_code: it.item_code,
+                      item_id: it.item_Id ?? it.id,
+                      item_code: it.item_code,
                       item_name: it.item_name,
-                      source_warehouse: it.source_warehouse || detail.bom.default_source_warehouse || "",
+                      source_warehouse: resolveWhName(it.source_warehouse) || detail.bom.default_source_warehouse || "",
                       required_qty: Math.round(it.qty * scale * 1000) / 1000,
                       uom: it.uom,
                       transferred_qty: 0,
@@ -1463,7 +1516,7 @@ export default function WorkOrderForm() {
                 setBomLoading(false);
               }
             }
-            
+
             // Load job card totals for Total Produced tab
             if (d.id) {
               setTimeout(() => {
@@ -1475,7 +1528,7 @@ export default function WorkOrderForm() {
         .catch(() => setApiError("Failed to load work order"))
         .finally(() => setLoading(false));
     }
-  }, [id, isNew]);
+  }, [id, isNew, warehouseMap]);
 
   // ─── BOM selection (Internal WO) ───────────────────────────────────────
   const handleSelectBom = (bom: BomListItem) => {
@@ -1500,7 +1553,7 @@ export default function WorkOrderForm() {
             source_warehouse: prev.source_warehouse || detail.bom.default_source_warehouse || "",
             target_warehouse: prev.target_warehouse || detail.bom.default_target_warehouse || "",
           }));
-          const qtyToUse = wo.qty_to_manufacture || bom.quantity;
+          const qtyToUse = wo.qty_to_manufacture ;
           applyBomToWo(detail, qtyToUse);
           computeMaterialConstraints(detail, qtyToUse);
         }
@@ -1842,43 +1895,34 @@ export default function WorkOrderForm() {
   // ─── Load Total Produced Data from Job Cards ──────────────────────────
   const loadTotalProducedData = async () => {
     if (!wo.id) return;
-    
     try {
       const jcListRes = await api.get<JobCardListResponse>("/job-card");
       const jobCards = jcListRes.data?.data || [];
-      
-      // Find ALL job cards for this work order
       const matchedJobCards = jobCards.filter(
         (jc) => String(jc.work_order) === String(wo.id)
       );
-
+  
       if (matchedJobCards.length > 0) {
-        // Calculate totals from all completed job cards
-        const totalCompleted = matchedJobCards
-          .filter(jc => jc.status === "Completed")
-          .reduce((sum, jc) => sum + (jc.total_completed_qty || 0), 0);
-        
-        const totalLoss = matchedJobCards
-          .filter(jc => jc.status === "Completed")
-          .reduce((sum, jc) => sum + (jc.process_loss_qty || 0), 0);
-
-        // Update the completion summary with just the totals for display
+        const completedCards = matchedJobCards.filter(jc => jc.status === "Completed");
+  
+        // Take the LAST operation's job card as source of truth — it reflects
+        // finished units after the full sequence, not a sum across stages.
+        // If job cards carry a sequence/operation order, sort by that;
+        // otherwise fall back to highest id (most recently created).
+        const finalCard = [...completedCards].sort((a, b) => (b.id ?? 0) - (a.id ?? 0))[0];
+  
+        const totalCompleted = finalCard?.total_completed_qty || 0;
+        const totalLoss = finalCard?.process_loss_qty || 0;
+  
         setCompletionSummary({
-          show: false, // Don't show the modal
-          loading: false,
-          error: null,
-          readOnly: true,
+          show: false, loading: false, error: null, readOnly: true,
           totalCompletedQty: totalCompleted,
           processLossQty: totalLoss,
           itemName: wo.item_name,
-          jobCardId: matchedJobCards[0]?.id,
+          jobCardId: finalCard?.id,
         });
-        
-        // Also update the manufactured_qty in the work order state
-        setWo(prev => ({
-          ...prev,
-          manufactured_qty: totalCompleted,
-        }));
+  
+        setWo(prev => ({ ...prev, manufactured_qty: totalCompleted }));
       }
     } catch (err) {
       console.error("Error loading total produced data:", err);
@@ -1939,7 +1983,7 @@ export default function WorkOrderForm() {
       try {
         const whRes = await api.get<WarehouseResponse>("/warehouse");
         const warehouses: Warehouse[] = whRes.data?.data?.records || [];
-        const fgWarehouse = warehouses.find(w => w.warehouse_name === "Finished Goods");
+        const fgWarehouse = warehouses.find(w => w.warehouse_name === wo.target_warehouse);
         setCompletionSummary(prev => (prev
           ? { ...prev, fgWarehouseId: fgWarehouse?.id, fgWarehouseName: fgWarehouse?.warehouse_name }
           : prev));
@@ -2137,18 +2181,16 @@ export default function WorkOrderForm() {
     }
 
     setCompletionSummary(prev => (prev ? { ...prev, inventoryPosting: true, inventoryError: null } : prev));
-// ── Post required items to WIP warehouse ──────────────────────────────
-// ── Post required items to WIP warehouse ──────────────────────────────
-setCompletionSummary(prev => (prev ? { ...prev, inventoryPosting: true, inventoryError: null } : prev));
+    setCompletionSummary(prev => (prev ? { ...prev, inventoryPosting: true, inventoryError: null } : prev));
 
-// ── Post the FINISHED PRODUCT (not raw materials) to the Finished
-// Goods warehouse. Quantity comes from the completed job card total. ──
-try {
-  const fgWarehouseId = completionSummary.fgWarehouseId;
+    // ── Post the FINISHED PRODUCT (not raw materials) to the Finished
+    // Goods warehouse. Quantity comes from the completed job card total. ──
+    try {
+      const fgWarehouseId = completionSummary.fgWarehouseId;
 
-  if (!fgWarehouseId) {
-    console.warn("FG warehouse ID not found.");
-  } else {
+      if (!fgWarehouseId) {
+        console.warn("FG warehouse ID not found.");
+      } else {
         // item_Id for the finished product comes from the BOM detail
         // (bom.item_Id), not the job card — job cards only carry the
         // item CODE (production_item), not its numeric id.
@@ -2174,51 +2216,51 @@ try {
           name: `INV-${wo.item_to_manufacture}-${Date.now()}`,
           item_Id: productItemId,
           item_code: wo.item_to_manufacture,
-      warehouse_Id: fgWarehouseId,
-      actual_qty: completionSummary.totalCompletedQty,
-      planned_qty: 0,
-      indented_qty: 0,
-      ordered_qty: 0,
-      reserved_qty: 0,
-      reserved_qty_for_production: 0,
-      reserved_qty_for_sub_contract: 0,
-      reserved_qty_for_production_plan: 0,
-      reserved_stock: 0,
-      stock_uom: wo.stock_uom || "Nos",
-      company: wo.company || "SculptorTech",
-      valuation_rate: 0,
-      modified_by: "Administrator",
-      type: wo.type === "internal" ? "Internal" : "External",
-    };
+          warehouse_Id: fgWarehouseId,
+          actual_qty: completionSummary.totalCompletedQty,
+          planned_qty: 0,
+          indented_qty: 0,
+          ordered_qty: 0,
+          reserved_qty: 0,
+          reserved_qty_for_production: 0,
+          reserved_qty_for_sub_contract: 0,
+          reserved_qty_for_production_plan: 0,
+          reserved_stock: 0,
+          stock_uom: wo.stock_uom || "Nos",
+          company: wo.company || "SculptorTech",
+          valuation_rate: 0,
+          modified_by: "Administrator",
+          type: wo.type === "internal" ? "Internal" : "External",
+        };
 
-    await api.post("/inventory", inventoryPayload);
-    console.log(`✅ Inventory posted for finished product ${wo.item_to_manufacture} (${completionSummary.totalCompletedQty} ${wo.stock_uom}) to ${completionSummary.fgWarehouseName || fgWarehouseId}`);
+        await api.post("/inventory", inventoryPayload);
+        console.log(`✅ Inventory posted for finished product ${wo.item_to_manufacture} (${completionSummary.totalCompletedQty} ${wo.stock_uom}) to ${completionSummary.fgWarehouseName || fgWarehouseId}`);
 
-    // Mark inventory step done, then update WO status to Completed.
-    setCompletionSummary(prev => (prev ? { ...prev, inventoryPosting: false, inventoryPosted: true } : prev));
+        // Mark inventory step done, then update WO status to Completed.
+        setCompletionSummary(prev => (prev ? { ...prev, inventoryPosting: false, inventoryPosted: true } : prev));
 
-    if (wo.id) {
-      try {
-        // Workaround: the backend's SQL builder doesn't JSON.stringify
-        // `operations`/`items` before interpolating them into the UPDATE
-        // query, which throws a MySQL syntax error. Until that's fixed
-        // server-side, omit them here since this call only needs to
-        // change the status.
-        const { operations, items, ...updatePayload } = { ...buildPayload("Completed"), id: wo.id };
-        await api.put("/work-order", updatePayload);
-        setWo(prev => ({ ...prev, status: "Completed" }));
-        setCompletionSummary(prev => (prev ? { ...prev, woStatusUpdated: true } : prev));
-      } catch (statusErr: any) {
-        console.error("Error updating Work Order status to Completed:", statusErr);
-        setCompletionSummary(prev => (prev ? { ...prev, inventoryError: "Inventory posted, but failed to mark Work Order as Completed." } : prev));
+        if (wo.id) {
+          try {
+            // Workaround: the backend's SQL builder doesn't JSON.stringify
+            // `operations`/`items` before interpolating them into the UPDATE
+            // query, which throws a MySQL syntax error. Until that's fixed
+            // server-side, omit them here since this call only needs to
+            // change the status.
+            const { operations, items, ...updatePayload } = { ...buildPayload("Completed"), id: wo.id };
+            await api.put("/work-order", updatePayload);
+            setWo(prev => ({ ...prev, status: "Completed" }));
+            setCompletionSummary(prev => (prev ? { ...prev, woStatusUpdated: true } : prev));
+          } catch (statusErr: any) {
+            console.error("Error updating Work Order status to Completed:", statusErr);
+            setCompletionSummary(prev => (prev ? { ...prev, inventoryError: "Inventory posted, but failed to mark Work Order as Completed." } : prev));
+          }
+        }
       }
+    } catch (invErr) {
+      console.error("Error posting finished product to inventory:", invErr);
+      setCompletionSummary(prev => (prev ? { ...prev, inventoryPosting: false, inventoryError: "Failed to post finished product to inventory." } : prev));
     }
-  }
-} catch (invErr) {
-  console.error("Error posting finished product to inventory:", invErr);
-  setCompletionSummary(prev => (prev ? { ...prev, inventoryPosting: false, inventoryError: "Failed to post finished product to inventory." } : prev));
-}
-};
+  };
   // ─── Field helpers ────────────────────────────────────────────────────
   const set = <K extends keyof WorkOrderData>(k: K, v: WorkOrderData[K]) =>
     setWo(prev => ({ ...prev, [k]: v }));
@@ -2439,9 +2481,6 @@ try {
           id: wo.id,
         };
 
-        console.log("🔄 Updating Work Order with ID:", wo.id);
-        console.log("Update Payload:", updatePayload);
-
         response = await api.put("/work-order", updatePayload);
 
         if (response.data?.success === 1) {
@@ -2455,9 +2494,7 @@ try {
 
           // Create job cards after successful update
           try {
-            console.log("📋 Creating job cards for Work Order ID:", workOrderId);
             const jobCardResponse = await api.post(`/job-card/create-job-cards-from-wo/${workOrderId}`);
-            console.log("📦 Job Card Response:", jobCardResponse.data);
             
             if (jobCardResponse.data?.success === 0) {
               const errorMessage = jobCardResponse.data?.message || "";
@@ -2477,8 +2514,6 @@ try {
                 setSubmitting(false);
                 return;
               }
-            } else if (jobCardResponse.data?.success === 1) {
-              console.log("✅ Job cards updated successfully");
             }
           } catch (jobCardErr: any) {
             console.error("❌ Error creating job cards for update:", jobCardErr);
@@ -2502,63 +2537,15 @@ try {
             }
           }
 
-        // ── Post required RAW MATERIAL items to WIP warehouse ──────────────
-// (NOT the finished product — that only enters inventory once it's
-// actually manufactured, via the completion flow.)
-// try {
-//   const wipWarehouseId = warehouseMap[wo.wip_warehouse];
-//   if (!wipWarehouseId) {
-//     console.warn("WIP warehouse ID not found for:", wo.wip_warehouse);
-//   } else {
-//     const itemsToPost = wo.required_items.filter(
-//       ri => ri.item_id && ri.required_qty > 0
-//     );
-
-//     if (itemsToPost.length === 0) {
-//       console.warn("No required items with valid IDs to post to inventory.");
-//     } else {
-//       for (const ri of itemsToPost) {
-//         const inventoryPayload = {
-//           name: `INV-${ri.item_code}-${Date.now()}`,
-//           item_Id: ri.item_id!,
-//           item_code: ri.item_code,
-//           warehouse_Id: wipWarehouseId,
-//           actual_qty: ri.required_qty,
-//           planned_qty: 0,
-//           indented_qty: 0,
-//           ordered_qty: 0,
-//           reserved_qty: 0,
-//           reserved_qty_for_production: 0,
-//           reserved_qty_for_sub_contract: 0,
-//           reserved_qty_for_production_plan: 0,
-//           reserved_stock: 0,
-//           stock_uom: ri.uom || "Nos",
-//           company: wo.company || "SculptorTech",
-//           valuation_rate: ri.rate || 0,
-//           modified_by: "Administrator",
-//           type: wo.type === "internal" ? "Internal" : "External",
-//         };
-
-//         await api.post("/inventory", inventoryPayload);
-//         console.log(`✅ Inventory posted for ${ri.item_code} (${ri.item_name}) to ${wo.wip_warehouse}`);
-//       }
-//     }
-//   }
-// } catch (invErr) {
-//   console.error("Error posting required items to inventory:", invErr);
-// }
-
           navigate("/work-order");
         } else {
           setApiError(response.data?.message || "Failed to update work order");
         }
       } else {
-        console.log("✨ Creating new Work Order, type:", wo.type);
         response = await api.post("/work-order", buildPayload());
 
         if (response.data?.success === 1) {
           const workOrderId = response.data?.data?.workOrderId || response.data?.data?.insertId;
-          console.log("📝 Work Order created with ID:", workOrderId);
           
           if (workOrderId) {
             if (pendingMedia.length > 0) {
@@ -2569,9 +2556,7 @@ try {
 
             // Create job cards after successful creation
             try {
-              console.log("📋 Creating job cards for Work Order ID:", workOrderId);
               const jobCardResponse = await api.post(`/job-card/create-job-cards-from-wo/${workOrderId}`);
-              console.log("📦 Job Card Response:", jobCardResponse.data);
               
               if (jobCardResponse.data?.success === 0) {
                 const errorMessage = jobCardResponse.data?.message || "";
@@ -2591,11 +2576,7 @@ try {
                   setWo(prev => ({ ...prev, status: "Draft" }));
                   setSubmitting(false);
                   return;
-                } else {
-                  console.warn("⚠️ Job card creation returned non-success:", errorMessage);
                 }
-              } else if (jobCardResponse.data?.success === 1) {
-                console.log("✅ Job cards created successfully");
               }
             } catch (jobCardErr: any) {
               console.error("❌ Error creating job cards:", jobCardErr);
@@ -2618,53 +2599,6 @@ try {
                 return;
               }
             }
-
-           // ── Post required RAW MATERIAL items to WIP warehouse ──────────────
-// (NOT the finished product — that only enters inventory once it's
-// actually manufactured, via the completion flow.)
-// try {
-//   const wipWarehouseId = warehouseMap[wo.wip_warehouse];
-//   if (!wipWarehouseId) {
-//     console.warn("WIP warehouse ID not found for:", wo.wip_warehouse);
-//   } else {
-//     const itemsToPost = wo.required_items.filter(
-//       ri => ri.item_id && ri.required_qty > 0
-//     );
-
-//     if (itemsToPost.length === 0) {
-//       console.warn("No required items with valid IDs to post to inventory.");
-//     } else {
-//       for (const ri of itemsToPost) {
-//         const inventoryPayload = {
-//           name: `INV-${ri.item_code}-${Date.now()}`,
-//           item_Id: ri.item_id!,
-//           item_code: ri.item_code,
-//           warehouse_Id: wipWarehouseId,
-//           actual_qty: ri.required_qty,
-//           planned_qty: 0,
-//           indented_qty: 0,
-//           ordered_qty: ri.required_qty,
-//           reserved_qty: 0,
-//           reserved_qty_for_production: 0,
-//           reserved_qty_for_sub_contract: 0,
-//           reserved_qty_for_production_plan: 0,
-//           reserved_stock: 0,
-//           stock_uom: ri.uom || "Nos",
-//           company: wo.company || "SculptorTech",
-//           valuation_rate: ri.rate || 0,
-//           modified_by: "Administrator",
-//           type: wo.type === "internal" ? "Internal" : "External",
-//         };
-
-//         await api.post("/inventory", inventoryPayload);
-//         console.log(`✅ Inventory posted for ${ri.item_code} (${ri.item_name}) to ${wo.wip_warehouse}`);
-//       }
-//     }
-//   }
-// } catch (invErr) {
-//   console.error("Error posting required items to inventory:", invErr);
-//   // Optionally display a non‑blocking notification
-// }
           }
           navigate("/work-order");
         } else {
@@ -2716,426 +2650,779 @@ try {
   if (loading) {
     return (
       <div className={`wof-page ${theme}`}>
-        <div className="wof-inner wof-loading"><FaSpinner className="spinning" /> Loading…</div>
+        <div className="wof-loading"><FaSpinner className="wof-spinning" /> Loading…</div>
       </div>
     );
   }
 
+  const visibleTabs = TABS.filter(t => {
+    if (t.key === "grn_selection" && wo.type !== "external") return false;
+    if (t.key === "production_item" && wo.type === "external") return false;
+    return true;
+  });
+
+  const ActiveTabIcon = TAB_ICON[activeTab];
+
   return (
     <div className={`wof-page ${theme}`}>
-      <div className="wof-inner">
 
-        {/* Stock Warning Modal - Compulsory to close before navigating */}
-        {stockWarningModal.show && (
-          <div className="modal-overlay" style={{ zIndex: 9999 }}>
-            <div className="stock-warning-modal" onClick={e => e.stopPropagation()}>
-              <div className="modal-header" style={{ backgroundColor: "#fef3c7", borderBottom: "2px solid #f59e0b" }}>
-                <h2 style={{ color: "#92400e", display: "flex", alignItems: "center", gap: "10px" }}>
-                  <FaExclamationTriangle style={{ color: "#d97706", fontSize: "24px" }} />
-                  Insufficient Stock Warning
-                </h2>
-                <button className="modal-close" onClick={handleCloseStockWarning}>×</button>
-              </div>
-              <div className="modal-body" style={{ padding: "24px" }}>
-                <div style={{
-                  backgroundColor: "#fffbeb",
-                  borderLeft: "4px solid #f59e0b",
-                  padding: "16px",
-                  borderRadius: "4px",
-                  marginBottom: "16px"
-                }}>
-                  <p style={{
-                    fontSize: "16px",
-                    color: "#78350f",
-                    margin: 0,
-                    lineHeight: "1.6"
-                  }}>
-                    {stockWarningModal.message}
-                  </p>
-                </div>
-
-                <div style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "12px",
-                  padding: "12px",
-                  backgroundColor: "#f8fafc",
-                  borderRadius: "6px",
-                  border: "1px solid #e2e8f0"
-                }}>
-                  <FaInfoCircle style={{ color: "#3b82f6", fontSize: "18px" }} />
-                  <span style={{ fontSize: "14px", color: "#475569" }}>
-                    Please check your inventory and update the Work Order when stock is available.
-                  </span>
-                </div>
-
-                {stockWarningModal.woId && (
-                  <div style={{
-                    marginTop: "12px",
-                    padding: "8px 12px",
-                    backgroundColor: "#f1f5f9",
-                    borderRadius: "4px",
-                    fontSize: "13px",
-                    color: "#64748b"
-                  }}>
-                    Work Order ID: #{stockWarningModal.woId}
-                  </div>
-                )}
-              </div>
-              <div className="modal-footer" style={{ justifyContent: "center", padding: "16px 24px" }}>
-                <button
-                  className="submit-btn"
-                  onClick={handleCloseStockWarning}
-                  style={{
-                    backgroundColor: "#f59e0b",
-                    borderColor: "#f59e0b",
-                    padding: "10px 32px",
-                    fontSize: "15px"
-                  }}
-                >
-                  <FaCheckCircle size={14} style={{ marginRight: "8px" }} />
-                  I Understand, Go to Work Orders
-                </button>
-              </div>
+      {/* Stock Warning Modal - Compulsory to close before navigating */}
+      {stockWarningModal.show && (
+        <div className="modal-overlay">
+          <div className="stock-warning-modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header" style={{ backgroundColor: "#fef3c7", borderBottom: "2px solid #f59e0b" }}>
+              <h2 style={{ color: "#92400e", display: "flex", alignItems: "center", gap: "10px" }}>
+                <FaExclamationTriangle style={{ color: "#d97706", fontSize: "24px" }} />
+                Insufficient Stock Warning
+              </h2>
+              <button className="modal-close" onClick={handleCloseStockWarning}>×</button>
             </div>
-          </div>
-        )}
-
-        {/* Work Order Completion Summary Modal */}
-        {completionSummary?.show && (
-          <div className="modal-overlay" style={{ zIndex: 9999 }}>
-            <div className="stock-warning-modal" onClick={e => e.stopPropagation()}>
-              <div className="modal-header" style={{ backgroundColor: "#dcfce7", borderBottom: "2px solid #16a34a" }}>
-                <h2 style={{ color: "#166534", display: "flex", alignItems: "center", gap: 10 }}>
-                  <FaCheckCircle style={{ color: "#16a34a" }} /> Work Order Completion
-                </h2>
-                <button className="modal-close" onClick={() => setCompletionSummary(null)}>×</button>
+            <div className="modal-body">
+              <div style={{
+                backgroundColor: "#fffbeb",
+                borderLeft: "4px solid #f59e0b",
+                padding: "16px",
+                borderRadius: "4px",
+                marginBottom: "16px"
+              }}>
+                <p style={{ fontSize: "16px", color: "#78350f", margin: 0, lineHeight: "1.6" }}>
+                  {stockWarningModal.message}
+                </p>
               </div>
-              <div className="modal-body" style={{ padding: 24 }}>
-                {completionSummary.loading ? (
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <FaSpinner className="spinning" /> {completionSummary.readOnly ? "Loading production summary…" : "Fetching job card & preparing completion…"}
-                  </div>
-                ) : completionSummary.error && completionSummary.totalCompletedQty === undefined ? (
-                  <div style={{ color: "#b91c1c" }}>{completionSummary.error}</div>
-                ) : (
-                  <>
-                    {completionSummary.error && (
-                      <div style={{
-                        color: "#92400e", background: "#fffbeb", border: "1px solid #fcd34d",
-                        borderRadius: 6, padding: "8px 12px", marginBottom: 14, fontSize: 13,
-                      }}>
-                        <FaExclamationTriangle style={{ marginRight: 6 }} />
-                        {completionSummary.error}
-                      </div>
-                    )}
 
-                    <div style={{ display: "flex", gap: 16, marginBottom: 16 }}>
-                      <div style={{ flex: 1, background: "#f0fdf4", border: "1px solid #86efac", borderRadius: 8, padding: 16 }}>
-                        <div style={{ fontSize: 12, color: "#166534" }}>End Product</div>
-                        <div style={{ fontSize: 28, fontWeight: 700, color: "#166534" }}>
-                          {completionSummary.totalCompletedQty}
-                        </div>
-                      </div>
-                      <div style={{ flex: 1, background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 8, padding: 16 }}>
-                        <div style={{ fontSize: 12, color: "#991b1b" }}>Scrap / Loss</div>
-                        <div style={{ fontSize: 28, fontWeight: 700, color: "#991b1b" }}>
-                          {completionSummary.processLossQty ?? 0}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div style={{ fontSize: 13, color: "#475569", marginBottom: 12 }}>
-                      Job Card #{completionSummary.jobCardId} · {completionSummary.itemName}
-                    </div>
-
-                    {!completionSummary.readOnly ? (
-                      <>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 13, marginBottom: 16 }}>
-                          <div style={{ color: completionSummary.stockEntryPosted ? "#166534" : "#94a3b8" }}>
-                            <FaCheckCircle style={{ marginRight: 6 }} />
-                            Step 1: Stock entry posted (WIP → Finished Goods)
-                          </div>
-                          <div style={{ color: completionSummary.inventoryPosted ? "#166534" : "#94a3b8" }}>
-                            <FaCheckCircle style={{ marginRight: 6 }} />
-                            Step 2: Inventory updated
-                          </div>
-                          <div style={{ color: completionSummary.woStatusUpdated ? "#166534" : "#94a3b8" }}>
-                            <FaCheckCircle style={{ marginRight: 6 }} />
-                            Step 3: Work Order marked as Completed
-                          </div>
-                        </div>
-
-                        {completionSummary.stockEntryError && (
-                          <div style={{ color: "#b91c1c", fontSize: 13, marginBottom: 12 }}>
-                            {completionSummary.stockEntryError}
-                          </div>
-                        )}
-
-                        {!completionSummary.stockEntryPosted && (
-                          <button
-                            type="button"
-                            className="submit-btn"
-                            onClick={handlePostStockEntry}
-                            disabled={completionSummary.stockEntryPosting}
-                            style={{ width: "100%", justifyContent: "center", marginBottom: 10 }}
-                          >
-                            {completionSummary.stockEntryPosting
-                              ? <><FaSpinner className="spinning" /> Posting Stock Entry…</>
-                              : <>Step 1: Add to Stock Entry (WIP → Finished Goods)</>}
-                          </button>
-                        )}
-
-                        {completionSummary.inventoryError && (
-                          <div style={{ color: "#b91c1c", fontSize: 13, marginBottom: 12 }}>
-                            {completionSummary.inventoryError}
-                          </div>
-                        )}
-
-                        {completionSummary.stockEntryPosted && !completionSummary.inventoryPosted && (
-                          <button
-                            type="button"
-                            className="submit-btn"
-                            onClick={handlePostInventory}
-                            disabled={completionSummary.inventoryPosting}
-                            style={{ width: "100%", justifyContent: "center" }}
-                          >
-                            {completionSummary.inventoryPosting
-                              ? <><FaSpinner className="spinning" /> Posting to Inventory & Completing WO…</>
-                              : <>Step 2: Post {completionSummary.totalCompletedQty} {wo.stock_uom} to Inventory & Complete WO</>}
-                          </button>
-                        )}
-
-                        {completionSummary.inventoryPosted && completionSummary.woStatusUpdated && (
-                          <div style={{ color: "#166534", fontSize: 14, fontWeight: 600, textAlign: "center", padding: "12px", background: "#f0fdf4", borderRadius: 6, marginTop: 10 }}>
-                            <FaCheckCircle style={{ marginRight: 6 }} />
-                            Work Order #{wo.id} has been completed successfully!
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <div style={{ fontSize: 13, color: "#64748b", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 6, padding: "10px 12px" }}>
-                        This Work Order is already completed.
-                      </div>
-                    )}
-                  </>
-                )}
+              <div style={{
+                display: "flex", alignItems: "center", gap: "12px", padding: "12px",
+                backgroundColor: "#f8fafc", borderRadius: "6px", border: "1px solid #e2e8f0"
+              }}>
+                <FaInfoCircle style={{ color: "#3b82f6", fontSize: "18px" }} />
+                <span style={{ fontSize: "14px", color: "#475569" }}>
+                  Please check your inventory and update the Work Order when stock is available.
+                </span>
               </div>
-              <div className="modal-footer" style={{ justifyContent: "center", padding: "16px 24px" }}>
-                <button className="btn-cancel" onClick={() => setCompletionSummary(null)}>Close</button>
-              </div>
-            </div>
-          </div>
-        )}
 
-        {/* API error */}
-        {apiError && (
-          <div className="wof-api-error">
-            <FaExclamationTriangle className="error-icon" />
-            <span>{apiError}</span>
-            <button className="error-close" onClick={() => setApiError(null)}>×</button>
-          </div>
-        )}
-
-        {/* Header */}
-        <div className="wof-header">
-          <button type="button" onClick={() => navigate("/work-order")} className="back-btn">
-            <FaArrowLeft size={20} />
-          </button>
-          <div className="header-title">
-            <h1>{isNew ? "New Work Order" : `Edit: ${wo.item_name || wo.name}`}</h1>
-            {!isNew && <span className={`wof-status-badge ${STATUS_CLASS[wo.status]}`}>{wo.status}</span>}
-          </div>
-        </div>
-
-        {/* Order Type Selector */}
-        <div className="wof-order-type-bar">
-          <button
-            type="button"
-            className={`order-type-btn ${wo.type === "internal" ? "active" : ""}`}
-            onClick={() => set("type", "internal")}
-            disabled={disabled}
-          >
-            <FaBuilding /> Internal WO
-          </button>
-          <button
-            type="button"
-            className={`order-type-btn ${wo.type === "external" ? "active" : ""}`}
-            onClick={() => set("type", "external")}
-            disabled={disabled}
-          >
-            <FaTruck /> External WO
-          </button>
-        </div>
-
-        {/* Status Selector */}
-        <div className="wof-status-bar">
-          <label className="wof-label">Status</label>
-          <div className="wof-status-selector">
-            {STATUS_OPTIONS.map(s => (
-              <button key={s} type="button"
-                className={`wof-status-btn${wo.status === s ? " wof-status-btn-active" : ""}`}
-                onClick={() => {
-                  const alreadyCompleted = wo.status === "Completed";
-                  set("status", s);
-                  if (s === "Completed") {
-                    if (alreadyCompleted) {
-                      viewCompletionSummary();
-                    } else {
-                      handleWorkOrderCompletion();
-                    }
-                  }
-                }}
-                disabled={disabled}>
-                <span className={`wof-status-dot ${STATUS_CLASS[s]}`} />
-                {s}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Tabs — "Production Item" only applies to Internal WOs; External WOs
-            do everything (GRN, operations, warehouses, media) on the
-            "GRN Selection" tab instead. */}
-        <div className="wof-tabs">
-          {TABS.map(t => {
-            if (t.key === "grn_selection" && wo.type !== "external") return null;
-            if (t.key === "production_item" && wo.type === "external") return null;
-            return (
-              <button key={t.key} type="button"
-                className={`wof-tab-btn${activeTab === t.key ? " wof-tab-btn-active" : ""}`}
-                onClick={() => {
-                  setActiveTab(t.key);
-                  // Load job card data when switching to Total Produced tab
-                  if (t.key === "total_produced" && wo.id) {
-                    loadTotalProducedData();
-                  }
+              {stockWarningModal.woId && (
+                <div style={{
+                  marginTop: "12px", padding: "8px 12px", backgroundColor: "#f1f5f9",
+                  borderRadius: "4px", fontSize: "13px", color: "#64748b"
                 }}>
-                {t.label}
-              </button>
-            );
-          })}
-        </div>
-
-        <form onSubmit={handleSave}>
-
-          {/* ══════════ TAB: GRN SELECTION (External WO — everything lives here) ══════════ */}
-          {activeTab === "grn_selection" && wo.type === "external" && (
-            <div className="wof-card">
-              <div className="wof-section-header">
-                <span className="wof-section-title">Select GRN for External Work Order</span>
-                <button
-                  type="button"
-                  className="wof-row-add-btn"
-                  onClick={() => setShowGrnModal(true)}
-                  disabled={grnLoading}
-                >
-                  <FaPlus size={10} /> Select GRN
-                </button>
-              </div>
-
-              {/* GRN Selection Error */}
-              {hasFieldError("selected_grn_id") && (
-                <div style={{ color: '#dc2626', fontSize: '13px', fontWeight: '500', marginTop: '8px', marginBottom: '8px' }}>
-                  {getFieldError("selected_grn_id")}
+                  Work Order ID: #{stockWarningModal.woId}
                 </div>
               )}
+            </div>
+            <div className="modal-footer" style={{ justifyContent: "center" }}>
+              <button
+                className="wof-btn-primary"
+                onClick={handleCloseStockWarning}
+                style={{ backgroundColor: "#f59e0b", padding: "10px 32px", fontSize: "15px" }}
+              >
+                <FaCheckCircle size={14} />
+                I Understand, Go to Work Orders
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
-              {wo.selected_grn_id && wo.selected_grn ? (
-                <div className="wof-selected-grn">
-                  {grnDetailLoading && (
-                    <div className="wof-hint" style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
-                      <FaSpinner className="spinning" /> Loading GRN item details…
+      {/* Work Order Completion Summary Modal */}
+      {completionSummary?.show && (
+        <div className="modal-overlay">
+          <div className="stock-warning-modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header" style={{ backgroundColor: "#dcfce7", borderBottom: "2px solid #16a34a" }}>
+              <h2 style={{ color: "#166534", display: "flex", alignItems: "center", gap: 10 }}>
+                <FaCheckCircle style={{ color: "#16a34a" }} /> Work Order Completion
+              </h2>
+              <button className="modal-close" onClick={() => setCompletionSummary(null)}>×</button>
+            </div>
+            <div className="modal-body">
+              {completionSummary.loading ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <FaSpinner className="wof-spinning" /> {completionSummary.readOnly ? "Loading production summary…" : "Fetching job card & preparing completion…"}
+                </div>
+              ) : completionSummary.error && completionSummary.totalCompletedQty === undefined ? (
+                <div style={{ color: "#b91c1c" }}>{completionSummary.error}</div>
+              ) : (
+                <>
+                  {completionSummary.error && (
+                    <div style={{
+                      color: "#92400e", background: "#fffbeb", border: "1px solid #fcd34d",
+                      borderRadius: 6, padding: "8px 12px", marginBottom: 14, fontSize: 13,
+                    }}>
+                      <FaExclamationTriangle style={{ marginRight: 6 }} />
+                      {completionSummary.error}
                     </div>
                   )}
-                  <div className="wof-grn-info">
-                    <div className="wof-grn-row">
-                      <span className="wof-grn-label">GRN Number:</span>
-                      <span className="wof-grn-value">{wo.selected_grn.grn_number} (#{wo.selected_grn.id})</span>
-                    </div>
-                    <div className="wof-grn-row">
-                      <span className="wof-grn-label">Customer:</span>
-                      <span className="wof-grn-value">{wo.customer_name || "N/A"}</span>
-                    </div>
-                    <div className="wof-grn-row">
-                      <span className="wof-grn-label">GRN Date:</span>
-                      <span className="wof-grn-value">
-                        {wo.selected_grn.grn_date ? new Date(wo.selected_grn.grn_date).toLocaleDateString() : "N/A"}
-                      </span>
-                    </div>
-                  
-                    <div className="wof-grn-row">
-                      <span className="wof-grn-label">Delivery Challan No:</span>
-                      <span className="wof-grn-value">{wo.selected_grn.delivery_challan_no || "N/A"}</span>
-                    </div>
-                    
-                  
-                  </div>
 
-                  <div className="wof-grn-items">
-                    <span className="wof-section-title" style={{ fontSize: "12px" }}>
-                      GRN Quantities
-                    </span>
-
-                    <div style={{ display: "flex", gap: 10, marginTop: 8, flexWrap: "wrap" }}>
-                      <div style={{ flex: 1, minWidth: 95, background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 6, padding: "8px 10px" }}>
-                        <div style={{ fontSize: 11, color: "#64748b" }}>Total Items</div>
-                        <div style={{ fontSize: 16, fontWeight: 700 }}>{wo.selected_grn.total_items}</div>
+                  <div style={{ display: "flex", gap: 16, marginBottom: 16 }}>
+                    <div style={{ flex: 1, background: "#f0fdf4", border: "1px solid #86efac", borderRadius: 8, padding: 16 }}>
+                      <div style={{ fontSize: 12, color: "#166534" }}>End Product</div>
+                      <div style={{ fontSize: 28, fontWeight: 700, color: "#166534" }}>
+                        {completionSummary.totalCompletedQty}
                       </div>
-
-                      <div style={{ flex: 1, minWidth: 95, background: "#f0fdf4", border: "1px solid #86efac", borderRadius: 6, padding: "8px 10px" }}>
-                        <div style={{ fontSize: 11, color: "#166534" }}>Received Qty</div>
-                        <div style={{ fontSize: 16, fontWeight: 700, color: "#166534" }}>{wo.selected_grn.total_received_qty}</div>
-                      </div>
-
-                      <div style={{ flex: 1, minWidth: 95, background: "#eff6ff", border: "1px solid #93c5fd", borderRadius: 6, padding: "8px 10px" }}>
-                        <div style={{ fontSize: 11, color: "#1e40af" }}>Accepted Qty</div>
-                        <div style={{ fontSize: 16, fontWeight: 700, color: "#1e40af" }}>{wo.selected_grn.total_accepted_qty}</div>
-                      </div>
-
-                      <div style={{ flex: 1, minWidth: 95, background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 6, padding: "8px 10px" }}>
-                        <div style={{ fontSize: 11, color: "#991b1b" }}>Rejected Qty</div>
-                        <div style={{ fontSize: 16, fontWeight: 700, color: "#991b1b" }}>{wo.selected_grn.total_rejected_qty}</div>
+                    </div>
+                    <div style={{ flex: 1, background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 8, padding: 16 }}>
+                      <div style={{ fontSize: 12, color: "#991b1b" }}>Scrap / Loss</div>
+                      <div style={{ fontSize: 28, fontWeight: 700, color: "#991b1b" }}>
+                        {completionSummary.processLossQty ?? 0}
                       </div>
                     </div>
                   </div>
 
-                  {/* ── Operations source: an External BOM (auto-fill) or manual rows ── */}
+                  <div style={{ fontSize: 13, color: "#475569", marginBottom: 12 }}>
+                    Job Card #{completionSummary.jobCardId} · {completionSummary.itemName}
+                  </div>
+
+                  {!completionSummary.readOnly ? (
+                    <>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 13, marginBottom: 16 }}>
+                        <div style={{ color: completionSummary.stockEntryPosted ? "#166534" : "#94a3b8" }}>
+                          <FaCheckCircle style={{ marginRight: 6 }} />
+                          Step 1: Stock entry posted (WIP → Finished Goods)
+                        </div>
+                        <div style={{ color: completionSummary.inventoryPosted ? "#166534" : "#94a3b8" }}>
+                          <FaCheckCircle style={{ marginRight: 6 }} />
+                          Step 2: Inventory updated
+                        </div>
+                        <div style={{ color: completionSummary.woStatusUpdated ? "#166534" : "#94a3b8" }}>
+                          <FaCheckCircle style={{ marginRight: 6 }} />
+                          Step 3: Work Order marked as Completed
+                        </div>
+                      </div>
+
+                      {completionSummary.stockEntryError && (
+                        <div style={{ color: "#b91c1c", fontSize: 13, marginBottom: 12 }}>
+                          {completionSummary.stockEntryError}
+                        </div>
+                      )}
+
+                      {!completionSummary.stockEntryPosted && (
+                        <button
+                          type="button"
+                          className="wof-btn-primary wof-btn-block"
+                          onClick={handlePostStockEntry}
+                          disabled={completionSummary.stockEntryPosting}
+                          style={{ marginBottom: 10 }}
+                        >
+                          {completionSummary.stockEntryPosting
+                            ? <><FaSpinner className="wof-spinning" /> Posting Stock Entry…</>
+                            : <>Step 1: Add to Stock Entry (WIP → Finished Goods)</>}
+                        </button>
+                      )}
+
+                      {completionSummary.inventoryError && (
+                        <div style={{ color: "#b91c1c", fontSize: 13, marginBottom: 12 }}>
+                          {completionSummary.inventoryError}
+                        </div>
+                      )}
+
+                      {completionSummary.stockEntryPosted && !completionSummary.inventoryPosted && (
+                        <button
+                          type="button"
+                          className="wof-btn-primary wof-btn-block"
+                          onClick={handlePostInventory}
+                          disabled={completionSummary.inventoryPosting}
+                        >
+                          {completionSummary.inventoryPosting
+                            ? <><FaSpinner className="wof-spinning" /> Posting to Inventory & Completing WO…</>
+                            : <>Step 2: Post {completionSummary.totalCompletedQty} {wo.stock_uom} to Inventory & Complete WO</>}
+                        </button>
+                      )}
+
+                      {completionSummary.inventoryPosted && completionSummary.woStatusUpdated && (
+                        <div style={{ color: "#166534", fontSize: 14, fontWeight: 600, textAlign: "center", padding: "12px", background: "#f0fdf4", borderRadius: 6, marginTop: 10 }}>
+                          <FaCheckCircle style={{ marginRight: 6 }} />
+                          Work Order #{wo.id} has been completed successfully!
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div style={{ fontSize: 13, color: "#64748b", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 6, padding: "10px 12px" }}>
+                      This Work Order is already completed.
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+            <div className="modal-footer" style={{ justifyContent: "center" }}>
+              <button className="wof-btn-secondary" onClick={() => setCompletionSummary(null)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="wof-header-wrap">
+        <div className="wof-header-row">
+          <button type="button" onClick={() => navigate("/work-order")} className="wof-back-btn">
+            <FaArrowLeft size={12} /> Back
+          </button>
+          <h1 className="wof-title">{isNew ? "New Work Order" : `Edit: ${wo.item_name || wo.name}`}</h1>
+          {!isNew && <span className={`wof-status-badge ${STATUS_CLASS[wo.status]}`}>{wo.status}</span>}
+          {apiError && (
+            <div className="wof-error-pill">
+              <FaExclamationTriangle size={11} />
+              <span>{apiError}</span>
+              <button className="error-close" onClick={() => setApiError(null)}>×</button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Order Type Selector */}
+      <div className="wof-job-type-selector">
+        <button
+          type="button"
+          className={`wof-job-type-btn ${wo.type === "internal" ? "active" : ""}`}
+          onClick={() => set("type", "internal")}
+          disabled={disabled}
+        >
+          <FaBuilding /> Internal WO
+        </button>
+        <button
+          type="button"
+          className={`wof-job-type-btn ${wo.type === "external" ? "active" : ""}`}
+          onClick={() => set("type", "external")}
+          disabled={disabled}
+        >
+          <FaTruck /> External WO
+        </button>
+      </div>
+
+      <div className="wof-container">
+        <form onSubmit={handleSave}>
+          <div className="wof-form-layout">
+
+            {/* ══════════ MAIN COLUMN ══════════ */}
+            <div className="wof-main-col">
+
+              {/* Quick info strip */}
+            {/* Quick info strip */}
+<div className="wof-card">
+  <div className="wof-quick-info-row">
+    <div className="wof-quick-info-item" style={{ flex: 2, minWidth: 260 }}>
+      <label className="wof-label">Item</label>
+      {wo.item_to_manufacture ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div className="wof-quick-static">{wo.item_name || wo.item_to_manufacture}</div>
+          <button
+            type="button"
+            className="wof-row-add-btn"
+            style={{ padding: "2px 8px", fontSize: 11 }}
+            onClick={() =>
+              wo.type === "internal" ? handleClearBom() : handleClearExternalBom()
+            }
+            disabled={disabled}
+          >
+            Change
+          </button>
+        </div>
+      ) : (
+        <BomSearchField
+          value={wo.type === "internal" ? selectedBomLabel : selectedExternalBomLabel}
+          onSelect={wo.type === "internal" ? handleSelectBom : handleSelectExternalBom}
+          onClear={wo.type === "internal" ? handleClearBom : handleClearExternalBom}
+          disabled={disabled}
+          filterType={wo.type === "internal" ? "Internal" : "External"}
+        />
+      )}
+    </div>
+    <div className="wof-quick-info-divider" />
+    <div className="wof-quick-info-item wof-quick-info-stat">
+      <label className="wof-label">Qty To Mfg</label>
+      <div className="wof-quick-static">{wo.qty_to_manufacture} {wo.stock_uom}</div>
+    </div>
+    <div className="wof-quick-info-item wof-quick-info-stat">
+      <label className="wof-label">Manufactured</label>
+      <div className="wof-quick-static" style={{ color: "var(--success-color)" }}>{wo.manufactured_qty}</div>
+    </div>
+    <div className="wof-quick-info-item">
+  <label className="wof-label">Lead Time</label>
+  <div className="wof-quick-static">{formatLeadTime(wo.lead_time_mins)}</div>
+</div>
+  </div>
+</div>
+
+              {/* Tabs */}
+              <div className="wof-tabs-row">
+                {visibleTabs.map(t => (
+                  <button key={t.key} type="button"
+                    className={`wof-tab-btn${activeTab === t.key ? " wof-tab-btn-active" : ""}`}
+                    onClick={() => {
+                      setActiveTab(t.key);
+                      if (t.key === "total_produced" && wo.id) {
+                        loadTotalProducedData();
+                      }
+                    }}>
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* ══════════ TAB: GRN SELECTION (External WO) ══════════ */}
+              {activeTab === "grn_selection" && wo.type === "external" && (
+                <div className="wof-card">
+                  <div className="wof-card-header"><FaTruck /> Select GRN for External Work Order</div>
+
+                  <div className="wof-table-header">
+                    <span className="wof-section-title">Goods Receipt Note</span>
+                    <button
+                      type="button"
+                      className="wof-row-add-btn"
+                      onClick={() => setShowGrnModal(true)}
+                      disabled={grnLoading}
+                    >
+                      <FaPlus size={10} /> Select GRN
+                    </button>
+                  </div>
+
+                  {hasFieldError("selected_grn_id") && (
+                    <div style={{ color: '#dc2626', fontSize: '13px', fontWeight: '500', marginTop: '8px', marginBottom: '8px' }}>
+                      {getFieldError("selected_grn_id")}
+                    </div>
+                  )}
+
+                  {wo.selected_grn_id && wo.selected_grn ? (
+                    <div className="wof-selected-grn">
+                      {grnDetailLoading && (
+                        <div className="wof-hint" style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+                          <FaSpinner className="wof-spinning" /> Loading GRN item details…
+                        </div>
+                      )}
+                      <div className="wof-grn-info">
+                        <div className="wof-grn-row">
+                          <span className="wof-grn-label">GRN Number:</span>
+                          <span className="wof-grn-value">{wo.selected_grn.grn_number} (#{wo.selected_grn.id})</span>
+                        </div>
+                        <div className="wof-grn-row">
+                          <span className="wof-grn-label">Customer:</span>
+                          <span className="wof-grn-value">{wo.customer_name || "N/A"}</span>
+                        </div>
+                        <div className="wof-grn-row">
+                          <span className="wof-grn-label">GRN Date:</span>
+                          <span className="wof-grn-value">
+                            {wo.selected_grn.grn_date ? new Date(wo.selected_grn.grn_date).toLocaleDateString() : "N/A"}
+                          </span>
+                        </div>
+                        <div className="wof-grn-row">
+                          <span className="wof-grn-label">Delivery Challan No:</span>
+                          <span className="wof-grn-value">{wo.selected_grn.delivery_challan_no || "N/A"}</span>
+                        </div>
+                      </div>
+
+                      <div className="wof-grn-items">
+                        <span className="wof-section-title">GRN Quantities</span>
+                        <div style={{ display: "flex", gap: 10, marginTop: 8, flexWrap: "wrap" }}>
+                          <div style={{ flex: 1, minWidth: 95, background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 6, padding: "8px 10px" }}>
+                            <div style={{ fontSize: 11, color: "#64748b" }}>Total Items</div>
+                            <div style={{ fontSize: 16, fontWeight: 700 }}>{wo.selected_grn.total_items}</div>
+                          </div>
+                          <div style={{ flex: 1, minWidth: 95, background: "#f0fdf4", border: "1px solid #86efac", borderRadius: 6, padding: "8px 10px" }}>
+                            <div style={{ fontSize: 11, color: "#166534" }}>Received Qty</div>
+                            <div style={{ fontSize: 16, fontWeight: 700, color: "#166534" }}>{wo.selected_grn.total_received_qty}</div>
+                          </div>
+                          <div style={{ flex: 1, minWidth: 95, background: "#eff6ff", border: "1px solid #93c5fd", borderRadius: 6, padding: "8px 10px" }}>
+                            <div style={{ fontSize: 11, color: "#1e40af" }}>Accepted Qty</div>
+                            <div style={{ fontSize: 16, fontWeight: 700, color: "#1e40af" }}>{wo.selected_grn.total_accepted_qty}</div>
+                          </div>
+                          <div style={{ flex: 1, minWidth: 95, background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 6, padding: "8px 10px" }}>
+                            <div style={{ fontSize: 11, color: "#991b1b" }}>Rejected Qty</div>
+                            <div style={{ fontSize: 16, fontWeight: 700, color: "#991b1b" }}>{wo.selected_grn.total_rejected_qty}</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="wof-divider" />
+                      <span className="wof-section-title">Operations Source</span>
+                      <div style={{ marginTop: 10 }}>
+                        <BomSearchField
+                          value={selectedExternalBomLabel}
+                          onSelect={handleSelectExternalBom}
+                          onClear={handleClearExternalBom}
+                          disabled={disabled}
+                          filterType="External"
+                          error={getFieldError("bom_no")}
+                        />
+                      </div>
+
+                      <div className="wof-divider" />
+                      <span className="wof-section-title">Production Details</span>
+                      <div className="wof-grid-2" style={{ marginTop: 10 }}>
+                        <div className="wof-field" data-field="item_to_manufacture">
+                          <label className="wof-label">Item To Manufacture <span className="wof-required">*</span></label>
+                          <input
+                            type="text"
+                            value={wo.item_name || wo.item_to_manufacture}
+                            readOnly
+                            className="form-field"
+                            placeholder="Select an Operations Source BOM above to auto-fill"
+                          />
+                          <span className="wof-hint">Comes from the Operations Source BOM selected above.</span>
+                          {hasFieldError("item_to_manufacture") && (
+                            <div style={{ color: '#dc2626', fontSize: '13px', fontWeight: '500', marginTop: '4px' }}>
+                              {getFieldError("item_to_manufacture")}
+                            </div>
+                          )}
+                        </div>
+                        <div className="wof-field" data-field="qty_to_manufacture">
+                          <label className="wof-label">Qty To Manufacture <span className="wof-required">*</span></label>
+                          <div className="input-group">
+                            <DigitInput
+                              value={wo.qty_to_manufacture}
+                              onChange={v => set("qty_to_manufacture", v)}
+                              placeholder="e.g. 100"
+                              className="form-field"
+                              disabled={disabled}
+                              error={getFieldError("qty_to_manufacture")}
+                            />
+                          </div>
+                          <span className="wof-hint">How many units this Work Order is producing.</span>
+                        </div>
+                      </div>
+
+                      <div className="wof-divider" />
+                      <div className="wof-table-header">
+                        <span className="wof-section-title wof-section-title-flush">
+                          <FaCogs style={{ marginRight: 6 }} />
+                          Operations To Perform <span className="wof-required">*</span>
+                        </span>
+                        <button type="button" className="wof-row-add-btn"
+                          onClick={() => setWo(p => ({ ...p, operations: [...p.operations, emptyOp()] }))}>
+                          <FaPlus size={10} /> Add Row
+                        </button>
+                      </div>
+                      {hasFieldError("operations") && (
+                        <div style={{ color: '#dc2626', fontSize: '13px', fontWeight: '500', marginTop: '8px', marginBottom: '8px' }}>
+                          {getFieldError("operations")}
+                        </div>
+                      )}
+                      <div className="wof-table-scroll">
+                        <table className="wof-editable-table">
+                          <thead>
+                            <tr>
+                              <th className="wof-col-no">#</th>
+                              <th>Operation <span className="wof-required">*</span></th>
+                              <th>Workstation <span className="wof-required">*</span></th>
+                              <th>Time (mins)</th>
+                              <th>Hour Rate</th>
+                              <th>Operating Cost</th>
+                              <th className="wof-col-action" />
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {wo.operations.map((op, idx) => (
+                              <tr key={op.id}>
+                                <td className="wof-col-no">{idx + 1}</td>
+                                <td>
+                                  <OperationPickerField
+                                    value={op.operation}
+                                    operations={operationMasters}
+                                    loading={operationsLoading}
+                                    disabled={disabled}
+                                    onTextChange={(text) => updateOp(op.id, "operation", text)}
+                                    onSelect={(o) => {
+                                      updateOp(op.id, "operation", o.name.trim());
+                                      updateOp(op.id, "workstation", o.workstation_name);
+                                      updateOp(op.id, "hour_rate", o.hour_rate);
+                                      updateOp(op.id, "time_in_mins", o.total_operation_time);
+                                      updateOp(
+                                        op.id,
+                                        "operating_cost",
+                                        Math.round((o.hour_rate / 60) * o.total_operation_time * 100) / 100
+                                      );
+                                    }}
+                                  />
+                                </td>
+                                <td>
+                                  <input type="text" value={op.workstation}
+                                    onChange={e => updateOp(op.id, "workstation", e.target.value)}
+                                    className="form-field form-field-sm" placeholder="Auto-filled" disabled={disabled} />
+                                </td>
+                                <td>
+                                  <div className="input-group">
+                                    <DigitInput value={op.time_in_mins}
+                                      onChange={v => updateOp(op.id, "time_in_mins", v)} disabled={disabled} />
+                                  </div>
+                                </td>
+                                <td>
+                                  <div className="input-group">
+                                    <DigitInput value={op.hour_rate}
+                                      onChange={v => updateOp(op.id, "hour_rate", v)} disabled={disabled} />
+                                  </div>
+                                </td>
+                                <td>
+                                  <div className="input-group">
+                                    <DigitInput value={op.operating_cost}
+                                      onChange={v => updateOp(op.id, "operating_cost", v)} disabled={disabled} />
+                                  </div>
+                                </td>
+                                <td className="wof-col-action">
+                                  <button type="button" className="wof-row-delete-btn"
+                                    onClick={() => setWo(p => ({ ...p, operations: p.operations.filter(o => o.id !== op.id) }))}
+                                    disabled={wo.operations.length <= 1}>
+                                    <FaTrash size={11} />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div className="wof-divider" />
+                      <div className="wof-table-header">
+                        <span className="wof-section-title wof-section-title-flush">Required Items <span className="wof-required">*</span></span>
+                        <button type="button" className="wof-row-add-btn"
+                          onClick={() => setWo(p => ({ ...p, required_items: [...p.required_items, emptyItem()] }))}>
+                          <FaPlus size={10} /> Add Row
+                        </button>
+                      </div>
+                      {hasFieldError("required_items") && (
+                        <div style={{ color: '#dc2626', fontSize: '13px', fontWeight: '500', marginTop: '8px', marginBottom: '8px' }}>
+                          {getFieldError("required_items")}
+                        </div>
+                      )}
+                      <div className="wof-table-scroll">
+                        <table className="wof-editable-table">
+                          <thead>
+                            <tr>
+                              <th className="wof-col-no">#</th>
+                              <th>Item</th>
+                              <th>Operation</th>
+                              <th>Source Warehouse <span className="wof-required">*</span></th>
+                              <th>Required Qty <span className="wof-required">*</span></th>
+                              <th>Available Qty</th>
+                              <th>UOM</th>
+                              <th>Rate</th>
+                              <th>Amount</th>
+                              <th className="wof-col-action" />
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {wo.required_items.map((ri, idx) => {
+                              const avail = availabilityFor(ri.item_code);
+                              const shortfall = avail !== undefined && ri.required_qty > avail.received_qty;
+                              return (
+                                <tr key={ri.id}>
+                                  <td className="wof-col-no">{idx + 1}</td>
+                                  <td>
+                                    <ItemPickerField
+                                      value={ri.item_code ? `${ri.item_name} (${ri.item_code})` : ""}
+                                      items={rawItems}
+                                      loading={rawItemsLoading}
+                                      disabled={disabled}
+                                      onSelect={(it) => {
+                                        setWo(prev => ({
+                                          ...prev,
+                                          required_items: prev.required_items.map(r =>
+                                            r.id === ri.id
+                                              ? {
+                                                  ...r,
+                                                  item_id: it.id,
+                                                  item_code: it.item_code,
+                                                  item_name: it.item_name,
+                                                  uom: it.stock_uom,
+                                                  rate: it.standard_rate ?? it.valuation_rate ?? 0,
+                                                  operation: r.operation || "",
+                                                }
+                                              : r
+                                          ),
+                                        }));
+                                      }}
+                                    />
+                                  </td>
+                                  <td>
+                                    <select
+                                      value={ri.operation || ""}
+                                      onChange={e => updateItem(ri.id, "operation", e.target.value)}
+                                      className="form-field form-field-sm"
+                                      disabled={disabled}
+                                    >
+                                      <option value="">— none —</option>
+                                      {wo.operations.filter(o => o.operation.trim()).map(o => (
+                                        <option key={o.id} value={o.operation}>{o.operation}</option>
+                                      ))}
+                                    </select>
+                                  </td>
+                                  <td>
+                                    <input type="text" value={ri.source_warehouse}
+                                      onChange={e => updateItem(ri.id, "source_warehouse", e.target.value)}
+                                      className="form-field form-field-sm" disabled={disabled} />
+                                  </td>
+                                  <td>
+                                    <div className="input-group">
+                                      <DigitInput value={ri.required_qty}
+                                        onChange={v => updateItem(ri.id, "required_qty", v)} disabled={disabled} />
+                                    </div>
+                                  </td>
+                                  <td style={{ fontWeight: 600, color: shortfall ? "#b91c1c" : "#166534", whiteSpace: "nowrap" }}>
+                                    {avail ? avail.received_qty : "—"}
+                                    {shortfall && <FaExclamationTriangle style={{ marginLeft: 4 }} title="Required qty exceeds what's available" />}
+                                  </td>
+                                  <td>
+                                    <input type="text" value={ri.uom}
+                                      onChange={e => updateItem(ri.id, "uom", e.target.value)}
+                                      className="form-field form-field-sm" disabled={disabled} />
+                                  </td>
+                                  <td>
+                                    <div className="input-group">
+                                      <DigitInput value={ri.rate || 0}
+                                        onChange={v => updateItem(ri.id, "rate", v)} disabled={disabled} />
+                                    </div>
+                                  </td>
+                                  <td>
+                                    <div className="input-group">
+                                      <DigitInput value={ri.amount || 0}
+                                        onChange={v => updateItem(ri.id, "amount", v)} disabled={disabled} />
+                                    </div>
+                                  </td>
+                                  <td className="wof-col-action">
+                                    <button type="button" className="wof-row-delete-btn"
+                                      onClick={() => setWo(p => ({ ...p, required_items: p.required_items.filter(r => r.id !== ri.id) }))}
+                                      disabled={wo.required_items.length <= 1}>
+                                      <FaTrash size={11} />
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="wof-no-grn">
+                      <p>No GRN selected. Please click "Select GRN" to choose a Goods Receipt Note.</p>
+                      <p style={{ fontSize: "12px", color: "var(--text-secondary)", marginTop: "8px" }}>
+                        <FaInfoCircle /> {grnList.length} GRN{grnList.length === 1 ? "" : "s"} available in the system
+                      </p>
+                    </div>
+                  )}
+
                   <div className="wof-divider" />
-                  <span className="wof-section-title">Operations Source</span>
-                  <div style={{ marginTop: 10 }}>
-                    <BomSearchField
-                      value={selectedExternalBomLabel}
-                      onSelect={handleSelectExternalBom}
-                      onClear={handleClearExternalBom}
+                  <span className="wof-section-title"><FaWarehouse /> Warehouses <span className="wof-required">*</span></span>
+                  <div className="wof-grid-3" style={{ marginTop: 10 }}>
+                    <WarehouseSearchField
+                      label="Source Warehouse"
+                      value={wo.source_warehouse}
+                      onChange={v => set("source_warehouse", v)}
+                      required
                       disabled={disabled}
-                      filterType="External"
-                      error={getFieldError("bom_no")}
+                      hint="Where raw materials are picked from"
+                      error={getFieldError("source_warehouse")}
+                    />
+                    <WarehouseSearchField
+                      label="WIP Warehouse"
+                      value={wo.wip_warehouse}
+                      onChange={v => set("wip_warehouse", v)}
+                      required
+                      disabled={disabled}
+                      hint="Where production operations happen"
+                      error={getFieldError("wip_warehouse")}
+                    />
+                    <WarehouseSearchField
+                      label="Target Warehouse (FG)"
+                      value={wo.target_warehouse}
+                      onChange={v => set("target_warehouse", v)}
+                      required
+                      disabled={disabled}
+                      hint="Where finished goods are stored"
+                      error={getFieldError("target_warehouse")}
                     />
                   </div>
 
-                  {/* ── Production Details: item to manufacture (from the
-                      Operations Source BOM above) + Qty to Manufacture.
-                      External WOs have no "Production Item" tab, so this
-                      lives here instead. ── */}
                   <div className="wof-divider" />
-                  <span className="wof-section-title">Production Details</span>
-                  <div className="wof-grid-2" style={{ marginTop: 10 }}>
-                    <div className="wof-field" data-field="item_to_manufacture">
-                      <label className="wof-label">Item To Manufacture <span className="wof-required">*</span></label>
-                      <input
-                        type="text"
-                        value={wo.item_name || wo.item_to_manufacture}
-                        readOnly
-                        className="form-field"
-                        placeholder="Select an Operations Source BOM above to auto-fill"
-                      />
-                      <span className="wof-hint">Comes from the Operations Source BOM selected above.</span>
-                      {hasFieldError("item_to_manufacture") && (
-                        <div style={{ color: '#dc2626', fontSize: '13px', fontWeight: '500', marginTop: '4px' }}>
-                          {getFieldError("item_to_manufacture")}
+                  <span className="wof-section-title"><FaImage /> Media Attachments</span>
+                  <div className="wof-media-upload">
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleMediaUpload}
+                      accept="image/*,video/*"
+                      multiple
+                      style={{ display: "none" }}
+                    />
+                    <button
+                      type="button"
+                      className="wof-media-btn"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploadingMedia || disabled}
+                    >
+                      {uploadingMedia ? <FaSpinner className="wof-spinning" /> : <FaImage />}
+                      {uploadingMedia ? "Uploading..." : "Upload Images/Videos"}
+                    </button>
+                    <span className="wof-hint">
+                      Upload product images, process videos, or inspection photos (optional).
+                      {!wo.id && " These will be uploaded once the Work Order is saved."}
+                    </span>
+                  </div>
+
+                  <div className="wof-divider" />
+                  <div className="wof-cost-summary">
+                    <div className="wof-section-title"><FaMoneyBillWave /> Cost Summary</div>
+                    <div className="cost-summary-grid">
+                      <div className="cost-card operation">
+                        <div className="cost-label"><span>⚙️</span> Operation Cost</div>
+                        <div className="cost-value">₹ {wo.planned_operating_cost.toFixed(2)}</div>
+                        <div className="cost-sub">{wo.operations.filter(op => op.operating_cost > 0).length} operations</div>
+                      </div>
+                      <div className="cost-card total">
+  <div className="cost-label"><span>📊</span> Lead Time</div>
+  <div className="cost-value">{formatLeadTime(wo.lead_time_mins)}</div>
+  <div className="cost-sub">Total across all operations</div>
+</div>
+                    </div>
+                  </div>
+
+                  {(pendingMedia.length > 0 || wo.media_files.length > 0) && (
+                    <div className="wof-media-gallery">
+                      {pendingMedia.map((file) => (
+                        <div key={file.id} className="wof-media-item">
+                          {file.type === "image" ? (
+                            <img src={file.url} alt={file.name} className="wof-media-preview" />
+                          ) : (
+                            <video src={file.url} className="wof-media-preview" controls />
+                          )}
+                          <span style={{
+                            position: "absolute", top: 4, left: 4, fontSize: 10, fontWeight: 600,
+                            background: "#fbbf24", color: "#78350f", padding: "1px 6px", borderRadius: 3,
+                          }}>Pending</span>
+                          <button type="button" className="wof-media-delete" onClick={() => removePendingMedia(file.id)}>×</button>
                         </div>
-                      )}
+                      ))}
+                      {wo.media_files.map((file) => (
+                        <div key={file.id} className="wof-media-item">
+                          {file.type === "image" ? (
+                            <img src={file.url} alt={file.name} className="wof-media-preview" />
+                          ) : (
+                            <video src={file.url} className="wof-media-preview" controls />
+                          )}
+                          <button
+                            type="button"
+                            className="wof-media-delete"
+                            onClick={() => setWo(prev => ({ ...prev, media_files: prev.media_files.filter(f => f.id !== file.id) }))}
+                          >×</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ══════════ TAB: PRODUCTION ITEM (Internal WO only) ══════════ */}
+              {activeTab === "production_item" && wo.type === "internal" && (
+                <div className="wof-card">
+                  <div className="wof-card-header"><FaBoxOpen /> Production Item</div>
+
+                  <span className="wof-section-title">Bill of Materials</span>
+                  <div className="wof-grid-2" style={{ marginTop: 10 }}>
+                    <div data-field="bom_no">
+                      <BomSearchField
+                        value={selectedBomLabel || wo.bom_no}
+                        onSelect={handleSelectBom}
+                        onClear={handleClearBom}
+                        disabled={disabled}
+                        filterType="Internal"
+                        error={getFieldError("bom_no")}
+                      />
                     </div>
                     <div className="wof-field" data-field="qty_to_manufacture">
                       <label className="wof-label">Qty To Manufacture <span className="wof-required">*</span></label>
@@ -3149,22 +3436,71 @@ try {
                           error={getFieldError("qty_to_manufacture")}
                         />
                       </div>
-                      <span className="wof-hint">How many units this Work Order is producing.</span>
+                      {bomDetail && (
+                        <span className="wof-hint">
+                          BOM base: {bomDetail.bom.quantity} {bomDetail.bom.uom} — rows scale automatically
+                        </span>
+                      )}
+                      {bomDetail && maxProducibleQty !== null && (
+                        <span
+                          className="wof-hint"
+                          style={{ display: "block", marginTop: 4, fontWeight: 600, color: materialConstraints.some(c => c.shortfall) ? "#b91c1c" : "#166534" }}
+                        >
+                          <FaBoxOpen style={{ marginRight: 4 }} />
+                          Can make up to {maxProducibleQty} {wo.stock_uom} from current stock
+                        </span>
+                      )}
                     </div>
                   </div>
 
-                  {/* ── Operations to perform ──
-                      Each row's operation can come from the External BOM
-                      picked above, from the operation master list, or be
-                      typed/edited manually. */}
+                  {bomLoading && (
+                    <div className="wof-hint" style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
+                      <FaSpinner className="wof-spinning" /> Loading BOM details…
+                    </div>
+                  )}
+
+                  {materialConstraints.some(c => c.shortfall) && (
+                    <div style={{ marginTop: 10, background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 6, padding: "10px 12px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#991b1b", fontWeight: 600, fontSize: 13, marginBottom: 6 }}>
+                        <FaExclamationTriangle /> Not enough stock to manufacture {wo.qty_to_manufacture} {wo.stock_uom}
+                      </div>
+                      <ul style={{ margin: 0, paddingLeft: 20, fontSize: 12.5, color: "#7f1d1d" }}>
+                        {materialConstraints.filter(c => c.shortfall).map(c => (
+                          <li key={c.item_code}>
+                            {c.item_name} ({c.item_code}): need {c.required} {c.uom}, only {c.available} {c.uom} available
+                          </li>
+                        ))}
+                      </ul>
+                      <div style={{ fontSize: 12, color: "#7f1d1d", marginTop: 6 }}>
+                        Please add stock in Inventory{maxProducibleQty !== null ? `, or reduce the quantity to ${maxProducibleQty} ${wo.stock_uom} or below` : ""}.
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="wof-divider" />
+                  <span className="wof-section-title"><FaWarehouse /> Warehouses <span className="wof-required">*</span></span>
+                  <div className="wof-grid-3" style={{ marginTop: 10 }}>
+                    <WarehouseSearchField
+                      label="Source Warehouse" value={wo.source_warehouse}
+                      onChange={v => set("source_warehouse", v)} required disabled={disabled}
+                      hint="Where raw materials are picked from" error={getFieldError("source_warehouse")}
+                    />
+                    <WarehouseSearchField
+                      label="WIP Warehouse" value={wo.wip_warehouse}
+                      onChange={v => set("wip_warehouse", v)} required disabled={disabled}
+                      hint="Where production operations happen" error={getFieldError("wip_warehouse")}
+                    />
+                    <WarehouseSearchField
+                      label="Target Warehouse (FG)" value={wo.target_warehouse}
+                      onChange={v => set("target_warehouse", v)} required disabled={disabled}
+                      hint="Where finished goods are stored" error={getFieldError("target_warehouse")}
+                    />
+                  </div>
+
                   <div className="wof-divider" />
                   <div className="wof-table-header">
-                    <span className="wof-section-title wof-section-title-flush">
-                      <FaCogs style={{ marginRight: 6 }} />
-                      Operations To Perform <span className="wof-required">*</span>
-                    </span>
-                    <button type="button" className="wof-row-add-btn"
-                      onClick={() => setWo(p => ({ ...p, operations: [...p.operations, emptyOp()] }))}>
+                    <span className="wof-section-title wof-section-title-flush">Operations <span className="wof-required">*</span></span>
+                    <button type="button" className="wof-row-add-btn" onClick={() => setWo(p => ({ ...p, operations: [...p.operations, emptyOp()] }))}>
                       <FaPlus size={10} /> Add Row
                     </button>
                   </div>
@@ -3183,7 +3519,6 @@ try {
                           <th>Time (mins)</th>
                           <th>Hour Rate</th>
                           <th>Operating Cost</th>
-                          <th className="wof-col-action" />
                         </tr>
                       </thead>
                       <tbody>
@@ -3213,7 +3548,7 @@ try {
                             <td>
                               <input type="text" value={op.workstation}
                                 onChange={e => updateOp(op.id, "workstation", e.target.value)}
-                                className="form-field form-field-sm" placeholder="Auto-filled" disabled={disabled} />
+                                className="form-field form-field-sm" placeholder="e.g. CNC Machine 1" disabled={disabled} />
                             </td>
                             <td>
                               <div className="input-group">
@@ -3233,55 +3568,36 @@ try {
                                   onChange={v => updateOp(op.id, "operating_cost", v)} disabled={disabled} />
                               </div>
                             </td>
-                            <td className="wof-col-action">
-                              <button type="button" className="wof-row-delete-btn"
-                                onClick={() => setWo(p => ({ ...p, operations: p.operations.filter(o => o.id !== op.id) }))}
-                                disabled={wo.operations.length <= 1}>
-                                <FaTrash size={11} />
-                              </button>
-                            </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
 
-             
-
-                  {/* ── Required Items (always sourced from the selected GRN) ── */}
                   <div className="wof-divider" />
                   <div className="wof-table-header">
-                    <span className="wof-section-title wof-section-title-flush">Required Items <span className="wof-required">*</span></span>
-                    <button type="button" className="wof-row-add-btn"
-                      onClick={() => setWo(p => ({ ...p, required_items: [...p.required_items, emptyItem()] }))}>
+                    <span className="wof-section-title wof-section-title-flush">Required Items</span>
+                    <button type="button" className="wof-row-add-btn" onClick={() => setWo(p => ({ ...p, required_items: [...p.required_items, emptyItem()] }))}>
                       <FaPlus size={10} /> Add Row
                     </button>
                   </div>
-                  {hasFieldError("required_items") && (
-                    <div style={{ color: '#dc2626', fontSize: '13px', fontWeight: '500', marginTop: '8px', marginBottom: '8px' }}>
-                      {getFieldError("required_items")}
-                    </div>
-                  )}
                   <div className="wof-table-scroll">
                     <table className="wof-editable-table">
                       <thead>
                         <tr>
                           <th className="wof-col-no">#</th>
                           <th>Item</th>
-                          <th>Operation</th>
-                          <th>Source Warehouse <span className="wof-required">*</span></th>
-                          <th>Required Qty <span className="wof-required">*</span></th>
+                          <th>Source Warehouse</th>
+                          <th>Required Qty</th>
                           <th>Available Qty</th>
                           <th>UOM</th>
                           <th>Rate</th>
                           <th>Amount</th>
-                          <th className="wof-col-action" />
                         </tr>
                       </thead>
                       <tbody>
                         {wo.required_items.map((ri, idx) => {
-                          const avail = availabilityFor(ri.item_code);
-                          const shortfall = avail !== undefined && ri.required_qty > avail.received_qty;
+                          const bomConstraint = materialConstraints.find(c => c.item_code === ri.item_code);
                           return (
                             <tr key={ri.id}>
                               <td className="wof-col-no">{idx + 1}</td>
@@ -3311,23 +3627,11 @@ try {
                                   }}
                                 />
                               </td>
-                              <td>
-                                <select
-                                  value={ri.operation || ""}
-                                  onChange={e => updateItem(ri.id, "operation", e.target.value)}
-                                  className="form-field form-field-sm"
-                                  disabled={disabled}
-                                >
-                                  <option value="">— none —</option>
-                                  {wo.operations.filter(o => o.operation.trim()).map(o => (
-                                    <option key={o.id} value={o.operation}>{o.operation}</option>
-                                  ))}
-                                </select>
-                              </td>
+                         
                               <td>
                                 <input type="text" value={ri.source_warehouse}
                                   onChange={e => updateItem(ri.id, "source_warehouse", e.target.value)}
-                                  className="form-field form-field-sm" disabled={disabled} />
+                                  className="form-field form-field-sm" placeholder="e.g. Raw Material Store" disabled={disabled} />
                               </td>
                               <td>
                                 <div className="input-group">
@@ -3335,14 +3639,14 @@ try {
                                     onChange={v => updateItem(ri.id, "required_qty", v)} disabled={disabled} />
                                 </div>
                               </td>
-                              <td style={{ fontWeight: 600, color: shortfall ? "#b91c1c" : "#166534", whiteSpace: "nowrap" }}>
-                                {avail ? avail.received_qty : "—"}
-                                {shortfall && <FaExclamationTriangle style={{ marginLeft: 4 }} title="Required qty exceeds what's available" />}
+                              <td style={{ fontWeight: 600, color: bomConstraint?.shortfall ? "#b91c1c" : "#166534", whiteSpace: "nowrap" }}>
+                                {bomConstraint ? bomConstraint.available : "—"}
+                                {bomConstraint?.shortfall && <FaExclamationTriangle style={{ marginLeft: 4 }} title="Required qty exceeds what's in stock" />}
                               </td>
                               <td>
                                 <input type="text" value={ri.uom}
                                   onChange={e => updateItem(ri.id, "uom", e.target.value)}
-                                  className="form-field form-field-sm" disabled={disabled} />
+                                  className="form-field form-field-sm" placeholder="Nos" disabled={disabled} />
                               </td>
                               <td>
                                 <div className="input-group">
@@ -3356,891 +3660,389 @@ try {
                                     onChange={v => updateItem(ri.id, "amount", v)} disabled={disabled} />
                                 </div>
                               </td>
-                              <td className="wof-col-action">
-                                <button type="button" className="wof-row-delete-btn"
-                                  onClick={() => setWo(p => ({ ...p, required_items: p.required_items.filter(r => r.id !== ri.id) }))}
-                                  disabled={wo.required_items.length <= 1}>
-                                  <FaTrash size={11} />
-                                </button>
-                              </td>
                             </tr>
                           );
                         })}
                       </tbody>
                     </table>
                   </div>
-                </div>
-              ) : (
-                <div className="wof-no-grn">
-                  <p>No GRN selected. Please click "Select GRN" to choose a Goods Receipt Note.</p>
-                  <p style={{ fontSize: "12px", color: "var(--text-secondary, #6b7280)", marginTop: "8px" }}>
-                    <FaInfoCircle /> {grnList.length} GRN{grnList.length === 1 ? "" : "s"} available in the system
-                  </p>
-                </div>
-              )}
 
-          
-
-              {/* ── Warehouses (External WOs don't get a "Production Item" tab,
-                  so these live here instead) ── */}
-              <div className="wof-divider" />
-              <span className="wof-section-title">Warehouses <span className="wof-required">*</span></span>
-              <div className="wof-grid-3" style={{ marginTop: 10 }}>
-                <WarehouseSearchField 
-                  label="Source Warehouse" 
-                  value={wo.source_warehouse}
-                  onChange={v => set("source_warehouse", v)} 
-                  required 
-                  disabled={disabled}
-                  hint="Where raw materials are picked from" 
-                  error={getFieldError("source_warehouse")}
-                />
-                <WarehouseSearchField 
-                  label="WIP Warehouse" 
-                  value={wo.wip_warehouse}
-                  onChange={v => set("wip_warehouse", v)} 
-                  required 
-                  disabled={disabled}
-                  hint="Where production operations happen" 
-                  error={getFieldError("wip_warehouse")}
-                />
-                <WarehouseSearchField 
-                  label="Target Warehouse (FG)" 
-                  value={wo.target_warehouse}
-                  onChange={v => set("target_warehouse", v)} 
-                  required 
-                  disabled={disabled}
-                  hint="Where finished goods are stored" 
-                  error={getFieldError("target_warehouse")}
-                />
-              </div>
-
-              {/* ── Media Attachments ── */}
-              <div className="wof-divider" />
-              <span className="wof-section-title">Media Attachments</span>
-              <div className="wof-media-upload">
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleMediaUpload}
-                  accept="image/*,video/*"
-                  multiple
-                  style={{ display: "none" }}
-                />
-                <button
-                  type="button"
-                  className="wof-media-btn"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploadingMedia || disabled}
-                >
-                  {uploadingMedia ? <FaSpinner className="spinning" /> : <FaImage />}
-                  {uploadingMedia ? "Uploading..." : "Upload Images/Videos"}
-                </button>
-                <span className="wof-hint">
-                  Upload product images, process videos, or inspection photos (optional).
-                  {!wo.id && " These will be uploaded once the Work Order is saved."}
-                </span>
-              </div>
-     {/* ── Cost Summary (mirrors Internal WO — Operating cost is
-                      now populated for External too, driven by the table
-                      above). ── */}
                   <div className="wof-divider" />
                   <div className="wof-cost-summary">
-                    <div className="wof-section-title"> Cost Summary</div>
+                    <div className="wof-section-title"><FaMoneyBillWave /> Cost Summary</div>
                     <div className="cost-summary-grid">
+                      <div className="cost-card material">
+                        <div className="cost-label"><span>📦</span> Raw Material Cost</div>
+                        <div className="cost-value">₹ {totalRawMaterialCost.toFixed(2)}</div>
+                        <div className="cost-sub">{wo.required_items.filter(item => item.amount && item.amount > 0).length} items</div>
+                      </div>
                       <div className="cost-card operation">
-                        <div className="cost-label">
-                          <span className="label-icon">⚙️</span> Operation Cost
-                        </div>
+                        <div className="cost-label"><span>⚙️</span> Operation Cost</div>
                         <div className="cost-value">₹ {wo.planned_operating_cost.toFixed(2)}</div>
-                        <div className="cost-sub">
-                          {wo.operations.filter(op => op.operating_cost > 0).length} operations
-                        </div>
+                        <div className="cost-sub">{wo.operations.filter(op => op.operating_cost > 0).length} operations</div>
                       </div>
                       <div className="cost-card total">
-                        <div className="cost-label">
-                          <span className="label-icon">📊</span> Lead Time
-                        </div>
-                        <div className="cost-value">{wo.lead_time_mins.toFixed(2)} mins</div>
-                        <div className="cost-sub">
-                          Total across all operations
-                        </div>
+                        <div className="cost-label"><span>📊</span> Total Cost</div>
+                        <div className="cost-value">₹ {(totalRawMaterialCost + wo.planned_operating_cost).toFixed(2)}</div>
+                        <div className="cost-sub">Material + Operations</div>
                       </div>
                     </div>
                   </div>
-              {(pendingMedia.length > 0 || wo.media_files.length > 0) && (
-                <div className="wof-media-gallery">
-                  {pendingMedia.map((file) => (
-                    <div key={file.id} className="wof-media-item" style={{ position: "relative" }}>
-                      {file.type === "image" ? (
-                        <img src={file.url} alt={file.name} className="wof-media-preview" />
-                      ) : (
-                        <video src={file.url} className="wof-media-preview" controls />
-                      )}
-                      <span
-                        style={{
-                          position: "absolute",
-                          top: 4,
-                          left: 4,
-                          fontSize: 10,
-                          fontWeight: 600,
-                          background: "#fbbf24",
-                          color: "#78350f",
-                          padding: "1px 6px",
-                          borderRadius: 3,
-                        }}
-                      >
-                        Pending
-                      </span>
-                      <button
-                        type="button"
-                        className="wof-media-delete"
-                        onClick={() => removePendingMedia(file.id)}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                  {wo.media_files.map((file) => (
-                    <div key={file.id} className="wof-media-item">
-                      {file.type === "image" ? (
-                        <img src={file.url} alt={file.name} className="wof-media-preview" />
-                      ) : (
-                        <video src={file.url} className="wof-media-preview" controls />
-                      )}
-                      <button
-                        type="button"
-                        className="wof-media-delete"
-                        onClick={() => setWo(prev => ({
-                          ...prev,
-                          media_files: prev.media_files.filter(f => f.id !== file.id)
-                        }))}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
 
-          {/* ══════════ TAB 1: PRODUCTION ITEM (Internal WO only) ══════════ */}
-          {activeTab === "production_item" && wo.type === "internal" && (
-            <div className="wof-card">
-
-              <span className="wof-section-title">Bill of Materials</span>
-
-              <div className="wof-grid-2" style={{ marginTop: 10 }}>
-                <div data-field="bom_no">
-                  <BomSearchField
-                    value={selectedBomLabel || wo.bom_no}
-                    onSelect={handleSelectBom}
-                    onClear={handleClearBom}
-                    disabled={disabled}
-                    filterType="Internal"
-                    error={getFieldError("bom_no")}
-                  />
-                </div>
-                <div className="wof-field" data-field="qty_to_manufacture">
-                  <label className="wof-label">Qty To Manufacture <span className="wof-required">*</span></label>
-                  <div className="input-group">
-                    <DigitInput
-                      value={wo.qty_to_manufacture}
-                      onChange={v => set("qty_to_manufacture", v)}
-                      placeholder="e.g. 100"
-                      className="form-field"
-                      disabled={disabled}
-                      error={getFieldError("qty_to_manufacture")}
+                  <div className="wof-divider" />
+                  <span className="wof-section-title"><FaImage /> Media Attachments</span>
+                  <div className="wof-media-upload">
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleMediaUpload}
+                      accept="image/*,video/*"
+                      multiple
+                      style={{ display: "none" }}
                     />
-                  </div>
-                  {bomDetail && (
-                    <span className="wof-hint">
-                      BOM base: {bomDetail.bom.quantity} {bomDetail.bom.uom} — rows scale automatically
-                    </span>
-                  )}
-                  {bomDetail && maxProducibleQty !== null && (
-                    <span
-                      className="wof-hint"
-                      style={{
-                        display: "block",
-                        marginTop: 4,
-                        fontWeight: 600,
-                        color: materialConstraints.some(c => c.shortfall) ? "#b91c1c" : "#166534",
-                      }}
-                    >
-                      <FaBoxOpen style={{ marginRight: 4 }} />
-                      Can make up to {maxProducibleQty} {wo.stock_uom} from current stock
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {bomLoading && (
-                <div className="wof-hint" style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
-                  <FaSpinner className="spinning" /> Loading BOM details…
-                </div>
-              )}
-
-              {materialConstraints.some(c => c.shortfall) && (
-                <div style={{
-                  marginTop: 10, background: "#fef2f2", border: "1px solid #fca5a5",
-                  borderRadius: 6, padding: "10px 12px",
-                }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#991b1b", fontWeight: 600, fontSize: 13, marginBottom: 6 }}>
-                    <FaExclamationTriangle /> Not enough stock to manufacture {wo.qty_to_manufacture} {wo.stock_uom}
-                  </div>
-                  <ul style={{ margin: 0, paddingLeft: 20, fontSize: 12.5, color: "#7f1d1d" }}>
-                    {materialConstraints.filter(c => c.shortfall).map(c => (
-                      <li key={c.item_code}>
-                        {c.item_name} ({c.item_code}): need {c.required} {c.uom}, only {c.available} {c.uom} available
-                      </li>
-                    ))}
-                  </ul>
-                  <div style={{ fontSize: 12, color: "#7f1d1d", marginTop: 6 }}>
-                    Please add stock in Inventory{maxProducibleQty !== null ? `, or reduce the quantity to ${maxProducibleQty} ${wo.stock_uom} or below` : ""}.
-                  </div>
-                </div>
-              )}
-
-              <div className="wof-divider" />
-              <span className="wof-section-title">Warehouses <span className="wof-required">*</span></span>
-
-              <div className="wof-grid-3" style={{ marginTop: 10 }}>
-                <WarehouseSearchField 
-                  label="Source Warehouse" 
-                  value={wo.source_warehouse}
-                  onChange={v => set("source_warehouse", v)} 
-                  required 
-                  disabled={disabled}
-                  hint="Where raw materials are picked from" 
-                  error={getFieldError("source_warehouse")}
-                />
-                <WarehouseSearchField 
-                  label="WIP Warehouse" 
-                  value={wo.wip_warehouse}
-                  onChange={v => set("wip_warehouse", v)} 
-                  required 
-                  disabled={disabled}
-                  hint="Where production operations happen" 
-                  error={getFieldError("wip_warehouse")}
-                />
-                <WarehouseSearchField 
-                  label="Target Warehouse (FG)" 
-                  value={wo.target_warehouse}
-                  onChange={v => set("target_warehouse", v)} 
-                  required 
-                  disabled={disabled}
-                  hint="Where finished goods are stored" 
-                  error={getFieldError("target_warehouse")}
-                />
-              </div>
-
-              <div className="wof-divider" />
-
-              {/* ── Operations Table ── */}
-              <div className="wof-table-header">
-                <span className="wof-section-title wof-section-title-flush">Operations <span className="wof-required">*</span></span>
-                <button type="button" className="wof-row-add-btn" onClick={() => setWo(p => ({ ...p, operations: [...p.operations, emptyOp()] }))}>
-                  <FaPlus size={10} /> Add Row
-                </button>
-              </div>
-              {hasFieldError("operations") && (
-                <div style={{ color: '#dc2626', fontSize: '13px', fontWeight: '500', marginTop: '8px', marginBottom: '8px' }}>
-                  {getFieldError("operations")}
-                </div>
-              )}
-              <div className="wof-table-scroll">
-                <table className="wof-editable-table">
-                  <thead>
-                    <tr>
-                      <th className="wof-col-no">#</th>
-                      <th>Operation <span className="wof-required">*</span></th>
-                      <th>Workstation <span className="wof-required">*</span></th>
-                      <th>Time (mins)</th>
-                      <th>Hour Rate</th>
-                      <th>Operating Cost</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {wo.operations.map((op, idx) => (
-                      <tr key={op.id}>
-                        <td className="wof-col-no">{idx + 1}</td>
-                        <td>
-                          <OperationPickerField
-                            value={op.operation}
-                            operations={operationMasters}
-                            loading={operationsLoading}
-                            disabled={disabled}
-                            onTextChange={(text) => updateOp(op.id, "operation", text)}
-                            onSelect={(o) => {
-                              updateOp(op.id, "operation", o.name.trim());
-                              updateOp(op.id, "workstation", o.workstation_name);
-                              updateOp(op.id, "hour_rate", o.hour_rate);
-                              updateOp(op.id, "time_in_mins", o.total_operation_time);
-                              updateOp(
-                                op.id,
-                                "operating_cost",
-                                Math.round((o.hour_rate / 60) * o.total_operation_time * 100) / 100
-                              );
-                            }}
-                          />
-                        </td>
-                        <td>
-                          <input type="text" value={op.workstation}
-                            onChange={e => updateOp(op.id, "workstation", e.target.value)}
-                            className="form-field form-field-sm" placeholder="e.g. CNC Machine 1" disabled={disabled} />
-                        </td>
-                        <td>
-                          <div className="input-group">
-                            <DigitInput value={op.time_in_mins}
-                              onChange={v => updateOp(op.id, "time_in_mins", v)} disabled={disabled} />
-                          </div>
-                        </td>
-                        <td>
-                          <div className="input-group">
-                            <DigitInput value={op.hour_rate}
-                              onChange={v => updateOp(op.id, "hour_rate", v)} disabled={disabled} />
-                          </div>
-                        </td>
-                        <td>
-                          <div className="input-group">
-                            <DigitInput value={op.operating_cost}
-                              onChange={v => updateOp(op.id, "operating_cost", v)} disabled={disabled} />
-                          </div>
-                        </td>
-                        
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="wof-divider" />
-
-              {/* ── Required Items Table ── */}
-              <div className="wof-table-header">
-                <span className="wof-section-title wof-section-title-flush">Required Items</span>
-                <button type="button" className="wof-row-add-btn" onClick={() => setWo(p => ({ ...p, required_items: [...p.required_items, emptyItem()] }))}>
-                  <FaPlus size={10} /> Add Row
-                </button>
-              </div>
-              <div className="wof-table-scroll">
-                <table className="wof-editable-table">
-                  <thead>
-                    <tr>
-                      <th className="wof-col-no">#</th>
-                      <th>Item</th>
-                      <th>Operation</th>
-                      <th>Source Warehouse</th>
-                      <th>Required Qty</th>
-                      <th>Available Qty</th>
-                      <th>UOM</th>
-                      <th>Rate</th>
-                      <th>Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {wo.required_items.map((ri, idx) => {
-                      const bomConstraint = materialConstraints.find(c => c.item_code === ri.item_code);
-                      return (
-                        <tr key={ri.id}>
-                          <td className="wof-col-no">{idx + 1}</td>
-                          <td>
-                            <ItemPickerField
-                              value={ri.item_code ? `${ri.item_name} (${ri.item_code})` : ""}
-                              items={rawItems}
-                              loading={rawItemsLoading}
-                              disabled={disabled}
-                              onSelect={(it) => {
-                                setWo(prev => ({
-                                  ...prev,
-                                  required_items: prev.required_items.map(r =>
-                                    r.id === ri.id
-                                      ? {
-                                          ...r,
-                                          item_id: it.id,
-                                          item_code: it.item_code,
-                                          item_name: it.item_name,
-                                          uom: it.stock_uom,
-                                          rate: it.standard_rate ?? it.valuation_rate ?? 0,
-                                          operation: r.operation || "",
-                                        }
-                                      : r
-                                  ),
-                                }));
-                              }}
-                            />
-                          </td>
-                          <td>
-                            <select
-                              value={ri.operation || ""}
-                              onChange={e => updateItem(ri.id, "operation", e.target.value)}
-                              className="form-field form-field-sm"
-                              disabled={disabled}
-                            >
-                              <option value="">— none —</option>
-                              {wo.operations.filter(o => o.operation.trim()).map(o => (
-                                <option key={o.id} value={o.operation}>{o.operation}</option>
-                              ))}
-                            </select>
-                          </td>
-                          <td>
-                            <input type="text" value={ri.source_warehouse}
-                              onChange={e => updateItem(ri.id, "source_warehouse", e.target.value)}
-                              className="form-field form-field-sm" placeholder="e.g. Raw Material Store" disabled={disabled} />
-                          </td>
-                          <td>
-                            <div className="input-group">
-                              <DigitInput value={ri.required_qty}
-                                onChange={v => updateItem(ri.id, "required_qty", v)} disabled={disabled} />
-                            </div>
-                          </td>
-                          <td style={{ fontWeight: 600, color: bomConstraint?.shortfall ? "#b91c1c" : "#166534", whiteSpace: "nowrap" }}>
-                            {bomConstraint ? bomConstraint.available : "—"}
-                            {bomConstraint?.shortfall && <FaExclamationTriangle style={{ marginLeft: 4 }} title="Required qty exceeds what's in stock" />}
-                          </td>
-                          <td>
-                            <input type="text" value={ri.uom}
-                              onChange={e => updateItem(ri.id, "uom", e.target.value)}
-                              className="form-field form-field-sm" placeholder="Nos" disabled={disabled} />
-                          </td>
-                          <td>
-                            <div className="input-group">
-                              <DigitInput value={ri.rate || 0}
-                                onChange={v => updateItem(ri.id, "rate", v)} disabled={disabled} />
-                            </div>
-                          </td>
-                          <td>
-                            <div className="input-group">
-                              <DigitInput value={ri.amount || 0}
-                                onChange={v => updateItem(ri.id, "amount", v)} disabled={disabled} />
-                            </div>
-                          </td>
-                        
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="wof-divider" />
-
-              {/* ── Cost Summary Card ── */}
-              <div className="wof-cost-summary">
-                <div className="wof-section-title"> Cost Summary</div>
-
-                <div className="cost-summary-grid">
-                  <div className="cost-card material">
-                    <div className="cost-label">
-                      <span className="label-icon">📦</span> Raw Material Cost
-                    </div>
-                    <div className="cost-value">₹ {totalRawMaterialCost.toFixed(2)}</div>
-                    <div className="cost-sub">
-                      {wo.required_items.filter(item => item.amount && item.amount > 0).length} items
-                    </div>
-                  </div>
-
-                  <div className="cost-card operation">
-                    <div className="cost-label">
-                      <span className="label-icon">⚙️</span> Operation Cost
-                    </div>
-                    <div className="cost-value">₹ {wo.planned_operating_cost.toFixed(2)}</div>
-                    <div className="cost-sub">
-                      {wo.operations.filter(op => op.operating_cost > 0).length} operations
-                    </div>
-                  </div>
-
-                  <div className="cost-card total">
-                    <div className="cost-label">
-                      <span className="label-icon">📊</span> Total Cost
-                    </div>
-                    <div className="cost-value">₹ {(totalRawMaterialCost + wo.planned_operating_cost).toFixed(2)}</div>
-                    <div className="cost-sub">
-                      Material + Operations
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="wof-divider" />
-
-              {/* ── Media Upload Section ── */}
-              <span className="wof-section-title">Media Attachments</span>
-              <div className="wof-media-upload">
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleMediaUpload}
-                  accept="image/*,video/*"
-                  multiple
-                  style={{ display: "none" }}
-                />
-                <button
-                  type="button"
-                  className="wof-media-btn"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploadingMedia || disabled}
-                >
-                  {uploadingMedia ? <FaSpinner className="spinning" /> : <FaImage />}
-                  {uploadingMedia ? "Uploading..." : "Upload Images/Videos"}
-                </button>
-                <span className="wof-hint">
-                  Upload product images, process videos, or inspection photos (optional).
-                  {!wo.id && " These will be uploaded once the Work Order is saved."}
-                </span>
-              </div>
-
-              {(pendingMedia.length > 0 || wo.media_files.length > 0) && (
-                <div className="wof-media-gallery">
-                  {pendingMedia.map((file) => (
-                    <div key={file.id} className="wof-media-item" style={{ position: "relative" }}>
-                      {file.type === "image" ? (
-                        <img src={file.url} alt={file.name} className="wof-media-preview" />
-                      ) : (
-                        <video src={file.url} className="wof-media-preview" controls />
-                      )}
-                      <span
-                        style={{
-                          position: "absolute",
-                          top: 4,
-                          left: 4,
-                          fontSize: 10,
-                          fontWeight: 600,
-                          background: "#fbbf24",
-                          color: "#78350f",
-                          padding: "1px 6px",
-                          borderRadius: 3,
-                        }}
-                      >
-                        Pending
-                      </span>
-                      <button
-                        type="button"
-                        className="wof-media-delete"
-                        onClick={() => removePendingMedia(file.id)}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                  {wo.media_files.map((file) => (
-                    <div key={file.id} className="wof-media-item">
-                      {file.type === "image" ? (
-                        <img src={file.url} alt={file.name} className="wof-media-preview" />
-                      ) : (
-                        <video src={file.url} className="wof-media-preview" controls />
-                      )}
-                      <button
-                        type="button"
-                        className="wof-media-delete"
-                        onClick={() => setWo(prev => ({
-                          ...prev,
-                          media_files: prev.media_files.filter(f => f.id !== file.id)
-                        }))}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-            </div>
-          )}
-
-          {/* ══════════ TAB 2: CONFIGURATION ══════════ */}
-          {activeTab === "configuration" && (
-            <div className="wof-card">
-              <span className="wof-section-title">Dates</span>
-
-              <div className="wof-grid-2" style={{ marginTop: 10 }}>
-                <div className="wof-field" data-field="planned_start_date">
-                  <DatePickerField
-                    label="Planned Start Date"
-                    value={wo.planned_start_date}
-                    onChange={v => set("planned_start_date", v)}
-                    required
-                    disabled={disabled}
-                    error={getFieldError("planned_start_date")}
-                  />
-                </div>
-
-                <div className="wof-field">
-                  <DatePickerField
-                    label="Actual Start Date"
-                    value={wo.actual_start_date}
-                    onChange={v => set("actual_start_date", v)}
-                    disabled={disabled}
-                  />
-                </div>
-                <div className="wof-field">
-                  <DatePickerField
-                    label="Actual End Date"
-                    value={wo.actual_end_date}
-                    onChange={v => set("actual_end_date", v)}
-                    disabled={disabled}
-                    min={wo.actual_start_date}
-                  />
-                </div>
-              </div>
-
-              {/* ── Company Field ── */}
-              <div className="wof-divider" />
-              <span className="wof-section-title">Company Details</span>
-              <div className="wof-grid-2" style={{ marginTop: 10 }}>
-                <div className="wof-field" data-field="company">
-                  <label className="wof-label">Company <span className="wof-required">*</span></label>
-                  <input
-                    type="text"
-                    value={wo.company}
-                    onChange={e => set("company", e.target.value)}
-                    className="form-field"
-                    placeholder="Enter company name"
-                    disabled={disabled}
-                  />
-                  {hasFieldError("company") && (
-                    <div style={{ color: '#dc2626', fontSize: '13px', fontWeight: '500', marginTop: '4px' }}>
-                      {getFieldError("company")}
-                    </div>
-                  )}
-                </div>
-                <div className="wof-field">
-                  <label className="wof-label">Stock UOM</label>
-                  <input
-                    type="text"
-                    value={wo.stock_uom}
-                    onChange={e => set("stock_uom", e.target.value)}
-                    className="form-field"
-                    placeholder="e.g. Nos"
-                    disabled={disabled}
-                  />
-                </div>
-              </div>
-
-              {/* ── Transfer Material Against ── */}
-              <div className="wof-divider" />
-              <span className="wof-section-title">Transfer Settings</span>
-              <div className="wof-grid-2" style={{ marginTop: 10 }}>
-                <div className="wof-field">
-                  <label className="wof-label">Transfer Material Against</label>
-                  <select
-                    value={wo.transfer_material_against}
-                    onChange={e => set("transfer_material_against", e.target.value as "Work Order" | "Job Card")}
-                    className="form-field"
-                    disabled={disabled}
-                  >
-                    <option value="Work Order">Work Order</option>
-                    <option value="Job Card">Job Card</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ══════════ TAB 4: TOTAL PRODUCED ══════════ */}
-          {activeTab === "total_produced" && (
-            <div className="wof-card">
-              <span className="wof-section-title">Production Progress</span>
-              
-              {/* Progress bar for items produced using job card data */}
-              <div className="wof-progress-block" style={{ marginTop: 16 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>
-                    Items Produced
-                  </span>
-                  <span style={{ fontSize: 13, color: "#6b7280" }}>
-                    {completionSummary?.totalCompletedQty || wo.manufactured_qty || 0} / {wo.qty_to_manufacture} {wo.stock_uom}
-                  </span>
-                </div>
-                <div className="wof-progress-bar">
-                  <div 
-                    className="wof-progress-fill"
-                    style={{ 
-                      width: `${wo.qty_to_manufacture > 0 
-                        ? Math.min(100, Math.max(0, ((completionSummary?.totalCompletedQty || wo.manufactured_qty || 0) / wo.qty_to_manufacture) * 100)) 
-                        : 0}%` 
-                    }} 
-                  />
-                </div>
-                <span className="wof-progress-label">
-                  {wo.qty_to_manufacture > 0 
-                    ? `${Math.round(((completionSummary?.totalCompletedQty || wo.manufactured_qty || 0) / wo.qty_to_manufacture) * 100)}% complete` 
-                    : "0% complete"}
-                </span>
-              </div>
-
-              {/* Progress bar for operations */}
-              <div className="wof-progress-block" style={{ marginTop: 16 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>
-                    Operations Completed
-                  </span>
-                  <span style={{ fontSize: 13, color: "#6b7280" }}>
-                    {wo.completed_operations.length} / {wo.operations.length}
-                  </span>
-                </div>
-                <div className="wof-progress-bar">
-                  <div 
-                    className="wof-progress-fill"
-                    style={{ 
-                      width: wo.operations.length > 0 
-                        ? `${(wo.completed_operations.length / wo.operations.length) * 100}%` 
-                        : "0%" 
-                    }} 
-                  />
-                </div>
-                <span className="wof-progress-label">
-                  Completed Operations: <strong>{wo.completed_operations.join(", ") || "None"}</strong>
-                </span>
-              </div>
-
-              <div className="wof-divider" />
-
-              {/* Job Card Production Summary - Now shows data from API */}
-              <span className="wof-section-title">Job Card Production Summary</span>
-              
-              {completionSummary && (completionSummary.totalCompletedQty !== undefined && (completionSummary.totalCompletedQty > 0 || (completionSummary.processLossQty ?? 0) > 0)) ? (
-                <>
-                  <div style={{ display: "flex", gap: 16, marginTop: 16, marginBottom: 16 }}>
-                    <div style={{ 
-                      flex: 1, 
-                      background: "linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)", 
-                      border: "1px solid #86efac", 
-                      borderRadius: 12, 
-                      padding: 20,
-                      boxShadow: "0 2px 4px rgba(0,0,0,0.05)"
-                    }}>
-                      <div style={{ 
-                        display: "flex", 
-                        alignItems: "center", 
-                        gap: 8, 
-                        marginBottom: 8 
-                      }}>
-                        <FaCheckCircle style={{ color: "#16a34a", fontSize: 18 }} />
-                        <span style={{ fontSize: 13, fontWeight: 600, color: "#166534" }}>
-                          End Product
-                        </span>
-                      </div>
-                      <div style={{ fontSize: 32, fontWeight: 700, color: "#166534", marginBottom: 4 }}>
-                        {completionSummary.totalCompletedQty}
-                      </div>
-                      <div style={{ fontSize: 12, color: "#15803d" }}>
-                        {wo.stock_uom} completed from job cards
-                      </div>
-                    </div>
-
-                    <div style={{ 
-                      flex: 1, 
-                      background: "linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)", 
-                      border: "1px solid #fca5a5", 
-                      borderRadius: 12, 
-                      padding: 20,
-                      boxShadow: "0 2px 4px rgba(0,0,0,0.05)"
-                    }}>
-                      <div style={{ 
-                        display: "flex", 
-                        alignItems: "center", 
-                        gap: 8, 
-                        marginBottom: 8 
-                      }}>
-                        <FaExclamationTriangle style={{ color: "#dc2626", fontSize: 18 }} />
-                        <span style={{ fontSize: 13, fontWeight: 600, color: "#991b1b" }}>
-                          Scrap / Loss
-                        </span>
-                      </div>
-                      <div style={{ fontSize: 32, fontWeight: 700, color: "#991b1b", marginBottom: 4 }}>
-                        {completionSummary.processLossQty ?? 0}
-                      </div>
-                      <div style={{ fontSize: 12, color: "#b91c1c" }}>
-                        {wo.qty_to_manufacture > 0 
-                          ? `${(((completionSummary.processLossQty ?? 0) / wo.qty_to_manufacture) * 100).toFixed(1)}% of target qty` 
-                          : "0% of target qty"}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Efficiency metrics */}
-                  <div style={{ 
-                    background: "#f8fafc", 
-                    border: "1px solid #e2e8f0", 
-                    borderRadius: 8, 
-                    padding: 16,
-                    marginTop: 8
-                  }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 12 }}>
-                      Production Efficiency
-                    </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                      <div>
-                        <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>
-                          Yield Rate
-                        </div>
-                        <div style={{ fontSize: 18, fontWeight: 600, color: "#059669" }}>
-                          {wo.qty_to_manufacture > 0 
-                            ? `${(((completionSummary.totalCompletedQty) / wo.qty_to_manufacture) * 100).toFixed(1)}%` 
-                            : "0%"}
-                        </div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>
-                          Scrap Rate
-                        </div>
-                        <div style={{ fontSize: 18, fontWeight: 600, color: "#dc2626" }}>
-                          {wo.qty_to_manufacture > 0 
-                            ? `${(((completionSummary.processLossQty ?? 0) / wo.qty_to_manufacture) * 100).toFixed(1)}%` 
-                            : "0%"}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div style={{ 
-                  marginTop: 16, 
-                  padding: 32, 
-                  textAlign: "center", 
-                  color: "#64748b",
-                  background: "#f8fafc",
-                  border: "2px dashed #e2e8f0",
-                  borderRadius: 8
-                }}>
-                  <FaBoxOpen style={{ fontSize: 32, marginBottom: 12, opacity: 0.3 }} />
-                  <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>
-                    No production data available yet
-                  </div>
-                  <div style={{ fontSize: 12 }}>
-                    Job card completion data will appear here once production starts
-                  </div>
-                  {wo.status === "Completed" && (
                     <button
                       type="button"
-                      className="submit-btn"
-                      onClick={viewCompletionSummary}
-                      style={{ marginTop: 12 }}
+                      className="wof-media-btn"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploadingMedia || disabled}
                     >
-                      <FaCheckCircle style={{ marginRight: 6 }} />
-                      Load Completion Data
+                      {uploadingMedia ? <FaSpinner className="wof-spinning" /> : <FaImage />}
+                      {uploadingMedia ? "Uploading..." : "Upload Images/Videos"}
                     </button>
+                    <span className="wof-hint">
+                      Upload product images, process videos, or inspection photos (optional).
+                      {!wo.id && " These will be uploaded once the Work Order is saved."}
+                    </span>
+                  </div>
+
+                  {(pendingMedia.length > 0 || wo.media_files.length > 0) && (
+                    <div className="wof-media-gallery">
+                      {pendingMedia.map((file) => (
+                        <div key={file.id} className="wof-media-item">
+                          {file.type === "image" ? (
+                            <img src={file.url} alt={file.name} className="wof-media-preview" />
+                          ) : (
+                            <video src={file.url} className="wof-media-preview" controls />
+                          )}
+                          <span style={{
+                            position: "absolute", top: 4, left: 4, fontSize: 10, fontWeight: 600,
+                            background: "#fbbf24", color: "#78350f", padding: "1px 6px", borderRadius: 3,
+                          }}>Pending</span>
+                          <button type="button" className="wof-media-delete" onClick={() => removePendingMedia(file.id)}>×</button>
+                        </div>
+                      ))}
+                      {wo.media_files.map((file) => (
+                        <div key={file.id} className="wof-media-item">
+                          {file.type === "image" ? (
+                            <img src={file.url} alt={file.name} className="wof-media-preview" />
+                          ) : (
+                            <video src={file.url} className="wof-media-preview" controls />
+                          )}
+                          <button
+                            type="button"
+                            className="wof-media-delete"
+                            onClick={() => setWo(prev => ({ ...prev, media_files: prev.media_files.filter(f => f.id !== file.id) }))}
+                          >×</button>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
               )}
 
-             
-            </div>
-          )}
+              {/* ══════════ TAB: CONFIGURATION ══════════ */}
+              {activeTab === "configuration" && (
+                <div className="wof-card">
+                  <div className="wof-card-header"><FaCogs /> Configuration</div>
 
-          {/* Footer */}
-          <div className="wof-footer">
-            <button type="button" className="cancel-btn" onClick={() => navigate("/work-order")} disabled={submitting}>
-              Cancel
-            </button>
-            <button type="submit" className="submit-btn" disabled={submitting}>
-              {submitting && <FaSpinner className="spinning" />}
-              <FaSave size={12} />
-              {isNew ? "Create" : "Save"}
-            </button>
+                  <span className="wof-section-title">Dates</span>
+                  <div className="wof-grid-2" style={{ marginTop: 10 }}>
+                    <div className="wof-field" data-field="planned_start_date">
+                      <DatePickerField
+                        label="Planned Start Date"
+                        value={wo.planned_start_date}
+                        onChange={v => set("planned_start_date", v)}
+                        required
+                        disabled={disabled}
+                        error={getFieldError("planned_start_date")}
+                      />
+                    </div>
+                    <div className="wof-field">
+                      <DatePickerField
+                        label="Actual Start Date"
+                        value={wo.actual_start_date}
+                        onChange={v => set("actual_start_date", v)}
+                        disabled={disabled}
+                      />
+                    </div>
+                    <div className="wof-field">
+                      <DatePickerField
+                        label="Actual End Date"
+                        value={wo.actual_end_date}
+                        onChange={v => set("actual_end_date", v)}
+                        disabled={disabled}
+                        min={wo.actual_start_date}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="wof-divider" />
+                  <span className="wof-section-title"><FaBuilding /> Company Details</span>
+                  <div className="wof-grid-2" style={{ marginTop: 10 }}>
+                    <div className="wof-field" data-field="company">
+                      <label className="wof-label">Company <span className="wof-required">*</span></label>
+                      <input
+                        type="text"
+                        value={wo.company}
+                        onChange={e => set("company", e.target.value)}
+                        className="form-field"
+                        placeholder="Enter company name"
+                        disabled={disabled}
+                      />
+                      {hasFieldError("company") && (
+                        <div style={{ color: '#dc2626', fontSize: '13px', fontWeight: '500', marginTop: '4px' }}>
+                          {getFieldError("company")}
+                        </div>
+                      )}
+                    </div>
+                    <div className="wof-field">
+                      <label className="wof-label">Stock UOM</label>
+                      <input
+                        type="text"
+                        value={wo.stock_uom}
+                        onChange={e => set("stock_uom", e.target.value)}
+                        className="form-field"
+                        placeholder="e.g. Nos"
+                        disabled={disabled}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="wof-divider" />
+                  <span className="wof-section-title">Transfer Settings</span>
+                  <div className="wof-grid-2" style={{ marginTop: 10 }}>
+                    <div className="wof-field">
+                      <label className="wof-label">Transfer Material Against</label>
+                      <select
+                        value={wo.transfer_material_against}
+                        onChange={e => set("transfer_material_against", e.target.value as "Work Order" | "Job Card")}
+                        className="form-field"
+                        disabled={disabled}
+                      >
+                        <option value="Work Order">Work Order</option>
+                        <option value="Job Card">Job Card</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ══════════ TAB: TOTAL PRODUCED ══════════ */}
+              {activeTab === "total_produced" && (
+                <div className="wof-card">
+                  <div className="wof-card-header"><FaCheckCircle /> Total Produced</div>
+
+                  <span className="wof-section-title">Production Progress</span>
+                  <div className="wof-progress-block" style={{ marginTop: 12 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-main)" }}>Items Produced</span>
+                      <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>
+                        {wo.qty_to_manufacture  || 0} / {wo.qty_to_manufacture} {wo.stock_uom}
+                      </span>
+                    </div>
+                    <div className="wof-progress-bar">
+                      <div
+                        className="wof-progress-fill"
+                        style={{
+                          width: `${wo.qty_to_manufacture > 0
+                            ? Math.min(100, Math.max(0, ((completionSummary?.totalCompletedQty || wo.manufactured_qty || 0) / wo.qty_to_manufacture) * 100))
+                            : 0}%`
+                        }}
+                      />
+                    </div>
+                    <span className="wof-progress-label">
+                      {wo.qty_to_manufacture > 0
+                        ? `${Math.round(((completionSummary?.totalCompletedQty || wo.manufactured_qty || 0) / wo.qty_to_manufacture) * 100)}% complete`
+                        : "0% complete"}
+                    </span>
+                  </div>
+
+                  <div className="wof-progress-block" style={{ marginTop: 16 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-main)" }}>Operations Completed</span>
+                      <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>
+                        {wo.completed_operations.length} / {wo.operations.length}
+                      </span>
+                    </div>
+                    <div className="wof-progress-bar">
+                      <div
+                        className="wof-progress-fill"
+                        style={{ width: wo.operations.length > 0 ? `${(wo.completed_operations.length / wo.operations.length) * 100}%` : "0%" }}
+                      />
+                    </div>
+                    <span className="wof-progress-label">
+                      Completed Operations: <strong>{wo.completed_operations.join(", ") || "None"}</strong>
+                    </span>
+                  </div>
+
+                  <div className="wof-divider" />
+                  <span className="wof-section-title"><FaClipboardList /> Job Card Production Summary</span>
+
+                  {completionSummary && (completionSummary.totalCompletedQty !== undefined && (completionSummary.totalCompletedQty > 0 || (completionSummary.processLossQty ?? 0) > 0)) ? (
+                    <>
+                      <div style={{ display: "flex", gap: 16, marginTop: 16, marginBottom: 16 }}>
+                        <div style={{ flex: 1, background: "linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)", border: "1px solid #86efac", borderRadius: 12, padding: 20 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                            <FaCheckCircle style={{ color: "#16a34a", fontSize: 18 }} />
+                            <span style={{ fontSize: 13, fontWeight: 600, color: "#166534" }}>End Product</span>
+                          </div>
+                          <div style={{ fontSize: 32, fontWeight: 700, color: "#166534", marginBottom: 4 }}>
+                            {completionSummary.totalCompletedQty}
+                          </div>
+                          <div style={{ fontSize: 12, color: "#15803d" }}>{wo.stock_uom} completed from job cards</div>
+                        </div>
+
+                        <div style={{ flex: 1, background: "linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)", border: "1px solid #fca5a5", borderRadius: 12, padding: 20 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                            <FaExclamationTriangle style={{ color: "#dc2626", fontSize: 18 }} />
+                            <span style={{ fontSize: 13, fontWeight: 600, color: "#991b1b" }}>Scrap / Loss</span>
+                          </div>
+                          <div style={{ fontSize: 32, fontWeight: 700, color: "#991b1b", marginBottom: 4 }}>
+                            {completionSummary.processLossQty ?? 0}
+                          </div>
+                          <div style={{ fontSize: 12, color: "#b91c1c" }}>
+                            {wo.qty_to_manufacture > 0
+                              ? `${(((completionSummary.processLossQty ?? 0) / wo.qty_to_manufacture) * 100).toFixed(1)}% of target qty`
+                              : "0% of target qty"}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: 16 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-main)", marginBottom: 12 }}>Production Efficiency</div>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                          <div>
+                            <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 4 }}>Yield Rate</div>
+                            <div style={{ fontSize: 18, fontWeight: 600, color: "#059669" }}>
+                              {wo.qty_to_manufacture > 0
+                                ? `${(((completionSummary.totalCompletedQty) / wo.qty_to_manufacture) * 100).toFixed(1)}%`
+                                : "0%"}
+                            </div>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 4 }}>Scrap Rate</div>
+                            <div style={{ fontSize: 18, fontWeight: 600, color: "#dc2626" }}>
+                              {wo.qty_to_manufacture > 0
+                                ? `${(((completionSummary.processLossQty ?? 0) / wo.qty_to_manufacture) * 100).toFixed(1)}%`
+                                : "0%"}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{ marginTop: 16, padding: 32, textAlign: "center", color: "var(--text-secondary)", background: "var(--bg-muted)", border: "2px dashed var(--border-color)", borderRadius: 8 }}>
+                      <FaBoxOpen style={{ fontSize: 32, marginBottom: 12, opacity: 0.3 }} />
+                      <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>No production data available yet</div>
+                      <div style={{ fontSize: 12 }}>Job card completion data will appear here once production starts</div>
+                      {wo.status === "Completed" && (
+                        <button type="button" className="wof-btn-primary" onClick={viewCompletionSummary} style={{ marginTop: 12, display: "inline-flex" }}>
+                          <FaCheckCircle style={{ marginRight: 6 }} /> Load Completion Data
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* ══════════ SIDEBAR ══════════ */}
+            <aside className="wof-sidebar">
+              <div className="wof-sidebar-card">
+                <div className="wof-sidebar-section-title"><ActiveTabIcon size={12} /> Status</div>
+                <div className="wof-status-selector-vertical">
+                  {STATUS_OPTIONS.map(s => (
+                    <button key={s} type="button"
+                      className={`wof-status-btn${wo.status === s ? " wof-status-btn-active" : ""}`}
+                      onClick={() => {
+                        const alreadyCompleted = wo.status === "Completed";
+                        set("status", s);
+                        if (s === "Completed") {
+                          if (alreadyCompleted) {
+                            viewCompletionSummary();
+                          } else {
+                            handleWorkOrderCompletion();
+                          }
+                        }
+                      }}
+                      disabled={disabled}>
+                      <span className={`wof-status-dot ${STATUS_CLASS[s]}`} />
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="wof-sidebar-card">
+                <div className="wof-sidebar-section-title"><FaMoneyBillWave size={12} /> Cost & Quantity</div>
+                <div className="wof-sidebar-stats">
+                  <div className="wof-sidebar-stat-row">
+                    <span>Qty To Manufacture</span>
+                    <span>{wo.qty_to_manufacture} {wo.stock_uom}</span>
+                  </div>
+                  <div className="wof-sidebar-stat-row">
+                    <span>Manufactured</span>
+                    <span>{wo.manufactured_qty} {wo.stock_uom}</span>
+                  </div>
+                  <div className="wof-sidebar-stat-row">
+  <span>Lead Time</span>
+  <span>{formatLeadTime(wo.lead_time_mins)}</span>
+</div>
+                  {wo.type === "internal" && (
+                    <div className="wof-sidebar-stat-row">
+                      <span>Material Cost</span>
+                      <span>₹{totalRawMaterialCost.toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div className="wof-sidebar-stat-row">
+                    <span>Operating Cost</span>
+                    <span>₹{wo.planned_operating_cost.toFixed(2)}</span>
+                  </div>
+                  <div className="wof-sidebar-stat-row total">
+                    <span>Total Cost</span>
+                    <span>₹{(totalRawMaterialCost + wo.planned_operating_cost).toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {wo.type === "external" && (
+                <div className="wof-sidebar-card">
+                  <div className="wof-sidebar-section-title"><FaTruck size={12} /> GRN</div>
+                  {wo.selected_grn ? (
+                    <div className="wof-sidebar-stats">
+                      <div className="wof-sidebar-stat-row"><span>GRN #</span><span>{wo.selected_grn.grn_number}</span></div>
+                      <div className="wof-sidebar-stat-row"><span>Customer</span><span>{wo.customer_name || "N/A"}</span></div>
+                    </div>
+                  ) : (
+                    <div className="wof-sidebar-empty">No GRN selected yet</div>
+                  )}
+                </div>
+              )}
+
+              <div className="wof-sidebar-card">
+                <div className="wof-sidebar-actions">
+                  <button type="button" className="wof-btn-secondary wof-btn-block" onClick={() => navigate("/work-order")} disabled={submitting}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="wof-btn-primary wof-btn-block" disabled={submitting}>
+                    {submitting && <FaSpinner className="wof-spinning" />}
+                    <FaSave size={12} />
+                    {isNew ? "Create Work Order" : "Save Work Order"}
+                  </button>
+                </div>
+              </div>
+            </aside>
+
           </div>
         </form>
       </div>
@@ -4255,7 +4057,7 @@ try {
             </div>
             <div className="modal-body">
               {grnLoading ? (
-                <div className="grn-loading"><FaSpinner className="spinning" /> Loading GRNs...</div>
+                <div className="grn-loading"><FaSpinner className="wof-spinning" /> Loading GRNs...</div>
               ) : grnError ? (
                 <div className="grn-empty" style={{ color: "#b91c1c" }}>
                   <FaExclamationTriangle style={{ marginRight: 6 }} />
@@ -4290,7 +4092,7 @@ try {
               )}
             </div>
             <div className="modal-footer">
-              <button className="btn-cancel" onClick={() => setShowGrnModal(false)}>Close</button>
+              <button className="wof-btn-secondary" onClick={() => setShowGrnModal(false)}>Close</button>
             </div>
           </div>
         </div>
@@ -4298,5 +4100,3 @@ try {
     </div>
   );
 }
-
-

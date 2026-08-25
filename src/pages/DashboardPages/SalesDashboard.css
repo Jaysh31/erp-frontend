@@ -19,7 +19,23 @@
 .order-info {
   flex: 1;
 }
+.status-badge {
+  padding: 5px 10px;
+  border-radius: 12px;
+  color: white;
+}
 
+.status-badge.completed {
+  background-color: green;
+}
+
+.status-badge.pending {
+  background-color: orange;
+}
+
+.status-badge.cancelled {
+  background-color: red;
+}
 .order-customer {
   font-size: 14px;
   font-weight: 500;

@@ -1,0 +1,340 @@
+/* .ibu-page {
+    padding: 20px 32px;
+    max-width: 18000px;
+    margin: 0 auto;
+    width: 100%;
+    box-sizing: border-box;
+  } */
+  
+  .ibu-topbar {
+    margin-bottom: 16px;
+  }
+  
+  .ibu-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-secondary, #6b7280);
+  }
+  
+  .ibu-back-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-secondary, #6b7280);
+    font-size: 13px;
+    padding: 4px 0;
+  }
+  
+  .ibu-bc-current {
+    color: var(--text-primary, #111827);
+    font-weight: 600;
+  }
+  
+  .ibu-body {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  
+  .ibu-card {
+    background: var(--card-bg, #fff);
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: 10px;
+    padding: 20px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  
+  .ibu-card-head h3 {
+    margin: 0 0 4px;
+    font-size: 15px;
+    font-weight: 600;
+  }
+  
+  .ibu-card-head h4 {
+    margin: 0 0 8px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  
+  .ibu-card-head p {
+    margin: 0 0 12px;
+    font-size: 13px;
+    color: var(--text-secondary, #6b7280);
+  }
+  
+  .ibu-actions-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+  
+  .ibu-btn-primary,
+  .ibu-btn-secondary,
+  .ibu-btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 8px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    border: 1px solid transparent;
+  }
+  
+  .ibu-btn-primary {
+    background: var(--primary-color, #2563eb);
+    color: #fff;
+  }
+  .ibu-btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  
+  .ibu-btn-secondary {
+    background: var(--card-bg, #fff);
+    border-color: var(--border-color, #e5e7eb);
+    color: var(--text-primary, #111827);
+  }
+  
+  .ibu-btn-ghost {
+    background: none;
+    color: var(--text-secondary, #6b7280);
+  }
+  .ibu-btn-ghost:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  
+  .ibu-link-btn {
+    background: none;
+    border: none;
+    color: var(--primary-color, #2563eb);
+    cursor: pointer;
+    font-weight: 600;
+    padding: 0;
+  }
+  
+  .ibu-dropzone {
+    border: 2px dashed var(--border-color, #e5e7eb);
+    border-radius: 10px;
+    padding: 30px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    cursor: pointer;
+    color: var(--text-secondary, #6b7280);
+    text-align: center;
+  }
+  .ibu-dropzone:hover {
+    border-color: var(--primary-color, #2563eb);
+  }
+  
+  .ibu-dropzone-bold {
+    font-weight: 600;
+    color: var(--text-primary, #111827);
+    margin: 4px 0 0;
+  }
+  
+  .ibu-dropzone-hint {
+    font-size: 12px;
+    margin: 0;
+  }
+  
+  .ibu-file-input {
+    display: none;
+  }
+  
+  .ibu-spin {
+    animation: ibu-spin 0.8s linear infinite;
+  }
+  @keyframes ibu-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  
+  .ibu-table-wrapper {
+    overflow-x: auto;
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: 8px;
+    max-height: 420px;
+    overflow-y: auto;
+    width: 100%;
+  }
+  
+  .ibu-table {
+    width: 100%;
+    min-width: 1400px;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  
+  .ibu-table th {
+    text-align: left;
+    padding: 8px 10px;
+    background: var(--bg-secondary, #f9fafb);
+    border-bottom: 1px solid var(--border-color, #e5e7eb);
+    position: sticky;
+    top: 0;
+    white-space: nowrap;
+  }
+  
+  .ibu-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border-color, #f0f0f0);
+    white-space: nowrap;
+  }
+  
+  .ibu-row-invalid {
+    background: rgba(220, 38, 38, 0.04);
+  }
+  
+  .ibu-more-note {
+    font-size: 12px;
+    color: var(--text-secondary, #6b7280);
+    margin: 8px 2px 0;
+  }
+  
+  .ibu-stat-ok {
+    color: #16a34a;
+    font-weight: 600;
+  }
+  
+  .ibu-stat-bad {
+    color: #dc2626;
+    font-weight: 600;
+  }
+  
+  .ibu-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 999px;
+  }
+  
+  .ibu-badge-ok {
+    background: rgba(22, 163, 74, 0.1);
+    color: #16a34a;
+  }
+  
+  .ibu-badge-bad {
+    background: rgba(220, 38, 38, 0.1);
+    color: #dc2626;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  
+  .ibu-progress-block {
+    margin-bottom: 14px;
+  }
+  
+  .ibu-progress-bar-track {
+    width: 100%;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--bg-secondary, #f3f4f6);
+    overflow: hidden;
+  }
+  
+  .ibu-progress-bar-fill {
+    height: 100%;
+    background: var(--primary-color, #2563eb);
+    transition: width 0.2s ease;
+  }
+  
+  .ibu-progress-stats {
+    display: flex;
+    gap: 14px;
+    font-size: 12px;
+    margin-top: 6px;
+    color: var(--text-secondary, #6b7280);
+  }
+  
+  .ibu-failures-block {
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-color, #e5e7eb);
+  }
+  
+  .ibu-success-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #16a34a;
+    font-size: 13px;
+    font-weight: 500;
+    margin-top: 12px;
+  }
+  
+  .ibu-badge-btn {
+    cursor: pointer;
+    border: none;
+    font: inherit;
+  }
+  
+  .ibu-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 24px;
+  }
+  
+  .ibu-modal {
+    background: #fff;
+    border-radius: 8px;
+    width: 100%;
+    max-width: 900px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+  }
+  
+  .ibu-modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .ibu-modal-head h4 {
+    margin: 0;
+    font-size: 15px;
+  }
+  
+  .ibu-modal-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #888;
+    padding: 4px;
+  }
+  
+  .ibu-modal-close:hover {
+    color: #333;
+  }
+  
+  .ibu-modal-body {
+    padding: 12px 20px 20px;
+    overflow-y: auto;
+  }

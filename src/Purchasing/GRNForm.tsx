@@ -50,29 +50,17 @@ function DigitInput({
   max
 }: DigitInputProps) {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let inputValue = e.target.value;
-    
-    if (allowDecimal) {
-      // Allow digits and decimal point
-      const decimalRegex = /^[0-9]*\.?[0-9]*$/;
-      if (decimalRegex.test(inputValue) || inputValue === '') {
-        // Check max length
-        if (inputValue.replace('.', '').length <= maxLength) {
-          onChange(inputValue);
-        }
-      }
-    } else {
-      // Only allow digits
-      const digitsOnly = inputValue.replace(/\D/g, '');
-      if (digitsOnly.length <= maxLength) {
-        onChange(digitsOnly);
-      }
-    }
-  };
 
-  const handleBlur = () => {
-    if (value) {
-      let numValue = parseFloat(value);
+    const raw = e.target.value;
+    if (raw === '') {
+      setDisplayValue('');
+      onChange(0);
+      return;
+    }
+    const digits = raw.replace(/[^0-9]/g, '');
+    if (digits.length <= maxLength) {
+      setDisplayValue(digits);
+      const numValue = parseInt(digits, 10);
       if (!isNaN(numValue)) {
         if (min !== undefined && numValue < min) {
           onChange(String(min));
@@ -81,6 +69,20 @@ function DigitInput({
           onChange(String(max));
         }
       }
+    }
+  };
+
+
+  const handleBlur = () => {
+    if (displayValue === '') {
+      onChange(0);
+      setDisplayValue('0');
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      e.preventDefault();
     }
   };
 

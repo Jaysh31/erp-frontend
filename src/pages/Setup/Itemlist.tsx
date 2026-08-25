@@ -12,6 +12,7 @@ import {
   FaEdit,
   FaTrash,
   FaCalendarAlt,
+  FaFileExcel,
 } from 'react-icons/fa';
 import "./ItemList.css";
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
@@ -450,6 +451,10 @@ export default function ItemList() {
 
   const handleAddItem = () => {
     navigate("/item/new");
+  };
+
+  const handleBulkUpload = () => {
+    navigate("/item-bulk-upload");
   };
 
   return (
@@ -952,6 +957,10 @@ export default function ItemList() {
             </svg>
             Created On
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          </button>
+          <button className="itl-btn-secondary" onClick={handleBulkUpload}>
+            <FaFileExcel size={13} />
+            Bulk Upload
           </button>
           <button className="itl-btn-primary" onClick={handleAddItem}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">

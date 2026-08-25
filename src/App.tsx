@@ -108,6 +108,8 @@ import { FormStateProvider } from "./context/FormStateContext";
 
 import ProformaInvoice from "./pages/Sales/ProformaInvoice";
 import CreateProformaInvoice from "./pages/Sales/CreateProformaInvoice";
+import ItemBulkUpload from "./pages/Setup/Itembulkupload";
+import RolePermissions from "./pages/UserManagement/RoleForm";
 
 
 function App() {
@@ -118,6 +120,8 @@ function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<LoginPage />} />
+            <Route path="/Login" element={<LoginPage />} />
+
             <Route path="/home" element={<HomePage />} />
 
             <Route element={<MainLayout />}>
@@ -133,7 +137,7 @@ function App() {
               <Route path="/price-list" element={<PriceList />} />
               <Route path="/item-price" element={<ItemPrice />} />
               <Route path="/pricing-rule" element={<PricingRule />} />
-              <Route path="/coupon-codes" element={<CouponCode />} />
+              <Route path="/coupon-code" element={<CouponCode />} />
               <Route path="/supplier" element={<Supplier />} />
               <Route path="/supplier/:id" element={<AddSupplier />} />
               <Route path="/supplier/new" element={<AddSupplier />} />
@@ -197,7 +201,7 @@ function App() {
               <Route path="/price-list" element={<PriceList />} />
               <Route path="/item-price" element={<ItemPrice />} />
               <Route path="/pricing-rule" element={<PricingRule />} />
-              <Route path="/coupon-codes" element={<CouponCode />} />
+              <Route path="/coupon-code" element={<CouponCode />} />
               <Route path="/supplier" element={<Supplier />} />
               <Route path="/supplier/new" element={<AddSupplier />} />
               <Route path="/supplier-group" element={<SupplierGroup />} />
@@ -248,6 +252,7 @@ function App() {
 
 
               {/* Item Routes */}
+              <Route path="/item-bulk-upload" element={<ItemBulkUpload />} />
               <Route path="/item-list" element={<Itemlist />} />
               <Route path="/item/:id" element={<ItemForm />} />
               {/* <Route path="/item-attribute" element={<ItemAttributeList />} /> */}
@@ -288,7 +293,6 @@ function App() {
               <Route path="/work-order" element={<WorkOrderList />} />
               <Route path="/work-order/new" element={<WorkOrderForm />} />
               <Route path="/work-order/:id" element={<WorkOrderForm />} />
-
               {/* Brand Routes */}
               {/* <Route path="/brand" element={<BrandList />} />
               <Route path="/brand/new" element={<BrandForm />} />
@@ -335,9 +339,10 @@ function App() {
               <Route path="/user/roles/:id" element={<UserRoles />} />
 
               <Route path="/role" element={<RoleList />} />
-              <Route path="/role/new" element={<RoleForm />} />
-              <Route path="/role/:id" element={<RoleForm />} />
-              <Route path="/role/permissions/:roleId" element={<ModulePermissions />} />
+              <Route path="/role" element={<RoleList />} />
+<Route path="/role/:id" element={<RoleForm />} />
+<Route path="/role/permissions/:roleId" element={<ModulePermissions />} />
+<Route path="/role/permissions/:roleId" element={<RolePermissions />} />
 
               {/* UOM Routes */}
               <Route path="/uom" element={<UOMList />} />
@@ -354,6 +359,7 @@ function App() {
               {/* Quality Inspection */}
               <Route path="/quality-inspection" element={<QualityInspectionList />} />
               <Route path="/quality-inspection/new" element={<QualityInspectionForm />} />
+              <Route path="/quality-inspection/:id" element={<QualityInspectionForm />} />
 
               <Route path="/bank-details" element={<BankDetailsForm />} />
               <Route path="/bom" element={<BOMPage />} />

@@ -1,3 +1,4 @@
+// PurchaseInvoiceForm.tsx - Modified with is_create_from_grn and grn_ids
 import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   FaSave, FaSpinner, FaArrowLeft,
@@ -156,8 +157,19 @@ const statusOptions = ['Draft', 'Submitted', 'Partially Paid', 'Fully Paid', 'Ov
 const billSourceOptions = ['GRN', 'Without GRN'] as const;
 type BillSource = typeof billSourceOptions[number];
 
-// Small helper: generates a unique, stable id for a new row
+
 const makeRowId = () => `row-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
+const getItemTaxTemplate = (taxRate: number): string => {
+  const rate = taxRate || 0;
+  return `GST${rate} ${rate}%`;
+};
+
+const parseTaxRateFromTemplate = (template: string | null | undefined): number => {
+  if (!template) return 0;
+  const match = template.match(/(\d+(?:\.\d+)?)\s*%/);
+  return match ? parseFloat(match[1]) : 0;
+};
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -186,6 +198,9 @@ export default function PurchaseInvoiceForm() {
     sgst: 0,
     gstTotal: 0,
     grandTotal: 0,
+    // NEW: GRN related fields
+    isCreateFromGrn: 0, // 0 or 1
+    grnIds: [] as number[],
   });
 
   const [items, setItems] = useState<InvoiceItem[]>([]);
@@ -266,7 +281,7 @@ export default function PurchaseInvoiceForm() {
 
   // ── Success modal state ─────────────────────────────────────────────────────
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [savedInvoiceNumber, setSavedInvoiceNumber] = useState<string>('');
+  const [, setSavedInvoiceNumber] = useState<string>('');
 
   // ─── Handle Add New Supplier ──────────────────────────────────────────────
   const handleAddNewSupplier = async () => {
@@ -585,6 +600,12 @@ export default function PurchaseInvoiceForm() {
     setItems([]);
     setGrnSearch('');
     setPoSearch('');
+    // Reset GRN fields in formData
+    setFormData(prev => ({
+      ...prev,
+      isCreateFromGrn: 0,
+      grnIds: [],
+    }));
   };
 
   // ─── When supplier is selected ─────────────────────────────────────────────
@@ -615,6 +636,26 @@ export default function PurchaseInvoiceForm() {
       if (next.has(grnId)) next.delete(grnId); else next.add(grnId);
       return next;
     });
+    
+    // Update formData.grnIds to match selectedGRNIds
+    const updatedGrnIds = Array.from(selectedGRNIds);
+    if (selectedGRNIds.has(grnId)) {
+      // Removed - filter it out
+      const newGrnIds = updatedGrnIds.filter(id => id !== grnId);
+      setFormData(prev => ({
+        ...prev,
+        grnIds: newGrnIds,
+        isCreateFromGrn: newGrnIds.length > 0 ? 1 : 0,
+      }));
+    } else {
+      // Added - include it
+      const newGrnIds = [...updatedGrnIds, grnId];
+      setFormData(prev => ({
+        ...prev,
+        grnIds: newGrnIds,
+        isCreateFromGrn: 1,
+      }));
+    }
   };
 
   // ─── When a PO is selected (GRN mode) ──────────────────────────────────────
@@ -633,7 +674,17 @@ export default function PurchaseInvoiceForm() {
         toast.error('Failed to load PO details');
       }
       setLinkedGRNsForPO(grnSummaries || []);
-      setSelectedGRNIds(new Set((grnSummaries || []).map(g => g.id)));
+
+      // auto-include every GRN linked to this PO; user can uncheck any of them
+      const grnIds = (grnSummaries || []).map(g => g.id);
+      setSelectedGRNIds(new Set(grnIds));
+      // Update formData with GRN ids
+      setFormData(prev => ({
+        ...prev,
+        grnIds: grnIds,
+        isCreateFromGrn: grnIds.length > 0 ? 1 : 0,
+      }));
+ main
     } catch (err) {
       console.error('Error loading PO/GRN:', err);
       toast.error('Error loading PO data');
@@ -652,6 +703,12 @@ export default function PurchaseInvoiceForm() {
       if (poDetail) {
         setSelectedPO(poDetail);
         buildInvoiceItemsFromPOOnly(poDetail);
+        // No GRNs selected in this mode
+        setFormData(prev => ({
+          ...prev,
+          isCreateFromGrn: 0,
+          grnIds: [],
+        }));
       } else {
         toast.error('Failed to load PO details');
       }
@@ -705,7 +762,7 @@ export default function PurchaseInvoiceForm() {
       });
 
       const invoiceRows: InvoiceItem[] = (poDetail.items || []).map(pi => {
-        const rec = receivedMap[pi.id] || { qty: 0, grnNums: [], grnItemId: undefined };
+        const rec = receivedMap[pi.item_id] || { qty: 0, grnNums: [], grnItemId: undefined };
         const totalReceived = rec.qty;
         const alreadyBilledQty = pi.rate > 0 ? (pi.billed_amt || 0) / pi.rate : 0;
         const unbilledQty = Math.max(0, totalReceived - alreadyBilledQty);
@@ -899,6 +956,17 @@ export default function PurchaseInvoiceForm() {
       if (res.data?.success === 1) {
         const inv = res.data.data;
 
+
+        // ── NEW: Read is_create_from_grn and grn_ids from API ──
+        const isCreateFromGrn = inv.is_create_from_grn || 0;
+        const grnIds = inv.grn_ids || [];
+
+        // ── BILL SOURCE FIX: determine bill source from is_create_from_grn ──
+        const resolvedBillSource: BillSource = isCreateFromGrn === 1 ? 'GRN' : 'Without GRN';
+
+        const itemsFromApi: any[] = Array.isArray(inv.items) ? inv.items : [];
+
+
         setFormData(prev => ({
           ...prev,
           invoiceNumber: inv.name || '',
@@ -907,40 +975,79 @@ export default function PurchaseInvoiceForm() {
           billNo: inv.bill_no || '',
           billDate: inv.bill_date ? inv.bill_date.split('T')[0] : '',
           notes: inv.remarks || '',
-          billSource: 'Without GRN',
+          billSource: resolvedBillSource,
+          // NEW: Set GRN fields
+          isCreateFromGrn: isCreateFromGrn,
+          grnIds: grnIds,
         }));
 
+
+       // Restore selected GRN IDs
+if (grnIds.length > 0) {
+  setSelectedGRNIds(new Set(grnIds));
+
+  // Load GRN details for these IDs
+  const missingIds = grnIds.filter(
+    (gid: string | number) => !grnDetailCache[Number(gid)]
+  );
+
+  if (missingIds.length) {
+    const fetched = await Promise.all(
+      missingIds.map((gid: string | number) =>
+        fetchGRNDetail(Number(gid))
+      )
+    );
+
+    const nextCache = { ...grnDetailCache };
+
+    fetched.forEach((g) => {
+      if (g) nextCache[g.id] = g;
+    });
+
+    setGrnDetailCache(nextCache);
+  }
+}
+
+        // Supplier: resolved once the supplier list itself has loaded
         if (inv.supplier != null) {
           setPendingSupplierId(Number(inv.supplier));
         } else if (inv.supplier_name) {
           setSupplierSearch(inv.supplier_name);
         }
 
-        if (inv.items?.length) {
-          const rows: InvoiceItem[] = inv.items.map((it: any) => ({
-            id: makeRowId(),
-            db_item_id: it.id ? Number(it.id) : undefined,
-            po_item_id: it.po_detail || undefined,
-            item_id: it.item_id || undefined,
-            item_code: it.item_code || '',
-            item_name: it.item_name || '',
-            uom: it.uom || 'Nos',
-            rate: it.rate || 0,
-            ordered_rate: it.ordered_rate ?? (it.rate || 0),
-            ordered_qty: it.qty || 0,
-            total_received_qty: it.qty || 0,
-            unbilled_qty: it.qty || 0,
-            bill_qty: it.qty || 0,
-            amount: it.amount || 0,
-            grn_refs: it.grn_refs || [],
-            tax_rate: it.item_tax_rate ? parseFloat(it.item_tax_rate) : (it.tax_rate || 0),
-            tax_id: it.tax_id || 1,
-            HSN: it.hsn_code || it.HSN || '',
-            note: it.note || '',
-          }));
+        if (itemsFromApi.length) {
+          const rows: InvoiceItem[] = itemsFromApi.map((it: any) => {
+            const resolvedTaxRate = it.item_tax_rate
+              ? parseFloat(it.item_tax_rate)
+              : (it.tax_rate ?? parseTaxRateFromTemplate(it.item_tax_template));
+
+            return {
+              id: makeRowId(),
+              db_item_id: it.id ? Number(it.id) : undefined,
+              po_item_id: it.po_detail ?? undefined,
+              grn_item_id: it.pr_detail ?? undefined,
+              item_id: it.item_id ?? undefined,
+              item_code: it.item_code || '',
+              item_name: it.item_name || '',
+              uom: it.uom || 'Nos',
+              rate: it.rate || 0,
+              ordered_rate: it.ordered_rate ?? (it.rate || 0),
+              ordered_qty: it.qty || 0,
+              total_received_qty: it.qty || 0,
+              unbilled_qty: it.qty || 0,
+              bill_qty: it.qty || 0,
+              amount: it.amount || 0,
+              grn_refs: it.grn_refs || [],
+              tax_rate: resolvedTaxRate || 0,
+              tax_id: it.tax_id || 1,
+              HSN: it.hsn_code || it.HSN || '',
+              note: it.note || '',
+            };
+          });
           setItems(rows);
 
-          const firstWarehouse = inv.items.find((it: any) => it.warehouse)?.warehouse;
+
+          const firstWarehouse = itemsFromApi.find((it: any) => it.warehouse)?.warehouse;
           if (firstWarehouse != null) {
             setPendingWarehouseId(Number(firstWarehouse));
           }
@@ -1013,6 +1120,9 @@ export default function PurchaseInvoiceForm() {
   const selectedGRNSummaries: GRNSummary[] = Array.from(selectedGRNIds).map(gid =>
     (linkedGRNsForPO || []).find(g => g.id === gid) || (grnsForSelectedSupplier || []).find(g => g.id === gid)
   ).filter((g): g is GRNSummary => Boolean(g));
+
+  const getGRNReceivedQty = (g: GRNSummary): number =>
+    grnDetailCache[g.id]?.total_received_qty ?? g.total_received_qty ?? 0;
 
   // ─── Validation ────────────────────────────────────────────────────────────
   const validate = (): ValidationError[] => {
@@ -1705,10 +1815,19 @@ export default function PurchaseInvoiceForm() {
       status: formData.status,
       remarks: formData.notes || '',
 
+      // ── NEW: Use is_create_from_grn and grn_ids instead of bill_source ──
+      is_create_from_grn: formData.isCreateFromGrn,
+      grn_ids: formData.isCreateFromGrn === 1 ? formData.grnIds : [],
+
+      // ── PO linkage at header level, where available ──
+      // purchase_order: selectedPO?.id || undefined,
+
       items: billableItems.map((r, idx) => ({
         ...(isEdit && r.db_item_id ? { id: r.db_item_id } : {}),
         name: `item-${idx + 1}`,
-        item_id: r.po_item_id ?? r.grn_item_id ?? r.item_id,
+        item_id: r.item_id ?? undefined,
+        po_detail: r.po_item_id ?? undefined,
+        pr_detail: r.grn_item_id ?? undefined,
         item_code: r.item_code || '',
         item_name: r.item_name || '',
         warehouse: resolvedWarehouseId,
@@ -1718,6 +1837,7 @@ export default function PurchaseInvoiceForm() {
         ordered_rate: r.ordered_rate || 0,
         amount: r.amount || 0,
         item_tax_rate: String(r.tax_rate || 0),
+        item_tax_template: getItemTaxTemplate(r.tax_rate || 0),
         tax_id: r.tax_id || undefined,
         hsn_code: r.HSN || undefined,
         note: r.note || undefined,
@@ -1790,10 +1910,7 @@ export default function PurchaseInvoiceForm() {
               <p className="pif-success-message">
                 Your Purchase Invoice has been saved successfully.
               </p>
-              <div className="pif-success-number-box">
-                <span className="pif-success-label">Invoice Number</span>
-                <span className="pif-success-number">{savedInvoiceNumber}</span>
-              </div>
+           
               <div className="pif-success-actions">
                 <button className="pif-success-btn pif-success-btn-primary" onClick={handleSuccessModalOk}>
                   View All Invoices
@@ -1970,6 +2087,11 @@ export default function PurchaseInvoiceForm() {
                   </label>
                 ))}
               </div>
+              {isEdit && (
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4, display: 'block' }}>
+                  This invoice was originally created {formData.billSource === 'GRN' ? 'from a GRN' : 'without a GRN'}.
+                </span>
+              )}
             </div>
 
             <div className="pif-divider" />
@@ -2269,7 +2391,7 @@ export default function PurchaseInvoiceForm() {
                                         {selectedGRNIds.has(g.id) && <FaCheckCircle style={{ color: '#22c55e', marginLeft: 6 }} />}
                                       </div>
                                       <div className="warehouse-item-company">
-                                        {g.purchase_order_number || 'No PO'} · {g.total_received_qty || 0} received · {g.status || ''}
+                                        {g.purchase_order_number || 'No PO'} · {getGRNReceivedQty(g)} received · {g.status || ''}
                                       </div>
                                     </li>
                                   ))}
@@ -2290,7 +2412,7 @@ export default function PurchaseInvoiceForm() {
                           {selectedGRNSummaries.map(g => (
                             <span key={g.id} className={`pif-grn-chip pif-grn-chip--${(g.status || 'draft').toLowerCase()}`}>
                               {g.grn_number || ''}
-                              <span className="pif-grn-badge-qty"> · {g.total_received_qty || 0} rcvd</span>
+                              <span className="pif-grn-badge-qty"> · {getGRNReceivedQty(g)} rcvd</span>
                               <button type="button" onClick={() => toggleGRNSelection(g.id)} title="Remove">
                                 <FaTimesCircle size={11} />
                               </button>
@@ -2318,7 +2440,7 @@ export default function PurchaseInvoiceForm() {
                                   onChange={() => toggleGRNSelection(g.id)}
                                 />
                                 {g.grn_number || ''}
-                                <span className="pif-grn-badge-qty"> · {g.total_received_qty || 0} rcvd</span>
+                                <span className="pif-grn-badge-qty"> · {getGRNReceivedQty(g)} rcvd</span>
                               </label>
                             ))}
                           </div>
