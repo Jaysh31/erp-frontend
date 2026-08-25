@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FaSearch,
@@ -17,6 +17,7 @@ import {
   FaPlus,
   FaClock,
   FaIndustry,
+  FaCalendarAlt,
 } from 'react-icons/fa';
 import "./OperationListing.css";
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
@@ -52,6 +53,7 @@ interface ApiResponse {
 export default function OperationList() {
   const navigate = useNavigate();
   const { theme } = useAdminTheme();
+  const datePickerRef = useRef<HTMLDivElement>(null);
   
   const [operations, setOperations] = useState<Operation[]>([]);
   const [loading, setLoading] = useState(false);
@@ -64,6 +66,13 @@ export default function OperationList() {
   const [sortField] = useState<string>('creation');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  // ─── Date Filter (calendar) State ─────────────────────────────────────
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [dateFilterActive, setDateFilterActive] = useState(false);
+  const [calendarViewDate, setCalendarViewDate] = useState<Date>(new Date());
 
   // ─── Format date ──────────────────────────────────────────────────────────
 
@@ -84,13 +93,54 @@ export default function OperationList() {
     return `${Math.floor(diffDays / 365)}y`;
   };
 
+  // Local (non-UTC) YYYY-MM-DD formatter, avoids the timezone-shift bug
+  // that toISOString() causes when converting local dates to API params.
+  const toLocalDateStr = (date: Date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
+  const formatDateForDisplay = (dateString: string) => {
+    if (!dateString) return 'Select date';
+    const date = new Date(dateString + 'T00:00:00');
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
+
+  // Short label used inside the trigger button, e.g. "Aug 18, 2026 – Aug 20, 2026"
+  const formatButtonRangeLabel = () => {
+    if (!fromDate || !toDate) return 'From - To';
+    const from = new Date(fromDate + 'T00:00:00');
+    const to = new Date(toDate + 'T00:00:00');
+    const fromLabel = from.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const toLabel = to.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return `${fromLabel} – ${toLabel}`;
+  };
+
   // ─── Fetch operations from API ────────────────────────────────────────────
 
   const fetchOperations = async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await api.get<ApiResponse>('/operation');
+      let url = '/operation';
+      
+      // Add search parameter if searchTerm exists
+      if (searchTerm.trim()) {
+        url += `?search=${encodeURIComponent(searchTerm.trim())}`;
+      }
+      
+      if (fromDate && toDate) {
+        url += url.includes('?') ? '&' : '?';
+        url += `date_from=${fromDate}&date_to=${toDate}`;
+      }
+
+      const response = await api.get<ApiResponse>(url);
       
       if (response.data.success === 1) {
         const records = response.data.data || [];
@@ -113,6 +163,148 @@ export default function OperationList() {
     }
   };
 
+  const applyDateFilter = () => {
+    if (fromDate && toDate) {
+      setDateFilterActive(true);
+      setCurrentPage(1);
+      fetchOperations();
+      setShowDatePicker(false);
+    } else {
+      alert('Please select both From and To dates');
+    }
+  };
+
+  const clearDateFilter = () => {
+    setFromDate('');
+    setToDate('');
+    setDateFilterActive(false);
+    setCurrentPage(1);
+    fetchOperations();
+    setShowDatePicker(false);
+  };
+
+  const setDateRange = (range: string) => {
+    const today = new Date();
+    let from = new Date();
+
+    switch (range) {
+      case 'today':
+        from = new Date(today);
+        break;
+      case 'last7days':
+        from = new Date(today);
+        from.setDate(today.getDate() - 7);
+        break;
+      case 'last30days':
+        from = new Date(today);
+        from.setDate(today.getDate() - 30);
+        break;
+      case 'thisMonth':
+        from = new Date(today.getFullYear(), today.getMonth(), 1);
+        break;
+      default:
+        return;
+    }
+
+    const fromStr = toLocalDateStr(from);
+    const toStr = toLocalDateStr(today);
+    setFromDate(fromStr);
+    setToDate(toStr);
+    setCalendarViewDate(today);
+  };
+
+  // ─── Calendar Helpers ──────────────────────────────────────────────────
+  const calendarYear = calendarViewDate.getFullYear();
+  const calendarMonth = calendarViewDate.getMonth();
+
+  const calendarMonthLabel = calendarViewDate.toLocaleDateString('en-US', {
+    month: 'long',
+    year: 'numeric',
+  });
+
+  const getCalendarDays = (): (number | null)[] => {
+    const firstDay = new Date(calendarYear, calendarMonth, 1);
+    const startingDayOfWeek = firstDay.getDay(); // 0 = Sunday
+    const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
+    const days: (number | null)[] = [];
+    for (let i = 0; i < startingDayOfWeek; i++) days.push(null);
+    for (let d = 1; d <= daysInMonth; d++) days.push(d);
+    return days;
+  };
+
+  const goToPrevMonth = () => {
+    setCalendarViewDate(new Date(calendarYear, calendarMonth - 1, 1));
+  };
+
+  const goToNextMonth = () => {
+    setCalendarViewDate(new Date(calendarYear, calendarMonth + 1, 1));
+  };
+
+  const handleCalendarDayClick = (day: number | null) => {
+    if (day === null) return;
+    const clicked = new Date(calendarYear, calendarMonth, day);
+    const clickedStr = toLocalDateStr(clicked);
+
+    // Start a new range if nothing selected yet, or if a full range is already set
+    if (!fromDate || (fromDate && toDate)) {
+      setFromDate(clickedStr);
+      setToDate('');
+      return;
+    }
+
+    // fromDate is set, toDate is not: complete the range
+    const fromAsDate = new Date(fromDate + 'T00:00:00');
+    if (clicked < fromAsDate) {
+      setToDate(fromDate);
+      setFromDate(clickedStr);
+    } else {
+      setToDate(clickedStr);
+    }
+  };
+
+  const isSameDay = (dateStr: string, year: number, month: number, day: number) => {
+    if (!dateStr) return false;
+    const d = new Date(dateStr + 'T00:00:00');
+    return d.getFullYear() === year && d.getMonth() === month && d.getDate() === day;
+  };
+
+  const isDayInRange = (year: number, month: number, day: number) => {
+    if (!fromDate || !toDate) return false;
+    const current = new Date(year, month, day);
+    const from = new Date(fromDate + 'T00:00:00');
+    const to = new Date(toDate + 'T00:00:00');
+    return current > from && current < to;
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (datePickerRef.current && !datePickerRef.current.contains(event.target as Node)) {
+        setShowDatePicker(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // When the picker opens, jump the visible month to the current "from" date (if any)
+  useEffect(() => {
+    if (showDatePicker && fromDate) {
+      setCalendarViewDate(new Date(fromDate + 'T00:00:00'));
+    }
+  }, [showDatePicker]);
+
+  // Fetch operations when search term changes
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchOperations();
+    }, 500); // Debounce search
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
   useEffect(() => {
     fetchOperations();
   }, []);
@@ -125,9 +317,15 @@ export default function OperationList() {
 
   const filteredAndSortedOperations = operations
     .filter(op => {
-      const matchesSearch = op.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           op.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           op.workstation.toLowerCase().includes(searchTerm.toLowerCase());
+      // Safely handle null/undefined values by using optional chaining and fallback to empty string
+      const name = op.name?.toLowerCase() || '';
+      const description = op.description?.toLowerCase() || '';
+      const workstation = op.workstation?.toLowerCase() || '';
+      const search = searchTerm.toLowerCase();
+      
+      const matchesSearch = name.includes(search) ||
+                           description.includes(search) ||
+                           workstation.includes(search);
       
       const matchesStatus = statusFilter === 'all' || 
                            (statusFilter === 'active' && op.docstatus === 0) ||
@@ -140,13 +338,13 @@ export default function OperationList() {
       let comparison = 0;
       switch (sortField) {
         case 'name':
-          comparison = a.name.localeCompare(b.name);
+          comparison = (a.name || '').localeCompare(b.name || '');
           break;
         case 'creation':
           comparison = new Date(a.creation).getTime() - new Date(b.creation).getTime();
           break;
         case 'workstation':
-          comparison = a.workstation.localeCompare(b.workstation);
+          comparison = (a.workstation || '').localeCompare(b.workstation || '');
           break;
         case 'total_operation_time':
           comparison = a.total_operation_time - b.total_operation_time;
@@ -280,6 +478,10 @@ export default function OperationList() {
   const clearFilters = () => {
     setSearchTerm('');
     setStatusFilter('all');
+    setFromDate('');
+    setToDate('');
+    setDateFilterActive(false);
+    fetchOperations();
   };
 
   // ─── Status Helpers ──────────────────────────────────────────────────────
@@ -357,6 +559,125 @@ export default function OperationList() {
             <option value="submitted">Submitted</option>
             <option value="cancelled">Cancelled</option>
           </select>
+
+          {/* Date Filter Button with Calendar Icon */}
+          <div className="op-date-filter-wrapper" ref={datePickerRef}>
+            <button
+              className={`op-date-filter-btn ${dateFilterActive ? 'op-date-filter-active' : ''}`}
+              onClick={() => setShowDatePicker(!showDatePicker)}
+              type="button"
+            >
+              <FaCalendarAlt size={14} />
+              <span>{formatButtonRangeLabel()}</span>
+            </button>
+
+            {showDatePicker && (
+              <div className="op-date-picker-dropdown">
+                <div className="op-date-picker-header">
+                  <span>Filter by Date</span>
+                  <button onClick={() => setShowDatePicker(false)} type="button">
+                    <FaTimes size={14} />
+                  </button>
+                </div>
+
+                <div className="op-date-picker-body">
+                  {/* Date Range Display */}
+                  <div className="op-date-range-display">
+                    <div className="op-date-range-item">
+                      <span className="op-date-range-label">From</span>
+                      <span className="op-date-range-value">
+                        {fromDate ? formatDateForDisplay(fromDate) : 'Select date'}
+                      </span>
+                    </div>
+                    <span className="op-date-range-separator">—</span>
+                    <div className="op-date-range-item">
+                      <span className="op-date-range-label">To</span>
+                      <span className="op-date-range-value">
+                        {toDate ? formatDateForDisplay(toDate) : 'Select date'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Preset Buttons */}
+                  <div className="op-date-presets">
+                    <button onClick={() => setDateRange('today')} className="op-date-preset-btn" type="button">Today</button>
+                    <button onClick={() => setDateRange('last7days')} className="op-date-preset-btn" type="button">Last 7 Days</button>
+                    <button onClick={() => setDateRange('last30days')} className="op-date-preset-btn" type="button">Last 30 Days</button>
+                    <button onClick={() => setDateRange('thisMonth')} className="op-date-preset-btn" type="button">This Month</button>
+                  </div>
+
+                  {/* Calendar */}
+                  <div className="op-calendar">
+                    <div className="op-calendar-nav">
+                      <button
+                        type="button"
+                        className="op-calendar-nav-btn"
+                        onClick={goToPrevMonth}
+                        aria-label="Previous month"
+                      >
+                        <FaChevronLeft size={12} />
+                      </button>
+                      <span className="op-calendar-month-label">{calendarMonthLabel}</span>
+                      <button
+                        type="button"
+                        className="op-calendar-nav-btn"
+                        onClick={goToNextMonth}
+                        aria-label="Next month"
+                      >
+                        <FaChevronRight size={12} />
+                      </button>
+                    </div>
+
+                    <div className="op-calendar-weekdays">
+                      <span>Su</span>
+                      <span>Mo</span>
+                      <span>Tu</span>
+                      <span>We</span>
+                      <span>Th</span>
+                      <span>Fr</span>
+                      <span>Sa</span>
+                    </div>
+
+                    <div className="op-calendar-grid">
+                      {getCalendarDays().map((day, idx) => {
+                        if (day === null) {
+                          return <span key={`empty-${idx}`} className="op-calendar-day op-calendar-day-empty" />;
+                        }
+                        const isFrom = isSameDay(fromDate, calendarYear, calendarMonth, day);
+                        const isTo = isSameDay(toDate, calendarYear, calendarMonth, day);
+                        const inRange = isDayInRange(calendarYear, calendarMonth, day);
+                        const classNames = [
+                          'op-calendar-day',
+                          (isFrom || isTo) ? 'op-calendar-day-selected' : '',
+                          inRange ? 'op-calendar-day-in-range' : '',
+                        ].filter(Boolean).join(' ');
+                        return (
+                          <button
+                            type="button"
+                            key={`${calendarYear}-${calendarMonth}-${day}`}
+                            className={classNames}
+                            onClick={() => handleCalendarDayClick(day)}
+                          >
+                            {day}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="op-date-picker-footer">
+                  <button onClick={clearDateFilter} className="op-date-clear-btn" type="button">
+                    Clear
+                  </button>
+                  <button onClick={applyDateFilter} className="op-date-apply-btn" type="button">
+                    Apply Filters
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
           <button className="op-sort-btn" onClick={() => {
             setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
           }}>
@@ -376,7 +697,7 @@ export default function OperationList() {
       </div>
 
       {/* Active filters indicator */}
-      {(searchTerm || statusFilter !== 'all') && (
+      {(searchTerm || statusFilter !== 'all' || dateFilterActive) && (
         <div className="op-active-filters">
           <FaFilter size={12} style={{ color: '#3B82F6' }} />
           <span>Active filters:</span>
@@ -385,6 +706,9 @@ export default function OperationList() {
           )}
           {statusFilter !== 'all' && (
             <span><strong>Status:</strong> {statusFilter}</span>
+          )}
+          {dateFilterActive && fromDate && toDate && (
+            <span><strong>From:</strong> {formatDateForDisplay(fromDate)} <strong>To:</strong> {formatDateForDisplay(toDate)}</span>
           )}
           <button 
             onClick={clearFilters}

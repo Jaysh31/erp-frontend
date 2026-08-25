@@ -5,7 +5,8 @@ import {
   FaFilter, FaCheckCircle, FaClock, FaTimesCircle,
   FaFileAlt, FaExternalLinkAlt,
   FaChartLine, FaTimes, FaSpinner, FaBoxOpen, FaEnvelope,
-  FaFileInvoice, FaBuilding, FaBan
+  FaFileInvoice, FaBuilding, FaBan, FaCalendarAlt,
+  FaChevronLeft, FaChevronRight
 } from 'react-icons/fa';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
@@ -192,8 +193,13 @@ const numberToIndianWords = (value: number): string => {
   return out.trim();
 };
 
-const formatPrintDate = (date: string): string => {
+// ✅ UPDATED: Format print date using context formatter
+const formatPrintDate = (date: string, formatFn?: (date: string) => string): string => {
   if (!date) return '';
+  if (formatFn) {
+    return formatFn(date);
+  }
+  // Fallback if formatFn not provided
   const d = new Date(date);
   if (isNaN(d.getTime())) return date;
   const day = String(d.getDate()).padStart(2, '0');
@@ -257,16 +263,28 @@ const mapApiItemsToSalesOrderItems = (record: SalesOrderApiRecord | null | undef
   });
 };
 
+// ─── Debounce function ──────────────────────────────────────────────────
+const useDebounce = (value: string, delay: number) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+};
+
 export default function ProformaInvoice() {
   const navigate = useNavigate();
 
-  let theme = 'light';
-  try {
-    const context = useAdminTheme();
-    theme = context.theme;
-  } catch (error) {
-    console.log('Using default light theme');
-  }
+  // ✅ GET THE DATE FORMAT FUNCTION FROM CONTEXT
+  const { theme, formatDate, getApiDateFormat } = useAdminTheme();
 
   const [filterText, setFilterText] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('All');
@@ -275,10 +293,23 @@ export default function ProformaInvoice() {
   const [error, setError] = useState<string | null>(null);
   const [printLoadingId, setPrintLoadingId] = useState<string | null>(null);
 
+  // Date range filter states
+  const [fromDate, setFromDate] = useState<string>('');
+  const [toDate, setToDate] = useState<string>('');
+  const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
+  const [tempFromDate, setTempFromDate] = useState<string>('');
+  const [tempToDate, setTempToDate] = useState<string>('');
+  const [selectedQuickFilter, setSelectedQuickFilter] = useState<string>('');
+
   const [salesOrders, setSalesOrders] = useState<SalesOrder[]>([]);
+  const [allSalesOrders, setAllSalesOrders] = useState<SalesOrder[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState<number | null>(null);
   const [selectedBankId, setSelectedBankId] = useState<number | null>(null);
+
+  // Calendar state
+  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
+  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
 
   // Modal states
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -287,13 +318,98 @@ export default function ProformaInvoice() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pdfModalLoading] = useState(false);
 
+  // Debounced search term
+  const debouncedFilterText = useDebounce(filterText, 500);
+
+  // ✅ NEW: Format display date using context
+  const formatDisplayDate = (dateString: string) => {
+    if (!dateString) return '';
+    return formatDate(dateString);
+  };
+
+  // ✅ NEW: Format date for API (YYYY-MM-DD)
+  const toApiDateFormat = (date: Date) => {
+    return getApiDateFormat(date);
+  };
+
+  // ─── close date picker on outside click ──────────────────────────────
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      const datePickerContainer = document.querySelector('.pq-date-picker-container');
+      if (datePickerContainer && !datePickerContainer.contains(target)) {
+        setShowDatePicker(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // ─── Date helper functions ─────────────────────────────────────────────
+  // ✅ UPDATED: Format date for display using context
+  const formatDateForDisplay = (dateStr: string): string => {
+    if (!dateStr) return '';
+    return formatDate(dateStr);
+  };
+
+  const getTodayDate = (): string => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  };
+
+  const getDateDaysAgo = (days: number): string => {
+    const date = new Date();
+    date.setDate(date.getDate() - days);
+    return date.toISOString().split('T')[0];
+  };
+
+  const getFirstDayOfMonth = (): string => {
+    const date = new Date(currentYear, currentMonth, 1);
+    return date.toISOString().split('T')[0];
+  };
+
+  const getLastDayOfMonth = (): string => {
+    const date = new Date(currentYear, currentMonth + 1, 0);
+    return date.toISOString().split('T')[0];
+  };
+
+  // ─── Quick filter handlers ─────────────────────────────────────────────
+  const applyQuickFilter = (filter: string) => {
+    setSelectedQuickFilter(filter);
+    let start = '';
+    let end = getTodayDate();
+
+    switch (filter) {
+      case 'today':
+        start = getTodayDate();
+        break;
+      case 'last7':
+        start = getDateDaysAgo(7);
+        break;
+      case 'last30':
+        start = getDateDaysAgo(30);
+        break;
+      case 'thisMonth':
+        start = getFirstDayOfMonth();
+        end = getLastDayOfMonth();
+        break;
+      default:
+        return;
+    }
+
+    setTempFromDate(start);
+    setTempToDate(end);
+  };
+
   // ─── Fetch Companies ───────────────────────────────────────
   const fetchCompanies = async () => {
     try {
       const response = await api.get('/company');
       if (response.data.success === 1) {
         setCompanies(response.data.data || []);
-        // Find ChandraTara Industires or set first company
         const chandratara = response.data.data?.find((c: Company) => 
           c.company_name.includes('ChandraTara') || c.abbr === 'CT_IND'
         );
@@ -315,12 +431,38 @@ export default function ProformaInvoice() {
     }
   };
 
-  // ─── load from GET /sales-order ───────────────────────────────────────
+  // ─── load from GET /sales-order with search ───────────────────────────
+
   const fetchSalesOrders = async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await api.get('/sales-order');
+      const params = new URLSearchParams();
+      
+      if (debouncedFilterText.trim()) {
+        params.append('search', debouncedFilterText.trim());
+        params.append('search_by', 'all');
+      }
+
+      if (selectedStatus !== 'All') {
+        params.append('status', selectedStatus);
+      }
+
+      if (selectedOrderType !== 'All') {
+        params.append('order_type', selectedOrderType);
+      }
+
+      if (fromDate) {
+        params.append('from_date', fromDate);
+      }
+      if (toDate) {
+        params.append('to_date', toDate);
+      }
+
+      const url = `/sales-order${params.toString() ? `?${params.toString()}` : ''}`;
+      console.log('API Call URL:', url);
+      
+      const response = await api.get(url);
 
       if (response.data.success !== 1) {
         throw new Error(response.data?.message || 'Failed to fetch sales orders');
@@ -337,7 +479,7 @@ export default function ProformaInvoice() {
         all = [];
       }
 
-      // Show ALL sales orders as proforma - NO FILTERING
+      // ✅ TRANSFORM DATA WITH FORMATTED DATES
       const transformedData: SalesOrder[] = all.map((o, idx) => {
         const resolvedId =
           o.id !== undefined && o.id !== null && String(o.id).trim() !== ''
@@ -378,6 +520,7 @@ export default function ProformaInvoice() {
         };
       });
 
+      setAllSalesOrders(transformedData);
       setSalesOrders(transformedData);
     } catch (err: any) {
       console.error('Error fetching sales orders:', err);
@@ -391,6 +534,10 @@ export default function ProformaInvoice() {
     fetchSalesOrders();
     fetchCompanies();
   }, []);
+
+  useEffect(() => {
+    fetchSalesOrders();
+  }, [debouncedFilterText, selectedStatus, selectedOrderType, fromDate, toDate]);
 
   const fetchFullSalesOrderRecord = async (orderId: string): Promise<SalesOrderApiRecord | null> => {
     try {
@@ -507,19 +654,12 @@ export default function ProformaInvoice() {
     }
   };
 
-  const filteredOrders = salesOrders.filter(o => {
-    const matchesSearch = (o.salesOrderNumber || '').toLowerCase().includes(filterText.toLowerCase()) ||
-      (o.customerName || '').toLowerCase().includes(filterText.toLowerCase());
-    const matchesStatus = selectedStatus === 'All' || o.status === selectedStatus;
-    const matchesOrderType = selectedOrderType === 'All' || o.orderType === selectedOrderType;
-    return matchesSearch && matchesStatus && matchesOrderType;
-  });
+  const filteredOrders = salesOrders;
 
   const totalAmount = salesOrders.reduce((sum, o) => sum + o.totalAmount, 0);
   const completedAmount = salesOrders.filter(o => o.status === 'Completed').reduce((sum, o) => sum + o.totalAmount, 0);
   const fulfillmentRate = totalAmount > 0 ? Math.round((completedAmount / totalAmount) * 100) : 0;
 
-  // View / Edit
   const handleView = (order: SalesOrder) => {
     if (!order.id) {
       toast.error('Unable to open this proforma — missing ID');
@@ -527,19 +667,6 @@ export default function ProformaInvoice() {
     }
     navigate(`/proforma-invoice/${order.id}`, { state: { proforma: order } });
   };
-
-  // const handleEdit = (order: SalesOrder) => {
-  //   if (!order.id) {
-  //     toast.error('Unable to open this proforma — missing ID');
-  //     return;
-  //   }
-  //   navigate(`/proforma-invoice/edit/${order.id}`, { state: { proforma: order } });
-  // };
-
-  // const handleDeleteClick = (order: SalesOrder) => {
-  //   setSelectedOrder(order);
-  //   setShowDeleteModal(true);
-  // };
 
   const confirmDelete = async () => {
     if (!selectedOrder) return;
@@ -571,6 +698,121 @@ export default function ProformaInvoice() {
     setFilterText('');
     setSelectedStatus('All');
     setSelectedOrderType('All');
+    setFromDate('');
+    setToDate('');
+    setTempFromDate('');
+    setTempToDate('');
+    setSelectedQuickFilter('');
+    setShowDatePicker(false);
+  };
+
+  // Date picker handlers
+  const openDatePicker = () => {
+    setTempFromDate(fromDate);
+    setTempToDate(toDate);
+    setShowDatePicker(true);
+  };
+
+  const applyDateFilter = () => {
+    setFromDate(tempFromDate);
+    setToDate(tempToDate);
+    setShowDatePicker(false);
+    if (tempFromDate || tempToDate) {
+      toast.success('Date range applied');
+    }
+  };
+
+  const clearDateFilters = () => {
+    setTempFromDate('');
+    setTempToDate('');
+    setSelectedQuickFilter('');
+    setFromDate('');
+    setToDate('');
+    setShowDatePicker(false);
+  };
+
+  // Calendar functions
+  const getDaysInMonth = (year: number, month: number): number => {
+    return new Date(year, month + 1, 0).getDate();
+  };
+
+  const getFirstDayOfMonthIndex = (year: number, month: number): number => {
+    return new Date(year, month, 1).getDay();
+  };
+
+  const generateCalendarDays = (): (number | null)[] => {
+    const daysInMonth = getDaysInMonth(currentYear, currentMonth);
+    const firstDayIndex = getFirstDayOfMonthIndex(currentYear, currentMonth);
+    const days: (number | null)[] = [];
+
+    for (let i = 0; i < firstDayIndex; i++) {
+      days.push(null);
+    }
+
+    for (let i = 1; i <= daysInMonth; i++) {
+      days.push(i);
+    }
+
+    return days;
+  };
+
+  const isDateInRange = (day: number): boolean => {
+    if (!tempFromDate && !tempToDate) return false;
+    const date = new Date(currentYear, currentMonth, day);
+    const dateStr = date.toISOString().split('T')[0];
+    
+    if (tempFromDate && tempToDate) {
+      return dateStr >= tempFromDate && dateStr <= tempToDate;
+    }
+    if (tempFromDate) {
+      return dateStr >= tempFromDate;
+    }
+    if (tempToDate) {
+      return dateStr <= tempToDate;
+    }
+    return false;
+  };
+
+  const isDateSelected = (day: number): boolean => {
+    const date = new Date(currentYear, currentMonth, day);
+    const dateStr = date.toISOString().split('T')[0];
+    return dateStr === tempFromDate || dateStr === tempToDate;
+  };
+
+  const handleDateClick = (day: number) => {
+    const date = new Date(currentYear, currentMonth, day);
+    const dateStr = date.toISOString().split('T')[0];
+    
+    if (!tempFromDate || (tempFromDate && tempToDate)) {
+      setTempFromDate(dateStr);
+      setTempToDate('');
+      setSelectedQuickFilter('');
+    } else if (tempFromDate && !tempToDate) {
+      if (dateStr < tempFromDate) {
+        setTempFromDate(dateStr);
+        setTempToDate('');
+      } else {
+        setTempToDate(dateStr);
+        setSelectedQuickFilter('');
+      }
+    }
+  };
+
+  const changeMonth = (delta: number) => {
+    const newMonth = currentMonth + delta;
+    if (newMonth < 0) {
+      setCurrentMonth(11);
+      setCurrentYear(currentYear - 1);
+    } else if (newMonth > 11) {
+      setCurrentMonth(0);
+      setCurrentYear(currentYear + 1);
+    } else {
+      setCurrentMonth(newMonth);
+    }
+  };
+
+  const getMonthName = (month: number): string => {
+    return new Date(currentYear, month).toLocaleString('en-US', { month: 'long' });
   };
 
   /* ─────────────────────── Build Proforma Invoice HTML ─────────────────────── */
@@ -584,20 +826,24 @@ export default function ProformaInvoice() {
     const totalQty = validItems.reduce((sum, it) => sum + (it.quantity || 0), 0);
     const grandTotal = order.totalAmount || (baseTotal + cgstAmount + sgstAmount);
 
-    // Use company details or fallback
     const companyName = company?.company_name || companyDetails.name;
     const companyAddress = company?.country || companyDetails.address;
     const companyPhone = company?.phone_no || companyDetails.contact;
     const companyEmail = company?.email || companyDetails.email;
     const companyGstin = company?.tax_id || companyPrintDetails.gstin;
 
-    // Use bank details or fallback
     const bankName = bank?.bank_name || companyPrintDetails.bankName || 'HDFC';
     const bankBranch = bank?.branch_name || 'Pune';
     const bankAccount = bank?.account_number || companyPrintDetails.bankAccountNo || '351548887';
     const bankIfsc = bank?.ifsc_code || companyPrintDetails.bankBranchIfsc || 'HDFC0000123';
     const accountHolder = bank?.account_holder_name || 'Chandratara';
     const accountType = bank?.account_type || 'Savings';
+
+    // ✅ Use formatDisplayDate for formatted dates in print
+    const formatPrintDateLocal = (dateStr: string) => {
+      if (!dateStr) return '';
+      return formatDisplayDate(dateStr);
+    };
 
     const itemRows = validItems.map((item, idx) => `
       <tr>
@@ -768,7 +1014,7 @@ export default function ProformaInvoice() {
           </div>
           <div class="pq-meta-cell" style="border-right:none;">
             <div class="pq-meta-label">Dated</div>
-            <div class="pq-meta-value">${escapeHtml(formatPrintDate(order.date))}</div>
+            <div class="pq-meta-value">${escapeHtml(formatPrintDateLocal(order.date))}</div>
           </div>
         </div>
         <div class="pq-meta-row">
@@ -778,7 +1024,7 @@ export default function ProformaInvoice() {
           </div>
           <div class="pq-meta-cell" style="border-right:none;">
             <div class="pq-meta-label">Valid Until</div>
-            <div class="pq-meta-value">${escapeHtml(formatPrintDate(order.deliveryDate || ''))}</div>
+            <div class="pq-meta-value">${escapeHtml(formatPrintDateLocal(order.deliveryDate || ''))}</div>
           </div>
         </div>
         <div class="pq-meta-row">
@@ -794,7 +1040,7 @@ export default function ProformaInvoice() {
           </div>
           <div class="pq-meta-cell" style="border-right:none;">
             <div class="pq-meta-label">Dated</div>
-            <div class="pq-meta-value">${escapeHtml(formatPrintDate(order.buyersOrderDate || ''))}</div>
+            <div class="pq-meta-value">${escapeHtml(formatPrintDateLocal(order.buyersOrderDate || ''))}</div>
           </div>
         </div>
         <div class="pq-meta-row">
@@ -804,7 +1050,7 @@ export default function ProformaInvoice() {
           </div>
           <div class="pq-meta-cell" style="border-right:none;">
             <div class="pq-meta-label">Delivery Date</div>
-            <div class="pq-meta-value">${escapeHtml(formatPrintDate(order.deliveryDate || ''))}</div>
+            <div class="pq-meta-value">${escapeHtml(formatPrintDateLocal(order.deliveryDate || ''))}</div>
           </div>
         </div>
         ${order.status ? `
@@ -946,7 +1192,6 @@ export default function ProformaInvoice() {
     try {
       const printable = await buildPrintableOrder(order);
       
-      // Get selected company and bank details
       const selectedCompany = companies.find(c => c.id === selectedCompanyId);
       const selectedBank = selectedCompany?.bank_details?.find(b => b.id === selectedBankId);
       
@@ -965,10 +1210,921 @@ export default function ProformaInvoice() {
 
   return (
     <div className={`proforma-page ${theme}-theme`}>
+      <style>{`
+        /* Date Range Picker Styles */
+        .pq-date-picker-container {
+          position: relative;
+          display: inline-block;
+        }
+
+        .pq-date-picker-trigger {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          background: var(--card-bg, #fff);
+          border: 1px solid var(--border-color, #e5e7eb);
+          border-radius: 8px;
+          padding: 8px 14px;
+          cursor: pointer;
+          transition: all 0.2s;
+          color: var(--text-primary, #1e293b);
+          font-size: 13px;
+          min-height: 38px;
+        }
+
+        .pq-date-picker-trigger:hover {
+          border-color: var(--primary-color, #2563eb);
+          background: var(--hover-bg, #f8fafc);
+        }
+
+        .pq-date-picker-trigger.active {
+          border-color: var(--primary-color, #2563eb);
+          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .pq-date-picker-trigger .pq-calendar-icon {
+          color: var(--primary-color, #2563eb);
+          font-size: 16px;
+        }
+
+        .pq-date-picker-trigger .pq-date-label {
+          font-weight: 500;
+        }
+
+        .pq-date-picker-trigger .pq-date-label.placeholder {
+          color: var(--text-secondary, #6b7280);
+          font-weight: 400;
+        }
+
+        .pq-date-picker-trigger .pq-date-range-display {
+          color: var(--primary-color, #2563eb);
+          font-weight: 500;
+        }
+
+        .pq-date-picker-popup {
+          position: absolute;
+          top: calc(100% + 8px);
+          right: 0;
+          background: var(--card-bg, #fff);
+          border: 1px solid var(--border-color, #e5e7eb);
+          border-radius: 12px;
+          box-shadow: 0 10px 40px var(--shadow-color, rgba(0,0,0,0.15));
+          padding: 20px;
+          z-index: 1000;
+          min-width: 340px;
+          width: 340px;
+        }
+
+        .pq-date-picker-popup .pq-popup-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 12px;
+        }
+
+        .pq-date-picker-popup .pq-popup-header .pq-popup-title {
+          font-size: 14px;
+          font-weight: 600;
+          color: var(--text-primary, #1e293b);
+        }
+
+        .pq-date-picker-popup .pq-popup-header .pq-popup-close {
+          background: none;
+          border: none;
+          color: var(--text-secondary, #6b7280);
+          cursor: pointer;
+          font-size: 16px;
+          padding: 4px;
+        }
+
+        .pq-date-picker-popup .pq-popup-header .pq-popup-close:hover {
+          color: var(--text-primary, #1e293b);
+        }
+
+        .pq-date-picker-popup .pq-quick-filters {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+          margin-bottom: 16px;
+          padding-bottom: 12px;
+          border-bottom: 1px solid var(--border-color, #e5e7eb);
+        }
+
+        .pq-date-picker-popup .pq-quick-filter-btn {
+          padding: 4px 14px;
+          border: 1px solid var(--border-color, #e5e7eb);
+          border-radius: 16px;
+          background: var(--card-bg, #fff);
+          color: var(--text-secondary, #6b7280);
+          font-size: 12px;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .pq-date-picker-popup .pq-quick-filter-btn:hover {
+          border-color: var(--primary-color, #2563eb);
+          color: var(--primary-color, #2563eb);
+        }
+
+        .pq-date-picker-popup .pq-quick-filter-btn.active {
+          background: var(--primary-color, #2563eb);
+          border-color: var(--primary-color, #2563eb);
+          color: #fff;
+        }
+
+        .pq-date-picker-popup .pq-calendar-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 12px;
+        }
+
+        .pq-date-picker-popup .pq-calendar-header .pq-month-year {
+          font-size: 14px;
+          font-weight: 600;
+          color: var(--text-primary, #1e293b);
+        }
+
+        .pq-date-picker-popup .pq-calendar-header .pq-nav-btn {
+          background: none;
+          border: none;
+          color: var(--text-secondary, #6b7280);
+          cursor: pointer;
+          padding: 4px 8px;
+          font-size: 14px;
+          border-radius: 4px;
+          transition: all 0.2s;
+        }
+
+        .pq-date-picker-popup .pq-calendar-header .pq-nav-btn:hover {
+          background: var(--hover-bg, #f3f4f6);
+        }
+
+        .pq-date-picker-popup .pq-calendar-grid {
+          display: grid;
+          grid-template-columns: repeat(7, 1fr);
+          gap: 2px;
+          margin-bottom: 12px;
+        }
+
+        .pq-date-picker-popup .pq-calendar-grid .pq-day-header {
+          text-align: center;
+          font-size: 11px;
+          font-weight: 600;
+          color: var(--text-secondary, #6b7280);
+          padding: 4px 0;
+        }
+
+        .pq-date-picker-popup .pq-calendar-grid .pq-day-cell {
+          text-align: center;
+          padding: 6px 4px;
+          font-size: 13px;
+          border-radius: 6px;
+          cursor: pointer;
+          transition: all 0.2s;
+          color: var(--text-primary, #1e293b);
+          position: relative;
+        }
+
+        .pq-date-picker-popup .pq-calendar-grid .pq-day-cell.empty {
+          cursor: default;
+        }
+
+        .pq-date-picker-popup .pq-calendar-grid .pq-day-cell:hover:not(.empty):not(.in-range) {
+          background: var(--hover-bg, #f3f4f6);
+        }
+
+        .pq-date-picker-popup .pq-calendar-grid .pq-day-cell.in-range {
+          background: rgba(37, 99, 235, 0.1);
+        }
+
+        .pq-date-picker-popup .pq-calendar-grid .pq-day-cell.selected {
+          background: var(--primary-color, #2563eb);
+          color: #fff;
+          font-weight: 600;
+        }
+
+        .pq-date-picker-popup .pq-calendar-grid .pq-day-cell.selected-start {
+          background: var(--primary-color, #2563eb);
+          color: #fff;
+          font-weight: 600;
+          border-radius: 6px 0 0 6px;
+        }
+
+        .pq-date-picker-popup .pq-calendar-grid .pq-day-cell.selected-end {
+          background: var(--primary-color, #2563eb);
+          color: #fff;
+          font-weight: 600;
+          border-radius: 0 6px 6px 0;
+        }
+
+        .pq-date-picker-popup .pq-calendar-grid .pq-day-cell.range-middle {
+          background: rgba(37, 99, 235, 0.15);
+        }
+
+        .pq-date-picker-popup .pq-calendar-grid .pq-day-cell.today {
+          border: 1px solid var(--primary-color, #2563eb);
+        }
+
+        .pq-date-picker-popup .pq-popup-actions {
+          display: flex;
+          gap: 8px;
+          justify-content: flex-end;
+          padding-top: 12px;
+          border-top: 1px solid var(--border-color, #e5e7eb);
+        }
+
+        .pq-date-picker-popup .pq-popup-actions button {
+          padding: 6px 16px;
+          border: none;
+          border-radius: 6px;
+          font-size: 13px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .pq-date-picker-popup .pq-popup-actions .pq-btn-apply {
+          background: var(--primary-color, #2563eb);
+          color: #fff;
+        }
+
+        .pq-date-picker-popup .pq-popup-actions .pq-btn-apply:hover {
+          background: var(--primary-hover, #1d4ed8);
+        }
+
+        .pq-date-picker-popup .pq-popup-actions .pq-btn-clear {
+          background: transparent;
+          color: var(--text-secondary, #6b7280);
+        }
+
+        .pq-date-picker-popup .pq-popup-actions .pq-btn-clear:hover {
+          background: var(--hover-bg, #f3f4f6);
+        }
+
+        .pq-date-picker-popup .pq-popup-actions .pq-btn-cancel {
+          background: transparent;
+          color: var(--text-secondary, #6b7280);
+        }
+
+        .pq-date-picker-popup .pq-popup-actions .pq-btn-cancel:hover {
+          background: var(--hover-bg, #f3f4f6);
+        }
+
+        /* Filter bar styles */
+        .pq-filter-bar {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          padding: 12px 16px;
+          background: var(--card-bg, #fff);
+          border-bottom: 1px solid var(--border-color, #e5e7eb);
+        }
+
+        .pq-filter-left {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 8px;
+          flex: 1;
+        }
+
+        .pq-filter-right {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .pq-search-wrapper {
+          position: relative;
+          flex: 1;
+          min-width: 200px;
+        }
+
+        .pq-search-input {
+          width: 100%;
+          padding: 8px 12px 8px 36px;
+          border: 1px solid var(--border-color, #e5e7eb);
+          border-radius: 8px;
+          background: var(--input-bg, #fff);
+          color: var(--text-primary, #1e293b);
+          font-size: 13px;
+          min-height: 38px;
+        }
+
+        .pq-search-input:focus {
+          outline: none;
+          border-color: var(--primary-color, #2563eb);
+          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .pq-search-icon {
+          position: absolute;
+          left: 12px;
+          top: 50%;
+          transform: translateY(-50%);
+          color: var(--text-secondary, #6b7280);
+          font-size: 14px;
+        }
+
+        .pq-search-clear {
+          position: absolute;
+          right: 8px;
+          top: 50%;
+          transform: translateY(-50%);
+          background: none;
+          border: none;
+          color: var(--text-secondary, #6b7280);
+          cursor: pointer;
+          padding: 4px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .pq-search-clear:hover {
+          background: var(--hover-bg, #f3f4f6);
+        }
+
+        .pq-filter-select {
+          padding: 8px 12px;
+          border: 1px solid var(--border-color, #e5e7eb);
+          border-radius: 8px;
+          background: var(--input-bg, #fff);
+          color: var(--text-primary, #1e293b);
+          font-size: 13px;
+          min-height: 38px;
+          cursor: pointer;
+        }
+
+        .pq-filter-select:focus {
+          outline: none;
+          border-color: var(--primary-color, #2563eb);
+        }
+
+        .pq-btn-new {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 8px 16px;
+          background: var(--primary-color, #2563eb);
+          color: #fff;
+          border: none;
+          border-radius: 8px;
+          font-size: 13px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s;
+          min-height: 38px;
+          white-space: nowrap;
+        }
+
+        .pq-btn-new:hover {
+          background: var(--primary-hover, #1d4ed8);
+          transform: translateY(-1px);
+        }
+
+        /* Active filters */
+        .pq-active-filters {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 8px;
+          padding: 8px 16px;
+          background: var(--hover-bg, #f8fafc);
+          border-bottom: 1px solid var(--border-color, #e5e7eb);
+          font-size: 13px;
+        }
+
+        .pq-clear-filters {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          padding: 4px 10px;
+          border: none;
+          border-radius: 4px;
+          background: var(--danger-color, #ef4444);
+          color: #fff;
+          font-size: 12px;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .pq-clear-filters:hover {
+          background: var(--danger-hover, #dc2626);
+        }
+
+        /* Stats Cards */
+        .pq-stats-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+          gap: 16px;
+          padding: 16px;
+          background: var(--card-bg, #fff);
+          border-bottom: 1px solid var(--border-color, #e5e7eb);
+        }
+
+        .pq-stat-card {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 12px 16px;
+          background: var(--hover-bg, #f8fafc);
+          border-radius: 8px;
+          border: 1px solid var(--border-color, #e5e7eb);
+        }
+
+        .pq-stat-icon {
+          width: 36px;
+          height: 36px;
+          border-radius: 8px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #fff;
+        }
+
+        .pq-stat-content {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .pq-stat-label {
+          font-size: 11px;
+          color: var(--text-secondary, #6b7280);
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+
+        .pq-stat-value {
+          font-size: 18px;
+          font-weight: 600;
+          color: var(--text-primary, #1e293b);
+        }
+
+        /* Company Selector */
+        .pq-company-selector {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 16px;
+          padding: 12px 16px;
+          background: var(--card-bg, #fff);
+          border-bottom: 1px solid var(--border-color, #e5e7eb);
+        }
+
+        .pq-selector-group {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .pq-selector-label {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          font-size: 12px;
+          font-weight: 500;
+          color: var(--text-secondary, #6b7280);
+        }
+
+        .pq-selector-input {
+          padding: 6px 10px;
+          border: 1px solid var(--border-color, #e5e7eb);
+          border-radius: 6px;
+          background: var(--input-bg, #fff);
+          color: var(--text-primary, #1e293b);
+          font-size: 12px;
+          min-height: 32px;
+          cursor: pointer;
+        }
+
+        .pq-selector-input:focus {
+          outline: none;
+          border-color: var(--primary-color, #2563eb);
+        }
+
+        .pq-selector-info {
+          margin-left: auto;
+        }
+
+        .pq-info-text {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          font-size: 12px;
+          color: var(--text-secondary, #6b7280);
+        }
+
+        /* Table styles */
+        .pq-table-wrap {
+          overflow-x: auto;
+          padding: 0 16px;
+        }
+
+        .pq-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 13px;
+        }
+
+        .pq-th {
+          text-align: left;
+          padding: 10px 12px;
+          font-weight: 600;
+          color: var(--text-secondary, #6b7280);
+          border-bottom: 2px solid var(--border-color, #e5e7eb);
+          font-size: 11px;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+
+        .pq-th-meta {
+          text-align: center;
+        }
+
+        .pq-text-right {
+          text-align: right;
+        }
+
+        .pq-tr {
+          border-bottom: 1px solid var(--border-color, #e5e7eb);
+          transition: background 0.2s;
+        }
+
+        .pq-tr:hover {
+          background: var(--hover-bg, #f8fafc);
+        }
+
+        .pq-td {
+          padding: 10px 12px;
+          color: var(--text-primary, #1e293b);
+        }
+
+        .pq-td-id {
+          font-weight: 500;
+          color: var(--primary-color, #2563eb);
+        }
+
+        .pq-td-link {
+          font-weight: 500;
+          color: var(--primary-color, #2563eb);
+          cursor: pointer;
+        }
+
+        .pq-td-link:hover {
+          text-decoration: underline;
+        }
+
+        .pq-amount-cell {
+          font-weight: 500;
+        }
+
+        .pq-currency {
+          font-size: 10px;
+          color: var(--text-secondary, #6b7280);
+          margin-right: 2px;
+        }
+
+        .pq-status-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          padding: 3px 10px;
+          border-radius: 12px;
+          font-size: 11px;
+          font-weight: 500;
+        }
+
+        .status-draft { background: #e5e7eb; color: #6b7280; }
+        .status-sent { background: #dbeafe; color: #2563eb; }
+        .status-expired { background: #fef3c7; color: #d97706; }
+        .status-accepted { background: #d1fae5; color: #059669; }
+        .status-rejected { background: #fecaca; color: #dc2626; }
+        .status-converted { background: #e0e7ff; color: #4f46e5; }
+
+        .pq-action-buttons {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 4px;
+        }
+
+        .pq-action-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 30px;
+          height: 30px;
+          border: none;
+          border-radius: 6px;
+          background: transparent;
+          color: var(--text-secondary, #6b7280);
+          cursor: pointer;
+          transition: all 0.2s;
+          font-size: 12px;
+        }
+
+        .pq-action-btn:hover {
+          background: var(--hover-bg, #f3f4f6);
+          color: var(--primary-color, #2563eb);
+        }
+
+        .pq-action-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        .pq-action-btn.pq-action-print:hover {
+          color: #059669;
+        }
+
+        .pq-action-btn.pq-action-view:hover {
+          color: #2563eb;
+        }
+
+        .spinning {
+          animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+
+        /* Loading, Error, Empty states */
+        .pq-loading, .pq-error, .pq-empty-state {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 60px 20px;
+          text-align: center;
+          color: var(--text-secondary, #6b7280);
+        }
+
+        .pq-empty-content {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .pq-empty-content p {
+          font-size: 16px;
+          font-weight: 500;
+          color: var(--text-primary, #1e293b);
+          margin: 0;
+        }
+
+        .pq-empty-content span {
+          font-size: 13px;
+          color: var(--text-secondary, #6b7280);
+        }
+
+        .pq-retry-btn {
+          margin-top: 12px;
+          padding: 8px 20px;
+          background: var(--primary-color, #2563eb);
+          color: #fff;
+          border: none;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 13px;
+        }
+
+        .pq-retry-btn:hover {
+          background: var(--primary-hover, #1d4ed8);
+        }
+
+        /* Pagination */
+        .pq-pagination {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 12px 16px;
+          border-top: 1px solid var(--border-color, #e5e7eb);
+          flex-wrap: wrap;
+          gap: 8px;
+        }
+
+        .pq-pagination-info {
+          font-size: 13px;
+          color: var(--text-secondary, #6b7280);
+        }
+
+        /* Modal styles */
+        .pq-modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.5);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 9999;
+        }
+
+        .pq-modal {
+          background: var(--card-bg, #fff);
+          border-radius: 12px;
+          width: 90%;
+          max-width: 500px;
+          max-height: 90vh;
+          overflow: auto;
+          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .pq-modal-lg {
+          max-width: 900px;
+        }
+
+        .pq-modal-delete {
+          max-width: 420px;
+        }
+
+        .pq-modal-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 16px 20px;
+          border-bottom: 1px solid var(--border-color, #e5e7eb);
+        }
+
+        .pq-modal-title {
+          font-size: 16px;
+          font-weight: 600;
+          color: var(--text-primary, #1e293b);
+        }
+
+        .pq-modal-close {
+          background: none;
+          border: none;
+          color: var(--text-secondary, #6b7280);
+          cursor: pointer;
+          padding: 4px;
+          border-radius: 4px;
+          transition: all 0.2s;
+        }
+
+        .pq-modal-close:hover {
+          background: var(--hover-bg, #f3f4f6);
+          color: var(--text-primary, #1e293b);
+        }
+
+        .pq-modal-body {
+          padding: 20px;
+          color: var(--text-primary, #1e293b);
+        }
+
+        .pq-modal-item-name {
+          padding: 8px 12px;
+          background: var(--hover-bg, #f8fafc);
+          border-radius: 6px;
+          margin: 8px 0;
+        }
+
+        .pq-modal-warning {
+          color: var(--danger-color, #ef4444);
+          font-size: 13px;
+          margin-top: 8px;
+        }
+
+        .pq-modal-footer {
+          display: flex;
+          justify-content: flex-end;
+          gap: 8px;
+          padding: 16px 20px;
+          border-top: 1px solid var(--border-color, #e5e7eb);
+        }
+
+        .pq-btn-cancel {
+          padding: 8px 16px;
+          border: 1px solid var(--border-color, #e5e7eb);
+          border-radius: 6px;
+          background: transparent;
+          color: var(--text-secondary, #6b7280);
+          cursor: pointer;
+          font-size: 13px;
+          transition: all 0.2s;
+        }
+
+        .pq-btn-cancel:hover {
+          background: var(--hover-bg, #f3f4f6);
+        }
+
+        .pq-btn-delete {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 8px 16px;
+          border: none;
+          border-radius: 6px;
+          background: var(--danger-color, #ef4444);
+          color: #fff;
+          cursor: pointer;
+          font-size: 13px;
+          font-weight: 500;
+          transition: all 0.2s;
+        }
+
+        .pq-btn-delete:hover:not(:disabled) {
+          background: var(--danger-hover, #dc2626);
+        }
+
+        .pq-btn-delete:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+
+        .pq-btn-primary {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 8px 16px;
+          border: none;
+          border-radius: 6px;
+          background: var(--primary-color, #2563eb);
+          color: #fff;
+          cursor: pointer;
+          font-size: 13px;
+          font-weight: 500;
+          transition: all 0.2s;
+        }
+
+        .pq-btn-primary:hover {
+          background: var(--primary-hover, #1d4ed8);
+        }
+
+        .pq-btn-primary:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+
+        @media (max-width: 768px) {
+          .pq-filter-bar {
+            flex-direction: column;
+            align-items: stretch;
+          }
+          .pq-filter-left {
+            flex-direction: column;
+            align-items: stretch;
+          }
+          .pq-filter-right {
+            flex-wrap: wrap;
+            justify-content: stretch;
+          }
+          .pq-filter-right select {
+            flex: 1;
+          }
+          .pq-btn-new {
+            justify-content: center;
+            flex: 1;
+          }
+          .pq-date-picker-container {
+            width: 100%;
+          }
+          .pq-date-picker-trigger {
+            width: 100%;
+            justify-content: center;
+          }
+          .pq-date-picker-popup {
+            left: 0;
+            min-width: 100%;
+            width: 100%;
+          }
+          .pq-pagination {
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+          }
+          .pq-company-selector {
+            flex-direction: column;
+            align-items: stretch;
+          }
+          .pq-selector-group {
+            flex-direction: column;
+            align-items: stretch;
+          }
+          .pq-selector-info {
+            margin-left: 0;
+          }
+          .pq-stats-grid {
+            grid-template-columns: repeat(2, 1fr);
+          }
+        }
+      `}</style>
+
       {/* Stats Cards */}
       <div className="pq-stats-grid">
         <div className="pq-stat-card">
-          <div className="pq-stat-icon" style={{ background: 'var(--primary-light)' }}>
+          <div className="pq-stat-icon" style={{ background: '#3b82f6' }}>
             <FaFileInvoice size={20} />
           </div>
           <div className="pq-stat-content">
@@ -977,7 +2133,7 @@ export default function ProformaInvoice() {
           </div>
         </div>
         <div className="pq-stat-card">
-          <div className="pq-stat-icon" style={{ background: 'var(--success-light)' }}>
+          <div className="pq-stat-icon" style={{ background: '#10b981' }}>
             <FaCheckCircle size={20} />
           </div>
           <div className="pq-stat-content">
@@ -986,7 +2142,7 @@ export default function ProformaInvoice() {
           </div>
         </div>
         <div className="pq-stat-card">
-          <div className="pq-stat-icon" style={{ background: 'var(--warning-light)' }}>
+          <div className="pq-stat-icon" style={{ background: '#f59e0b' }}>
             <FaClock size={20} />
           </div>
           <div className="pq-stat-content">
@@ -995,7 +2151,7 @@ export default function ProformaInvoice() {
           </div>
         </div>
         <div className="pq-stat-card">
-          <div className="pq-stat-icon" style={{ background: 'var(--info-light)' }}>
+          <div className="pq-stat-icon" style={{ background: '#8b5cf6' }}>
             <FaChartLine size={20} />
           </div>
           <div className="pq-stat-content">
@@ -1074,7 +2230,7 @@ export default function ProformaInvoice() {
             <FaSearch className="pq-search-icon" />
             <input
               type="text"
-              placeholder="Search by Proforma # or Customer..."
+              placeholder="Search by Proforma #, Customer Name, or Customer Code..."
               value={filterText}
               onChange={(e) => setFilterText(e.target.value)}
               className="pq-search-input"
@@ -1110,6 +2266,127 @@ export default function ProformaInvoice() {
             <option value="Cancelled">Cancelled</option>
             <option value="Closed">Closed</option>
           </select>
+
+          {/* Date Range Picker - Before New Proforma Button */}
+          <div className="pq-date-picker-container">
+            <div 
+              className={`pq-date-picker-trigger ${showDatePicker ? 'active' : ''}`}
+              onClick={openDatePicker}
+            >
+              <FaCalendarAlt className="pq-calendar-icon" />
+              <span className={`pq-date-label ${!fromDate && !toDate ? 'placeholder' : ''}`}>
+                {fromDate || toDate ? (
+                  <span className="pq-date-range-display">
+                    {fromDate ? formatDateForDisplay(fromDate) : 'Start'} – {toDate ? formatDateForDisplay(toDate) : 'End'}
+                  </span>
+                ) : (
+                  'Filter by Date'
+                )}
+              </span>
+            </div>
+            
+            {showDatePicker && (
+              <div className="pq-date-picker-popup">
+                <div className="pq-popup-header">
+                  <span className="pq-popup-title">Filter by Date</span>
+                  <button className="pq-popup-close" onClick={() => setShowDatePicker(false)}>
+                    <FaTimes size={14} />
+                  </button>
+                </div>
+                
+                {/* Quick Filters */}
+                <div className="pq-quick-filters">
+                  <button 
+                    className={`pq-quick-filter-btn ${selectedQuickFilter === 'today' ? 'active' : ''}`}
+                    onClick={() => applyQuickFilter('today')}
+                  >
+                    Today
+                  </button>
+                  <button 
+                    className={`pq-quick-filter-btn ${selectedQuickFilter === 'last7' ? 'active' : ''}`}
+                    onClick={() => applyQuickFilter('last7')}
+                  >
+                    Last 7 Days
+                  </button>
+                  <button 
+                    className={`pq-quick-filter-btn ${selectedQuickFilter === 'last30' ? 'active' : ''}`}
+                    onClick={() => applyQuickFilter('last30')}
+                  >
+                    Last 30 Days
+                  </button>
+                  <button 
+                    className={`pq-quick-filter-btn ${selectedQuickFilter === 'thisMonth' ? 'active' : ''}`}
+                    onClick={() => applyQuickFilter('thisMonth')}
+                  >
+                    This Month
+                  </button>
+                </div>
+                
+                {/* Calendar */}
+                <div className="pq-calendar-header">
+                  <button className="pq-nav-btn" onClick={() => changeMonth(-1)}>
+                    <FaChevronLeft size={12} />
+                  </button>
+                  <span className="pq-month-year">
+                    {getMonthName(currentMonth)} {currentYear}
+                  </span>
+                  <button className="pq-nav-btn" onClick={() => changeMonth(1)}>
+                    <FaChevronRight size={12} />
+                  </button>
+                </div>
+                
+                <div className="pq-calendar-grid">
+                  {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
+                    <div key={day} className="pq-day-header">{day}</div>
+                  ))}
+                  {generateCalendarDays().map((day, index) => {
+                    if (day === null) {
+                      return <div key={`empty-${index}`} className="pq-day-cell empty"></div>;
+                    }
+                    
+                    const dateObj = new Date(currentYear, currentMonth, day);
+                    const dateStr = dateObj.toISOString().split('T')[0];
+                    const isToday = dateStr === getTodayDate();
+                    const isInRange = isDateInRange(day);
+                    const isSelected = isDateSelected(day);
+                    const isStart = dateStr === tempFromDate;
+                    const isEnd = dateStr === tempToDate;
+                    
+                    let className = 'pq-day-cell';
+                    if (isToday) className += ' today';
+                    if (isInRange && !isSelected) className += ' in-range';
+                    if (isSelected) className += ' selected';
+                    if (isStart && tempToDate) className += ' selected-start';
+                    if (isEnd && tempFromDate) className += ' selected-end';
+                    if (isInRange && !isSelected && !isStart && !isEnd) className += ' range-middle';
+                    
+                    return (
+                      <div 
+                        key={day} 
+                        className={className}
+                        onClick={() => handleDateClick(day)}
+                      >
+                        {day}
+                      </div>
+                    );
+                  })}
+                </div>
+                
+                <div className="pq-popup-actions">
+                  <button className="pq-btn-clear" onClick={clearDateFilters}>
+                    Clear
+                  </button>
+                  <button className="pq-btn-cancel" onClick={() => setShowDatePicker(false)}>
+                    Cancel
+                  </button>
+                  <button className="pq-btn-apply" onClick={applyDateFilter}>
+                    Apply Filters
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
           <button className="pq-btn-new" onClick={() => navigate('/proforma-invoice/new')}>
             <FaPlus size={12} /> New Proforma
           </button>
@@ -1117,7 +2394,7 @@ export default function ProformaInvoice() {
       </div>
 
       {/* Active filters indicator */}
-      {(filterText || selectedStatus !== 'All' || selectedOrderType !== 'All') && (
+      {(filterText || selectedStatus !== 'All' || selectedOrderType !== 'All' || fromDate || toDate) && (
         <div className="pq-active-filters">
           <FaFilter size={12} style={{ color: 'var(--primary-color)' }} />
           <span style={{ color: 'var(--text-primary)' }}>Active filters:</span>
@@ -1134,6 +2411,11 @@ export default function ProformaInvoice() {
           {selectedOrderType !== 'All' && (
             <span style={{ color: 'var(--text-primary)' }}>
               <strong>Order Type:</strong> {selectedOrderType}
+            </span>
+          )}
+          {(fromDate || toDate) && (
+            <span style={{ color: 'var(--text-primary)' }}>
+              <strong>Date:</strong> {fromDate ? formatDateForDisplay(fromDate) : 'Any'} – {toDate ? formatDateForDisplay(toDate) : 'Any'}
             </span>
           )}
           <button onClick={clearFilters} className="pq-clear-filters">
@@ -1196,9 +2478,10 @@ export default function ProformaInvoice() {
                       </div>
                     </td>
                     <td className="pq-td">
-                      <div>{order.date ? new Date(order.date).toLocaleDateString() : '-'}</div>
+                      {/* ✅ USE FORMATTED DATE FOR DISPLAY */}
+                      <div>{order.date ? formatDisplayDate(order.date) : '-'}</div>
                       <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                        Valid Until: {order.deliveryDate ? new Date(order.deliveryDate).toLocaleDateString() : '-'}
+                        Valid Until: {order.deliveryDate ? formatDisplayDate(order.deliveryDate) : '-'}
                       </div>
                     </td>
                     <td className="pq-td">{order.orderType}</td>
@@ -1225,12 +2508,6 @@ export default function ProformaInvoice() {
                         >
                           {printLoadingId === order.id ? <FaSpinner className="spinning" size={12} /> : <FaPrint size={12} />}
                         </button>
-                        {/* <button className="pq-action-btn pq-action-edit" onClick={() => handleEdit(order)} title="Edit">
-                          <FaEdit size={12} />
-                        </button>
-                        <button className="pq-action-btn pq-action-delete" onClick={() => handleDeleteClick(order)} title="Delete">
-                          <FaTrash size={12} />
-                        </button> */}
                       </div>
                     </td>
                   </tr>
@@ -1245,7 +2522,7 @@ export default function ProformaInvoice() {
       <div className="pq-pagination">
         <div className="pq-pagination-left">
           <span className="pq-pagination-info">
-            {filteredOrders.length} of {salesOrders.length} proformas
+            {filteredOrders.length} of {allSalesOrders.length} proformas
           </span>
         </div>
         <div className="pq-pagination-right">
@@ -1321,8 +2598,9 @@ export default function ProformaInvoice() {
                   <div style={{ padding: '2px 0' }}><strong>State:</strong> {selectedOrder.customerState || 'N/A'}{selectedOrder.customerStateCode ? ` (Code: ${selectedOrder.customerStateCode})` : ''}</div>
                 </div>
                 <div style={{ fontSize: '13px', marginBottom: '16px' }}>
-                  <div style={{ padding: '2px 0' }}><strong>Date:</strong> {selectedOrder.date ? new Date(selectedOrder.date).toLocaleDateString() : 'N/A'}</div>
-                  <div style={{ padding: '2px 0' }}><strong>Valid Until:</strong> {selectedOrder.deliveryDate ? new Date(selectedOrder.deliveryDate).toLocaleDateString() : 'N/A'}</div>
+                  {/* ✅ USE FORMATTED DATES FOR DISPLAY */}
+                  <div style={{ padding: '2px 0' }}><strong>Date:</strong> {selectedOrder.date ? formatDisplayDate(selectedOrder.date) : 'N/A'}</div>
+                  <div style={{ padding: '2px 0' }}><strong>Valid Until:</strong> {selectedOrder.deliveryDate ? formatDisplayDate(selectedOrder.deliveryDate) : 'N/A'}</div>
                   <div style={{ padding: '2px 0' }}><strong>Order Type:</strong> {selectedOrder.orderType}</div>
                   <div style={{ padding: '2px 0' }}><strong>Status:</strong> {selectedOrder.status}</div>
                   <div style={{ padding: '2px 0' }}><strong>Currency:</strong> {selectedOrder.currency}</div>

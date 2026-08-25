@@ -1,73 +1,56 @@
-// GRNForm.tsx - Service/Customer + Supplier/Manual item entry + GST billing + Print + Success modal
-// Status is always set to "submitted" - removed from UI
-import { useState, useEffect, type FormEvent, useRef } from "react";
-import { useNavigate, useParams, useLocation } from "react-router-dom";
-import { getUserRole } from '../utils/storage';
-import {
-  FaArrowLeft,
-  FaSave,
-  FaSpinner,
-  FaExclamationCircle,
-  FaExclamationTriangle,
-  FaInfoCircle,
-  FaTimesCircle,
-  FaCheckCircle,
-  FaPlus,
-  FaTrash,
-  FaWarehouse,
-  FaFileInvoice,
-  FaBox,
-  FaPhone,
-  FaEnvelope,
-  FaMapMarkerAlt,
-  FaUserCircle,
-  FaUsers,
-  FaPercentage,
-  
-  FaReceipt,
-  FaSearch,
-  FaPrint,
-  FaMoneyBillWave,
-  FaGlobeAsia,
-  FaBuilding,
-} from 'react-icons/fa';
-import "./GRNForm.css";
-import { useAdminTheme } from '../admin-theme/AdminThemeContext';
-import api from '../services/api';
+// PurchaseOrderForm.tsx - Cleaner UI with Compact Layout, Customer Info on Right, Item Table with Order Rate, Editable Grand Total
+// UPDATED: Added "Item Code" dropdown with "+ Add New Item" popup (sticky at bottom)
+// UPDATED: Removed scroll from popups by increasing width and using grid layout
 
-// ─── DigitInput Component ──────────────────────────────────────────────
+import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { 
+  FaPlus, FaSave, FaSpinner, FaArrowLeft,
+  FaExclamationCircle, FaExclamationTriangle, FaInfoCircle,
+  FaTimesCircle,  FaBuilding,
+  FaCalendarAlt, FaFileAlt, FaBoxes, FaClipboardList,
+  FaSearch, FaFilter, FaPhone, FaEnvelope,  FaGlobeAsia,
+  FaCheckCircle
+} from 'react-icons/fa';
+import { useNavigate, useParams } from 'react-router-dom';
+import { useAdminTheme } from '../admin-theme/AdminThemeContext';
+import toast from 'react-hot-toast';
+import api from '../services/api';
+import DatePicker from 'react-datepicker';
+import "react-datepicker/dist/react-datepicker.css";
+import './PurchaseOrderForm.css';
+
+// ─── DigitInput Component ──────────────────────────────────
+
 interface DigitInputProps {
   label?: string;
-  value: number | string;
-  onChange: (value: number) => void;
+  value: string;
+  onChange: (value: string) => void;
   placeholder?: string;
   maxLength?: number;
   disabled?: boolean;
-  className?: string;
   required?: boolean;
+  className?: string;
+  allowDecimal?: boolean;
   min?: number;
   max?: number;
 }
 
-const DigitInput: React.FC<DigitInputProps> = ({
-  label,
-  value,
-  onChange,
-  placeholder = "Enter number",
-  maxLength = 10,
+function DigitInput({ 
+  label, 
+  value, 
+  onChange, 
+  placeholder = '', 
+  maxLength = 20,
   disabled = false,
-  className = "",
   required = false,
+  className = '',
+  allowDecimal = false,
   min,
-  max,
-}) => {
-  const [displayValue, setDisplayValue] = useState<string>(String(value || ''));
-
-  useEffect(() => {
-    setDisplayValue(String(value || ''));
-  }, [value]);
-
+  max
+}: DigitInputProps) {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+
     const raw = e.target.value;
     if (raw === '') {
       setDisplayValue('');
@@ -80,19 +63,15 @@ const DigitInput: React.FC<DigitInputProps> = ({
       const numValue = parseInt(digits, 10);
       if (!isNaN(numValue)) {
         if (min !== undefined && numValue < min) {
-          onChange(min);
-          setDisplayValue(String(min));
-          return;
+          onChange(String(min));
         }
         if (max !== undefined && numValue > max) {
-          onChange(max);
-          setDisplayValue(String(max));
-          return;
+          onChange(String(max));
         }
-        onChange(numValue);
       }
     }
   };
+
 
   const handleBlur = () => {
     if (displayValue === '') {
@@ -109,44 +88,69 @@ const DigitInput: React.FC<DigitInputProps> = ({
 
   return (
     <div className={`digit-input-wrapper ${className}`}>
-      {label && <label className="digit-input-label">{label}{required && <span className="grnf-required">*</span>}</label>}
+      {label && <label className="digit-input-label">{label}</label>}
       <input
         type="text"
-        inputMode="numeric"
-        pattern="[0-9]*"
-        value={displayValue}
+        inputMode={allowDecimal ? "decimal" : "numeric"}
+        pattern={allowDecimal ? "[0-9]*[.]?[0-9]*" : "[0-9]*"}
+        value={value}
         onChange={handleChange}
         onBlur={handleBlur}
-        onKeyDown={handleKeyDown}
         placeholder={placeholder}
         disabled={disabled}
-        maxLength={maxLength}
-        className={`digit-input ${disabled ? 'digit-input-disabled' : ''}`}
+        required={required}
+        className="digit-input"
+        maxLength={maxLength + (allowDecimal ? 1 : 0)}
       />
     </div>
   );
-};
+}
 
-// ─── Entry Mode ─────────────────────────────────────────────────────────
-type EntryMode = 'supplier' | 'manual';
+// ─── Types ──────────────────────────────────────────────────
 
-interface GRNItem {
+interface PurchaseOrderItem {
   id: string;
+  itemId: number;
   itemCode: string;
   itemName: string;
-  orderedQty: number;
-  receivedQty: number;
-  rejectedQty: number;
+  quantity: number;
   uom: string;
   rate: number;
-  remarks: string;
-  poItemId?: number;
-  itemId?: number;
-  taxId?: number;
-  taxType?: string;
+  orderRate: number;
+  amount: number;
+  receivedQty: number;
+  balanceQty: number;
+  itemGroup?: string;
+  brand?: string;
+  description?: string;
+  taxId?: string;
   taxRate?: number;
   hsn?: string;
-  isDraft?: boolean;
+  discount?: number;
+  discountAmount?: number;
+}
+
+interface PurchaseOrder {
+  id: string;
+  poNumber: string;
+  title: string;
+  supplier: string;
+  supplierCode: string;
+  status: 'Draft' | 'Submitted' | 'Open' | 'Started' | 'Cancelled' | 'Closed';
+  orderDate: string;
+  deliveryDate: string;
+  currency: string;
+  totalAmount: number;
+  receivedAmount: number;
+  balanceAmount: number;
+  paymentTerms: string;
+  shippingAddress: string;
+  billingAddress: string;
+  notes: string;
+  items: PurchaseOrderItem[];
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface ValidationError {
@@ -155,154 +159,36 @@ interface ValidationError {
   message: string;
 }
 
-interface GRNData {
-  id?: string;
-  grn_number: string;
-  grnDate: string;
-  isService: boolean;
-  entryMode: EntryMode;
-  supplier: string;
-  supplierId?: number;
-  purchaseOrder: string;
-  purchaseOrderId?: number;
-  warehouse: string;
-  warehouseId?: number;
-  customer: string;
-  customerId?: number;
-  receivedBy: string;
-  receivedById?: number;
-  vehicleNo: string;
-  deliveryChallanNo: string;
-  invoiceNo: string;
-  freeDelivery: boolean;
-  deliveryCharge: number;
-  items: GRNItem[];
-}
-
-interface PurchaseOrder {
-  id: number;
-  name: string;
-  supplier_name: string;
-  supplier: string;
-  company: string;
-  transaction_date: string;
-  schedule_date: string;
-  currency: string;
-  total_qty: number;
-  total: number;
-  net_total: number;
-  grand_total: number;
-  rounded_total: number;
-  status: string;
-  per_received: number;
-  per_billed: number;
-  title?: string;
-}
-
-interface PurchaseOrderDetail extends PurchaseOrder {
-  items: POItem[];
-  terms?: string;
-  address_display?: string;
-  contact_display?: string;
-  contact_mobile?: string;
-  contact_email?: string;
-  cost_center?: string;
-  set_warehouse?: string;
-  tax_category?: string;
-  shipping_rule?: string;
-  incoterm?: string;
-  named_place?: string;
-  payment_terms_template?: string;
-  tc_name?: string;
-  conversion_rate?: number;
-  price_list_currency?: string;
-  plc_conversion_rate?: number;
-  supplier_id?: number;
-}
-
-interface POItem {
+interface ItemSuggestion {
   id: number;
   item_code: string;
   item_name: string;
-  qty: number;
-  uom: string;
-  rate: number;
-  amount: number;
-  received_qty: number;
-  returned_qty: number;
-  billed_amt: number;
-  warehouse?: string;
-  expense_account?: string;
-  weight_per_unit?: number;
-  weight_uom?: string;
-  item_tax_rate?: number;
-  item_tax_template?: string;
-  cost_center?: string;
-  hsn?: string;
+  stock_uom: string;
+  standard_rate: number;
+  valuation_rate: number;
+  description?: string;
+  brand?: string;
+  item_group?: string;
   tax_id?: number;
-  tax_type?: string;
+  hsn?: string;
 }
 
-interface POApiResponse {
-  success: number;
-  data: {
-    total: number;
-    page: number;
-    limit: number;
-    records: PurchaseOrder[];
-  };
-}
-
-interface PODetailApiResponse {
-  success: number;
-  data: PurchaseOrderDetail;
-}
-
-interface Warehouse {
+interface Supplier {
   id: number;
-  warehouse_name: string;
-  company: string;
-  parent_warehouse: string | null;
-  warehouse_type: string | null;
-  city: string | null;
-  state: string | null;
-  email_id: string | null;
-  phone_no: string | null;
+  supplier_name: string;
+  supplier_type: string;
+  supplier_group: string;
+  country: string;
+  mobile_no: string;
+  email_id: string;
+  address?: string;
+  primary_address?: string;
   disabled: number;
 }
 
-interface WarehouseApiResponse {
-  success: number;
-  data: {
-    total: number;
-    page: number;
-    limit: number;
-    records: Warehouse[];
-  };
-}
-
-interface Employee {
-  id: number;
-  employee_name: string;
-  first_name: string;
-  middle_name: string;
-  last_name: string;
-  designation: string;
-  department: string;
-  company_email: string;
-  cell_number: string;
-  status: string;
-  user_id: string | null;
-}
-
-interface EmployeeApiResponse {
-  success: number;
-  data: {
-    total: number;
-    page: number;
-    limit: number;
-    records: Employee[];
-  };
+interface TaxOption {
+  tax_id: number;
+  tax_type: string;
 }
 
 interface Customer {
@@ -315,251 +201,47 @@ interface Customer {
   email_id: string;
   default_currency: string;
   disabled: number;
-  is_frozen: number;
-  creation: string;
 }
 
-interface CustomerApiResponse {
-  success: number;
-  data: {
-    total: number;
-    page: number;
-    limit: number;
-    records: Customer[];
-  };
-}
-
-interface Supplier {
-  id: number;
-  supplier_name: string;
-  supplier_type: string;
-  supplier_group: string;
-  country: string;
-  mobile_no: string;
-  email_id: string;
-  disabled: number;
-}
-
-interface SupplierApiResponse {
-  success: number;
-  data: {
-    total: number;
-    page: number;
-    limit: number;
-    records: Supplier[];
-  };
-}
-
-interface ItemMaster {
+// ─── Item interface for dropdown ───────────────────────────
+interface Item {
   id: number;
   item_code: string;
   item_name: string;
   item_group: string;
   stock_uom: string;
   standard_rate: number;
-  tax_id: number | null;
-  disabled: number;
-  HSN?: string;
-}
-
-interface ItemMasterApiResponse {
-  success: number;
-  data: ItemMaster[];
-}
-
-interface TaxType {
-  tax_id: number;
-  tax_type: string;
-}
-
-interface TaxApiResponse {
-  success: number;
-  data: TaxType[];
-}
-
-interface GRNApiResponse {
-  success: number;
-  data: {
-    id: number;
-    grn_number: string;
-    grn_date: string;
-    is_service?: number;
-    entry_mode?: EntryMode;
-    supplier_id: number | null;
-    supplier_name: string | null;
-    customer_id: number | null;
-    purchase_order_id: number | null;
-    warehouse_id: number;
-    warehouse_name: string;
-    customer_name?: string;
-    received_by: string;
-    received_by_id?: number;
-    vehicle_number: string | null;
-    delivery_challan_no: string;
-    invoice_number: string | null;
-    is_free_delivery?: number;
-    delivery_charge?: number;
-    status: 'draft' | 'submitted' | 'completed' | 'rejected';
-    total_ordered_qty: number;
-    total_received_qty: number;
-    total_accepted_qty: number;
-    total_rejected_qty: number;
-    remarks: string | null;
-    total_items: number;
-    items?: GRNApiItem[];
-  };
-}
-
-interface GRNApiItem {
-  id: number;
-  item_code: string;
-  item_name: string;
-  ordered_qty: number;
-  received_qty: number;
-  rejected_qty: number;
-  uom: string;
-  rate: number;
-  remarks: string;
-  po_item_id?: number;
-  item_id?: number;
+  valuation_rate: number;
   tax_id?: number;
-  tax_type?: string;
-  item_tax_template?: string;
   hsn?: string;
+  description?: string;
+  brand?: string;
 }
 
-// ─── Helpers ───────────────────────────────────────────────────────────
-const parseGstPercent = (taxType?: string): number => {
-  if (!taxType) return 0;
-  const match = taxType.match(/(\d+(\.\d+)?)/);
-  return match ? parseFloat(match[1]) : 0;
-};
+const statusOptions = ['Draft', 'Submitted', 'Partially Received', 'Fully Received', 'Cancelled', 'Closed'];
+const paymentTerms = ['Net 7', 'Net 15', 'Net 30', 'Net 45', 'Net 60', 'Due on Receipt', 'Cash on Delivery'];
 
-const extractTaxInfo = (taxType?: string, taxTemplate?: string): { rate: number; type: string } => {
-  let taxString = taxType || taxTemplate || '';
-  if (!taxString) return { rate: 0, type: '' };
-  
-  const rateMatch = taxString.match(/(\d+(\.\d+)?)/);
-  const rate = rateMatch ? parseFloat(rateMatch[1]) : 0;
-  
-  let type = '';
-  if (taxString.includes('GST')) type = 'GST';
-  else if (taxString.includes('VAT')) type = 'VAT';
-  else if (taxString.includes('Tax')) type = 'Tax';
-  
-  return { rate, type };
-};
-
-const computeItemAmounts = (item: GRNItem) => {
-  const qty = item.receivedQty || 0;
-  const amount = qty * (item.rate || 0);
-  const gstPercent = item.taxRate || parseGstPercent(item.taxType) || 0;
-  const sgst = (amount * gstPercent) / 2 / 100;
-  const cgst = (amount * gstPercent) / 2 / 100;
-  const total = amount + sgst + cgst;
-  return { amount, sgst, cgst, total, gstPercent };
-};
-
-const escapeHtml = (value: string | number | undefined | null): string => {
-  const str = value === undefined || value === null ? '' : String(value);
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-};
-
-// ─── MAIN COMPONENT ──────────────────────────────────────────────────────
-
-export default function GRNForm() {
-  const { id } = useParams<{ id: string }>();
+export default function PurchaseOrderForm() {
   const navigate = useNavigate();
-  const location = useLocation();
-  const { theme } = useAdminTheme();
-  const isNew = id === "new";
-  const isEditMode = !isNew && Boolean(id);
+  const { id } = useParams<{ id: string }>();
+  const isEdit = Boolean(id) && id !== 'new';
+  
+  let theme = 'light';
+  try {
+    const context = useAdminTheme();
+    theme = context.theme;
+  } catch (error) {
+    console.log('Using default light theme');
+  }
 
-  // ─── Form State ────────────────────────────────────────────────────────
-  const [formData, setFormData] = useState<GRNData>({
-    grn_number: '',
-    grnDate: new Date().toISOString().split('T')[0],
-    isService: false,
-    entryMode: 'supplier',
-    supplier: '',
-    supplierId: undefined,
-    purchaseOrder: '',
-    purchaseOrderId: undefined,
-    warehouse: '',
-    warehouseId: undefined,
-    customer: '',
-    customerId: undefined,
-    receivedBy: '',
-    receivedById: undefined,
-    vehicleNo: '',
-    deliveryChallanNo: '',
-    invoiceNo: '',
-    freeDelivery: true,
-    deliveryCharge: 0,
-    items: [],
-  });
-
-  const [, setIsDirty] = useState(isNew);
-  const [submitting, setSubmitting] = useState(false);
-  const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const [loading, setLoading] = useState(false);
+  const [loadingData, setLoadingData] = useState(false);
   const [showValidationSummary, setShowValidationSummary] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [apiError, setApiError] = useState<string | null>(null);
-  const [loading, setLoading] = useState<boolean>(isEditMode);
-
-  // ─── Company ───────────────────────────────────────────────────────────
-  const [company, setCompany] = useState<string>('SculptorTech Pvt Ltd');
-
-  // ─── Success Modal ───────────────────────────────────────────────────
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [savedGrnNumber, setSavedGrnNumber] = useState<string>('');
-  const [isUpdateMode, setIsUpdateMode] = useState<boolean>(false);
-
-  // ─── Service Toggle Confirmation ─────────────────────────────────────
-  const [showServiceToggleConfirm, setShowServiceToggleConfirm] = useState(false);
-  const [pendingServiceToggle, setPendingServiceToggle] = useState(false);
-
-  // ─── PO Dropdown States ──────────────────────────────────────────────
-  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
-  const [loadingPOs, setLoadingPOs] = useState(false);
-  const [poSearchTerm, setPOSearchTerm] = useState('');
-  const [showPODropdown, setShowPODropdown] = useState(false);
-  const [poCurrentPage, setPOCurrentPage] = useState(1);
-  const [poItemsPerPage] = useState(10);
-  const [, setTotalPOs] = useState(0);
-  const [, setPODetailLoading] = useState(false);
-  const poInputRef = useRef<HTMLInputElement>(null);
-  const poDropdownRef = useRef<HTMLDivElement>(null);
-
-  // ─── Warehouse State ────────────────────────────────────────────────
-  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
-  const [loadingWarehouses, setLoadingWarehouses] = useState(false);
-  const [warehouseSearchTerm, setWarehouseSearchTerm] = useState('');
-  const [showWarehouseDropdown, setShowWarehouseDropdown] = useState(false);
-  const warehouseInputRef = useRef<HTMLInputElement>(null);
-  const warehouseDropdownRef = useRef<HTMLDivElement>(null);
-
-  // ─── Employee State ──────────────────────────────────────────────────
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [loadingEmployees, setLoadingEmployees] = useState(false);
-  const [employeeSearchTerm, setEmployeeSearchTerm] = useState('');
-  const [showEmployeeDropdown, setShowEmployeeDropdown] = useState(false);
-  const employeeInputRef = useRef<HTMLInputElement>(null);
-  const employeeDropdownRef = useRef<HTMLDivElement>(null);
-
-  // ─── Customer State ───────────────────────────────────────────────────
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [loadingCustomers, setLoadingCustomers] = useState(false);
-  const [customerSearchTerm, setCustomerSearchTerm] = useState('');
-  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
-  const customerInputRef = useRef<HTMLInputElement>(null);
-  const customerDropdownRef = useRef<HTMLDivElement>(null);
-
-  // ─── Supplier State ──────────────────────────────────────────────────
+  const [masterDataLoaded, setMasterDataLoaded] = useState(false);
+  
+  // State for suppliers
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loadingSuppliers, setLoadingSuppliers] = useState(false);
   const [supplierSearchTerm, setSupplierSearchTerm] = useState('');
@@ -567,59 +249,447 @@ export default function GRNForm() {
   const supplierInputRef = useRef<HTMLInputElement>(null);
   const supplierDropdownRef = useRef<HTMLDivElement>(null);
 
-  // ─── Item Master State ──────────────────────────────────────────────
-  const [itemsMaster, setItemsMaster] = useState<ItemMaster[]>([]);
-  const [loadingItemsMaster, setLoadingItemsMaster] = useState(false);
-  const [activeItemSearchIndex, setActiveItemSearchIndex] = useState<number | null>(null);
-  const itemSearchDropdownRef = useRef<HTMLDivElement>(null);
+  // ─── State for "Add New Supplier" Popup ──────────────────
+  const [showAddSupplierPopup, setShowAddSupplierPopup] = useState(false);
+  const [addingSupplier, setAddingSupplier] = useState(false);
+  const [newSupplier, setNewSupplier] = useState({
+    supplier_name: '',
+    supplier_type: 'Individual',
+    supplier_group: '',
+    country: 'India',
+    mobile_no: '',
+    email_id: '',
+    primary_address: '',
+  });
 
-  // ─── Tax Types State ───────────────────────────────────────────────
-  const [taxTypes, setTaxTypes] = useState<TaxType[]>([]);
-  const [loadingTaxTypes, setLoadingTaxTypes] = useState(false);
+  // ─── State for "Add New Item" Popup ──────────────────────
+  const [showAddItemPopup, setShowAddItemPopup] = useState(false);
+  const [addingItem, setAddingItem] = useState(false);
+  const [pendingItemSearch, setPendingItemSearch] = useState('');
+  const [activeRowIndex, setActiveRowIndex] = useState<number | null>(null);
+  const [newItem, setNewItem] = useState({
+    item_name: '',
+    item_code: '',
+    item_group: '',
+    stock_uom: 'NOS',
+    standard_rate: '',
+    valuation_rate: '',
+    hsn: '',
+    description: '',
+    tax_id: '',
+  });
 
-  // ─── PO Items Cache ─────────────────────────────────────────────────
-  const [poItemsCache, setPoItemsCache] = useState<{ [poId: number]: POItem[] }>({});
-  const [loadingPOItems, setLoadingPOItems] = useState<{ [poId: number]: boolean }>({});
+  // ─── State for Item Code dropdown ────────────────────────
+  const [itemCodeSearchTerm, setItemCodeSearchTerm] = useState('');
+  const [showItemCodeDropdown, setShowItemCodeDropdown] = useState(false);
+  const [itemCodeOptions, setItemCodeOptions] = useState<Item[]>([]);
+  const [loadingItemCode, setLoadingItemCode] = useState(false);
+  const [selectedItemCode, setSelectedItemCode] = useState<Item | null>(null);
+  const itemCodeInputRef = useRef<HTMLInputElement>(null);
+  const itemCodeDropdownRef = useRef<HTMLDivElement>(null);
 
-  // ─── Fetch Warehouses ──────────────────────────────────────────────
-  const fetchWarehouses = async () => {
-    setLoadingWarehouses(true);
+  // State for customers
+  const [, setCustomers] = useState<Customer[]>([]);
+  const [, setLoadingCustomers] = useState(false);
+  const [, setShowCustomerDropdown] = useState(false);
+  const customerInputRef = useRef<HTMLInputElement>(null);
+  const customerDropdownRef = useRef<HTMLDivElement>(null);
+
+  // State for tax options
+  const [taxOptions, setTaxOptions] = useState<TaxOption[]>([]);
+  const [loadingTaxes, setLoadingTaxes] = useState(false);
+
+  // State for items (all items loaded once)
+  const [allItems, setAllItems] = useState<ItemSuggestion[]>([]);
+  const [loadingItems, setLoadingItems] = useState(false);
+  const [itemGroupFilter, setItemGroupFilter] = useState<string>('all');
+  
+  // Get unique item groups from all items
+  const itemGroups = [...new Set(allItems.map(item => item.item_group).filter(Boolean))];
+  
+  // State for filtered items per row
+  const [filteredItems, setFilteredItems] = useState<{ [key: number]: ItemSuggestion[] }>({});
+  const [showSuggestions, setShowSuggestions] = useState<{ [key: number]: boolean }>({});
+  const [searchTerms, setSearchTerms] = useState<{ [key: number]: string }>({});
+  
+  // Refs for positioning the dropdown
+  const inputRefs = useRef<{ [key: number]: HTMLInputElement | null }>({});
+  const suggestionRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
+  
+  // State for dropdown position
+  const [dropdownPositions, setDropdownPositions] = useState<{ [key: number]: { top: number; left: number; width: number } }>({});
+
+  // State for editable grand total
+  const [, setEditableGrandTotal] = useState<number>(0);
+  const [grandTotalAdjustmentSign, setGrandTotalAdjustmentSign] = useState<string>('positive');
+  const [grandTotalAdjustmentValue, setGrandTotalAdjustmentValue] = useState<string>('0');
+  const [, setShowAdjustment] = useState<boolean>(false);
+
+  // Date picker states
+  const [startDate, setStartDate] = useState<Date | null>(new Date());
+  const [deliveryDate, setDeliveryDate] = useState<Date | null>(null);
+
+  // ─── Digit Input Values ──────────────────────────────────
+  const [digitValues, setDigitValues] = useState<{ [key: number]: { quantity: string; rate: string } }>({});
+
+  // Refs for date fields to focus on validation error - only orderDate ref needed
+  const orderDateRef = useRef<HTMLDivElement>(null);
+  const deliveryDateRef = useRef<HTMLDivElement>(null);
+
+  const [formData, setFormData] = useState<{
+    poNumber: string;
+    title: string;
+    supplier: string;
+    supplierCode: string;
+    status: PurchaseOrder['status'];
+    orderDate: string;
+    deliveryDate: string;
+    currency: string;
+    paymentTerms: string;
+    shippingAddress: string;
+    billingAddress: string;
+    notes: string;
+    items: PurchaseOrderItem[];
+    taxRate: number;
+    taxCategory: string;
+    taxId: string;
+    customer: string;
+    customerId?: number;
+  }>({
+    poNumber: '',
+    title: '',
+    supplier: '',
+    supplierCode: '',
+    status: 'Draft',
+    orderDate: new Date().toISOString().split('T')[0],
+    deliveryDate: '',
+    currency: 'INR',
+    paymentTerms: 'Net 30',
+    shippingAddress: '',
+    billingAddress: '',
+    notes: '',
+    items: [
+      {
+        id: "1",
+        itemId: 0,
+        itemCode: "",
+        itemName: "",
+        quantity: 1,
+        uom: "NOS",
+        rate: 0,
+        orderRate: 0,
+        amount: 0,
+        receivedQty: 0,
+        balanceQty: 0,
+        taxId: "",
+        taxRate: 18,
+      },
+    ],
+    taxRate: 18,
+    taxCategory: 'GST',
+    taxId: '',
+    customer: '',
+    customerId: undefined,
+  });
+
+  // ─── Helper to extract tax info from tax_type ──────────────────────
+  const extractTaxInfo = (taxType: string) => {
+    const rateMatch = taxType.match(/(\d+)/);
+    const rate = rateMatch ? parseInt(rateMatch[1]) : 0;
+    const category = taxType.includes('GST') ? 'GST' : 
+                     taxType.includes('VAT') ? 'VAT' : 'Tax';
+    return { rate, category };
+  };
+
+  // ─── Handle Add New Supplier ──────────────────────────────
+  const handleAddNewSupplier = async () => {
+    if (!newSupplier.supplier_name.trim()) {
+      toast.error('Supplier name is required');
+      return;
+    }
+    if (!newSupplier.mobile_no.trim()) {
+      toast.error('Phone number is required');
+      return;
+    }
+    if (!newSupplier.email_id.trim()) {
+      toast.error('Email is required');
+      return;
+    }
+
+    setAddingSupplier(true);
     try {
-      const response = await api.get<WarehouseApiResponse>('/warehouse');
-      if (response.data.success === 1) {
-        const records = response.data.data.records || [];
-        setWarehouses(records);
+      const payload = {
+        supplier_name: newSupplier.supplier_name.trim(),
+        supplier_type: newSupplier.supplier_type || 'Individual',
+        supplier_group: newSupplier.supplier_group || 'Local',
+        country: newSupplier.country || 'India',
+        mobile_no: newSupplier.mobile_no.trim(),
+        email_id: newSupplier.email_id.trim(),
+        primary_address: newSupplier.primary_address || '',
+      };
+
+      const response = await api.post('/supplier', payload);
+      
+      if (response.data && response.data.success === 1) {
+        toast.success('Supplier created successfully!');
+        await fetchSuppliers();
+        setShowAddSupplierPopup(false);
+        resetNewSupplierForm();
+        // Auto-select the newly created supplier
+        const newSupplierData = response.data.data;
+        if (newSupplierData) {
+          const supplierName = newSupplierData.supplier_name || newSupplier.supplier_name.trim();
+          setFormData(prev => ({ 
+            ...prev, 
+            supplier: supplierName,
+            supplierCode: newSupplierData.id?.toString() || ''
+          }));
+          setSupplierSearchTerm(supplierName);
+        }
+      } else {
+        toast.error(response.data?.message || 'Failed to create supplier');
       }
-    } catch (err) {
-      console.error('Error fetching warehouses:', err);
+    } catch (err: any) {
+      console.error('Error creating supplier:', err);
+      toast.error(err.response?.data?.message || 'Failed to create supplier');
     } finally {
-      setLoadingWarehouses(false);
+      setAddingSupplier(false);
     }
   };
 
-  // ─── Fetch Employees ────────────────────────────────────────────────
-  const fetchEmployees = async () => {
-    setLoadingEmployees(true);
+  const resetNewSupplierForm = () => {
+    setNewSupplier({
+      supplier_name: '',
+      supplier_type: 'Individual',
+      supplier_group: '',
+      country: 'India',
+      mobile_no: '',
+      email_id: '',
+      primary_address: '',
+    });
+  };
+
+  // ─── Handle Add New Item ──────────────────────────────────
+  const handleAddNewItem = async () => {
+    if (!newItem.item_name.trim()) {
+      toast.error('Item name is required');
+      return;
+    }
+    if (!newItem.item_group.trim()) {
+      toast.error('Item group is required');
+      return;
+    }
+    if (!newItem.stock_uom.trim()) {
+      toast.error('UOM is required');
+      return;
+    }
+
+    setAddingItem(true);
     try {
-      const response = await api.get<EmployeeApiResponse>('/employee');
-      if (response.data.success === 1) {
-        const records = response.data.data.records || [];
-        setEmployees(records);
+      const payload = {
+        naming_series: "STO-ITEM-.YYYY.-",
+        item_code: newItem.item_code.trim() || newItem.item_name.trim().toUpperCase().replace(/\s+/g, "-"),
+        item_name: newItem.item_name.trim(),
+        item_group: newItem.item_group.trim(),
+        stock_uom: newItem.stock_uom.trim() || 'NOS',
+        disabled: 0,
+        tax_id: parseInt(newItem.tax_id) || 1,
+        is_stock_item: 1,
+        is_fixed_asset: 0,
+        auto_create_assets: 0,
+        is_grouped_asset: 0,
+        asset_category: null,
+        asset_naming_series: null,
+        is_sales_item: 1,
+        allow_alternative_item: 0,
+        has_variants: 0,
+        is_purchase_item: 1,
+        is_customer_provided_item: 0,
+        standard_rate: parseFloat(newItem.standard_rate) || 0,
+        selling_price: parseFloat(newItem.valuation_rate) || parseFloat(newItem.standard_rate) || 0,
+        opening_stock: 0,
+        over_delivery_receipt_allowance: 0,
+        over_billing_allowance: 0,
+        brand: null,
+        description: newItem.description || newItem.item_name,
+        no_of_months: 0,
+        purchase_tax_withholding_category: null,
+        sales_tax_withholding_category: null,
+        valuation_method: "FIFO",
+        valuation_rate: parseFloat(newItem.valuation_rate) || parseFloat(newItem.standard_rate) || 0,
+        end_of_life: "2099-12-31",
+        default_material_request_type: "Purchase",
+        warranty_period: null,
+        weight_per_unit: 0,
+        weight_uom: null,
+        allow_negative_stock: 0,
+        has_batch_no: 0,
+        create_new_batch: 0,
+        batch_number_series: null,
+        has_expiry_date: 0,
+        shelf_life_in_days: 0,
+        retain_sample: 0,
+        sample_quantity: 0,
+        has_serial_no: 0,
+        serial_no_series: null,
+        variant_of: null,
+        variant_based_on: "Item Attribute",
+        purchase_uom: null,
+        min_order_qty: 0,
+        safety_stock: 0,
+        lead_time_days: 0,
+        last_purchase_rate: parseFloat(newItem.standard_rate) || 0,
+        delivered_by_supplier: 0,
+        country_of_origin: "India",
+        customs_tariff_number: null,
+        sales_uom: null,
+        grant_commission: 1,
+        max_discount: 0,
+        include_item_in_manufacturing: 1,
+        is_sub_contracted_item: 0,
+        default_bom: null,
+        production_capacity: 0,
+        total_projected_qty: 0,
+        default_manufacturer_part_no: null,
+        default_item_manufacturer: null,
+        customer_code: null,
+        inspection_required_before_purchase: 0,
+        inspection_required_before_delivery: 0,
+        quality_inspection_template: null,
+        HSN: newItem.hsn || null,
+      };
+
+      const response = await api.post('/item', payload);
+
+      if (response.data && response.data.success === 1) {
+        toast.success(`Item "${newItem.item_name}" created successfully!`);
+        setShowAddItemPopup(false);
+        
+        // Refresh items list
+        await fetchAllItems();
+        await fetchItemCodeOptions();
+        
+        // Find the newly created item in the updated list and select it
+        const newItemId = response.data.data?.insertId || response.data.data?.id;
+        if (newItemId && activeRowIndex !== null) {
+          const updatedItemsResponse = await api.get('/item?type=raw');
+          if (updatedItemsResponse.data && updatedItemsResponse.data.success === 1) {
+            const items = updatedItemsResponse.data.data || [];
+            const newItemData = items.find((i: any) => i.id === newItemId || i.item_code === newItem.item_code);
+            if (newItemData) {
+              const mappedItem: ItemSuggestion = {
+                id: newItemData.id,
+                item_code: newItemData.item_code,
+                item_name: newItemData.item_name,
+                stock_uom: newItemData.stock_uom || 'NOS',
+                standard_rate: newItemData.standard_rate || 0,
+                valuation_rate: newItemData.valuation_rate || newItemData.standard_rate || 0,
+                description: newItemData.description,
+                brand: newItemData.brand,
+                item_group: newItemData.item_group || 'Uncategorized',
+                tax_id: newItemData.tax_id,
+                hsn: newItemData.HSN || '',
+              };
+              setAllItems(prev => {
+                const exists = prev.some(i => i.id === mappedItem.id);
+                if (!exists) {
+                  return [...prev, mappedItem];
+                }
+                return prev;
+              });
+              handleSelectItem(activeRowIndex, mappedItem);
+            }
+          }
+        }
+        resetNewItemForm();
+        setPendingItemSearch('');
+        setActiveRowIndex(null);
+      } else {
+        toast.error(response.data?.message || 'Failed to create item');
       }
-    } catch (err) {
-      console.error('Error fetching employees:', err);
+    } catch (err: any) {
+      console.error('Error creating item:', err);
+      if (err.response?.status === 409) {
+        toast.error('An item with this code already exists');
+      } else {
+        toast.error(err.response?.data?.message || 'Failed to create item');
+      }
     } finally {
-      setLoadingEmployees(false);
+      setAddingItem(false);
     }
   };
+
+  const resetNewItemForm = () => {
+    setNewItem({
+      item_name: '',
+      item_code: '',
+      item_group: '',
+      stock_uom: 'NOS',
+      standard_rate: '',
+      valuation_rate: '',
+      hsn: '',
+      description: '',
+      tax_id: '',
+    });
+  };
+
+  // ─── Fetch Item Code Options ─────────────────────────────
+  const fetchItemCodeOptions = async () => {
+    setLoadingItemCode(true);
+    try {
+      const response = await api.get('/item?page=1&limit=10');
+      if (response.data && response.data.success === 1) {
+        const items = response.data.data?.records || response.data.data || [];
+        setItemCodeOptions(items);
+      }
+    } catch (err) {
+      console.error('Error fetching item codes:', err);
+    } finally {
+      setLoadingItemCode(false);
+    }
+  };
+
+  // ─── Handle Item Code Select ─────────────────────────────
+  const handleItemCodeSelect = (item: Item) => {
+    setSelectedItemCode(item);
+    setItemCodeSearchTerm(`${item.item_code} - ${item.item_name}`);
+    setShowItemCodeDropdown(false);
+    
+    // Pre-fill item details
+    setFormData(prev => ({
+      ...prev,
+      items: prev.items.map((row, idx) => {
+        if (idx === 0) {
+          return {
+            ...row,
+            itemId: item.id,
+            itemCode: item.item_code,
+            itemName: item.item_name,
+            uom: item.stock_uom || 'NOS',
+            rate: item.standard_rate || 0,
+            orderRate: item.standard_rate || 0,
+            hsn: item.hsn || '',
+            taxId: item.tax_id ? String(item.tax_id) : prev.taxId,
+          };
+        }
+        return row;
+      })
+    }));
+  };
+
+  // ─── Filtered Item Code Options ──────────────────────────
+  const filteredItemCodeOptions = itemCodeOptions.filter(item =>
+    item.item_code.toLowerCase().includes(itemCodeSearchTerm.toLowerCase()) ||
+    item.item_name.toLowerCase().includes(itemCodeSearchTerm.toLowerCase())
+  );
 
   // ─── Fetch Customers ─────────────────────────────────────────────────
   const fetchCustomers = async () => {
     setLoadingCustomers(true);
     try {
-      const response = await api.get<CustomerApiResponse>('/customer');
-      if (response.data.success === 1) {
-        const records = response.data.data.records || [];
+      const response = await api.get('/customer');
+      if (response.data && response.data.success === 1) {
+        const records = response.data.data?.records || response.data.data || [];
         setCustomers(records);
       }
     } catch (err) {
@@ -629,388 +699,534 @@ export default function GRNForm() {
     }
   };
 
-  // ─── Fetch Suppliers ──────────────────────────────────────────────────
+  // ─── Fetch Tax Options ──────────────────────────────────────────────
+  const fetchTaxOptions = async () => {
+    setLoadingTaxes(true);
+    try {
+      const response = await api.get('/item/get-tax');
+      if (response.data && response.data.success === 1) {
+        const taxData = response.data.data || [];
+        setTaxOptions(taxData);
+        
+        if (taxData.length > 0 && !isEdit) {
+          const defaultTax = taxData[0];
+          const { rate, category } = extractTaxInfo(defaultTax.tax_type);
+          
+          setFormData(prev => ({
+            ...prev,
+            taxId: String(defaultTax.tax_id),
+            taxRate: rate || 18,
+            taxCategory: category,
+          }));
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching tax options:', err);
+      toast.error('Failed to load tax options');
+    } finally {
+      setLoadingTaxes(false);
+    }
+  };
+
+  // ─── Fetch all items from API (filtered by type=raw) ──────────────
+  const fetchAllItems = async () => {
+    setLoadingItems(true);
+    try {
+      const response = await api.get('/item?type=raw');
+      if (response.data && response.data.success === 1) {
+        const items = response.data.data || [];
+        const mappedItems = items.map((item: any) => ({
+          id: item.id,
+          item_code: item.item_code,
+          item_name: item.item_name,
+          stock_uom: item.stock_uom || 'NOS',
+          standard_rate: item.standard_rate || 0,
+          valuation_rate: item.valuation_rate || item.standard_rate || 0,
+          description: item.description,
+          brand: item.brand,
+          item_group: item.item_group || 'Uncategorized',
+          tax_id: item.tax_id,
+          hsn: item.HSN || '',
+        }));
+        
+        setAllItems(mappedItems);
+        
+        setFilteredItems(prev => {
+          const newFiltered = { ...prev };
+          formData.items.forEach((_, index) => {
+            newFiltered[index] = mappedItems;
+          });
+          return newFiltered;
+        });
+      } else {
+        console.error('Failed to fetch items:', response.data?.message || 'Unknown error');
+        toast.error('Failed to load items');
+      }
+    } catch (err: any) {
+      console.error('Error fetching items:', err);
+      toast.error('Failed to load items. Please try again.');
+    } finally {
+      setLoadingItems(false);
+    }
+  };
+
+  // ─── Fetch suppliers from API ──────────────────────────────────────
   const fetchSuppliers = async () => {
     setLoadingSuppliers(true);
     try {
-      const response = await api.get<SupplierApiResponse>('/supplier');
-      if (response.data.success === 1) {
-        const records = response.data.data.records || [];
-        setSuppliers(records);
+      const response = await api.get('/supplier');
+      if (response.data && response.data.success === 1) {
+        const supplierRecords = response.data.data?.records || response.data.data || [];
+        setSuppliers(supplierRecords);
+      } else {
+        console.error('Failed to fetch suppliers:', response.data?.message || 'Unknown error');
+        toast.error('Failed to load suppliers');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error fetching suppliers:', err);
+      toast.error('Failed to load suppliers. Please try again.');
     } finally {
       setLoadingSuppliers(false);
     }
   };
 
-  // ─── Fetch Item Master ──────────────────────────────────────────────
-  // FIX: returns the fetched array so callers that run immediately after
-  // (e.g. the mount-time fetchGRNData) don't rely on the `itemsMaster`
-  // state variable, which won't have updated yet inside the same closure.
-  const fetchItemsMaster = async (): Promise<ItemMaster[]> => {
-    setLoadingItemsMaster(true);
-    try {
-      const response = await api.get<ItemMasterApiResponse>('/item');
-      if (response.data.success === 1) {
-        const records = response.data.data || [];
-        setItemsMaster(records);
-        return records;
-      }
-      return [];
-    } catch (err) {
-      console.error('Error fetching items:', err);
-      return [];
-    } finally {
-      setLoadingItemsMaster(false);
-    }
-  };
-
-  // ─── Fetch Tax Types ────────────────────────────────────────────────
-  // FIX: same pattern as fetchItemsMaster — return the fetched array
-  // directly instead of only writing it to state. This is the root fix
-  // for the "Select GST" not binding on load: the mount effect awaits
-  // this call and then immediately calls fetchGRNData(), but `taxTypes`
-  // state wouldn't be updated yet inside that same closure — only the
-  // returned value is guaranteed fresh at that point.
-  const fetchTaxTypes = async (): Promise<TaxType[]> => {
-    setLoadingTaxTypes(true);
-    try {
-      const response = await api.get<TaxApiResponse>('/item/get-tax');
-      if (response.data.success === 1) {
-        const records = response.data.data || [];
-        setTaxTypes(records);
-        return records;
-      }
-      return [];
-    } catch (err) {
-      console.error('Error fetching tax types:', err);
-      return [];
-    } finally {
-      setLoadingTaxTypes(false);
-    }
-  };
-
-  // ─── Fetch Purchase Orders ──────────────────────────────────────────
-  const fetchPurchaseOrders = async (supplierIdOverride?: number) => {
-    setLoadingPOs(true);
-    try {
-      const effectiveSupplierId = supplierIdOverride !== undefined ? supplierIdOverride : formData.supplierId;
-      const supplierQuery = effectiveSupplierId ? `&supplier_id=${effectiveSupplierId}` : '';
-      const response = await api.get<POApiResponse>(
-        `/purchase-order?page=${poCurrentPage}&limit=${poItemsPerPage}${supplierQuery}`
-      );
-
-      if (response.data.success === 1) {
-        const records = response.data.data.records || [];
-        setPurchaseOrders(records);
-        setTotalPOs(response.data.data.total || records.length);
-      }
-    } catch (err) {
-      console.error('Error fetching purchase orders:', err);
-    } finally {
-      setLoadingPOs(false);
-    }
-  };
-
-  // ─── Fetch Purchase Order Details ──────────────────────────────────
-  const fetchPurchaseOrderDetail = async (poId: number) => {
-    setPODetailLoading(true);
-    try {
-      const response = await api.get<PODetailApiResponse>(`/purchase-order/${poId}`);
-      
-      if (response.data.success === 1) {
-        const poDetail = response.data.data;
-        if (poDetail.items) {
-          setPoItemsCache(prev => ({
-            ...prev,
-            [poId]: poDetail.items
-          }));
-        }
-        populateGRNFromPO(poDetail);
-        setShowPODropdown(false);
-      }
-    } catch (err) {
-      console.error('Error fetching purchase order details:', err);
-      setApiError('Failed to fetch PO details');
-    } finally {
-      setPODetailLoading(false);
-    }
-  };
-
-  // ─── Resolve tax info from various sources ──────────────────────────
-  // FIX: accepts an optional `taxTypesOverride` so callers that just
-  // fetched a fresh tax list (before React has committed it to state)
-  // can pass it in directly, instead of this function silently reading
-  // the stale closed-over `taxTypes` state variable.
-  const resolveTaxInfo = (item: any, taxTypesOverride?: TaxType[]): { taxId?: number; taxType?: string; taxRate?: number } => {
-    const taxList = taxTypesOverride ?? taxTypes;
-
-    // First check if we have tax_id directly
-    if (item.tax_id) {
-      const tax = taxList.find(t => t.tax_id === item.tax_id);
-      if (tax) {
-        const { rate } = extractTaxInfo(tax.tax_type);
-        return { taxId: item.tax_id, taxType: tax.tax_type, taxRate: rate };
-      }
-    }
-
-    // Check for item_tax_template
-    if (item.item_tax_template) {
-      const { rate } = extractTaxInfo(undefined, item.item_tax_template);
-
-      // Try multiple matching strategies
-      let matchingTax: TaxType | undefined = undefined;
-
-      // Strategy 1: Find by exact rate
-      matchingTax = taxList.find(t => {
-        const { rate: tRate } = extractTaxInfo(t.tax_type);
-        return tRate === rate;
-      });
-
-      // Strategy 2: Find by string matching
-      if (!matchingTax) {
-        const templateClean = item.item_tax_template.replace(/\s/g, '').toLowerCase();
-        matchingTax = taxList.find(t => {
-          const taxClean = t.tax_type.replace(/\s/g, '').toLowerCase();
-          return taxClean.includes(templateClean) || templateClean.includes(taxClean);
-        });
-      }
-
-      if (matchingTax) {
-        return {
-          taxId: matchingTax.tax_id,
-          taxType: matchingTax.tax_type,
-          taxRate: rate
-        };
-      }
-      return { taxType: item.item_tax_template, taxRate: rate };
-    }
-
-    // Check for tax_type
-    if (item.tax_type) {
-      const { rate } = extractTaxInfo(item.tax_type);
-      const matchingTax = taxList.find(t => {
-        const { rate: tRate } = extractTaxInfo(t.tax_type);
-        return tRate === rate;
-      });
-      if (matchingTax) {
-        return { taxId: matchingTax.tax_id, taxType: matchingTax.tax_type, taxRate: rate };
-      }
-      return { taxType: item.tax_type, taxRate: rate };
-    }
-
-    return {};
-  };
-
-  // ─── Resolve the actual Item Master id for a GRN item ────────────────
-  const resolveItemMasterId = (item: GRNItem): number | undefined => {
-    if (item.itemCode) {
-      const matchByCode = itemsMaster.find(
-        im => (im.item_code || '').trim().toLowerCase() === item.itemCode.trim().toLowerCase()
-      );
-      if (matchByCode) return matchByCode.id;
-    }
-    if (item.itemId) {
-      const matchById = itemsMaster.find(im => im.id === item.itemId);
-      if (matchById) return matchById.id;
-    }
-    return item.itemId;
-  };
-
-  // ─── Populate GRN from PO ──────────────────────────────────────────
-  const populateGRNFromPO = (poDetail: PurchaseOrderDetail) => {
-    const items: GRNItem[] = (poDetail.items || []).map((item, index) => {
-      const taxInfo = resolveTaxInfo(item);
-
-      const masterMatch = itemsMaster.find(
-        im => (im.item_code || '').toLowerCase() === (item.item_code || '').toLowerCase()
-      );
-
-      return {
-        id: `po-${poDetail.id}-${index}-${Date.now()}`,
-        itemCode: item.item_code || '',
-        itemName: item.item_name || '',
-        orderedQty: item.qty || 0,
-        receivedQty: 0,
-        rejectedQty: 0,
-        uom: item.uom || '',
-        rate: item.rate || 0,
-        remarks: '',
-        poItemId: item.id,
-        itemId: masterMatch?.id,
-        taxId: taxInfo.taxId,
-        taxType: taxInfo.taxType,
-        taxRate: taxInfo.taxRate || 0,
-        hsn: item.hsn || '',
-        isDraft: false,
-      };
-    });
-
-    let warehouseId: number | undefined;
-    if (poDetail.set_warehouse) {
-      const found = warehouses.find(w => w.warehouse_name === poDetail.set_warehouse);
-      if (found) {
-        warehouseId = found.id;
-      }
-    }
-
-    let supplierId: number | undefined = poDetail.supplier_id;
-    if (!supplierId && poDetail.supplier) {
-      const supplierNum = parseInt(poDetail.supplier);
-      if (!isNaN(supplierNum)) {
-        supplierId = supplierNum;
-      }
-    }
-
-    const poName = poDetail.name || `PO-${String(poDetail.id).padStart(5, '0')}`;
-
-    setFormData(prev => ({
-      ...prev,
-      supplier: poDetail.supplier_name || '',
-      supplierId: supplierId,
-      purchaseOrder: poName,
-      purchaseOrderId: poDetail.id,
-      warehouse: poDetail.set_warehouse || '',
-      warehouseId: warehouseId,
-      items: items,
-    }));
-
-    setPOSearchTerm(poName);
-    if (poDetail.supplier_name) {
-      setSupplierSearchTerm(poDetail.supplier_name);
-    }
-    if (poDetail.set_warehouse) {
-      setWarehouseSearchTerm(poDetail.set_warehouse);
-    }
-    if (poDetail.company) {
-      setCompany(poDetail.company);
-    }
-    
-    setIsDirty(true);
-  };
-
-  // ─── Filtered lists ──────────────────────────────────────────────────
-  const filteredWarehouses = warehouses.filter(w =>
-    (w.warehouse_name?.toLowerCase() || '').includes((warehouseSearchTerm || '').toLowerCase())
+  // ─── Filtered suppliers ────────────────────────────────────────────
+  const filteredSuppliers = suppliers.filter(s =>
+    s.supplier_name.toLowerCase().includes(supplierSearchTerm.toLowerCase()) ||
+    (s.email_id && s.email_id.toLowerCase().includes(supplierSearchTerm.toLowerCase())) ||
+    (s.mobile_no && s.mobile_no.includes(supplierSearchTerm))
   );
 
-  const filteredEmployees = employees.filter(e => {
-    const name = (e.employee_name || '').toLowerCase();
-    const designation = (e.designation || '').toLowerCase();
-    const department = (e.department || '').toLowerCase();
-    const search = (employeeSearchTerm || '').toLowerCase();
-    return name.includes(search) || designation.includes(search) || department.includes(search);
-  });
-
-  const filteredCustomers = customers.filter(c => {
-    const name = (c.customer_name || '').toLowerCase();
-    const email = (c.email_id || '').toLowerCase();
-    const mobile = (c.mobile_no || '');
-    const search = (customerSearchTerm || '').toLowerCase();
-    return name.includes(search) || email.includes(search) || mobile.includes(search);
-  });
-
-  const filteredSuppliers = suppliers.filter(s => {
-    const name = (s.supplier_name || '').toLowerCase();
-    const email = (s.email_id || '').toLowerCase();
-    const mobile = (s.mobile_no || '');
-    const search = (supplierSearchTerm || '').toLowerCase();
-    return name.includes(search) || email.includes(search) || mobile.includes(search);
-  });
-
-  const selectedSupplier = formData.supplierId
-    ? suppliers.find(s => s.id === formData.supplierId)
+  const selectedSupplier = formData.supplier
+    ? suppliers.find(s => s.supplier_name === formData.supplier)
     : undefined;
 
-  const selectedCustomer = formData.customerId
-    ? customers.find(c => c.id === formData.customerId)
-    : undefined;
-
-  // ─── Fetch PO items on hover ──────────────────────────────────────────
-  const fetchPOItems = async (poId: number) => {
-    if (poItemsCache[poId]) return;
-    setLoadingPOItems(prev => ({ ...prev, [poId]: true }));
+  // ─── Fetch single purchase order ──────────────────────────────────
+  const fetchPurchaseOrder = async (poId: string) => {
+    setLoadingData(true);
     try {
-      const response = await api.get<PODetailApiResponse>(`/purchase-order/${poId}`);
-      if (response.data.success === 1) {
-        setPoItemsCache(prev => ({
-          ...prev,
-          [poId]: response.data.data.items || []
-        }));
+      const response = await api.get(`/purchase-order/${poId}`);
+      if (response.data && response.data.success === 1) {
+        const data = response.data.data;
+        
+        const items = data.items?.map((item: any, index: number) => {
+          const itemTaxRate = item.item_tax_rate ? parseFloat(item.item_tax_rate) : 0;
+          
+          let matchedTax = null;
+          if (taxOptions.length > 0 && itemTaxRate > 0) {
+            matchedTax = taxOptions.find(t => {
+              const { rate } = extractTaxInfo(t.tax_type);
+              return rate === itemTaxRate;
+            });
+          }
+          
+          if (!matchedTax && item.item_tax_template && taxOptions.length > 0) {
+            const templateMatch = item.item_tax_template.match(/(\d+)/);
+            if (templateMatch) {
+              const templateRate = parseInt(templateMatch[1]);
+              matchedTax = taxOptions.find(t => {
+                const { rate } = extractTaxInfo(t.tax_type);
+                return rate === templateRate;
+              });
+            }
+          }
+          
+          return {
+            id: String(index + 1),
+            itemId: item.item_id || 0,
+            itemCode: item.item_code || '',
+            itemName: item.item_name || '',
+            quantity: item.qty || 0,
+            uom: item.uom || 'NOS',
+            rate: item.rate || 0,
+            orderRate: item.rate || 0,
+            amount: item.amount || 0,
+            receivedQty: item.received_qty || 0,
+            balanceQty: item.balance_qty || item.qty || 0,
+            itemGroup: item.item_group || '',
+            brand: item.brand || '',
+            description: item.description || '',
+            taxId: matchedTax ? String(matchedTax.tax_id) : '',
+            taxRate: matchedTax ? itemTaxRate : 0,
+            hsn: item.hsn || '',
+          };
+        }) || [{ 
+          id: '1', 
+          itemId: 0,
+          itemCode: '', 
+          itemName: '', 
+          quantity: 1, 
+          uom: 'NOS', 
+          rate: 0, 
+          orderRate: 0, 
+          amount: 0, 
+          receivedQty: 0, 
+          balanceQty: 0, 
+          taxId: '', 
+          taxRate: 0 
+        }];
+
+        let taxRate = 18;
+        let taxCategory = 'GST';
+        let taxId = '';
+        
+        if (items.length > 0 && items[0].taxRate && items[0].taxRate > 0) {
+          taxRate = items[0].taxRate;
+          const matchedTax = taxOptions.find(t => {
+            const { rate } = extractTaxInfo(t.tax_type);
+            return rate === taxRate;
+          });
+          if (matchedTax) {
+            taxId = String(matchedTax.tax_id);
+            const { rate, category } = extractTaxInfo(matchedTax.tax_type);
+            taxRate = rate;
+            taxCategory = category;
+          }
+        }
+        
+        if (!taxId && data.taxes_and_charges) {
+          const taxString = data.taxes_and_charges;
+          const percentMatch = taxString.match(/(\d+)%/);
+          if (percentMatch) {
+            taxRate = parseInt(percentMatch[1]);
+          } else {
+            const numberMatch = taxString.match(/(\d+)/);
+            if (numberMatch) {
+              taxRate = parseInt(numberMatch[1]);
+            }
+          }
+          
+          if (taxString.includes('GST')) {
+            taxCategory = 'GST';
+          } else if (taxString.includes('VAT')) {
+            taxCategory = 'VAT';
+          } else if (taxString.includes('Tax')) {
+            taxCategory = 'Tax';
+          }
+          
+          const matchedTax = taxOptions.find(t => {
+            const { rate, category } = extractTaxInfo(t.tax_type);
+            return rate === taxRate && category === taxCategory;
+          });
+          
+          if (matchedTax) {
+            taxId = String(matchedTax.tax_id);
+            const { rate, category } = extractTaxInfo(matchedTax.tax_type);
+            taxRate = rate;
+            taxCategory = category;
+          }
+        }
+        
+        if (!taxId && taxOptions.length > 0) {
+          const firstTax = taxOptions[0];
+          taxId = String(firstTax.tax_id);
+          const { rate, category } = extractTaxInfo(firstTax.tax_type);
+          taxRate = rate;
+          taxCategory = category;
+        }
+
+        const totalAmount = items.reduce((sum: number, item: any) => sum + (item.amount || 0), 0);
+        const taxAmount = items.reduce((sum: number, item: any) => {
+          const lineAmount = (item.orderRate || item.rate || 0) * item.quantity;
+          const rate = (item.taxRate || 0) / 100;
+          return sum + lineAmount * rate;
+        }, 0);
+        const grandTotal = totalAmount + taxAmount;
+
+        const orderDateStr = data.transaction_date ? data.transaction_date.split('T')[0] : new Date().toISOString().split('T')[0];
+        const deliveryDateStr = data.schedule_date ? data.schedule_date.split('T')[0] : '';
+
+        setFormData({
+          poNumber: data.name || data.po_number || '',
+          title: data.title || '',
+          supplier: data.supplier_name || data.supplier || '',
+          supplierCode: data.supplier || '',
+          status: data.status || 'Draft',
+          orderDate: orderDateStr,
+          deliveryDate: deliveryDateStr,
+          currency: data.currency || 'INR',
+          paymentTerms: data.payment_terms_template || 'Net 30',
+          shippingAddress: data.shipping_address_display || data.shipping_address || '',
+          billingAddress: data.billing_address_display || data.billing_address || '',
+          notes: data.terms || data.notes || '',
+          items: items,
+          taxRate: taxRate,
+          taxCategory: taxCategory,
+          taxId: taxId,
+          customer: data.customer_name || '',
+          customerId: data.customer_id,
+        });
+
+        setStartDate(new Date(orderDateStr));
+        setDeliveryDate(deliveryDateStr ? new Date(deliveryDateStr) : null);
+
+        setEditableGrandTotal(grandTotal);
+        setGrandTotalAdjustmentSign('positive');
+        setGrandTotalAdjustmentValue('0');
+        setShowAdjustment(false);
+        setSupplierSearchTerm(data.supplier_name || data.supplier || '');
+      } else {
+        toast.error('Failed to load purchase order');
+        navigate('/purchase-order');
       }
-    } catch (err) {
-      console.error('Error fetching PO items:', err);
+    } catch (err: any) {
+      console.error('Error fetching purchase order:', err);
+      toast.error('Failed to load purchase order');
+      navigate('/purchase-order');
     } finally {
-      setLoadingPOItems(prev => ({ ...prev, [poId]: false }));
+      setLoadingData(false);
     }
   };
 
-  // ─── Get display name for PO ──────────────────────────────────────────
-  const getPODisplayName = (po: PurchaseOrder): string => {
-    if (po.name && po.name !== 'N/A' && po.name !== 'Draft') {
-      return po.name;
+  // ─── Update dropdown position ─────────────────────────────────────
+  const updateDropdownPosition = (index: number) => {
+    const input = inputRefs.current[index];
+    if (input) {
+      const rect = input.getBoundingClientRect();
+      setDropdownPositions(prev => ({
+        ...prev,
+        [index]: {
+          top: rect.bottom + window.scrollY + 4,
+          left: rect.left + window.scrollX,
+          width: rect.width
+        }
+      }));
     }
-    return `PO-${String(po.id).padStart(5, '0')}`;
   };
 
-  const filteredPOs = purchaseOrders.filter(po => {
-    const searchLower = (poSearchTerm || '').toLowerCase();
-    const poDisplayName = getPODisplayName(po).toLowerCase();
-    const supplierName = (po.supplier_name || '').toLowerCase();
-    const poIdString = (po.id?.toString() || '');
+  // ─── Filter items based on search term and group filter ──────────
+  const filterItems = (index: number, searchTerm: string) => {
+    let filtered = allItems;
     
-    const matchesSearch = poDisplayName.includes(searchLower) || 
-                          supplierName.includes(searchLower) || 
-                          poIdString.includes(searchLower);
+    // Apply group filter first
+    if (itemGroupFilter !== 'all') {
+      filtered = filtered.filter(item => item.item_group === itemGroupFilter);
+    }
     
-    const matchesSupplier = !formData.supplierId ||
-      supplierName === (formData.supplier?.toLowerCase() || '') ||
-      (po.supplier || '') === String(formData.supplierId);
-      
-    return matchesSearch && matchesSupplier;
-  });
+    // Apply search filter - search in multiple fields
+    if (searchTerm && searchTerm.length >= 1) {
+      const term = searchTerm.toLowerCase().trim();
+      filtered = filtered.filter(item => 
+        item.item_code.toLowerCase().includes(term) ||
+        item.item_name.toLowerCase().includes(term) ||
+        (item.item_group && item.item_group.toLowerCase().includes(term)) ||
+        (item.description && item.description.toLowerCase().includes(term))
+      );
+    }
+    
+    setFilteredItems(prev => ({ ...prev, [index]: filtered }));
+    setShowSuggestions(prev => ({ ...prev, [index]: filtered.length > 0 || searchTerm.trim().length > 0 }));
+    
+    if (inputRefs.current[index]) {
+      updateDropdownPosition(index);
+    }
+  };
 
-  const activeItemSearchTerm = activeItemSearchIndex !== null
-    ? (formData.items[activeItemSearchIndex]?.itemName || '')
-    : '';
+  // ─── Open the item dropdown ────────────────────────────────────────
+  const openItemDropdown = (index: number) => {
+    updateDropdownPosition(index);
+    const currentItem = formData.items[index];
 
-  const filteredItemsMaster = itemsMaster.filter(im => {
-    if (im.disabled) return false;
-    const searchLower = (activeItemSearchTerm || '').toLowerCase();
-    if (!searchLower) return true;
-    const itemName = (im.item_name || '').toLowerCase();
-    const itemCode = (im.item_code || '').toLowerCase();
-    return itemName.includes(searchLower) || itemCode.includes(searchLower);
-  });
+    // If a real item is already selected on this row, show the FULL list again
+    // instead of filtering down to just that one selected item's code.
+    if (currentItem.itemId) {
+      filterItems(index, '');
+    } else {
+      const searchVal = searchTerms[index] || '';
+      filterItems(index, searchVal);
+    }
+  };
 
-  // ─── Click outside handlers ──────────────────────────────────────────
+  // ─── Handle per-row tax selection ──────────────────────────────────
+  const handleItemTaxChange = (index: number, taxId: string) => {
+    const updatedItems = [...formData.items];
+    if (!taxId) {
+      updatedItems[index] = { ...updatedItems[index], taxId: '', taxRate: 0 };
+    } else {
+      const selectedTax = taxOptions.find(t => t.tax_id.toString() === taxId);
+      const { rate } = selectedTax ? extractTaxInfo(selectedTax.tax_type) : { rate: 0 };
+      updatedItems[index] = { ...updatedItems[index], taxId, taxRate: rate };
+    }
+    setFormData(prev => ({ ...prev, items: updatedItems }));
+  };
+
+  // ─── Handle item search ─────────────────────────────────────────────
+  const handleItemSearch = (index: number, value: string) => {
+    setSearchTerms(prev => ({ ...prev, [index]: value }));
+
+    // Update the item code in form data immediately so you can see what you're typing
+    const updatedItems = [...formData.items];
+    updatedItems[index] = { 
+      ...updatedItems[index], 
+      itemCode: value 
+    };
+    setFormData(prev => ({ ...prev, items: updatedItems }));
+
+    // If cleared, reset everything
+    if (!value.trim()) {
+      updatedItems[index] = {
+        ...updatedItems[index],
+        itemId: 0,
+        itemName: '',
+        uom: 'NOS',
+        rate: 0,
+        orderRate: 0,
+        amount: 0,
+        balanceQty: updatedItems[index].quantity,
+        itemGroup: '',
+        brand: '',
+        description: '',
+        hsn: '',
+        taxId: '',
+        taxRate: 0,
+      };
+      setFormData(prev => ({ ...prev, items: updatedItems }));
+      setDigitValues(prev => ({
+        ...prev,
+        [index]: { quantity: prev[index]?.quantity || '1', rate: '0' }
+      }));
+      setShowSuggestions(prev => ({ ...prev, [index]: false }));
+      // Reset filtered items to show all (respecting group filter)
+      let filtered = allItems;
+      if (itemGroupFilter !== 'all') {
+        filtered = filtered.filter(item => item.item_group === itemGroupFilter);
+      }
+      setFilteredItems(prev => {
+        const newFiltered = { ...prev };
+        newFiltered[index] = filtered;
+        return newFiltered;
+      });
+      return;
+    }
+    
+    filterItems(index, value);
+  };
+
+  // ─── Handle item selection from suggestions ──────────────────────
+  const handleSelectItem = (index: number, item: ItemSuggestion) => {
+    const updatedItems = [...formData.items];
+    const rate = item.standard_rate || item.valuation_rate || 0;
+    const quantity = updatedItems[index].quantity || 1;
+
+    let rowTaxId = formData.taxId;
+    let rowTaxRate = formData.taxRate;
+    if (item.tax_id) {
+      const matchedTax = taxOptions.find(t => t.tax_id === item.tax_id);
+      if (matchedTax) {
+        rowTaxId = String(matchedTax.tax_id);
+        rowTaxRate = extractTaxInfo(matchedTax.tax_type).rate;
+      }
+    }
+
+    updatedItems[index] = {
+      ...updatedItems[index],
+      itemId: item.id,
+      itemCode: item.item_code,
+      itemName: item.item_name,
+      uom: item.stock_uom || 'NOS',
+      rate: rate,
+      orderRate: rate,
+      amount: rate * quantity,
+      balanceQty: quantity - updatedItems[index].receivedQty,
+      itemGroup: item.item_group || '',
+      brand: item.brand || '',
+      description: item.description || '',
+      taxId: rowTaxId,
+      taxRate: rowTaxRate,
+      hsn: item.hsn || '',
+    };
+    
+    setFormData(prev => ({ ...prev, items: updatedItems }));
+    setShowSuggestions(prev => ({ ...prev, [index]: false }));
+    setSearchTerms(prev => ({ ...prev, [index]: item.item_code }));
+    
+    // Update digit values
+    setDigitValues(prev => ({
+      ...prev,
+      [index]: {
+        quantity: String(quantity),
+        rate: String(rate)
+      }
+    }));
+    
+    // Update filtered items to show all items again (for next time)
+    let filtered = allItems;
+    if (itemGroupFilter !== 'all') {
+      filtered = filtered.filter(i => i.item_group === itemGroupFilter);
+    }
+    setFilteredItems(prev => ({ ...prev, [index]: filtered }));
+  };
+
+  // ─── Handle clear item ──────────────────────────────────────────────
+  const handleClearItem = (index: number) => {
+    const updatedItems = [...formData.items];
+    updatedItems[index] = {
+      ...updatedItems[index],
+      itemId: 0,
+      itemCode: '',
+      itemName: '',
+      uom: 'NOS',
+      rate: 0,
+      orderRate: 0,
+      amount: 0,
+      balanceQty: updatedItems[index].quantity,
+      itemGroup: '',
+      brand: '',
+      description: '',
+      hsn: '',
+      taxId: '',
+      taxRate: 0,
+    };
+    setFormData(prev => ({ ...prev, items: updatedItems }));
+    setSearchTerms(prev => ({ ...prev, [index]: '' }));
+    setShowSuggestions(prev => ({ ...prev, [index]: false }));
+    setDigitValues(prev => ({
+      ...prev,
+      [index]: { quantity: prev[index]?.quantity || '1', rate: '0' }
+    }));
+    // Reset filtered items to show all
+    let filtered = allItems;
+    if (itemGroupFilter !== 'all') {
+      filtered = filtered.filter(item => item.item_group === itemGroupFilter);
+    }
+    setFilteredItems(prev => {
+      const newFiltered = { ...prev };
+      newFiltered[index] = filtered;
+      return newFiltered;
+    });
+  };
+
+  // ─── Close suggestions when clicking outside ─────────────────────
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      Object.keys(suggestionRefs.current).forEach((key) => {
+        const index = parseInt(key);
+        const suggestionEl = suggestionRefs.current[index];
+        const inputEl = inputRefs.current[index];
+        
+        if (suggestionEl && !suggestionEl.contains(event.target as Node) && 
+            inputEl && !inputEl.contains(event.target as Node)) {
+          setShowSuggestions(prev => ({ ...prev, [index]: false }));
+        }
+      });
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // ─── Click outside for supplier dropdown ──────────────────────────
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
-        warehouseDropdownRef.current && 
-        !warehouseDropdownRef.current.contains(event.target as Node) &&
-        warehouseInputRef.current &&
-        !warehouseInputRef.current.contains(event.target as Node)
+        supplierDropdownRef.current &&
+        !supplierDropdownRef.current.contains(event.target as Node) &&
+        supplierInputRef.current &&
+        !supplierInputRef.current.contains(event.target as Node)
       ) {
-        setShowWarehouseDropdown(false);
-      }
-      if (
-        employeeDropdownRef.current && 
-        !employeeDropdownRef.current.contains(event.target as Node) &&
-        employeeInputRef.current &&
-        !employeeInputRef.current.contains(event.target as Node)
-      ) {
-        setShowEmployeeDropdown(false);
-      }
-      if (
-        poDropdownRef.current && 
-        !poDropdownRef.current.contains(event.target as Node) &&
-        poInputRef.current &&
-        !poInputRef.current.contains(event.target as Node)
-      ) {
-        setShowPODropdown(false);
+        setShowSupplierDropdown(false);
       }
       if (
         customerDropdownRef.current &&
@@ -1021,982 +1237,1824 @@ export default function GRNForm() {
         setShowCustomerDropdown(false);
       }
       if (
-        supplierDropdownRef.current &&
-        !supplierDropdownRef.current.contains(event.target as Node) &&
-        supplierInputRef.current &&
-        !supplierInputRef.current.contains(event.target as Node)
+        itemCodeDropdownRef.current &&
+        !itemCodeDropdownRef.current.contains(event.target as Node) &&
+        itemCodeInputRef.current &&
+        !itemCodeInputRef.current.contains(event.target as Node)
       ) {
-        setShowSupplierDropdown(false);
-      }
-      if (
-        itemSearchDropdownRef.current &&
-        !itemSearchDropdownRef.current.contains(event.target as Node)
-      ) {
-        setActiveItemSearchIndex(null);
+        setShowItemCodeDropdown(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // ─── Fetch data on mount ────────────────────────────────────────────
-  // FIX: Promise.all's resolved values are captured directly here and
-  // passed straight into fetchGRNData, instead of letting fetchGRNData
-  // read `taxTypes` / `itemsMaster` state (which is not guaranteed to be
-  // updated yet at this point in the same render/closure).
+  // ─── Update dropdown position on scroll or resize ────────────────
   useEffect(() => {
-    const loadData = async () => {
-      // Load all master data first
-      const [, , , , fetchedItemsMaster, fetchedTaxTypes] = await Promise.all([
-        fetchWarehouses(),
-        fetchEmployees(),
-        fetchCustomers(),
-        fetchSuppliers(),
-        fetchItemsMaster(),
-        fetchTaxTypes(),
-      ]);
-
-      // Then load GRN data if in edit mode — pass the freshly-fetched
-      // arrays directly so tax/item lookups inside fetchGRNData don't
-      // race the state update.
-      if (isEditMode && id) {
-        await fetchGRNData(id, fetchedTaxTypes, fetchedItemsMaster);
-      }
-
-      if (location.state?.poData) {
-        const poData = location.state.poData as PurchaseOrderDetail;
-        populateGRNFromPO(poData);
-      }
-
-      if (showPODropdown) {
-        await fetchPurchaseOrders();
-      }
+    const handleScrollOrResize = () => {
+      Object.keys(showSuggestions).forEach((key) => {
+        const index = parseInt(key);
+        if (showSuggestions[index]) {
+          updateDropdownPosition(index);
+        }
+      });
     };
 
-    loadData();
-  }, [id, isEditMode, location.state]);
+    window.addEventListener('scroll', handleScrollOrResize, true);
+    window.addEventListener('resize', handleScrollOrResize);
+    
+    return () => {
+      window.removeEventListener('scroll', handleScrollOrResize, true);
+      window.removeEventListener('resize', handleScrollOrResize);
+    };
+  }, [showSuggestions]);
 
+  // ─── Load master data ─────────────────────────────────────────────
   useEffect(() => {
-    if (showPODropdown) {
-      fetchPurchaseOrders();
-    }
-  }, [showPODropdown, poCurrentPage, formData.supplierId]);
+    const loadMasterData = async () => {
+      try {
+        await Promise.all([
+          fetchSuppliers(),
+          fetchAllItems(),
+          fetchTaxOptions(),
+          fetchCustomers(),
+          fetchItemCodeOptions()
+        ]);
+        setMasterDataLoaded(true);
+      } catch (err) {
+        console.error('Error loading master data:', err);
+        toast.error('Failed to load required data');
+      }
+    };
+    loadMasterData();
+  }, []);
 
-  // ─── Once Item Master finishes loading, backfill itemId on any items ──
+  // ─── Load PO data or generate new PO number after master data is ready ──
   useEffect(() => {
-    if (itemsMaster.length === 0) return;
-    setFormData(prev => {
-      let changed = false;
-      const items = prev.items.map(it => {
-        const codeMatch = itemsMaster.find(
-          im => (im.item_code || '').trim().toLowerCase() === (it.itemCode || '').trim().toLowerCase()
-        );
-        if (codeMatch) {
-          if (codeMatch.id !== it.itemId) {
-            changed = true;
-            return { ...it, itemId: codeMatch.id };
-          }
-          return it;
-        }
-        return it;
-      });
-      return changed ? { ...prev, items } : prev;
-    });
-  }, [itemsMaster]);
-
-  // ─── Helper to find tax by rate ──────────────────────────────────────
-
-  // ─── Fetch GRN Data for Edit ──────────────────────────────────────
-  // FIX: accepts optional `taxTypesOverride` / `itemsMasterOverride` so the
-  // mount effect can hand this function the arrays it JUST fetched, rather
-  // than this function reading the `taxTypes` / `itemsMaster` state
-  // variables — which, at mount time, are still their initial empty arrays
-  // inside this closure even though the fetches have already resolved.
-  // This is what was causing "Select GST" to never bind on load, since
-  // every taxTypes.find(...) below was searching an empty list.
-  const fetchGRNData = async (
-    grnId: string,
-    taxTypesOverride?: TaxType[],
-    itemsMasterOverride?: ItemMaster[]
-  ) => {
-    setLoading(true);
-    const taxList = taxTypesOverride ?? taxTypes;
-    const itemMasterList = itemsMasterOverride ?? itemsMaster;
-
-    try {
-      const response = await api.get<GRNApiResponse>(`/grn/${grnId}`);
-      if (response.data.success === 1) {
-        const data = response.data.data;
-        
-        const isService = data.customer_id !== null && data.customer_id !== undefined && data.supplier_id === null;
-        
-        let entryMode: EntryMode = 'manual';
-        if (data.purchase_order_id !== null && data.purchase_order_id !== undefined && data.purchase_order_id > 0) {
-          entryMode = 'supplier';
-        } else if (data.supplier_id !== null && data.supplier_id !== undefined) {
-          entryMode = 'manual';
-        } else {
-          entryMode = 'manual';
-        }
-        
-        const items: GRNItem[] = (data.items || []).map((item, index) => {
-          // Try to find tax from item_tax_template first
-          let taxId: number | undefined = item.tax_id || undefined;
-          let taxType: string | undefined = item.tax_type || undefined;
-          let taxRate: number = 0;
-          
-          // Check if we have item_tax_template (e.g., "GST18 18%")
-          if (item.item_tax_template) {
-            // Extract the rate from the template
-            const rateMatch = item.item_tax_template.match(/(\d+(\.\d+)?)/);
-            const rate = rateMatch ? parseFloat(rateMatch[1]) : 0;
-            taxRate = rate;
-            
-            // Try to find matching tax in taxList (freshly-fetched, not stale state)
-            let matchingTax: TaxType | undefined = undefined;
-            
-            // Strategy 1: Find by exact rate match
-            matchingTax = taxList.find(t => {
-              const tRateMatch = t.tax_type.match(/(\d+(\.\d+)?)/);
-              const tRate = tRateMatch ? parseFloat(tRateMatch[1]) : 0;
-              return tRate === rate;
-            });
-            
-            // Strategy 2: If no match, try to find by string matching (remove spaces)
-            if (!matchingTax) {
-              const templateClean = item.item_tax_template.replace(/\s/g, '').toLowerCase();
-              matchingTax = taxList.find(t => {
-                const taxClean = t.tax_type.replace(/\s/g, '').toLowerCase();
-                return taxClean.includes(templateClean) || templateClean.includes(taxClean);
-              });
-            }
-            
-            // Strategy 3: Try to find by tax_type that contains the rate
-            if (!matchingTax && rate > 0) {
-              matchingTax = taxList.find(t => {
-                const taxLower = t.tax_type.toLowerCase();
-                return taxLower.includes(rate.toString()) && taxLower.includes('gst');
-              });
-            }
-            
-            // Strategy 4: Try to find by exact rate with any GST variant
-            if (!matchingTax && rate > 0) {
-              matchingTax = taxList.find(t => {
-                const tRateMatch = t.tax_type.match(/(\d+(\.\d+)?)/);
-                const tRate = tRateMatch ? parseFloat(tRateMatch[1]) : 0;
-                return tRate === rate;
-              });
-            }
-            
-            if (matchingTax) {
-              taxId = matchingTax.tax_id;
-              taxType = matchingTax.tax_type;
-            } else {
-              // If no matching tax found, store the template as taxType
-              taxType = item.item_tax_template;
-              // Try to find by creating a new tax entry in the dropdown options
-              // by searching for any tax with the same rate
-              const taxByRate = taxList.find(t => {
-                const tRateMatch = t.tax_type.match(/(\d+(\.\d+)?)/);
-                const tRate = tRateMatch ? parseFloat(tRateMatch[1]) : 0;
-                return tRate === rate;
-              });
-              if (taxByRate) {
-                taxId = taxByRate.tax_id;
-                taxType = taxByRate.tax_type;
-              }
-            }
-          }
-          
-          // If no tax found from item_tax_template, use resolveTaxInfo
-          // (passing taxList through so it doesn't fall back to stale state)
-          if (!taxId && !taxType) {
-            const resolved = resolveTaxInfo(item, taxList);
-            taxId = resolved.taxId;
-            taxType = resolved.taxType;
-            taxRate = resolved.taxRate || 0;
-          }
-
-          const masterMatch = itemMasterList.find(
-            im => (im.item_code || '').toLowerCase() === (item.item_code || '').toLowerCase()
-          );
-
-          return {
-            id: item.id?.toString() || `item-${index}-${Date.now()}`,
-            itemCode: item.item_code || '',
-            itemName: item.item_name || '',
-            orderedQty: item.ordered_qty || 0,
-            receivedQty: item.received_qty || 0,
-            rejectedQty: item.rejected_qty || 0,
-            uom: item.uom || '',
-            rate: item.rate || 0,
-            remarks: item.remarks || '',
-            poItemId: item.po_item_id || item.id,
-            itemId: masterMatch?.id || item.item_id,
-            taxId: taxId,
-            taxType: taxType,
-            taxRate: taxRate,
-            hsn: item.hsn || '',
-            isDraft: false,
-          };
-        }) || [];
-
-        let customerName = data.customer_name || '';
-        let customerId = data.customer_id || undefined;
-        
-        if (customerId && !customerName) {
-          const foundCustomer = customers.find(c => c.id === customerId);
-          if (foundCustomer) {
-            customerName = foundCustomer.customer_name;
-          }
-        }
-
-        let supplierName = data.supplier_name || '';
-        let supplierId = data.supplier_id || undefined;
-
-        setFormData({
-          id: data.id?.toString(),
-          grn_number: data.grn_number || '',
-          grnDate: data.grn_date ? new Date(data.grn_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-          isService: isService,
-          entryMode: entryMode,
-          supplier: isService ? '' : (supplierName || ''),
-          supplierId: isService ? undefined : (supplierId || undefined),
-          purchaseOrder: data.purchase_order_id ? `PO-${String(data.purchase_order_id).padStart(5, '0')}` : '',
-          purchaseOrderId: data.purchase_order_id || undefined,
-          warehouse: data.warehouse_name || '',
-          warehouseId: data.warehouse_id || undefined,
-          customer: isService ? customerName : '',
-          customerId: isService ? customerId : undefined,
-          receivedBy: data.received_by || '',
-          receivedById: data.received_by_id,
-          vehicleNo: data.vehicle_number || '',
-          deliveryChallanNo: data.delivery_challan_no || '',
-          invoiceNo: data.invoice_number || '',
-          freeDelivery: data.is_free_delivery === undefined ? true : data.is_free_delivery === 1,
-          deliveryCharge: data.delivery_charge || 0,
-          items: items,
-        });
-
-        setWarehouseSearchTerm(data.warehouse_name || '');
-        setEmployeeSearchTerm(data.received_by || '');
-        
-        if (data.purchase_order_id) {
-          setPOSearchTerm(`PO-${String(data.purchase_order_id).padStart(5, '0')}`);
-        } else {
-          setPOSearchTerm('');
-        }
-        
-        if (isService && customerName) {
-          setCustomerSearchTerm(customerName);
-        } else {
-          setCustomerSearchTerm('');
-        }
-        
-        if (!isService && supplierName) {
-          setSupplierSearchTerm(supplierName);
-        } else {
-          setSupplierSearchTerm('');
-        }
-      }
-    } catch (err) {
-      console.error('Error fetching GRN:', err);
-      setApiError('Failed to load GRN data');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ─── Validation ──────────────────────────────────────────────────────
-  const getAllValidationErrors = (): ValidationError[] => {
-    const allErrors: ValidationError[] = [];
-
-    if (formData.isService) {
-      if (!(formData.customer || '').trim()) {
-        allErrors.push({ field: 'customer', label: 'Customer', message: 'Customer is required' });
-      }
-    } else {
-      if (!(formData.supplier || '').trim()) {
-        allErrors.push({ field: 'supplier', label: 'Supplier', message: 'Supplier is required' });
-      }
-      if (formData.entryMode === 'supplier' && !(formData.purchaseOrder || '').trim()) {
-        allErrors.push({ field: 'purchaseOrder', label: 'Purchase Order', message: 'Purchase Order is required' });
+    if (masterDataLoaded) {
+      if (isEdit && id) {
+        setTimeout(() => {
+          fetchPurchaseOrder(id);
+        }, 100);
+      } else {
+        const today = new Date();
+        const year = today.getFullYear();
+        const nextNumber = Math.floor(Math.random() * 1000) + 1;
+        setFormData(prev => ({
+          ...prev,
+          poNumber: `PO-${year}-${String(nextNumber).padStart(3, '0')}`
+        }));
       }
     }
+  }, [masterDataLoaded, isEdit, id]);
 
-    if (!formData.warehouseId) {
-      allErrors.push({ field: 'warehouse', label: 'Warehouse', message: 'Warehouse is required' });
-    }
-
-    if (!(formData.receivedBy || '').trim()) {
-      allErrors.push({ field: 'receivedBy', label: 'Received By', message: 'Received By is required' });
-    }
-
-    if (!formData.freeDelivery && (!formData.deliveryCharge || formData.deliveryCharge <= 0)) {
-      allErrors.push({ field: 'deliveryCharge', label: 'Delivery Charge', message: 'Enter the amount paid for delivery, or mark delivery as free' });
-    }
-
-    if (formData.items.length === 0) {
-      allErrors.push({ field: 'items', label: 'Items', message: 'At least one item is required' });
-    }
-
-    formData.items.forEach((item, index) => {
-      if (!(item.itemCode || '').trim()) {
-        allErrors.push({ field: `items[${index}].itemCode`, label: `Item ${index + 1} Code`, message: 'Item code is required' });
-      }
-      if (!(item.itemName || '').trim()) {
-        allErrors.push({ field: `items[${index}].itemName`, label: `Item ${index + 1} Name`, message: 'Item name is required' });
-      }
-      if (!Number.isFinite(item.receivedQty) || item.receivedQty <= 0) {
-        allErrors.push({
-          field: `items[${index}].receivedQty`,
-          label: `Item ${index + 1} Received Qty`,
-          message: 'Received quantity must be greater than 0'
-        });
-      }
-      if (item.rejectedQty < 0) {
-        allErrors.push({ field: `items[${index}].rejectedQty`, label: `Item ${index + 1} Rejected Qty`, message: 'Rejected quantity cannot be negative' });
-      }
-      if (item.rejectedQty > item.receivedQty) {
-        allErrors.push({ field: `items[${index}].rejectedQty`, label: `Item ${index + 1} Quantities`, message: 'Rejected cannot exceed Received quantity' });
-      }
-      if (!item.taxId) {
-        allErrors.push({ field: `items[${index}].taxId`, label: `Item ${index + 1} GST`, message: 'GST/Tax type is required' });
+  // ─── Re-filter items when group filter changes ────────────────────
+  useEffect(() => {
+    Object.keys(searchTerms).forEach(key => {
+      const index = parseInt(key);
+      const searchTerm = searchTerms[index] || '';
+      if (searchTerm) {
+        filterItems(index, searchTerm);
+      } else {
+        // Show all items for this row (respecting group filter)
+        let filtered = allItems;
+        if (itemGroupFilter !== 'all') {
+          filtered = filtered.filter(item => item.item_group === itemGroupFilter);
+        }
+        setFilteredItems(prev => ({ ...prev, [index]: filtered }));
       }
     });
+  }, [itemGroupFilter, allItems]);
 
-    return allErrors;
+  // ─── Calculate totals ─────────────────────────────────────────────
+  const calculateTotals = () => {
+    const totalAmount = formData.items.reduce((sum, item) => sum + (item.orderRate || item.rate || 0) * item.quantity, 0);
+    const taxAmount = formData.items.reduce((sum, item) => {
+      const lineAmount = (item.orderRate || item.rate || 0) * item.quantity;
+      const rate = (item.taxRate || 0) / 100;
+      return sum + lineAmount * rate;
+    }, 0);
+    
+    const adjustmentValue = grandTotalAdjustmentSign === 'positive' 
+      ? parseFloat(grandTotalAdjustmentValue) || 0
+      : -(parseFloat(grandTotalAdjustmentValue) || 0);
+    
+    const calculatedGrandTotal = totalAmount + taxAmount + adjustmentValue;
+    
+    return { totalAmount, taxAmount, grandTotal: calculatedGrandTotal, adjustmentValue };
   };
 
-  // ─── Handlers ────────────────────────────────────────────────────────
-  const handleFieldChange = (field: keyof GRNData, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    setIsDirty(true);
-    if (errors[field]) {
-      setErrors(prev => {
-        const newErrors = { ...prev };
-        delete newErrors[field];
-        return newErrors;
-      });
-    }
-  };
+  const { totalAmount, taxAmount, grandTotal: calculatedGrandTotal, adjustmentValue } = calculateTotals();
 
-  const handleServiceToggle = (checked: boolean) => {
-    if (formData.items.length > 0 || formData.supplier || formData.customer || formData.purchaseOrder) {
-      setPendingServiceToggle(checked);
-      setShowServiceToggleConfirm(true);
-    } else {
-      applyServiceToggle(checked);
-    }
-  };
-
-  const applyServiceToggle = (checked: boolean) => {
-    setFormData(prev => ({
-      ...prev,
-      isService: checked,
-      entryMode: checked ? 'manual' : 'supplier',
-      supplier: '',
-      supplierId: undefined,
-      purchaseOrder: '',
-      purchaseOrderId: undefined,
-      customer: '',
-      customerId: undefined,
-      items: [],
-    }));
-    if (checked) {
-      setPOSearchTerm('');
-      setSupplierSearchTerm('');
-    } else {
-      setCustomerSearchTerm('');
-    }
-    setIsDirty(true);
-    setShowServiceToggleConfirm(false);
-  };
-
-  const handleEntryModeChange = (mode: EntryMode) => {
-    setFormData(prev => ({
-      ...prev,
-      entryMode: mode,
-      items: [],
-      purchaseOrder: mode === 'supplier' ? prev.purchaseOrder : '',
-      purchaseOrderId: mode === 'supplier' ? prev.purchaseOrderId : undefined,
-    }));
-    if (mode !== 'supplier') {
-      setPOSearchTerm('');
-    }
-    setIsDirty(true);
-  };
-
-  const handleWarehouseSelect = (warehouse: Warehouse) => {
-    setFormData(prev => ({ 
-      ...prev, 
-      warehouse: warehouse.warehouse_name,
-      warehouseId: warehouse.id
-    }));
-    setWarehouseSearchTerm(warehouse.warehouse_name);
-    setShowWarehouseDropdown(false);
-    setIsDirty(true);
-  };
-
-  const handleEmployeeSelect = (employee: Employee) => {
-    setFormData(prev => ({ 
-      ...prev, 
-      receivedBy: employee.employee_name,
-      receivedById: employee.id
-    }));
-    setEmployeeSearchTerm(employee.employee_name);
-    setShowEmployeeDropdown(false);
-    setIsDirty(true);
-  };
-
-  const handleCustomerSelect = (customer: Customer) => {
-    setFormData(prev => ({
-      ...prev,
-      customer: customer.customer_name,
-      customerId: customer.id,
-    }));
-    setCustomerSearchTerm(customer.customer_name);
-    setShowCustomerDropdown(false);
-    setIsDirty(true);
-  };
-
-  const handleSupplierSelect = (supplier: Supplier) => {
-    setFormData(prev => ({
-      ...prev,
-      supplier: supplier.supplier_name,
-      supplierId: supplier.id,
-      purchaseOrder: '',
-      purchaseOrderId: undefined,
-    }));
-    setSupplierSearchTerm(supplier.supplier_name);
-    setShowSupplierDropdown(false);
-    setPOSearchTerm('');
-    setPOCurrentPage(1);
-    setIsDirty(true);
-    if (formData.entryMode === 'supplier') {
-      fetchPurchaseOrders(supplier.id);
-    }
-  };
-
-  const handlePOSelect = (po: PurchaseOrder) => {
-    const poName = getPODisplayName(po);
-    setPOSearchTerm(poName);
-    setFormData(prev => ({
-      ...prev,
-      purchaseOrder: poName,
-      purchaseOrderId: po.id,
-      supplier: po.supplier_name || '',
-      supplierId: po.supplier ? parseInt(po.supplier) || prev.supplierId : prev.supplierId,
-    }));
-    setSupplierSearchTerm(po.supplier_name || '');
-    setShowPODropdown(false);
-    fetchPurchaseOrderDetail(po.id);
-  };
-
-  const handleItemChange = (index: number, field: keyof GRNItem, value: any) => {
+  // ─── Handlers ──────────────────────────────────────────────────────
+  const handleItemChange = (index: number, field: keyof PurchaseOrderItem, value: string | number) => {
     const updatedItems = [...formData.items];
+    const previousItem = formData.items[index];
     updatedItems[index] = { ...updatedItems[index], [field]: value };
+
+    if (field === 'itemCode') {
+      const stringValue = (value as string) || '';
+      // Don't call handleItemSearch here - it will be called from the input's onChange
+      // Just update the item code in the form data
+      updatedItems[index].itemCode = stringValue;
+      
+      // If the box is cleared, wipe the stale item details
+      if (!stringValue.trim()) {
+        updatedItems[index] = {
+          ...updatedItems[index],
+          itemId: 0,
+          itemName: '',
+          uom: 'NOS',
+          rate: 0,
+          orderRate: 0,
+          amount: 0,
+          itemGroup: '',
+          brand: '',
+          description: '',
+          hsn: '',
+          taxId: '',
+          taxRate: 0,
+          balanceQty: 0 - previousItem.receivedQty,
+        };
+        setDigitValues(prev => ({
+          ...prev,
+          [index]: { quantity: prev[index]?.quantity || String(previousItem.quantity), rate: '0' }
+        }));
+      }
+    }
+
+    if (field === 'quantity' || field === 'orderRate' || field === 'rate') {
+      const quantity = field === 'quantity' ? Number(value) : updatedItems[index].quantity;
+      const rate = field === 'orderRate' ? Number(value) :
+                   field === 'rate' ? Number(value) : updatedItems[index].orderRate;
+      updatedItems[index].amount = quantity * rate;
+      updatedItems[index].balanceQty = quantity - updatedItems[index].receivedQty;
+
+      if (field === 'rate') {
+        updatedItems[index].orderRate = Number(value);
+      }
+    }
+
+    if (field === 'receivedQty') {
+      updatedItems[index].balanceQty = updatedItems[index].quantity - Number(value);
+    }
+
     setFormData(prev => ({ ...prev, items: updatedItems }));
-    setIsDirty(true);
   };
 
-  const handleItemMasterSelect = (index: number, master: ItemMaster) => {
-    const updatedItems = [...formData.items];
-    const taxInfo = resolveTaxInfo(master);
-    updatedItems[index] = {
-      ...updatedItems[index],
-      itemCode: master.item_code,
-      itemName: master.item_name,
-      uom: master.stock_uom || '',
-      rate: master.standard_rate || 0,
-      itemId: master.id,
-      taxId: taxInfo.taxId || master.tax_id || undefined,
-      taxType: taxInfo.taxType,
-      taxRate: taxInfo.taxRate || 0,
-      hsn: master.HSN || '',
-      isDraft: true,
-    };
-    setFormData(prev => ({ ...prev, items: updatedItems }));
-    setActiveItemSearchIndex(null);
-    setIsDirty(true);
+  // ─── Handle Digit Input for Quantity ──────────────────────────────
+  const handleDigitQuantityChange = (index: number, value: string) => {
+    setDigitValues(prev => ({
+      ...prev,
+      [index]: { ...prev[index], quantity: value }
+    }));
+    const numericValue = parseInt(value) || 0;
+    if (numericValue >= 0) {
+      handleItemChange(index, 'quantity', numericValue);
+    }
   };
 
-  const handleItemTaxChange = (index: number, taxId: number) => {
-    const tax = taxTypes.find(t => t.tax_id === taxId);
-    const { rate } = extractTaxInfo(tax?.tax_type);
-    const updatedItems = [...formData.items];
-    updatedItems[index] = {
-      ...updatedItems[index],
-      taxId: taxId,
-      taxType: tax?.tax_type,
-      taxRate: rate,
-    };
-    setFormData(prev => ({ ...prev, items: updatedItems }));
-    setIsDirty(true);
+  // ─── Handle Digit Input for Rate ──────────────────────────────────
+  const handleDigitRateChange = (index: number, value: string) => {
+    setDigitValues(prev => ({
+      ...prev,
+      [index]: { ...prev[index], rate: value }
+    }));
+    const numericValue = parseFloat(value) || 0;
+    if (numericValue >= 0) {
+      handleItemChange(index, 'rate', numericValue);
+    }
   };
 
-  const addItem = () => {
-    const newItem: GRNItem = {
-      id: Date.now().toString(),
-      itemCode: '',
-      itemName: '',
-      orderedQty: 0,
-      receivedQty: 0,
-      rejectedQty: 0,
-      uom: '',
-      rate: 0,
-      remarks: '',
-      taxRate: 0,
-      hsn: '',
-      isDraft: true,
-    };
-    setFormData(prev => ({ ...prev, items: [...prev.items, newItem] }));
-    setIsDirty(true);
+  // ─── Handle Adjustment Change ─────────────────────────────────────
+  const handleAdjustmentChange = (value: string) => {
+    setGrandTotalAdjustmentValue(value);
   };
 
-  const removeItem = (index: number) => {
+  const addItemRow = () => {
+    const newId = String(formData.items.length + 1);
+    setFormData(prev => ({
+      ...prev,
+      items: [...prev.items, { 
+        id: newId, 
+        itemId: 0,
+        itemCode: '', 
+        itemName: '', 
+        quantity: 1, 
+        uom: 'NOS', 
+        rate: 0, 
+        orderRate: 0, 
+        amount: 0, 
+        receivedQty: 0, 
+        balanceQty: 0, 
+        taxId: prev.taxId, 
+        taxRate: prev.taxRate 
+      }]
+    }));
+    setDigitValues(prev => ({
+      ...prev,
+      [formData.items.length]: { quantity: '1', rate: '0' }
+    }));
+    let filtered = allItems;
+    if (itemGroupFilter !== 'all') {
+      filtered = filtered.filter(item => item.item_group === itemGroupFilter);
+    }
+    setFilteredItems(prev => ({ 
+      ...prev, 
+      [formData.items.length]: filtered 
+    }));
+  };
+
+  const removeItemRow = (index: number) => {
+    if (formData.items.length <= 1) return;
     setFormData(prev => ({
       ...prev,
       items: prev.items.filter((_, i) => i !== index)
     }));
-    setIsDirty(true);
+    setDigitValues(prev => {
+      const newState = { ...prev };
+      delete newState[index];
+      return newState;
+    });
+    setFilteredItems(prev => {
+      const newState = { ...prev };
+      delete newState[index];
+      return newState;
+    });
+    setShowSuggestions(prev => {
+      const newState = { ...prev };
+      delete newState[index];
+      return newState;
+    });
+    setDropdownPositions(prev => {
+      const newState = { ...prev };
+      delete newState[index];
+      return newState;
+    });
+    delete inputRefs.current[index];
   };
 
-  // ─── Bill Totals ──────────────────────────────────────────────────────
-  const billTotals = formData.items.reduce(
-    (acc, item) => {
-      const { amount, sgst, cgst, total } = computeItemAmounts(item);
-      acc.subtotal += amount;
-      acc.sgst += sgst;
-      acc.cgst += cgst;
-      acc.itemsTotal += total;
-      return acc;
-    },
-    { subtotal: 0, sgst: 0, cgst: 0, itemsTotal: 0 }
-  );
-  const deliveryChargeAmount = formData.freeDelivery ? 0 : (formData.deliveryCharge || 0);
-  const grandTotal = billTotals.itemsTotal + deliveryChargeAmount;
+  // ─── Handle supplier selection ─────────────────────────────────────
+  const handleSupplierSelect = (supplier: Supplier) => {
+    setFormData(prev => ({
+      ...prev,
+      supplier: supplier.supplier_name,
+      supplierCode: supplier.id?.toString() || '',
+    }));
+    setSupplierSearchTerm(supplier.supplier_name);
+    setShowSupplierDropdown(false);
+  };
 
-  // ─── Get draft items ──────────────────────────────────────────────────
-  const draftItems = formData.items.filter(item => item.isDraft === true);
+  const getAllValidationErrors = (): ValidationError[] => {
+    const errors: ValidationError[] = [];
 
-  // ─── Inventory Sync ───────────────────────────────────────────────────
-  const postInventoryForItems = async (items: GRNItem[]) => {
-    const inventoryType = formData.isService ? 'External' : 'Internal';
-    const role = getUserRole();
-
-    const grnId = isEditMode && id ? parseInt(id) : undefined;
-    const grnNumber = isEditMode ? formData.grn_number : undefined;
-
-    const results = await Promise.allSettled(
-      items.map((item) => {
-        const resolvedItemId = resolveItemMasterId(item);
-
-        const payload = {
-          item_Id: resolvedItemId,
-          item_code: item.itemCode,
-          warehouse_Id: formData.warehouseId,
-          actual_qty: item.receivedQty || 0,
-          ordered_qty: item.orderedQty || item.receivedQty || 0,
-          stock_uom: item.uom,
-          company: company,
-          valuation_rate: item.rate || 0,
-          modified_by: role?.name,
-          type: inventoryType,
-          grn_id: grnId,
-          grn_number: grnNumber,
-        };
-
-        if (!resolvedItemId) {
-          console.warn(
-            `Could not resolve Item Master id for item_code "${item.itemCode}" — sending inventory entry without item_Id.`
-          );
-        }
-
-        return api.post('/inventory', payload);
-      })
-    );
-
-    const failed = results.filter(r => r.status === 'rejected');
-    if (failed.length > 0) {
-      console.error(`Failed to post ${failed.length} of ${items.length} inventory entries`, failed);
+    // Title is no longer required - removed validation
+    if (!formData.supplier.trim()) {
+      errors.push({ field: 'supplier', label: 'Supplier', message: 'Supplier is required' });
     }
-  };
-
-  // ─── Print ────────────────────────────────────────────────────────────
-  const handlePrint = () => {
-    const printWindow = window.open('', '_blank', 'width=900,height=1000');
-    if (!printWindow) {
-      setApiError('Please allow pop-ups to print this document.');
-      return;
+    if (!formData.orderDate) {
+      errors.push({ field: 'orderDate', label: 'Order Date', message: 'Order date is required' });
+    }
+    // ✅ FIXED: Delivery Date validation - ONLY check for field error, don't show in popup
+    // We check it but don't add to errors array - only visual red border will show
+    const hasDeliveryDateError = !formData.deliveryDate;
+    // Don't push to errors array - only use for visual validation
+    
+    if (formData.items.some(item => !item.itemCode.trim() || !item.itemName.trim() || item.quantity <= 0 || (item.orderRate || item.rate) <= 0)) {
+      errors.push({ field: 'items', label: 'Items', message: 'All items must have code, name, quantity > 0 and rate > 0' });
     }
 
-    const partyRows = formData.isService
-      ? `
-        <tr><td class="label">Customer</td><td>${escapeHtml(formData.customer || '-')}</td></tr>
-        <tr><td class="label">Mobile</td><td>${escapeHtml(selectedCustomer?.mobile_no || '-')}</td></tr>
-        <tr><td class="label">Email</td><td>${escapeHtml(selectedCustomer?.email_id || '-')}</td></tr>
-        <tr><td class="label">Warehouse</td><td>${escapeHtml(formData.warehouse || '-')}</td></tr>
-      `
-      : `
-        <tr><td class="label">Supplier</td><td>${escapeHtml(formData.supplier || '-')}</td></tr>
-        <tr><td class="label">Mobile</td><td>${escapeHtml(selectedSupplier?.mobile_no || '-')}</td></tr>
-        <tr><td class="label">Email</td><td>${escapeHtml(selectedSupplier?.email_id || '-')}</td></tr>
-        <tr><td class="label">Country</td><td>${escapeHtml(selectedSupplier?.country || '-')}</td></tr>
-        <tr><td class="label">Purchase Order</td><td>${escapeHtml(formData.entryMode === 'supplier' ? (formData.purchaseOrder || '-') : 'Manual Entry')}</td></tr>
-        <tr><td class="label">Warehouse</td><td>${escapeHtml(formData.warehouse || '-')}</td></tr>
-      `;
-
-    const itemRows = formData.items.map((item, idx) => {
-      const { sgst, cgst, total, gstPercent } = computeItemAmounts(item);
-      return `
-        <tr>
-          <td>${idx + 1}</td>
-          <td>${escapeHtml(item.itemCode)}</td>
-          <td>${escapeHtml(item.itemName)}</td>
-          <td>${escapeHtml(item.hsn || '-')}</td>
-          <td class="num">${item.receivedQty}</td>
-          <td>${escapeHtml(item.uom)}</td>
-          <td class="num">${item.rate.toFixed(2)}</td>
-          <td class="num">${gstPercent}%</td>
-          <td class="num">${sgst.toFixed(2)}</td>
-          <td class="num">${cgst.toFixed(2)}</td>
-          <td class="num">${total.toFixed(2)}</td>
-        </tr>
-      `;
-    }).join('');
-
-    const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8" />
-        <title>${escapeHtml(formData.grn_number || 'GRN')}</title>
-        <style>
-          * { box-sizing: border-box; }
-          body { font-family: Arial, Helvetica, sans-serif; color: #111827; padding: 32px; }
-          h1 { font-size: 20px; margin: 0 0 4px; }
-          .subtitle { color: #6b7280; font-size: 12px; margin-bottom: 20px; }
-          table { width: 100%; border-collapse: collapse; margin-bottom: 18px; }
-          .meta-table td { padding: 4px 8px; font-size: 12.5px; border: none; }
-          .meta-table td.label { color: #6b7280; width: 140px; }
-          .items-table th, .items-table td { border: 1px solid #d1d5db; padding: 6px 8px; font-size: 12px; }
-          .items-table th { background: #f3f4f6; text-align: left; }
-          .items-table td.num, .items-table th.num { text-align: right; }
-          .totals { width: 320px; margin-left: auto; }
-          .totals td { padding: 4px 8px; font-size: 12.5px; }
-          .totals td:last-child { text-align: right; }
-          .totals .grand td { font-weight: 700; font-size: 14px; border-top: 1px solid #111827; padding-top: 8px; }
-          .note { margin-top: 20px; font-size: 11.5px; color: #6b7280; }
-          @media print {
-            .no-print { display: none; }
-          }
-        </style>
-      </head>
-      <body>
-        <h1>${formData.isService ? 'Service Bill' : 'Goods Receipt Note'}</h1>
-        <div class="subtitle">GRN Number: ${escapeHtml(formData.grn_number || '(will be generated on save)')} &nbsp;|&nbsp; Date: ${escapeHtml(formData.grnDate)} &nbsp;|&nbsp; Received By: ${escapeHtml(formData.receivedBy || '-')}</div>
-
-        <table class="meta-table">${partyRows}</table>
-
-        <table class="items-table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Code</th>
-              <th>Item</th>
-              <th>HSN</th>
-              <th class="num">Qty</th>
-              <th>UOM</th>
-              <th class="num">Rate</th>
-              <th class="num">GST</th>
-              <th class="num">SGST</th>
-              <th class="num">CGST</th>
-              <th class="num">Amount</th>
-            </tr>
-          </thead>
-          <tbody>${itemRows || '<tr><td colspan="11">No items</td></tr>'}</tbody>
-        </table>
-
-        <table class="totals">
-          <tr><td>Subtotal</td><td>${billTotals.subtotal.toFixed(2)}</td></tr>
-          <tr><td>Total SGST</td><td>${billTotals.sgst.toFixed(2)}</td></tr>
-          <tr><td>Total CGST</td><td>${billTotals.cgst.toFixed(2)}</td></tr>
-          <tr><td>Delivery Charges${formData.freeDelivery ? ' (Free)' : ''}</td><td>${deliveryChargeAmount.toFixed(2)}</td></tr>
-          <tr class="grand"><td>Grand Total</td><td>${grandTotal.toFixed(2)}</td></tr>
-        </table>
-      </body>
-      </html>
-    `;
-
-    printWindow.document.open();
-    printWindow.document.write(html);
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => {
-      printWindow.print();
-    }, 300);
+    return errors;
   };
 
-  // ─── Save Handler ──────────────────────────────────────────────────
-  const handleSave = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  // ─── Submit Handler ────────────────────────────────────────────────
+  const handleSubmit = async () => {
     setApiError(null);
-
+    
+    // ✅ FIXED: Check delivery date separately, don't add to validation errors
+    const hasDeliveryDateError = !formData.deliveryDate;
     const validationErrorsList = getAllValidationErrors();
-    if (validationErrorsList.length > 0) {
-      setValidationErrors(validationErrorsList);
-      setShowValidationSummary(true);
+    
+    if (validationErrorsList.length > 0 || hasDeliveryDateError) {
+      // Show validation summary only for non-delivery date errors
+      if (validationErrorsList.length > 0) {
+        setValidationErrors(validationErrorsList);
+        setShowValidationSummary(true);
+      } else {
+        setValidationErrors([]);
+        setShowValidationSummary(false);
+      }
+      
+      // Only scroll to the first error field (excluding deliveryDate)
+      const firstError = validationErrorsList[0];
+      if (firstError?.field === 'orderDate' && orderDateRef.current) {
+        orderDateRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => {
+          const datePickerInput = orderDateRef.current?.querySelector('input');
+          if (datePickerInput) {
+            datePickerInput.focus();
+          }
+        }, 300);
+      } else if (firstError?.field === 'supplier' && supplierInputRef.current) {
+        supplierInputRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => {
+          supplierInputRef.current?.focus();
+        }, 300);
+      } else if (hasDeliveryDateError && deliveryDateRef.current) {
+        // ✅ FIXED: Just scroll to delivery date field for visual red border
+        deliveryDateRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => {
+          const datePickerInput = deliveryDateRef.current?.querySelector('input');
+          if (datePickerInput) {
+            datePickerInput.focus();
+          }
+        }, 300);
+      }
       return;
     }
 
-    setSubmitting(true);
-    try {
-      let grnType = 'Internal';
-      if (formData.isService) {
-        grnType = 'External';
-      } else if (formData.entryMode === 'supplier') {
-        grnType = 'Internal';
-      } else {
-        grnType = 'Internal';
-      }
+    setLoading(true);
+    
+    const totalQty = formData.items.reduce((sum, item) => sum + item.quantity, 0);
+    const selectedSupplier = suppliers.find(s => s.supplier_name === formData.supplier);
+    
+    const taxAmountCalc = formData.items.reduce((sum, item) => {
+      const lineAmount = (item.orderRate || item.rate || 0) * item.quantity;
+      return sum + lineAmount * ((item.taxRate || 0) / 100);
+    }, 0);
+    const adjustmentValueNum = grandTotalAdjustmentSign === 'positive' 
+      ? parseFloat(grandTotalAdjustmentValue) || 0
+      : -(parseFloat(grandTotalAdjustmentValue) || 0);
+    const grandTotalCalc = totalAmount + taxAmountCalc + adjustmentValueNum;
+    const distinctRates = [...new Set(formData.items.map(item => item.taxRate || 0))];
+    const taxesAndChargesLabel = distinctRates.length <= 1
+      ? `${formData.taxCategory} ${distinctRates[0] ?? 0}%`
+      : 'Mixed';
 
-      const payload: any = {
-        grn_number: formData.grn_number || `GRN-${Date.now()}`,
-        grn_date: formData.grnDate,
-        is_service: formData.isService ? 1 : 0,
-        entry_mode: formData.entryMode,
-        type: grnType,
-        status: 'submitted',
-        received_by: formData.receivedBy,
-        received_by_id: formData.receivedById,
-        warehouse_id: formData.warehouseId,
-        warehouse_name: formData.warehouse,
-        vehicle_number: formData.vehicleNo || null,
-        delivery_challan_no: formData.deliveryChallanNo || '',
-        invoice_number: formData.invoiceNo || null,
-        is_free_delivery: formData.freeDelivery ? 1 : 0,
-        delivery_charge: deliveryChargeAmount,
-        items: formData.items.map(item => {
-          const { amount, sgst, cgst, total } = computeItemAmounts(item);
-          return {
-            item_code: item.itemCode,
-            item_name: item.itemName,
-            ordered_qty: item.orderedQty || 0,
-            received_qty: item.receivedQty || 0,
-            rejected_qty: item.rejectedQty || 0,
-            uom: item.uom || '',
-            rate: item.rate || 0,
-            purchase_rate: item.rate,
-            remarks: item.remarks || null,
-            item_id: resolveItemMasterId(item),
-            tax_id: item.taxId,
-            tax_type: item.taxType,
-            item_tax_template: item.taxType || item.taxRate ? `${item.taxType || 'GST'} ${item.taxRate || 0}%` : '',
-            hsn: item.hsn || '',
-            amount: amount,
-            sgst_amount: sgst,
-            cgst_amount: cgst,
-            item_total: total,
-          };
-        }),
-        subtotal: billTotals.subtotal,
-        total_sgst: billTotals.sgst,
-        total_cgst: billTotals.cgst,
-        grand_total: grandTotal,
-      };
-
-      if (formData.isService) {
-        payload.customer_id = formData.customerId;
-        payload.customer_name = formData.customer;
-      } else {
-        payload.supplier_id = formData.supplierId;
-        payload.supplier_name = formData.supplier;
-        payload.purchase_order_id = formData.entryMode === 'supplier' ? formData.purchaseOrderId : undefined;
-      }
-
-      let response;
-      let isUpdate = false;
+    const payload: any = {
+      name: formData.poNumber,
+      naming_series: "PO-.YYYY.-",
+      supplier: selectedSupplier?.id?.toString() || formData.supplierCode || "SUP-00001",
+      supplier_name: formData.supplier,
+      order_confirmation_no: "",
+      order_confirmation_date: null,
+      transaction_date: formData.orderDate,
+      transaction_time: "10:30:00",
+      schedule_date: formData.deliveryDate || "",
+      company: "SculptorTech Pvt Ltd",
+      is_subcontracted: 0,
+      has_unit_price_items: 0,
+      supplier_warehouse: "",
+      cost_center: "Main - MC",
+      project: "",
+      currency: formData.currency,
+      conversion_rate: 1,
+      buying_price_list: "Standard Buying",
+      price_list_currency: formData.currency,
+      set_from_warehouse: "",
+      total_qty: totalQty,
+      total_net_weight: 0,
+      base_total: totalAmount,
+      base_net_total: totalAmount,
+      total: totalAmount,
+      net_total: totalAmount,
+      set_reserve_warehouse: "",
+      tax_category: formData.taxCategory,
+      taxes_and_charges: taxesAndChargesLabel,
+      base_taxes_and_charges_added: taxAmountCalc,
+      base_taxes_and_charges_deducted: 0,
+      base_total_taxes_and_charges: taxAmountCalc,
+      taxes_and_charges_added: taxAmountCalc,
+      taxes_and_charges_deducted: 0,
+      total_taxes_and_charges: taxAmountCalc,
+      grand_total: grandTotalCalc,
+      rounded_total: Math.round(grandTotalCalc),
+      base_grand_total: grandTotalCalc,
+      base_rounded_total: Math.round(grandTotalCalc),
+      disable_rounded_total: 0,
+      rounding_adjustment: adjustmentValueNum,
+      base_rounding_adjustment: adjustmentValueNum,
+      advance_paid: 0,
+      base_discount_amount: 0,
+      additional_discount_percentage: 0,
+      discount_amount: 0,
+      other_charges_calculation: "Net Total",
+      supplier_address: selectedSupplier?.address || "",
+      address_display: formData.shippingAddress || "",
+      supplier_group: selectedSupplier?.supplier_group || "Local",
+      payment_terms_template: formData.paymentTerms,
+      terms: formData.notes || "",
+      status: formData.status,
+      per_billed: 0,
+      per_received: 0,
+      group_same_items: 0,
+      from_date: null,
+      to_date: null,
+      auto_repeat: "",
+      title: formData.title,
+      party_account_currency: formData.currency,
+      represents_company: "",
+      ref_sq: "",
+      amended_from: "",
+      mps: 0,
+      is_internal_supplier: 0,
+      inter_company_order_reference: "",
+      is_old_subcontracting_flow: 0,
+      modified_by: "Administrator",
       
-      const editId = id && id !== 'new' && id !== 'view' ? parseInt(id) : null;
+      items: formData.items.map((item, idx) => ({
+        item_id: item.itemId || 0,
+        fg_item_qty: item.quantity || 0,
+        item_code: item.itemCode,
+        supplier_part_no: `SP-${String(idx + 1).padStart(3, '0')}`,
+        item_name: item.itemName,
+        brand: item.brand || "",
+        product_bundle: "",
+        schedule_date: formData.deliveryDate || "",
+        expected_delivery_date: formData.deliveryDate || "",
+        item_group: item.itemGroup || "Raw Material",
+        description: item.description || item.itemName || "",
+        image: "",
+        qty: item.quantity,
+        stock_uom: item.uom || "Nos",
+        subcontracted_qty: 0,
+        uom: item.uom || "Nos",
+        conversion_factor: 1,
+        price_list_rate: item.orderRate || item.rate,
+        last_purchase_rate: (item.orderRate || item.rate) * 0.98,
+        base_price_list_rate: item.orderRate || item.rate,
+        margin_type: "Percentage",
+        margin_rate_or_amount: 0,
+        rate_with_margin: item.orderRate || item.rate,
+        discount_percentage: 0,
+        distributed_discount_amount: 0,
+        base_rate_with_margin: item.orderRate || item.rate,
+        rate: item.orderRate || item.rate,
+        item_tax_template: item.taxRate && item.taxRate > 0 ? `${formData.taxCategory} ${item.taxRate}%` : '',
+        pricing_rules: "",
+        is_free_item: 0,
+        from_warehouse: "",
+        actual_qty: 0,
+        company_total_stock: 0,
+        material_request: "",
+        material_request_item: "",
+        sales_order: "",
+        sales_order_item: "",
+        sales_order_packed_item: "",
+        supplier_quotation: "",
+        supplier_quotation_item: "",
+        delivered_by_supplier: 0,
+        against_blanket_order: 0,
+        blanket_order: "",
+        blanket_order_rate: 0,
+        received_qty: item.receivedQty || 0,
+        returned_qty: 0,
+        billed_amt: 0,
+        expense_account: "Stock In Hand",
+        wip_composite_asset: "",
+        manufacturer: "",
+        manufacturer_part_no: "",
+        bom: "",
+        include_exploded_items: 0,
+        weight_per_unit: 0,
+        weight_uom: "Kg",
+        project: "",
+        cost_center: "Main - STPL",
+        is_fixed_asset: 0,
+        item_tax_rate: String(item.taxRate ?? 0),
+        production_plan: "",
+        production_plan_item: "",
+        production_plan_sub_assembly_item: "",
+        page_break: 0,
+        job_card: "",
+        hsn: item.hsn || "",
+      }))
+    };
 
-      if (editId && !isNaN(editId) && isEditMode) {
-        payload.id = editId;
-        console.log('🔄 Updating GRN with ID:', editId);
-        response = await api.put(`/grn`, payload);
-        isUpdate = true;
-      } else {
-        console.log('✨ Creating new GRN');
-        response = await api.post('/grn', payload);
-        isUpdate = false;
-      }
+    if (isEdit && id) {
+      payload.id = parseInt(id);
+    }
+
+    try {
+      const response = isEdit && id
+        ? await api.put('/purchase-order', payload)
+        : await api.post('/purchase-order', payload);
 
       if (response.data && response.data.success === 1) {
-        console.log('GRN saved successfully:', response.data);
-        setIsDirty(false);
-        const generatedNumber = response.data?.data?.grn_number || payload.grn_number;
-        setSavedGrnNumber(generatedNumber);
-        setIsUpdateMode(isUpdate);
-
-        await postInventoryForItems(formData.items);
-
-        setShowSuccessModal(true);
+        toast.success(isEdit ? 'Purchase Order updated successfully!' : 'Purchase Order created successfully!');
+        navigate('/purchase-order');
       } else {
-        setApiError(response.data?.message || 'Failed to save GRN');
+        setApiError(response.data?.message || 'Failed to save purchase order');
       }
     } catch (err: any) {
-      console.error('Error saving GRN:', err);
-
+      console.error('Error saving purchase order:', err);
       if (err.response) {
-        if (err.response.status === 409) {
-          setApiError('A GRN with this number already exists');
-        } else if (err.response.status === 400) {
-          setApiError(err.response.data?.message || 'Invalid data provided');
-        } else {
-          setApiError(err.response.data?.message || 'Failed to save GRN');
-        }
+        setApiError(err.response.data?.message || 'Failed to save purchase order');
       } else if (err.request) {
         setApiError('Network error. Please check your connection.');
       } else {
         setApiError('An unexpected error occurred. Please try again.');
       }
     } finally {
-      setSubmitting(false);
+      setLoading(false);
     }
   };
 
-  const handleSuccessModalOk = () => {
-    setShowSuccessModal(false);
-    navigate('/grn');
+  const handleCancel = () => {
+    navigate('/purchase-order');
   };
 
-  const hasErrors = getAllValidationErrors().length > 0;
+  const hasErrors = getAllValidationErrors().length > 0 || !formData.deliveryDate;
 
-  const getPOStatusBadgeClass = (status: string) => {
-    const safeStatus = (status || '').toLowerCase();
-    switch (safeStatus) {
-      case 'draft': return 'grn-status-draft';
-      case 'submitted': return 'grn-status-submitted';
-      case 'partially received': return 'grn-status-partial';
-      case 'fully received': return 'grn-status-completed';
-      case 'cancelled': return 'grn-status-rejected';
-      case 'closed': return 'grn-status-closed';
-      default: return 'grn-status-draft';
-    }
+  // ─── Render Add Supplier Popup ─────────────────────────────
+  const renderAddSupplierPopup = () => {
+    if (!showAddSupplierPopup) return null;
+
+    const primaryColor = '#6366f1';
+
+    return createPortal(
+      <div 
+        className="pof-modal-overlay" 
+        onClick={() => setShowAddSupplierPopup(false)}
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000,
+        }}
+      >
+        <div 
+          className="pof-add-supplier-popup" 
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            background: theme === 'dark' ? '#1e1e2f' : '#ffffff',
+            borderRadius: '12px',
+            maxWidth: '700px',
+            width: '95%',
+            maxHeight: '90vh',
+            overflow: 'hidden',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+          }}
+        >
+          <div 
+            className="pof-modal-header" 
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '16px 20px',
+              borderBottom: `2px solid ${primaryColor}`,
+              flexShrink: 0,
+            }}
+          >
+            <h2 style={{ 
+              margin: 0, 
+              fontSize: '18px', 
+              fontWeight: 600,
+              color: primaryColor,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <FaPlus style={{ color: primaryColor }} /> Add New Supplier
+            </h2>
+            <button 
+              className="pof-modal-close" 
+              onClick={() => setShowAddSupplierPopup(false)}
+              style={{
+                background: 'none',
+                border: 'none',
+                fontSize: '24px',
+                cursor: 'pointer',
+                color: theme === 'dark' ? '#9ca3af' : '#6b7280',
+              }}
+            >
+              ×
+            </button>
+          </div>
+          <div className="pof-modal-body" style={{ 
+            padding: '24px 20px',
+            overflow: 'visible',
+            maxHeight: 'calc(90vh - 140px)',
+          }}>
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: '1fr 1fr',
+              gap: '16px 20px',
+            }}>
+              <div className="pof-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: theme === 'dark' ? '#e5e7eb' : '#374151'
+                }}>
+                  Supplier Name <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newSupplier.supplier_name}
+                  onChange={(e) => setNewSupplier(prev => ({ ...prev, supplier_name: e.target.value }))}
+                  placeholder="Enter supplier name"
+                  className="pof-form-field"
+                  autoFocus
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: theme === 'dark' ? '#2a2a3a' : '#ffffff',
+                    color: theme === 'dark' ? '#e5e7eb' : '#111827',
+                  }}
+                />
+              </div>
+              <div className="pof-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: theme === 'dark' ? '#e5e7eb' : '#374151'
+                }}>
+                  Supplier Type
+                </label>
+                <select
+                  value={newSupplier.supplier_type}
+                  onChange={(e) => setNewSupplier(prev => ({ ...prev, supplier_type: e.target.value }))}
+                  className="pof-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: theme === 'dark' ? '#2a2a3a' : '#ffffff',
+                    color: theme === 'dark' ? '#e5e7eb' : '#111827',
+                  }}
+                >
+                  <option value="">Select type</option>
+                  <option value="Individual">Individual</option>
+                  <option value="Company">Company</option>
+                  <option value="Partnership">Partnership</option>
+                  <option value="LLP">LLP</option>
+                  <option value="Trust">Trust</option>
+                </select>
+              </div>
+              <div className="pof-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: theme === 'dark' ? '#e5e7eb' : '#374151'
+                }}>
+                  Supplier Group
+                </label>
+                <input
+                  type="text"
+                  value={newSupplier.supplier_group}
+                  onChange={(e) => setNewSupplier(prev => ({ ...prev, supplier_group: e.target.value }))}
+                  placeholder="e.g. Local, International"
+                  className="pof-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: theme === 'dark' ? '#2a2a3a' : '#ffffff',
+                    color: theme === 'dark' ? '#e5e7eb' : '#111827',
+                  }}
+                />
+              </div>
+              <div className="pof-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                }}>
+                  Country
+                </label>
+                <select
+                  value={newSupplier.country}
+                  onChange={(e) => setNewSupplier(prev => ({ ...prev, country: e.target.value }))}
+                  className="pof-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: theme === 'dark' ? '#2a2a3a' : '#ffffff',
+                    color: theme === 'dark' ? '#e5e7eb' : '#111827',
+                  }}
+                >
+                  <option value="India">India</option>
+                  <option value="UK">UK</option>
+                  <option value="USA">USA</option>
+                  <option value="Australia">Australia</option>
+                  <option value="Canada">Canada</option>
+                  <option value="Germany">Germany</option>
+                  <option value="France">France</option>
+                  <option value="Japan">Japan</option>
+                  <option value="China">China</option>
+                  <option value="UAE">UAE</option>
+                  <option value="Singapore">Singapore</option>
+                </select>
+              </div>
+              <div className="pof-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: theme === 'dark' ? '#e5e7eb' : '#374151'
+                }}>
+                  Email <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="email"
+                  value={newSupplier.email_id}
+                  onChange={(e) => setNewSupplier(prev => ({ ...prev, email_id: e.target.value }))}
+                  placeholder="Enter email address"
+                  className="pof-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: theme === 'dark' ? '#2a2a3a' : '#ffffff',
+                    color: theme === 'dark' ? '#e5e7eb' : '#111827',
+                  }}
+                />
+              </div>
+              <div className="pof-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: theme === 'dark' ? '#e5e7eb' : '#374151'
+                }}>
+                  Phone <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="tel"
+                  value={newSupplier.mobile_no}
+                  onChange={(e) => setNewSupplier(prev => ({ ...prev, mobile_no: e.target.value }))}
+                  placeholder="Enter phone number"
+                  className="pof-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: theme === 'dark' ? '#2a2a3a' : '#ffffff',
+                    color: theme === 'dark' ? '#e5e7eb' : '#111827',
+                  }}
+                />
+              </div>
+              <div className="pof-popup-field" style={{ marginBottom: '0', gridColumn: '1 / -1' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: theme === 'dark' ? '#e5e7eb' : '#374151'
+                }}>
+                  Address
+                </label>
+                <textarea
+                  value={newSupplier.primary_address}
+                  onChange={(e) => setNewSupplier(prev => ({ ...prev, primary_address: e.target.value }))}
+                  placeholder="Enter address"
+                  className="pof-form-field pof-textarea"
+                  rows={2}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: theme === 'dark' ? '#2a2a3a' : '#ffffff',
+                    color: theme === 'dark' ? '#e5e7eb' : '#111827',
+                    resize: 'vertical',
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+          <div 
+            className="pof-modal-footer" 
+            style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '10px',
+              padding: '16px 20px',
+              borderTop: `1px solid ${theme === 'dark' ? '#2a2a3a' : '#f3f4f6'}`,
+              flexShrink: 0,
+            }}
+          >
+            <button 
+              className="pof-btn-cancel" 
+              onClick={() => setShowAddSupplierPopup(false)}
+              disabled={addingSupplier}
+              style={{
+                padding: '8px 20px',
+                borderRadius: '6px',
+                border: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                background: 'transparent',
+                color: theme === 'dark' ? '#9ca3af' : '#6b7280',
+                cursor: 'pointer',
+                fontSize: '14px',
+                transition: 'background 0.15s',
+              }}
+            >
+              Cancel
+            </button>
+            <button 
+              className="pof-btn-submit" 
+              onClick={handleAddNewSupplier}
+              disabled={addingSupplier}
+              style={{
+                padding: '8px 20px',
+                borderRadius: '6px',
+                border: 'none',
+                background: primaryColor,
+                color: '#ffffff',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: 500,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'background 0.15s',
+              }}
+            >
+              {addingSupplier && <FaSpinner className="pof-spinning" />}
+              <FaPlus size={12} />
+              Create Supplier
+            </button>
+          </div>
+        </div>
+      </div>,
+      document.body
+    );
   };
 
-  if (loading) {
+  // ─── Render Add Item Popup (Full UI with all fields) ────────
+  const renderAddItemPopup = () => {
+    if (!showAddItemPopup) return null;
+
+    const primaryColor = '#6366f1';
+
+    return createPortal(
+      <div 
+        className="pof-modal-overlay" 
+        onClick={() => setShowAddItemPopup(false)}
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000,
+        }}
+      >
+        <div 
+          className="pof-add-item-popup" 
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            background: theme === 'dark' ? '#1e1e2f' : '#ffffff',
+            borderRadius: '12px',
+            maxWidth: '800px',
+            width: '95%',
+            maxHeight: '90vh',
+            overflow: 'hidden',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+          }}
+        >
+          <div 
+            className="pof-modal-header" 
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '16px 20px',
+              borderBottom: `2px solid ${primaryColor}`,
+              flexShrink: 0,
+            }}
+          >
+            <h2 style={{ 
+              margin: 0, 
+              fontSize: '18px', 
+              fontWeight: 600,
+              color: primaryColor,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <FaPlus style={{ color: primaryColor }} /> Add New Item
+            </h2>
+            <button 
+              className="pof-modal-close" 
+              onClick={() => setShowAddItemPopup(false)}
+              style={{
+                background: 'none',
+                border: 'none',
+                fontSize: '24px',
+                cursor: 'pointer',
+                color: theme === 'dark' ? '#9ca3af' : '#6b7280',
+              }}
+            >
+              ×
+            </button>
+          </div>
+          <div className="pof-modal-body" style={{ 
+            padding: '24px 20px',
+            overflow: 'visible',
+            maxHeight: 'calc(90vh - 140px)',
+          }}>
+            <p className="pof-modal-subtitle" style={{ color: '#6b7280', fontSize: '13px', marginBottom: '16px' }}>
+              Fill in the item details below. Fields marked with <span style={{ color: '#ef4444' }}>*</span> are required.
+            </p>
+
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: '1fr 1fr',
+              gap: '16px 20px',
+            }}>
+              {/* Item Name - Required */}
+              <div className="pof-popup-field" style={{ marginBottom: '0', gridColumn: '1 / -1' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: theme === 'dark' ? '#e5e7eb' : '#374151'
+                }}>
+                  Item Name <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newItem.item_name}
+                  onChange={(e) => setNewItem(prev => ({ ...prev, item_name: e.target.value }))}
+                  placeholder="e.g. Cotton Yarn 40s"
+                  className="pof-form-field"
+                  autoFocus
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: theme === 'dark' ? '#2a2a3a' : '#ffffff',
+                    color: theme === 'dark' ? '#e5e7eb' : '#111827',
+                  }}
+                />
+                <span style={{ fontSize: '11px', color: '#6b7280' }}>Alphabets, digits, and spaces are allowed</span>
+              </div>
+
+              {/* Item Code - Optional */}
+              <div className="pof-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: theme === 'dark' ? '#e5e7eb' : '#374151'
+                }}>
+                  Item Code
+                </label>
+                <input
+                  type="text"
+                  value={newItem.item_code}
+                  onChange={(e) => setNewItem(prev => ({ ...prev, item_code: e.target.value.toUpperCase().replace(/[^a-zA-Z0-9\-]/g, "") }))}
+                  placeholder="Auto-generated if left empty"
+                  className="pof-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: theme === 'dark' ? '#2a2a3a' : '#ffffff',
+                    color: theme === 'dark' ? '#e5e7eb' : '#111827',
+                  }}
+                />
+                <span style={{ fontSize: '11px', color: '#6b7280' }}>Alphabets, digits, and hyphens are allowed. Auto-generated from name if empty.</span>
+              </div>
+
+              {/* Item Group - Required */}
+              <div className="pof-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: theme === 'dark' ? '#e5e7eb' : '#374151'
+                }}>
+                  Item Group <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newItem.item_group}
+                  onChange={(e) => setNewItem(prev => ({ ...prev, item_group: e.target.value }))}
+                  placeholder="e.g. Raw Material, Finished Goods"
+                  className="pof-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: theme === 'dark' ? '#2a2a3a' : '#ffffff',
+                    color: theme === 'dark' ? '#e5e7eb' : '#111827',
+                  }}
+                />
+                <span style={{ fontSize: '11px', color: '#6b7280' }}>Only alphabets and spaces are allowed</span>
+              </div>
+
+              {/* Default UOM - Required */}
+              <div className="pof-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: theme === 'dark' ? '#e5e7eb' : '#374151'
+                }}>
+                  Default UOM <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newItem.stock_uom}
+                  onChange={(e) => setNewItem(prev => ({ ...prev, stock_uom: e.target.value }))}
+                  placeholder="e.g. NOS, Kg, Meter"
+                  className="pof-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: theme === 'dark' ? '#2a2a3a' : '#ffffff',
+                    color: theme === 'dark' ? '#e5e7eb' : '#111827',
+                  }}
+                />
+                <span style={{ fontSize: '11px', color: '#6b7280' }}>Alphabets, digits, and spaces are allowed</span>
+              </div>
+
+              {/* HSN Code - Optional */}
+              <div className="pof-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: theme === 'dark' ? '#e5e7eb' : '#374151'
+                }}>
+                  HSN Code
+                </label>
+                <input
+                  type="text"
+                  value={newItem.hsn}
+                  onChange={(e) => setNewItem(prev => ({ ...prev, hsn: e.target.value.replace(/[^0-9]/g, "") }))}
+                  placeholder="e.g. 87690"
+                  className="pof-form-field"
+                  maxLength={45}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: theme === 'dark' ? '#2a2a3a' : '#ffffff',
+                    color: theme === 'dark' ? '#e5e7eb' : '#111827',
+                  }}
+                />
+                <span style={{ fontSize: '11px', color: '#6b7280' }}>Only digits are allowed - Harmonized System of Nomenclature code</span>
+              </div>
+
+              {/* Tax - Optional */}
+              <div className="pof-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: theme === 'dark' ? '#e5e7eb' : '#374151'
+                }}>
+                  Tax
+                </label>
+                <select
+                  value={newItem.tax_id}
+                  onChange={(e) => setNewItem(prev => ({ ...prev, tax_id: e.target.value }))}
+                  className="pof-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: theme === 'dark' ? '#2a2a3a' : '#ffffff',
+                    color: theme === 'dark' ? '#e5e7eb' : '#111827',
+                  }}
+                >
+                  <option value="">Default Tax</option>
+                  {taxOptions.map(tax => {
+                    const { rate, category } = extractTaxInfo(tax.tax_type);
+                    return (
+                      <option key={tax.tax_id} value={String(tax.tax_id)}>
+                        {category} {rate}%
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              {/* Pricing - Two columns */}
+              <div className="pof-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: theme === 'dark' ? '#e5e7eb' : '#374151'
+                }}>
+                  Purchase Rate (base price)
+                </label>
+                <input
+                  type="text"
+                  value={newItem.standard_rate}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/[^0-9.]/g, "");
+                    setNewItem(prev => ({ ...prev, standard_rate: val }));
+                  }}
+                  placeholder="0.00"
+                  className="pof-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: theme === 'dark' ? '#2a2a3a' : '#ffffff',
+                    color: theme === 'dark' ? '#e5e7eb' : '#111827',
+                  }}
+                />
+                <span style={{ fontSize: '11px', color: '#6b7280' }}>The cost at which you purchase this item.</span>
+              </div>
+
+              <div className="pof-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: theme === 'dark' ? '#e5e7eb' : '#374151'
+                }}>
+                  Valuation Rate
+                </label>
+                <input
+                  type="text"
+                  value={newItem.valuation_rate}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/[^0-9.]/g, "");
+                    setNewItem(prev => ({ ...prev, valuation_rate: val }));
+                  }}
+                  placeholder="0.00"
+                  className="pof-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: theme === 'dark' ? '#2a2a3a' : '#ffffff',
+                    color: theme === 'dark' ? '#e5e7eb' : '#111827',
+                  }}
+                />
+                <span style={{ fontSize: '11px', color: '#6b7280' }}>The rate at which this item is valued. Used as Price Before Tax.</span>
+              </div>
+
+              {/* Description - Optional */}
+              <div className="pof-popup-field" style={{ marginBottom: '0', gridColumn: '1 / -1' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: theme === 'dark' ? '#e5e7eb' : '#374151'
+                }}>
+                  Description
+                </label>
+                <input
+                  type="text"
+                  value={newItem.description}
+                  onChange={(e) => setNewItem(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Item description"
+                  className="pof-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: theme === 'dark' ? '#2a2a3a' : '#ffffff',
+                    color: theme === 'dark' ? '#e5e7eb' : '#111827',
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+          <div 
+            className="pof-modal-footer" 
+            style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '10px',
+              padding: '16px 20px',
+              borderTop: `1px solid ${theme === 'dark' ? '#2a2a3a' : '#f3f4f6'}`,
+              flexShrink: 0,
+            }}
+          >
+            <button 
+              className="pof-btn-cancel" 
+              onClick={() => setShowAddItemPopup(false)}
+              disabled={addingItem}
+              style={{
+                padding: '8px 20px',
+                borderRadius: '6px',
+                border: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                background: 'transparent',
+                color: theme === 'dark' ? '#9ca3af' : '#6b7280',
+                cursor: 'pointer',
+                fontSize: '14px',
+                transition: 'background 0.15s',
+              }}
+            >
+              Cancel
+            </button>
+            <button 
+              className="pof-btn-submit" 
+              onClick={handleAddNewItem}
+              disabled={addingItem}
+              style={{
+                padding: '8px 20px',
+                borderRadius: '6px',
+                border: 'none',
+                background: primaryColor,
+                color: '#ffffff',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: 500,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'background 0.15s',
+              }}
+            >
+              {addingItem && <FaSpinner className="pof-spinning" />}
+              <FaPlus size={12} />
+              Create Item
+            </button>
+          </div>
+        </div>
+      </div>,
+      document.body
+    );
+  };
+
+  // ─── Render Supplier Dropdown with PINNED "+ Add New Supplier" ──
+  const renderSupplierDropdown = () => {
+    if (!showSupplierDropdown) return null;
+
+    const primaryColor = '#6366f1';
+
     return (
-      <div className="grnf-page">
-        <div className="grnf-inner">
-          <div className="grnf-loading"><FaSpinner className="grnf-spinning" /> Loading GRN data...</div>
+      <div 
+        ref={supplierDropdownRef} 
+        className="pof-supplier-dropdown"
+        style={{
+          position: 'absolute',
+          top: '100%',
+          left: 0,
+          right: 0,
+          maxHeight: '260px',
+          display: 'flex',
+          flexDirection: 'column',
+          background: theme === 'dark' ? '#1e1e2f' : '#ffffff',
+          border: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+          borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          zIndex: 100,
+          marginTop: '4px',
+          overflow: 'hidden',
+        }}
+      >
+        {/* ─── Scrollable supplier list ─── */}
+        <div
+          className="pof-supplier-dropdown-list"
+          style={{
+            overflowY: 'auto',
+            flex: '1 1 auto',
+            minHeight: 0,
+          }}
+        >
+          {filteredSuppliers.length > 0 ? (
+            filteredSuppliers.map((supplier) => (
+              <div
+                key={supplier.id}
+                className="pof-supplier-item"
+                onClick={() => handleSupplierSelect(supplier)}
+                style={{
+                  padding: '8px 12px',
+                  cursor: 'pointer',
+                  borderBottom: `1px solid ${theme === 'dark' ? '#2a2a3a' : '#f3f4f6'}`,
+                  transition: 'background 0.15s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = theme === 'dark' ? '#2a2a3a' : '#f9fafb';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                }}
+              >
+                <div className="pof-supplier-item-name" style={{ fontWeight: 500, fontSize: '13px', color: theme === 'dark' ? '#e5e7eb' : '#111827' }}>
+                  <FaBuilding className="pof-supplier-item-icon" size={12} style={{ marginRight: '6px' }} />
+                  {supplier.supplier_name}
+                </div>
+                <div className="pof-supplier-item-details" style={{ fontSize: '11px', color: theme === 'dark' ? '#6b7280' : '#9ca3af', marginTop: '2px' }}>
+                  {supplier.supplier_type && <span>{supplier.supplier_type}</span>}
+                  {supplier.mobile_no && <span style={{ marginLeft: '8px' }}><FaPhone size={10} /> {supplier.mobile_no}</span>}
+                  {supplier.email_id && <span style={{ marginLeft: '8px' }}><FaEnvelope size={10} /> {supplier.email_id}</span>}
+                </div>
+              </div>
+            ))
+          ) : (
+            <div style={{ padding: '16px 12px', textAlign: 'center', color: theme === 'dark' ? '#9ca3af' : '#6b7280' }}>
+              <FaInfoCircle size={14} style={{ marginBottom: '4px' }} />
+              <div style={{ fontSize: '13px' }}>No suppliers found</div>
+            </div>
+          )}
+        </div>
+
+        {/* ─── PINNED "+ Add New Supplier" footer ─── */}
+        <div 
+          className="pof-supplier-dropdown-footer" 
+          style={{
+            padding: '8px 12px',
+            borderTop: `1px solid ${theme === 'dark' ? '#2a2a3a' : '#f3f4f6'}`,
+            display: 'flex',
+            justifyContent: 'center',
+            background: theme === 'dark' ? '#1a1a2e' : '#fafafa',
+            flexShrink: 0,
+          }}
+        >
+          <button
+            type="button"
+            className="pof-add-new-dropdown-btn"
+            onClick={() => {
+              setShowSupplierDropdown(false);
+              setShowAddSupplierPopup(true);
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: 'transparent',
+              border: `1.5px dashed ${primaryColor}`,
+              borderRadius: '6px',
+              color: primaryColor,
+              cursor: 'pointer',
+              fontSize: '12px',
+              fontWeight: 500,
+              padding: '6px 16px',
+              transition: 'all 0.15s',
+              width: '100%',
+              justifyContent: 'center',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = `${primaryColor}15`;
+              e.currentTarget.style.borderStyle = 'solid';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.borderStyle = 'dashed';
+            }}
+          >
+            <FaPlus size={12} style={{ color: primaryColor }} />
+            Add New Supplier
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  // ─── Render Item Code Dropdown ──────────────────────────────
+  const renderItemCodeDropdown = () => {
+    if (!showItemCodeDropdown) return null;
+
+    const primaryColor = '#6366f1';
+
+    return (
+      <div 
+        ref={itemCodeDropdownRef}
+        className="pof-item-code-dropdown"
+        style={{
+          position: 'absolute',
+          top: '100%',
+          left: 0,
+          right: 0,
+          maxHeight: '260px',
+          display: 'flex',
+          flexDirection: 'column',
+          background: theme === 'dark' ? '#1e1e2f' : '#ffffff',
+          border: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+          borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          zIndex: 100,
+          marginTop: '4px',
+          overflow: 'hidden',
+        }}
+      >
+        {/* ─── Scrollable item list ─── */}
+        <div
+          className="pof-item-code-dropdown-list"
+          style={{
+            overflowY: 'auto',
+            flex: '1 1 auto',
+            minHeight: 0,
+          }}
+        >
+          {loadingItemCode ? (
+            <div style={{ padding: '12px', textAlign: 'center', color: '#6b7280' }}>
+              <FaSpinner className="pof-spinning" size={14} /> Loading items...
+            </div>
+          ) : filteredItemCodeOptions.length > 0 ? (
+            filteredItemCodeOptions.map((item) => (
+              <div
+                key={item.id}
+                className="pof-item-code-item"
+                onClick={() => handleItemCodeSelect(item)}
+                style={{
+                  padding: '8px 12px',
+                  cursor: 'pointer',
+                  borderBottom: `1px solid ${theme === 'dark' ? '#2a2a3a' : '#f3f4f6'}`,
+                  transition: 'background 0.15s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = theme === 'dark' ? '#2a2a3a' : '#f9fafb';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                }}
+              >
+                <div style={{ fontWeight: 500, fontSize: '13px', color: theme === 'dark' ? '#e5e7eb' : '#111827' }}>
+                  {item.item_code}
+                </div>
+                <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                  {item.item_name}
+                </div>
+                <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '2px' }}>
+                  {item.item_group} • {item.stock_uom}
+                </div>
+              </div>
+            ))
+          ) : (
+            <div style={{ padding: '16px 12px', textAlign: 'center', color: theme === 'dark' ? '#9ca3af' : '#6b7280' }}>
+              <FaInfoCircle size={14} style={{ marginBottom: '4px' }} />
+              <div style={{ fontSize: '13px' }}>No items found</div>
+            </div>
+          )}
+        </div>
+
+        {/* ─── PINNED "+ Add New Item" footer ─── */}
+        <div 
+          className="pof-item-code-dropdown-footer" 
+          style={{
+            padding: '8px 12px',
+            borderTop: `1px solid ${theme === 'dark' ? '#2a2a3a' : '#f3f4f6'}`,
+            display: 'flex',
+            justifyContent: 'center',
+            background: theme === 'dark' ? '#1a1a2e' : '#fafafa',
+            flexShrink: 0,
+          }}
+        >
+          <button
+            type="button"
+            className="pof-add-new-dropdown-btn"
+            onClick={() => {
+              setShowItemCodeDropdown(false);
+              setPendingItemSearch(itemCodeSearchTerm);
+              setActiveRowIndex(0);
+              setNewItem(prev => ({ ...prev, item_name: itemCodeSearchTerm }));
+              setShowAddItemPopup(true);
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: 'transparent',
+              border: `1.5px dashed ${primaryColor}`,
+              borderRadius: '6px',
+              color: primaryColor,
+              cursor: 'pointer',
+              fontSize: '12px',
+              fontWeight: 500,
+              padding: '6px 16px',
+              transition: 'all 0.15s',
+              width: '100%',
+              justifyContent: 'center',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = `${primaryColor}15`;
+              e.currentTarget.style.borderStyle = 'solid';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.borderStyle = 'dashed';
+            }}
+          >
+            <FaPlus size={12} style={{ color: primaryColor }} />
+            Add New Item
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  // ─── Render suggestions using portal ──────────────────────────────
+  const renderSuggestions = (index: number) => {
+    const items = filteredItems[index] || [];
+    const searchTerm = searchTerms[index] || '';
+    const trimmedSearch = searchTerm.trim();
+    
+    // Check if search term matches any item exactly
+    const isExactMatch = items.some(item => 
+      item.item_code.toLowerCase() === trimmedSearch.toLowerCase() ||
+      item.item_name.toLowerCase() === trimmedSearch.toLowerCase()
+    );
+    
+    // Show dropdown if there are items OR there's a search term (for "Add New" button)
+    const showDropdown = showSuggestions[index] || trimmedSearch.length > 0;
+    
+    if (!showDropdown) return null;
+
+    const position = dropdownPositions[index];
+    if (!position) return null;
+
+    const dropdownContent = (
+      <div 
+        className="pof-suggestions-dropdown-portal"
+        ref={(el) => { suggestionRefs.current[index] = el; }}
+        style={{
+          position: 'fixed',
+          top: position.top,
+          left: position.left,
+          width: position.width,
+          maxHeight: '280px',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          zIndex: 9999,
+          background: theme === 'dark' ? '#1e1e2f' : '#ffffff',
+          borderRadius: '8px',
+          boxShadow: '0 10px 40px rgba(0,0,0,0.2)',
+          border: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#e5e7eb'}`,
+        }}
+      >
+        {/* Scrollable items list */}
+        <div style={{ 
+          overflowY: 'auto', 
+          flex: '1 1 auto',
+          maxHeight: '200px',
+        }}>
+          {loadingItems ? (
+            <div className="pof-suggestions-loading" style={{ padding: '12px', textAlign: 'center', color: '#6b7280' }}>
+              <FaSpinner className="pof-spinning" size={14} /> Loading items...
+            </div>
+          ) : items.length === 0 ? (
+            <div style={{ padding: '12px', textAlign: 'center', color: '#6b7280', fontSize: '13px' }}>
+              No items found
+            </div>
+          ) : (
+            items.map((suggestion) => (
+              <div
+                key={suggestion.id}
+                className="pof-suggestion-item"
+                onClick={() => handleSelectItem(index, suggestion)}
+                style={{
+                  padding: '8px 12px',
+                  cursor: 'pointer',
+                  borderBottom: `1px solid ${theme === 'dark' ? '#2a2a3a' : '#f3f4f6'}`,
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  transition: 'background 0.15s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = theme === 'dark' ? '#2a2a3a' : '#f3f4f6';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                }}
+              >
+                <div>
+                  <div className="pof-suggestion-code" style={{ fontWeight: 500, fontSize: '13px', color: theme === 'dark' ? '#e5e7eb' : '#111827' }}>
+                    {suggestion.item_code}
+                  </div>
+                  <div className="pof-suggestion-name" style={{ fontSize: '12px', color: '#6b7280' }}>
+                    {suggestion.item_name}
+                  </div>
+                  {suggestion.hsn && (
+                    <div className="pof-suggestion-hsn" style={{ fontSize: '10px', color: '#9ca3af' }}>HSN: {suggestion.hsn}</div>
+                  )}
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div className="pof-suggestion-rate" style={{ fontSize: '13px', fontWeight: 500, color: '#6366f1' }}>
+                    {formData.currency} {(suggestion.standard_rate || suggestion.valuation_rate || 0).toFixed(2)}
+                  </div>
+                  <div className="pof-suggestion-uom" style={{ fontSize: '10px', color: '#9ca3af' }}>
+                    UOM: {suggestion.stock_uom || 'NOS'}
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* ─── Sticky "Add New" button at the bottom ─── */}
+        {!loadingItems && trimmedSearch && !isExactMatch && (
+          <div 
+            className="pof-suggestion-item pof-add-new-suggestion"
+            onClick={() => {
+              setPendingItemSearch(trimmedSearch);
+              setActiveRowIndex(index);
+              setNewItem(prev => ({ ...prev, item_name: trimmedSearch }));
+              setShowAddItemPopup(true);
+              setShowSuggestions(prev => ({ ...prev, [index]: false }));
+            }}
+            style={{
+              flexShrink: 0,
+              borderTop: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#e5e7eb'}`,
+              background: theme === 'dark' ? '#1e1e2f' : '#f8fafc',
+              cursor: 'pointer',
+              padding: '10px 12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              color: '#6366f1',
+              fontWeight: 500,
+              fontSize: '13px',
+              transition: 'background 0.15s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = theme === 'dark' ? '#2a2a3a' : '#eef2ff';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = theme === 'dark' ? '#1e1e2f' : '#f8fafc';
+            }}
+          >
+            <span
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '22px',
+                height: '22px',
+                borderRadius: '50%',
+                background: '#6366f1',
+                color: '#fff',
+                flexShrink: 0,
+              }}
+            >
+              <FaPlus size={10} />
+            </span>
+            Add "{trimmedSearch}" as New Item
+          </div>
+        )}
+
+        {/* Always show "Add New Item" button when dropdown is open (empty state) */}
+        {!loadingItems && items.length === 0 && !trimmedSearch && (
+          <div 
+            className="pof-suggestion-item pof-add-new-suggestion"
+            onClick={() => {
+              setPendingItemSearch('');
+              setActiveRowIndex(index);
+              setShowAddItemPopup(true);
+              setShowSuggestions(prev => ({ ...prev, [index]: false }));
+            }}
+            style={{
+              flexShrink: 0,
+              borderTop: `1px solid ${theme === 'dark' ? '#3a3a4a' : '#e5e7eb'}`,
+              background: theme === 'dark' ? '#1e1e2f' : '#f8fafc',
+              cursor: 'pointer',
+              padding: '10px 12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              color: '#6366f1',
+              fontWeight: 500,
+              fontSize: '13px',
+              transition: 'background 0.15s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = theme === 'dark' ? '#2a2a3a' : '#eef2ff';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = theme === 'dark' ? '#1e1e2f' : '#f8fafc';
+            }}
+          >
+            <span
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '22px',
+                height: '22px',
+                borderRadius: '50%',
+                background: '#6366f1',
+                color: '#fff',
+                flexShrink: 0,
+              }}
+            >
+              <FaPlus size={10} />
+            </span>
+            Add New Item
+          </div>
+        )}
+      </div>
+    );
+
+    return createPortal(dropdownContent, document.body);
+  };
+
+  if (loadingData) {
+    return (
+      <div className={`pof-page ${theme}`}>
+        <div className="pof-inner">
+          <div className="pof-loading">
+            <FaSpinner className="spinning" size={24} />
+            <span>Loading purchase order...</span>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className={`grnf-page ${theme}`}>
-      <div className="grnf-inner">
-
-        {/* ─── Success Modal ──────────────────────────────────────────── */}
-        {showSuccessModal && (
-          <div className="grnf-modal-overlay" onClick={() => setShowSuccessModal(false)}>
-            <div className="grnf-success-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="grnf-success-icon-circle">
-                <FaCheckCircle size={48} />
-              </div>
-              <h2>{isUpdateMode ? 'GRN Updated Successfully!' : 'GRN Created Successfully!'}</h2>
-              <p className="grnf-success-message">
-                {isUpdateMode 
-                  ? 'Your Goods Receipt Note has been updated successfully.'
-                  : 'Your Goods Receipt Note has been saved successfully.'}
-              </p>
-              <div className="grnf-success-grn-box">
-                <span className="grnf-success-label">GRN Number</span>
-                <span className="grnf-success-number">{savedGrnNumber}</span>
-              </div>
-              <div className="grnf-success-actions">
-                <button 
-                  className="grnf-success-btn grnf-success-btn-primary" 
-                  onClick={handleSuccessModalOk}
-                >
-                  View All GRNs
-                </button>
-                <button 
-                  className="grnf-success-btn grnf-success-btn-secondary" 
-                  onClick={() => setShowSuccessModal(false)}
-                >
-                  Continue Editing
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ─── Service Toggle Confirmation Dialog ────────────────────── */}
-        {showServiceToggleConfirm && (
-          <div className="grnf-modal-overlay" onClick={() => setShowServiceToggleConfirm(false)}>
-            <div className="grnf-confirm-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="grnf-confirm-icon">
-                <FaExclamationTriangle size={32} />
-              </div>
-              <h3>Confirm Mode Change</h3>
-              <p className="grnf-confirm-message">
-                Switching to <strong>{pendingServiceToggle ? 'Service' : 'Supplier'}</strong> mode will clear all current items and selections. 
-                This action cannot be undone.
-              </p>
-              <p className="grnf-confirm-warning">Are you sure you want to continue?</p>
-              <div className="grnf-confirm-actions">
-                <button 
-                  className="grnf-confirm-btn grnf-confirm-btn-cancel" 
-                  onClick={() => setShowServiceToggleConfirm(false)}
-                >
-                  No, Keep Current
-                </button>
-                <button 
-                  className="grnf-confirm-btn grnf-confirm-btn-proceed" 
-                  onClick={() => applyServiceToggle(pendingServiceToggle)}
-                >
-                  Yes, Switch Mode
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+    <div className={`pof-page ${theme}`}>
+      <div className="pof-inner">
 
         {/* ─── Validation Summary Modal ────────────────────────────── */}
         {showValidationSummary && validationErrors.length > 0 && (
-          <div className="grnf-modal-overlay" onClick={() => setShowValidationSummary(false)}>
-            <div className="grnf-validation-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="grnf-modal-header">
+          <div className="pof-modal-overlay" onClick={() => setShowValidationSummary(false)}>
+            <div className="pof-validation-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="pof-modal-header">
                 <h2>
                   <FaExclamationTriangle /> Missing Required Fields
                 </h2>
-                <button className="grnf-modal-close" onClick={() => setShowValidationSummary(false)}>×</button>
+                <button className="pof-modal-close" onClick={() => setShowValidationSummary(false)}>×</button>
               </div>
-              <div className="grnf-modal-body">
-                <p className="grnf-modal-description">
+              <div className="pof-modal-body">
+                <p className="pof-modal-description">
                   Please fill in the following required fields before submitting:
                 </p>
-                <div className="grnf-validation-errors-list">
+                <div className="pof-validation-errors-list">
                   {validationErrors.map((error, idx) => (
-                    <div key={idx} className="grnf-validation-error-item">
-                      <div className="grnf-error-header">
-                        <FaTimesCircle className="grnf-error-icon" />
+                    <div key={idx} className="pof-validation-error-item">
+                      <div className="pof-error-header">
+                        <FaTimesCircle className="pof-error-icon" />
                         <strong>{error.label}</strong>
                       </div>
-                      <div className="grnf-error-message">{error.message}</div>
+                      <div className="pof-error-message">{error.message}</div>
                     </div>
                   ))}
                 </div>
-                <div className="grnf-validation-tip">
-                  <FaInfoCircle className="grnf-tip-icon" />
+                <div className="pof-validation-tip">
+                  <FaInfoCircle className="pof-tip-icon" />
                   Please fix the errors above before submitting
                 </div>
               </div>
-              <div className="grnf-modal-footer">
-                <button className="grnf-btn-cancel" onClick={() => setShowValidationSummary(false)}>
+              <div className="pof-modal-footer">
+                <button className="pof-btn-cancel" onClick={() => setShowValidationSummary(false)}>
                   Close
                 </button>
               </div>
@@ -2004,933 +3062,582 @@ export default function GRNForm() {
           </div>
         )}
 
+        {/* ─── Add Supplier Popup ──────────────────────────────────── */}
+        {renderAddSupplierPopup()}
+
+        {/* ─── Add Item Popup ──────────────────────────────────────── */}
+        {renderAddItemPopup()}
+
         {/* ─── API Error Display ────────────────────────────────────── */}
         {apiError && (
-          <div className="grnf-api-error">
-            <FaExclamationCircle className="grnf-error-icon" />
+          <div className="pof-api-error">
+            <FaExclamationCircle className="pof-error-icon" />
             <span>{apiError}</span>
-            <button className="grnf-error-close" onClick={() => setApiError(null)}>×</button>
+            <button className="pof-error-close" onClick={() => setApiError(null)}>×</button>
           </div>
         )}
 
         {/* ─── Header ────────────────────────────────────────────────── */}
-        <div className="grnf-header">
-          <button onClick={() => navigate('/grn')} className="grnf-back-btn">
+        <div className="pof-header">
+          <button onClick={handleCancel} className="pof-back-btn">
             <FaArrowLeft size={9} /> Back
           </button>
-          <div className="grnf-header-title">
-            <h1>{isNew ? 'New Goods Receipt Note' : `${formData.grn_number}`}</h1>
+          <div className="pof-header-title">
+            <h1>{isEdit ? 'Edit Purchase Order' : 'New Purchase Order'}</h1>
+            {isEdit && <span className="pof-status-badge">{formData.status}</span>}
           </div>
-          <button type="button" onClick={handlePrint} className="grnf-print-btn">
-            <FaPrint size={12} /> Print
-          </button>
           {hasErrors && (
-            <div className="grnf-error-badge">
+            <div className="pof-error-badge">
               <FaExclamationTriangle size={12} />
-              {getAllValidationErrors().length} missing field{getAllValidationErrors().length !== 1 ? 's' : ''}
+              {getAllValidationErrors().length + (formData.deliveryDate ? 0 : 1)} missing field{getAllValidationErrors().length + (formData.deliveryDate ? 0 : 1) !== 1 ? 's' : ''}
             </div>
           )}
         </div>
 
-        <form onSubmit={handleSave}>
+        <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
 
           {/* ─── Main Form Card ────────────────────────────────────────── */}
-          <div className="grnf-card">
+          <div className="pof-card">
 
-            {/* ─── Service Toggle ─────────────────────────────────────── */}
-            <div className="grnf-service-toggle-row">
-              <label className="grnf-checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={formData.isService}
-                  onChange={(e) => handleServiceToggle(e.target.checked)}
-                  disabled={submitting}
-                  className="grnf-checkbox"
-                />
-                <span>Is Service Bill</span>
-              </label>
-            </div>
-
-            {!formData.isService && (
-              <div className="grnf-entry-mode-section">
-                <div className="grnf-entry-mode-toggle">
-                  <button
-                    type="button"
-                    className={`grnf-mode-btn${formData.entryMode === 'supplier' ? ' grnf-mode-btn-active' : ''}`}
-                    onClick={() => handleEntryModeChange('supplier')}
-                    disabled={submitting}
-                  >
-                    <FaFileInvoice size={12} /> By Purchase Order
-                  </button>
-                  <button
-                    type="button"
-                    className={`grnf-mode-btn${formData.entryMode === 'manual' ? ' grnf-mode-btn-active' : ''}`}
-                    onClick={() => handleEntryModeChange('manual')}
-                    disabled={submitting}
-                  >
-                    <FaSearch size={12} /> Direct Entry
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* ─── Compact Two-Column Layout ──────────────────────────── */}
-            <div className="grnf-compact-layout">
+            {/* ─── Compact Two-Column Layout ────────────────────────── */}
+            <div className="pof-compact-layout">
               
-              {/* Left Column - Receipt Information & Delivery Details */}
-              <div className="grnf-left-column">
-                {/* Party Selection (Customer/Supplier) */}
-                <div className="grnf-info-section">
-                  <div className="grnf-section-label">
-                    {formData.isService ? 'Customer Details' : 'Supplier & Order Details'}
+              {/* Left Column - PO Information */}
+              <div className="pof-left-column">
+                
+                {/* PO Information Section */}
+                <div className="pof-info-section">
+                  <div className="pof-section-label">
+                    <FaFileAlt className="pof-section-icon" /> Purchase Order Information
                   </div>
-                  {formData.isService ? (
-                    <div className="grnf-info-row">
-                      <div className="grnf-info-field">
-                        <label>Customer <span className="grnf-required">*</span></label>
-                        <div className="grnf-warehouse-wrapper">
+                  
+                  {/* Supplier Selection Section */}
+                  <div className="pof-info-section">
+                    <div className="pof-info-row">
+                      <div className="pof-info-field">
+                        <label>Supplier <span className="pof-required">*</span></label>
+                        <div className="pof-supplier-wrapper" style={{ position: 'relative' }}>
                           <input
-                            ref={customerInputRef}
+                            ref={supplierInputRef}
                             type="text"
-                            value={customerSearchTerm}
+                            value={supplierSearchTerm}
                             onChange={(e) => {
-                              setCustomerSearchTerm(e.target.value);
-                              setShowCustomerDropdown(true);
-                              setFormData(prev => ({ ...prev, customer: e.target.value, customerId: undefined }));
-                              setIsDirty(true);
+                              setSupplierSearchTerm(e.target.value);
+                              setShowSupplierDropdown(true);
+                              setFormData(prev => ({ ...prev, supplier: e.target.value, supplierCode: '' }));
                             }}
-                            onFocus={() => setShowCustomerDropdown(true)}
-                            className={`grnf-form-field${errors.customer ? ' grnf-field-error' : ''}`}
-                            placeholder="Search customer..."
-                            disabled={submitting}
+                            onFocus={() => setShowSupplierDropdown(true)}
+                            className={`pof-form-field ${validationErrors.some(e => e.field === 'supplier') ? 'pof-field-error' : ''}`}
+                            placeholder="Search supplier..."
+                            disabled={loadingSuppliers}
                             autoComplete="off"
                           />
-                          {loadingCustomers && <FaSpinner className="grnf-warehouse-spinner grnf-spinning" size={14} />}
-                          {showCustomerDropdown && filteredCustomers.length > 0 && (
-                            <div ref={customerDropdownRef} className="grnf-warehouse-dropdown grnf-dropdown-large">
-                              {filteredCustomers.map((customer) => (
-                                <div
-                                  key={customer.id}
-                                  className="grnf-warehouse-item"
-                                  onClick={() => handleCustomerSelect(customer)}
-                                >
-                                  <div className="grnf-warehouse-item-name">
-                                    <FaUsers className="grnf-warehouse-item-icon" size={12} />
-                                    {customer.customer_name}
-                                  </div>
-                                  <div className="grnf-warehouse-item-details">
-                                    {customer.customer_group && <span>{customer.customer_group}</span>}
-                                    {customer.mobile_no && <span><FaPhone size={10} /> {customer.mobile_no}</span>}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
+                          {loadingSuppliers && <FaSpinner className="pof-supplier-spinner pof-spinning" size={14} />}
+                          
+                          {/* ─── Supplier Dropdown with PINNED "+ Add New" ─── */}
+                          {renderSupplierDropdown()}
+                          
+                          {!loadingSuppliers && suppliers.length === 0 && !showSupplierDropdown && (
+                            <span className="pof-warning-msg">
+                              <FaExclamationCircle size={10} /> No suppliers found. Click "Add New Supplier" to create one.
+                            </span>
+                          )}
+                          {validationErrors.some(e => e.field === 'supplier') && (
+                            <span className="pof-error-msg">
+                              <FaExclamationCircle size={10} />Supplier is required
+                            </span>
                           )}
                         </div>
                       </div>
-                      <div className="grnf-info-field">
-                        <label>Warehouse <span className="grnf-required">*</span></label>
-                        <div className="grnf-warehouse-wrapper">
-                          <input
-                            ref={warehouseInputRef}
-                            type="text"
-                            value={warehouseSearchTerm}
-                            onChange={(e) => {
-                              setWarehouseSearchTerm(e.target.value);
-                              setShowWarehouseDropdown(true);
-                              setFormData(prev => ({ ...prev, warehouse: e.target.value, warehouseId: undefined }));
-                              setIsDirty(true);
-                            }}
-                            onFocus={() => setShowWarehouseDropdown(true)}
-                            className={`grnf-form-field${errors.warehouse ? ' grnf-field-error' : ''}`}
-                            placeholder="Search warehouse..."
-                            disabled={submitting}
-                            autoComplete="off"
-                          />
-                          {loadingWarehouses && <FaSpinner className="grnf-warehouse-spinner grnf-spinning" size={14} />}
-                          {showWarehouseDropdown && filteredWarehouses.length > 0 && (
-                            <div ref={warehouseDropdownRef} className="grnf-warehouse-dropdown">
-                              {filteredWarehouses.map((warehouse) => (
-                                <div
-                                  key={warehouse.id}
-                                  className="grnf-warehouse-item"
-                                  onClick={() => handleWarehouseSelect(warehouse)}
-                                >
-                                  <div className="grnf-warehouse-item-name">
-                                    <FaWarehouse className="grnf-warehouse-item-icon" size={12} />
-                                    {warehouse.warehouse_name}
-                                  </div>
-                                  <div className="grnf-warehouse-item-details">
-                                    {warehouse.city && <span><FaMapMarkerAlt size={10} /> {warehouse.city}</span>}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
+                      <div className="pof-info-field">
+                        <label>Title</label>
+                        <input
+                          type="text"
+                          value={formData.title}
+                          onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                          className="pof-form-field"
+                          placeholder="Enter PO title (optional)"
+                        />
                       </div>
                     </div>
-                  ) : (
-                    <>
-                      <div className="grnf-info-row">
-                        <div className="grnf-info-field">
-                          <label>Supplier <span className="grnf-required">*</span></label>
-                          <div className="grnf-warehouse-wrapper">
-                            <input
-                              ref={supplierInputRef}
-                              type="text"
-                              value={supplierSearchTerm}
-                              onChange={(e) => {
-                                setSupplierSearchTerm(e.target.value);
-                                setShowSupplierDropdown(true);
-                                setFormData(prev => ({ ...prev, supplier: e.target.value, supplierId: undefined }));
-                                setIsDirty(true);
-                              }}
-                              onFocus={() => setShowSupplierDropdown(true)}
-                              className={`grnf-form-field${errors.supplier ? ' grnf-field-error' : ''}`}
-                              placeholder="Search supplier..."
-                              disabled={submitting}
-                              autoComplete="off"
-                            />
-                            {loadingSuppliers && <FaSpinner className="grnf-warehouse-spinner grnf-spinning" size={14} />}
-                            {showSupplierDropdown && filteredSuppliers.length > 0 && (
-                              <div ref={supplierDropdownRef} className="grnf-warehouse-dropdown grnf-dropdown-large">
-                                {filteredSuppliers.map((supplier) => (
-                                  <div
-                                    key={supplier.id}
-                                    className="grnf-warehouse-item"
-                                    onClick={() => handleSupplierSelect(supplier)}
-                                  >
-                                    <div className="grnf-warehouse-item-name">
-                                      <FaBuilding className="grnf-warehouse-item-icon" size={12} />
-                                      {supplier.supplier_name}
-                                    </div>
-                                    <div className="grnf-warehouse-item-details">
-                                      {supplier.supplier_type && <span>{supplier.supplier_type}</span>}
-                                      {supplier.mobile_no && <span><FaPhone size={10} /> {supplier.mobile_no}</span>}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        <div className="grnf-info-field">
-                          <label>Warehouse <span className="grnf-required">*</span></label>
-                          <div className="grnf-warehouse-wrapper">
-                            <input
-                              ref={warehouseInputRef}
-                              type="text"
-                              value={warehouseSearchTerm}
-                              onChange={(e) => {
-                                setWarehouseSearchTerm(e.target.value);
-                                setShowWarehouseDropdown(true);
-                                setFormData(prev => ({ ...prev, warehouse: e.target.value, warehouseId: undefined }));
-                                setIsDirty(true);
-                              }}
-                              onFocus={() => setShowWarehouseDropdown(true)}
-                              className={`grnf-form-field${errors.warehouse ? ' grnf-field-error' : ''}`}
-                              placeholder="Search warehouse..."
-                              disabled={submitting}
-                              autoComplete="off"
-                            />
-                            {loadingWarehouses && <FaSpinner className="grnf-warehouse-spinner grnf-spinning" size={14} />}
-                            {showWarehouseDropdown && filteredWarehouses.length > 0 && (
-                              <div ref={warehouseDropdownRef} className="grnf-warehouse-dropdown">
-                                {filteredWarehouses.map((warehouse) => (
-                                  <div
-                                    key={warehouse.id}
-                                    className="grnf-warehouse-item"
-                                    onClick={() => handleWarehouseSelect(warehouse)}
-                                  >
-                                    <div className="grnf-warehouse-item-name">
-                                      <FaWarehouse className="grnf-warehouse-item-icon" size={12} />
-                                      {warehouse.warehouse_name}
-                                    </div>
-                                    <div className="grnf-warehouse-item-details">
-                                      {warehouse.city && <span><FaMapMarkerAlt size={10} /> {warehouse.city}</span>}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      {formData.entryMode === 'supplier' && (
-                        <div className="grnf-info-row">
-                          <div className="grnf-info-field">
-                            <label>Purchase Order <span className="grnf-required">*</span></label>
-                            <div className="grnf-warehouse-wrapper">
-                              <input
-                                ref={poInputRef}
-                                type="text"
-                                value={poSearchTerm}
-                                onChange={(e) => {
-                                  setPOSearchTerm(e.target.value);
-                                  setShowPODropdown(true);
-                                  if (e.target.value !== formData.purchaseOrder) {
-                                    setFormData(prev => ({ ...prev, purchaseOrder: '', purchaseOrderId: undefined }));
-                                  }
-                                  setIsDirty(true);
-                                }}
-                                onFocus={() => {
-                                  setShowPODropdown(true);
-                                  fetchPurchaseOrders();
-                                }}
-                                className={`grnf-form-field${errors.purchaseOrder ? ' grnf-field-error' : ''}`}
-                                placeholder="Search PO..."
-                                disabled={submitting}
-                                autoComplete="off"
-                              />
-                              {loadingPOs && <FaSpinner className="grnf-warehouse-spinner grnf-spinning" size={14} />}
-                              {showPODropdown && (
-                                <div ref={poDropdownRef} className="grnf-warehouse-dropdown grnf-po-dropdown">
-                                  {filteredPOs.length > 0 ? (
-                                    filteredPOs.map(po => {
-                                      const poItems = poItemsCache[po.id] || [];
-                                      const isLoadingItems = loadingPOItems[po.id];
-                                      const poDisplayName = getPODisplayName(po);
-                                      
-                                      const uniqueItems = poItems.reduce((acc, current) => {
-                                        const exists = acc.find(item => item.item_code === current.item_code);
-                                        if (!exists) {
-                                          acc.push(current);
-                                        }
-                                        return acc;
-                                      }, [] as POItem[]);
-                                      
-                                      return (
-                                        <div
-                                          key={po.id}
-                                          className={`grnf-warehouse-item ${formData.purchaseOrderId === po.id ? 'grnf-warehouse-item-selected' : ''}`}
-                                          onClick={() => handlePOSelect(po)}
-                                          onMouseEnter={() => {
-                                            if (!poItemsCache[po.id] && !loadingPOItems[po.id]) {
-                                              fetchPOItems(po.id);
-                                            }
-                                          }}
-                                        >
-                                          <div className="grnf-warehouse-item-name" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
-                                            <FaFileInvoice className="grnf-warehouse-item-icon" size={12} />
-                                            <span className="grnf-po-display-name">{poDisplayName}</span>
-                                            <span className={`grnf-po-status-badge ${getPOStatusBadgeClass(po.status || '')}`}>
-                                              {po.status || 'Unknown'}
-                                            </span>
-                                            {uniqueItems.length > 0 && (
-                                              <>
-                                                <span className="grnf-po-item-count" style={{ marginLeft: '4px' }}>
-                                                  <FaBox size={10} /> {uniqueItems.length} item{uniqueItems.length !== 1 ? 's' : ''}
-                                                </span>
-                                                <div className="grnf-po-items-preview" style={{ display: 'inline-flex', flexWrap: 'wrap', gap: '4px', marginTop: '2px', alignItems: 'center' }}>
-                                                  {uniqueItems.map((item, idx) => (
-                                                    <div key={idx} className="grnf-po-item-chip" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '10px', background: '#f9fafb', padding: '1px 6px', borderRadius: '4px', border: '1px solid #e5e7eb' }}>
-                                                      <span className="grnf-po-item-name" style={{ color: '#6b7280' }}>{item.item_name}</span>
-                                                      <span className="grnf-po-item-qty" style={{ color: '#3b82f6', fontWeight: 500 }}>×{item.qty}</span>
-                                                    </div>
-                                                  ))}
-                                                </div>
-                                              </>
-                                            )}
-                                          </div>
-                                          <div className="grnf-warehouse-item-details">
-                                            <span>{po.supplier_name || 'N/A'}</span>
-                                            <span>• {po.currency || 'INR'} {(po.grand_total || 0).toFixed(2)}</span>
-                                            <span>• Received: {(po.per_received || 0)}%</span>
-                                          </div>
-                                          
-                                          {isLoadingItems && (
-                                            <div className="grnf-po-items-loading">
-                                              <FaSpinner className="grnf-spinning" size={10} /> Loading items...
-                                            </div>
-                                          )}
-                                          {!isLoadingItems && uniqueItems.length === 0 && (
-                                            <div className="grnf-po-items-empty">
-                                              <FaInfoCircle size={10} /> No items in this PO
-                                            </div>
-                                          )}
-                                        </div>
-                                      );
-                                    })
-                                  ) : (
-                                    <div className="grnf-warehouse-no-results">No POs found</div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          <div className="grnf-info-field"></div>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-
-                {/* Receipt Information Section */}
-                <div className="grnf-info-section">
-                  <div className="grnf-section-label">Receipt Information</div>
-                  <div className="grnf-info-row">
-                    <div className="grnf-info-field">
-                      <label>GRN Date <span className="grnf-required">*</span></label>
+                  </div>
+                  
+                  <div className="pof-info-row">
+                    <div className="pof-info-field" style={{ display: 'none' }}>
+                      <label>PO Number</label>
                       <input
-                        type="date"
-                        value={formData.grnDate}
-                        onChange={(e) => handleFieldChange('grnDate', e.target.value)}
-                        className={`grnf-form-field${errors.grnDate ? ' grnf-field-error' : ''}`}
-                        disabled={submitting}
+                        type="text"
+                        value={formData.poNumber}
+                        disabled
+                        className="pof-form-field pof-field-disabled"
                       />
                     </div>
-                    <div className="grnf-info-field">
-                      <label>Received By <span className="grnf-required">*</span></label>
-                      <div className="grnf-warehouse-wrapper">
-                        <input
-                          ref={employeeInputRef}
-                          type="text"
-                          value={employeeSearchTerm}
-                          onChange={(e) => {
-                            setEmployeeSearchTerm(e.target.value);
-                            setShowEmployeeDropdown(true);
-                            setFormData(prev => ({ ...prev, receivedBy: e.target.value, receivedById: undefined }));
-                            setIsDirty(true);
+                    <div className="pof-info-field">
+                      <label>Status</label>
+                      <select
+                        value={formData.status}
+                        onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as any }))}
+                        className="pof-form-field"
+                      >
+                        {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  
+                  <div className="pof-info-row">
+                    <div className="pof-info-field" ref={orderDateRef}>
+                      <label>Order Date <span className="pof-required">*</span></label>
+                      <div className="pof-date-picker-wrapper">
+                        <DatePicker
+                          selected={startDate}
+                          onChange={(date: Date | null) => {
+                            if (date) {
+                              setStartDate(date);
+                              const formattedDate = date.toISOString().split('T')[0];
+                              setFormData(prev => ({ ...prev, orderDate: formattedDate }));
+                            }
                           }}
-                          onFocus={() => setShowEmployeeDropdown(true)}
-                          className={`grnf-form-field${errors.receivedBy ? ' grnf-field-error' : ''}`}
-                          placeholder="Search employee..."
-                          disabled={submitting}
+                          dateFormat="dd/MM/yyyy"
+                          className={`pof-form-field ${validationErrors.some(e => e.field === 'orderDate') ? 'pof-field-error' : ''}`}
+                          placeholderText="Select order date"
+                          maxDate={new Date()}
+                          showMonthDropdown
+                          showYearDropdown
+                          dropdownMode="select"
+                        />
+                        <FaCalendarAlt className="pof-calendar-icon" />
+                      </div>
+                      {validationErrors.some(e => e.field === 'orderDate') && (
+                        <span className="pof-error-msg">
+                          <FaExclamationCircle size={10} />Order date is required
+                        </span>
+                      )}
+                    </div>
+                    <div className="pof-info-field" ref={deliveryDateRef}>
+                      <label>Delivery Date <span className="pof-required">*</span></label>
+                      <div className="pof-date-picker-wrapper">
+                        <DatePicker
+                          selected={deliveryDate}
+                          onChange={(date: Date | null) => {
+                            if (date) {
+                              setDeliveryDate(date);
+                              const formattedDate = date.toISOString().split('T')[0];
+                              setFormData(prev => ({ ...prev, deliveryDate: formattedDate }));
+                            } else {
+                              setDeliveryDate(null);
+                              setFormData(prev => ({ ...prev, deliveryDate: '' }));
+                            }
+                          }}
+                          dateFormat="dd/MM/yyyy"
+                          className={`pof-form-field ${!formData.deliveryDate ? 'pof-field-error' : ''}`}
+                          placeholderText="Select delivery date"
+                          minDate={startDate || new Date()}
+                          showMonthDropdown
+                          showYearDropdown
+                          dropdownMode="select"
+                          isClearable
+                        />
+                        <FaCalendarAlt className="pof-calendar-icon" />
+                      </div>
+                      {!formData.deliveryDate && (
+                        <span className="pof-error-msg">
+                          <FaExclamationCircle size={10} />Delivery date is required
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="pof-info-row">
+                    <div className="pof-info-field">
+                      <label>Payment Terms</label>
+                      <select
+                        value={formData.paymentTerms}
+                        onChange={(e) => setFormData(prev => ({ ...prev, paymentTerms: e.target.value }))}
+                        className="pof-form-field"
+                      >
+                        {paymentTerms.map(p => <option key={p} value={p}>{p}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* ─── ✅ NEW: Item Code Dropdown ─────────────────── */}
+                  <div className="pof-info-row" style={{ marginTop: '12px' }}>
+                    <div className="pof-info-field" style={{ gridColumn: '1 / -1' }}>
+                      <label>Search Item Code</label>
+                      <div className="pof-supplier-wrapper" style={{ position: 'relative' }}>
+                        <input
+                          ref={itemCodeInputRef}
+                          type="text"
+                          value={itemCodeSearchTerm}
+                          onChange={(e) => {
+                            setItemCodeSearchTerm(e.target.value);
+                            setShowItemCodeDropdown(true);
+                            setSelectedItemCode(null);
+                          }}
+                          onFocus={() => {
+                            setShowItemCodeDropdown(true);
+                            fetchItemCodeOptions();
+                          }}
+                          className="pof-form-field"
+                          placeholder="Search item by code or name..."
                           autoComplete="off"
                         />
-                        {loadingEmployees && <FaSpinner className="grnf-warehouse-spinner grnf-spinning" size={14} />}
-                        {showEmployeeDropdown && filteredEmployees.length > 0 && (
-                          <div ref={employeeDropdownRef} className="grnf-warehouse-dropdown">
-                            {filteredEmployees.map((employee) => (
-                              <div
-                                key={employee.id}
-                                className="grnf-warehouse-item"
-                                onClick={() => handleEmployeeSelect(employee)}
-                              >
-                                <div className="grnf-warehouse-item-name">
-                                  <FaUserCircle className="grnf-warehouse-item-icon" size={12} />
-                                  {employee.employee_name}
-                                </div>
-                                <div className="grnf-warehouse-item-details">
-                                  {employee.designation && <span>{employee.designation}</span>}
-                                  {employee.department && <span>• {employee.department}</span>}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                        {loadingItemCode && <FaSpinner className="pof-supplier-spinner pof-spinning" size={14} />}
+                        
+                        {/* ─── Item Code Dropdown ─── */}
+                        {renderItemCodeDropdown()}
                       </div>
+                      {selectedItemCode && (
+                        <div style={{ 
+                          fontSize: '12px', 
+                          color: '#16a34a', 
+                          marginTop: '4px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}>
+                          <FaCheckCircle size={10} />
+                          Selected: {selectedItemCode.item_code} - {selectedItemCode.item_name}
+                        </div>
+                      )}
                     </div>
                   </div>
-                </div>
 
-                {/* Delivery Details Section */}
-                <div className="grnf-info-section">
-                  <div className="grnf-section-label">Delivery Details</div>
-                  <div className="grnf-info-row">
-                    <div className="grnf-info-field">
-                      <label>Vehicle Number</label>
-                      <input
-                        type="text"
-                        value={formData.vehicleNo}
-                        onChange={(e) => handleFieldChange('vehicleNo', e.target.value)}
-                        className="grnf-form-field"
-                        placeholder="Enter vehicle number"
-                        disabled={submitting}
-                      />
-                    </div>
-                    <div className="grnf-info-field">
-                      <label>Delivery Challan No.</label>
-                      <input
-                        type="text"
-                        value={formData.deliveryChallanNo}
-                        onChange={(e) => handleFieldChange('deliveryChallanNo', e.target.value)}
-                        className="grnf-form-field"
-                        placeholder="Enter challan number"
-                        disabled={submitting}
-                      />
-                    </div>
-                  </div>
-                  <div className="grnf-info-row">
-                    <div className="grnf-info-field">
-                      <label>Invoice Number</label>
-                      <input
-                        type="text"
-                        value={formData.invoiceNo}
-                        onChange={(e) => handleFieldChange('invoiceNo', e.target.value)}
-                        className="grnf-form-field"
-                        placeholder="Enter invoice number"
-                        disabled={submitting}
-                      />
-                    </div>
-                    <div className="grnf-info-field"></div>
-                  </div>
                 </div>
               </div>
 
               {/* Right Column - Customer/Supplier Details Card */}
-              <div className="grnf-right-column">
-                {formData.isService && selectedCustomer ? (
-                  <div className="grnf-party-detail-card">
-                    <div className="grnf-party-card-header">
-                      <FaUsers size={16} />
-                      <span>Customer Details</span>
-                    </div>
-                    <div className="grnf-party-card-content">
-                      <h3>{selectedCustomer.customer_name}</h3>
-                      <div className="grnf-party-card-info">
-                        {selectedCustomer.customer_type && (
-                          <div className="grnf-party-info-item">
-                            <span className="grnf-party-info-label">Type</span>
-                            <span className="grnf-party-info-value">{selectedCustomer.customer_type}</span>
-                          </div>
-                        )}
-                        {selectedCustomer.customer_group && (
-                          <div className="grnf-party-info-item">
-                            <span className="grnf-party-info-label">Group</span>
-                            <span className="grnf-party-info-value">{selectedCustomer.customer_group}</span>
-                          </div>
-                        )}
-                        {selectedCustomer.territory && (
-                          <div className="grnf-party-info-item">
-                            <span className="grnf-party-info-label">Territory</span>
-                            <span className="grnf-party-info-value">{selectedCustomer.territory}</span>
-                          </div>
-                        )}
-                        {selectedCustomer.mobile_no && (
-                          <div className="grnf-party-info-item">
-                            <span className="grnf-party-info-label">Mobile</span>
-                            <span className="grnf-party-info-value">
-                              <FaPhone size={10} /> {selectedCustomer.mobile_no}
-                            </span>
-                          </div>
-                        )}
-                        {selectedCustomer.email_id && (
-                          <div className="grnf-party-info-item">
-                            <span className="grnf-party-info-label">Email</span>
-                            <span className="grnf-party-info-value">
-                              <FaEnvelope size={10} /> {selectedCustomer.email_id}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
+              <div className="pof-right-column">
+                
+                {/* Supplier Details Card */}
+                <div className="pof-party-detail-card">
+                  <div className="pof-party-card-header">
+                    <FaBuilding size={16} />
+                    <span>Supplier Details</span>
                   </div>
-                ) : !formData.isService && selectedSupplier ? (
-                  <div className="grnf-party-detail-card">
-                    <div className="grnf-party-card-header">
-                      <FaBuilding size={16} />
-                      <span>Supplier Details</span>
-                    </div>
-                    <div className="grnf-party-card-content">
-                      <h3>{selectedSupplier.supplier_name}</h3>
-                      <div className="grnf-party-card-info">
-                        {selectedSupplier.supplier_type && (
-                          <div className="grnf-party-info-item">
-                            <span className="grnf-party-info-label">Type</span>
-                            <span className="grnf-party-info-value">{selectedSupplier.supplier_type}</span>
-                          </div>
-                        )}
-                        {selectedSupplier.supplier_group && (
-                          <div className="grnf-party-info-item">
-                            <span className="grnf-party-info-label">Group</span>
-                            <span className="grnf-party-info-value">{selectedSupplier.supplier_group}</span>
-                          </div>
-                        )}
-                        {selectedSupplier.country && (
-                          <div className="grnf-party-info-item">
-                            <span className="grnf-party-info-label">Country</span>
-                            <span className="grnf-party-info-value">
-                              <FaGlobeAsia size={10} /> {selectedSupplier.country}
-                            </span>
-                          </div>
-                        )}
-                        {selectedSupplier.mobile_no && (
-                          <div className="grnf-party-info-item">
-                            <span className="grnf-party-info-label">Mobile</span>
-                            <span className="grnf-party-info-value">
-                              <FaPhone size={10} /> {selectedSupplier.mobile_no}
-                            </span>
-                          </div>
-                        )}
-                        {selectedSupplier.email_id && (
-                          <div className="grnf-party-info-item">
-                            <span className="grnf-party-info-label">Email</span>
-                            <span className="grnf-party-info-value">
-                              <FaEnvelope size={10} /> {selectedSupplier.email_id}
-                            </span>
-                          </div>
-                        )}
+                  <div className="pof-party-card-content">
+                    {selectedSupplier ? (
+                      <div className="pof-party-info">
+                        <h3>{selectedSupplier.supplier_name}</h3>
+                        <div className="pof-party-info-item">
+                          <span className="pof-party-info-label">Type</span>
+                          <span className="pof-party-info-value">{selectedSupplier.supplier_type || 'N/A'}</span>
+                        </div>
+                        <div className="pof-party-info-item">
+                          <span className="pof-party-info-label">Group</span>
+                          <span className="pof-party-info-value">{selectedSupplier.supplier_group || 'N/A'}</span>
+                        </div>
+                        <div className="pof-party-info-item">
+                          <span className="pof-party-info-label">Country</span>
+                          <span className="pof-party-info-value">
+                            <FaGlobeAsia size={10} /> {selectedSupplier.country || 'N/A'}
+                          </span>
+                        </div>
+                        <div className="pof-party-info-item">
+                          <span className="pof-party-info-label">Mobile</span>
+                          <span className="pof-party-info-value">
+                            <FaPhone size={10} /> {selectedSupplier.mobile_no || 'N/A'}
+                          </span>
+                        </div>
+                        <div className="pof-party-info-item">
+                          <span className="pof-party-info-label">Email</span>
+                          <span className="pof-party-info-value">
+                            <FaEnvelope size={10} /> {selectedSupplier.email_id || 'N/A'}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="grnf-party-detail-card grnf-party-empty-card">
-                    <div className="grnf-party-card-header">
-                      {formData.isService ? (
-                        <><FaUsers size={16} /><span>Customer Details</span></>
-                      ) : (
-                        <><FaBuilding size={16} /><span>Supplier Details</span></>
-                      )}
-                    </div>
-                    <div className="grnf-party-card-content">
-                      <div className="grnf-party-empty-state">
+                    ) : (
+                      <div className="pof-party-empty-state">
                         <FaInfoCircle size={24} />
-                        <p>Select a {formData.isService ? 'customer' : 'supplier'} to view details</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Delivery Charge Section */}
-                <div className="grnf-party-detail-card">
-                  <div className="grnf-party-card-header">
-                    <FaMoneyBillWave size={16} />
-                    <span>Delivery Charges</span>
-                  </div>
-                  <div className="grnf-party-card-content">
-                    <div className="grnf-delivery-toggle">
-                      <button
-                        type="button"
-                        className={`grnf-mode-btn${formData.freeDelivery ? ' grnf-mode-btn-active' : ''}`}
-                        onClick={() => handleFieldChange('freeDelivery', true)}
-                        disabled={submitting}
-                      >
-                        Free
-                      </button>
-                      <button
-                        type="button"
-                        className={`grnf-mode-btn${!formData.freeDelivery ? ' grnf-mode-btn-active' : ''}`}
-                        onClick={() => handleFieldChange('freeDelivery', false)}
-                        disabled={submitting}
-                      >
-                        Paid
-                      </button>
-                    </div>
-                    {!formData.freeDelivery && (
-                      <div className="grnf-delivery-amount">
-                        <label>Amount <span className="grnf-required">*</span></label>
-                        <DigitInput
-                          value={formData.deliveryCharge}
-                          onChange={(val) => handleFieldChange('deliveryCharge', val)}
-                          placeholder="0"
-                          maxLength={10}
-                          disabled={submitting}
-                        />
+                        <p>Select a supplier to view details</p>
                       </div>
                     )}
                   </div>
                 </div>
 
-                {/* ─── STATUS SECTION REMOVED ─────────────────────────── */}
-                {/* The status dropdown has been removed from the UI */}
-
               </div>
             </div>
 
-            {/* ─── Items Section ────────────────────────────────────────── */}
-            <div className="grnf-items-section">
-              <div className="grnf-items-header">
-                <span className="grnf-section-title" style={{ marginBottom: 0, borderBottom: 'none' }}>Items</span>
-                <div className="grnf-items-actions">
-                  <button type="button" className="grnf-add-item-btn" onClick={addItem} disabled={submitting}>
-                    <FaPlus size={12} /> Add Item
+            <div className="pof-divider" />
+
+            {/* ─── Items Section ────────────────────────────────────── */}
+            <div className="pof-items-section">
+              <div className="pof-items-header">
+                <span className="pof-section-title">
+                  <FaBoxes className="pof-section-icon" /> Items <span className="pof-required">*</span>
+                </span>
+                <div className="pof-items-actions">
+                  <button type="button" className="pof-add-item-btn" onClick={addItemRow}>
+                    <FaPlus size={10} /> Add Item
                   </button>
                 </div>
               </div>
 
-              {formData.items.length === 0 ? (
-                <div className="grnf-empty-items">
-                  <FaBox size={32} />
-                  <p>No items added</p>
-                  <span>
-                    {formData.isService || formData.entryMode !== 'supplier'
-                      ? 'Click "Add Item" and search the item master to add items.'
-                      : 'Select a Supplier and Purchase Order above to fetch items'}
-                  </span>
-                </div>
-              ) : (
-                <div className="grnf-table-block">
-                  <table className="grnf-items-table">
-                    <thead>
-                      <tr>
-                        <th className="grnf-ith">#</th>
-                        <th className="grnf-ith">Item Code <span className="grnf-required">*</span></th>
-                        <th className="grnf-ith">Item Name <span className="grnf-required">*</span></th>
-                        <th className="grnf-ith">HSN</th>
-                        <th className="grnf-ith">Ordered QTY</th>
-                        <th className="grnf-ith">Received QTY<span className="grnf-required">*</span></th>
-                        <th className="grnf-ith">Rejected</th>
-                        <th className="grnf-ith">UOM</th>
-                        <th className="grnf-ith">Rate</th>
-                        <th className="grnf-ith">GST <span className="grnf-required">*</span></th>
-                        <th className="grnf-ith">SGST</th>
-                        <th className="grnf-ith">CGST</th>
-                        <th className="grnf-ith">Amount</th>
-                        <th className="grnf-ith">Remarks</th>
-                        <th className="grnf-ith grnf-ith-action">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {formData.items.map((item, index) => {
-                        const useItemSearch = formData.isService || formData.entryMode !== 'supplier';
-                        const { sgst, cgst, total } = computeItemAmounts(item);
-                        return (
-                        <tr key={item.id} className="grnf-itr">
-                          <td className="grnf-itd grnf-itd-no">{index + 1}</td>
-                          <td className="grnf-itd">
+              {/* Item Group Filter */}
+              <div className="pof-item-filter">
+                <FaFilter className="pof-filter-icon" />
+                <span className="pof-filter-label">Filter by Group:</span>
+                <select
+                  value={itemGroupFilter}
+                  onChange={(e) => setItemGroupFilter(e.target.value)}
+                  className="pof-filter-select"
+                >
+                  <option value="all">All Groups</option>
+                  {itemGroups.map(group => (
+                    <option key={group} value={group}>{group}</option>
+                  ))}
+                </select>
+                <span className="pof-filter-count">
+                  {allItems.length} items available
+                </span>
+              </div>
+
+              <div className="pof-table-block">
+                <table className="pof-inline-table">
+                  <thead>
+                    <tr>
+                      <th className="pof-ith">#</th>
+                      <th className="pof-ith">Item Code <span className="pof-required">*</span></th>
+                      <th className="pof-ith">Item Name <span className="pof-required">*</span></th>
+                      <th className="pof-ith">HSN</th>
+                      <th className="pof-ith">Qty <span className="pof-required">*</span></th>
+                      <th className="pof-ith">UOM</th>
+                      <th className="pof-ith">Rate <span className="pof-required">*</span></th>
+                      <th className="pof-ith">Tax</th>
+                      <th className="pof-ith">Amount</th>
+                      <th className="pof-ith pof-ith-action"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {formData.items.map((item, index) => (
+                      <tr key={item.id} className="pof-itr">
+                        <td className="pof-itd pof-itd-no">{index + 1}</td>
+                        <td className="pof-itd" style={{ position: 'relative' }}>
+                          <div className="pof-item-search-wrapper">
                             <input
-                              className="grnf-cell-input"
+                              ref={(el) => { inputRefs.current[index] = el; }}
+                              className="pof-cell-input"
+                              type="text"
                               value={item.itemCode}
-                              onChange={(e) => handleItemChange(index, 'itemCode', e.target.value)}
-                              placeholder="Code"
-                              disabled={submitting}
-                            />
-                          </td>
-                          <td className="grnf-itd grnf-itd-relative">
-                            <input
-                              className="grnf-cell-input"
-                              value={item.itemName}
                               onChange={(e) => {
-                                handleItemChange(index, 'itemName', e.target.value);
-                                if (useItemSearch) setActiveItemSearchIndex(index);
+                                const value = e.target.value;
+                                // Directly update the item code so you can see what you type
+                                handleItemSearch(index, value);
                               }}
-                              onFocus={() => { if (useItemSearch) setActiveItemSearchIndex(index); }}
-                              placeholder={useItemSearch ? 'Search item master...' : 'Name'}
-                              disabled={submitting}
-                              autoComplete="off"
+                              placeholder="Search by item code or name"
+                              onFocus={() => openItemDropdown(index)}
+                              onClick={() => openItemDropdown(index)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Escape') {
+                                  setShowSuggestions(prev => ({ ...prev, [index]: false }));
+                                }
+                                if (e.key === 'Backspace' && !e.currentTarget.value) {
+                                  handleClearItem(index);
+                                }
+                              }}
                             />
-                            {useItemSearch && activeItemSearchIndex === index && (
-                              <div ref={itemSearchDropdownRef} className="grnf-item-search-dropdown">
-                                {loadingItemsMaster && (
-                                  <div className="grnf-warehouse-no-results">
-                                    <FaSpinner className="grnf-spinning" size={12} /> Loading items...
-                                  </div>
-                                )}
-                                {!loadingItemsMaster && filteredItemsMaster.length === 0 && (
-                                  <div className="grnf-warehouse-no-results">
-                                    <FaExclamationCircle size={12} /> No items found
-                                  </div>
-                                )}
-                                {!loadingItemsMaster && filteredItemsMaster.slice(0, 15).map((master) => (
-                                  <div
-                                    key={master.id}
-                                    className="grnf-warehouse-item"
-                                    onClick={() => handleItemMasterSelect(index, master)}
-                                  >
-                                    <div className="grnf-warehouse-item-name">
-                                      <FaBox className="grnf-warehouse-item-icon" size={12} />
-                                      {master.item_name}
-                                      {master.HSN && <span className="grnf-hsn-badge">HSN: {master.HSN}</span>}
-                                    </div>
-                                    <div className="grnf-warehouse-item-details">
-                                      <span>{master.item_code}</span>
-                                      <span>• {master.stock_uom}</span>
-                                      <span>• Rate: {master.standard_rate}</span>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
+                            {loadingItems && (
+                              <FaSpinner className="pof-spinning pof-search-spinner" size={14} />
                             )}
-                          </td>
-                          <td className="grnf-itd">
-                            <input
-                              className="grnf-cell-input"
-                              value={item.hsn || ''}
-                              onChange={(e) => handleItemChange(index, 'hsn', e.target.value)}
-                              placeholder="HSN"
-                              disabled={submitting}
-                            />
-                          </td>
-                          <td className="grnf-itd">
-                            <DigitInput
-                              value={item.orderedQty}
-                              onChange={(val) => handleItemChange(index, 'orderedQty', val)}
-                              placeholder="0"
-                              maxLength={10}
-                              disabled={true}
-                            />
-                          </td>
-                          <td className="grnf-itd">
-                            <DigitInput
-                              value={item.receivedQty}
-                              onChange={(val) => handleItemChange(index, 'receivedQty', val)}
-                              placeholder="0"
-                              maxLength={10}
-                              disabled={submitting}
-                              required={true}
-                            />
-                          </td>
-                          <td className="grnf-itd">
-                            <DigitInput
-                              value={item.rejectedQty}
-                              onChange={(val) => handleItemChange(index, 'rejectedQty', val)}
-                              placeholder="0"
-                              maxLength={10}
-                              disabled={submitting}
-                            />
-                          </td>
-                          <td className="grnf-itd">
-                            <input
-                              className="grnf-cell-input"
-                              value={item.uom}
-                              onChange={(e) => handleItemChange(index, 'uom', e.target.value)}
-                              placeholder="UOM"
-                              disabled={submitting}
-                            />
-                          </td>
-                          <td className="grnf-itd">
-                            <DigitInput
-                              value={item.rate}
-                              onChange={(val) => handleItemChange(index, 'rate', val)}
-                              placeholder="0"
-                              maxLength={10}
-                              disabled={submitting}
-                            />
-                          </td>
-                          <td className="grnf-itd">
-                            <select
-                              className="grnf-cell-input"
-                              value={item.taxId ?? ''}
-                              onChange={(e) => handleItemTaxChange(index, parseInt(e.target.value))}
-                              disabled={submitting || loadingTaxTypes}
-                            >
-                              <option value="" disabled>
-                                {loadingTaxTypes ? 'Loading...' : 'Select GST'}
-                              </option>
-                              {taxTypes.map((tax) => (
-                                <option key={tax.tax_id} value={tax.tax_id}>
-                                  {tax.tax_type}
-                                </option>
-                              ))}
-                            </select>
-                          </td>
-                          <td className="grnf-itd grnf-itd-readonly">{sgst.toFixed(2)}</td>
-                          <td className="grnf-itd grnf-itd-readonly">{cgst.toFixed(2)}</td>
-                          <td className="grnf-itd grnf-itd-readonly grnf-itd-amount">{total.toFixed(2)}</td>
-                          <td className="grnf-itd">
-                            <input
-                              className="grnf-cell-input"
-                              value={item.remarks}
-                              onChange={(e) => handleItemChange(index, 'remarks', e.target.value)}
-                              placeholder="Remarks"
-                              disabled={submitting}
-                            />
-                          </td>
-                          <td className="grnf-itd">
-                            <button
-                              className="grnf-remove-item"
-                              onClick={() => removeItem(index)}
-                              type="button"
-                              disabled={submitting || formData.items.length <= 1}
-                            >
-                              <FaTrash size={12} />
-                            </button>
-                          </td>
-                        </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-
-                  {/* ─── Draft Items Section ───────────────────────────── */}
-                  {draftItems.length > 0 && (
-                    <div className="grnf-draft-items-section">
-                      <div className="grnf-draft-items-header">
-                        <h3>Draft Items</h3>
-                        <span className="grnf-draft-badge">
-                          <FaBox size={10} /> {draftItems.length} item{draftItems.length !== 1 ? 's' : ''}
-                        </span>
-                      </div>
-                      <div className="grnf-draft-items-list">
-                        {draftItems.map((item, index) => (
-                          <div key={item.id} className="grnf-draft-item">
-                            <div className="grnf-draft-item-left">
-                              <span className="grnf-draft-item-index">#{index + 1}</span>
-                              <span className="grnf-draft-item-name">{item.itemName || 'Unnamed Item'}</span>
-                              <div className="grnf-draft-item-details">
-                                <span>Code: {item.itemCode || 'N/A'}</span>
-                                <span>Qty: <span className="grnf-draft-item-qty">{item.receivedQty}</span></span>
-                                <span>UOM: {item.uom || 'N/A'}</span>
-                                <span>Rate: {item.rate || 0}</span>
-                              </div>
-                            </div>
-                            <div className="grnf-draft-item-right">
-                              <span className="grnf-draft-item-status">Draft</span>
-                              <button
-                                className="grnf-draft-item-remove"
-                                onClick={() => removeItem(formData.items.indexOf(item))}
+                            {item.itemCode && !loadingItems && (
+                              <button 
+                                className="pof-clear-item-btn"
+                                onClick={() => handleClearItem(index)}
                                 type="button"
-                                disabled={submitting}
+                                title="Clear item"
                               >
-                                <FaTrash size={12} />
+                                <FaTimesCircle size={14} />
                               </button>
-                            </div>
+                            )}
+                            {!item.itemCode && !loadingItems && (
+                              <FaSearch className="pof-search-icon" size={14} />
+                            )}
+                            
+                            {renderSuggestions(index)}
                           </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ─── Bill Summary ─────────────────────────────────── */}
-                  <div className="grnf-bill-summary">
-                    <div className="grnf-bill-summary-title">
-                      <FaReceipt size={14} /> Bill Summary
-                    </div>
-                    <div className="grnf-bill-summary-row">
-                      <span>Subtotal</span>
-                      <span>{billTotals.subtotal.toFixed(2)}</span>
-                    </div>
-                    <div className="grnf-bill-summary-row">
-                      <span><FaPercentage size={10} /> Total SGST</span>
-                      <span>{billTotals.sgst.toFixed(2)}</span>
-                    </div>
-                    <div className="grnf-bill-summary-row">
-                      <span><FaPercentage size={10} /> Total CGST</span>
-                      <span>{billTotals.cgst.toFixed(2)}</span>
-                    </div>
-                    <div className="grnf-bill-summary-row">
-                      <span><FaMoneyBillWave size={10} /> Delivery Charges{formData.freeDelivery ? ' (Free)' : ''}</span>
-                      <span>{deliveryChargeAmount.toFixed(2)}</span>
-                    </div>
-                    <div className="grnf-bill-summary-row grnf-bill-summary-total">
-                      <span>Grand Total</span>
-                      <span>{grandTotal.toFixed(2)}</span>
-                    </div>
-                  </div>
-                </div>
+                        </td>
+                        <td className="pof-itd">
+                          <input
+                            className="pof-cell-input"
+                            type="text"
+                            value={item.itemName}
+                            onChange={(e) => {
+                              const updatedItems = [...formData.items];
+                              updatedItems[index] = { ...updatedItems[index], itemName: e.target.value };
+                              setFormData(prev => ({ ...prev, items: updatedItems }));
+                            }}
+                            placeholder="Name"
+                          />
+                        </td>
+                        <td className="pof-itd">
+                          <input
+                            className="pof-cell-input"
+                            type="text"
+                            value={item.hsn || ''}
+                            onChange={(e) => {
+                              const updatedItems = [...formData.items];
+                              updatedItems[index] = { ...updatedItems[index], hsn: e.target.value };
+                              setFormData(prev => ({ ...prev, items: updatedItems }));
+                            }}
+                            placeholder="HSN"
+                          />
+                        </td>
+                        <td className="pof-itd">
+                          <DigitInput
+                            value={digitValues[index]?.quantity || String(item.quantity)}
+                            onChange={(val) => handleDigitQuantityChange(index, val)}
+                            placeholder="Qty"
+                            maxLength={10}
+                            className="pof-digit-input"
+                            min={0}
+                          />
+                        </td>
+                        <td className="pof-itd">
+                          <span className="pof-uom-display">
+                            {item.uom || 'NOS'}
+                          </span>
+                        </td>
+                        <td className="pof-itd">
+                          <DigitInput
+                            value={digitValues[index]?.rate || String(item.rate)}
+                            onChange={(val) => handleDigitRateChange(index, val)}
+                            placeholder="Rate"
+                            maxLength={15}
+                            className="pof-digit-input pof-rate-input"
+                            allowDecimal={true}
+                            min={0}
+                          />
+                        </td>
+                        <td className="pof-itd">
+                          <select
+                            className="pof-cell-select pof-tax-select"
+                            value={item.taxId || ''}
+                            onChange={(e) => handleItemTaxChange(index, e.target.value)}
+                            disabled={loadingTaxes}
+                          >
+                            <option value="">No Tax</option>
+                            {taxOptions.map(tax => {
+                              const { rate, category } = extractTaxInfo(tax.tax_type);
+                              return (
+                                <option key={tax.tax_id} value={String(tax.tax_id)}>
+                                  {category} {rate}%
+                                </option>
+                              );
+                            })}
+                          </select>
+                        </td>
+                        <td className="pof-itd pof-itd-amount">
+                          {formData.currency} {((item.orderRate || item.rate || 0) * item.quantity).toFixed(2)}
+                        </td>
+                        <td className="pof-itd">
+                          {formData.items.length > 1 && (
+                            <button
+                              className="pof-remove-row"
+                              onClick={() => removeItemRow(index)}
+                              type="button"
+                            >
+                              ×
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  
+                  <tfoot>
+                    <tr>
+                      <td colSpan={8} className="pof-total-label">Subtotal</td>
+                      <td colSpan={3} className="pof-total-amount">{formData.currency} {totalAmount.toFixed(2)}</td>
+                    </tr>
+                    <tr>
+                      <td colSpan={8} className="pof-total-label">
+                        <span>Tax</span>
+                      </td>
+                      <td colSpan={3} className="pof-total-amount">{formData.currency} {taxAmount.toFixed(2)}</td>
+                    </tr>
+                    <tr>
+                      <td colSpan={6} className="pof-total-label pof-adjustment-label">
+                        <span>Adjustment</span>
+                      </td>
+                      <td colSpan={5} className="pof-total-amount pof-adjustment-cell">
+                        <div className="pof-adjustment-controls">
+                          <select
+                            className="pof-adjustment-sign-select"
+                            value={grandTotalAdjustmentSign}
+                            onChange={(e) => setGrandTotalAdjustmentSign(e.target.value)}
+                          >
+                            <option value="positive">+ Add</option>
+                            <option value="negative">- Deduct</option>
+                          </select>
+                          <DigitInput
+                            value={grandTotalAdjustmentValue}
+                            onChange={handleAdjustmentChange}
+                            placeholder="0.00"
+                            maxLength={15}
+                            className="pof-adjustment-digit-input"
+                            allowDecimal={true}
+                            min={0}
+                          />
+                          <span className="pof-adjustment-result">
+                            = {formData.currency} {adjustmentValue.toFixed(2)}
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td colSpan={8} className="pof-total-label pof-total-grand">Grand Total</td>
+                      <td colSpan={3} className="pof-total-amount pof-total-grand-amount">
+                        {formData.currency} {calculatedGrandTotal.toFixed(2)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+              
+              {validationErrors.some(e => e.field === 'items') && (
+                <span className="pof-error-msg" style={{ marginTop: '8px' }}>
+                  <FaExclamationCircle size={10} />All items must have code, name, quantity {'>'} 0 and rate {'>'} 0
+                </span>
               )}
             </div>
+          </div>
 
+          {/* Notes Section */}
+          <div className="pof-info-section" style={{ marginTop: '16px' }}>
+            <div className="pof-section-label">
+              <FaClipboardList className="pof-section-icon" /> Notes
+            </div>
+            <div className="pof-info-row">
+              <div className="pof-info-field" style={{ gridColumn: '1 / -1' }}>
+                <textarea
+                  value={formData.notes}
+                  onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+                  className="pof-form-field pof-textarea"
+                  placeholder="Additional notes..."
+                  rows={3}
+                />
+              </div>
+            </div>
           </div>
 
           {/* ─── Footer ────────────────────────────────────────────────── */}
-          <div className="grnf-footer">
+          <div className="pof-footer">
             <button
               type="button"
-              onClick={() => navigate('/grn')}
-              className="grnf-cancel-btn"
-              disabled={submitting}
+              onClick={handleCancel}
+              className="pof-cancel-btn"
+              disabled={loading}
             >
               Cancel
             </button>
             <button
-              type="button"
-              onClick={handlePrint}
-              className="grnf-print-footer-btn"
-              disabled={submitting}
-            >
-              <FaPrint size={12} /> Print
-            </button>
-            <button
               type="submit"
-              disabled={submitting}
-              className="grnf-submit-btn"
+              disabled={loading}
+              className="pof-submit-btn"
             >
-              {submitting && <FaSpinner className="grnf-spinning" />}
+              {loading && <FaSpinner className="pof-spinning" />}
               <FaSave size={12} />
-              {isEditMode ? 'Update' : 'Save'}
+              {isEdit ? 'Update' : 'Create'}
             </button>
           </div>
         </form>

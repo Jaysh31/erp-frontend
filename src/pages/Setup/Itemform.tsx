@@ -252,7 +252,6 @@ function SelectInput({
   onAddClick?: () => void;
   theme?: string;
   onCustomValueConfirm?: (value: string) => void;
-  /** Human-readable name used in "No X found" / "Add new X" messaging, e.g. "UOM", "Customer" */
   entityLabel?: string;
 }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -391,7 +390,7 @@ function SelectInput({
                   onClick={() => {
                     onChange?.(opt.value);
                     setSearchTerm("");
-                    setIsOpen(false);
+                    setIsOpen(false); // Close dropdown when option is selected
                   }}
                 >
                   {opt.label}
@@ -400,8 +399,7 @@ function SelectInput({
             )}
           </div>
 
-          {/* ✅ Fixed / stable "Add New" footer - stays pinned at the bottom of the
-              dropdown regardless of list scrolling, like "Add New Customer" in Delivery Challan */}
+          {/* ✅ Fixed / stable "Add New" footer */}
           {!loading && trimmedSearch && !isExactMatch && onCustomValueConfirm && (
             <div
               className="itf-select-option itf-select-option-add"
@@ -409,7 +407,7 @@ function SelectInput({
                 e.stopPropagation();
                 onCustomValueConfirm(trimmedSearch);
                 setSearchTerm("");
-                setIsOpen(false);
+                setIsOpen(false); // Close dropdown when adding new item
               }}
               style={{
                 display: 'flex',
@@ -449,7 +447,7 @@ function SelectInput({
               onClick={(e) => {
                 e.stopPropagation();
                 onAddClick?.();
-                setIsOpen(false);
+                setIsOpen(false); // Close dropdown when "Add New" button is clicked
               }}
               style={{
                 display: 'flex',
@@ -862,11 +860,7 @@ function NumberInput({
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// Add Item Group Modal
-// ────────────────────────────────────────────────────────────────────────
-
-// ────────────────────────────────────────────────────────────────────────
-// Add UOM Modal - with Category dropdown from API
+// Add UOM Modal
 // ────────────────────────────────────────────────────────────────────────
 function AddUOMModal({
   isOpen,
@@ -984,7 +978,6 @@ function AddUOMModal({
               <p className="itf-modal-hint">Only alphabets and digits are allowed</p>
             </div>
 
-            {/* ✅ Category Dropdown */}
             <div className="itf-modal-form-group">
               <label className="itf-modal-label">
                 Category <span className="itf-req">*</span>
@@ -1237,7 +1230,7 @@ export default function ItemForm() {
     }));
   }, [form.standardRate, form.profitMargin, taxPercentage, form.itemGroup]);
 
-  // ─── ✅ GET API: Fetch UOMs (direct /uom endpoint) ─────────────────
+  // ─── ✅ GET API: Fetch UOMs ─────────────────────────────────
   const fetchUOMs = async () => {
     setLoadingUoms(true);
     try {
@@ -1366,11 +1359,14 @@ export default function ItemForm() {
         setShowAddUOMModal(false);
         setPendingUOMName("");
         
+        // ✅ Refresh the UOM list to show the newly added UOM
         await fetchUOMs();
         
+        // ✅ Select the newly added UOM in the form
         setTimeout(() => {
           s("defaultUOM", uomName);
-        }, 500);
+          toast.success(`UOM "${uomName}" is now available in the dropdown`);
+        }, 300);
       } else {
         toast.error(response.data?.message || "Failed to create UOM");
       }

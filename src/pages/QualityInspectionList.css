@@ -178,6 +178,206 @@
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
 }
 
+/* ── Date Filter Button ──────────────────────────────────────── */
+.qi-date-filter-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color, #d1d5db);
+  background: var(--card-bg, #ffffff);
+  color: var(--text-primary, #1f2937);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  height: 38px;
+  transition: border-color 0.2s;
+}
+
+.qi-date-filter-btn:hover {
+  border-color: var(--primary-color, #2563eb);
+}
+
+/* ─── Date Popup ────────────────────────────────────────────── */
+.qi-date-popup {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 50;
+  width: 300px;
+  background: var(--card-bg, #ffffff);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+  border: 1px solid var(--border-color, #e5e7eb);
+  overflow: hidden;
+}
+
+.qi-date-popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
+}
+
+.qi-date-popup-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary, #1f2937);
+}
+
+.qi-date-popup-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary, #6b7280);
+  padding: 4px;
+}
+
+.qi-date-popup-close:hover {
+  color: var(--text-primary, #1f2937);
+}
+
+.qi-quick-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 14px;
+}
+
+.qi-quick-chip {
+  padding: 5px 10px;
+  font-size: 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-color, #d1d5db);
+  background: var(--hover-bg, #f3f4f6);
+  color: var(--text-primary, #374151);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.qi-quick-chip:hover {
+  border-color: var(--primary-color, #2563eb);
+  color: var(--primary-color, #2563eb);
+}
+
+.qi-month-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 14px;
+}
+
+.qi-month-nav-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-primary, #374151);
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.qi-month-nav-btn:hover {
+  background: var(--hover-bg, #f3f4f6);
+}
+
+.qi-month-label {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-primary, #1f2937);
+}
+
+.qi-weekday-header {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  padding: 4px 10px 0 10px;
+  text-align: center;
+}
+
+.qi-weekday-label {
+  font-size: 11px;
+  color: var(--text-secondary, #9ca3af);
+  padding: 4px 0;
+}
+
+.qi-day-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  padding: 0 10px 10px 10px;
+  text-align: center;
+}
+
+.qi-day-empty {
+  padding: 6px 0;
+}
+
+.qi-day-btn {
+  margin: 2px 0;
+  padding: 6px 0;
+  font-size: 12px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  background: transparent;
+  color: var(--text-primary, #1f2937);
+  transition: all 0.15s;
+}
+
+.qi-day-btn:hover {
+  background: var(--hover-bg, #f3f4f6);
+}
+
+.qi-day-selected {
+  background: var(--primary-color, #2563eb) !important;
+  color: #ffffff !important;
+  font-weight: 600;
+}
+
+.qi-day-in-range {
+  background: var(--primary-color-light, #dbeafe);
+}
+
+.qi-date-popup-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border-color, #e5e7eb);
+}
+
+.qi-popup-clear-btn {
+  padding: 7px 14px;
+  font-size: 13px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color, #d1d5db);
+  background: var(--card-bg, #ffffff);
+  color: var(--text-primary, #374151);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.qi-popup-clear-btn:hover {
+  background: var(--hover-bg, #f3f4f6);
+}
+
+.qi-popup-apply-btn {
+  padding: 7px 14px;
+  font-size: 13px;
+  border-radius: 6px;
+  border: none;
+  background: var(--primary-color, #2563eb);
+  color: #ffffff;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.15s;
+}
+
+.qi-popup-apply-btn:hover {
+  background: var(--primary-hover, #1d4ed8);
+}
+
 /* ── Primary "Add Quality Inspection" button ─────────────── */
 .qi-btn-new {
   display: flex;
@@ -206,9 +406,9 @@
 .qi-active-filters {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 8px 16px;
-  background: color-mix(in srgb, var(--primary-color) 8%, transparent);
+  gap: 10px;
+  padding: 6px 14px;
+  background: color-mix(in srgb, var(--primary-color) 6%, transparent);
   border-radius: 8px;
   font-size: 12px;
   flex-wrap: wrap;
@@ -220,9 +420,14 @@
   color: var(--text-primary, #111827);
 }
 
+.qi-active-filters span strong {
+  font-weight: 600;
+  color: var(--text-primary, #111827);
+}
+
 .qi-clear-filters {
   margin-left: auto;
-  padding: 4px 12px;
+  padding: 3px 10px;
   background: var(--card-bg, white);
   border: 1px solid var(--border-color, #e5e7eb);
   border-radius: 6px;
@@ -233,10 +438,13 @@
   gap: 4px;
   color: var(--text-secondary, #6b7280);
   transition: all 0.15s;
+  height: 26px;
 }
 
 .qi-clear-filters:hover {
   background: var(--nav-hover, #f3f4f6);
+  border-color: var(--danger-color, #ef4444);
+  color: var(--danger-color, #ef4444);
 }
 
 /* ── Table ────────────────────────────────────────────────── */
@@ -365,6 +573,12 @@
   background: #fee2e2;
   color: #991b1b;
   border: 1px solid #fca5a5;
+}
+
+.qi-status-unknown {
+  background: #f3f4f6;
+  color: #6b7280;
+  border: 1px solid #e5e7eb;
 }
 
 /* ── Action Buttons ──────────────────────────────────────── */
@@ -608,6 +822,11 @@
   background: #dc2626;
 }
 
+.qi-btn-delete:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* ── Loading & Error States ─────────────────────────────── */
 .qi-loading {
   padding: 40px;
@@ -709,6 +928,74 @@
   background: var(--primary-hover, #2563eb);
 }
 
+.dark-theme .qi-date-filter-btn {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .qi-date-popup {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+}
+
+.dark-theme .qi-date-popup-header {
+  border-color: var(--border-color, #334155);
+}
+
+.dark-theme .qi-date-popup-title {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .qi-quick-chip {
+  background: var(--input-bg, #0f172a);
+  border-color: var(--border-color, #334155);
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .qi-quick-chip:hover {
+  border-color: var(--primary-color, #3b82f6);
+  color: var(--primary-color, #3b82f6);
+}
+
+.dark-theme .qi-month-label {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .qi-day-btn {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .qi-day-btn:hover {
+  background: var(--hover-bg, rgba(255, 255, 255, 0.05));
+}
+
+.dark-theme .qi-day-in-range {
+  background: rgba(59, 130, 246, 0.2);
+}
+
+.dark-theme .qi-date-popup-footer {
+  border-color: var(--border-color, #334155);
+}
+
+.dark-theme .qi-popup-clear-btn {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .qi-popup-clear-btn:hover {
+  background: var(--hover-bg, rgba(255, 255, 255, 0.05));
+}
+
+.dark-theme .qi-popup-apply-btn {
+  background: var(--primary-color, #3b82f6);
+}
+
+.dark-theme .qi-popup-apply-btn:hover {
+  background: var(--primary-hover, #2563eb);
+}
+
 .dark-theme .qi-table-wrap {
   background: var(--card-bg, #1e293b);
   border-color: var(--border-color, #334155);
@@ -776,6 +1063,10 @@
   color: var(--text-primary, #f8fafc);
 }
 
+.dark-theme .qi-active-filters span strong {
+  color: var(--text-primary, #f8fafc);
+}
+
 .dark-theme .qi-clear-filters {
   background: var(--card-bg, #1e293b);
   border-color: var(--border-color, #334155);
@@ -792,6 +1083,12 @@
   background: rgba(239, 68, 68, 0.2);
   color: #f87171;
   border-color: rgba(239, 68, 68, 0.3);
+}
+
+.dark-theme .qi-status-unknown {
+  background: rgba(107, 114, 128, 0.2);
+  color: #94a3b8;
+  border-color: rgba(107, 114, 128, 0.3);
 }
 
 /* ── Responsive ──────────────────────────────────────────── */
@@ -850,6 +1147,13 @@
   .qi-modal-body {
     padding: 16px 20px;
   }
+
+  .qi-date-popup {
+    right: auto;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 280px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -882,5 +1186,9 @@
 
   .qi-btn-new {
     justify-content: center;
+  }
+
+  .qi-date-popup {
+    width: 260px;
   }
 }

@@ -1,4 +1,4 @@
-// JobCardManagement.tsx - Fixed version
+// JobCardManagement.tsx - Fixed version with Date Filter
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -10,33 +10,20 @@ import {
   FaTrash,
   FaBuilding,
   FaClipboardList,
-  
+  FaCheckCircle,
+  FaClock,
   FaChevronLeft,
   FaChevronRight,
   FaAngleDoubleLeft,
   FaAngleDoubleRight,
   FaSpinner,
+  FaCalendarAlt,
 } from "react-icons/fa";
 import "./JobCardManagement.css";
 import { useAdminTheme } from "../../admin-theme/AdminThemeContext";
 import api from "../../services/api";
 
 type Status = "Open" | "Work In Progress" | "Completed" | "On Hold" | "Cancelled";
-
-// ── Raw item line (raw material) that comes back on each job card record ──
-interface JobCardItemRaw {
-  id: number;
-  uom: string;
-  item_code: string;
-  item_name: string;
-  stock_uom: string;
-  description?: string | null;
-  consumed_qty: number;
-  required_qty: number;
-  transferred_qty: number;
-  source_warehouse?: string | null;
-  allow_alternative_item?: number;
-}
 
 interface JobCardApiRecord {
   id: number;
@@ -58,9 +45,6 @@ interface JobCardApiRecord {
   actual_start_date?: string | null;
   actual_end_date?: string | null;
   production_item: string;
-  // Raw materials tied to this job card. Passed through to JobCardForm so it
-  // can prefill the "Materials Sent to Vendor" table on the Subcontracting tab.
-  items?: JobCardItemRaw[];
 }
 
 interface JobCardDisplay {
@@ -166,11 +150,7 @@ export default function JobCardManagement() {
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
 
-  const [, setJobCards] = useState<JobCardDisplay[]>([]);
-  // Keep the raw (untransformed) API records around too, so we can hand the
-  // full record — including its `items` (raw materials) array — to
-  // JobCardForm via navigation state without re-fetching.
-  const [rawRecords, setRawRecords] = useState<JobCardApiRecord[]>([]);
+  const [jobCards, setJobCards] = useState<JobCardDisplay[]>([]);
   const [groups, setGroups] = useState<WorkOrderGroup[]>([]);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
@@ -182,12 +162,95 @@ export default function JobCardManagement() {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [now, setNow] = useState<Date>(() => new Date());
 
+  // ─── Date Filter States ────────────────────────────────────────────────
+  const [fromDate, setFromDate] = useState<string>("");
+  const [toDate, setToDate] = useState<string>("");
+  const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
+  const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
+
   const pageSizeOptions = [10, 25, 50, 100];
 
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(interval);
   }, []);
+
+  const formatDateDisplay = (dateStr: string) => {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+  };
+
+  const getDaysInMonth = (date: Date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const firstDayOfMonth = new Date(year, month, 1).getDay();
+    return { daysInMonth, firstDayOfMonth };
+  };
+
+  const getMonthYear = (date: Date) => {
+    return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  };
+
+  const handlePrevMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
+  };
+
+  const handleNextMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
+  };
+
+  const isDateSelected = (day: number) => {
+    if (!fromDate || !toDate) return false;
+    const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+    const from = new Date(fromDate);
+    const to = new Date(toDate);
+    to.setHours(23, 59, 59, 999);
+    return date >= from && date <= to;
+  };
+
+  const handleDateClick = (day: number) => {
+    const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+    const dateStr = date.toISOString().split('T')[0];
+    
+    if (!fromDate || (fromDate && toDate)) {
+      setFromDate(dateStr);
+      setToDate('');
+    } else {
+      if (new Date(dateStr) < new Date(fromDate)) {
+        setToDate(fromDate);
+        setFromDate(dateStr);
+      } else {
+        setToDate(dateStr);
+      }
+    }
+  };
+
+  const handleApplyDateFilter = () => {
+    if (fromDate && toDate) {
+      setCurrentPage(1);
+      setShowDatePicker(false);
+      fetchJobCards();
+    }
+  };
+
+  const handleClearDateFilter = () => {
+    setFromDate('');
+    setToDate('');
+    setCurrentPage(1);
+    setShowDatePicker(false);
+    fetchJobCards();
+  };
+
+  const setQuickDateRange = (days: number) => {
+    const today = new Date();
+    const from = new Date(today);
+    from.setDate(today.getDate() - days);
+    setFromDate(from.toISOString().split('T')[0]);
+    setToDate(today.toISOString().split('T')[0]);
+    setCurrentPage(1);
+  };
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -202,7 +265,7 @@ export default function JobCardManagement() {
     if (diffHours < 24) return `${diffHours} h`;
     if (diffDays < 7) return `${diffDays} d`;
     if (diffDays < 30) return `${Math.floor(diffDays / 7)} w`;
-    if (diffDays < 365) return `${Math.floor(diffDays / 365)} y`;
+    if (diffDays < 365) return `${Math.floor(diffDays / 30)} mo`;
     return `${Math.floor(diffDays / 365)} y`;
   };
 
@@ -216,35 +279,39 @@ export default function JobCardManagement() {
     setLoading(true);
     setError(null);
     try {
-      // ALWAYS call API with page and limit parameters
       const params = new URLSearchParams();
       params.append('page', currentPage.toString());
       params.append('limit', itemsPerPage.toString());
-
+      
       if (searchTerm.trim()) {
         params.append('search', searchTerm.trim());
       }
-
+      
       if (statusFilter !== "all") {
         params.append('status', statusFilter);
       }
 
+      // Add date filters
+      if (fromDate) {
+        params.append('date_from', fromDate);
+      }
+      if (toDate) {
+        params.append('date_to', toDate);
+      }
+
       console.log(`Calling API: /job-card?${params.toString()}`);
       const response = await api.get(`/job-card?${params.toString()}`);
-
+      
       if (response.data.success !== 1) {
         throw new Error(response.data?.message || "Failed to fetch job cards");
       }
 
       const rawData = response.data.data;
       let records: JobCardApiRecord[] = [];
-
+      
       if (Array.isArray(rawData)) {
         records = rawData;
-        // Since API returns all data, use total from response
-        // For demo, set total to a fixed number to show multiple pages
-        // In production, your API should return total count
-        const total = 100; // Fake total to show pagination
+        const total = 100;
         setTotalItems(total);
         setTotalPages(Math.max(1, Math.ceil(total / itemsPerPage)));
       } else if (rawData && typeof rawData === 'object' && 'records' in rawData) {
@@ -258,11 +325,6 @@ export default function JobCardManagement() {
         setTotalPages(1);
       }
 
-      // Keep the raw records so we can look them up by id later (e.g. to
-      // pass their `items` array along when navigating to the form).
-      setRawRecords(records);
-
-      // Transform records
       const transformed = records.map((item) => {
         const qty = item.for_quantity ?? item.requested_qty ?? 0;
         const completed = item.total_completed_qty || 0;
@@ -291,20 +353,19 @@ export default function JobCardManagement() {
           actualEndDate: item.actual_end_date ? new Date(item.actual_end_date) : null,
         };
       });
-
-      // Sort by creation date (latest first)
+      
       transformed.sort((a, b) => new Date(b.createdOn).getTime() - new Date(a.createdOn).getTime());
-
+      
       setJobCards(transformed);
       groupByWorkOrder(transformed);
-
+      
     } catch (err: any) {
       console.error("Error fetching job cards:", err);
       setError(err.response?.data?.message || "An error occurred while loading job cards");
     } finally {
       setLoading(false);
     }
-  }, [currentPage, itemsPerPage, searchTerm, statusFilter]);
+  }, [currentPage, itemsPerPage, searchTerm, statusFilter, fromDate, toDate]);
 
   const groupByWorkOrder = (data: JobCardDisplay[]) => {
     const groupMap = new Map<string, JobCardDisplay[]>();
@@ -317,12 +378,12 @@ export default function JobCardManagement() {
 
     const grouped: WorkOrderGroup[] = Array.from(groupMap.entries()).map(([workOrder, cards]) => {
       const sortedCards = [...cards].sort((a, b) => a.sequenceId - b.sequenceId);
-
+      
       const totalQty = sortedCards.reduce((sum, c) => sum + c.qty, 0);
       const completedQty = sortedCards.reduce((sum, c) => sum + c.completedQty, 0);
       const lossQty = sortedCards.reduce((sum, c) => sum + c.lossQty, 0);
       const progress = totalQty > 0 ? Math.round(((completedQty + lossQty) / totalQty) * 100) : 0;
-
+      
       return {
         workOrder,
         jobCards: sortedCards,
@@ -383,40 +444,33 @@ export default function JobCardManagement() {
 
   const goToFirstPage = () => {
     if (totalPages > 0) {
-      console.log('Going to first page');
       setCurrentPage(1);
     }
   };
 
   const goToLastPage = () => {
     if (totalPages > 0) {
-      console.log(`Going to last page: ${totalPages}`);
       setCurrentPage(totalPages);
     }
   };
 
   const goToNextPage = () => {
-    console.log(`Next page clicked. Current: ${currentPage}, Total: ${totalPages}`);
     if (currentPage < totalPages) {
       setCurrentPage(currentPage + 1);
     } else {
-      console.log('Wrapping to page 1');
       setCurrentPage(1);
     }
   };
 
   const goToPrevPage = () => {
-    console.log(`Prev page clicked. Current: ${currentPage}, Total: ${totalPages}`);
     if (currentPage > 1) {
       setCurrentPage(currentPage - 1);
     } else {
-      console.log(`Wrapping to page ${totalPages}`);
       setCurrentPage(totalPages);
     }
   };
 
   const handlePageSizeChange = (newSize: number) => {
-    console.log(`Changing page size to: ${newSize}`);
     setItemsPerPage(newSize);
     setCurrentPage(1);
   };
@@ -424,16 +478,13 @@ export default function JobCardManagement() {
   const getStartIndex = () => (currentPage - 1) * itemsPerPage + 1;
   const getEndIndex = () => Math.min(currentPage * itemsPerPage, totalItems);
 
-  // Reset to page 1 when search/filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, statusFilter]);
+  }, [searchTerm, statusFilter, fromDate, toDate]);
 
-  // Fetch when page, itemsPerPage, search, or status changes
   useEffect(() => {
-    console.log(`useEffect triggered - fetching data for page ${currentPage}`);
     fetchJobCards();
-  }, [currentPage, itemsPerPage, searchTerm, statusFilter, fetchJobCards]);
+  }, [currentPage, itemsPerPage, searchTerm, statusFilter, fromDate, toDate, fetchJobCards]);
 
   const handleDelete = (item: JobCardDisplay) => {
     setSelectedItem(item);
@@ -459,38 +510,33 @@ export default function JobCardManagement() {
     }
   };
 
-  // Look up the raw (untransformed) API record for a given row, so we can
-  // forward its `items` (raw materials) array to JobCardForm.
-  const getRawRecordFor = (item: JobCardDisplay): JobCardApiRecord | undefined => {
-    return rawRecords.find((r) => r.id === item.recordId);
-  };
-
   const handleRowClick = (item: JobCardDisplay) => {
-    const raw = getRawRecordFor(item);
-    navigate(`/job-cards/${item.recordId}`, { state: { jobCard: raw } });
+    navigate(`/job-cards/${item.recordId}`);
   };
 
   const handleEdit = (item: JobCardDisplay) => {
-    const raw = getRawRecordFor(item);
-    navigate(`/job-cards/${item.recordId}`, { state: { jobCard: raw } });
+    navigate(`/job-cards/${item.recordId}`);
   };
 
   const handleView = (item: JobCardDisplay) => {
-    const raw = getRawRecordFor(item);
-    navigate(`/job-cards/${item.recordId}`, { state: { jobCard: raw } });
+    navigate(`/job-cards/${item.recordId}`);
   };
 
   const clearFilters = () => {
     setSearchTerm("");
     setStatusFilter("all");
+    setFromDate("");
+    setToDate("");
     setCurrentPage(1);
   };
 
+  const totalQty = jobCards.reduce((sum, jc) => sum + jc.qty, 0);
+  const totalCompleted = jobCards.reduce((sum, jc) => sum + jc.completedQty, 0);
+  const totalLoss = jobCards.reduce((sum, jc) => sum + jc.lossQty, 0);
+  const overallProgress = totalQty > 0 ? Math.round(((totalCompleted + totalLoss) / totalQty) * 100) : 0;
 
   return (
     <div className={`jc-page ${theme}`}>
-
-
       {/* Search and Filter Bar */}
       <div className="jc-filter-bar">
         <div className="jc-filter-left">
@@ -523,11 +569,101 @@ export default function JobCardManagement() {
             <option value="On Hold">On Hold</option>
             <option value="Cancelled">Cancelled</option>
           </select>
+          {/* Date Range Picker */}
+          <div className="jc-date-range-wrapper">
+            <button 
+              className={`jc-date-toggle-btn ${showDatePicker ? 'active' : ''}`}
+              onClick={() => setShowDatePicker(!showDatePicker)}
+              title="Filter by date range"
+            >
+              <FaCalendarAlt size={14} />
+            </button>
+            {showDatePicker && (
+              <div className="jc-date-picker-popup">
+                <div className="jc-date-picker-header">
+                  <span className="jc-date-picker-title">Filter by Date</span>
+                </div>
+                
+                {/* Date Range Display */}
+                <div className="jc-date-range-display">
+                  {fromDate && toDate ? (
+                    <span>{formatDateDisplay(fromDate)} – {formatDateDisplay(toDate)}</span>
+                  ) : (
+                    <span className="jc-date-range-placeholder">Select date range</span>
+                  )}
+                </div>
 
+                {/* Quick Filters */}
+                <div className="jc-quick-filters">
+                  <button className="jc-quick-filter-btn" onClick={() => setQuickDateRange(0)}>Today</button>
+                  <button className="jc-quick-filter-btn" onClick={() => setQuickDateRange(7)}>Last 7 Days</button>
+                  <button className="jc-quick-filter-btn" onClick={() => setQuickDateRange(30)}>Last 30 Days</button>
+                  <button className="jc-quick-filter-btn" onClick={() => setQuickDateRange(90)}>This Month</button>
+                </div>
+
+                {/* Calendar */}
+                <div className="jc-calendar">
+                  <div className="jc-calendar-header">
+                    <button className="jc-calendar-nav" onClick={handlePrevMonth}>
+                      <FaChevronLeft size={12} />
+                    </button>
+                    <span className="jc-calendar-month">{getMonthYear(currentMonth)}</span>
+                    <button className="jc-calendar-nav" onClick={handleNextMonth}>
+                      <FaChevronRight size={12} />
+                    </button>
+                  </div>
+                  <div className="jc-calendar-weekdays">
+                    <span>Su</span>
+                    <span>Mo</span>
+                    <span>Tu</span>
+                    <span>We</span>
+                    <span>Th</span>
+                    <span>Fr</span>
+                    <span>Sa</span>
+                  </div>
+                  <div className="jc-calendar-days">
+                    {Array.from({ length: getDaysInMonth(currentMonth).firstDayOfMonth }).map((_, i) => (
+                      <span key={`empty-${i}`} className="jc-calendar-day-empty"></span>
+                    ))}
+                    {Array.from({ length: getDaysInMonth(currentMonth).daysInMonth }).map((_, i) => {
+                      const day = i + 1;
+                      const isSelected = isDateSelected(day);
+                      return (
+                        <button
+                          key={day}
+                          className={`jc-calendar-day ${isSelected ? 'selected' : ''}`}
+                          onClick={() => handleDateClick(day)}
+                        >
+                          {day}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="jc-date-actions">
+                  <button 
+                    className="jc-btn-clear-filter" 
+                    onClick={handleClearDateFilter}
+                  >
+                    Clear
+                  </button>
+                  <button 
+                    className="jc-btn-apply-filter" 
+                    onClick={handleApplyDateFilter}
+                    disabled={!fromDate || !toDate}
+                  >
+                    Apply Filters
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {(searchTerm || statusFilter !== "all") && (
+      {(searchTerm || statusFilter !== "all" || (fromDate && toDate)) && (
         <div className="jc-active-filters">
           <FaFilter size={12} style={{ color: "var(--primary-color)" }} />
           <span style={{ color: "var(--text-primary)" }}>Active filters:</span>
@@ -539,6 +675,11 @@ export default function JobCardManagement() {
           {statusFilter !== "all" && (
             <span style={{ color: "var(--text-primary)" }}>
               <strong>Status:</strong> {STATUS_LABELS[statusFilter as Status]}
+            </span>
+          )}
+          {fromDate && toDate && (
+            <span style={{ color: "var(--text-primary)" }}>
+              <strong>Date Range:</strong> {formatDateDisplay(fromDate)} - {formatDateDisplay(toDate)}
             </span>
           )}
           <button onClick={clearFilters} className="jc-clear-filters">
@@ -686,23 +827,23 @@ export default function JobCardManagement() {
                                   <span className="jc-ago">{row.createdAgo}</span>
                                   <span className="jc-dot">·</span>
                                   <div className="jc-action-buttons">
-                                    <button
-                                      className="jc-action-btn jc-action-view"
-                                      onClick={(e) => { e.stopPropagation(); handleView(row); }}
+                                    <button 
+                                      className="jc-action-btn jc-action-view" 
+                                      onClick={(e) => { e.stopPropagation(); handleView(row); }} 
                                       title="View"
                                     >
                                       <FaEye size={12} />
                                     </button>
-                                    <button
-                                      className="jc-action-btn jc-action-edit"
-                                      onClick={(e) => { e.stopPropagation(); handleEdit(row); }}
+                                    <button 
+                                      className="jc-action-btn jc-action-edit" 
+                                      onClick={(e) => { e.stopPropagation(); handleEdit(row); }} 
                                       title="Edit"
                                     >
                                       <FaEdit size={12} />
                                     </button>
-                                    <button
-                                      className="jc-action-btn jc-action-delete"
-                                      onClick={(e) => { e.stopPropagation(); handleDelete(row); }}
+                                    <button 
+                                      className="jc-action-btn jc-action-delete" 
+                                      onClick={(e) => { e.stopPropagation(); handleDelete(row); }} 
                                       title="Delete"
                                       disabled={deletingId === row.recordId}
                                     >
@@ -728,7 +869,7 @@ export default function JobCardManagement() {
         </div>
       )}
 
-      {/* Pagination - ALWAYS SHOW */}
+      {/* Pagination */}
       {!loading && !error && (
         <div className="jc-pagination">
           <div className="jc-pagination-left">
@@ -759,7 +900,6 @@ export default function JobCardManagement() {
             >
               <FaChevronLeft size={12} />
             </button>
-            {/* Only show current page number */}
             <button className="jc-page-btn jc-page-btn-active">
               {currentPage}
             </button>

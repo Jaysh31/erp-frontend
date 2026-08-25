@@ -50,6 +50,9 @@ interface PurchaseOrder {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+  // Formatted display fields
+  displayOrderDate?: string;
+  displayDeliveryDate?: string;
 }
 
 interface ApiPurchaseOrder {
@@ -84,6 +87,7 @@ interface ApiResponse {
 
 // ─── Date helpers (for the calendar picker) ───────────────────
 
+// ✅ NEW: Format date for API (YYYY-MM-DD)
 const toISODate = (d: Date): string => {
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -91,8 +95,13 @@ const toISODate = (d: Date): string => {
   return `${year}-${month}-${day}`;
 };
 
-const formatDisplayDate = (iso: string): string => {
+// ✅ UPDATED: Format display date using context (will be replaced in component)
+const formatDisplayDate = (iso: string, formatFn?: (date: string) => string): string => {
   if (!iso) return '';
+  if (formatFn) {
+    return formatFn(iso);
+  }
+  // Fallback if formatFn not provided
   const [y, m, d] = iso.split('-').map(Number);
   const date = new Date(y, m - 1, d);
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -108,9 +117,10 @@ interface RangeCalendarProps {
   fromDate: string;
   toDate: string;
   onSelect: (from: string, to: string) => void;
+  formatDisplayDateFn: (iso: string) => string;
 }
 
-function RangeCalendar({ month, onMonthChange, fromDate, toDate, onSelect }: RangeCalendarProps) {
+function RangeCalendar({ month, onMonthChange, fromDate, toDate, onSelect, formatDisplayDateFn }: RangeCalendarProps) {
   const year = month.getFullYear();
   const monthIndex = month.getMonth();
   const firstDayOfMonth = new Date(year, monthIndex, 1);
@@ -121,10 +131,8 @@ function RangeCalendar({ month, onMonthChange, fromDate, toDate, onSelect }: Ran
   const handleDayClick = (day: number) => {
     const clickedStr = toISODate(new Date(year, monthIndex, day));
     if (!fromDate || (fromDate && toDate)) {
-      // Start a fresh range
       onSelect(clickedStr, '');
     } else if (clickedStr < fromDate) {
-      // Clicked before current "from" -> becomes new "from"
       onSelect(clickedStr, fromDate);
     } else {
       onSelect(fromDate, clickedStr);
@@ -214,7 +222,9 @@ function RangeCalendar({ month, onMonthChange, fromDate, toDate, onSelect }: Ran
 
 export default function PurchaseOrder() {
   const navigate = useNavigate();
-  const { theme } = useAdminTheme();
+  
+  // ✅ GET THE DATE FORMAT FUNCTION FROM CONTEXT
+  const { theme, formatDate, getApiDateFormat } = useAdminTheme();
 
   // Filters
   const [filterText, setFilterText] = useState('');
@@ -223,7 +233,6 @@ export default function PurchaseOrder() {
   const [showFilters, setShowFilters] = useState(false);
 
   // Date filters - single From / To range (applied to Order Date)
-  // Sent to API as: api/purchase-order?date_from=YYYY-MM-DD&date_to=YYYY-MM-DD
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
@@ -247,6 +256,17 @@ export default function PurchaseOrder() {
   // Pagination (server‑side)
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  // ✅ NEW: Format display date using context
+  const formatDisplayDateWithContext = (dateString: string) => {
+    if (!dateString) return '';
+    return formatDate(dateString);
+  };
+
+  // ✅ NEW: Format date for API (YYYY-MM-DD)
+  const toApiDateFormat = (date: Date) => {
+    return getApiDateFormat(date);
+  };
 
   // ─── Click outside handler ──────────────────────────────
 
@@ -307,18 +327,14 @@ export default function PurchaseOrder() {
       params.append('page', String(currentPage));
       params.append('limit', String(itemsPerPage));
 
-      // Search filter - works for PO number, title, and supplier
       if (debouncedFilterText.trim()) {
         params.append('search', debouncedFilterText.trim());
       }
 
-      // Status filter - /api/purchase-order?status=Draft
       if (selectedStatus !== 'All') {
         params.append('status', selectedStatus);
       }
 
-      // Date range filter (From / To) - applied to Order Date
-      // api/purchase-order?date_from=2026-08-01&date_to=2026-08-14
       if (dateFrom) {
         params.append('date_from', dateFrom);
       }
@@ -331,6 +347,7 @@ export default function PurchaseOrder() {
         const records = response.data.data.records;
         setTotalRecords(response.data.data.total);
 
+        // ✅ TRANSFORM DATA WITH FORMATTED DATES
         const transformedOrders: PurchaseOrder[] = records.map((item) => ({
           id: String(item.id),
           poNumber: item.name || `PO-${String(item.id).padStart(5, '0')}`,
@@ -360,6 +377,9 @@ export default function PurchaseOrder() {
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           items: [],
+          // ✅ ADD FORMATTED DATES FOR DISPLAY
+          displayOrderDate: item.transaction_date ? formatDisplayDateWithContext(item.transaction_date) : '',
+          displayDeliveryDate: item.schedule_date ? formatDisplayDateWithContext(item.schedule_date) : ''
         }));
         setPurchaseOrders(transformedOrders);
       } else {
@@ -488,9 +508,10 @@ export default function PurchaseOrder() {
     setDateTo('');
   };
 
+  // ✅ UPDATED: Date button label using context formatter
   const dateButtonLabel = () => {
     if (dateFrom) {
-      return `${formatDisplayDate(dateFrom)}${dateTo ? ' – ' + formatDisplayDate(dateTo) : ''}`;
+      return `${formatDisplayDateWithContext(dateFrom)}${dateTo ? ' – ' + formatDisplayDateWithContext(dateTo) : ''}`;
     }
     return 'From - To';
   };
@@ -639,13 +660,13 @@ export default function PurchaseOrder() {
                     flex: 1, padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: '4px',
                     fontSize: '12px', color: dateFrom ? '#1a202c' : '#a0aec0'
                   }}>
-                    {dateFrom ? formatDisplayDate(dateFrom) : 'From'}
+                    {dateFrom ? formatDisplayDateWithContext(dateFrom) : 'From'}
                   </div>
                   <div style={{
                     flex: 1, padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: '4px',
                     fontSize: '12px', color: dateTo ? '#1a202c' : '#a0aec0'
                   }}>
-                    {dateTo ? formatDisplayDate(dateTo) : 'To'}
+                    {dateTo ? formatDisplayDateWithContext(dateTo) : 'To'}
                   </div>
                 </div>
 
@@ -683,6 +704,7 @@ export default function PurchaseOrder() {
                   fromDate={dateFrom}
                   toDate={dateTo}
                   onSelect={(from, to) => { setDateFrom(from); setDateTo(to); }}
+                  formatDisplayDateFn={formatDisplayDateWithContext}
                 />
 
                 <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '14px' }}>
@@ -737,8 +759,8 @@ export default function PurchaseOrder() {
           {filterText && <span><strong>Search:</strong> "{filterText}"</span>}
           {selectedStatus !== 'All' && <span><strong>Status:</strong> {selectedStatus}</span>}
           {selectedSupplier !== 'All' && <span><strong>Supplier:</strong> {selectedSupplier}</span>}
-          {dateFrom && <span><strong>From:</strong> {dateFrom}</span>}
-          {dateTo && <span><strong>To:</strong> {dateTo}</span>}
+          {dateFrom && <span><strong>From:</strong> {formatDisplayDateWithContext(dateFrom)}</span>}
+          {dateTo && <span><strong>To:</strong> {formatDisplayDateWithContext(dateTo)}</span>}
           <button onClick={clearFilters} className="po-clear-filters">
             <FaTimes size={10} /> Clear All
           </button>
@@ -830,8 +852,9 @@ export default function PurchaseOrder() {
                   <td className="po-td po-td-id">{po.poNumber}</td>
                   <td className="po-td">{po.title}</td>
                   <td className="po-td">{po.supplier}</td>
-                  <td className="po-td">{po.orderDate}</td>
-                  <td className="po-td">{po.deliveryDate}</td>
+                  {/* ✅ USE FORMATTED DATE FOR DISPLAY */}
+                  <td className="po-td">{po.displayOrderDate || po.orderDate}</td>
+                  <td className="po-td">{po.displayDeliveryDate || po.deliveryDate}</td>
                   <td className="po-td">{po.currency} {po.totalAmount.toLocaleString()}</td>
                   <td className="po-td">
                     <span className={`po-status-badge ${getStatusColor(po.status)}`}>
@@ -937,8 +960,9 @@ export default function PurchaseOrder() {
                 </div>
                 <div className="po-view-section">
                   <h4>Dates</h4>
-                  <div className="po-view-row"><label>Order Date:</label><span>{selectedPO.orderDate}</span></div>
-                  <div className="po-view-row"><label>Delivery Date:</label><span>{selectedPO.deliveryDate}</span></div>
+                  {/* ✅ USE FORMATTED DATES FOR DISPLAY */}
+                  <div className="po-view-row"><label>Order Date:</label><span>{selectedPO.displayOrderDate || selectedPO.orderDate}</span></div>
+                  <div className="po-view-row"><label>Delivery Date:</label><span>{selectedPO.displayDeliveryDate || selectedPO.deliveryDate}</span></div>
                   <div className="po-view-row"><label>Created By:</label><span>{selectedPO.createdBy}</span></div>
                 </div>
                 <div className="po-view-section">

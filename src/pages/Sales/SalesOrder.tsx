@@ -1,18 +1,17 @@
-import  { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   FaSearch, FaPlus, FaEye, FaEdit, FaTrash, FaFilePdf, FaPrint,
   FaFilter, FaCheckCircle, FaClock, FaTimesCircle,
   FaFileAlt, FaExternalLinkAlt,
-  FaChartLine, FaTimes, FaSpinner, FaBoxOpen, FaEnvelope, FaEllipsisV
-  
+  FaChartLine, FaTimes, FaSpinner, FaBoxOpen, FaEnvelope, FaEllipsisV,
+  FaChevronLeft, FaChevronRight, FaCalendarAlt
 } from 'react-icons/fa';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
 import './SalesOrder.css';
 import api from '../../services/api';
 import { FaFileInvoice } from 'react-icons/fa6';
-// import { FaFileInvoice } from 'react-icons/fa6';
 
 interface SalesOrderItem {
   id: string;
@@ -109,6 +108,16 @@ interface SalesOrderApiRecord {
   }>;
 }
 
+interface ApiResponse {
+  success: number;
+  data: {
+    total: number;
+    page: number;
+    limit: number;
+    records: SalesOrderApiRecord[];
+  };
+}
+
 const companyDetails = {
   name: 'Sculptor Tech Pvt Ltd',
   address: 'c-1006, gc, Pune, Maharashtra 411028, India',
@@ -116,7 +125,6 @@ const companyDetails = {
   email: 'jayeshwakle@sculptortechpvtltd.com',
   contact: '8668584275',
 };
-
 
 const companyPrintDetails = {
   gstin: '',
@@ -170,8 +178,13 @@ const numberToIndianWords = (value: number): string => {
   return out.trim();
 };
 
-const formatPrintDate = (date: string): string => {
+// ✅ UPDATED: Format print date using context formatter
+const formatPrintDate = (date: string, formatFn?: (date: string) => string): string => {
   if (!date) return '';
+  if (formatFn) {
+    return formatFn(date);
+  }
+  // Fallback if formatFn not provided
   const d = new Date(date);
   if (isNaN(d.getTime())) return date;
   const day = String(d.getDate()).padStart(2, '0');
@@ -188,7 +201,6 @@ const escapeHtml = (val: unknown): string => {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 };
-
 
 const SALES_ORDER_LINE_CACHE_PREFIX = 'sales_order_line_data:';
 
@@ -236,17 +248,29 @@ const mapApiItemsToSalesOrderItems = (record: SalesOrderApiRecord | null | undef
   });
 };
 
+// ─── Debounce function ──────────────────────────────────────────────────
+const useDebounce = (value: string, delay: number) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+};
+
 export default function SalesOrder() {
   const navigate = useNavigate();
   const menuRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
-  let theme = 'light';
-  try {
-    const context = useAdminTheme();
-    theme = context.theme;
-  } catch (error) {
-    console.log('Using default light theme');
-  }
+  // ✅ GET THE DATE FORMAT FUNCTION FROM CONTEXT
+  const { theme, formatDate, getApiDateFormat } = useAdminTheme();
 
   const [filterText, setFilterText] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('All');
@@ -257,14 +281,46 @@ export default function SalesOrder() {
   const [proformaLoadingId, setProformaLoadingId] = useState<string | null>(null);
   const [showMoreMenu, setShowMoreMenu] = useState<string | null>(null);
 
+  // Date range filter states
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
+  const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
+  const [tempStartDate, setTempStartDate] = useState<string>('');
+  const [tempEndDate, setTempEndDate] = useState<string>('');
+  const [selectedQuickFilter, setSelectedQuickFilter] = useState<string>('');
+
   const [salesOrders, setSalesOrders] = useState<SalesOrder[]>([]);
+  const [allSalesOrders, setAllSalesOrders] = useState<SalesOrder[]>([]);
+
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalRecords, setTotalRecords] = useState(0);
 
   // Modal states
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<SalesOrder | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [pdfModalLoading, ] = useState(false);
+  const [pdfModalLoading] = useState(false);
+
+  // Calendar state
+  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
+  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+
+  // Debounced search term
+  const debouncedFilterText = useDebounce(filterText, 500);
+
+  // ✅ NEW: Format display date using context
+  const formatDisplayDate = (dateString: string) => {
+    if (!dateString) return '';
+    return formatDate(dateString);
+  };
+
+  // ✅ NEW: Format date for API (YYYY-MM-DD)
+  const toApiDateFormat = (date: Date) => {
+    return getApiDateFormat(date);
+  };
 
   // ─── close more-menu on outside click ─────────────────────────────────
   useEffect(() => {
@@ -285,17 +341,115 @@ export default function SalesOrder() {
     };
   }, [showMoreMenu]);
 
+  // ─── close date picker on outside click ──────────────────────────────
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      const datePickerContainer = document.querySelector('.qt-date-picker-container');
+      if (datePickerContainer && !datePickerContainer.contains(target)) {
+        setShowDatePicker(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
   const toggleMenu = (id: string) => {
     setShowMoreMenu(showMoreMenu === id ? null : id);
   };
 
-  // ─── load from GET /sales-order ───────────────────────────────────────
+  // ─── Date helper functions ─────────────────────────────────────────────
+  // ✅ UPDATED: Format date for display using context
+  const formatDateForDisplay = (dateStr: string): string => {
+    if (!dateStr) return '';
+    return formatDate(dateStr);
+  };
+
+  const getTodayDate = (): string => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  };
+
+  const getDateDaysAgo = (days: number): string => {
+    const date = new Date();
+    date.setDate(date.getDate() - days);
+    return date.toISOString().split('T')[0];
+  };
+
+  const getFirstDayOfMonth = (): string => {
+    const date = new Date(currentYear, currentMonth, 1);
+    return date.toISOString().split('T')[0];
+  };
+
+  const getLastDayOfMonth = (): string => {
+    const date = new Date(currentYear, currentMonth + 1, 0);
+    return date.toISOString().split('T')[0];
+  };
+
+  // ─── Quick filter handlers ─────────────────────────────────────────────
+  const applyQuickFilter = (filter: string) => {
+    setSelectedQuickFilter(filter);
+    let start = '';
+    let end = getTodayDate();
+
+    switch (filter) {
+      case 'today':
+        start = getTodayDate();
+        break;
+      case 'last7':
+        start = getDateDaysAgo(7);
+        break;
+      case 'last30':
+        start = getDateDaysAgo(30);
+        break;
+      case 'thisMonth':
+        start = getFirstDayOfMonth();
+        end = getLastDayOfMonth();
+        break;
+      default:
+        return;
+    }
+
+    setTempStartDate(start);
+    setTempEndDate(end);
+  };
+
+  // ─── load from GET /sales-order with search ───────────────────────────
 
   const fetchSalesOrders = async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await api.get('/sales-order');
+      const params = new URLSearchParams();
+      
+      params.append('page', String(currentPage));
+      params.append('limit', String(pageSize));
+      
+      if (debouncedFilterText.trim()) {
+        params.append('search', debouncedFilterText.trim());
+        params.append('search_by', 'all');
+      }
+
+      if (selectedStatus !== 'All') {
+        params.append('status', selectedStatus);
+      }
+
+      if (selectedOrderType !== 'All') {
+        params.append('order_type', selectedOrderType);
+      }
+
+      if (startDate) {
+        params.append('date_from', startDate);
+      }
+      if (endDate) {
+        params.append('date_to', endDate);
+      }
+
+      const url = `/sales-order${params.toString() ? `?${params.toString()}` : ''}`;
+      const response = await api.get(url);
 
       if (response.data.success !== 1) {
         throw new Error(response.data?.message || 'Failed to fetch sales orders');
@@ -312,8 +466,10 @@ export default function SalesOrder() {
         all = [];
       }
 
+      setTotalRecords(all.length);
+
+      // ✅ TRANSFORM DATA WITH FORMATTED DATES
       const transformedData: SalesOrder[] = all.map((o, idx) => {
-       
         const resolvedId =
           o.id !== undefined && o.id !== null && String(o.id).trim() !== ''
             ? String(o.id)
@@ -353,6 +509,7 @@ export default function SalesOrder() {
         };
       });
 
+      setAllSalesOrders(transformedData);
       setSalesOrders(transformedData);
     } catch (err: any) {
       console.error('Error fetching sales orders:', err);
@@ -362,11 +519,60 @@ export default function SalesOrder() {
     }
   };
 
+  // Fetch when filters change
   useEffect(() => {
     fetchSalesOrders();
-  }, []);
+  }, [debouncedFilterText, selectedStatus, selectedOrderType, startDate, endDate, currentPage, pageSize]);
 
-  
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterText, selectedStatus, selectedOrderType, startDate, endDate]);
+
+  // Filter data for display (client-side filtering for additional fields)
+  useEffect(() => {
+    let filtered = allSalesOrders;
+    
+    if (filterText.trim()) {
+      const searchLower = filterText.toLowerCase();
+      filtered = filtered.filter(o =>
+        (o.salesOrderNumber || '').toLowerCase().includes(searchLower) ||
+        (o.customerName || '').toLowerCase().includes(searchLower) ||
+        (o.customer || '').toLowerCase().includes(searchLower)
+      );
+    }
+
+    if (selectedStatus !== 'All') {
+      filtered = filtered.filter(o => o.status === selectedStatus);
+    }
+
+    if (selectedOrderType !== 'All') {
+      filtered = filtered.filter(o => o.orderType === selectedOrderType);
+    }
+
+    if (startDate) {
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      filtered = filtered.filter(o => {
+        if (!o.date) return false;
+        const orderDate = new Date(o.date);
+        return orderDate >= start;
+      });
+    }
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      filtered = filtered.filter(o => {
+        if (!o.date) return false;
+        const orderDate = new Date(o.date);
+        return orderDate <= end;
+      });
+    }
+
+    setSalesOrders(filtered);
+    setTotalRecords(filtered.length);
+  }, [allSalesOrders, filterText, selectedStatus, selectedOrderType, startDate, endDate]);
+
   const fetchFullSalesOrderRecord = async (orderId: string): Promise<SalesOrderApiRecord | null> => {
     try {
       const response = await api.get(`/sales-order/${orderId}`);
@@ -394,8 +600,6 @@ export default function SalesOrder() {
     }
   };
 
- 
-  
   const enrichItemsFromCatalog = async (items: SalesOrderItem[]): Promise<SalesOrderItem[]> => {
     return Promise.all(items.map(async (item) => {
       const needsLookup = !item.itemName || !item.rate;
@@ -484,21 +688,45 @@ export default function SalesOrder() {
     }
   };
 
-  const filteredOrders = salesOrders.filter(o => {
-    const matchesSearch = (o.salesOrderNumber || '').toLowerCase().includes(filterText.toLowerCase()) ||
-      (o.customerName || '').toLowerCase().includes(filterText.toLowerCase());
-    const matchesStatus = selectedStatus === 'All' || o.status === selectedStatus;
-    const matchesOrderType = selectedOrderType === 'All' || o.orderType === selectedOrderType;
-    return matchesSearch && matchesStatus && matchesOrderType;
-  });
+  // Pagination calculations
+  const totalFiltered = salesOrders.length;
+  const totalPages = Math.ceil(totalFiltered / pageSize);
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, totalFiltered);
+  const currentPageData = salesOrders.slice(startIndex, endIndex);
 
+  const handlePageSizeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newSize = parseInt(e.target.value, 10);
+    setPageSize(newSize);
+    setCurrentPage(1);
+  };
+
+  const goToPage = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+    }
+  };
+
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisible = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+    
+    if (endPage - startPage + 1 < maxVisible) {
+      startPage = Math.max(1, endPage - maxVisible + 1);
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i);
+    }
+    return pages;
+  };
 
   const totalAmount = salesOrders.reduce((sum, o) => sum + o.totalAmount, 0);
   const completedAmount = salesOrders.filter(o => o.status === 'Completed').reduce((sum, o) => sum + o.totalAmount, 0);
   const fulfillmentRate = totalAmount > 0 ? Math.round((completedAmount / totalAmount) * 100) : 0;
-  // const totalOrders = salesOrders.length;
 
-  // View / Edit — both route to the CreateSalesOrder form (edit mode).
   const handleView = (order: SalesOrder) => {
     if (!order.id) {
       toast.error('Unable to open this sales order — missing order ID');
@@ -515,7 +743,6 @@ export default function SalesOrder() {
     navigate(`/sales-order/${order.id}`, { state: { salesOrder: order } });
   };
 
-  // Delete Sales Order — DELETE /sales-order/:id
   const handleDeleteClick = (order: SalesOrder) => {
     setSelectedOrder(order);
     setShowDeleteModal(true);
@@ -545,14 +772,128 @@ export default function SalesOrder() {
     }
   };
 
-
-
   const getCompanyDetails = () => companyDetails;
 
   const clearFilters = () => {
     setFilterText('');
     setSelectedStatus('All');
     setSelectedOrderType('All');
+    setStartDate('');
+    setEndDate('');
+    setTempStartDate('');
+    setTempEndDate('');
+    setSelectedQuickFilter('');
+    setCurrentPage(1);
+    setShowDatePicker(false);
+  };
+
+  // Date picker handlers
+  const openDatePicker = () => {
+    setTempStartDate(startDate);
+    setTempEndDate(endDate);
+    setShowDatePicker(true);
+  };
+
+  const applyDateFilter = () => {
+    setStartDate(tempStartDate);
+    setEndDate(tempEndDate);
+    setShowDatePicker(false);
+    if (tempStartDate || tempEndDate) {
+      toast.success('Date range applied');
+    }
+  };
+
+  const clearDateFilters = () => {
+    setTempStartDate('');
+    setTempEndDate('');
+    setSelectedQuickFilter('');
+    setStartDate('');
+    setEndDate('');
+    setShowDatePicker(false);
+  };
+
+  // Calendar functions
+  const getDaysInMonth = (year: number, month: number): number => {
+    return new Date(year, month + 1, 0).getDate();
+  };
+
+  const getFirstDayOfMonthIndex = (year: number, month: number): number => {
+    return new Date(year, month, 1).getDay();
+  };
+
+  const generateCalendarDays = (): (number | null)[] => {
+    const daysInMonth = getDaysInMonth(currentYear, currentMonth);
+    const firstDayIndex = getFirstDayOfMonthIndex(currentYear, currentMonth);
+    const days: (number | null)[] = [];
+
+    for (let i = 0; i < firstDayIndex; i++) {
+      days.push(null);
+    }
+
+    for (let i = 1; i <= daysInMonth; i++) {
+      days.push(i);
+    }
+
+    return days;
+  };
+
+  const isDateInRange = (day: number): boolean => {
+    if (!tempStartDate && !tempEndDate) return false;
+    const date = new Date(currentYear, currentMonth, day);
+    const dateStr = date.toISOString().split('T')[0];
+    
+    if (tempStartDate && tempEndDate) {
+      return dateStr >= tempStartDate && dateStr <= tempEndDate;
+    }
+    if (tempStartDate) {
+      return dateStr >= tempStartDate;
+    }
+    if (tempEndDate) {
+      return dateStr <= tempEndDate;
+    }
+    return false;
+  };
+
+  const isDateSelected = (day: number): boolean => {
+    const date = new Date(currentYear, currentMonth, day);
+    const dateStr = date.toISOString().split('T')[0];
+    return dateStr === tempStartDate || dateStr === tempEndDate;
+  };
+
+  const handleDateClick = (day: number) => {
+    const date = new Date(currentYear, currentMonth, day);
+    const dateStr = date.toISOString().split('T')[0];
+    
+    if (!tempStartDate || (tempStartDate && tempEndDate)) {
+      setTempStartDate(dateStr);
+      setTempEndDate('');
+      setSelectedQuickFilter('');
+    } else if (tempStartDate && !tempEndDate) {
+      if (dateStr < tempStartDate) {
+        setTempStartDate(dateStr);
+        setTempEndDate('');
+      } else {
+        setTempEndDate(dateStr);
+        setSelectedQuickFilter('');
+      }
+    }
+  };
+
+  const changeMonth = (delta: number) => {
+    const newMonth = currentMonth + delta;
+    if (newMonth < 0) {
+      setCurrentMonth(11);
+      setCurrentYear(currentYear - 1);
+    } else if (newMonth > 11) {
+      setCurrentMonth(0);
+      setCurrentYear(currentYear + 1);
+    } else {
+      setCurrentMonth(newMonth);
+    }
+  };
+
+  const getMonthName = (month: number): string => {
+    return new Date(currentYear, month).toLocaleString('en-US', { month: 'long' });
   };
 
   /* ─────────────────────── Print (Tax-Invoice format) ─────────────────────── */
@@ -565,6 +906,12 @@ export default function SalesOrder() {
     const sgstAmount = validItems.reduce((sum, it) => sum + ((it.amount || 0) * (it.sgst || 0)) / 100, 0);
     const totalQty = validItems.reduce((sum, it) => sum + (it.quantity || 0), 0);
     const grandTotal = order.totalAmount || (baseTotal + cgstAmount + sgstAmount);
+
+    // ✅ Use formatDisplayDate for formatted dates in print
+    const formatPrintDateLocal = (dateStr: string) => {
+      if (!dateStr) return '';
+      return formatDisplayDate(dateStr);
+    };
 
     const itemRows = validItems.map((item, idx) => `
       <tr>
@@ -725,7 +1072,7 @@ export default function SalesOrder() {
           </div>
           <div class="pq-meta-cell" style="border-right:none;">
             <div class="pq-meta-label">Dated</div>
-            <div class="pq-meta-value">${escapeHtml(formatPrintDate(order.date))}</div>
+            <div class="pq-meta-value">${escapeHtml(formatPrintDateLocal(order.date))}</div>
           </div>
         </div>
         <div class="pq-meta-row">
@@ -741,7 +1088,7 @@ export default function SalesOrder() {
         <div class="pq-meta-row">
           <div class="pq-meta-cell" style="border-right:none;">
             <div class="pq-meta-label">Reference No. &amp; Date.</div>
-            <div class="pq-meta-value">${escapeHtml(order.referenceNo || '')}${order.referenceDate ? ` dt. ${escapeHtml(formatPrintDate(order.referenceDate))}` : ''}</div>
+            <div class="pq-meta-value">${escapeHtml(order.referenceNo || '')}${order.referenceDate ? ` dt. ${escapeHtml(formatPrintDateLocal(order.referenceDate))}` : ''}</div>
           </div>
         </div>
         <div class="pq-meta-row">
@@ -751,7 +1098,7 @@ export default function SalesOrder() {
           </div>
           <div class="pq-meta-cell" style="border-right:none;">
             <div class="pq-meta-label">Dated</div>
-            <div class="pq-meta-value">${escapeHtml(formatPrintDate(order.buyersOrderDate || ''))}</div>
+            <div class="pq-meta-value">${escapeHtml(formatPrintDateLocal(order.buyersOrderDate || ''))}</div>
           </div>
         </div>
         <div class="pq-meta-row">
@@ -761,7 +1108,7 @@ export default function SalesOrder() {
           </div>
           <div class="pq-meta-cell" style="border-right:none;">
             <div class="pq-meta-label">Delivery Note Date</div>
-            <div class="pq-meta-value">${escapeHtml(formatPrintDate(order.deliveryNoteDate || ''))}</div>
+            <div class="pq-meta-value">${escapeHtml(formatPrintDateLocal(order.deliveryNoteDate || ''))}</div>
           </div>
         </div>
         <div class="pq-meta-row">
@@ -787,7 +1134,7 @@ export default function SalesOrder() {
           </div>
           <div class="pq-meta-cell" style="border-right:none;">
             <div class="pq-meta-label">Delivery Date</div>
-            <div class="pq-meta-value">${escapeHtml(formatPrintDate(order.deliveryDate || ''))}</div>
+            <div class="pq-meta-value">${escapeHtml(formatPrintDateLocal(order.deliveryDate || ''))}</div>
           </div>
         </div>
         ${order.status ? `
@@ -924,6 +1271,12 @@ export default function SalesOrder() {
     const sgstAmount = validItems.reduce((sum, it) => sum + ((it.amount || 0) * (it.sgst || 0)) / 100, 0);
     const totalQty = validItems.reduce((sum, it) => sum + (it.quantity || 0), 0);
     const grandTotal = order.totalAmount || (baseTotal + cgstAmount + sgstAmount);
+
+    // ✅ Use formatDisplayDate for formatted dates in proforma invoice
+    const formatPrintDateLocal = (dateStr: string) => {
+      if (!dateStr) return '';
+      return formatDisplayDate(dateStr);
+    };
 
     const itemRows = validItems.map((item, idx) => `
       <tr>
@@ -1094,7 +1447,7 @@ export default function SalesOrder() {
           </div>
           <div class="pq-meta-cell" style="border-right:none;">
             <div class="pq-meta-label">Dated</div>
-            <div class="pq-meta-value">${escapeHtml(formatPrintDate(order.date))}</div>
+            <div class="pq-meta-value">${escapeHtml(formatPrintDateLocal(order.date))}</div>
           </div>
         </div>
         <div class="pq-meta-row">
@@ -1104,7 +1457,7 @@ export default function SalesOrder() {
           </div>
           <div class="pq-meta-cell" style="border-right:none;">
             <div class="pq-meta-label">Valid Until</div>
-            <div class="pq-meta-value">${escapeHtml(formatPrintDate(order.deliveryDate || ''))}</div>
+            <div class="pq-meta-value">${escapeHtml(formatPrintDateLocal(order.deliveryDate || ''))}</div>
           </div>
         </div>
         <div class="pq-meta-row">
@@ -1120,7 +1473,7 @@ export default function SalesOrder() {
           </div>
           <div class="pq-meta-cell" style="border-right:none;">
             <div class="pq-meta-label">Dated</div>
-            <div class="pq-meta-value">${escapeHtml(formatPrintDate(order.buyersOrderDate || ''))}</div>
+            <div class="pq-meta-value">${escapeHtml(formatPrintDateLocal(order.buyersOrderDate || ''))}</div>
           </div>
         </div>
         <div class="pq-meta-row">
@@ -1130,7 +1483,7 @@ export default function SalesOrder() {
           </div>
           <div class="pq-meta-cell" style="border-right:none;">
             <div class="pq-meta-label">Delivery Date</div>
-            <div class="pq-meta-value">${escapeHtml(formatPrintDate(order.deliveryDate || ''))}</div>
+            <div class="pq-meta-value">${escapeHtml(formatPrintDateLocal(order.deliveryDate || ''))}</div>
           </div>
         </div>
         ${order.status ? `
@@ -1282,7 +1635,6 @@ export default function SalesOrder() {
   };
 
   const handleProformaInvoice = async (order: SalesOrder) => {
-    // Check if order is confirmed or completed before generating proforma invoice
     if (order.status === 'Draft') {
       toast('Please confirm the sales order before generating a proforma invoice');
       return;
@@ -1377,10 +1729,536 @@ export default function SalesOrder() {
         .qt-action-more {
           color: var(--text-secondary, #6b7280);
         }
-      `}</style>
 
-      {/* Stats Cards */}
-    
+        /* Date Range Picker Styles */
+        .qt-date-picker-container {
+          position: relative;
+          display: inline-block;
+          margin-left: 8px;
+        }
+
+        .qt-date-picker-trigger {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          background: var(--card-bg, #fff);
+          border: 1px solid var(--border-color, #e5e7eb);
+          border-radius: 8px;
+          padding: 8px 14px;
+          cursor: pointer;
+          transition: all 0.2s;
+          color: var(--text-primary, #1e293b);
+          font-size: 13px;
+          min-height: 38px;
+        }
+
+        .qt-date-picker-trigger:hover {
+          border-color: var(--primary-color, #2563eb);
+          background: var(--hover-bg, #f8fafc);
+        }
+
+        .qt-date-picker-trigger.active {
+          border-color: var(--primary-color, #2563eb);
+          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .qt-date-picker-trigger .qt-calendar-icon {
+          color: var(--primary-color, #2563eb);
+          font-size: 16px;
+        }
+
+        .qt-date-picker-trigger .qt-date-label {
+          font-weight: 500;
+        }
+
+        .qt-date-picker-trigger .qt-date-label.placeholder {
+          color: var(--text-secondary, #6b7280);
+          font-weight: 400;
+        }
+
+        .qt-date-picker-trigger .qt-date-range-display {
+          color: var(--primary-color, #2563eb);
+          font-weight: 500;
+        }
+
+        .qt-date-picker-popup {
+          position: absolute;
+          top: calc(100% + 8px);
+          left: 0;
+          background: var(--card-bg, #fff);
+          border: 1px solid var(--border-color, #e5e7eb);
+          border-radius: 12px;
+          box-shadow: 0 10px 40px var(--shadow-color, rgba(0,0,0,0.15));
+          padding: 20px;
+          z-index: 1000;
+          min-width: 340px;
+          width: 340px;
+        }
+
+        .qt-date-picker-popup .qt-popup-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 12px;
+        }
+
+        .qt-date-picker-popup .qt-popup-header .qt-popup-title {
+          font-size: 14px;
+          font-weight: 600;
+          color: var(--text-primary, #1e293b);
+        }
+
+        .qt-date-picker-popup .qt-popup-header .qt-popup-close {
+          background: none;
+          border: none;
+          color: var(--text-secondary, #6b7280);
+          cursor: pointer;
+          font-size: 16px;
+          padding: 4px;
+        }
+
+        .qt-date-picker-popup .qt-popup-header .qt-popup-close:hover {
+          color: var(--text-primary, #1e293b);
+        }
+
+        .qt-date-picker-popup .qt-quick-filters {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+          margin-bottom: 16px;
+          padding-bottom: 12px;
+          border-bottom: 1px solid var(--border-color, #e5e7eb);
+        }
+
+        .qt-date-picker-popup .qt-quick-filter-btn {
+          padding: 4px 14px;
+          border: 1px solid var(--border-color, #e5e7eb);
+          border-radius: 16px;
+          background: var(--card-bg, #fff);
+          color: var(--text-secondary, #6b7280);
+          font-size: 12px;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .qt-date-picker-popup .qt-quick-filter-btn:hover {
+          border-color: var(--primary-color, #2563eb);
+          color: var(--primary-color, #2563eb);
+        }
+
+        .qt-date-picker-popup .qt-quick-filter-btn.active {
+          background: var(--primary-color, #2563eb);
+          border-color: var(--primary-color, #2563eb);
+          color: #fff;
+        }
+
+        .qt-date-picker-popup .qt-calendar-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 12px;
+        }
+
+        .qt-date-picker-popup .qt-calendar-header .qt-month-year {
+          font-size: 14px;
+          font-weight: 600;
+          color: var(--text-primary, #1e293b);
+        }
+
+        .qt-date-picker-popup .qt-calendar-header .qt-nav-btn {
+          background: none;
+          border: none;
+          color: var(--text-secondary, #6b7280);
+          cursor: pointer;
+          padding: 4px 8px;
+          font-size: 14px;
+          border-radius: 4px;
+          transition: all 0.2s;
+        }
+
+        .qt-date-picker-popup .qt-calendar-header .qt-nav-btn:hover {
+          background: var(--hover-bg, #f3f4f6);
+        }
+
+        .qt-date-picker-popup .qt-calendar-grid {
+          display: grid;
+          grid-template-columns: repeat(7, 1fr);
+          gap: 2px;
+          margin-bottom: 12px;
+        }
+
+        .qt-date-picker-popup .qt-calendar-grid .qt-day-header {
+          text-align: center;
+          font-size: 11px;
+          font-weight: 600;
+          color: var(--text-secondary, #6b7280);
+          padding: 4px 0;
+        }
+
+        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell {
+          text-align: center;
+          padding: 6px 4px;
+          font-size: 13px;
+          border-radius: 6px;
+          cursor: pointer;
+          transition: all 0.2s;
+          color: var(--text-primary, #1e293b);
+          position: relative;
+        }
+
+        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell.empty {
+          cursor: default;
+        }
+
+        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell:hover:not(.empty):not(.in-range) {
+          background: var(--hover-bg, #f3f4f6);
+        }
+
+        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell.in-range {
+          background: rgba(37, 99, 235, 0.1);
+        }
+
+        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell.selected {
+          background: var(--primary-color, #2563eb);
+          color: #fff;
+          font-weight: 600;
+        }
+
+        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell.selected-start {
+          background: var(--primary-color, #2563eb);
+          color: #fff;
+          font-weight: 600;
+          border-radius: 6px 0 0 6px;
+        }
+
+        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell.selected-end {
+          background: var(--primary-color, #2563eb);
+          color: #fff;
+          font-weight: 600;
+          border-radius: 0 6px 6px 0;
+        }
+
+        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell.range-middle {
+          background: rgba(37, 99, 235, 0.15);
+        }
+
+        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell.today {
+          border: 1px solid var(--primary-color, #2563eb);
+        }
+
+        .qt-date-picker-popup .qt-popup-actions {
+          display: flex;
+          gap: 8px;
+          justify-content: flex-end;
+          padding-top: 12px;
+          border-top: 1px solid var(--border-color, #e5e7eb);
+        }
+
+        .qt-date-picker-popup .qt-popup-actions button {
+          padding: 6px 16px;
+          border: none;
+          border-radius: 6px;
+          font-size: 13px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .qt-date-picker-popup .qt-popup-actions .qt-btn-apply {
+          background: var(--primary-color, #2563eb);
+          color: #fff;
+        }
+
+        .qt-date-picker-popup .qt-popup-actions .qt-btn-apply:hover {
+          background: var(--primary-hover, #1d4ed8);
+        }
+
+        .qt-date-picker-popup .qt-popup-actions .qt-btn-clear {
+          background: transparent;
+          color: var(--text-secondary, #6b7280);
+        }
+
+        .qt-date-picker-popup .qt-popup-actions .qt-btn-clear:hover {
+          background: var(--hover-bg, #f3f4f6);
+        }
+
+        .qt-date-picker-popup .qt-popup-actions .qt-btn-cancel {
+          background: transparent;
+          color: var(--text-secondary, #6b7280);
+        }
+
+        .qt-date-picker-popup .qt-popup-actions .qt-btn-cancel:hover {
+          background: var(--hover-bg, #f3f4f6);
+        }
+
+        /* Pagination Styles */
+        .qt-pagination-bar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 12px 16px;
+          border-top: 1px solid var(--border-color, #e5e7eb);
+          flex-wrap: wrap;
+          gap: 8px;
+        }
+
+        .qt-pagination-left {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          font-size: 13px;
+          color: var(--text-secondary, #6b7280);
+        }
+
+        .qt-pagination-left select {
+          padding: 4px 8px;
+          border: 1px solid var(--border-color, #e5e7eb);
+          border-radius: 4px;
+          background: var(--card-bg, #fff);
+          color: var(--text-primary, #1e293b);
+          font-size: 13px;
+          cursor: pointer;
+        }
+
+        .qt-pagination-center {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+
+        .qt-page-btn {
+          padding: 6px 12px;
+          border: 1px solid var(--border-color, #e5e7eb);
+          border-radius: 4px;
+          background: var(--card-bg, #fff);
+          color: var(--text-primary, #1e293b);
+          font-size: 13px;
+          cursor: pointer;
+          transition: all 0.2s;
+          min-width: 32px;
+          text-align: center;
+        }
+
+        .qt-page-btn:hover:not(:disabled) {
+          background: var(--nav-hover, #f8fafc);
+          border-color: var(--primary-color, #2563eb);
+        }
+
+        .qt-page-btn.active {
+          background: var(--primary-color, #2563eb);
+          border-color: var(--primary-color, #2563eb);
+          color: #fff;
+        }
+
+        .qt-page-btn:disabled {
+          opacity: 0.4;
+          cursor: not-allowed;
+        }
+
+        .qt-page-btn.arrow {
+          padding: 6px 10px;
+        }
+
+        .qt-pagination-right {
+          font-size: 13px;
+          color: var(--text-secondary, #6b7280);
+        }
+
+        /* Filter bar responsive */
+        .qt-filter-bar {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          padding: 12px 16px;
+          background: var(--card-bg, #fff);
+          border-bottom: 1px solid var(--border-color, #e5e7eb);
+        }
+
+        .qt-filter-left {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 8px;
+          flex: 1;
+        }
+
+        .qt-filter-right {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .qt-search-wrapper {
+          position: relative;
+          flex: 1;
+          min-width: 200px;
+        }
+
+        .qt-search-input {
+          width: 100%;
+          padding: 8px 12px 8px 36px;
+          border: 1px solid var(--border-color, #e5e7eb);
+          border-radius: 8px;
+          background: var(--input-bg, #fff);
+          color: var(--text-primary, #1e293b);
+          font-size: 13px;
+          min-height: 38px;
+        }
+
+        .qt-search-input:focus {
+          outline: none;
+          border-color: var(--primary-color, #2563eb);
+          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .qt-search-icon {
+          position: absolute;
+          left: 12px;
+          top: 50%;
+          transform: translateY(-50%);
+          color: var(--text-secondary, #6b7280);
+          font-size: 14px;
+        }
+
+        .qt-search-clear {
+          position: absolute;
+          right: 8px;
+          top: 50%;
+          transform: translateY(-50%);
+          background: none;
+          border: none;
+          color: var(--text-secondary, #6b7280);
+          cursor: pointer;
+          padding: 4px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .qt-search-clear:hover {
+          background: var(--hover-bg, #f3f4f6);
+        }
+
+        .qt-filter-select {
+          padding: 8px 12px;
+          border: 1px solid var(--border-color, #e5e7eb);
+          border-radius: 8px;
+          background: var(--input-bg, #fff);
+          color: var(--text-primary, #1e293b);
+          font-size: 13px;
+          min-height: 38px;
+          cursor: pointer;
+        }
+
+        .qt-filter-select:focus {
+          outline: none;
+          border-color: var(--primary-color, #2563eb);
+        }
+
+        .qt-btn-new {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 8px 16px;
+          background: var(--primary-color, #2563eb);
+          color: #fff;
+          border: none;
+          border-radius: 8px;
+          font-size: 13px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s;
+          min-height: 38px;
+          white-space: nowrap;
+        }
+
+        .qt-btn-new:hover {
+          background: var(--primary-hover, #1d4ed8);
+          transform: translateY(-1px);
+        }
+
+        /* Active filters */
+        .qt-active-filters {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 8px;
+          padding: 8px 16px;
+          background: var(--hover-bg, #f8fafc);
+          border-bottom: 1px solid var(--border-color, #e5e7eb);
+          font-size: 13px;
+        }
+
+        .qt-clear-filters {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          padding: 4px 10px;
+          border: none;
+          border-radius: 4px;
+          background: var(--danger-color, #ef4444);
+          color: #fff;
+          font-size: 12px;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .qt-clear-filters:hover {
+          background: var(--danger-hover, #dc2626);
+        }
+
+        @media (max-width: 768px) {
+          .qt-filter-bar {
+            flex-direction: column;
+            align-items: stretch;
+          }
+          .qt-filter-left {
+            flex-direction: column;
+            align-items: stretch;
+          }
+          .qt-filter-right {
+            justify-content: stretch;
+          }
+          .qt-filter-right select {
+            flex: 1;
+          }
+          .qt-btn-new {
+            justify-content: center;
+            flex: 1;
+          }
+          .qt-date-picker-container {
+            width: 100%;
+          }
+          .qt-date-picker-trigger {
+            width: 100%;
+            justify-content: center;
+          }
+          .qt-date-picker-popup {
+            left: 0;
+            min-width: 100%;
+            width: 100%;
+          }
+          .qt-pagination-bar {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 8px;
+          }
+          .qt-pagination-left,
+          .qt-pagination-center,
+          .qt-pagination-right {
+            justify-content: center;
+          }
+          .qt-date-picker-popup {
+            left: -50px;
+            min-width: 280px;
+            width: 280px;
+          }
+        }
+      `}</style>
 
       {/* Search and Filter Bar */}
       <div className="qt-filter-bar">
@@ -1389,7 +2267,7 @@ export default function SalesOrder() {
             <FaSearch className="qt-search-icon" />
             <input
               type="text"
-              placeholder="Search by Order # or Customer..."
+              placeholder="Search by Order #, Customer Name, or Customer Code..."
               value={filterText}
               onChange={(e) => setFilterText(e.target.value)}
               className="qt-search-input"
@@ -1401,6 +2279,7 @@ export default function SalesOrder() {
             )}
           </div>
         </div>
+        
         <div className="qt-filter-right">
           <select
             value={selectedOrderType}
@@ -1425,6 +2304,127 @@ export default function SalesOrder() {
             <option value="Cancelled">Cancelled</option>
             <option value="Closed">Closed</option>
           </select>
+          
+          {/* Date Range Picker - Before Add Button */}
+          <div className="qt-date-picker-container">
+            <div 
+              className={`qt-date-picker-trigger ${showDatePicker ? 'active' : ''}`}
+              onClick={openDatePicker}
+            >
+              <FaCalendarAlt className="qt-calendar-icon" />
+              <span className={`qt-date-label ${!startDate && !endDate ? 'placeholder' : ''}`}>
+                {startDate || endDate ? (
+                  <span className="qt-date-range-display">
+                    {startDate ? formatDateForDisplay(startDate) : 'Start'} – {endDate ? formatDateForDisplay(endDate) : 'End'}
+                  </span>
+                ) : (
+                  'Filter by Date'
+                )}
+              </span>
+            </div>
+            
+            {showDatePicker && (
+              <div className="qt-date-picker-popup">
+                <div className="qt-popup-header">
+                  <span className="qt-popup-title">Filter by Date</span>
+                  <button className="qt-popup-close" onClick={() => setShowDatePicker(false)}>
+                    <FaTimes size={14} />
+                  </button>
+                </div>
+                
+                {/* Quick Filters */}
+                <div className="qt-quick-filters">
+                  <button 
+                    className={`qt-quick-filter-btn ${selectedQuickFilter === 'today' ? 'active' : ''}`}
+                    onClick={() => applyQuickFilter('today')}
+                  >
+                    Today
+                  </button>
+                  <button 
+                    className={`qt-quick-filter-btn ${selectedQuickFilter === 'last7' ? 'active' : ''}`}
+                    onClick={() => applyQuickFilter('last7')}
+                  >
+                    Last 7 Days
+                  </button>
+                  <button 
+                    className={`qt-quick-filter-btn ${selectedQuickFilter === 'last30' ? 'active' : ''}`}
+                    onClick={() => applyQuickFilter('last30')}
+                  >
+                    Last 30 Days
+                  </button>
+                  <button 
+                    className={`qt-quick-filter-btn ${selectedQuickFilter === 'thisMonth' ? 'active' : ''}`}
+                    onClick={() => applyQuickFilter('thisMonth')}
+                  >
+                    This Month
+                  </button>
+                </div>
+                
+                {/* Calendar */}
+                <div className="qt-calendar-header">
+                  <button className="qt-nav-btn" onClick={() => changeMonth(-1)}>
+                    <FaChevronLeft size={12} />
+                  </button>
+                  <span className="qt-month-year">
+                    {getMonthName(currentMonth)} {currentYear}
+                  </span>
+                  <button className="qt-nav-btn" onClick={() => changeMonth(1)}>
+                    <FaChevronRight size={12} />
+                  </button>
+                </div>
+                
+                <div className="qt-calendar-grid">
+                  {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
+                    <div key={day} className="qt-day-header">{day}</div>
+                  ))}
+                  {generateCalendarDays().map((day, index) => {
+                    if (day === null) {
+                      return <div key={`empty-${index}`} className="qt-day-cell empty"></div>;
+                    }
+                    
+                    const dateObj = new Date(currentYear, currentMonth, day);
+                    const dateStr = dateObj.toISOString().split('T')[0];
+                    const isToday = dateStr === getTodayDate();
+                    const isInRange = isDateInRange(day);
+                    const isSelected = isDateSelected(day);
+                    const isStart = dateStr === tempStartDate;
+                    const isEnd = dateStr === tempEndDate;
+                    
+                    let className = 'qt-day-cell';
+                    if (isToday) className += ' today';
+                    if (isInRange && !isSelected) className += ' in-range';
+                    if (isSelected) className += ' selected';
+                    if (isStart && tempEndDate) className += ' selected-start';
+                    if (isEnd && tempStartDate) className += ' selected-end';
+                    if (isInRange && !isSelected && !isStart && !isEnd) className += ' range-middle';
+                    
+                    return (
+                      <div 
+                        key={day} 
+                        className={className}
+                        onClick={() => handleDateClick(day)}
+                      >
+                        {day}
+                      </div>
+                    );
+                  })}
+                </div>
+                
+                <div className="qt-popup-actions">
+                  <button className="qt-btn-clear" onClick={clearDateFilters}>
+                    Clear
+                  </button>
+                  <button className="qt-btn-cancel" onClick={() => setShowDatePicker(false)}>
+                    Cancel
+                  </button>
+                  <button className="qt-btn-apply" onClick={applyDateFilter}>
+                    Apply Filters
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+          
           <button className="qt-btn-new" onClick={() => navigate('/sales-order/new')}>
             <FaPlus size={12} /> Add Sales Order
           </button>
@@ -1432,7 +2432,7 @@ export default function SalesOrder() {
       </div>
 
       {/* Active filters indicator */}
-      {(filterText || selectedStatus !== 'All' || selectedOrderType !== 'All') && (
+      {(filterText || selectedStatus !== 'All' || selectedOrderType !== 'All' || startDate || endDate) && (
         <div className="qt-active-filters">
           <FaFilter size={12} style={{ color: 'var(--primary-color)' }} />
           <span style={{ color: 'var(--text-primary)' }}>Active filters:</span>
@@ -1449,6 +2449,11 @@ export default function SalesOrder() {
           {selectedOrderType !== 'All' && (
             <span style={{ color: 'var(--text-primary)' }}>
               <strong>Order Type:</strong> {selectedOrderType}
+            </span>
+          )}
+          {(startDate || endDate) && (
+            <span style={{ color: 'var(--text-primary)' }}>
+              <strong>Date:</strong> {startDate ? formatDateForDisplay(startDate) : 'Any'} – {endDate ? formatDateForDisplay(endDate) : 'Any'}
             </span>
           )}
           <button onClick={clearFilters} className="qt-clear-filters">
@@ -1477,7 +2482,7 @@ export default function SalesOrder() {
       {/* Table */}
       {!loading && !error && (
         <div className="qt-table-wrap">
-          {filteredOrders.length === 0 ? (
+          {salesOrders.length === 0 ? (
             <div className="qt-empty-state">
               <div className="qt-empty-content">
                 <FaBoxOpen size={48} />
@@ -1486,96 +2491,147 @@ export default function SalesOrder() {
               </div>
             </div>
           ) : (
-            <table className="qt-table">
-              <thead>
-                <tr>
-                  <th className="qt-th">Order #</th>
-                  <th className="qt-th">Customer</th>
-                  <th className="qt-th">Date</th>
-                  <th className="qt-th">Order Type</th>
-                  <th className="qt-th">Status</th>
-                  <th className="qt-th qt-text-right">Amount</th>
-                  <th className="qt-th qt-th-meta">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredOrders.map((order, index) => (
-                  <tr key={order.id || `so-${index}`} className="qt-tr">
-                    <td className="qt-td qt-td-id">{order.salesOrderNumber}</td>
-                    <td className="qt-td">
-                      <div>
-                        <div className="qt-td-link">{order.customerName}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{order.customer}</div>
-                      </div>
-                    </td>
-                    <td className="qt-td">
-                      <div>{order.date ? new Date(order.date).toLocaleDateString() : '-'}</div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                        Delivery: {order.deliveryDate ? new Date(order.deliveryDate).toLocaleDateString() : '-'}
-                      </div>
-                    </td>
-                    <td className="qt-td">{order.orderType}</td>
-                    <td className="qt-td">
-                      <span className={`qt-status-badge ${getStatusColor(order.status)}`}>
-                        {getStatusIcon(order.status)}
-                        {order.status}
-                      </span>
-                    </td>
-                    <td className="qt-td qt-text-right qt-amount-cell">
-                      <span className="qt-currency">{order.currency}</span>
-                      {order.totalAmount.toLocaleString()}
-                    </td>
-                    <td className="qt-td qt-td-meta">
-                      <div className="qt-action-buttons">
-                        <button
-                          className="qt-action-btn qt-action-proforma"
-                          onClick={() => handleProformaInvoice(order)}
-                          title="Proforma Invoice"
-                          disabled={proformaLoadingId === order.id || order.status === 'Draft'}
-                        >
-                          {proformaLoadingId === order.id ? <FaSpinner className="spinning" size={12} /> : <FaFileInvoice size={12} />}
-                        </button>
-                        <div
-                          className="qt-more-menu-container"
-                          ref={(el) => { menuRefs.current[order.id] = el; }}
-                        >
-                          <button
-                            className="qt-action-btn qt-action-more"
-                            onClick={() => toggleMenu(order.id)}
-                            title="More"
-                          >
-                            <FaEllipsisV size={14} />
-                          </button>
-                          {showMoreMenu === order.id && (
-                            <div className="qt-more-menu-dropdown">
-                              <button onClick={() => { handleView(order); setShowMoreMenu(null); }}>
-                                <FaEye size={12} /> View
-                              </button>
-                              <button onClick={() => { handleEdit(order); setShowMoreMenu(null); }}>
-                                <FaEdit size={12} /> Edit
-                              </button>
-                              <button
-                                onClick={() => { handlePrintOrder(order); setShowMoreMenu(null); }}
-                                disabled={printLoadingId === order.id}
-                              >
-                                {printLoadingId === order.id ? <FaSpinner className="spinning" size={12} /> : <FaPrint size={12} />} Print
-                              </button>
-                              <div className="menu-divider" />
-                              <button
-                                className="danger"
-                                onClick={() => { handleDeleteClick(order); setShowMoreMenu(null); }}
-                              >
-                                <FaTrash size={12} /> Delete
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </td>
+            <>
+              <table className="qt-table">
+                <thead>
+                  <tr>
+                    <th className="qt-th">Order #</th>
+                    <th className="qt-th">Customer</th>
+                    <th className="qt-th">Date</th>
+                    <th className="qt-th">Order Type</th>
+                    <th className="qt-th">Status</th>
+                    <th className="qt-th qt-text-right">Amount</th>
+                    <th className="qt-th qt-th-meta">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {currentPageData.map((order, index) => (
+                    <tr key={order.id || `so-${index}`} className="qt-tr">
+                      <td className="qt-td qt-td-id">{order.salesOrderNumber}</td>
+                      <td className="qt-td">
+                        <div>
+                          <div className="qt-td-link">{order.customerName}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{order.customer}</div>
+                        </div>
+                      </td>
+                      <td className="qt-td">
+                        {/* ✅ USE FORMATTED DATE FOR DISPLAY */}
+                        <div>{order.date ? formatDisplayDate(order.date) : '-'}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                          Delivery: {order.deliveryDate ? formatDisplayDate(order.deliveryDate) : '-'}
+                        </div>
+                      </td>
+                      <td className="qt-td">{order.orderType}</td>
+                      <td className="qt-td">
+                        <span className={`qt-status-badge ${getStatusColor(order.status)}`}>
+                          {getStatusIcon(order.status)}
+                          {order.status}
+                        </span>
+                      </td>
+                      <td className="qt-td qt-text-right qt-amount-cell">
+                        <span className="qt-currency">{order.currency}</span>
+                        {order.totalAmount.toLocaleString()}
+                      </td>
+                      <td className="qt-td qt-td-meta">
+                        <div className="qt-action-buttons">
+                          <button
+                            className="qt-action-btn qt-action-proforma"
+                            onClick={() => handleProformaInvoice(order)}
+                            title="Proforma Invoice"
+                            disabled={proformaLoadingId === order.id || order.status === 'Draft'}
+                          >
+                            {proformaLoadingId === order.id ? <FaSpinner className="spinning" size={12} /> : <FaFileInvoice size={12} />}
+                          </button>
+                          <div
+                            className="qt-more-menu-container"
+                            ref={(el) => { menuRefs.current[order.id] = el; }}
+                          >
+                            <button
+                              className="qt-action-btn qt-action-more"
+                              onClick={() => toggleMenu(order.id)}
+                              title="More"
+                            >
+                              <FaEllipsisV size={14} />
+                            </button>
+                            {showMoreMenu === order.id && (
+                              <div className="qt-more-menu-dropdown">
+                                <button onClick={() => { handleView(order); setShowMoreMenu(null); }}>
+                                  <FaEye size={12} /> View
+                                </button>
+                                <button onClick={() => { handleEdit(order); setShowMoreMenu(null); }}>
+                                  <FaEdit size={12} /> Edit
+                                </button>
+                                <button
+                                  onClick={() => { handlePrintOrder(order); setShowMoreMenu(null); }}
+                                  disabled={printLoadingId === order.id}
+                                >
+                                  {printLoadingId === order.id ? <FaSpinner className="spinning" size={12} /> : <FaPrint size={12} />} Print
+                                </button>
+                                <div className="menu-divider" />
+                                <button
+                                  className="danger"
+                                  onClick={() => { handleDeleteClick(order); setShowMoreMenu(null); }}
+                                >
+                                  <FaTrash size={12} /> Delete
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {/* Pagination Bar */}
+              <div className="qt-pagination-bar">
+                <div className="qt-pagination-left">
+                  <span>Show:</span>
+                  <select value={pageSize} onChange={handlePageSizeChange}>
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                  <span>
+                    Showing {startIndex + 1} to {endIndex} of {totalFiltered} entries
+                  </span>
+                </div>
+
+                <div className="qt-pagination-center">
+                  <button
+                    className="qt-page-btn arrow"
+                    onClick={() => goToPage(currentPage - 1)}
+                    disabled={currentPage === 1}
+                  >
+                    <FaChevronLeft size={12} />
+                  </button>
+                  
+                  {getPageNumbers().map(page => (
+                    <button
+                      key={page}
+                      className={`qt-page-btn ${page === currentPage ? 'active' : ''}`}
+                      onClick={() => goToPage(page)}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                  
+                  <button
+                    className="qt-page-btn arrow"
+                    onClick={() => goToPage(currentPage + 1)}
+                    disabled={currentPage === totalPages || totalPages === 0}
+                  >
+                    <FaChevronRight size={12} />
+                  </button>
+                </div>
+
+                <div className="qt-pagination-right">
+                  <span>Page {currentPage} of {totalPages || 1}</span>
+                </div>
+              </div>
+            </>
           )}
         </div>
       )}
@@ -1584,7 +2640,7 @@ export default function SalesOrder() {
       <div className="qt-pagination">
         <div className="qt-pagination-left">
           <span className="qt-pagination-info">
-            {filteredOrders.length} of {salesOrders.length} orders
+            {salesOrders.length} of {allSalesOrders.length} orders
           </span>
         </div>
         <div className="qt-pagination-right">
@@ -1660,8 +2716,9 @@ export default function SalesOrder() {
                   <div style={{ padding: '2px 0' }}><strong>State:</strong> {selectedOrder.customerState || 'N/A'}{selectedOrder.customerStateCode ? ` (Code: ${selectedOrder.customerStateCode})` : ''}</div>
                 </div>
                 <div style={{ fontSize: '13px', marginBottom: '16px' }}>
-                  <div style={{ padding: '2px 0' }}><strong>Date:</strong> {selectedOrder.date ? new Date(selectedOrder.date).toLocaleDateString() : 'N/A'}</div>
-                  <div style={{ padding: '2px 0' }}><strong>Delivery Date:</strong> {selectedOrder.deliveryDate ? new Date(selectedOrder.deliveryDate).toLocaleDateString() : 'N/A'}</div>
+                  {/* ✅ USE FORMATTED DATES FOR DISPLAY */}
+                  <div style={{ padding: '2px 0' }}><strong>Date:</strong> {selectedOrder.date ? formatDisplayDate(selectedOrder.date) : 'N/A'}</div>
+                  <div style={{ padding: '2px 0' }}><strong>Delivery Date:</strong> {selectedOrder.deliveryDate ? formatDisplayDate(selectedOrder.deliveryDate) : 'N/A'}</div>
                   <div style={{ padding: '2px 0' }}><strong>Order Type:</strong> {selectedOrder.orderType}</div>
                   <div style={{ padding: '2px 0' }}><strong>Status:</strong> {selectedOrder.status}</div>
                   <div style={{ padding: '2px 0' }}><strong>Currency:</strong> {selectedOrder.currency}</div>

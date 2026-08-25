@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FaSearch,
@@ -16,6 +16,8 @@ import {
   FaPlus,
   FaCheck,
   FaPlusCircle,
+  FaChevronDown,
+  FaCalendarAlt,
 } from 'react-icons/fa';
 import "./UOMList.css";
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
@@ -104,6 +106,15 @@ export default function UOMList() {
   const [newCategoryName, setNewCategoryName] = useState('');
   const [categoryApiError, setCategoryApiError] = useState<string | null>(null);
 
+  // ─── Date Range Filter State (From - To, same UI as Purchase Order) ───
+  const [dateFrom, setDateFrom] = useState<Date | null>(null);
+  const [dateTo, setDateTo] = useState<Date | null>(null);
+  const [tempFrom, setTempFrom] = useState<Date | null>(null);
+  const [tempTo, setTempTo] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [calendarMonth, setCalendarMonth] = useState<Date>(new Date());
+  const datePickerRef = useRef<HTMLDivElement>(null);
+
   // Fetch categories
   const fetchCategories = async () => {
     try {
@@ -115,6 +126,114 @@ export default function UOMList() {
       console.error('Error fetching categories:', err);
     }
   };
+
+  // ─── Date Range Filter Helpers ─────────────────────────────────────────
+  const toISODate = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
+  const formatDateShort = (d: Date) =>
+    d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+  const isSameDay = (a: Date | null, b: Date | null) =>
+    !!a && !!b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+
+  const dateButtonLabel =
+    dateFrom && dateTo ? `${formatDateShort(dateFrom)} – ${formatDateShort(dateTo)}` : 'From - To';
+
+  const getCalendarDays = (monthDate: Date): (Date | null)[] => {
+    const year = monthDate.getFullYear();
+    const month = monthDate.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const startWeekday = firstDay.getDay();
+    const days: (Date | null)[] = [];
+    for (let i = 0; i < startWeekday; i++) days.push(null);
+    for (let d = 1; d <= lastDay.getDate(); d++) days.push(new Date(year, month, d));
+    return days;
+  };
+
+  const openDatePicker = () => {
+    setTempFrom(dateFrom);
+    setTempTo(dateTo);
+    setCalendarMonth(dateFrom || new Date());
+    setShowDatePicker((prev) => !prev);
+  };
+
+  const handleDayClick = (day: Date) => {
+    if (!tempFrom || (tempFrom && tempTo)) {
+      setTempFrom(day);
+      setTempTo(null);
+    } else if (day < tempFrom) {
+      setTempTo(tempFrom);
+      setTempFrom(day);
+    } else {
+      setTempTo(day);
+    }
+  };
+
+  const setQuickRange = (type: 'today' | '7days' | '30days' | 'month') => {
+    const now = new Date();
+    const todayOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    let from: Date;
+    let to: Date;
+    switch (type) {
+      case 'today':
+        from = todayOnly;
+        to = todayOnly;
+        break;
+      case '7days':
+        to = todayOnly;
+        from = new Date(todayOnly);
+        from.setDate(from.getDate() - 6);
+        break;
+      case '30days':
+        to = todayOnly;
+        from = new Date(todayOnly);
+        from.setDate(from.getDate() - 29);
+        break;
+      case 'month':
+        from = new Date(now.getFullYear(), now.getMonth(), 1);
+        to = todayOnly;
+        break;
+    }
+    setTempFrom(from);
+    setTempTo(to);
+    setCalendarMonth(from);
+  };
+
+  const prevMonth = () => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1));
+  const nextMonth = () => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1));
+
+  const applyDateFilter = () => {
+    setDateFrom(tempFrom);
+    setDateTo(tempTo);
+    setShowDatePicker(false);
+    setCurrentPage(1);
+  };
+
+  const clearDateFilterOnly = () => {
+    setTempFrom(null);
+    setTempTo(null);
+    setDateFrom(null);
+    setDateTo(null);
+  };
+
+  // Close the date picker popup when clicking outside of it
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (datePickerRef.current && !datePickerRef.current.contains(e.target as Node)) {
+        setShowDatePicker(false);
+      }
+    };
+    if (showDatePicker) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showDatePicker]);
 
   // Fetch UOMs from API
   const fetchUOMs = async () => {
@@ -131,6 +250,13 @@ export default function UOMList() {
       
       if (statusFilter !== 'all') {
         params.append('enabled', statusFilter === 'enabled' ? '1' : '0');
+      }
+
+      if (dateFrom) {
+        params.append('from', toISODate(dateFrom));
+      }
+      if (dateTo) {
+        params.append('to', toISODate(dateTo));
       }
 
       const response = await api.get<ApiResponse>(`/uom?${params.toString()}`);
@@ -157,12 +283,12 @@ export default function UOMList() {
   // Fetch when dependencies change
   useEffect(() => {
     fetchUOMs();
-  }, [currentPage, itemsPerPage, searchTerm, statusFilter]);
+  }, [currentPage, itemsPerPage, searchTerm, statusFilter, dateFrom, dateTo]);
 
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, statusFilter, itemsPerPage]);
+  }, [searchTerm, statusFilter, itemsPerPage, dateFrom, dateTo]);
 
   // Filter categories based on search
   const filteredCategories = categories.filter(cat =>
@@ -366,6 +492,7 @@ export default function UOMList() {
   const clearFilters = () => {
     setSearchTerm('');
     setStatusFilter('all');
+    clearDateFilterOnly();
   };
 
   const getStartIndex = () => {
@@ -388,6 +515,8 @@ export default function UOMList() {
     if (diffDays < 365) return `${Math.floor(diffDays / 30)}mo`;
     return date.toLocaleDateString();
   };
+
+  const weekdayLabels = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
   return (
     <div className={`uoml-page ${theme}`}>
@@ -424,6 +553,122 @@ export default function UOMList() {
             <FaFilter size={12} />
             Filter
           </button>
+
+          {/* ─── From - To Date Filter Button + Calendar Popup ─────────── */}
+          <div ref={datePickerRef} className="uoml-date-filter-wrapper">
+            <button
+              type="button"
+              onClick={openDatePicker}
+              className="uoml-date-btn"
+            >
+              <FaCalendarAlt size={13} className="uoml-date-btn-icon" />
+              {dateButtonLabel}
+              <FaChevronDown size={10} className="uoml-date-btn-chevron" />
+            </button>
+
+            {showDatePicker && (
+              <div className="uoml-date-popup">
+                {/* Header */}
+                <div className="uoml-date-popup-header">
+                  <span className="uoml-date-popup-title">Filter by Date</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowDatePicker(false)}
+                    className="uoml-date-popup-close"
+                  >
+                    <FaTimes size={14} />
+                  </button>
+                </div>
+
+                {/* Quick range chips */}
+                <div className="uoml-date-quick-row">
+                  {[
+                    { label: 'Today', type: 'today' as const },
+                    { label: 'Last 7 Days', type: '7days' as const },
+                    { label: 'Last 30 Days', type: '30days' as const },
+                    { label: 'This Month', type: 'month' as const },
+                  ].map((q) => (
+                    <button
+                      key={q.type}
+                      type="button"
+                      onClick={() => setQuickRange(q.type)}
+                      className="uoml-date-quick-chip"
+                    >
+                      {q.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Month navigation */}
+                <div className="uoml-date-month-nav">
+                  <button type="button" onClick={prevMonth} className="uoml-date-nav-btn">
+                    <FaChevronLeft size={12} />
+                  </button>
+                  <span className="uoml-date-month-label">
+                    {calendarMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                  </span>
+                  <button type="button" onClick={nextMonth} className="uoml-date-nav-btn">
+                    <FaChevronRight size={12} />
+                  </button>
+                </div>
+
+                {/* Weekday header */}
+                <div className="uoml-date-weekday-row">
+                  {weekdayLabels.map((wd) => (
+                    <span key={wd} className="uoml-date-weekday">
+                      {wd}
+                    </span>
+                  ))}
+                </div>
+
+                {/* Day grid */}
+                <div className="uoml-date-day-grid">
+                  {getCalendarDays(calendarMonth).map((day, idx) => {
+                    if (!day) return <div key={`empty-${idx}`} />;
+
+                    const isFrom = isSameDay(day, tempFrom);
+                    const isTo = isSameDay(day, tempTo);
+                    const inRange =
+                      tempFrom && tempTo && day > tempFrom && day < tempTo;
+                    const isEndpoint = isFrom || isTo;
+
+                    return (
+                      <button
+                        key={day.toISOString()}
+                        type="button"
+                        onClick={() => handleDayClick(day)}
+                        className={`uoml-date-day ${isEndpoint ? 'uoml-date-day-endpoint' : ''} ${inRange ? 'uoml-date-day-inrange' : ''}`}
+                      >
+                        {day.getDate()}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Footer actions */}
+                <div className="uoml-date-popup-footer">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTempFrom(null);
+                      setTempTo(null);
+                    }}
+                    className="uoml-date-clear-btn"
+                  >
+                    Clear
+                  </button>
+                  <button
+                    type="button"
+                    onClick={applyDateFilter}
+                    className="uoml-date-apply-btn"
+                  >
+                    Apply Filters
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
           <button className="uoml-sort-btn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="9" y2="18"/>
@@ -439,7 +684,7 @@ export default function UOMList() {
       </div>
 
       {/* Active filters indicator */}
-      {(searchTerm || statusFilter !== 'all') && (
+      {(searchTerm || statusFilter !== 'all' || (dateFrom && dateTo)) && (
         <div className="uoml-active-filters">
           <FaFilter size={12} style={{ color: 'var(--primary-color)' }} />
           <span style={{ color: 'var(--text-primary)' }}>Active filters:</span>
@@ -451,6 +696,11 @@ export default function UOMList() {
           {statusFilter !== 'all' && (
             <span style={{ color: 'var(--text-primary)' }}>
               <strong>Status:</strong> {statusFilter}
+            </span>
+          )}
+          {dateFrom && dateTo && (
+            <span style={{ color: 'var(--text-primary)' }}>
+              <strong>Date:</strong> {formatDateShort(dateFrom)} – {formatDateShort(dateTo)}
             </span>
           )}
           <button 

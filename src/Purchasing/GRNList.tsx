@@ -62,7 +62,7 @@ interface GRNDisplay {
   purchaseOrderId: number | null;
   poReference: string;
   date: string;
-  dateRaw: string; // Added for proper date comparison
+  dateRaw: string;
   status: 'draft' | 'submitted' | 'completed' | 'rejected';
   items: number;
   receivedBy: string;
@@ -74,6 +74,8 @@ interface GRNDisplay {
   isService: boolean;
   isManual: boolean;
   type: string;
+  // Formatted display fields
+  displayDate?: string;
 }
 
 interface ApiResponse {
@@ -93,6 +95,7 @@ type TabId = 'all' | 'po' | 'manual' | 'service';
 
 // ─── Date helpers ────────────────────────────────────────────────
 
+// ✅ NEW: Format date for API (YYYY-MM-DD)
 const toISODate = (d: Date): string => {
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -100,8 +103,13 @@ const toISODate = (d: Date): string => {
   return `${year}-${month}-${day}`;
 };
 
-const formatDisplayDate = (iso: string): string => {
+// ✅ UPDATED: Format display date using context (will be replaced in component)
+const formatDisplayDate = (iso: string, formatFn?: (date: string) => string): string => {
   if (!iso) return '';
+  if (formatFn) {
+    return formatFn(iso);
+  }
+  // Fallback if formatFn not provided
   const [y, m, d] = iso.split('-').map(Number);
   const date = new Date(y, m - 1, d);
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -117,9 +125,10 @@ interface RangeCalendarProps {
   fromDate: string;
   toDate: string;
   onSelect: (from: string, to: string) => void;
+  formatDisplayDateFn: (iso: string) => string;
 }
 
-function RangeCalendar({ month, onMonthChange, fromDate, toDate, onSelect }: RangeCalendarProps) {
+function RangeCalendar({ month, onMonthChange, fromDate, toDate, onSelect, formatDisplayDateFn }: RangeCalendarProps) {
   const year = month.getFullYear();
   const monthIndex = month.getMonth();
   const firstDayOfMonth = new Date(year, monthIndex, 1);
@@ -221,7 +230,9 @@ function RangeCalendar({ month, onMonthChange, fromDate, toDate, onSelect }: Ran
 
 export default function GRNList() {
   const navigate = useNavigate();
-  const { theme } = useAdminTheme();
+  
+  // ✅ GET THE DATE FORMAT FUNCTION FROM CONTEXT
+  const { theme, formatDate, getApiDateFormat } = useAdminTheme();
 
   // ── State ──────────────────────────────────────────────────────
   const [allGrns, setAllGrns] = useState<GRNDisplay[]>([]);
@@ -241,6 +252,17 @@ export default function GRNList() {
   const [showDateFilterDropdown, setShowDateFilterDropdown] = useState(false);
   const [calMonth, setCalMonth] = useState<Date>(new Date());
   const dateFilterRef = useRef<HTMLDivElement>(null);
+
+  // ✅ NEW: Format display date using context
+  const formatDisplayDateWithContext = (dateString: string) => {
+    if (!dateString) return '';
+    return formatDate(dateString);
+  };
+
+  // ✅ NEW: Format date for API (YYYY-MM-DD)
+  const toApiDateFormat = (date: Date) => {
+    return getApiDateFormat(date);
+  };
 
   // ── Tabs config ─────────────────────────────────────────────────
   const tabs: { id: TabId; label: string; icon: JSX.Element }[] = [
@@ -303,9 +325,10 @@ export default function GRNList() {
     setDateTo('');
   };
 
+  // ✅ UPDATED: Date button label using context formatter
   const dateButtonLabel = () => {
     if (dateFrom) {
-      return `${formatDisplayDate(dateFrom)}${dateTo ? ' – ' + formatDisplayDate(dateTo) : ''}`;
+      return `${formatDisplayDateWithContext(dateFrom)}${dateTo ? ' – ' + formatDisplayDateWithContext(dateTo) : ''}`;
     }
     return 'From - To';
   };
@@ -319,7 +342,11 @@ export default function GRNList() {
       const params = new URLSearchParams();
       params.append('limit', '10000');
 
-      // Date filters - ensure proper date format
+      if (searchTerm.trim()) {
+        params.append('search', searchTerm.trim());
+        console.log('Searching with term:', searchTerm.trim());
+      }
+
       if (dateFrom) {
         params.append('date_from', dateFrom);
         console.log('Filtering from date:', dateFrom);
@@ -337,6 +364,7 @@ export default function GRNList() {
         const records = response.data.data.data || [];
         console.log('Records received:', records.length);
         
+        // ✅ TRANSFORM DATA WITH FORMATTED DATES
         const transformed: GRNDisplay[] = records.map((item: GRN) => {
           const isService = item.type === 'External';
           const isManual = item.purchase_order_id === null && item.customer_id === null;
@@ -355,8 +383,8 @@ export default function GRNList() {
             customerId: item.customer_id,
             purchaseOrderId: item.purchase_order_id,
             poReference: item.purchase_order_id ? `PO-${String(item.purchase_order_id).padStart(5, '0')}` : 'N/A',
-            date: formatDateDisplay(item.grn_date),
-            dateRaw: item.grn_date, // Store raw date for sorting
+            date: formatDisplayDate(item.grn_date, formatDisplayDateWithContext),
+            dateRaw: item.grn_date,
             status: item.status || 'draft',
             items: item.total_items || 0,
             receivedBy: item.received_by || 'N/A',
@@ -368,6 +396,8 @@ export default function GRNList() {
             isService,
             isManual,
             type: item.type || '',
+            // ✅ ADD FORMATTED DATE FOR DISPLAY
+            displayDate: item.grn_date ? formatDisplayDateWithContext(item.grn_date) : ''
           };
         });
 
@@ -388,17 +418,11 @@ export default function GRNList() {
     }
   };
 
-  const formatDateDisplay = (dateString: string) => {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-  };
-
   // ─── Effects ────────────────────────────────────────────────────
 
   useEffect(() => {
     fetchGRNs();
-  }, [dateFrom, dateTo]);
+  }, [searchTerm, dateFrom, dateTo]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -408,15 +432,6 @@ export default function GRNList() {
 
   const getFilteredGrns = (): GRNDisplay[] => {
     let filtered = allGrns;
-
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(g =>
-        g.grnNo.toLowerCase().includes(term) ||
-        g.partyName.toLowerCase().includes(term) ||
-        g.poReference.toLowerCase().includes(term)
-      );
-    }
 
     if (statusFilter !== 'all') {
       filtered = filtered.filter(g => g.status === statusFilter);
@@ -652,13 +667,13 @@ export default function GRNList() {
                     flex: 1, padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: '4px',
                     fontSize: '12px', color: dateFrom ? '#1a202c' : '#a0aec0'
                   }}>
-                    {dateFrom ? formatDisplayDate(dateFrom) : 'From'}
+                    {dateFrom ? formatDisplayDateWithContext(dateFrom) : 'From'}
                   </div>
                   <div style={{
                     flex: 1, padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: '4px',
                     fontSize: '12px', color: dateTo ? '#1a202c' : '#a0aec0'
                   }}>
-                    {dateTo ? formatDisplayDate(dateTo) : 'To'}
+                    {dateTo ? formatDisplayDateWithContext(dateTo) : 'To'}
                   </div>
                 </div>
 
@@ -696,6 +711,7 @@ export default function GRNList() {
                   fromDate={dateFrom}
                   toDate={dateTo}
                   onSelect={(from, to) => { setDateFrom(from); setDateTo(to); }}
+                  formatDisplayDateFn={formatDisplayDateWithContext}
                 />
 
                 <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '14px' }}>
@@ -756,8 +772,8 @@ export default function GRNList() {
           {statusFilter !== 'all' && (
             <span><strong>Status:</strong> {getStatusLabel(statusFilter)}</span>
           )}
-          {dateFrom && <span><strong>From:</strong> {dateFrom}</span>}
-          {dateTo && <span><strong>To:</strong> {dateTo}</span>}
+          {dateFrom && <span><strong>From:</strong> {formatDisplayDateWithContext(dateFrom)}</span>}
+          {dateTo && <span><strong>To:</strong> {formatDisplayDateWithContext(dateTo)}</span>}
           <button onClick={clearFilters} className="grn-clear-filters">
             <FaTimes size={10} /> Clear All
           </button>
@@ -824,7 +840,8 @@ export default function GRNList() {
                   <td className="grn-td">
                     <span className="grn-date">
                       <FaCalendarAlt size={10} style={{ marginRight: 4 }} />
-                      {row.date}
+                      {/* ✅ USE FORMATTED DATE FOR DISPLAY */}
+                      {row.displayDate || row.date}
                     </span>
                   </td>
                   <td className="grn-td">

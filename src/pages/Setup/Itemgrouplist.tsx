@@ -1,4 +1,4 @@
-import { useState, useEffect, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   FaSearch,
@@ -11,12 +11,12 @@ import {
   FaEye,
   FaEdit,
   FaTrash,
-
   FaSave,
   FaSpinner,
   FaTag,
   FaFolder,
   FaArrowLeft,
+  FaCalendarAlt,
 } from 'react-icons/fa';
 import "./Itemgrouplist.css";
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
@@ -43,7 +43,6 @@ interface ItemGroupDisplay {
   comments: number;
 }
 
-// ─── Detail View Interface ──────────────────────────────────────────────
 interface ItemGroupDetail {
   id: string;
   item_group_name: string;
@@ -85,8 +84,8 @@ export default function ItemGroupList() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const { theme } = useAdminTheme();
+  const datePickerRef = useRef<HTMLDivElement>(null);
 
-  // ─── List View State ──────────────────────────────────────────────────────
   const [itemGroups, setItemGroups] = useState<ItemGroupDisplay[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -100,21 +99,25 @@ export default function ItemGroupList() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedItem, setSelectedItem] = useState<ItemGroupDisplay | null>(null);
 
-  // ─── Detail View State ────────────────────────────────────────────────────
+  // ---- Date filter (calendar) state ----
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [dateFilterActive, setDateFilterActive] = useState(false);
+  const [calendarViewDate, setCalendarViewDate] = useState<Date>(new Date());
+
   const [detailData, setDetailData] = useState<ItemGroupDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
 
-  // ─── Edit Modal State ──────────────────────────────────────────────────
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState<EditFormState | null>(null);
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
-  // ─── Check if we are in detail view ─────────────────────────────────────
+
   const isDetailView = !!id;
 
-  // ─── Format date to "X h" or "X d" format ──────────────────────────────
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -132,7 +135,6 @@ export default function ItemGroupList() {
     return `${Math.floor(diffDays / 365)} y`;
   };
 
-  // ─── Format date for display ──────────────────────────────────────────────
   const formatDisplayDate = (dateString: string) => {
     if (!dateString) return 'N/A';
     const date = new Date(dateString);
@@ -145,12 +147,44 @@ export default function ItemGroupList() {
     });
   };
 
-  // ─── Fetch Item Group Detail - THIS IS THE API CALL ─────────────────────
+  // Local (non-UTC) YYYY-MM-DD formatter, avoids the timezone-shift bug
+  // that toISOString() causes when converting local dates to API params.
+  const toLocalDateStr = (date: Date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
+  const formatDateForAPI = (dateString: string) => {
+    if (!dateString) return '';
+    return dateString; // already stored as YYYY-MM-DD
+  };
+
+  const formatDateForDisplay = (dateString: string) => {
+    if (!dateString) return 'Select date';
+    const date = new Date(dateString + 'T00:00:00');
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric', 
+      year: 'numeric'
+    });
+  };
+
+  // Short label used inside the trigger button, e.g. "Aug 18 – Aug 20, 2026"
+  const formatButtonRangeLabel = () => {
+    if (!fromDate || !toDate) return 'From - To';
+    const from = new Date(fromDate + 'T00:00:00');
+    const to = new Date(toDate + 'T00:00:00');
+    const fromLabel = from.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const toLabel = to.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return `${fromLabel} – ${toLabel}`;
+  };
+
   const fetchItemGroupDetail = async (groupId: string) => {
     setDetailLoading(true);
     setDetailError(null);
     try {
-      // ✅ CORRECT API CALL: https://erp.sculptortechpvtltd.com/api/item-group/{id}
       const response = await api.get<ApiDetailResponse>(`/item-group/${groupId}`);
       
       if (response.data.success === 1) {
@@ -166,12 +200,21 @@ export default function ItemGroupList() {
     }
   };
 
-  // ─── Fetch item groups from API ──────────────────────────────────────────
   const fetchItemGroups = async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await api.get<ApiResponse>(`/item-group?page=${currentPage}&limit=${itemsPerPage}`);
+      let url = `/item-group?page=${currentPage}&limit=${itemsPerPage}`;
+      
+      if (searchTerm.trim()) {
+        url += `&search=${encodeURIComponent(searchTerm.trim())}`;
+      }
+
+      if (fromDate && toDate) {
+        url += `&date_from=${formatDateForAPI(fromDate)}&date_to=${formatDateForAPI(toDate)}`;
+      }
+
+      const response = await api.get<ApiResponse>(url);
 
       if (response.data.success === 1) {
         const data = response.data.data;
@@ -199,28 +242,173 @@ export default function ItemGroupList() {
     }
   };
 
-  // ─── WHEN ID IS PRESENT, FETCH DETAIL DATA ──────────────────────────────
+  const handleSearch = (value: string) => {
+    setSearchTerm(value);
+    
+   
+
+    const timer = setTimeout(() => {
+      if (!isDetailView) {
+        setCurrentPage(1);
+        fetchItemGroups();
+      }
+    }, 500);
+
+  };
+
+  const applyDateFilter = () => {
+    if (fromDate && toDate) {
+      setDateFilterActive(true);
+      setCurrentPage(1);
+      fetchItemGroups();
+      setShowDatePicker(false);
+    } else {
+      alert('Please select both From and To dates');
+    }
+  };
+
+  const clearDateFilter = () => {
+    setFromDate('');
+    setToDate('');
+    setDateFilterActive(false);
+    setCurrentPage(1);
+    fetchItemGroups();
+    setShowDatePicker(false);
+  };
+
+  const setDateRange = (range: string) => {
+    const today = new Date();
+    let from = new Date();
+    
+    switch(range) {
+      case 'today':
+        from = new Date(today);
+        break;
+      case 'last7days':
+        from = new Date(today);
+        from.setDate(today.getDate() - 7);
+        break;
+      case 'last30days':
+        from = new Date(today);
+        from.setDate(today.getDate() - 30);
+        break;
+      case 'thisMonth':
+        from = new Date(today.getFullYear(), today.getMonth(), 1);
+        break;
+      default:
+        return;
+    }
+    
+    const fromStr = toLocalDateStr(from);
+    const toStr = toLocalDateStr(today);
+    setFromDate(fromStr);
+    setToDate(toStr);
+    setCalendarViewDate(today);
+  };
+
+  // ---- Calendar helpers ----
+  const calendarYear = calendarViewDate.getFullYear();
+  const calendarMonth = calendarViewDate.getMonth();
+
+  const calendarMonthLabel = calendarViewDate.toLocaleDateString('en-US', {
+    month: 'long',
+    year: 'numeric',
+  });
+
+  const getCalendarDays = (): (number | null)[] => {
+    const firstDay = new Date(calendarYear, calendarMonth, 1);
+    const startingDayOfWeek = firstDay.getDay(); // 0 = Sunday
+    const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
+    const days: (number | null)[] = [];
+    for (let i = 0; i < startingDayOfWeek; i++) days.push(null);
+    for (let d = 1; d <= daysInMonth; d++) days.push(d);
+    return days;
+  };
+
+  const goToPrevMonth = () => {
+    setCalendarViewDate(new Date(calendarYear, calendarMonth - 1, 1));
+  };
+
+  const goToNextMonth = () => {
+    setCalendarViewDate(new Date(calendarYear, calendarMonth + 1, 1));
+  };
+
+  const handleCalendarDayClick = (day: number | null) => {
+    if (day === null) return;
+    const clicked = new Date(calendarYear, calendarMonth, day);
+    const clickedStr = toLocalDateStr(clicked);
+
+    // Start a new range if nothing selected yet, or if a full range is already set
+    if (!fromDate || (fromDate && toDate)) {
+      setFromDate(clickedStr);
+      setToDate('');
+      return;
+    }
+
+    // fromDate is set, toDate is not: complete the range
+    const fromAsDate = new Date(fromDate + 'T00:00:00');
+    if (clicked < fromAsDate) {
+      setToDate(fromDate);
+      setFromDate(clickedStr);
+    } else {
+      setToDate(clickedStr);
+    }
+  };
+
+  const isSameDay = (dateStr: string, year: number, month: number, day: number) => {
+    if (!dateStr) return false;
+    const d = new Date(dateStr + 'T00:00:00');
+    return d.getFullYear() === year && d.getMonth() === month && d.getDate() === day;
+  };
+
+  const isDayInRange = (year: number, month: number, day: number) => {
+    if (!fromDate || !toDate) return false;
+    const current = new Date(year, month, day);
+    const from = new Date(fromDate + 'T00:00:00');
+    const to = new Date(toDate + 'T00:00:00');
+    return current > from && current < to;
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (datePickerRef.current && !datePickerRef.current.contains(event.target as Node)) {
+        setShowDatePicker(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // When the picker opens, jump the visible month to the current "from" date (if any)
+  useEffect(() => {
+    if (showDatePicker && fromDate) {
+      setCalendarViewDate(new Date(fromDate + 'T00:00:00'));
+    }
+  }, [showDatePicker]);
+
   useEffect(() => {
     if (id) {
       fetchItemGroupDetail(id);
     }
   }, [id]);
 
-  // ─── Fetch list when dependencies change ────────────────────────────────
   useEffect(() => {
     if (!isDetailView) {
       fetchItemGroups();
     }
   }, [currentPage, itemsPerPage, isDetailView]);
 
-  // ─── Reset page when filters change ─────────────────────────────────────
   useEffect(() => {
     if (!isDetailView) {
       setCurrentPage(1);
     }
-  }, [searchTerm, statusFilter, isDetailView]);
+  }, [statusFilter, isDetailView]);
 
-  // ─── Filter data based on search and status ─────────────────────────────
+  
+
   const filteredData = itemGroups.filter(item => {
     const matchesSearch = item.itemGroupName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           item.id.toLowerCase().includes(searchTerm.toLowerCase());
@@ -314,7 +502,6 @@ export default function ItemGroupList() {
     }
   };
 
-  // ─── Edit Modal Handlers ───────────────────────────────────────────────
   const handleEdit = (item: ItemGroupDisplay) => {
     setEditForm({
       id: item.id,
@@ -382,12 +569,10 @@ export default function ItemGroupList() {
     }
   };
 
-  // ─── View Handler - Navigate to detail page ──────────────────────────────
   const handleView = (item: ItemGroupDisplay) => {
     navigate(`/item-group/${encodeURIComponent(item.id)}`);
   };
 
-  // ─── Go Back to List ──────────────────────────────────────────────────────
   const goBackToList = () => {
     navigate('/item-group');
   };
@@ -395,6 +580,12 @@ export default function ItemGroupList() {
   const clearFilters = () => {
     setSearchTerm('');
     setStatusFilter('all');
+    setFromDate('');
+    setToDate('');
+    setDateFilterActive(false);
+    if (!isDetailView) {
+      fetchItemGroups();
+    }
   };
 
   const getStartIndex = () => {
@@ -405,11 +596,9 @@ export default function ItemGroupList() {
     return Math.min(validCurrentPage * itemsPerPage, totalFilteredItems);
   };
 
-  // ─── RENDER: Detail View (View Page) ────────────────────────────────────
   if (isDetailView) {
     return (
       <div className={`igl-page ${theme}`}>
-        {/* Back Button */}
         <div className="igl-detail-header">
           <button className="igl-back-btn" onClick={goBackToList}>
             <FaArrowLeft size={14} /> Back to List
@@ -419,7 +608,6 @@ export default function ItemGroupList() {
           </h1>
         </div>
 
-        {/* Loading State */}
         {detailLoading && (
           <div className="igl-loading">
             <FaSpinner className="igl-spin" size={32} />
@@ -427,7 +615,6 @@ export default function ItemGroupList() {
           </div>
         )}
 
-        {/* Error State */}
         {detailError && (
           <div className="igl-error">
             <p>{detailError}</p>
@@ -437,10 +624,8 @@ export default function ItemGroupList() {
           </div>
         )}
 
-        {/* Detail Content - Shows the data from API */}
         {!detailLoading && !detailError && detailData && (
           <div className="igl-detail-content">
-            {/* GENERAL SETTINGS */}
             <div className="igl-detail-section">
               <h3 className="igl-detail-section-title">GENERAL SETTINGS</h3>
               <div className="igl-detail-row">
@@ -457,7 +642,6 @@ export default function ItemGroupList() {
               </div>
             </div>
 
-            {/* ITEM GROUP DEFAULTS */}
             <div className="igl-detail-section">
               <h3 className="igl-detail-section-title">ITEM GROUP DEFAULTS</h3>
               <div className="igl-detail-row">
@@ -498,7 +682,6 @@ export default function ItemGroupList() {
               </div>
             </div>
 
-            {/* COMMENTS */}
             <div className="igl-detail-section">
               <h3 className="igl-detail-section-title">COMMENTS</h3>
               <div className="igl-detail-row">
@@ -508,7 +691,6 @@ export default function ItemGroupList() {
               </div>
             </div>
 
-            {/* DEFAULT WAREHOUSE */}
             <div className="igl-detail-section">
               <h3 className="igl-detail-section-title">DEFAULT WAREHOUSE</h3>
               <div className="igl-detail-row">
@@ -519,7 +701,6 @@ export default function ItemGroupList() {
               </div>
             </div>
 
-            {/* DEFAULTS */}
             <div className="igl-detail-section">
               <h3 className="igl-detail-section-title">DEFAULTS</h3>
               <div className="igl-detail-row">
@@ -530,7 +711,6 @@ export default function ItemGroupList() {
               </div>
             </div>
 
-            {/* TAX CATEGORY */}
             <div className="igl-detail-section">
               <h3 className="igl-detail-section-title">TAX CATEGORY</h3>
               <div className="igl-detail-row">
@@ -541,7 +721,6 @@ export default function ItemGroupList() {
               </div>
             </div>
 
-            {/* Meta Information */}
             <div className="igl-detail-section">
               <h3 className="igl-detail-section-title">META INFORMATION</h3>
               <div className="igl-detail-row">
@@ -558,15 +737,12 @@ export default function ItemGroupList() {
               </div>
             </div>
 
-            {/* Edit Button */}
             {detailData.is_editable !== 0 && (
               <div className="igl-detail-actions">
                 <button 
                   className="igl-btn-save" 
                   onClick={() => {
-                    // Navigate back to list and open edit modal
                     navigate('/item-group');
-                    // The edit modal will open after navigation
                     setTimeout(() => {
                       const item = itemGroups.find(g => g.id === detailData.id.toString());
                       if (item) handleEdit(item);
@@ -583,10 +759,8 @@ export default function ItemGroupList() {
     );
   }
 
-  // ─── RENDER: List View ──────────────────────────────────────────────────
   return (
     <div className={`igl-page ${theme}`}>
-      {/* Search and Filter Bar */}
       <div className="igl-filter-bar">
         <div className="igl-filter-left">
           <div className="igl-search-wrapper">
@@ -595,11 +769,11 @@ export default function ItemGroupList() {
               type="text"
               placeholder="Search item groups..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => handleSearch(e.target.value)}
               className="igl-search-input"
             />
             {searchTerm && (
-              <button className="igl-search-clear" onClick={() => setSearchTerm('')}>
+              <button className="igl-search-clear" onClick={() => handleSearch('')}>
                 <FaTimes size={12} />
               </button>
             )}
@@ -615,6 +789,126 @@ export default function ItemGroupList() {
             <option value="group">Parent Groups</option>
             <option value="item">Sub Items</option>
           </select>
+          
+          {/* Date Filter Button with Calendar Icon */}
+          <div className="igl-date-filter-wrapper" ref={datePickerRef}>
+            <button 
+              className={`igl-date-filter-btn ${dateFilterActive ? 'igl-date-filter-active' : ''}`}
+              onClick={() => setShowDatePicker(!showDatePicker)}
+            >
+              <FaCalendarAlt size={14} />
+              <span>{formatButtonRangeLabel()}</span>
+            </button>
+            
+            {/* Date Picker Dropdown */}
+            {showDatePicker && (
+              <div className="igl-date-picker-dropdown">
+                <div className="igl-date-picker-header">
+                  <span>Filter by Date</span>
+                  <button onClick={() => setShowDatePicker(false)}>
+                    <FaTimes size={14} />
+                  </button>
+                </div>
+                
+                <div className="igl-date-picker-body">
+                  {/* Date Range Display - Like Screenshot */}
+                  <div className="igl-date-range-display">
+                    <div className="igl-date-range-item">
+                      <span className="igl-date-range-label">From</span>
+                      <span className="igl-date-range-value">
+                        {fromDate ? formatDateForDisplay(fromDate) : 'Select date'}
+                      </span>
+                    </div>
+                    <span className="igl-date-range-separator">—</span>
+                    <div className="igl-date-range-item">
+                      <span className="igl-date-range-label">To</span>
+                      <span className="igl-date-range-value">
+                        {toDate ? formatDateForDisplay(toDate) : 'Select date'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Preset Buttons */}
+                  <div className="igl-date-presets">
+                    <button onClick={() => setDateRange('today')} className="igl-date-preset-btn">Today</button>
+                    <button onClick={() => setDateRange('last7days')} className="igl-date-preset-btn">Last 7 Days</button>
+                    <button onClick={() => setDateRange('last30days')} className="igl-date-preset-btn">Last 30 Days</button>
+                    <button onClick={() => setDateRange('thisMonth')} className="igl-date-preset-btn">This Month</button>
+                  </div>
+
+                  {/* Calendar */}
+                  <div className="igl-calendar">
+                    <div className="igl-calendar-nav">
+                      <button
+                        type="button"
+                        className="igl-calendar-nav-btn"
+                        onClick={goToPrevMonth}
+                        aria-label="Previous month"
+                      >
+                        <FaChevronLeft size={12} />
+                      </button>
+                      <span className="igl-calendar-month-label">{calendarMonthLabel}</span>
+                      <button
+                        type="button"
+                        className="igl-calendar-nav-btn"
+                        onClick={goToNextMonth}
+                        aria-label="Next month"
+                      >
+                        <FaChevronRight size={12} />
+                      </button>
+                    </div>
+
+                    <div className="igl-calendar-weekdays">
+                      <span>Su</span>
+                      <span>Mo</span>
+                      <span>Tu</span>
+                      <span>We</span>
+                      <span>Th</span>
+                      <span>Fr</span>
+                      <span>Sa</span>
+                    </div>
+
+                    <div className="igl-calendar-grid">
+                      {getCalendarDays().map((day, idx) => {
+                        if (day === null) {
+                          return <span key={`empty-${idx}`} className="igl-calendar-day igl-calendar-day-empty" />;
+                        }
+                        const isFrom = isSameDay(fromDate, calendarYear, calendarMonth, day);
+                        const isTo = isSameDay(toDate, calendarYear, calendarMonth, day);
+                        const inRange = isDayInRange(calendarYear, calendarMonth, day);
+                        const classNames = [
+                          'igl-calendar-day',
+                          (isFrom || isTo) ? 'igl-calendar-day-selected' : '',
+                          inRange ? 'igl-calendar-day-in-range' : '',
+                        ].filter(Boolean).join(' ');
+                        return (
+                          <button
+                            type="button"
+                            key={`${calendarYear}-${calendarMonth}-${day}`}
+                            className={classNames}
+                            onClick={() => handleCalendarDayClick(day)}
+                          >
+                            {day}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Footer with Clear and Apply */}
+                <div className="igl-date-picker-footer">
+                  <button onClick={clearDateFilter} className="igl-date-clear-btn">
+                    Clear
+                  </button>
+                  <button onClick={applyDateFilter} className="igl-date-apply-btn">
+                    Apply Filters
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+          
           <button className="igl-filter-btn">
             <FaFilter size={12} />
             Filter
@@ -629,8 +923,8 @@ export default function ItemGroupList() {
         </div>
       </div>
 
-      {/* Active filters indicator */}
-      {(searchTerm || statusFilter !== 'all') && (
+      {/* Active Filters Indicator */}
+      {(searchTerm || statusFilter !== 'all' || dateFilterActive) && (
         <div className="igl-active-filters">
           <FaFilter size={12} style={{ color: 'var(--primary-color)' }} />
           <span style={{ color: 'var(--text-primary)' }}>Active filters:</span>
@@ -644,10 +938,12 @@ export default function ItemGroupList() {
               <strong>Type:</strong> {statusFilter === 'group' ? 'Parent Groups' : 'Sub Items'}
             </span>
           )}
-          <button
-            onClick={clearFilters}
-            className="igl-clear-filters"
-          >
+          {dateFilterActive && fromDate && toDate && (
+            <span style={{ color: 'var(--text-primary)' }}>
+              <strong>From:</strong> {formatDateForDisplay(fromDate)} <strong>To:</strong> {formatDateForDisplay(toDate)}
+            </span>
+          )}
+          <button onClick={clearFilters} className="igl-clear-filters">
             <FaTimes size={10} /> Clear All
           </button>
         </div>
@@ -707,10 +1003,7 @@ export default function ItemGroupList() {
                   </tr>
                 ) : (
                   paginatedData.map((row) => (
-                    <tr
-                      key={row.id}
-                      className={`igl-tr ${selected.has(row.id) ? "igl-tr-selected" : ""}`}
-                    >
+                    <tr key={row.id} className={`igl-tr ${selected.has(row.id) ? "igl-tr-selected" : ""}`}>
                       <td className="igl-td-check" onClick={(e) => { e.stopPropagation(); toggleRow(row.id); }}>
                         <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleRow(row.id)} className="igl-checkbox" />
                       </td>
@@ -726,27 +1019,15 @@ export default function ItemGroupList() {
                         <span className="igl-ago">{row.createdAgo}</span>
                         <span className="igl-dot">·</span>
                         <div className="igl-action-buttons">
-                          <button
-                            className="igl-action-btn igl-action-view"
-                            onClick={(e) => { e.stopPropagation(); handleView(row); }}
-                            title="View"
-                          >
+                          <button className="igl-action-btn igl-action-view" onClick={(e) => { e.stopPropagation(); handleView(row); }} title="View">
                             <FaEye size={12} />
                           </button>
                           {row.isEditable && (
                             <>
-                              <button
-                                className="igl-action-btn igl-action-edit"
-                                onClick={(e) => { e.stopPropagation(); handleEdit(row); }}
-                                title="Edit"
-                              >
+                              <button className="igl-action-btn igl-action-edit" onClick={(e) => { e.stopPropagation(); handleEdit(row); }} title="Edit">
                                 <FaEdit size={12} />
                               </button>
-                              <button
-                                className="igl-action-btn igl-action-delete"
-                                onClick={(e) => { e.stopPropagation(); handleDelete(row); }}
-                                title="Delete"
-                              >
+                              <button className="igl-action-btn igl-action-delete" onClick={(e) => { e.stopPropagation(); handleDelete(row); }} title="Delete">
                                 <FaTrash size={12} />
                               </button>
                             </>
@@ -764,11 +1045,7 @@ export default function ItemGroupList() {
           <div className="igl-pagination">
             <div className="igl-pagination-left">
               <span className="igl-pagination-label">Show:</span>
-              <select
-                value={itemsPerPage}
-                onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-                className="igl-page-size-select"
-              >
+              <select value={itemsPerPage} onChange={(e) => handlePageSizeChange(Number(e.target.value))} className="igl-page-size-select">
                 <option value={10}>10</option>
                 <option value={25}>25</option>
                 <option value={50}>50</option>
@@ -777,41 +1054,21 @@ export default function ItemGroupList() {
               <span className="igl-pagination-label">entries</span>
             </div>
             <div className="igl-pagination-center">
-              <button
-                onClick={goToFirstPage}
-                disabled={currentPage === 1 || totalFilteredItems === 0}
-                className="igl-page-btn"
-              >
+              <button onClick={goToFirstPage} disabled={currentPage === 1 || totalFilteredItems === 0} className="igl-page-btn">
                 <FaAngleDoubleLeft size={12} />
               </button>
-              <button
-                onClick={goToPrevPage}
-                disabled={currentPage === 1 || totalFilteredItems === 0}
-                className="igl-page-btn"
-              >
+              <button onClick={goToPrevPage} disabled={currentPage === 1 || totalFilteredItems === 0} className="igl-page-btn">
                 <FaChevronLeft size={12} />
               </button>
               {totalFilteredItems > 0 && getPageNumbers().map(page => (
-                <button
-                  key={page}
-                  onClick={() => goToPage(page)}
-                  className={`igl-page-btn ${currentPage === page ? 'igl-page-btn-active' : ''}`}
-                >
+                <button key={page} onClick={() => goToPage(page)} className={`igl-page-btn ${currentPage === page ? 'igl-page-btn-active' : ''}`}>
                   {page}
                 </button>
               ))}
-              <button
-                onClick={goToNextPage}
-                disabled={currentPage === totalPages || totalFilteredItems === 0}
-                className="igl-page-btn"
-              >
+              <button onClick={goToNextPage} disabled={currentPage === totalPages || totalFilteredItems === 0} className="igl-page-btn">
                 <FaChevronRight size={12} />
               </button>
-              <button
-                onClick={goToLastPage}
-                disabled={currentPage === totalPages || totalFilteredItems === 0}
-                className="igl-page-btn"
-              >
+              <button onClick={goToLastPage} disabled={currentPage === totalPages || totalFilteredItems === 0} className="igl-page-btn">
                 <FaAngleDoubleRight size={12} />
               </button>
             </div>
@@ -867,12 +1124,7 @@ export default function ItemGroupList() {
                 <span className="igl-modal-title">Edit Item Group</span>
                 <span className="igl-edit-subtitle">Update the details for this item group</span>
               </div>
-              <button
-                className="igl-modal-close"
-                onClick={closeEditModal}
-                disabled={editSubmitting}
-                type="button"
-              >
+              <button className="igl-modal-close" onClick={closeEditModal} disabled={editSubmitting} type="button">
                 <FaTimes size={16} />
               </button>
             </div>
@@ -923,12 +1175,7 @@ export default function ItemGroupList() {
               </div>
 
               <div className="igl-modal-footer">
-                <button
-                  type="button"
-                  className="igl-btn-cancel"
-                  onClick={closeEditModal}
-                  disabled={editSubmitting}
-                >
+                <button type="button" className="igl-btn-cancel" onClick={closeEditModal} disabled={editSubmitting}>
                   Cancel
                 </button>
                 <button type="submit" className="igl-btn-save" disabled={editSubmitting}>

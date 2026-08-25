@@ -20,9 +20,11 @@ import {
   FaTruck,
   FaSpinner,
   FaSync,
-  FaTimes
+  FaTimes,
+  FaCalendarAlt
 } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
+import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 
@@ -157,8 +159,13 @@ const numberToIndianWords = (value: number): string => {
   return out.trim();
 };
 
-const formatPrintDate = (date: string): string => {
+// ✅ UPDATED: Format print date using context formatter
+const formatPrintDate = (date: string, formatFn?: (date: string) => string): string => {
   if (!date) return '';
+  if (formatFn) {
+    return formatFn(date);
+  }
+  // Fallback if formatFn not provided
   const d = new Date(date);
   if (isNaN(d.getTime())) return date;
   const day = String(d.getDate()).padStart(2, '0');
@@ -196,10 +203,30 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
   );
 };
 
+// ===== DEBOUNCE HOOK =====
+const useDebounce = (value: string, delay: number) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+};
+
 // ===== MAIN COMPONENT =====
 const DeliveryChallans: React.FC = () => {
   const navigate = useNavigate();
   const menuRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
+  
+  // ✅ GET THE DATE FORMAT FUNCTION FROM CONTEXT
+  const { theme, formatDate, getApiDateFormat } = useAdminTheme();
   
   // ===== STATE =====
   const [searchTerm, setSearchTerm] = useState('');
@@ -208,10 +235,109 @@ const DeliveryChallans: React.FC = () => {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [showMoreMenu, setShowMoreMenu] = useState<string | null>(null);
   
+  // Date range filter states
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
+  const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
+  const [tempStartDate, setTempStartDate] = useState<string>('');
+  const [tempEndDate, setTempEndDate] = useState<string>('');
+  const [selectedQuickFilter, setSelectedQuickFilter] = useState<string>('');
+
+  // Calendar state
+  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
+  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+  
   const [challans, setChallans] = useState<DeliveryChallan[]>([]);
+  const [allChallans, setAllChallans] = useState<DeliveryChallan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [printLoadingId, setPrintLoadingId] = useState<string | null>(null);
+
+  // Debounced search term
+  const debouncedSearchTerm = useDebounce(searchTerm, 500);
+
+  // ✅ NEW: Format display date using context
+  const formatDisplayDate = (dateString: string) => {
+    if (!dateString) return '';
+    return formatDate(dateString);
+  };
+
+  // ✅ NEW: Format date for API (YYYY-MM-DD)
+  const toApiDateFormat = (date: Date) => {
+    return getApiDateFormat(date);
+  };
+
+  // ─── close date picker on outside click ──────────────────────────────
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      const datePickerContainer = document.querySelector('.qt-date-picker-container');
+      if (datePickerContainer && !datePickerContainer.contains(target)) {
+        setShowDatePicker(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // ─── Date helper functions ─────────────────────────────────────────────
+  // ✅ UPDATED: Format date for display using context
+  const formatDateForDisplay = (dateStr: string): string => {
+    if (!dateStr) return '';
+    return formatDate(dateStr);
+  };
+
+  const getTodayDate = (): string => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  };
+
+  const getDateDaysAgo = (days: number): string => {
+    const date = new Date();
+    date.setDate(date.getDate() - days);
+    return date.toISOString().split('T')[0];
+  };
+
+  const getFirstDayOfMonth = (): string => {
+    const date = new Date(currentYear, currentMonth, 1);
+    return date.toISOString().split('T')[0];
+  };
+
+  const getLastDayOfMonth = (): string => {
+    const date = new Date(currentYear, currentMonth + 1, 0);
+    return date.toISOString().split('T')[0];
+  };
+
+  // ─── Quick filter handlers ─────────────────────────────────────────────
+  const applyQuickFilter = (filter: string) => {
+    setSelectedQuickFilter(filter);
+    let start = '';
+    let end = getTodayDate();
+
+    switch (filter) {
+      case 'today':
+        start = getTodayDate();
+        break;
+      case 'last7':
+        start = getDateDaysAgo(7);
+        break;
+      case 'last30':
+        start = getDateDaysAgo(30);
+        break;
+      case 'thisMonth':
+        start = getFirstDayOfMonth();
+        end = getLastDayOfMonth();
+        break;
+      default:
+        return;
+    }
+
+    setTempStartDate(start);
+    setTempEndDate(end);
+  };
 
   // ===== CLOSE MENU ON CLICK OUTSIDE =====
   useEffect(() => {
@@ -258,22 +384,41 @@ const DeliveryChallans: React.FC = () => {
     setError(null);
     try {
       const params = new URLSearchParams();
-      if (searchTerm) params.append('search', searchTerm);
-      if (selectedStatus !== 'All') params.append('status', selectedStatus);
+      
+      if (debouncedSearchTerm.trim()) {
+        params.append('search', debouncedSearchTerm.trim());
+        params.append('search_by', 'all');
+      }
+      
+      if (selectedStatus !== 'All') {
+        params.append('status', selectedStatus);
+      }
+      
+      // Add date filters
+      if (startDate) {
+        params.append('from_date', startDate);
+      }
+      if (endDate) {
+        params.append('to_date', endDate);
+      }
+      
       params.append('page', String(currentPage));
       params.append('limit', String(itemsPerPage));
       
       const query = params.toString() ? `?${params.toString()}` : '';
-      const response = await api.get<ApiResponse>(`/delivery-note${query}`);
+      const url = `/delivery-note${query}`;
+      console.log('API Call URL:', url);
+      
+      const response = await api.get<ApiResponse>(url);
       
       if (response.data?.data?.records) {
         const recordsWithDisplayNumber = response.data.data.records.map((record) => ({
           ...record,
           displayDcNumber: formatDcNumber(record.id)
         }));
-        setChallans(recordsWithDisplayNumber);
+        setAllChallans(recordsWithDisplayNumber);
       } else {
-        setChallans([]);
+        setAllChallans([]);
       }
     } catch (err: any) {
       console.error('Error:', err);
@@ -285,39 +430,66 @@ const DeliveryChallans: React.FC = () => {
   };
 
   // ===== EFFECTS =====
+  // Initial fetch
   useEffect(() => {
     fetchChallans();
   }, []);
 
+  // Fetch when filters change
   useEffect(() => {
-    const timer = setTimeout(() => fetchChallans(), 500);
-    return () => clearTimeout(timer);
-  }, [searchTerm, selectedStatus, currentPage, itemsPerPage]);
+    fetchChallans();
+  }, [debouncedSearchTerm, selectedStatus, currentPage, itemsPerPage, startDate, endDate]);
+
+  // ===== FILTER DATA (client-side backup) =====
+  useEffect(() => {
+    let filtered = allChallans;
+    
+    if (searchTerm.trim()) {
+      const searchLower = searchTerm.toLowerCase();
+      filtered = filtered.filter(item => {
+        const displayNumber = item.displayDcNumber?.toLowerCase() || '';
+        return displayNumber.includes(searchLower) ||
+          (item.name || '').toLowerCase().includes(searchLower) ||
+          (item.customer_name || '').toLowerCase().includes(searchLower);
+      });
+    }
+
+    if (selectedStatus !== 'All') {
+      filtered = filtered.filter(item => item.status === selectedStatus);
+    }
+
+    // Client-side date filtering
+    if (startDate) {
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      filtered = filtered.filter(item => {
+        if (!item.posting_date) return false;
+        const itemDate = new Date(item.posting_date);
+        return itemDate >= start;
+      });
+    }
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      filtered = filtered.filter(item => {
+        if (!item.posting_date) return false;
+        const itemDate = new Date(item.posting_date);
+        return itemDate <= end;
+      });
+    }
+
+    setChallans(filtered);
+  }, [allChallans, searchTerm, selectedStatus, startDate, endDate]);
 
   // ===== HELPERS =====
-  const formatDate = (date: string) => {
+  // ✅ UPDATED: Format date using context formatter
+  const formatDateDisplay = (date: string) => {
     if (!date) return '-';
-    return new Date(date).toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric'
-    });
+    return formatDisplayDate(date);
   };
 
-  // ===== FILTER DATA =====
-  const filteredData = challans.filter(item => {
-    const search = searchTerm.toLowerCase();
-    const displayNumber = item.displayDcNumber?.toLowerCase() || '';
-    const matchesSearch = 
-      displayNumber.includes(search) ||
-      (item.name || '').toLowerCase().includes(search) ||
-      (item.customer_name || '').toLowerCase().includes(search);
-    const matchesStatus = selectedStatus === 'All' || item.status === selectedStatus;
-    return matchesSearch && matchesStatus;
-  });
-
   // ===== PAGINATION =====
-  const totalFilteredItems = filteredData.length;
+  const totalFilteredItems = challans.length;
   const totalPages = Math.ceil(totalFilteredItems / itemsPerPage);
   const validCurrentPage = Math.min(currentPage, totalPages || 1);
   
@@ -325,7 +497,7 @@ const DeliveryChallans: React.FC = () => {
     setCurrentPage(validCurrentPage);
   }
 
-  const paginatedData = filteredData.slice(
+  const paginatedData = challans.slice(
     (validCurrentPage - 1) * itemsPerPage,
     validCurrentPage * itemsPerPage
   );
@@ -370,6 +542,12 @@ const DeliveryChallans: React.FC = () => {
     const items = challan.items || [];
     const totalQty = items.reduce((sum, item) => sum + (item.qty || 0), 0);
     const grandTotal = challan.grand_total || 0;
+
+    // ✅ Use formatDisplayDate for formatted dates in print
+    const formatPrintDateLocal = (dateStr: string) => {
+      if (!dateStr) return '';
+      return formatDisplayDate(dateStr);
+    };
 
     const itemRows = items.map((item, idx) => `
       <tr>
@@ -472,7 +650,7 @@ const DeliveryChallans: React.FC = () => {
           </div>
           <div class="pq-meta-cell" style="border-right:none;">
             <div class="pq-meta-label">Date</div>
-            <div class="pq-meta-value">${escapeHtml(formatPrintDate(challan.posting_date))}</div>
+            <div class="pq-meta-value">${escapeHtml(formatPrintDateLocal(challan.posting_date))}</div>
           </div>
         </div>
         <div class="pq-meta-row">
@@ -607,7 +785,6 @@ const DeliveryChallans: React.FC = () => {
 
     setPrintLoadingId(String(challan.id));
     
-    // Fetch full details if items are not already loaded
     const loadAndPrint = async () => {
       try {
         let printData = challan;
@@ -669,12 +846,127 @@ const DeliveryChallans: React.FC = () => {
   const clearFilters = () => {
     setSearchTerm('');
     setSelectedStatus('All');
+    setStartDate('');
+    setEndDate('');
+    setTempStartDate('');
+    setTempEndDate('');
+    setSelectedQuickFilter('');
     setCurrentPage(1);
+    setShowDatePicker(false);
+  };
+
+  // Date picker handlers
+  const openDatePicker = () => {
+    setTempStartDate(startDate);
+    setTempEndDate(endDate);
+    setShowDatePicker(true);
+  };
+
+  const applyDateFilter = () => {
+    setStartDate(tempStartDate);
+    setEndDate(tempEndDate);
+    setShowDatePicker(false);
+    if (tempStartDate || tempEndDate) {
+      toast.success('Date range applied');
+    }
+  };
+
+  const clearDateFilters = () => {
+    setTempStartDate('');
+    setTempEndDate('');
+    setSelectedQuickFilter('');
+    setStartDate('');
+    setEndDate('');
+    setShowDatePicker(false);
+  };
+
+  // Calendar functions
+  const getDaysInMonth = (year: number, month: number): number => {
+    return new Date(year, month + 1, 0).getDate();
+  };
+
+  const getFirstDayOfMonthIndex = (year: number, month: number): number => {
+    return new Date(year, month, 1).getDay();
+  };
+
+  const generateCalendarDays = (): (number | null)[] => {
+    const daysInMonth = getDaysInMonth(currentYear, currentMonth);
+    const firstDayIndex = getFirstDayOfMonthIndex(currentYear, currentMonth);
+    const days: (number | null)[] = [];
+
+    for (let i = 0; i < firstDayIndex; i++) {
+      days.push(null);
+    }
+
+    for (let i = 1; i <= daysInMonth; i++) {
+      days.push(i);
+    }
+
+    return days;
+  };
+
+  const isDateInRange = (day: number): boolean => {
+    if (!tempStartDate && !tempEndDate) return false;
+    const date = new Date(currentYear, currentMonth, day);
+    const dateStr = date.toISOString().split('T')[0];
+    
+    if (tempStartDate && tempEndDate) {
+      return dateStr >= tempStartDate && dateStr <= tempEndDate;
+    }
+    if (tempStartDate) {
+      return dateStr >= tempStartDate;
+    }
+    if (tempEndDate) {
+      return dateStr <= tempEndDate;
+    }
+    return false;
+  };
+
+  const isDateSelected = (day: number): boolean => {
+    const date = new Date(currentYear, currentMonth, day);
+    const dateStr = date.toISOString().split('T')[0];
+    return dateStr === tempStartDate || dateStr === tempEndDate;
+  };
+
+  const handleDateClick = (day: number) => {
+    const date = new Date(currentYear, currentMonth, day);
+    const dateStr = date.toISOString().split('T')[0];
+    
+    if (!tempStartDate || (tempStartDate && tempEndDate)) {
+      setTempStartDate(dateStr);
+      setTempEndDate('');
+      setSelectedQuickFilter('');
+    } else if (tempStartDate && !tempEndDate) {
+      if (dateStr < tempStartDate) {
+        setTempStartDate(dateStr);
+        setTempEndDate('');
+      } else {
+        setTempEndDate(dateStr);
+        setSelectedQuickFilter('');
+      }
+    }
+  };
+
+  const changeMonth = (delta: number) => {
+    const newMonth = currentMonth + delta;
+    if (newMonth < 0) {
+      setCurrentMonth(11);
+      setCurrentYear(currentYear - 1);
+    } else if (newMonth > 11) {
+      setCurrentMonth(0);
+      setCurrentYear(currentYear + 1);
+    } else {
+      setCurrentMonth(newMonth);
+    }
+  };
+
+  const getMonthName = (month: number): string => {
+    return new Date(currentYear, month).toLocaleString('en-US', { month: 'long' });
   };
 
   // ===== RENDER =====
   return (
-    <div className="quotation-page">
+    <div className={`quotation-page ${theme}`}>
       <style>{`
         .quotation-page {
           display: flex;
@@ -717,6 +1009,7 @@ const DeliveryChallans: React.FC = () => {
           align-items: center;
           flex: 1;
           min-width: 200px;
+          gap: 8px;
         }
 
         .qt-search-wrapper {
@@ -835,6 +1128,266 @@ const DeliveryChallans: React.FC = () => {
 
         .qt-btn-secondary:hover {
           background: var(--nav-hover, #f9fafb);
+        }
+
+        /* ── Date Range Picker Styles ── */
+        .qt-date-picker-container {
+          position: relative;
+          display: inline-block;
+        }
+
+        .qt-date-picker-trigger {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          background: var(--card-bg, #fff);
+          border: 1px solid var(--border-color, #e5e7eb);
+          border-radius: 8px;
+          padding: 8px 14px;
+          cursor: pointer;
+          transition: all 0.2s;
+          color: var(--text-primary, #1e293b);
+          font-size: 13px;
+          min-height: 38px;
+        }
+
+        .qt-date-picker-trigger:hover {
+          border-color: var(--primary-color, #2563eb);
+          background: var(--hover-bg, #f8fafc);
+        }
+
+        .qt-date-picker-trigger.active {
+          border-color: var(--primary-color, #2563eb);
+          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .qt-date-picker-trigger .qt-calendar-icon {
+          color: var(--primary-color, #2563eb);
+          font-size: 16px;
+        }
+
+        .qt-date-picker-trigger .qt-date-label {
+          font-weight: 500;
+        }
+
+        .qt-date-picker-trigger .qt-date-label.placeholder {
+          color: var(--text-secondary, #6b7280);
+          font-weight: 400;
+        }
+
+        .qt-date-picker-trigger .qt-date-range-display {
+          color: var(--primary-color, #2563eb);
+          font-weight: 500;
+        }
+
+        .qt-date-picker-popup {
+          position: absolute;
+          top: calc(100% + 8px);
+          right: 0;
+          background: var(--card-bg, #fff);
+          border: 1px solid var(--border-color, #e5e7eb);
+          border-radius: 12px;
+          box-shadow: 0 10px 40px var(--shadow-color, rgba(0,0,0,0.15));
+          padding: 20px;
+          z-index: 1000;
+          min-width: 340px;
+          width: 340px;
+        }
+
+        .qt-date-picker-popup .qt-popup-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 12px;
+        }
+
+        .qt-date-picker-popup .qt-popup-header .qt-popup-title {
+          font-size: 14px;
+          font-weight: 600;
+          color: var(--text-primary, #1e293b);
+        }
+
+        .qt-date-picker-popup .qt-popup-header .qt-popup-close {
+          background: none;
+          border: none;
+          color: var(--text-secondary, #6b7280);
+          cursor: pointer;
+          font-size: 16px;
+          padding: 4px;
+        }
+
+        .qt-date-picker-popup .qt-popup-header .qt-popup-close:hover {
+          color: var(--text-primary, #1e293b);
+        }
+
+        .qt-date-picker-popup .qt-quick-filters {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+          margin-bottom: 16px;
+          padding-bottom: 12px;
+          border-bottom: 1px solid var(--border-color, #e5e7eb);
+        }
+
+        .qt-date-picker-popup .qt-quick-filter-btn {
+          padding: 4px 14px;
+          border: 1px solid var(--border-color, #e5e7eb);
+          border-radius: 16px;
+          background: var(--card-bg, #fff);
+          color: var(--text-secondary, #6b7280);
+          font-size: 12px;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .qt-date-picker-popup .qt-quick-filter-btn:hover {
+          border-color: var(--primary-color, #2563eb);
+          color: var(--primary-color, #2563eb);
+        }
+
+        .qt-date-picker-popup .qt-quick-filter-btn.active {
+          background: var(--primary-color, #2563eb);
+          border-color: var(--primary-color, #2563eb);
+          color: #fff;
+        }
+
+        .qt-date-picker-popup .qt-calendar-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 12px;
+        }
+
+        .qt-date-picker-popup .qt-calendar-header .qt-month-year {
+          font-size: 14px;
+          font-weight: 600;
+          color: var(--text-primary, #1e293b);
+        }
+
+        .qt-date-picker-popup .qt-calendar-header .qt-nav-btn {
+          background: none;
+          border: none;
+          color: var(--text-secondary, #6b7280);
+          cursor: pointer;
+          padding: 4px 8px;
+          font-size: 14px;
+          border-radius: 4px;
+          transition: all 0.2s;
+        }
+
+        .qt-date-picker-popup .qt-calendar-header .qt-nav-btn:hover {
+          background: var(--hover-bg, #f3f4f6);
+        }
+
+        .qt-date-picker-popup .qt-calendar-grid {
+          display: grid;
+          grid-template-columns: repeat(7, 1fr);
+          gap: 2px;
+          margin-bottom: 12px;
+        }
+
+        .qt-date-picker-popup .qt-calendar-grid .qt-day-header {
+          text-align: center;
+          font-size: 11px;
+          font-weight: 600;
+          color: var(--text-secondary, #6b7280);
+          padding: 4px 0;
+        }
+
+        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell {
+          text-align: center;
+          padding: 6px 4px;
+          font-size: 13px;
+          border-radius: 6px;
+          cursor: pointer;
+          transition: all 0.2s;
+          color: var(--text-primary, #1e293b);
+          position: relative;
+        }
+
+        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell.empty {
+          cursor: default;
+        }
+
+        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell:hover:not(.empty):not(.in-range) {
+          background: var(--hover-bg, #f3f4f6);
+        }
+
+        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell.in-range {
+          background: rgba(37, 99, 235, 0.1);
+        }
+
+        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell.selected {
+          background: var(--primary-color, #2563eb);
+          color: #fff;
+          font-weight: 600;
+        }
+
+        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell.selected-start {
+          background: var(--primary-color, #2563eb);
+          color: #fff;
+          font-weight: 600;
+          border-radius: 6px 0 0 6px;
+        }
+
+        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell.selected-end {
+          background: var(--primary-color, #2563eb);
+          color: #fff;
+          font-weight: 600;
+          border-radius: 0 6px 6px 0;
+        }
+
+        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell.range-middle {
+          background: rgba(37, 99, 235, 0.15);
+        }
+
+        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell.today {
+          border: 1px solid var(--primary-color, #2563eb);
+        }
+
+        .qt-date-picker-popup .qt-popup-actions {
+          display: flex;
+          gap: 8px;
+          justify-content: flex-end;
+          padding-top: 12px;
+          border-top: 1px solid var(--border-color, #e5e7eb);
+        }
+
+        .qt-date-picker-popup .qt-popup-actions button {
+          padding: 6px 16px;
+          border: none;
+          border-radius: 6px;
+          font-size: 13px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .qt-date-picker-popup .qt-popup-actions .qt-btn-apply {
+          background: var(--primary-color, #2563eb);
+          color: #fff;
+        }
+
+        .qt-date-picker-popup .qt-popup-actions .qt-btn-apply:hover {
+          background: var(--primary-hover, #1d4ed8);
+        }
+
+        .qt-date-picker-popup .qt-popup-actions .qt-btn-clear {
+          background: transparent;
+          color: var(--text-secondary, #6b7280);
+        }
+
+        .qt-date-picker-popup .qt-popup-actions .qt-btn-clear:hover {
+          background: var(--hover-bg, #f3f4f6);
+        }
+
+        .qt-date-picker-popup .qt-popup-actions .qt-btn-cancel {
+          background: transparent;
+          color: var(--text-secondary, #6b7280);
+        }
+
+        .qt-date-picker-popup .qt-popup-actions .qt-btn-cancel:hover {
+          background: var(--hover-bg, #f3f4f6);
         }
 
         /* ── Active Filters ── */
@@ -1352,6 +1905,45 @@ const DeliveryChallans: React.FC = () => {
           background: var(--nav-hover, rgba(255,255,255,0.05));
         }
 
+        .dark-theme .qt-date-picker-trigger {
+          background: var(--card-bg, #1e293b);
+          border-color: var(--border-color, #334155);
+          color: var(--text-primary, #f8fafc);
+        }
+
+        .dark-theme .qt-date-picker-popup {
+          background: var(--card-bg, #1e293b);
+          border-color: var(--border-color, #334155);
+        }
+
+        .dark-theme .qt-date-picker-popup .qt-popup-title {
+          color: var(--text-primary, #f8fafc);
+        }
+
+        .dark-theme .qt-date-picker-popup .qt-quick-filter-btn {
+          background: var(--card-bg, #1e293b);
+          border-color: var(--border-color, #334155);
+          color: var(--text-secondary, #94a3b8);
+        }
+
+        .dark-theme .qt-date-picker-popup .qt-quick-filter-btn:hover {
+          border-color: var(--primary-color, #3b82f6);
+          color: var(--primary-color, #3b82f6);
+        }
+
+        .dark-theme .qt-date-picker-popup .qt-quick-filter-btn.active {
+          background: var(--primary-color, #3b82f6);
+          color: #fff;
+        }
+
+        .dark-theme .qt-date-picker-popup .qt-day-cell {
+          color: var(--text-primary, #f8fafc);
+        }
+
+        .dark-theme .qt-date-picker-popup .qt-day-cell:hover:not(.empty):not(.in-range) {
+          background: var(--nav-hover, rgba(255,255,255,0.05));
+        }
+
         /* ── Responsive ── */
         @media (max-width: 768px) {
           .quotation-page {
@@ -1366,6 +1958,7 @@ const DeliveryChallans: React.FC = () => {
 
           .qt-filter-left {
             width: 100%;
+            flex-wrap: wrap;
           }
 
           .qt-search-wrapper {
@@ -1375,6 +1968,12 @@ const DeliveryChallans: React.FC = () => {
           .qt-filter-right {
             justify-content: flex-start;
             flex-wrap: wrap;
+          }
+
+          .qt-date-picker-popup {
+            left: -50px;
+            min-width: 280px;
+            width: 280px;
           }
 
           .qt-table {
@@ -1438,7 +2037,7 @@ const DeliveryChallans: React.FC = () => {
             <FaSearch className="qt-search-icon" />
             <input
               type="text"
-              placeholder="Search by DC No or Customer..."
+              placeholder="Search by DC No, Customer Name, or Customer Code..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="qt-search-input"
@@ -1461,6 +2060,127 @@ const DeliveryChallans: React.FC = () => {
             <option value="Submitted">Submitted</option>
             <option value="Cancelled">Cancelled</option>
           </select>
+          
+          {/* Date Range Picker - Before New DC Button */}
+          <div className="qt-date-picker-container">
+            <div 
+              className={`qt-date-picker-trigger ${showDatePicker ? 'active' : ''}`}
+              onClick={openDatePicker}
+            >
+              <FaCalendarAlt className="qt-calendar-icon" />
+              <span className={`qt-date-label ${!startDate && !endDate ? 'placeholder' : ''}`}>
+                {startDate || endDate ? (
+                  <span className="qt-date-range-display">
+                    {startDate ? formatDateForDisplay(startDate) : 'Start'} – {endDate ? formatDateForDisplay(endDate) : 'End'}
+                  </span>
+                ) : (
+                  'Filter by Date'
+                )}
+              </span>
+            </div>
+            
+            {showDatePicker && (
+              <div className="qt-date-picker-popup">
+                <div className="qt-popup-header">
+                  <span className="qt-popup-title">Filter by Date</span>
+                  <button className="qt-popup-close" onClick={() => setShowDatePicker(false)}>
+                    <FaTimes size={14} />
+                  </button>
+                </div>
+                
+                {/* Quick Filters */}
+                <div className="qt-quick-filters">
+                  <button 
+                    className={`qt-quick-filter-btn ${selectedQuickFilter === 'today' ? 'active' : ''}`}
+                    onClick={() => applyQuickFilter('today')}
+                  >
+                    Today
+                  </button>
+                  <button 
+                    className={`qt-quick-filter-btn ${selectedQuickFilter === 'last7' ? 'active' : ''}`}
+                    onClick={() => applyQuickFilter('last7')}
+                  >
+                    Last 7 Days
+                  </button>
+                  <button 
+                    className={`qt-quick-filter-btn ${selectedQuickFilter === 'last30' ? 'active' : ''}`}
+                    onClick={() => applyQuickFilter('last30')}
+                  >
+                    Last 30 Days
+                  </button>
+                  <button 
+                    className={`qt-quick-filter-btn ${selectedQuickFilter === 'thisMonth' ? 'active' : ''}`}
+                    onClick={() => applyQuickFilter('thisMonth')}
+                  >
+                    This Month
+                  </button>
+                </div>
+                
+                {/* Calendar */}
+                <div className="qt-calendar-header">
+                  <button className="qt-nav-btn" onClick={() => changeMonth(-1)}>
+                    <FaChevronLeft size={12} />
+                  </button>
+                  <span className="qt-month-year">
+                    {getMonthName(currentMonth)} {currentYear}
+                  </span>
+                  <button className="qt-nav-btn" onClick={() => changeMonth(1)}>
+                    <FaChevronRight size={12} />
+                  </button>
+                </div>
+                
+                <div className="qt-calendar-grid">
+                  {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
+                    <div key={day} className="qt-day-header">{day}</div>
+                  ))}
+                  {generateCalendarDays().map((day, index) => {
+                    if (day === null) {
+                      return <div key={`empty-${index}`} className="qt-day-cell empty"></div>;
+                    }
+                    
+                    const dateObj = new Date(currentYear, currentMonth, day);
+                    const dateStr = dateObj.toISOString().split('T')[0];
+                    const isToday = dateStr === getTodayDate();
+                    const isInRange = isDateInRange(day);
+                    const isSelected = isDateSelected(day);
+                    const isStart = dateStr === tempStartDate;
+                    const isEnd = dateStr === tempEndDate;
+                    
+                    let className = 'qt-day-cell';
+                    if (isToday) className += ' today';
+                    if (isInRange && !isSelected) className += ' in-range';
+                    if (isSelected) className += ' selected';
+                    if (isStart && tempEndDate) className += ' selected-start';
+                    if (isEnd && tempStartDate) className += ' selected-end';
+                    if (isInRange && !isSelected && !isStart && !isEnd) className += ' range-middle';
+                    
+                    return (
+                      <div 
+                        key={day} 
+                        className={className}
+                        onClick={() => handleDateClick(day)}
+                      >
+                        {day}
+                      </div>
+                    );
+                  })}
+                </div>
+                
+                <div className="qt-popup-actions">
+                  <button className="qt-btn-clear" onClick={clearDateFilters}>
+                    Clear
+                  </button>
+                  <button className="qt-btn-cancel" onClick={() => setShowDatePicker(false)}>
+                    Cancel
+                  </button>
+                  <button className="qt-btn-apply" onClick={applyDateFilter}>
+                    Apply Filters
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+          
           <button className="qt-btn-secondary" onClick={handleRefresh}>
             <FaSync size={12} /> Refresh
           </button>
@@ -1474,7 +2194,7 @@ const DeliveryChallans: React.FC = () => {
       </div>
 
       {/* ===== ACTIVE FILTERS ===== */}
-      {(searchTerm || selectedStatus !== "All") && (
+      {(searchTerm || selectedStatus !== "All" || startDate || endDate) && (
         <div className="qt-active-filters">
           <FaFilter size={12} style={{ color: "var(--primary-color)" }} />
           <span>Active filters:</span>
@@ -1486,6 +2206,11 @@ const DeliveryChallans: React.FC = () => {
           {selectedStatus !== "All" && (
             <span>
               <strong>Status:</strong> {selectedStatus}
+            </span>
+          )}
+          {(startDate || endDate) && (
+            <span>
+              <strong>Date:</strong> {startDate ? formatDateForDisplay(startDate) : 'Any'} – {endDate ? formatDateForDisplay(endDate) : 'Any'}
             </span>
           )}
           <button onClick={clearFilters} className="qt-clear-filters">
@@ -1543,7 +2268,7 @@ const DeliveryChallans: React.FC = () => {
                       {item.customer_name || '-'}
                     </span>
                   </td>
-                  <td className="qt-td">{formatDate(item.posting_date)}</td>
+                  <td className="qt-td">{formatDateDisplay(item.posting_date)}</td>
                   <td className="qt-td qt-td-amount">
                     ₹{item.grand_total?.toLocaleString() || '0'}
                   </td>

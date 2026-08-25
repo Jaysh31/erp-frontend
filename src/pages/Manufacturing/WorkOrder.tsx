@@ -24,6 +24,7 @@ import {
   FaBox,
   FaWrench,
   FaList,
+  FaChevronUp,
 } from 'react-icons/fa';
 import "./WorkOrder.css";
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
@@ -48,6 +49,7 @@ interface WorkOrder {
   job_card_progress?: string;
   type?: string;
   selected_grn_id?: number;
+  supplier_name?: string;
 }
 
 interface WorkOrderDisplay {
@@ -66,6 +68,10 @@ interface WorkOrderDisplay {
   jobCardProgress: string;
   canComplete: boolean;
   type: OrderType;
+  supplierName?: string;
+  // ✅ Formatted display fields
+  displayStartDate?: string;
+  displayEndDate?: string;
 }
 
 interface ApiResponse {
@@ -106,13 +112,17 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
 
 export default function WorkOrderList() {
   const navigate = useNavigate();
-  const { theme } = useAdminTheme();
+  
+  // ✅ GET THE DATE FORMAT FUNCTION FROM CONTEXT
+  const { theme, formatDate, getApiDateFormat } = useAdminTheme();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState<string>('all');
+  const [fromDate, setFromDate] = useState<string>('');
+  const [toDate, setToDate] = useState<string>('');
   const [activeTab, setActiveTab] = useState<OrderType>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -123,6 +133,8 @@ export default function WorkOrderList() {
   const [completingId, setCompletingId] = useState<string | null>(null);
   const [allWorkOrders, setAllWorkOrders] = useState<WorkOrderDisplay[]>([]);
   const [completionProgress, setCompletionProgress] = useState<number>(0);
+  const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
+  const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
 
   const pageSizeOptions = [10, 25, 50, 100];
   const dateFilterOptions = [
@@ -133,7 +145,8 @@ export default function WorkOrderList() {
     { value: 'quarter', label: 'This Quarter' },
   ];
 
-  const formatDate = (dateString: string) => {
+  // ✅ UPDATED: Format date using context formatter
+  const formatDateAgo = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
@@ -150,6 +163,17 @@ export default function WorkOrderList() {
     return `${Math.floor(diffDays / 365)} y`;
   };
 
+  // ✅ NEW: Format display date using context
+  const formatDisplayDate = (dateString: string) => {
+    if (!dateString) return '';
+    return formatDate(dateString);
+  };
+
+  // ✅ NEW: Format date for API (YYYY-MM-DD)
+  const toApiDateFormat = (date: Date) => {
+    return getApiDateFormat(date);
+  };
+
   const calculateJobCardProgress = (total: number = 0, completed: number = 0): number => {
     if (total === 0) return 0;
     return Math.min(Math.round((completed / total) * 100), 100);
@@ -161,10 +185,17 @@ export default function WorkOrderList() {
     return completedJobCards >= totalJobCards;
   };
 
-  const isDateInRange = (dateString: string, filter: string): boolean => {
+  const isDateInRange = (dateString: string, filter: string, from?: string, to?: string): boolean => {
     const date = new Date(dateString);
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    if (from && to) {
+      const fromDateObj = new Date(from);
+      const toDateObj = new Date(to);
+      toDateObj.setHours(23, 59, 59, 999);
+      return date >= fromDateObj && date <= toDateObj;
+    }
     
     switch (filter) {
       case 'today':
@@ -194,6 +225,7 @@ export default function WorkOrderList() {
     return "internal";
   };
 
+  // ✅ UPDATED: Transform with formatted dates
   const transformWorkOrder = (item: WorkOrder): WorkOrderDisplay => {
     const totalJobCards = item.total_job_cards || 0;
     const completedJobCards = item.completed_job_cards || 0;
@@ -210,16 +242,19 @@ export default function WorkOrderList() {
       plannedStartDate: item.planned_start_date,
       plannedEndDate: item.planned_end_date,
       progress: progress,
-      createdAgo: formatDate(item.planned_start_date),
+      createdAgo: formatDateAgo(item.planned_start_date),
       totalJobCards,
       completedJobCards,
       jobCardProgress: item.job_card_progress || `${completedJobCards}/${totalJobCards}`,
       canComplete: canCompleteWorkOrder(item.status, totalJobCards, completedJobCards),
       type,
+      supplierName: item.supplier_name || '',
+      // ✅ ADD FORMATTED DATES FOR DISPLAY
+      displayStartDate: formatDisplayDate(item.planned_start_date),
+      displayEndDate: formatDisplayDate(item.planned_end_date),
     };
   };
 
-  // Fetch all work orders for client-side filtering and pagination
   const fetchAllWorkOrders = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -230,6 +265,7 @@ export default function WorkOrderList() {
       
       if (searchTerm.trim()) {
         params.append('search', searchTerm.trim());
+        params.append('search_by', 'all');
       }
       
       if (statusFilter !== 'all') {
@@ -252,37 +288,39 @@ export default function WorkOrderList() {
     }
   }, [searchTerm, statusFilter]);
 
-  // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, statusFilter, dateFilter, activeTab]);
+  }, [searchTerm, statusFilter, dateFilter, activeTab, fromDate, toDate]);
 
-  // Fetch data on mount and when filters change
   useEffect(() => {
     fetchAllWorkOrders();
   }, [fetchAllWorkOrders]);
 
-  // ─── Client-side filtering ────────────────────────────────────────────
   const filteredData = useMemo(() => {
     let filtered = allWorkOrders.filter(item => {
-      // Filter by tab
       if (activeTab !== 'all' && item.type !== activeTab) return false;
       
-      const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            item.productionItem.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesStatus = statusFilter === 'all' || item.status === statusFilter;
       const matchesDate = dateFilter === 'all' || isDateInRange(item.plannedStartDate, dateFilter);
-      return matchesSearch && matchesStatus && matchesDate;
+      return matchesStatus && matchesDate;
     });
 
-    return filtered;
-  }, [allWorkOrders, activeTab, searchTerm, statusFilter, dateFilter]);
+    if (fromDate && toDate) {
+      filtered = filtered.filter(item => {
+        const itemDate = new Date(item.plannedStartDate);
+        const from = new Date(fromDate);
+        const to = new Date(toDate);
+        to.setHours(23, 59, 59, 999);
+        return itemDate >= from && itemDate <= to;
+      });
+    }
 
-  // ─── Client-side pagination ───────────────────────────────────────────
+    return filtered;
+  }, [allWorkOrders, activeTab, searchTerm, statusFilter, dateFilter, fromDate, toDate]);
+
   const displayTotalItems = filteredData.length;
   const displayTotalPages = Math.max(1, Math.ceil(displayTotalItems / itemsPerPage));
 
-  // Fix current page if it exceeds available pages
   useEffect(() => {
     if (currentPage > displayTotalPages && displayTotalPages > 0) {
       setCurrentPage(1);
@@ -294,14 +332,12 @@ export default function WorkOrderList() {
     return filteredData.slice(startIndex, startIndex + itemsPerPage);
   }, [filteredData, currentPage, itemsPerPage]);
 
-  // ─── Tab counts ───────────────────────────────────────────────────────
   const tabCounts = useMemo(() => {
     const internal = allWorkOrders.filter(wo => wo.type === 'internal').length;
     const external = allWorkOrders.filter(wo => wo.type === 'external').length;
     return { internal, external, total: allWorkOrders.length };
   }, [allWorkOrders]);
 
-  // ─── Pagination helpers ───────────────────────────────────────────────
   const getStartIndex = () => {
     if (displayTotalItems === 0) return 0;
     return (currentPage - 1) * itemsPerPage + 1;
@@ -336,6 +372,86 @@ export default function WorkOrderList() {
   const handleTabChange = (tab: OrderType) => {
     setActiveTab(tab);
     setCurrentPage(1);
+  };
+
+  // ─── Date Filter Handlers ─────────────────────────────────────────────
+  const handleApplyDateFilter = () => {
+    if (fromDate && toDate) {
+      setDateFilter('custom');
+      setCurrentPage(1);
+      setShowDatePicker(false);
+    }
+  };
+
+  const handleClearDateFilter = () => {
+    setFromDate('');
+    setToDate('');
+    setDateFilter('all');
+    setCurrentPage(1);
+    setShowDatePicker(false);
+  };
+
+  // ─── Quick Date Filters ──────────────────────────────────────────────
+  const setQuickDateRange = (days: number) => {
+    const today = new Date();
+    const from = new Date(today);
+    from.setDate(today.getDate() - days);
+    setFromDate(from.toISOString().split('T')[0]);
+    setToDate(today.toISOString().split('T')[0]);
+    setCurrentPage(1);
+  };
+
+  // ─── Calendar Functions ──────────────────────────────────────────────
+  const getDaysInMonth = (date: Date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const firstDayOfMonth = new Date(year, month, 1).getDay();
+    return { daysInMonth, firstDayOfMonth };
+  };
+
+  // ✅ UPDATED: Format date display using context
+  const formatDateDisplay = (dateStr: string) => {
+    if (!dateStr) return '';
+    return formatDate(dateStr);
+  };
+
+  const handlePrevMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
+  };
+
+  const handleNextMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
+  };
+
+  const getMonthYear = (date: Date) => {
+    return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  };
+
+  const isDateSelected = (day: number) => {
+    if (!fromDate || !toDate) return false;
+    const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+    const from = new Date(fromDate);
+    const to = new Date(toDate);
+    to.setHours(23, 59, 59, 999);
+    return date >= from && date <= to;
+  };
+
+  const handleDateClick = (day: number) => {
+    const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+    const dateStr = date.toISOString().split('T')[0];
+    
+    if (!fromDate || (fromDate && toDate)) {
+      setFromDate(dateStr);
+      setToDate('');
+    } else {
+      if (new Date(dateStr) < new Date(fromDate)) {
+        setToDate(fromDate);
+        setFromDate(dateStr);
+      } else {
+        setToDate(dateStr);
+      }
+    }
   };
 
   // ─── Actions ──────────────────────────────────────────────────────────
@@ -427,11 +543,12 @@ export default function WorkOrderList() {
     setSearchTerm('');
     setStatusFilter('all');
     setDateFilter('all');
+    setFromDate('');
+    setToDate('');
     setActiveTab('all');
     setCurrentPage(1);
   };
 
-  // ─── Status helpers ───────────────────────────────────────────────────
   const getStatusIcon = (status: Status) => {
     switch (status) {
       case 'Completed': return <FaCheckCircle size={14} />;
@@ -486,7 +603,7 @@ export default function WorkOrderList() {
             <FaSearch className="wo-search-icon" />
             <input
               type="text"
-              placeholder={`Search ${activeTab !== 'all' ? (activeTab === 'internal' ? 'product' : 'service') + ' ' : ''}work orders by name or item...`}
+              placeholder={`Search ${activeTab !== 'all' ? (activeTab === 'internal' ? 'product' : 'service') + ' ' : ''}work orders by name, item, or supplier...`}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="wo-search-input"
@@ -522,6 +639,97 @@ export default function WorkOrderList() {
               </option>
             ))}
           </select>
+          {/* Date Range Picker - NEW UI */}
+          <div className="wo-date-range-wrapper">
+            <button 
+              className={`wo-date-toggle-btn ${showDatePicker ? 'active' : ''}`}
+              onClick={() => setShowDatePicker(!showDatePicker)}
+              title="Filter by date range"
+            >
+              <FaCalendarAlt size={14} />
+            </button>
+            {showDatePicker && (
+              <div className="wo-date-picker-popup">
+                <div className="wo-date-picker-header">
+                  <span className="wo-date-picker-title">Filter by Date</span>
+                </div>
+                
+                {/* Date Range Display */}
+                <div className="wo-date-range-display">
+                  {fromDate && toDate ? (
+                    <span>{formatDateDisplay(fromDate)} – {formatDateDisplay(toDate)}</span>
+                  ) : (
+                    <span className="wo-date-range-placeholder">Select date range</span>
+                  )}
+                </div>
+
+                {/* Quick Filters */}
+                <div className="wo-quick-filters">
+                  <button className="wo-quick-filter-btn" onClick={() => setQuickDateRange(0)}>Today</button>
+                  <button className="wo-quick-filter-btn" onClick={() => setQuickDateRange(7)}>Last 7 Days</button>
+                  <button className="wo-quick-filter-btn" onClick={() => setQuickDateRange(30)}>Last 30 Days</button>
+                  <button className="wo-quick-filter-btn" onClick={() => setQuickDateRange(90)}>This Month</button>
+                </div>
+
+                {/* Calendar */}
+                <div className="wo-calendar">
+                  <div className="wo-calendar-header">
+                    <button className="wo-calendar-nav" onClick={handlePrevMonth}>
+                      <FaChevronLeft size={12} />
+                    </button>
+                    <span className="wo-calendar-month">{getMonthYear(currentMonth)}</span>
+                    <button className="wo-calendar-nav" onClick={handleNextMonth}>
+                      <FaChevronRight size={12} />
+                    </button>
+                  </div>
+                  <div className="wo-calendar-weekdays">
+                    <span>Su</span>
+                    <span>Mo</span>
+                    <span>Tu</span>
+                    <span>We</span>
+                    <span>Th</span>
+                    <span>Fr</span>
+                    <span>Sa</span>
+                  </div>
+                  <div className="wo-calendar-days">
+                    {Array.from({ length: getDaysInMonth(currentMonth).firstDayOfMonth }).map((_, i) => (
+                      <span key={`empty-${i}`} className="wo-calendar-day-empty"></span>
+                    ))}
+                    {Array.from({ length: getDaysInMonth(currentMonth).daysInMonth }).map((_, i) => {
+                      const day = i + 1;
+                      const isSelected = isDateSelected(day);
+                      return (
+                        <button
+                          key={day}
+                          className={`wo-calendar-day ${isSelected ? 'selected' : ''}`}
+                          onClick={() => handleDateClick(day)}
+                        >
+                          {day}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="wo-date-actions">
+                  <button 
+                    className="wo-btn-clear-filter" 
+                    onClick={handleClearDateFilter}
+                  >
+                    Clear
+                  </button>
+                  <button 
+                    className="wo-btn-apply-filter" 
+                    onClick={handleApplyDateFilter}
+                    disabled={!fromDate || !toDate}
+                  >
+                    Apply Filters
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
           <button className="wo-btn-primary" onClick={() => navigate("/work-order/new")}>
             <FaPlus size={12} />
             Add Work Order
@@ -530,7 +738,7 @@ export default function WorkOrderList() {
       </div>
 
       {/* Active filters indicator */}
-      {(searchTerm || statusFilter !== 'all' || dateFilter !== 'all' || activeTab !== 'all') && (
+      {(searchTerm || statusFilter !== 'all' || dateFilter !== 'all' || activeTab !== 'all' || (fromDate && toDate)) && (
         <div className="wo-active-filters">
           <FaFilter size={12} style={{ color: 'var(--primary-color)' }} />
           <span style={{ color: 'var(--text-primary)' }}>Active filters:</span>
@@ -549,7 +757,12 @@ export default function WorkOrderList() {
               <strong>Status:</strong> {STATUS_LABELS[statusFilter as Status]}
             </span>
           )}
-          {dateFilter !== 'all' && (
+          {fromDate && toDate && (
+            <span style={{ color: 'var(--text-primary)' }}>
+              <strong>Date Range:</strong> {formatDateDisplay(fromDate)} - {formatDateDisplay(toDate)}
+            </span>
+          )}
+          {dateFilter !== 'all' && dateFilter !== 'custom' && (
             <span style={{ color: 'var(--text-primary)' }}>
               <strong>Date:</strong> {dateFilterOptions.find(o => o.value === dateFilter)?.label}
             </span>
@@ -681,7 +894,8 @@ export default function WorkOrderList() {
                       <td className="wo-td wo-td-dates">
                         <div className="wo-date-range">
                           <FaCalendarAlt size={12} style={{ color: 'var(--text-secondary)', marginRight: '4px' }} />
-                          <span>{new Date(row.plannedStartDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                          {/* ✅ USE FORMATTED DATE FOR DISPLAY */}
+                          <span>{row.displayStartDate || new Date(row.plannedStartDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
                         </div>
                       </td>
                       <td className="wo-td wo-td-meta" onClick={(e) => e.stopPropagation()}>
