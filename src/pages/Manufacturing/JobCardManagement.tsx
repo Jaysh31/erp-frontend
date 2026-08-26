@@ -1,4 +1,4 @@
-// JobCardManagement.tsx - Fixed version with Date Filter
+// JobCardManagement.tsx - Fixed version with Date Format
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -68,6 +68,12 @@ interface JobCardDisplay {
   expectedEndDate: Date | null;
   actualStartDate: Date | null;
   actualEndDate: Date | null;
+  // ✅ Formatted display fields
+  displayCreatedOn?: string;
+  displayExpectedStart?: string;
+  displayExpectedEnd?: string;
+  displayActualStart?: string;
+  displayActualEnd?: string;
 }
 
 interface WorkOrderGroup {
@@ -143,7 +149,9 @@ const getTimerInfo = (row: JobCardDisplay, now: Date): TimerInfo => {
 
 export default function JobCardManagement() {
   const navigate = useNavigate();
-  const { theme } = useAdminTheme();
+  
+  // ✅ GET THE DATE FORMAT FUNCTION FROM CONTEXT
+  const { theme, formatDate, getApiDateFormat } = useAdminTheme();
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -170,15 +178,26 @@ export default function JobCardManagement() {
 
   const pageSizeOptions = [10, 25, 50, 100];
 
+  // ✅ NEW: Format display date using context (supports all 4 formats)
+  const formatDisplayDate = (dateString: string) => {
+    if (!dateString) return '';
+    return formatDate(dateString);
+  };
+
+  // ✅ NEW: Format date for API (YYYY-MM-DD)
+  const toApiDateFormat = (date: Date) => {
+    return getApiDateFormat(date);
+  };
+
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(interval);
   }, []);
 
+  // ✅ UPDATED: Format date display using context
   const formatDateDisplay = (dateStr: string) => {
     if (!dateStr) return '';
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+    return formatDate(dateStr);
   };
 
   const getDaysInMonth = (date: Date) => {
@@ -252,7 +271,8 @@ export default function JobCardManagement() {
     setCurrentPage(1);
   };
 
-  const formatDate = (dateString: string) => {
+  // ✅ UPDATED: Format date ago using context
+  const formatDateAgo = (dateString: string) => {
     const date = new Date(dateString);
     const nowDate = new Date();
     const diffMs = nowDate.getTime() - date.getTime();
@@ -325,6 +345,7 @@ export default function JobCardManagement() {
         setTotalPages(1);
       }
 
+      // ✅ TRANSFORM DATA WITH FORMATTED DATES
       const transformed = records.map((item) => {
         const qty = item.for_quantity ?? item.requested_qty ?? 0;
         const completed = item.total_completed_qty || 0;
@@ -346,11 +367,17 @@ export default function JobCardManagement() {
           status: item.status,
           createdOn,
           progress: calculateProgress(qty, completed, loss),
-          createdAgo: formatDate(createdOn),
+          createdAgo: formatDateAgo(createdOn),
           expectedStartDate: item.expected_start_date ? new Date(item.expected_start_date) : null,
           expectedEndDate: item.expected_end_date ? new Date(item.expected_end_date) : null,
           actualStartDate: item.actual_start_date ? new Date(item.actual_start_date) : null,
           actualEndDate: item.actual_end_date ? new Date(item.actual_end_date) : null,
+          // ✅ ADD FORMATTED DATES FOR DISPLAY
+          displayCreatedOn: formatDisplayDate(createdOn),
+          displayExpectedStart: item.expected_start_date ? formatDisplayDate(item.expected_start_date) : '',
+          displayExpectedEnd: item.expected_end_date ? formatDisplayDate(item.expected_end_date) : '',
+          displayActualStart: item.actual_start_date ? formatDisplayDate(item.actual_start_date) : '',
+          displayActualEnd: item.actual_end_date ? formatDisplayDate(item.actual_end_date) : '',
         };
       });
       

@@ -9,13 +9,25 @@ const MONTH_NAMES_SHORT = [
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ];
 
+// ✅ FIXED: Changed 'dd/mmmyyyy' to 'ddmmmyyyy'
 const formatDate = (date: Date, format: DateFormatType): string => {
-  const day = date.getDate();
+  const day = String(date.getDate()).padStart(2, '0');
   const month = date.getMonth();
   const year = date.getFullYear();
-  return format === 'numeric'
-    ? `${day}/${month + 1}/${year}`
-    : `${day}/${MONTH_NAMES_SHORT[month]}/${year}`;
+  const monthNum = String(month + 1).padStart(2, '0');
+  
+  switch (format) {
+    case 'ddmmyyyy':
+      return `${day}/${monthNum}/${year}`;
+    case 'ddmmmyyyy':
+      return `${day}/${MONTH_NAMES_SHORT[month]}/${year}`;
+    case 'mmddyyyy':
+      return `${monthNum}/${day}/${year}`;
+    case 'yyyymmdd':
+      return `${year}-${monthNum}-${day}`;
+    default:
+      return `${day}/${monthNum}/${year}`;
+  }
 };
 
 const Settings: React.FC = () => {
@@ -40,46 +52,43 @@ const Settings: React.FC = () => {
       navbarBg: '#ffffff',
       cardGradient: 'linear-gradient(135deg, #43a047 0%, #2e7d32 100%)',
     },
-    // {
-    //   id: 'dark-theme',
-    //   name: 'Dark Theme',
-    //   description: 'Modern dark enterprise panel for reduced eye strain',
-    //   previewBg: '#0f172a',
-    //   sidebarBg: 'linear-gradient(135deg, #020617 0%, #0f172a 100%)',
-    //   navbarBg: '#1e293b',
-    //   cardGradient: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
-    // },
   ];
 
-  // Date format catalogue — each option is identified by a clear pattern name
-  // (e.g. "DD/MM/YYYY") instead of a raw date example, so the client can tell
-  // at a glance which layout they are choosing.
-  const dateFormatOptions: {
+  // Date format options - simple cards like theme
+  const dateFormats: {
     id: DateFormatType;
-    name: string;
-    tagline: string;
-    badge: string;
     pattern: string;
+    example: string;
+    badge: string;
     description: string;
-    bestFor: string;
   }[] = [
     {
-      id: 'numeric',
-      name: 'Numeric',
-      tagline: 'Digits only',
-      badge: 'Date in Digit Form',
+      id: 'ddmmyyyy',
       pattern: 'DD/MM/YYYY',
+      example: 'Ex.15/03/2026',
+      badge: 'Digits only',
       description: 'Day, month and year shown entirely as numbers.',
-      bestFor: 'Best for data-dense screens like ledgers and reports',
     },
     {
-      id: 'monthName',
-      name: 'Month Name',
-      tagline: 'Written month',
-      badge: 'Month in Written Form',
+      id: 'ddmmmyyyy',
       pattern: 'DD/MMM/YYYY',
+      example: 'Ex.15/Mar/2026',
+      badge: 'Written month',
       description: 'The month is spelled out to avoid DD/MM vs MM/DD confusion.',
-      bestFor: 'Best for invoices, quotations and client-facing documents',
+    },
+    {
+      id: 'mmddyyyy',
+      pattern: 'MM/DD/YYYY',
+      example: 'Ex.03/15/2026',
+      badge: 'US format',
+      description: 'Month, day and year with leading zeros.',
+    },
+    {
+      id: 'yyyymmdd',
+      pattern: 'YYYY-MM-DD',
+      example: 'Ex.2026-03-15',
+      badge: 'ISO standard',
+      description: 'Year, month and day in international standard format.',
     },
   ];
 
@@ -89,10 +98,10 @@ const Settings: React.FC = () => {
     toast.success(`${themeName} theme activated successfully!`);
   };
 
-  const handleDateFormatSelect = (format: DateFormatType) => {
-    setDateFormat(format);
-    const option = dateFormatOptions.find((f) => f.id === format);
-    toast.success(`Date format changed to: ${option?.name} (${option?.pattern})`);
+  const handleDateFormatSelect = (formatId: DateFormatType) => {
+    setDateFormat(formatId);
+    const format = dateFormats.find(f => f.id === formatId);
+    toast.success(`Date format changed to: ${format?.pattern}`);
   };
 
   const previewRows = [
@@ -125,7 +134,8 @@ const Settings: React.FC = () => {
             <div>
               <h2>Theme Settings</h2>
               <p className="settings-theme-description">
-                Pick the color palette used across the dashboard and sidebar.
+                Choose a color scheme that matches your brand and preferences.
+                Your selection will be saved automatically.
               </p>
             </div>
           </div>
@@ -146,11 +156,6 @@ const Settings: React.FC = () => {
                 key={themeOption.id}
                 className={`settings-theme-option ${theme === themeOption.id ? 'settings-active-theme' : ''}`}
                 onClick={() => handleThemeSelect(themeOption.id as AdminThemeType)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') handleThemeSelect(themeOption.id as AdminThemeType);
-                }}
               >
                 <div className="settings-theme-preview" style={{ background: themeOption.previewBg }}>
                   <div className="settings-preview-sidebar" style={{ background: themeOption.sidebarBg }}>
@@ -178,12 +183,7 @@ const Settings: React.FC = () => {
                   <div className="settings-theme-info-header">
                     <h4>{themeOption.name}</h4>
                     {theme === themeOption.id && (
-                      <span className="settings-active-badge">
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                        Active
-                      </span>
+                      <span className="settings-active-badge">✓ Active</span>
                     )}
                   </div>
                   <p>{themeOption.description}</p>
@@ -223,58 +223,36 @@ const Settings: React.FC = () => {
           <div className="settings-current-theme-badge">
             <span className="settings-badge-label">Current Format</span>
             <span className="settings-badge-value">
-              {dateFormatOptions.find((f) => f.id === dateFormat)?.pattern}
+              {dateFormats.find(f => f.id === dateFormat)?.pattern || 'DD/MM/YYYY'}
             </span>
           </div>
         </div>
 
         <div className="settings-card-body">
+          {/* Date Format Cards */}
           <div className="settings-date-format-grid">
-            {dateFormatOptions.map((format) => (
+            {dateFormats.map((format) => (
               <div
                 key={format.id}
-                className={`settings-date-format-option ${dateFormat === format.id ? 'settings-active-format' : ''}`}
+                className={`settings-date-format-card ${dateFormat === format.id ? 'active' : ''}`}
                 onClick={() => handleDateFormatSelect(format.id)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') handleDateFormatSelect(format.id);
-                }}
               >
-                {dateFormat === format.id && (
-                  <span className="settings-format-selected-check" aria-hidden="true">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                  </span>
-                )}
-                <div className="settings-format-preview">
-                  <div className="settings-format-icon">{format.badge}</div>
-                  <div className="settings-format-pattern-name">{format.pattern}</div>
+                <div className="settings-date-format-card-left">
+                  <span className="settings-date-format-pattern">{format.pattern}</span>
+                  <span className="settings-date-format-badge">{format.badge}</span>
                 </div>
-                <div className="settings-format-info">
-                  <div className="settings-format-info-header">
-                    <h4>
-                      {format.name}
-                      <span className="settings-format-tagline">{format.tagline}</span>
-                    </h4>
-                    {dateFormat === format.id && (
-                      <span className="settings-active-badge">
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                        Active
-                      </span>
-                    )}
-                  </div>
-                  <p>{format.description}</p>
-                  <p className="settings-format-best-for">{format.bestFor}</p>
+                <div className="settings-date-format-card-right">
+                  <span className="settings-date-format-example">{format.example}</span>
+                  {dateFormat === format.id && (
+                    <span className="settings-date-format-check">✓</span>
+                  )}
                 </div>
               </div>
             ))}
           </div>
 
-         
+          
+              
             </div>
           </div>
         </div>

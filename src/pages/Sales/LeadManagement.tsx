@@ -103,6 +103,7 @@ export default function LeadManagement() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedItem, setSelectedItem] = useState<LeadDisplay | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -121,13 +122,29 @@ export default function LeadManagement() {
     return `${Math.floor(diffDays / 365)} y`;
   };
 
-  // ─── fetch from GET /lead ───────────────────────────────────────────
+  // ─── fetch from GET /lead with status filter ───────────────────────────
 
-  const fetchLeads = async () => {
+  const fetchLeads = async (status?: string) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await api.get("/lead");
+      let url = "/lead";
+      const params = new URLSearchParams();
+      
+      // Add pagination params
+      params.append('page', String(currentPage));
+      params.append('limit', String(itemsPerPage));
+      
+      // Add status filter if selected and not 'all'
+      if (status && status !== 'all') {
+        params.append('status', status);
+        url = `/lead?${params.toString()}`;
+      } else if (status === 'all' || !status) {
+        url = `/lead?${params.toString()}`;
+      }
+      
+      console.log("GET request URL:", url);
+      const response = await api.get(url);
       console.log("GET /lead raw response:", response.data);
 
       const list = extractList(response.data);
@@ -154,6 +171,68 @@ export default function LeadManagement() {
       setLoading(false);
     }
   };
+
+  // ─── fetch leads with status filter from API ───────────────────────────
+
+  const fetchLeadsByStatus = async (status: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      // Call the API with status filter
+      const response = await api.get(`/lead?page=${currentPage}&limit=${itemsPerPage}&status=${status}`);
+      console.log("GET /lead with status response:", response.data);
+      
+      const list = extractList(response.data);
+      setRawLeads(list);
+
+      if (list.length > 0) {
+        console.log("First filtered lead record:", list[0]);
+      }
+
+      const transformedData: LeadDisplay[] = list.map((item) => mapApiLeadToDisplay(item, formatDate));
+
+      setTotalItems(transformedData.length);
+      setLeads(transformedData);
+      
+      toast.success(`Showing leads with status: ${status}`);
+    } catch (err: any) {
+      console.error("Error fetching leads by status:", err);
+      if (err.response) {
+        setError(err.response.data?.message || `Server error: ${err.response.status}`);
+      } else if (err.request) {
+        setError("Network error. Please check your connection.");
+      } else {
+        setError(err.message || "An error occurred while loading leads");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ─── handle filter application ────────────────────────────────────
+
+  const handleStatusSelect = (status: string) => {
+    setStatusFilter(status);
+    setShowStatusDropdown(false);
+    
+    if (status === 'all') {
+      fetchLeads();
+    } else {
+      // Call API with the selected status
+      fetchLeadsByStatus(status);
+    }
+  };
+
+  // ─── status options for dropdown ──────────────────────────────────
+
+  const statusOptions = [
+    { value: 'all', label: 'Status *' },
+    { value: 'Lead', label: 'Lead' },
+    { value: 'Contacted', label: 'Contacted' },
+    { value: 'Qualified', label: 'Qualified' },
+    { value: 'Unqualified', label: 'Unqualified' },
+    { value: 'Converted', label: 'Converted' },
+  ];
 
   useEffect(() => {
     fetchLeads();
@@ -186,8 +265,6 @@ export default function LeadManagement() {
     validCurrentPage * itemsPerPage
   );
 
-
-
   const goToPage = (page: number) => {
     if (page >= 1 && page <= filteredTotalPages) {
       setCurrentPage(page);
@@ -219,7 +296,6 @@ export default function LeadManagement() {
     setShowDeleteConfirm(true);
   };
 
-  // ✅ FIXED: Better delete with detailed error handling
   const confirmDelete = async () => {
     if (!selectedItem) return;
 
@@ -227,7 +303,6 @@ export default function LeadManagement() {
     setError(null);
 
     try {
-      // Log the delete URL for debugging
       const deleteUrl = `/lead/${selectedItem.recordId}`;
       console.log(`Attempting to delete lead with ID: ${selectedItem.recordId}`);
       console.log(`DELETE URL: ${deleteUrl}`);
@@ -235,7 +310,6 @@ export default function LeadManagement() {
       const response = await api.delete(deleteUrl);
       console.log("Delete response:", response);
 
-      // Check if the response indicates success
       if (response.data && response.data.success === 1) {
         setShowDeleteConfirm(false);
         setSelectedItem(null);
@@ -249,9 +323,7 @@ export default function LeadManagement() {
     } catch (err: any) {
       console.error("Error deleting lead:", err);
       
-      // Detailed error logging
       if (err.response) {
-        // The request was made and the server responded with a status code
         console.error("Error response data:", err.response.data);
         console.error("Error response status:", err.response.status);
         console.error("Error response headers:", err.response.headers);
@@ -260,13 +332,11 @@ export default function LeadManagement() {
         toast.error(errorMsg);
         setError(errorMsg);
       } else if (err.request) {
-        // The request was made but no response was received
         console.error("No response received:", err.request);
         const errorMsg = "No response from server. Please check your connection and CORS settings.";
         toast.error(errorMsg);
         setError(errorMsg);
       } else {
-        // Something happened in setting up the request
         console.error("Request setup error:", err.message);
         const errorMsg = "Failed to send delete request. Please try again.";
         toast.error(errorMsg);
@@ -287,10 +357,17 @@ export default function LeadManagement() {
   const clearFilters = () => {
     setSearchTerm("");
     setStatusFilter("all");
+    fetchLeads();
   };
 
   const getStartIndex = () => (validCurrentPage - 1) * itemsPerPage + 1;
   const getEndIndex = () => Math.min(validCurrentPage * itemsPerPage, totalFilteredItems);
+
+  // Get current status label
+  const getCurrentStatusLabel = () => {
+    const option = statusOptions.find(opt => opt.value === statusFilter);
+    return option ? option.label : 'Status *';
+  };
 
   return (
     <div className={`jc-page ${theme}`}>
@@ -314,22 +391,43 @@ export default function LeadManagement() {
           </div>
         </div>
         <div className="jc-filter-right">
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="jc-filter-select"
-          >
-            <option value="all">All Status</option>
-            <option value="Lead">Lead</option>
-            <option value="Contacted">Contacted</option>
-            <option value="Qualified">Qualified</option>
-            <option value="Unqualified">Unqualified</option>
-            <option value="Converted">Converted</option>
-          </select>
-          <button className="jc-filter-btn">
-            <FaFilter size={12} />
-            Filter
-          </button>
+          {/* Custom Status Dropdown with Filter Button */}
+          <div className="jc-status-dropdown-wrapper">
+            <button 
+              className={`jc-filter-btn ${statusFilter !== 'all' ? 'jc-filter-active' : ''}`}
+              onClick={() => setShowStatusDropdown(!showStatusDropdown)}
+            >
+              <FaFilter size={12} />
+              {getCurrentStatusLabel()}
+              <svg 
+                width="12" 
+                height="12" 
+                viewBox="0 0 12 12" 
+                fill="none"
+                style={{ marginLeft: '4px' }}
+              >
+                <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+            
+            {showStatusDropdown && (
+              <div className="jc-status-dropdown-menu">
+                {statusOptions.map((option) => (
+                  <div
+                    key={option.value}
+                    className={`jc-status-dropdown-item ${statusFilter === option.value ? 'jc-status-dropdown-item-active' : ''}`}
+                    onClick={() => handleStatusSelect(option.value)}
+                  >
+                    <span>{option.label}</span>
+                    {statusFilter === option.value && (
+                      <span className="jc-status-dropdown-check">✓</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <button className="jc-sort-btn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="15" y2="12" /><line x1="3" y1="18" x2="9" y2="18" />
@@ -356,7 +454,7 @@ export default function LeadManagement() {
           )}
           {statusFilter !== "all" && (
             <span style={{ color: "var(--text-primary)" }}>
-              <strong>Status:</strong> {STATUS_LABELS[statusFilter as LeadStatus]}
+              <strong>Status:</strong> {getCurrentStatusLabel()}
             </span>
           )}
           <button onClick={clearFilters} className="jc-clear-filters">
@@ -376,7 +474,7 @@ export default function LeadManagement() {
       {error && (
         <div className="jc-error">
           <p>{error}</p>
-          <button onClick={fetchLeads} className="jc-retry-btn">
+          <button onClick={() => fetchLeads(statusFilter)} className="jc-retry-btn">
             Retry
           </button>
         </div>
@@ -389,15 +487,11 @@ export default function LeadManagement() {
             <table className="jc-table">
               <thead>
                 <tr>
-                  {/* <th className="jc-th-check">
-                    <input type="checkbox" checked={allChecked} onChange={toggleAll} className="jc-checkbox" />
-                  </th> */}
                   <th className="jc-th">Lead ID</th>
                   <th className="jc-th">Name</th>
                   <th className="jc-th">Organization</th>
                   <th className="jc-th">Email</th>
                   <th className="jc-th">Mobile No</th>
-                  {/* <th className="jc-th">Source</th> */}
                   <th className="jc-th">Status</th>
                   <th className="jc-th jc-th-meta">
                     <span className="jc-count-label">{totalFilteredItems} of {totalItems}</span>
@@ -410,7 +504,7 @@ export default function LeadManagement() {
               <tbody>
                 {paginatedData.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="jc-empty-state">
+                    <td colSpan={8} className="jc-empty-state">
                       <div className="jc-empty-content">
                         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
@@ -429,9 +523,6 @@ export default function LeadManagement() {
                       onClick={() => goToLead(row)}
                       style={{ cursor: "pointer" }}
                     >
-                      {/* <td className="jc-td-check" onClick={(e) => { e.stopPropagation(); toggleRow(row.id); }}>
-                        <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleRow(row.id)} className="jc-checkbox" />
-                      </td> */}
                       <td className="jc-td jc-td-id">{row.id}</td>
                       <td className="jc-td jc-td-link">{row.leadName}</td>
                       <td className="jc-td jc-td-company">
@@ -440,15 +531,12 @@ export default function LeadManagement() {
                       </td>
                       <td className="jc-td">{row.email || "—"}</td>
                       <td className="jc-td">{row.mobileNo || "—"}</td>
-                      {/* <td className="jc-td">{row.source || "—"}</td> */}
                       <td className="jc-td">
                         <span className={`jc-status-badge ${STATUS_CLASS[row.status]}`}>
                           {STATUS_LABELS[row.status]}
                         </span>
                       </td>
                       <td className="jc-td jc-td-meta" onClick={(e) => e.stopPropagation()}>
-                        {/* <span className="jc-ago">{row.createdAgo}</span>
-                        <span className="jc-dot">·</span> */}
                         <div className="jc-action-buttons">
                           <button className="jc-action-btn jc-action-view" onClick={(e) => { e.stopPropagation(); goToLead(row); }} title="View">
                             <FaEye size={12} />

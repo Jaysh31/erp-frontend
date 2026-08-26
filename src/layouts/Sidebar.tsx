@@ -320,7 +320,7 @@ export default function Sidebar({
       ]
     },
     {
-      title: 'Theme',
+      title: 'Setting',
       module: 'theme',
       icon: <SettingsIcon />,
       items: [

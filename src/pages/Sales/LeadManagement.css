@@ -1039,4 +1039,68 @@
   .jc-modal-footer button {
     width: 100%;
   }
+
+
+  
+}
+
+/* Status Dropdown Styles */
+.jc-status-dropdown-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.jc-status-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  background: var(--bg-primary, #ffffff);
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  min-width: 180px;
+  z-index: 1000;
+  padding: 4px 0;
+  animation: dropdownSlideDown 0.2s ease;
+}
+
+@keyframes dropdownSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.jc-status-dropdown-item {
+  padding: 8px 16px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--text-primary, #1f2937);
+  font-size: 14px;
+  transition: background-color 0.15s ease;
+}
+
+.jc-status-dropdown-item:hover {
+  background-color: var(--hover-bg, #f3f4f6);
+}
+
+.jc-status-dropdown-item-active {
+  background-color: var(--primary-light, #eff6ff);
+  color: var(--primary-color, #3b82f6);
+}
+
+.jc-status-dropdown-item-active:hover {
+  background-color: var(--primary-hover, #dbeafe);
+}
+
+.jc-status-dropdown-check {
+  color: var(--primary-color, #3b82f6);
+  font-weight: 600;
 }

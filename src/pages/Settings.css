@@ -116,6 +116,7 @@
   padding: 24px;
 }
 
+/* ─── Theme Grid ─── */
 .settings-theme-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -137,8 +138,7 @@
   border-color: var(--primary-color, #6366f1);
 }
 
-.settings-theme-option:focus-visible,
-.settings-date-format-option:focus-visible {
+.settings-theme-option:focus-visible {
   outline: 2px solid var(--primary-color, #6366f1);
   outline-offset: 3px;
 }
@@ -308,7 +308,7 @@
 }
 
 /* ========================================
-   DATE FORMAT SETTINGS - NEW STYLES
+   DATE FORMAT SETTINGS - REDESIGNED CARD STYLE
 ======================================== */
 
 /* Date Format Card */
@@ -316,141 +316,219 @@
   margin-top: 24px;
 }
 
-/* Date Format Grid */
+/* Current-format badge (top-right of the card header) gets a subtle glow */
+.date-format-card .settings-current-theme-badge {
+  background: linear-gradient(135deg, var(--card-bg, #ffffff), color-mix(in srgb, var(--primary-color, #6366f1) 6%, var(--card-bg, #ffffff)));
+  border-color: color-mix(in srgb, var(--primary-color, #6366f1) 35%, var(--border-color, #e5e7eb));
+}
+
+.date-format-card .settings-badge-value {
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.02em;
+  color: var(--primary-color, #6366f1);
+}
+
+/* ─── Date Format Cards Grid ─── */
 .settings-date-format-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 20px;
-  margin-bottom: 24px;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  margin-bottom: 28px;
 }
 
-/* Date Format Option */
-.settings-date-format-option {
-  background: var(--layout-bg, #f8fafc);
-  border-radius: 12px;
-  border: 2px solid var(--border-color, #e5e7eb);
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  overflow: hidden;
+/* ─── Individual Date Format Card ─── */
+.settings-date-format-card {
   position: relative;
-}
-
-.settings-date-format-option:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-  border-color: var(--primary-color, #6366f1);
-}
-
-.settings-date-format-option.settings-active-format {
-  border-color: var(--primary-color, #6366f1);
-  background: var(--card-bg, #ffffff);
-  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.15);
-  transform: translateY(-4px);
-}
-
-/* Format Preview */
-.settings-format-preview {
-  padding: 24px;
-  text-align: center;
-  background: var(--card-bg, #ffffff);
-  border-bottom: 1px solid var(--border-color, #e5e7eb);
-}
-
-.settings-format-icon {
-  font-size: 32px;
-  margin-bottom: 8px;
-  display: block;
-}
-
-.settings-format-example {
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--primary-color, #6366f1);
-  margin: 8px 0;
-  font-family: 'Courier New', monospace;
-  letter-spacing: 0.5px;
-}
-
-.settings-format-sub-examples {
   display: flex;
-  justify-content: center;
-  gap: 16px;
-  margin-top: 8px;
-  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 22px 16px 26px;
+  background: var(--card-bg, #ffffff);
+  border: 1.5px solid var(--border-color, #e5e7eb);
+  border-radius: 14px;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.2s ease, background 0.25s ease;
 }
 
-.settings-format-sub-examples span {
-  font-size: 13px;
+/* Colored accent bar on the left edge of every card */
+.settings-date-format-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: var(--border-color, #e5e7eb);
+  transition: background 0.25s ease, width 0.25s ease;
+}
+
+/* Soft radial sheen that appears on hover */
+.settings-date-format-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 0% 50%, color-mix(in srgb, var(--primary-color, #6366f1) 8%, transparent), transparent 60%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.settings-date-format-card:hover {
+  border-color: var(--primary-color, #6366f1);
+  box-shadow: 0 6px 18px rgba(99, 102, 241, 0.12);
+  transform: translateX(6px);
+}
+
+.settings-date-format-card:hover::before {
+  background: var(--primary-color, #6366f1);
+}
+
+.settings-date-format-card:hover::after {
+  opacity: 1;
+}
+
+.settings-date-format-card.active {
+  border-color: var(--primary-color, #6366f1);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--primary-color, #6366f1) 6%, transparent), transparent 70%);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1), 0 8px 20px rgba(99, 102, 241, 0.14);
+}
+
+.settings-date-format-card.active::before {
+  background: var(--primary-color, #6366f1);
+  width: 5px;
+  box-shadow: 0 0 10px rgba(99, 102, 241, 0.6);
+}
+
+.settings-date-format-card:focus-visible {
+  outline: 2px solid var(--primary-color, #6366f1);
+  outline-offset: 2px;
+}
+
+/* ─── Left side: Pattern + Badge ─── */
+.settings-date-format-card-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  z-index: 1;
+}
+
+.settings-date-format-pattern {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary, #111827);
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.02em;
+}
+
+.settings-date-format-card.active .settings-date-format-pattern {
+  color: var(--primary-color, #6366f1);
+}
+
+.settings-date-format-badge {
+  font-size: 11px;
+  font-weight: 600;
   color: var(--text-secondary, #6b7280);
   background: var(--layout-bg, #f3f4f6);
-  padding: 2px 12px;
-  border-radius: 12px;
-  font-family: 'Courier New', monospace;
-}
-
-/* Format Info */
-.settings-format-info {
-  padding: 16px 20px 20px;
-}
-
-.settings-format-info-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 6px;
-}
-
-.settings-format-info-header h4 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-primary, #111827);
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-
-.settings-format-tagline {
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  color: #059669;
-  background: #d1fae5;
-  padding: 2px 8px;
+  padding: 3px 11px;
   border-radius: 999px;
   white-space: nowrap;
+  border: 1px solid var(--border-color, #e5e7eb);
+  transition: all 0.25s ease;
 }
 
-.settings-format-info p {
-  margin: 0;
-  font-size: 13px;
+.settings-date-format-card.active .settings-date-format-badge {
+  color: var(--primary-color, #6366f1);
+  background: color-mix(in srgb, var(--primary-color, #6366f1) 12%, transparent);
+  border-color: transparent;
+}
+
+/* ─── Right side: Example + Check ─── */
+.settings-date-format-card-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  z-index: 1;
+}
+
+.settings-date-format-example {
+  font-size: 15px;
+  font-weight: 600;
   color: var(--text-secondary, #6b7280);
-  line-height: 1.4;
+  font-family: 'Courier New', monospace;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: var(--layout-bg, #f9fafb);
+  transition: all 0.25s ease;
 }
 
-/* ========================================
-   LIVE PREVIEW SECTION
-======================================== */
+.settings-date-format-card.active .settings-date-format-example,
+.settings-date-format-card:hover .settings-date-format-example {
+  color: var(--primary-color, #6366f1);
+  background: color-mix(in srgb, var(--primary-color, #6366f1) 10%, transparent);
+}
 
+.settings-date-format-check {
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 13px;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #10b981, #059669);
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
+  animation: settings-check-pop 0.3s ease;
+}
+
+@keyframes settings-check-pop {
+  from {
+    transform: scale(0);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* ─── Live Preview ─── */
 .settings-live-preview {
-  background: var(--layout-bg, #f8fafc);
-  border-radius: 12px;
-  padding: 20px;
+  position: relative;
+  background: linear-gradient(160deg, var(--layout-bg, #f8fafc), var(--card-bg, #ffffff));
+  border-radius: 14px;
+  padding: 22px 24px;
   border: 1px solid var(--border-color, #e5e7eb);
   margin-top: 8px;
+  overflow: hidden;
+}
+
+.settings-live-preview::before {
+  content: '';
+  position: absolute;
+  top: -40%;
+  right: -10%;
+  width: 220px;
+  height: 220px;
+  background: radial-gradient(circle, color-mix(in srgb, var(--primary-color, #6366f1) 10%, transparent), transparent 70%);
+  pointer-events: none;
 }
 
 .settings-live-preview-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
-  padding-bottom: 12px;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
   border-bottom: 1px solid var(--border-color, #e5e7eb);
+  position: relative;
+  z-index: 1;
 }
 
 .settings-live-preview-header span:first-child {
-  font-weight: 600;
+  font-weight: 700;
   font-size: 14px;
   color: var(--text-primary, #111827);
   display: flex;
@@ -459,46 +537,57 @@
 }
 
 .settings-preview-badge {
-  background: var(--primary-color, #6366f1);
+  background: linear-gradient(135deg, var(--primary-color, #6366f1), color-mix(in srgb, var(--primary-color, #6366f1) 70%, #000));
   color: white;
-  padding: 2px 14px;
+  padding: 3px 16px;
   border-radius: 12px;
   font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.3px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  font-family: 'Courier New', monospace;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.35);
 }
 
 .settings-live-preview-content {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 14px;
+  gap: 16px;
+  position: relative;
+  z-index: 1;
 }
 
 .settings-preview-row {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 .settings-preview-label {
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text-secondary, #6b7280);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.6px;
 }
 
 .settings-preview-value {
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text-primary, #111827);
   background: var(--card-bg, #ffffff);
-  padding: 4px 14px;
-  border-radius: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
   border: 1px solid var(--border-color, #e5e7eb);
   display: inline-block;
   font-family: 'Courier New', monospace;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
   transition: all 0.3s ease;
+}
+
+.settings-preview-row:hover .settings-preview-value {
+  border-color: var(--primary-color, #6366f1);
+  box-shadow: 0 4px 10px rgba(99, 102, 241, 0.15);
+  transform: translateY(-2px);
 }
 
 /* Theme-specific preview value colors */
@@ -514,29 +603,6 @@
   border-color: #3b82f6;
   background: #1e293b;
   color: #f8fafc;
-}
-
-/* ========================================
-   ANIMATIONS
-======================================== */
-
-@keyframes settings-format-slide-in {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.settings-date-format-option {
-  animation: settings-format-slide-in 0.4s ease forwards;
-}
-
-.settings-date-format-option:nth-child(2) {
-  animation-delay: 0.1s;
 }
 
 /* ========================================
@@ -585,46 +651,56 @@
   }
 
   /* Date Format Mobile */
-  .settings-date-format-grid {
-    grid-template-columns: 1fr;
-    gap: 16px;
+  .settings-date-format-card {
+    padding: 14px 16px 14px 20px;
+    flex-wrap: wrap;
+    gap: 10px;
   }
 
-  .settings-format-example {
-    font-size: 22px;
+  .settings-date-format-card:hover {
+    transform: translateX(2px);
+  }
+
+  .settings-date-format-card-left {
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .settings-date-format-card-right {
+    gap: 10px;
+  }
+
+  .settings-date-format-pattern {
+    font-size: 13px;
+  }
+
+  .settings-date-format-example {
+    font-size: 13px;
+    padding: 3px 8px;
+  }
+
+  .settings-date-format-badge {
+    font-size: 10px;
   }
 
   .settings-live-preview-content {
     grid-template-columns: 1fr;
-    gap: 10px;
-  }
-
-  .settings-format-sub-examples {
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  .settings-format-icon {
-    font-size: 28px;
+    gap: 12px;
   }
 
   .settings-live-preview {
-    padding: 16px;
+    padding: 18px;
   }
 
   .settings-preview-value {
     font-size: 14px;
-    padding: 3px 12px;
+    padding: 6px 12px;
   }
 }
 
 /* Tablet */
 @media (min-width: 769px) and (max-width: 1024px) {
   .settings-theme-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .settings-date-format-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 
@@ -647,18 +723,6 @@
     padding: 12px;
   }
 
-  .settings-format-example {
-    font-size: 18px;
-  }
-
-  .settings-format-preview {
-    padding: 16px;
-  }
-
-  .settings-format-info {
-    padding: 12px 16px 16px;
-  }
-
   .settings-current-theme-badge {
     padding: 6px 12px;
     font-size: 12px;
@@ -673,31 +737,99 @@
   .settings-preview-badge {
     align-self: flex-start;
   }
+
+  .settings-date-format-card {
+    padding: 12px 14px 12px 18px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .settings-date-format-card-left {
+    justify-content: space-between;
+  }
+
+  .settings-date-format-card-right {
+    justify-content: space-between;
+  }
+
+  .settings-date-format-pattern {
+    font-size: 12px;
+  }
+
+  .settings-date-format-example {
+    font-size: 12px;
+  }
+
+  .settings-date-format-check {
+    font-size: 14px;
+  }
 }
 
-/* Dark Theme Support */
-.dark-theme .settings-date-format-option {
-  background: var(--layout-bg, #1e293b);
-}
+/* ========================================
+   DARK THEME SUPPORT
+======================================== */
 
-.dark-theme .settings-date-format-option.settings-active-format {
+.dark-theme .settings-date-format-card {
   background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+}
+
+.dark-theme .settings-date-format-card::before {
+  background: var(--border-color, #334155);
+}
+
+.dark-theme .settings-date-format-card:hover {
   border-color: #3b82f6;
-  box-shadow: 0 4px 20px rgba(59, 130, 246, 0.2);
+  box-shadow: 0 6px 18px rgba(59, 130, 246, 0.18);
 }
 
-.dark-theme .settings-format-preview {
-  background: var(--card-bg, #1e293b);
-  border-bottom-color: var(--border-color, #334155);
+.dark-theme .settings-date-format-card:hover::before {
+  background: #3b82f6;
 }
 
-.dark-theme .settings-format-sub-examples span {
+.dark-theme .settings-date-format-card.active {
+  border-color: #3b82f6;
+  background: linear-gradient(90deg, rgba(59, 130, 246, 0.1), transparent 70%);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12), 0 8px 20px rgba(59, 130, 246, 0.2);
+}
+
+.dark-theme .settings-date-format-card.active::before {
+  background: #3b82f6;
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.7);
+}
+
+.dark-theme .settings-date-format-pattern {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .settings-date-format-card.active .settings-date-format-pattern {
+  color: #60a5fa;
+}
+
+.dark-theme .settings-date-format-example {
+  color: #60a5fa;
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.dark-theme .settings-date-format-badge {
   background: var(--layout-bg, #0f172a);
   color: var(--text-secondary, #94a3b8);
+  border-color: var(--border-color, #334155);
+}
+
+.dark-theme .settings-date-format-card.active .settings-date-format-badge {
+  color: #60a5fa;
+  background: rgba(59, 130, 246, 0.16);
+}
+
+.dark-theme .settings-date-format-check {
+  color: #ffffff;
+  background: linear-gradient(135deg, #34d399, #10b981);
+  box-shadow: 0 2px 8px rgba(52, 211, 153, 0.35);
 }
 
 .dark-theme .settings-live-preview {
-  background: var(--layout-bg, #0f172a);
+  background: linear-gradient(160deg, var(--layout-bg, #0f172a), var(--card-bg, #1e293b));
   border-color: var(--border-color, #334155);
 }
 
@@ -707,12 +839,12 @@
   color: var(--text-primary, #f8fafc);
 }
 
-.dark-theme .settings-active-badge {
-  background: #1a3a2a;
-  color: #34d399;
+.dark-theme .settings-preview-row:hover .settings-preview-value {
+  border-color: #3b82f6;
+  box-shadow: 0 4px 10px rgba(59, 130, 246, 0.2);
 }
 
-.dark-theme .settings-format-tagline {
+.dark-theme .settings-active-badge {
   background: #1a3a2a;
   color: #34d399;
 }
@@ -726,12 +858,17 @@
   color: var(--text-primary, #f8fafc);
 }
 
+.dark-theme .date-format-card .settings-badge-value {
+  color: #60a5fa;
+}
+
 .dark-theme .settings-live-preview-header {
   border-bottom-color: var(--border-color, #334155);
 }
 
 .dark-theme .settings-preview-badge {
-  background: #3b82f6;
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.35);
 }
 
 .dark-theme .settings-page-eyebrow {
