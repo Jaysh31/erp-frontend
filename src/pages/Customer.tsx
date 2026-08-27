@@ -91,6 +91,14 @@ interface ApiResponse {
   };
 }
 
+// Status options for the dropdown
+const STATUS_OPTIONS = [
+  { value: 'all', label: 'All Status' },
+  { value: 'active', label: 'Active' },
+  { value: 'frozen', label: 'Frozen' },
+  { value: 'disabled', label: 'Disabled' },
+];
+
 const Customer: React.FC = () => {
   const navigate = useNavigate();
   const { theme } = useAdminTheme();
@@ -108,12 +116,33 @@ const Customer: React.FC = () => {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
-  // Fetch customers from API
+  // Fetch customers from API with status filter
   const fetchCustomers = async () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await api.get<ApiResponse>(`/customer?page=${currentPage}&limit=${itemsPerPage}`);
+      
+      // Build URL with query parameters
+      let url = `/customer?page=${currentPage}&limit=${itemsPerPage}`;
+      
+      // Add status filter if not 'all'
+      if (statusFilter !== 'all') {
+        // Convert status to match API expected format (capitalized)
+        const statusMap: Record<string, string> = {
+          'active': 'Active',
+          'frozen': 'Frozen',
+          'disabled': 'Disabled'
+        };
+        const apiStatus = statusMap[statusFilter] || statusFilter;
+        url += `&status=${encodeURIComponent(apiStatus)}`;
+      }
+      
+      // Add search term if present
+      if (searchTerm.trim()) {
+        url += `&search=${encodeURIComponent(searchTerm.trim())}`;
+      }
+      
+      const response = await api.get<ApiResponse>(url);
       
       const customerData = response.data.data.records || [];
       setTotalItems(response.data.data.total || 0);
@@ -144,14 +173,27 @@ const Customer: React.FC = () => {
   // Fetch when dependencies change
   useEffect(() => {
     fetchCustomers();
-  }, [currentPage, itemsPerPage]);
+  }, [currentPage, itemsPerPage, statusFilter]);
 
-  // Reset page when filters change
+  // Debounced search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (currentPage !== 1) {
+        setCurrentPage(1);
+      } else {
+        fetchCustomers();
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Reset page when status filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, statusFilter]);
+  }, [statusFilter]);
 
-  // Filter data based on search and status
+  // Filter data locally for display
   const filteredData = customers.filter(customer => {
     const matchesSearch = 
       customer.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -164,13 +206,7 @@ const Customer: React.FC = () => {
         contact.mobile_no.includes(searchTerm)
       );
     
-    const matchesStatus = 
-      statusFilter === 'all' ||
-      (statusFilter === 'active' && customer.status === 'active') ||
-      (statusFilter === 'frozen' && customer.status === 'frozen') ||
-      (statusFilter === 'disabled' && customer.status === 'disabled');
-    
-    return matchesSearch && matchesStatus;
+    return matchesSearch;
   });
 
   const totalFilteredItems = filteredData.length;
@@ -187,12 +223,10 @@ const Customer: React.FC = () => {
     setCurrentPage(validCurrentPage);
   }
 
-  const paginatedData = hasFilters 
-    ? filteredData.slice(
-        (validCurrentPage - 1) * itemsPerPage,
-        validCurrentPage * itemsPerPage
-      )
-    : filteredData;
+  const paginatedData = filteredData.slice(
+    (validCurrentPage - 1) * itemsPerPage,
+    validCurrentPage * itemsPerPage
+  );
 
   const goToPage = (page: number) => {
     if (page >= 1 && page <= totalPages) {
@@ -225,11 +259,9 @@ const Customer: React.FC = () => {
     setShowDeleteConfirm(true);
   };
 
-  // ✅ अपडेटेड Delete फंक्शन
   const confirmDelete = async () => {
     if (!selectedItem) return;
 
-    // ✅ डबल कन्फर्मेशन
     const userConfirmed = window.confirm(
       `Are you sure you want to delete "${selectedItem.customerName}"?\n\nThis action cannot be undone!`
     );
@@ -250,18 +282,15 @@ const Customer: React.FC = () => {
         setShowDeleteConfirm(false);
         toast.success(`Customer "${selectedItem.customerName}" deleted successfully!`);
         setSelectedItem(null);
-        fetchCustomers(); // Refresh list
+        fetchCustomers();
       } else {
-        // API ने एरर मेसेज दिला
         const errorMsg = response.data.message || 'Failed to delete customer';
         toast.error(errorMsg);
       }
     } catch (err: any) {
       console.error('Error deleting customer:', err);
       
-      // ✅ एरर हँडलिंग
       if (err.response) {
-        // सर्व्हरने एरर रिस्पॉन्स दिला
         const status = err.response.status;
         const errorMsg = err.response.data?.message || err.response.statusText || 'Server error';
         
@@ -281,7 +310,6 @@ const Customer: React.FC = () => {
           toast.error(`Error ${status}: ${errorMsg}`);
         }
       } else if (err.request) {
-        // सर्व्हरला रिक्वेस्ट पोहोचली नाही
         toast.error('Network error. Please check your internet connection.');
       } else {
         toast.error('An unexpected error occurred. Please try again.');
@@ -341,6 +369,12 @@ const Customer: React.FC = () => {
     return types.length > 0 ? types.join(' • ') : 'General';
   };
 
+  // Handle status filter change
+  const handleStatusFilterChange = (value: string) => {
+    setStatusFilter(value);
+    // The fetch will be triggered by the useEffect that depends on statusFilter
+  };
+
   return (
     <div className={`igl-page ${theme}`}>
       {/* Search and Filter Bar */}
@@ -365,17 +399,18 @@ const Customer: React.FC = () => {
         <div className="igl-filter-right">
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => handleStatusFilterChange(e.target.value)}
             className="igl-filter-select"
           >
-            <option value="all">All Status</option>
-            <option value="active">Active</option>
-            <option value="frozen">Frozen</option>
-            <option value="disabled">Disabled</option>
+            {STATUS_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
           </select>
-          <button className="igl-filter-btn">
+          <button className="igl-filter-btn" onClick={fetchCustomers}>
             <FaFilter size={12} />
-            Filter
+            Apply Filter
           </button>
           <button className="igl-sort-btn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -403,7 +438,7 @@ const Customer: React.FC = () => {
           )}
           {statusFilter !== 'all' && (
             <span style={{ color: 'var(--text-primary)' }}>
-              <strong>Status:</strong> {statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}
+              <strong>Status:</strong> {STATUS_OPTIONS.find(opt => opt.value === statusFilter)?.label || statusFilter}
             </span>
           )}
           <button
@@ -730,5 +765,5 @@ const Customer: React.FC = () => {
     </div>
   );
 };
-
+ 
 export default Customer;

@@ -83,7 +83,6 @@ interface StockEntryDisplay {
   status: string;
   qty: number;
   itemName: string;
-  // ✅ Formatted display fields
   displayPostingDate?: string;
 }
 
@@ -139,14 +138,12 @@ const ENTRY_TYPES: EntryType[] = [
 export default function Stockentry() {
   const navigate = useNavigate();
   
-  // ✅ GET THE DATE FORMAT FUNCTION FROM CONTEXT
-  const { theme, formatDate } = useAdminTheme();
+  const { theme, formatDate, getApiDateFormat } = useAdminTheme();
+
 
   const [stockEntries, setStockEntries] = useState<StockEntryDisplay[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [allChecked, setAllChecked] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
@@ -163,7 +160,6 @@ export default function Stockentry() {
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
 
-  // ✅ UPDATED: Format date using context formatter
   const formatDateAgo = (dateString: string) => {
     if (!dateString) return "N/A";
     try {
@@ -186,13 +182,15 @@ export default function Stockentry() {
     }
   };
 
-  // ✅ NEW: Format display date using context
   const formatDisplayDate = (dateString: string) => {
     if (!dateString) return '';
     return formatDate(dateString);
   };
 
-  // ✅ NEW: Format date for API (YYYY-MM-DD)
+  const toApiDateFormat = (date: Date) => {
+    return getApiDateFormat(date);
+  };
+
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -203,7 +201,6 @@ export default function Stockentry() {
     }).format(amount || 0);
   };
 
-  // ✅ UPDATED: Format date display using context
   const formatDateDisplay = (dateStr: string) => {
     if (!dateStr) return '';
     return formatDate(dateStr);
@@ -311,7 +308,6 @@ export default function Stockentry() {
         setTotalPages(Math.ceil((total ?? 0) / (limit || itemsPerPage)));
         setCurrentPage(page ?? 1);
 
-        // ✅ TRANSFORM DATA WITH FORMATTED DATES
         const transformedData: StockEntryDisplay[] = (records ?? []).map((item: StockEntry) => {
           let itemName = "Unknown Item";
           let qty = item.fg_completed_qty || 0;
@@ -346,7 +342,6 @@ export default function Stockentry() {
             status: item.status || (item.docstatus === 1 ? "Submitted" : "Draft"),
             qty: qty,
             itemName: itemName,
-            // ✅ ADD FORMATTED DATE FOR DISPLAY
             displayPostingDate: item.posting_date ? formatDisplayDate(item.posting_date) : '',
           };
         });
@@ -409,22 +404,6 @@ export default function Stockentry() {
     validCurrentPage * itemsPerPage
   );
 
-  const toggleAll = () => {
-    if (allChecked) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(paginatedData.map((r) => r.id)));
-    }
-    setAllChecked(!allChecked);
-  };
-
-  const toggleRow = (id: string) => {
-    const next = new Set(selected);
-    next.has(id) ? next.delete(id) : next.add(id);
-    setSelected(next);
-    setAllChecked(next.size === paginatedData.length);
-  };
-
   const goToPage = (page: number) => {
     if (page >= 1 && page <= filteredTotalPages) {
       setCurrentPage(page);
@@ -472,10 +451,6 @@ export default function Stockentry() {
     }
   };
 
-  // const handleRowClick = (item: StockEntryDisplay) => {
-  //   navigate(`/stock-entry/${encodeURIComponent(item.id)}`);
-  // };
-
   const handleEdit = (item: StockEntryDisplay) => {
     navigate(`/stock-entry/${encodeURIComponent(item.id)}`);
   };
@@ -511,7 +486,6 @@ export default function Stockentry() {
         <div 
           key={item.id} 
           className="se-card"
-          // onClick={() => handleRowClick(item)}
         >
           <div className="se-card-header">
             <div className="se-card-type">
@@ -549,7 +523,6 @@ export default function Stockentry() {
             <div className="se-card-meta">
               <div className="se-card-meta-item">
                 <FaCalendarAlt className="meta-icon" />
-                {/* ✅ USE FORMATTED DATE FOR DISPLAY */}
                 <span>{item.displayPostingDate || new Date(item.postingDate).toLocaleDateString("en-IN", { 
                   day: "2-digit", 
                   month: "short", 
@@ -795,9 +768,6 @@ export default function Stockentry() {
               <table className="se-table">
                 <thead>
                   <tr>
-                    <th className="se-th-check">
-                      <input type="checkbox" checked={allChecked} onChange={toggleAll} className="se-checkbox" />
-                    </th>
                     <th className="se-th">Item / Product</th>
                     <th className="se-th">Type</th>
                     <th className="se-th">Source → Target</th>
@@ -809,7 +779,7 @@ export default function Stockentry() {
                 <tbody>
                   {paginatedData.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="se-empty-state">
+                      <td colSpan={6} className="se-empty-state">
                         <div className="se-empty-content">
                           <FaBoxes size={48} style={{ color: "var(--text-secondary)" }} />
                           <p>No stock entries found</p>
@@ -821,13 +791,9 @@ export default function Stockentry() {
                     paginatedData.map((row) => (
                       <tr
                         key={row.id}
-                        className={`se-tr ${selected.has(row.id) ? "se-tr-selected" : ""}`}
-                        // onClick={() => handleRowClick(row)}
+                        className="se-tr"
                         style={{ cursor: "pointer" }}
                       >
-                        <td className="se-td-check" onClick={(e) => { e.stopPropagation(); toggleRow(row.id); }}>
-                          <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleRow(row.id)} className="se-checkbox" />
-                        </td>
                         <td className="se-td se-td-item">
                           <div className="se-item-info">
                             <span className="se-item-name">{row.itemName}</span>
@@ -856,7 +822,6 @@ export default function Stockentry() {
                         <td className="se-td se-td-dates">
                           <div className="se-date-info">
                             <FaCalendarAlt size={10} className="se-date-icon" />
-                            {/* ✅ USE FORMATTED DATE FOR DISPLAY */}
                             {row.displayPostingDate || 
                               (row.postingDate
                                 ? new Date(row.postingDate).toLocaleDateString("en-IN", { 
@@ -868,7 +833,6 @@ export default function Stockentry() {
                             <span className="se-ago-badge">{row.createdAgo}</span>
                           </div>
                         </td>
-                       
                       </tr>
                     ))
                   )}

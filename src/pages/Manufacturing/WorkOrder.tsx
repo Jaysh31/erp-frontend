@@ -68,7 +68,6 @@ interface WorkOrderDisplay {
   canComplete: boolean;
   type: OrderType;
   supplierName?: string;
-  // ✅ Formatted display fields
   displayStartDate?: string;
   displayEndDate?: string;
 }
@@ -144,7 +143,6 @@ export default function WorkOrderList() {
     { value: 'quarter', label: 'This Quarter' },
   ];
 
-  // ✅ UPDATED: Format date using context formatter
   const formatDateAgo = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -162,9 +160,18 @@ export default function WorkOrderList() {
     return `${Math.floor(diffDays / 365)} y`;
   };
 
-  // ✅ NEW: Format display date using context
+  // ✅ THIS IS THE KEY FUNCTION - formats date using context
   const formatDisplayDate = (dateString: string) => {
     if (!dateString) return '';
+    try {
+      const formatted = formatDate(dateString);
+      console.log('Formatting date:', dateString, '→', formatted); // Debug log
+      return formatted;
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return dateString;
+    }
+  };
     return formatDate(dateString);
   };
 
@@ -221,12 +228,18 @@ export default function WorkOrderList() {
     return "internal";
   };
 
-  // ✅ UPDATED: Transform with formatted dates
+  // ✅ Transform work order with formatted dates - THIS IS WHERE DATES ARE FORMATTED
   const transformWorkOrder = (item: WorkOrder): WorkOrderDisplay => {
     const totalJobCards = item.total_job_cards || 0;
     const completedJobCards = item.completed_job_cards || 0;
     const progress = calculateJobCardProgress(totalJobCards, completedJobCards);
     const type = getWorkOrderType(item);
+    
+    // ✅ Format the dates here
+    const formattedStartDate = formatDisplayDate(item.planned_start_date);
+    const formattedEndDate = formatDisplayDate(item.planned_end_date);
+    
+    console.log('WorkOrder:', item.name, 'Start Date:', item.planned_start_date, '→', formattedStartDate); // Debug
     
     return {
       id: item.id.toString(),
@@ -245,9 +258,8 @@ export default function WorkOrderList() {
       canComplete: canCompleteWorkOrder(item.status, totalJobCards, completedJobCards),
       type,
       supplierName: item.supplier_name || '',
-      // ✅ ADD FORMATTED DATES FOR DISPLAY
-      displayStartDate: formatDisplayDate(item.planned_start_date),
-      displayEndDate: formatDisplayDate(item.planned_end_date),
+      displayStartDate: formattedStartDate,
+      displayEndDate: formattedEndDate,
     };
   };
 
@@ -370,7 +382,6 @@ export default function WorkOrderList() {
     setCurrentPage(1);
   };
 
-  // ─── Date Filter Handlers ─────────────────────────────────────────────
   const handleApplyDateFilter = () => {
     if (fromDate && toDate) {
       setDateFilter('custom');
@@ -387,7 +398,6 @@ export default function WorkOrderList() {
     setShowDatePicker(false);
   };
 
-  // ─── Quick Date Filters ──────────────────────────────────────────────
   const setQuickDateRange = (days: number) => {
     const today = new Date();
     const from = new Date(today);
@@ -397,7 +407,6 @@ export default function WorkOrderList() {
     setCurrentPage(1);
   };
 
-  // ─── Calendar Functions ──────────────────────────────────────────────
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear();
     const month = date.getMonth();
@@ -406,7 +415,6 @@ export default function WorkOrderList() {
     return { daysInMonth, firstDayOfMonth };
   };
 
-  // ✅ UPDATED: Format date display using context
   const formatDateDisplay = (dateStr: string) => {
     if (!dateStr) return '';
     return formatDate(dateStr);
@@ -450,7 +458,6 @@ export default function WorkOrderList() {
     }
   };
 
-  // ─── Actions ──────────────────────────────────────────────────────────
   const handleDelete = (item: WorkOrderDisplay, e: React.MouseEvent) => {
     e.stopPropagation();
     setSelectedItem(item);
@@ -564,7 +571,6 @@ export default function WorkOrderList() {
 
   return (
     <div className={`wo-page ${theme}`}>
-      {/* Tabs */}
       <div className="wo-tabs">
         <button
           className={`wo-tab ${activeTab === 'all' ? 'wo-tab--active' : ''}`}
@@ -592,7 +598,6 @@ export default function WorkOrderList() {
         </button>
       </div>
 
-      {/* Search and Filter Bar */}
       <div className="wo-filter-bar">
         <div className="wo-filter-left">
           <div className="wo-search-wrapper">
@@ -635,7 +640,6 @@ export default function WorkOrderList() {
               </option>
             ))}
           </select>
-          {/* Date Range Picker - NEW UI */}
           <div className="wo-date-range-wrapper">
             <button 
               className={`wo-date-toggle-btn ${showDatePicker ? 'active' : ''}`}
@@ -650,7 +654,6 @@ export default function WorkOrderList() {
                   <span className="wo-date-picker-title">Filter by Date</span>
                 </div>
                 
-                {/* Date Range Display */}
                 <div className="wo-date-range-display">
                   {fromDate && toDate ? (
                     <span>{formatDateDisplay(fromDate)} – {formatDateDisplay(toDate)}</span>
@@ -659,7 +662,6 @@ export default function WorkOrderList() {
                   )}
                 </div>
 
-                {/* Quick Filters */}
                 <div className="wo-quick-filters">
                   <button className="wo-quick-filter-btn" onClick={() => setQuickDateRange(0)}>Today</button>
                   <button className="wo-quick-filter-btn" onClick={() => setQuickDateRange(7)}>Last 7 Days</button>
@@ -667,7 +669,6 @@ export default function WorkOrderList() {
                   <button className="wo-quick-filter-btn" onClick={() => setQuickDateRange(90)}>This Month</button>
                 </div>
 
-                {/* Calendar */}
                 <div className="wo-calendar">
                   <div className="wo-calendar-header">
                     <button className="wo-calendar-nav" onClick={handlePrevMonth}>
@@ -707,7 +708,6 @@ export default function WorkOrderList() {
                   </div>
                 </div>
 
-                {/* Action Buttons */}
                 <div className="wo-date-actions">
                   <button 
                     className="wo-btn-clear-filter" 
@@ -733,7 +733,6 @@ export default function WorkOrderList() {
         </div>
       </div>
 
-      {/* Active filters indicator */}
       {(searchTerm || statusFilter !== 'all' || dateFilter !== 'all' || activeTab !== 'all' || (fromDate && toDate)) && (
         <div className="wo-active-filters">
           <FaFilter size={12} style={{ color: 'var(--primary-color)' }} />
@@ -769,7 +768,6 @@ export default function WorkOrderList() {
         </div>
       )}
 
-      {/* Loading State */}
       {loading && (
         <div className="wo-loading">
           <FaSpinner className="spinning" size={24} />
@@ -777,7 +775,6 @@ export default function WorkOrderList() {
         </div>
       )}
 
-      {/* Error State */}
       {error && (
         <div className="wo-error">
           <p>{error}</p>
@@ -785,7 +782,6 @@ export default function WorkOrderList() {
         </div>
       )}
 
-      {/* Table */}
       {!loading && !error && (
         <>
           <div className="wo-table-wrap">
@@ -887,11 +883,11 @@ export default function WorkOrderList() {
                           {STATUS_LABELS[row.status]}
                         </span>
                       </td>
+                      {/* ✅ THIS IS WHERE THE DATE IS DISPLAYED - USING displayStartDate */}
                       <td className="wo-td wo-td-dates">
                         <div className="wo-date-range">
                           <FaCalendarAlt size={12} style={{ color: 'var(--text-secondary)', marginRight: '4px' }} />
-                          {/* ✅ USE FORMATTED DATE FOR DISPLAY */}
-                          <span>{row.displayStartDate || new Date(row.plannedStartDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                          <span>{row.displayStartDate || row.plannedStartDate}</span>
                         </div>
                       </td>
                       <td className="wo-td wo-td-meta" onClick={(e) => e.stopPropagation()}>
@@ -947,7 +943,6 @@ export default function WorkOrderList() {
             </table>
           </div>
 
-          {/* Pagination */}
           <div className="wo-pagination">
             <div className="wo-pagination-left">
               <span className="wo-pagination-label">Show:</span>
@@ -1012,7 +1007,6 @@ export default function WorkOrderList() {
         </>
       )}
 
-      {/* Delete Confirmation Modal */}
       {showDeleteConfirm && selectedItem && (
         <div className="wo-modal-overlay" onClick={() => setShowDeleteConfirm(false)}>
           <div className="wo-modal wo-modal-delete" onClick={(e) => e.stopPropagation()}>
@@ -1044,7 +1038,6 @@ export default function WorkOrderList() {
         </div>
       )}
 
-      {/* Complete Work Order Confirmation Modal */}
       {showCompleteConfirm && selectedItem && (
         <div className="wo-modal-overlay" onClick={() => setShowCompleteConfirm(false)}>
           <div className="wo-modal wo-modal-complete" onClick={(e) => e.stopPropagation()}>

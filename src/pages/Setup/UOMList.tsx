@@ -78,8 +78,6 @@ export default function UOMList() {
   const [uoms, setUoms] = useState<UOM[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [allChecked, setAllChecked] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -294,23 +292,6 @@ export default function UOMList() {
   const filteredCategories = categories.filter(cat =>
     cat.category_name.toLowerCase().includes(categorySearch.toLowerCase())
   );
-
-
-  const toggleAll = () => {
-    if (allChecked) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(uoms.map((r) => r.id.toString())));
-    }
-    setAllChecked(!allChecked);
-  };
-
-  const toggleRow = (id: string) => {
-    const next = new Set(selected);
-    next.has(id) ? next.delete(id) : next.add(id);
-    setSelected(next);
-    setAllChecked(next.size === uoms.length);
-  };
 
   const totalPages = Math.ceil(totalItems / itemsPerPage);
 
@@ -736,9 +717,6 @@ export default function UOMList() {
             <table className="uoml-table">
               <thead>
                 <tr>
-                  <th className="uoml-th-check">
-                    <input type="checkbox" checked={allChecked} onChange={toggleAll} className="uoml-checkbox" />
-                  </th>
                   <th className="uoml-th">ID</th>
                   <th className="uoml-th">UOM Name</th>
                   <th className="uoml-th">Symbol</th>
@@ -755,7 +733,7 @@ export default function UOMList() {
               <tbody>
                 {uoms.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="uoml-empty-state">
+                    <td colSpan={6} className="uoml-empty-state">
                       <div className="uoml-empty-content">
                         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
@@ -769,12 +747,10 @@ export default function UOMList() {
                   uoms.map((row) => (
                     <tr
                       key={row.id}
-                      className={`uoml-tr ${selected.has(row.id.toString()) ? "uoml-tr-selected" : ""}`}
+                      className="uoml-tr"
                       onClick={() => navigate(`/uom/${encodeURIComponent(row.uom_name)}`)}
+                      style={{ cursor: 'pointer' }}
                     >
-                      <td className="uoml-td-check" onClick={(e) => { e.stopPropagation(); toggleRow(row.id.toString()); }}>
-                        <input type="checkbox" checked={selected.has(row.id.toString())} onChange={() => toggleRow(row.id.toString())} className="uoml-checkbox" />
-                      </td>
                       <td className="uoml-td">{row.id}</td>
                       <td className="uoml-td uoml-td-name">{row.uom_name}</td>
                       <td className="uoml-td">{row.symbol || '-'}</td>
