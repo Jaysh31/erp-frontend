@@ -1,0 +1,1145 @@
+/* NewWorkstation.css - Complete file with dark theme support */
+
+/* ─── Page Layout ─────────────────────────────────────────────────────────── */
+
+.nws-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--layout-bg, #f9fafb);
+  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  font-size: 13px;
+  color: var(--text-primary, #111827);
+  transition: background 0.3s ease, color 0.3s ease;
+}
+
+/* ─── Topbar ──────────────────────────────────────────────────────────────── */
+
+.nws-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  height: 56px;
+  background: var(--card-bg, #ffffff);
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  box-shadow: 0 1px 3px var(--shadow-color, rgba(0,0,0,.08));
+  z-index: 10;
+  flex-shrink: 0;
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+.nws-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary, #6b7280);
+}
+
+.nws-breadcrumb__list {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.nws-breadcrumb__item {
+  display: flex;
+  align-items: center;
+}
+
+.nws-breadcrumb__home-btn {
+  display: flex;
+  align-items: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary, #6b7280);
+  padding: 4px;
+  border-radius: 4px;
+  transition: color 0.16s, background 0.16s;
+}
+
+.nws-breadcrumb__home-btn:hover {
+  color: var(--primary-color, #6366f1);
+  background: var(--nav-active, rgba(99,102,241,0.18));
+}
+
+.nws-breadcrumb__sep {
+  display: flex;
+  align-items: center;
+  color: var(--border-color, #d1d5db);
+}
+
+.nws-breadcrumb__link {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary, #6b7280);
+  font-size: 12px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: color 0.16s, background 0.16s;
+  font-family: inherit;
+}
+
+.nws-breadcrumb__link:hover {
+  color: var(--primary-color, #6366f1);
+  background: var(--nav-active, rgba(99,102,241,0.18));
+}
+
+.nws-breadcrumb__item--active {
+  display: flex;
+  align-items: center;
+}
+
+.nws-breadcrumb__current {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-primary, #111827);
+  font-weight: 600;
+  padding: 2px 4px;
+}
+
+.nws-breadcrumb__current-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--primary-color, #6366f1);
+  flex-shrink: 0;
+}
+
+.nws-topbar__right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nws-error-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fca5a5;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+
+.dark-theme .nws-error-pill {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.nws-badge--unsaved {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+  font-weight: 500;
+}
+
+.dark-theme .nws-badge--unsaved {
+  background: rgba(217, 119, 6, 0.15);
+  color: #fbbf24;
+  border-color: rgba(217, 119, 6, 0.3);
+}
+
+.nws-btn-save {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--primary-gradient, linear-gradient(135deg, var(--primary-color, #6366f1), var(--primary-hover, #4f46e5)));
+  color: #fff;
+  border: 1px solid var(--primary-hover, #4f46e5);
+  border-radius: 6px;
+  padding: 0 18px;
+  height: 36px;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.16s;
+  box-shadow: 0 1px 3px var(--shadow-color, rgba(99,102,241,.3));
+  font-family: inherit;
+}
+
+.nws-btn-save:hover:not(:disabled) {
+  opacity: .9;
+  box-shadow: 0 3px 8px var(--shadow-color, rgba(99,102,241,.35));
+  transform: translateY(-1px);
+}
+
+.nws-btn-save:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ─── Body ────────────────────────────────────────────────────────────────── */
+
+.nws-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 1100px;
+  width: 100%;
+  margin: 0 auto;
+  animation: nws-fade-slide 200ms ease;
+}
+
+@keyframes nws-fade-slide {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Cards ───────────────────────────────────────────────────────────────── */
+
+.nws-card {
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px var(--shadow-color, rgba(0,0,0,.08));
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+.nws-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  background: var(--page-bg, #f3f4f6);
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+.nws-card__title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary, #111827);
+  transition: color 0.3s ease;
+}
+
+.nws-card__title-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--primary-color, #6366f1);
+  flex-shrink: 0;
+}
+
+.nws-card__body {
+  padding: 16px;
+}
+
+/* ─── Form Atoms ──────────────────────────────────────────────────────────── */
+
+.nws-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nws-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary, #6b7280);
+  letter-spacing: 0.1px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  transition: color 0.3s ease;
+}
+
+.nws-label__req {
+  color: var(--danger-color, #ef4444);
+  font-size: 12px;
+}
+
+/* ─── FIX: Remove dropdown arrow from ALL select elements ────────────────── */
+/* This removes the default dropdown arrow from ALL select elements */
+select.nws-input {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: none !important;
+  background-color: var(--input-bg, #ffffff);
+  cursor: pointer;
+  padding-right: 11px;
+}
+
+/* For Firefox - removes the dropdown arrow */
+select.nws-input::-ms-expand {
+  display: none;
+}
+
+/* Dark theme override for select */
+.dark-theme select.nws-input {
+  background-color: var(--input-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+  color: var(--text-primary, #f8fafc);
+}
+
+.nws-input {
+  width: 100%;
+  box-sizing: border-box;
+  height: 36px;
+  padding: 0 11px;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 4px;
+  font-size: 13.5px;
+  color: var(--text-primary, #111827);
+  background: var(--input-bg, #ffffff);
+  transition: border-color 0.16s, box-shadow 0.16s, background 0.3s ease, color 0.3s ease;
+  outline: none;
+  font-family: inherit;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.nws-input:hover {
+  border-color: var(--border-color, #d1d5db);
+}
+
+.nws-input:focus {
+  border-color: var(--primary-color, #6366f1);
+  box-shadow: 0 0 0 3px var(--shadow-color, rgba(99,102,241,0.14));
+}
+
+.nws-input:disabled {
+  background: var(--page-bg, #f3f4f6);
+  color: var(--text-secondary, #6b7280);
+  cursor: not-allowed;
+}
+
+.nws-input[readonly] {
+  background: var(--page-bg, #f3f4f6);
+  color: var(--text-secondary, #6b7280);
+  cursor: default;
+}
+
+.nws-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 4px;
+  font-size: 13.5px;
+  color: var(--text-primary, #111827);
+  background: var(--input-bg, #ffffff);
+  transition: border-color 0.16s, box-shadow 0.16s, background 0.3s ease, color 0.3s ease;
+  outline: none;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 80px;
+}
+
+.nws-textarea:hover {
+  border-color: var(--border-color, #d1d5db);
+}
+
+.nws-textarea:focus {
+  border-color: var(--primary-color, #6366f1);
+  box-shadow: 0 0 0 3px var(--shadow-color, rgba(99,102,241,0.14));
+}
+
+.nws-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+/* ─── Select with Add Button ──────────────────────────────────────────────── */
+
+.nws-select-with-add {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  width: 100%;
+}
+
+.nws-select-with-add .nws-input {
+  flex: 1;
+}
+
+.nws-add-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 4px;
+  background: var(--card-bg, #fff);
+  color: var(--text-secondary, #6b7280);
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.nws-add-btn:hover {
+  background: var(--primary-color, #6366f1);
+  color: white;
+  border-color: var(--primary-color, #6366f1);
+}
+
+.nws-add-input-group {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  flex: 1;
+}
+
+.nws-add-input {
+  flex: 1;
+  height: 36px;
+  padding: 0 11px;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 4px;
+  font-size: 13.5px;
+  color: var(--text-primary, #111827);
+  background: var(--input-bg, #ffffff);
+  outline: none;
+  min-width: 100px;
+  transition: border-color 0.16s, background 0.3s ease, color 0.3s ease;
+}
+
+.nws-add-input:focus {
+  border-color: var(--primary-color, #6366f1);
+}
+
+.nws-add-confirm {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  border: none;
+  border-radius: 4px;
+  background: var(--success-color, #10b981);
+  color: white;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.nws-add-confirm:hover {
+  background: #059669;
+}
+
+.nws-add-cancel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  border: none;
+  border-radius: 4px;
+  background: var(--danger-color, #ef4444);
+  color: white;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.nws-add-cancel:hover {
+  background: #dc2626;
+}
+
+/* ─── Holiday Picker Portal ───────────────────────────────────────────────── */
+
+.nws-holiday-picker-portal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 9999;
+  pointer-events: none;
+}
+
+.nws-holiday-picker-portal .nws-holiday-picker {
+  pointer-events: auto;
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 8px;
+  padding: 12px;
+  box-shadow: 0 10px 40px var(--shadow-color, rgba(0, 0, 0, 0.2));
+  max-height: 320px;
+  overflow-y: auto;
+  min-width: 280px;
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+.nws-holiday-picker-portal .nws-holiday-input-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+  align-items: center;
+  flex-wrap: nowrap;
+}
+
+.nws-holiday-picker-portal .nws-holiday-input-row .nws-input {
+  flex: 1;
+  min-width: 60px;
+  height: 32px;
+  font-size: 12px;
+  padding: 0 8px;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 4px;
+  background: var(--input-bg, #ffffff);
+  color: var(--text-primary, #111827);
+  outline: none;
+  transition: border-color 0.15s, background 0.3s ease, color 0.3s ease;
+}
+
+.nws-holiday-picker-portal .nws-holiday-input-row .nws-input:focus {
+  border-color: var(--primary-color, #6366f1);
+  box-shadow: 0 0 0 2px var(--shadow-color, rgba(99,102,241,0.1));
+}
+
+.nws-holiday-picker-portal .nws-holiday-input-row .nws-input[type="date"] {
+  max-width: 140px;
+  min-width: 120px;
+}
+
+.nws-holiday-picker-portal .nws-holiday-input-row .nws-input[type="text"] {
+  min-width: 80px;
+}
+
+.nws-holiday-picker-portal .nws-add-holiday-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 12px;
+  height: 32px;
+  border: none;
+  border-radius: 4px;
+  background: var(--primary-color, #6366f1);
+  color: white;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+  font-family: inherit;
+  flex-shrink: 0;
+}
+
+.nws-holiday-picker-portal .nws-add-holiday-btn:hover {
+  background: var(--primary-hover, #4f46e5);
+}
+
+.nws-holiday-picker-portal .nws-holiday-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 100px;
+  overflow-y: auto;
+  margin-bottom: 10px;
+}
+
+.nws-holiday-picker-portal .nws-holiday-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  background: var(--page-bg, #f3f4f6);
+  border-radius: 4px;
+  font-size: 12px;
+  transition: background 0.3s ease;
+}
+
+.nws-holiday-picker-portal .nws-remove-holiday {
+  display: flex;
+}
+
+/* ─── Options Grid ────────────────────────────────────────────────────────── */
+
+.nws-options-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.nws-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-primary, #111827);
+  cursor: pointer;
+  transition: color 0.3s ease;
+}
+
+.nws-checkbox-label input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--primary-color, #6366f1);
+  cursor: pointer;
+}
+
+/* ─── Footer ───────────────────────────────────────────────────────────────── */
+
+.nws-footer-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 18px 24px;
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 8px;
+  margin: 0 20px 20px;
+  box-shadow: 0 1px 3px var(--shadow-color, rgba(0,0,0,.08));
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+.nws-footer-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 18px;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.16s;
+  outline: none;
+}
+
+.nws-footer-btn--primary {
+  background: var(--primary-gradient, linear-gradient(135deg, var(--primary-color, #6366f1), var(--primary-hover, #4f46e5)));
+  color: #fff;
+  border-color: var(--primary-hover, #4f46e5);
+  box-shadow: 0 1px 3px var(--shadow-color, rgba(99,102,241,.3));
+}
+
+.nws-footer-btn--primary:hover:not(:disabled) {
+  opacity: .9;
+  box-shadow: 0 3px 8px var(--shadow-color, rgba(99,102,241,.35));
+  transform: translateY(-1px);
+}
+
+.nws-footer-btn--primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.nws-footer-btn--secondary {
+  background: var(--card-bg, #ffffff);
+  color: var(--text-secondary, #6b7280);
+  border-color: var(--border-color, #e5e7eb);
+  transition: background 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+.nws-footer-btn--secondary:hover {
+  border-color: #c0c8d4;
+  color: var(--text-primary, #111827);
+  background: var(--page-bg, #f3f4f6);
+}
+
+/* ─── Validation Modal ────────────────────────────────────────────────────── */
+
+.nws-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 110;
+  background: rgba(17,24,39,.5);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: nws-fade-in 0.15s ease;
+}
+
+@keyframes nws-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.nws-validation-modal {
+  background: var(--card-bg, #ffffff);
+  border-radius: 8px;
+  border: 1px solid var(--border-color, #e5e7eb);
+  box-shadow: 0 8px 32px var(--shadow-color, rgba(0,0,0,.14));
+  width: 100%;
+  max-width: 480px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: nws-slide-up 0.18s ease;
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+@keyframes nws-slide-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.nws-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  background: #fef2f2;
+  flex-shrink: 0;
+  transition: border-color 0.3s ease;
+}
+
+.dark-theme .nws-modal-header {
+  background: rgba(239, 68, 68, 0.1);
+  border-bottom-color: var(--border-color, #334155);
+}
+
+.nws-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #dc2626;
+  margin: 0;
+}
+
+.dark-theme .nws-modal-title {
+  color: #f87171;
+}
+
+.nws-modal-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  background: none;
+  color: var(--text-secondary, #6b7280);
+  cursor: pointer;
+  transition: all 0.16s;
+  flex-shrink: 0;
+}
+
+.nws-modal-close:hover {
+  background: #fee2e2;
+  color: #dc2626;
+  border-color: #fecaca;
+}
+
+.dark-theme .nws-modal-close:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.nws-modal-body {
+  padding: 16px 18px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.nws-modal-intro {
+  font-size: 13px;
+  color: var(--text-secondary, #6b7280);
+  margin: 0 0 12px;
+  line-height: 1.5;
+  transition: color 0.3s ease;
+}
+
+.nws-error-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nws-validation-error-item {
+  border: 1px solid #fecaca;
+  background: #fff5f5;
+  border-radius: 6px;
+  padding: 10px 12px;
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+.dark-theme .nws-validation-error-item {
+  border-color: rgba(239, 68, 68, 0.3);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.nws-error-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 3px;
+}
+
+.nws-error-icon {
+  color: #dc2626;
+  flex-shrink: 0;
+}
+
+.dark-theme .nws-error-icon {
+  color: #f87171;
+}
+
+.nws-error-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary, #111827);
+  transition: color 0.3s ease;
+}
+
+.nws-error-message {
+  font-size: 12px;
+  color: var(--text-secondary, #6b7280);
+  line-height: 1.5;
+  padding-left: 20px;
+  transition: color 0.3s ease;
+}
+
+.nws-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 12px 18px;
+  border-top: 1px solid var(--border-color, #e5e7eb);
+  background: var(--page-bg, #f3f4f6);
+  flex-shrink: 0;
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+.nws-btn-cancel {
+  height: 34px;
+  padding: 0 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary, #6b7280);
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.16s;
+  font-family: inherit;
+}
+
+.nws-btn-cancel:hover {
+  background: var(--page-bg, #f3f4f6);
+  border-color: var(--border-color, #d1d5db);
+  color: var(--text-primary, #111827);
+}
+
+/* ─── Dark Theme Overrides ────────────────────────────────────────────────── */
+
+.dark-theme .nws-page {
+  background: var(--layout-bg, #0f172a);
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .nws-topbar {
+  background: var(--card-bg, #1e293b);
+  border-bottom-color: var(--border-color, #334155);
+}
+
+.dark-theme .nws-breadcrumb__current {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .nws-card {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+}
+
+.dark-theme .nws-card__header {
+  background: rgba(255,255,255,0.03);
+  border-bottom-color: var(--border-color, #334155);
+}
+
+.dark-theme .nws-card__title {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .nws-input,
+.dark-theme .nws-textarea,
+.dark-theme .nws-add-input {
+  background: var(--input-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .nws-input:focus,
+.dark-theme .nws-textarea:focus,
+.dark-theme .nws-add-input:focus {
+  border-color: var(--primary-color, #3b82f6);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.dark-theme .nws-input:hover,
+.dark-theme .nws-textarea:hover {
+  border-color: var(--border-color, #475569);
+}
+
+.dark-theme .nws-input:disabled,
+.dark-theme .nws-input[readonly] {
+  background: rgba(255,255,255,0.03);
+  color: var(--text-secondary, #64748b);
+}
+
+.dark-theme .nws-label {
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .nws-add-btn {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .nws-add-btn:hover {
+  background: var(--primary-color, #3b82f6);
+  color: white;
+  border-color: var(--primary-color, #3b82f6);
+}
+
+.dark-theme .nws-holiday-picker-portal .nws-holiday-picker {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+}
+
+.dark-theme .nws-holiday-picker-portal .nws-holiday-item {
+  background: rgba(255,255,255,0.05);
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .nws-holiday-picker-portal .nws-holiday-input-row .nws-input {
+  background: var(--input-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .nws-holiday-picker-portal .nws-holiday-input-row .nws-input:focus {
+  border-color: var(--primary-color, #3b82f6);
+}
+
+.dark-theme .nws-checkbox-label {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .nws-footer-row {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+}
+
+.dark-theme .nws-footer-btn--secondary {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .nws-footer-btn--secondary:hover {
+  background: rgba(255,255,255,0.05);
+  border-color: #4b5563;
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .nws-validation-modal {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+}
+
+.dark-theme .nws-error-label {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .nws-error-message {
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .nws-btn-cancel {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .nws-btn-cancel:hover {
+  background: rgba(255,255,255,0.05);
+  border-color: #4b5563;
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .nws-modal-footer {
+  background: rgba(255,255,255,0.02);
+  border-top-color: var(--border-color, #334155);
+}
+
+.dark-theme .nws-modal-intro {
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .nws-breadcrumb__home-btn {
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .nws-breadcrumb__home-btn:hover {
+  color: var(--primary-color, #3b82f6);
+  background: rgba(59, 130, 246, 0.15);
+}
+
+.dark-theme .nws-breadcrumb__link {
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .nws-breadcrumb__link:hover {
+  color: var(--primary-color, #3b82f6);
+  background: rgba(59, 130, 246, 0.15);
+}
+
+.dark-theme .nws-breadcrumb__sep {
+  color: var(--text-secondary, #64748b);
+}
+
+.dark-theme .nws-btn-save {
+  background: var(--primary-gradient, linear-gradient(135deg, var(--primary-color, #3b82f6), var(--primary-hover, #2563eb)));
+  border-color: var(--primary-hover, #2563eb);
+}
+
+/* ─── Required field star in red ─────────────────────────────── */
+.nws-label.required-star::after {
+  content: " *";
+  color: var(--danger-color, #dc2626);
+  font-weight: 700;
+}
+
+/* ─── Error text in red ─────────────────────────────────────────── */
+.nws-error-text {
+  color: var(--danger-color, #dc2626) !important;
+  font-size: 12px;
+  font-weight: 500;
+  display: block;
+  margin-top: 4px;
+}
+
+.dark-theme .nws-error-text {
+  color: #f87171 !important;
+}
+
+/* ─── Remove any error borders from inputs ────────────────────── */
+.nws-input.nws-input-error {
+  border-color: inherit !important;
+  background: inherit !important;
+}
+
+.nws-input.nws-input-error:focus {
+  border-color: var(--primary-color, #6366f1) !important;
+  box-shadow: 0 0 0 3px var(--shadow-color, rgba(99,102,241,0.1)) !important;
+}
+
+.dark-theme .nws-input.nws-input-error:focus {
+  border-color: var(--primary-color, #3b82f6) !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15) !important;
+}
+
+/* ─── Responsive ──────────────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .nws-body {
+    padding: 12px;
+  }
+  
+  .nws-form-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .nws-options-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .nws-footer-row {
+    margin: 0 12px 12px;
+    padding: 14px 16px;
+    flex-wrap: wrap;
+  }
+  
+  .nws-footer-btn {
+    flex: 1;
+    justify-content: center;
+  }
+  
+  .nws-topbar {
+    padding: 0 12px;
+    height: 48px;
+    flex-wrap: wrap;
+  }
+  
+  .nws-topbar__right {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  
+  .nws-breadcrumb {
+    font-size: 11px;
+  }
+  
+  .nws-holiday-input-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .nws-holiday-input-row .nws-input {
+    min-width: auto;
+  }
+  
+  .nws-holiday-picker {
+    min-width: auto;
+    left: -10px;
+    right: -10px;
+  }
+  
+  .nws-select-with-add {
+    flex-wrap: wrap;
+  }
+  
+  .nws-add-input-group {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 480px) {
+  .nws-card__body {
+    padding: 12px;
+  }
+  
+  .nws-footer-row {
+    flex-direction: column-reverse;
+  }
+  
+  .nws-footer-btn {
+    width: 100%;
+  }
+  
+  .nws-select-with-add {
+    flex-wrap: wrap;
+  }
+  
+  .nws-add-input-group {
+    flex-wrap: wrap;
+  }
+}

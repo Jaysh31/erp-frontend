@@ -1,0 +1,650 @@
+/* ─── Container ───────────────────────────────────────────────────────── */
+.uf-page {
+  padding: 0 20px 40px;
+  background: var(--layout-bg);
+  min-height: 100vh;
+}
+
+.uf-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+/* ─── Loading ────────────────────────────────────────────────────────── */
+.uf-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 20px;
+  gap: 16px;
+  color: var(--text-secondary);
+}
+
+.uf-spinning {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ─── Header ──────────────────────────────────────────────────────────── */
+.uf-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 4px;
+  padding-bottom: 18px;
+}
+
+.back-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 30px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  flex-shrink: 0;
+  transition: background 0.18s, border-color 0.18s, color 0.18s, box-shadow 0.18s;
+}
+
+.back-btn:hover {
+  background: color-mix(in srgb, var(--primary-color) 8%, var(--card-bg));
+  border-color: color-mix(in srgb, var(--primary-color) 40%, var(--border-color));
+  color: var(--primary-color);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--primary-color) 12%, transparent);
+}
+
+.back-btn:active {
+  transform: scale(0.97);
+}
+
+.header-title {
+  flex: 1;
+}
+
+.header-title h1 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+/* ─── Form Card ───────────────────────────────────────────────────────── */
+.uf-card {
+  background: var(--card-bg);
+  border-radius: 14px;
+  padding: 28px 32px;
+  box-shadow: 0 1px 4px var(--shadow-color);
+  border: 1px solid var(--border-color);
+}
+
+/* ─── Section Title ──────────────────────────────────────────────────── */
+.uf-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  display: block;
+  margin-bottom: 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+/* ─── Form Fields ────────────────────────────────────────────────────── */
+.uf-field {
+  margin-bottom: 18px;
+}
+
+.uf-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  display: block;
+  margin-bottom: 5px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.uf-label-icon {
+  margin-right: 4px;
+}
+
+.uf-required {
+  color: var(--danger-color);
+}
+
+.form-field {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1.5px solid var(--border-color);
+  border-radius: 10px;
+  font-size: 13px;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+}
+
+.form-field:hover {
+  border-color: color-mix(in srgb, var(--primary-color) 50%, var(--border-color));
+  background: color-mix(in srgb, var(--primary-color) 2%, var(--card-bg));
+}
+
+.form-field:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 15%, transparent);
+  background: color-mix(in srgb, var(--primary-color) 3%, var(--card-bg));
+}
+
+.form-field.field-error {
+  border-color: var(--danger-color);
+}
+
+.form-field.field-error:hover,
+.form-field.field-error:focus {
+  border-color: var(--danger-color);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger-color) 12%, transparent);
+  background: color-mix(in srgb, var(--danger-color) 2%, var(--card-bg));
+}
+
+.form-field:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ─── Grid Layouts ───────────────────────────────────────────────────── */
+.uf-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 18px;
+  margin-bottom: 0;
+}
+
+/* ─── Divider ────────────────────────────────────────────────────────── */
+.uf-divider {
+  height: 1px;
+  background: var(--border-color);
+  margin: 18px 0;
+}
+
+/* ─── Roles Checkbox Grid ───────────────────────────────────────────── */
+.uf-roles-container {
+  border: 1.5px solid var(--border-color);
+  border-radius: 10px;
+  padding: 12px;
+  max-height: 200px;
+  overflow-y: auto;
+  background: var(--card-bg);
+  transition: border-color 0.2s;
+}
+
+.uf-roles-container.field-error {
+  border-color: var(--danger-color);
+}
+
+.uf-roles-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.uf-role-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-primary, #374151);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+
+.uf-role-checkbox:hover {
+  background: var(--nav-hover, #f9fafb);
+}
+
+.uf-role-checkbox input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--primary-color, #6366f1);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.uf-role-checkbox input[type="checkbox"]:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ─── API Error ──────────────────────────────────────────────────────── */
+.uf-api-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  border-radius: 10px;
+  color: #dc2626;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.uf-api-error .error-icon {
+  flex-shrink: 0;
+}
+
+.uf-api-error .error-close {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: #dc2626;
+  cursor: pointer;
+  font-size: 18px;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+/* ─── Footer ──────────────────────────────────────────────────────────── */
+.uf-footer {
+  margin-top: 14px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+}
+
+.cancel-btn {
+  padding: 8px 24px;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  border-radius: 30px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: background 0.18s, border-color 0.18s, color 0.18s, box-shadow 0.18s;
+}
+
+.cancel-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger-color) 6%, var(--card-bg));
+  border-color: color-mix(in srgb, var(--danger-color) 30%, var(--border-color));
+  color: var(--danger-color);
+}
+
+.cancel-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.submit-btn {
+  padding: 8px 32px;
+  background: var(--primary-gradient);
+  color: white;
+  border: none;
+  border-radius: 30px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--primary-color) 25%, transparent);
+  transition: opacity 0.2s, box-shadow 0.18s, transform 0.1s;
+}
+
+.submit-btn:hover:not(:disabled) {
+  opacity: 0.9;
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--primary-color) 40%, transparent);
+  transform: translateY(-1px);
+}
+
+.submit-btn:active:not(:disabled) {
+  transform: translateY(0) scale(0.97);
+}
+
+.submit-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+/* ─── Validation Summary Modal ──────────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.validation-summary-modal {
+  background: var(--card-bg);
+  border-radius: 16px;
+  max-width: 550px;
+  width: 100%;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 40px var(--shadow-color);
+  animation: fadeIn 0.3s ease-out;
+}
+
+.validation-summary-modal .modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border-color);
+  position: sticky;
+  top: 0;
+  background: var(--card-bg);
+  z-index: 10;
+}
+
+.validation-summary-modal .modal-header h2 {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #f59e0b;
+}
+
+.validation-summary-modal .modal-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: none;
+  background: var(--layout-bg);
+  font-size: 20px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: background 0.15s;
+}
+
+.validation-summary-modal .modal-close:hover {
+  background: color-mix(in srgb, var(--text-secondary) 15%, var(--layout-bg));
+}
+
+.validation-summary-modal .modal-body {
+  padding: 24px;
+}
+
+.modal-description {
+  margin-bottom: 16px;
+  color: var(--text-secondary);
+}
+
+.validation-errors-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.validation-error-item {
+  padding: 12px;
+  background: var(--layout-bg);
+  border-radius: 10px;
+  border-left: 3px solid #ef4444;
+  cursor: default;
+}
+
+.error-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.error-header strong {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.error-icon {
+  color: #ef4444;
+  flex-shrink: 0;
+}
+
+.error-message {
+  font-size: 11px;
+  color: #ef4444;
+  margin-left: 26px;
+}
+
+.validation-tip {
+  margin-top: 20px;
+  padding: 12px;
+  background: #fef3c7;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #92400e;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tip-icon {
+  display: inline;
+  margin-right: 6px;
+}
+
+.validation-summary-modal .modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--border-color);
+}
+
+.validation-summary-modal .btn-cancel {
+  padding: 8px 20px;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 13px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.validation-summary-modal .btn-cancel:hover {
+  background: var(--layout-bg);
+  color: var(--text-primary);
+}
+
+/* ─── Animations ──────────────────────────────────────────────────────── */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ─── Dark Theme Overrides ──────────────────────────────────────────── */
+.dark-theme .uf-roles-container {
+  background: var(--input-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+}
+
+.dark-theme .uf-role-checkbox {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .uf-role-checkbox:hover {
+  background: var(--nav-hover, rgba(255,255,255,0.05));
+}
+
+.dark-theme .uf-api-error {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #f87171;
+}
+
+.dark-theme .uf-api-error .error-close {
+  color: #f87171;
+}
+
+.dark-theme .validation-summary-modal {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+}
+
+.dark-theme .validation-summary-modal .modal-header {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+}
+
+.dark-theme .validation-error-item {
+  background: var(--layout-bg, #0f172a);
+}
+
+.dark-theme .error-header strong {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .validation-tip {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+}
+
+.dark-theme .validation-summary-modal .btn-cancel {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .validation-summary-modal .btn-cancel:hover {
+  background: var(--nav-hover, rgba(255,255,255,0.05));
+}
+
+/* ─── Responsive ──────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .uf-grid-2 {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .uf-card {
+    padding: 16px;
+  }
+
+  .uf-header {
+    flex-wrap: wrap;
+  }
+
+  .uf-footer {
+    flex-direction: column-reverse;
+    width: 100%;
+  }
+
+  .uf-footer button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .uf-roles-grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  }
+
+  .error-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .error-message {
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .uf-page {
+    padding: 0 12px 20px;
+  }
+
+  .uf-card {
+    padding: 12px;
+  }
+
+  .header-title h1 {
+    font-size: 16px;
+  }
+
+  .uf-roles-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .validation-summary-modal {
+    max-width: 98vw;
+    border-radius: 12px;
+  }
+
+  .validation-summary-modal .modal-body {
+    padding: 16px;
+  }
+
+  .validation-summary-modal .modal-header {
+    padding: 14px 16px;
+  }
+
+  .validation-summary-modal .modal-header h2 {
+    font-size: 16px;
+  }
+}
+
+/* ─── 3 Column Grid ───────────────────────────────────────────────────── */
+.uf-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  margin-bottom: 0;
+}
+
+/* ─── Responsive ──────────────────────────────────────────────────────── */
+@media (max-width: 992px) {
+  .uf-grid-3 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .uf-grid-3 {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  
+  .uf-grid-2 {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  
+  .uf-card {
+    padding: 16px;
+  }
+}

@@ -1,0 +1,950 @@
+import { useState, useEffect, type FormEvent } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import {
+  FaSearch,
+  FaFilter,
+  FaTimes,
+  FaChevronLeft,
+  FaChevronRight,
+  FaAngleDoubleLeft,
+  FaAngleDoubleRight,
+  FaEye,
+  FaEdit,
+  FaTrash,
+
+  FaSave,
+  FaSpinner,
+  FaTag,
+  FaFolder,
+  FaArrowLeft,
+} from 'react-icons/fa';
+import "./Itemgrouplist.css";
+import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
+import api from '../../services/api';
+
+interface ItemGroup {
+  id: string;
+  item_group_name: string;
+  parent_item_group: string;
+  is_group: number;
+  is_editable: number;
+  image: string | null;
+  creation: string;
+  modified: string;
+}
+
+interface ItemGroupDisplay {
+  id: string;
+  itemGroupName: string;
+  parentItemGroup: string;
+  isGroup: boolean;
+  isEditable: boolean;
+  createdAgo: string;
+  comments: number;
+}
+
+// ─── Detail View Interface ──────────────────────────────────────────────
+interface ItemGroupDetail {
+  id: string;
+  item_group_name: string;
+  parent_item_group: string;
+  is_group: number;
+  is_editable: number;
+  image: string | null;
+  creation: string;
+  modified: string;
+  company: string;
+  item_tax_template: string;
+  tax_category: string;
+  valid_from: string;
+  min_net_rate: number;
+  max_net_rate: number;
+  default_warehouse: string;
+  default_price_list: string;
+  comments: string;
+}
+
+interface ApiResponse {
+  success: number;
+  data: ItemGroup[];
+}
+
+interface ApiDetailResponse {
+  success: number;
+  data: ItemGroupDetail;
+}
+
+interface EditFormState {
+  id: string;
+  itemGroupName: string;
+  parentItemGroup: string;
+  isGroup: boolean;
+}
+
+export default function ItemGroupList() {
+  const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
+  const { theme } = useAdminTheme();
+
+  // ─── List View State ──────────────────────────────────────────────────────
+  const [itemGroups, setItemGroups] = useState<ItemGroupDisplay[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [allChecked, setAllChecked] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [, setTotalItems] = useState(0);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<ItemGroupDisplay | null>(null);
+
+  // ─── Detail View State ────────────────────────────────────────────────────
+  const [detailData, setDetailData] = useState<ItemGroupDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+
+  // ─── Edit Modal State ──────────────────────────────────────────────────
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editForm, setEditForm] = useState<EditFormState | null>(null);
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  // ─── Check if we are in detail view ─────────────────────────────────────
+  const isDetailView = !!id;
+
+  // ─── Format date to "X h" or "X d" format ──────────────────────────────
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins} min`;
+    if (diffHours < 24) return `${diffHours} h`;
+    if (diffDays < 7) return `${diffDays} d`;
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)} w`;
+    if (diffDays < 365) return `${Math.floor(diffDays / 30)} mo`;
+    return `${Math.floor(diffDays / 365)} y`;
+  };
+
+  // ─── Format date for display ──────────────────────────────────────────────
+  const formatDisplayDate = (dateString: string) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  // ─── Fetch Item Group Detail - THIS IS THE API CALL ─────────────────────
+  const fetchItemGroupDetail = async (groupId: string) => {
+    setDetailLoading(true);
+    setDetailError(null);
+    try {
+      // ✅ CORRECT API CALL: https://erp.sculptortechpvtltd.com/api/item-group/{id}
+      const response = await api.get<ApiDetailResponse>(`/item-group/${groupId}`);
+      
+      if (response.data.success === 1) {
+        setDetailData(response.data.data);
+      } else {
+        setDetailError('Failed to fetch item group details');
+      }
+    } catch (err) {
+      console.error('Error fetching item group detail:', err);
+      setDetailError('An error occurred while fetching item group details');
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  // ─── Fetch item groups from API ──────────────────────────────────────────
+  const fetchItemGroups = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await api.get<ApiResponse>(`/item-group?page=${currentPage}&limit=${itemsPerPage}`);
+
+      if (response.data.success === 1) {
+        const data = response.data.data;
+        setTotalItems(data.length);
+
+        const transformedData: ItemGroupDisplay[] = data.map((item: ItemGroup) => ({
+          id: item.id.toString(),
+          itemGroupName: item.item_group_name,
+          parentItemGroup: item.parent_item_group || 'N/A',
+          isGroup: item.is_group === 1,
+          isEditable: item.is_editable !== 0,
+          createdAgo: formatDate(item.creation),
+          comments: 0,
+        }));
+
+        setItemGroups(transformedData);
+      } else {
+        setError('Failed to fetch item groups');
+      }
+    } catch (err) {
+      console.error('Error fetching item groups:', err);
+      setError('An error occurred while fetching item groups');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ─── WHEN ID IS PRESENT, FETCH DETAIL DATA ──────────────────────────────
+  useEffect(() => {
+    if (id) {
+      fetchItemGroupDetail(id);
+    }
+  }, [id]);
+
+  // ─── Fetch list when dependencies change ────────────────────────────────
+  useEffect(() => {
+    if (!isDetailView) {
+      fetchItemGroups();
+    }
+  }, [currentPage, itemsPerPage, isDetailView]);
+
+  // ─── Reset page when filters change ─────────────────────────────────────
+  useEffect(() => {
+    if (!isDetailView) {
+      setCurrentPage(1);
+    }
+  }, [searchTerm, statusFilter, isDetailView]);
+
+  // ─── Filter data based on search and status ─────────────────────────────
+  const filteredData = itemGroups.filter(item => {
+    const matchesSearch = item.itemGroupName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          item.id.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === 'all' ||
+                         (statusFilter === 'group' && item.isGroup) ||
+                         (statusFilter === 'item' && !item.isGroup);
+    return matchesSearch && matchesStatus;
+  });
+
+  const totalFilteredItems = filteredData.length;
+  const totalPages = Math.ceil(totalFilteredItems / itemsPerPage);
+  const validCurrentPage = Math.min(currentPage, totalPages || 1);
+  
+  if (validCurrentPage !== currentPage && !isDetailView) {
+    setCurrentPage(validCurrentPage);
+  }
+
+  const paginatedData = filteredData.slice(
+    (validCurrentPage - 1) * itemsPerPage,
+    validCurrentPage * itemsPerPage
+  );
+
+  const parentGroupOptions = Array.from(
+    new Set(
+      itemGroups
+        .map((g) => g.parentItemGroup)
+        .filter((p) => p && p !== 'N/A' && p !== 'NA')
+    )
+  ).sort((a, b) => a.localeCompare(b));
+
+  const toggleAll = () => {
+    if (allChecked) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(paginatedData.map((r) => r.id)));
+    }
+    setAllChecked(!allChecked);
+  };
+
+  const toggleRow = (id: string) => {
+    const next = new Set(selected);
+    next.has(id) ? next.delete(id) : next.add(id);
+    setSelected(next);
+    setAllChecked(next.size === paginatedData.length);
+  };
+
+  const goToPage = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+    }
+  };
+
+  const goToFirstPage = () => goToPage(1);
+  const goToLastPage = () => goToPage(totalPages);
+  const goToNextPage = () => goToPage(currentPage + 1);
+  const goToPrevPage = () => goToPage(currentPage - 1);
+
+  const handlePageSizeChange = (newSize: number) => {
+    setItemsPerPage(newSize);
+    setCurrentPage(1);
+  };
+
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisible = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+    if (endPage - startPage + 1 < maxVisible) startPage = Math.max(1, endPage - maxVisible + 1);
+    for (let i = startPage; i <= endPage; i++) pages.push(i);
+    return pages;
+  };
+
+  const handleDelete = (item: ItemGroupDisplay) => {
+    setSelectedItem(item);
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = async () => {
+    if (selectedItem) {
+      try {
+        const response = await api.delete(`/item-group/${selectedItem.id}`);
+        if (response.data.success === 1) {
+          setShowDeleteConfirm(false);
+          setSelectedItem(null);
+          fetchItemGroups();
+        }
+      } catch (err) {
+        console.error('Error deleting item group:', err);
+        alert('Failed to delete item group');
+      }
+    }
+  };
+
+  // ─── Edit Modal Handlers ───────────────────────────────────────────────
+  const handleEdit = (item: ItemGroupDisplay) => {
+    setEditForm({
+      id: item.id,
+      itemGroupName: item.itemGroupName,
+      parentItemGroup: item.parentItemGroup === 'NA' || item.parentItemGroup === 'N/A' ? '' : item.parentItemGroup,
+      isGroup: item.isGroup,
+    });
+    setEditError(null);
+    setShowEditModal(true);
+  };
+
+  const closeEditModal = () => {
+    if (editSubmitting) return;
+    setShowEditModal(false);
+    setEditForm(null);
+    setEditError(null);
+  };
+
+  const handleEditSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!editForm) return;
+
+    if (!editForm.itemGroupName.trim()) {
+      setEditError('Item group name is required');
+      return;
+    }
+
+    setEditSubmitting(true);
+    setEditError(null);
+    try {
+      const payload = {
+        id: Number(editForm.id),
+        item_group_name: editForm.itemGroupName.trim(),
+        parent_item_group: editForm.parentItemGroup || 'NA',
+        is_group: editForm.isGroup ? 1 : 0,
+        modified_by: 'Administrator',
+      };
+
+      const response = await api.put('/item-group', payload);
+
+      if (response.data && response.data.success === 1) {
+        setItemGroups((prev) =>
+          prev.map((g) =>
+            g.id === editForm.id
+              ? { ...g, itemGroupName: payload.item_group_name, parentItemGroup: payload.parent_item_group }
+              : g
+          )
+        );
+        setShowEditModal(false);
+        setEditForm(null);
+      } else {
+        setEditError(response.data?.message || 'Failed to update item group');
+      }
+    } catch (err: any) {
+      console.error('Error updating item group:', err);
+      if (err.response) {
+        setEditError(err.response.data?.message || 'Failed to update item group');
+      } else if (err.request) {
+        setEditError('Network error. Please check your connection.');
+      } else {
+        setEditError('An unexpected error occurred. Please try again.');
+      }
+    } finally {
+      setEditSubmitting(false);
+    }
+  };
+
+  // ─── View Handler - Navigate to detail page ──────────────────────────────
+  const handleView = (item: ItemGroupDisplay) => {
+    navigate(`/item-group/${encodeURIComponent(item.id)}`);
+  };
+
+  // ─── Go Back to List ──────────────────────────────────────────────────────
+  const goBackToList = () => {
+    navigate('/item-group');
+  };
+
+  const clearFilters = () => {
+    setSearchTerm('');
+    setStatusFilter('all');
+  };
+
+  const getStartIndex = () => {
+    return (validCurrentPage - 1) * itemsPerPage + 1;
+  };
+
+  const getEndIndex = () => {
+    return Math.min(validCurrentPage * itemsPerPage, totalFilteredItems);
+  };
+
+  // ─── RENDER: Detail View (View Page) ────────────────────────────────────
+  if (isDetailView) {
+    return (
+      <div className={`igl-page ${theme}`}>
+        {/* Back Button */}
+        <div className="igl-detail-header">
+          <button className="igl-back-btn" onClick={goBackToList}>
+            <FaArrowLeft size={14} /> Back to List
+          </button>
+          <h1 className="igl-detail-title">
+            {detailLoading ? 'Loading...' : detailData?.item_group_name || 'Item Group Details'}
+          </h1>
+        </div>
+
+        {/* Loading State */}
+        {detailLoading && (
+          <div className="igl-loading">
+            <FaSpinner className="igl-spin" size={32} />
+            <p>Loading item group details...</p>
+          </div>
+        )}
+
+        {/* Error State */}
+        {detailError && (
+          <div className="igl-error">
+            <p>{detailError}</p>
+            <button onClick={() => id && fetchItemGroupDetail(id)} className="igl-retry-btn">
+              Retry
+            </button>
+          </div>
+        )}
+
+        {/* Detail Content - Shows the data from API */}
+        {!detailLoading && !detailError && detailData && (
+          <div className="igl-detail-content">
+            {/* GENERAL SETTINGS */}
+            <div className="igl-detail-section">
+              <h3 className="igl-detail-section-title">GENERAL SETTINGS</h3>
+              <div className="igl-detail-row">
+                <div className="igl-detail-field">
+                  <label>PARENT ITEM GROUP</label>
+                  <span>{detailData.parent_item_group || 'N/A'}</span>
+                </div>
+              </div>
+              <div className="igl-detail-row">
+                <div className="igl-detail-field">
+                  <label>Is Group</label>
+                  <span>{detailData.is_group === 1 ? 'Parent Group' : 'Sub Item'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* ITEM GROUP DEFAULTS */}
+            <div className="igl-detail-section">
+              <h3 className="igl-detail-section-title">ITEM GROUP DEFAULTS</h3>
+              <div className="igl-detail-row">
+                <div className="igl-detail-field">
+                  <label>NO. COMPANY</label>
+                  <span>{detailData.company || 'N/A'}</span>
+                </div>
+              </div>
+              <div className="igl-detail-row">
+                <div className="igl-detail-field">
+                  <label>ITEM TAX</label>
+                  <span>{detailData.item_tax_template || 'N/A'}</span>
+                </div>
+              </div>
+              <div className="igl-detail-row">
+                <div className="igl-detail-field">
+                  <label>TAX CATEGORY</label>
+                  <span>{detailData.tax_category || 'N/A'}</span>
+                </div>
+              </div>
+              <div className="igl-detail-row">
+                <div className="igl-detail-field">
+                  <label>VALID FROM</label>
+                  <span>{detailData.valid_from ? formatDisplayDate(detailData.valid_from) : 'N/A'}</span>
+                </div>
+              </div>
+              <div className="igl-detail-row">
+                <div className="igl-detail-field">
+                  <label>MIN NET RATE</label>
+                  <span>{detailData.min_net_rate ?? 'N/A'}</span>
+                </div>
+              </div>
+              <div className="igl-detail-row">
+                <div className="igl-detail-field">
+                  <label>MAX NET RATE</label>
+                  <span>{detailData.max_net_rate ?? 'N/A'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* COMMENTS */}
+            <div className="igl-detail-section">
+              <h3 className="igl-detail-section-title">COMMENTS</h3>
+              <div className="igl-detail-row">
+                <div className="igl-detail-field">
+                  <span>{detailData.comments || 'No comments'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* DEFAULT WAREHOUSE */}
+            <div className="igl-detail-section">
+              <h3 className="igl-detail-section-title">DEFAULT WAREHOUSE</h3>
+              <div className="igl-detail-row">
+                <div className="igl-detail-field">
+                  <label>DEFAULT PRICE LIST</label>
+                  <span>{detailData.default_price_list || 'N/A'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* DEFAULTS */}
+            <div className="igl-detail-section">
+              <h3 className="igl-detail-section-title">DEFAULTS</h3>
+              <div className="igl-detail-row">
+                <div className="igl-detail-field">
+                  <label>DEFAULT PRICE LIST</label>
+                  <span>{detailData.default_price_list || 'N/A'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* TAX CATEGORY */}
+            <div className="igl-detail-section">
+              <h3 className="igl-detail-section-title">TAX CATEGORY</h3>
+              <div className="igl-detail-row">
+                <div className="igl-detail-field">
+                  <label>TAX CATEGORY</label>
+                  <span>{detailData.tax_category || 'N/A'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Meta Information */}
+            <div className="igl-detail-section">
+              <h3 className="igl-detail-section-title">META INFORMATION</h3>
+              <div className="igl-detail-row">
+                <div className="igl-detail-field">
+                  <label>Created</label>
+                  <span>{formatDisplayDate(detailData.creation)}</span>
+                </div>
+              </div>
+              <div className="igl-detail-row">
+                <div className="igl-detail-field">
+                  <label>Modified</label>
+                  <span>{formatDisplayDate(detailData.modified)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Edit Button */}
+            {detailData.is_editable !== 0 && (
+              <div className="igl-detail-actions">
+                <button 
+                  className="igl-btn-save" 
+                  onClick={() => {
+                    // Navigate back to list and open edit modal
+                    navigate('/item-group');
+                    // The edit modal will open after navigation
+                    setTimeout(() => {
+                      const item = itemGroups.find(g => g.id === detailData.id.toString());
+                      if (item) handleEdit(item);
+                    }, 100);
+                  }}
+                >
+                  <FaEdit size={12} /> Edit
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ─── RENDER: List View ──────────────────────────────────────────────────
+  return (
+    <div className={`igl-page ${theme}`}>
+      {/* Search and Filter Bar */}
+      <div className="igl-filter-bar">
+        <div className="igl-filter-left">
+          <div className="igl-search-wrapper">
+            <FaSearch className="igl-search-icon" />
+            <input
+              type="text"
+              placeholder="Search item groups..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="igl-search-input"
+            />
+            {searchTerm && (
+              <button className="igl-search-clear" onClick={() => setSearchTerm('')}>
+                <FaTimes size={12} />
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="igl-filter-right">
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="igl-filter-select"
+          >
+            <option value="all">All Types</option>
+            <option value="group">Parent Groups</option>
+            <option value="item">Sub Items</option>
+          </select>
+          <button className="igl-filter-btn">
+            <FaFilter size={12} />
+            Filter
+          </button>
+          <button className="igl-sort-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="9" y2="18"/>
+            </svg>
+            Created On
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          </button>
+        </div>
+      </div>
+
+      {/* Active filters indicator */}
+      {(searchTerm || statusFilter !== 'all') && (
+        <div className="igl-active-filters">
+          <FaFilter size={12} style={{ color: 'var(--primary-color)' }} />
+          <span style={{ color: 'var(--text-primary)' }}>Active filters:</span>
+          {searchTerm && (
+            <span style={{ color: 'var(--text-primary)' }}>
+              <strong>Search:</strong> "{searchTerm}"
+            </span>
+          )}
+          {statusFilter !== 'all' && (
+            <span style={{ color: 'var(--text-primary)' }}>
+              <strong>Type:</strong> {statusFilter === 'group' ? 'Parent Groups' : 'Sub Items'}
+            </span>
+          )}
+          <button
+            onClick={clearFilters}
+            className="igl-clear-filters"
+          >
+            <FaTimes size={10} /> Clear All
+          </button>
+        </div>
+      )}
+
+      {/* Loading State */}
+      {loading && (
+        <div className="igl-loading">
+          <p>Loading item groups...</p>
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && (
+        <div className="igl-error">
+          <p>{error}</p>
+          <button onClick={fetchItemGroups} className="igl-retry-btn">
+            Retry
+          </button>
+        </div>
+      )}
+
+      {/* Table */}
+      {!loading && !error && (
+        <>
+          <div className="igl-table-wrap">
+            <table className="igl-table">
+              <thead>
+                <tr>
+                  <th className="igl-th-check">
+                    <input type="checkbox" checked={allChecked} onChange={toggleAll} className="igl-checkbox" />
+                  </th>
+                  <th className="igl-th">ID</th>
+                  <th className="igl-th">Item Group Name</th>
+                  <th className="igl-th">Parent Item Group</th>
+                  <th className="igl-th">Type</th>
+                  <th className="igl-th igl-th-meta">
+                    {/*<span className="igl-count-label">{totalFilteredItems} of {itemGroups.length}</span>*/}
+                    <span className="itl-count-label">
+                      {totalFilteredItems > 0
+                        ? `${getStartIndex()}–${getEndIndex()}`
+                        : '0'} of {totalFilteredItems}
+                    </span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary, #9ca3af)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                    </svg>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedData.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="igl-empty-state">
+                      <div className="igl-empty-content">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                        </svg>
+                        <p>No item groups found</p>
+                        <span>Try adjusting your search criteria</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedData.map((row) => (
+                    <tr
+                      key={row.id}
+                      className={`igl-tr ${selected.has(row.id) ? "igl-tr-selected" : ""}`}
+                    >
+                      <td className="igl-td-check" onClick={(e) => { e.stopPropagation(); toggleRow(row.id); }}>
+                        <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleRow(row.id)} className="igl-checkbox" />
+                      </td>
+                      <td className="igl-td igl-td-id">{row.id}</td>
+                      <td className="igl-td">{row.itemGroupName}</td>
+                      <td className="igl-td">{row.parentItemGroup}</td>
+                      <td className="igl-td">
+                        <span className={`igl-status-badge ${row.isGroup ? 'igl-status-group' : 'igl-status-item'}`}>
+                          {row.isGroup ? 'Parent Group' : 'Sub Item'}
+                        </span>
+                      </td>
+                      <td className="igl-td igl-td-meta">
+                        <span className="igl-ago">{row.createdAgo}</span>
+                        <span className="igl-dot">·</span>
+                        <div className="igl-action-buttons">
+                          <button
+                            className="igl-action-btn igl-action-view"
+                            onClick={(e) => { e.stopPropagation(); handleView(row); }}
+                            title="View"
+                          >
+                            <FaEye size={12} />
+                          </button>
+                          {row.isEditable && (
+                            <>
+                              <button
+                                className="igl-action-btn igl-action-edit"
+                                onClick={(e) => { e.stopPropagation(); handleEdit(row); }}
+                                title="Edit"
+                              >
+                                <FaEdit size={12} />
+                              </button>
+                              <button
+                                className="igl-action-btn igl-action-delete"
+                                onClick={(e) => { e.stopPropagation(); handleDelete(row); }}
+                                title="Delete"
+                              >
+                                <FaTrash size={12} />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          <div className="igl-pagination">
+            <div className="igl-pagination-left">
+              <span className="igl-pagination-label">Show:</span>
+              <select
+                value={itemsPerPage}
+                onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                className="igl-page-size-select"
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+              <span className="igl-pagination-label">entries</span>
+            </div>
+            <div className="igl-pagination-center">
+              <button
+                onClick={goToFirstPage}
+                disabled={currentPage === 1 || totalFilteredItems === 0}
+                className="igl-page-btn"
+              >
+                <FaAngleDoubleLeft size={12} />
+              </button>
+              <button
+                onClick={goToPrevPage}
+                disabled={currentPage === 1 || totalFilteredItems === 0}
+                className="igl-page-btn"
+              >
+                <FaChevronLeft size={12} />
+              </button>
+              {totalFilteredItems > 0 && getPageNumbers().map(page => (
+                <button
+                  key={page}
+                  onClick={() => goToPage(page)}
+                  className={`igl-page-btn ${currentPage === page ? 'igl-page-btn-active' : ''}`}
+                >
+                  {page}
+                </button>
+              ))}
+              <button
+                onClick={goToNextPage}
+                disabled={currentPage === totalPages || totalFilteredItems === 0}
+                className="igl-page-btn"
+              >
+                <FaChevronRight size={12} />
+              </button>
+              <button
+                onClick={goToLastPage}
+                disabled={currentPage === totalPages || totalFilteredItems === 0}
+                className="igl-page-btn"
+              >
+                <FaAngleDoubleRight size={12} />
+              </button>
+            </div>
+            <div className="igl-pagination-right">
+              <span className="igl-pagination-info">
+                {totalFilteredItems > 0 ? (
+                  `Showing ${getStartIndex()} to ${getEndIndex()} of ${totalFilteredItems} entries`
+                ) : (
+                  'No entries to show'
+                )}
+              </span>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && selectedItem && (
+        <div className="igl-modal-overlay" onClick={() => setShowDeleteConfirm(false)}>
+          <div className="igl-modal igl-modal-delete" onClick={(e) => e.stopPropagation()}>
+            <div className="igl-modal-header">
+              <span className="igl-modal-title">Confirm Delete</span>
+              <button className="igl-modal-close" onClick={() => setShowDeleteConfirm(false)}>
+                <FaTimes size={16} />
+              </button>
+            </div>
+            <div className="igl-modal-body">
+              <p>Are you sure you want to delete this item group?</p>
+              <p className="igl-modal-item-name"><strong>{selectedItem.itemGroupName}</strong></p>
+              <p className="igl-modal-warning">This action cannot be undone.</p>
+            </div>
+            <div className="igl-modal-footer">
+              <button className="igl-btn-cancel" onClick={() => setShowDeleteConfirm(false)}>
+                Cancel
+              </button>
+              <button className="igl-btn-delete" onClick={confirmDelete}>
+                <FaTrash size={12} /> Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Item Group Modal */}
+      {showEditModal && editForm && (
+        <div className="igl-modal-overlay" onClick={closeEditModal}>
+          <div className="igl-modal igl-modal-edit" onClick={(e) => e.stopPropagation()}>
+            <div className="igl-edit-header">
+              <div className="igl-edit-header-icon">
+                <FaEdit size={16} />
+              </div>
+              <div className="igl-edit-header-text">
+                <span className="igl-modal-title">Edit Item Group</span>
+                <span className="igl-edit-subtitle">Update the details for this item group</span>
+              </div>
+              <button
+                className="igl-modal-close"
+                onClick={closeEditModal}
+                disabled={editSubmitting}
+                type="button"
+              >
+                <FaTimes size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditSubmit}>
+              <div className="igl-modal-body">
+                {editError && (
+                  <div className="igl-edit-error">
+                    <FaTimes size={12} />
+                    <span>{editError}</span>
+                  </div>
+                )}
+
+                <div className="igl-edit-field igl-edit-field-name">
+                  <label className="igl-edit-label">
+                    <FaTag className="igl-edit-label-icon" />
+                    Item Group Name <span className="igl-required">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    className="igl-edit-input"
+                    value={editForm.itemGroupName}
+                    onChange={(e) => setEditForm({ ...editForm, itemGroupName: e.target.value })}
+                    placeholder="Enter item group name"
+                    disabled={editSubmitting}
+                    autoFocus
+                  />
+                </div>
+
+                <div className="igl-edit-field igl-edit-field-parent">
+                  <label className="igl-edit-label">
+                    <FaFolder className="igl-edit-label-icon" />
+                    Parent Item Group
+                  </label>
+                  <select
+                    className="igl-edit-select"
+                    value={editForm.parentItemGroup}
+                    onChange={(e) => setEditForm({ ...editForm, parentItemGroup: e.target.value })}
+                    disabled={editSubmitting}
+                  >
+                    <option value="">-- None --</option>
+                    {parentGroupOptions.map((p) => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                  </select>
+                  <p className="igl-edit-hint">Choose the parent this group should nest under</p>
+                </div>
+              </div>
+
+              <div className="igl-modal-footer">
+                <button
+                  type="button"
+                  className="igl-btn-cancel"
+                  onClick={closeEditModal}
+                  disabled={editSubmitting}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="igl-btn-save" disabled={editSubmitting}>
+                  {editSubmitting ? <FaSpinner className="igl-spin" size={12} /> : <FaSave size={12} />}
+                  {editSubmitting ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

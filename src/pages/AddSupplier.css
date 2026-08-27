@@ -1,0 +1,1091 @@
+/* ─── Container ───────────────────────────────────────────────────────── */
+.as-page {
+  padding: 0 16px 24px;
+  background: var(--layout-bg);
+  min-height: 100vh;
+}
+
+.as-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+/* ─── Loading State ───────────────────────────────────────────────────── */
+.as-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  gap: 16px;
+  color: var(--text-secondary);
+}
+
+.as-loading .spinning {
+  color: var(--primary-color);
+}
+
+/* ─── Header ──────────────────────────────────────────────────────────── */
+.as-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 2px;
+  padding-bottom: 12px;
+}
+
+.back-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 30px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  flex-shrink: 0;
+  transition: background 0.18s, border-color 0.18s, color 0.18s, box-shadow 0.18s;
+}
+
+.back-btn:hover {
+  background: color-mix(in srgb, var(--primary-color) 8%, var(--card-bg));
+  border-color: color-mix(in srgb, var(--primary-color) 40%, var(--border-color));
+  color: var(--primary-color);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--primary-color) 12%, transparent);
+}
+
+.back-btn:active {
+  transform: scale(0.97);
+}
+
+.header-title {
+  flex: 1;
+}
+
+.header-title h1 {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.error-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fef3c7;
+  padding: 6px 12px;
+  border-radius: 30px;
+  font-size: 11px;
+  color: #92400e;
+  flex-shrink: 0;
+}
+
+/* ─── API Error ────────────────────────────────────────────────────────── */
+.as-api-error {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  color: #dc2626;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.as-api-error .error-icon {
+  flex-shrink: 0;
+}
+
+.as-api-error .error-close {
+  margin-left: auto;
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  color: #dc2626;
+  padding: 0 4px;
+}
+
+/* ─── Form Card ───────────────────────────────────────────────────────── */
+.as-card {
+  background: var(--card-bg);
+  border-radius: 14px;
+  padding: 16px 20px;
+  box-shadow: 0 1px 4px var(--shadow-color);
+  border: 1px solid var(--border-color);
+}
+
+/* ─── Section Title ──────────────────────────────────────────────────── */
+.as-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.as-section-title .section-icon {
+  color: var(--primary-color);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+/* ─── Form Fields ────────────────────────────────────────────────────── */
+.as-field {
+  margin-bottom: 12px;
+}
+
+.as-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.as-label .label-icon {
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.required {
+  color: var(--danger-color);
+}
+
+.form-field {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1.5px solid var(--border-color);
+  border-radius: 10px;
+  font-size: 13px;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+}
+
+.form-field:hover {
+  border-color: color-mix(in srgb, var(--primary-color) 50%, var(--border-color));
+  background: color-mix(in srgb, var(--primary-color) 2%, var(--card-bg));
+}
+
+.form-field:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 15%, transparent);
+  background: color-mix(in srgb, var(--primary-color) 3%, var(--card-bg));
+}
+
+.form-field.field-error {
+  border-color: var(--danger-color);
+}
+
+.form-field.field-error:hover,
+.form-field.field-error:focus {
+  border-color: var(--danger-color);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger-color) 12%, transparent);
+  background: color-mix(in srgb, var(--danger-color) 2%, var(--card-bg));
+}
+
+.as-error-msg {
+  font-size: 11px;
+  color: var(--danger-color);
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.as-field-hint {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.as-field-hint .hint-icon {
+  font-size: 10px;
+}
+
+.as-textarea {
+  min-height: 80px;
+  resize: vertical;
+  font-family: inherit;
+}
+
+/* ─── Grid Layouts ───────────────────────────────────────────────────── */
+.as-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.as-full-width {
+  grid-column: 1 / -1;
+}
+
+/* ─── Divider ────────────────────────────────────────────────────────── */
+.as-divider {
+  height: 1px;
+  background: var(--border-color);
+  margin: 12px 0;
+}
+
+/* ─── Checkboxes - FIXED ALIGNMENT ────────────────────────────────────── */
+.as-checkboxes-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px 40px;
+  padding: 8px 0 4px;
+  grid-column: 1 / -1;
+  align-items: center;
+}
+
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  flex: 0 1 auto;
+}
+
+.checkbox-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  margin: 0;
+}
+
+.checkbox-group input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  min-height: 16px;
+  margin: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  accent-color: var(--primary-color);
+  flex-shrink: 0;
+  position: relative;
+  top: 0;
+}
+
+.checkbox-group label {
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+  margin: 0;
+  line-height: 1.4;
+  padding: 0;
+  user-select: none;
+}
+
+/* ─── Pincode Suggestions ────────────────────────────────────────────── */
+.suggestions-container {
+  position: relative;
+}
+
+.suggestions-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  max-height: 150px;
+  overflow-y: auto;
+  z-index: 10;
+  box-shadow: 0 4px 12px var(--shadow-color);
+  margin-top: 2px;
+}
+
+.suggestions-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.suggestions-list::-webkit-scrollbar-track {
+  background: var(--layout-bg);
+}
+
+.suggestions-list::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 2px;
+}
+
+.suggestion-item {
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-primary);
+  transition: background 0.15s ease;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.suggestion-item:hover {
+  background: var(--nav-hover);
+}
+
+.suggestion-item .suggestion-detail {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+/* ─── Footer ──────────────────────────────────────────────────────────── */
+.as-footer {
+  margin-top: 10px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+}
+
+.cancel-btn {
+  padding: 8px 24px;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  border-radius: 30px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: background 0.18s, border-color 0.18s, color 0.18s, box-shadow 0.18s;
+}
+
+.cancel-btn:hover {
+  background: color-mix(in srgb, var(--danger-color) 6%, var(--card-bg));
+  border-color: color-mix(in srgb, var(--danger-color) 30%, var(--border-color));
+  color: var(--danger-color);
+}
+
+.submit-btn {
+  padding: 8px 32px;
+  background: var(--primary-gradient);
+  color: white;
+  border: none;
+  border-radius: 30px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--primary-color) 25%, transparent);
+  transition: opacity 0.2s, box-shadow 0.18s, transform 0.1s;
+}
+
+.submit-btn:hover:not(:disabled) {
+  opacity: 0.9;
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--primary-color) 40%, transparent);
+  transform: translateY(-1px);
+}
+
+.submit-btn:active:not(:disabled) {
+  transform: translateY(0) scale(0.97);
+}
+
+.submit-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+/* ─── Animations ──────────────────────────────────────────────────────── */
+.spinning {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Validation Summary Modal ──────────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.validation-summary-modal {
+  background: var(--card-bg);
+  border-radius: 16px;
+  max-width: 500px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: fadeIn 0.3s ease;
+}
+
+.modal-header {
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-header h2 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #92400e;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.modal-body {
+  padding: 20px 24px;
+}
+
+.modal-description {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+}
+
+.validation-errors-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.validation-error-item {
+  background: #fef2f2;
+  border-radius: 8px;
+  padding: 12px 16px;
+  border-left: 3px solid #dc2626;
+}
+
+.error-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #dc2626;
+  margin-bottom: 4px;
+}
+
+.error-header .error-icon {
+  flex-shrink: 0;
+}
+
+.error-message {
+  font-size: 12px;
+  color: #991b1b;
+  padding-left: 24px;
+}
+
+.validation-tip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: #f0fdf4;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #166534;
+}
+
+.validation-tip .tip-icon {
+  flex-shrink: 0;
+}
+
+.modal-footer {
+  padding: 16px 24px 20px;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.btn-cancel {
+  padding: 8px 24px;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  border-radius: 30px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: background 0.18s, border-color 0.18s, color 0.18s;
+}
+
+.btn-cancel:hover {
+  background: color-mix(in srgb, var(--danger-color) 6%, var(--card-bg));
+  border-color: color-mix(in srgb, var(--danger-color) 30%, var(--border-color));
+  color: var(--danger-color);
+}
+
+/* ─── Responsive ──────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .as-grid-2 {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .as-full-width {
+    grid-column: 1;
+  }
+
+  .as-card {
+    padding: 16px;
+  }
+
+  .as-header {
+    flex-wrap: wrap;
+  }
+
+  .error-badge {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .as-footer {
+    flex-direction: column-reverse;
+    width: 100%;
+  }
+
+  .as-footer button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .as-checkboxes-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 4px 0;
+  }
+
+  .checkbox-field {
+    width: 100%;
+  }
+}
+
+@media (max-width: 520px) {
+  .as-page {
+    padding: 0 12px 20px;
+  }
+
+  .as-card {
+    padding: 12px;
+  }
+
+  .header-title h1 {
+    font-size: 16px;
+  }
+
+  .validation-summary-modal {
+    width: 95%;
+    margin: 10px;
+  }
+}
+
+/* ─── Dark Theme ──────────────────────────────────────────────────────── */
+.dark-theme .as-page {
+  background: var(--layout-bg, #0f172a);
+}
+
+.dark-theme .header-title h1 {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .back-btn {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .back-btn:hover {
+  background: var(--nav-hover, rgba(255,255,255,0.05));
+  border-color: var(--primary-color, #818cf8);
+  color: var(--primary-color, #818cf8);
+}
+
+.dark-theme .as-card {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+}
+
+.dark-theme .as-section-title {
+  color: var(--text-secondary, #94a3b8);
+  border-bottom-color: var(--border-color, #334155);
+}
+
+.dark-theme .as-label {
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .form-field {
+  background: var(--input-bg, #0f172a);
+  border-color: var(--border-color, #334155);
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .form-field:hover {
+  background: color-mix(in srgb, var(--primary-color) 6%, #0f172a);
+  border-color: color-mix(in srgb, var(--primary-color) 50%, var(--border-color));
+}
+
+.dark-theme .form-field:focus {
+  border-color: var(--primary-color, #818cf8);
+  background: color-mix(in srgb, var(--primary-color) 8%, #0f172a);
+}
+
+.dark-theme .as-error-msg {
+  color: #f87171;
+}
+
+.dark-theme .as-field-hint {
+  color: var(--text-secondary, #64748b);
+}
+
+.dark-theme .suggestions-list {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+}
+
+.dark-theme .suggestion-item {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .suggestion-item:hover {
+  background: var(--nav-hover, rgba(255,255,255,0.05));
+}
+
+.dark-theme .suggestion-item .suggestion-detail {
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .checkbox-group label {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .cancel-btn {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .cancel-btn:hover {
+  background: color-mix(in srgb, var(--danger-color) 12%, #1e293b);
+  border-color: color-mix(in srgb, var(--danger-color) 30%, var(--border-color));
+  color: #f87171;
+}
+
+.dark-theme .submit-btn {
+  background: linear-gradient(135deg, var(--primary-color, #3b82f6) 0%, var(--primary-hover, #2563eb) 100%);
+}
+
+.dark-theme .as-divider {
+  background: var(--border-color, #334155);
+}
+
+.dark-theme .as-api-error {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #f87171;
+}
+
+.dark-theme .as-api-error .error-close {
+  color: #f87171;
+}
+
+.dark-theme .error-badge {
+  background: rgba(251, 191, 36, 0.15);
+  color: #fbbf24;
+}
+
+.dark-theme .as-loading {
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .as-loading .spinning {
+  color: var(--primary-color, #818cf8);
+}
+
+.dark-theme .validation-summary-modal {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+}
+
+.dark-theme .modal-header {
+  border-bottom-color: var(--border-color, #334155);
+}
+
+.dark-theme .modal-header h2 {
+  color: #fbbf24;
+}
+
+.dark-theme .modal-description {
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .validation-error-item {
+  background: rgba(239, 68, 68, 0.1);
+  border-left-color: #f87171;
+}
+
+.dark-theme .error-header {
+  color: #f87171;
+}
+
+.dark-theme .error-message {
+  color: #fca5a5;
+}
+
+.dark-theme .validation-tip {
+  background: rgba(34, 197, 94, 0.1);
+  color: #86efac;
+}
+
+.dark-theme .modal-footer {
+  border-top-color: var(--border-color, #334155);
+}
+
+.dark-theme .btn-cancel {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .btn-cancel:hover {
+  background: color-mix(in srgb, var(--danger-color) 12%, #1e293b);
+  border-color: color-mix(in srgb, var(--danger-color) 30%, var(--border-color));
+  color: #f87171;
+}
+
+.dark-theme .modal-close {
+  color: var(--text-secondary, #94a3b8);
+}
+
+/* ─── Bank Accounts Section ──────────────────────────────────────────── */
+.as-bank-accounts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.as-bank-account-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 40px 12px 14px;
+  border: 1.5px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--card-bg);
+  cursor: pointer;
+  position: relative;
+  transition: border-color 0.18s, box-shadow 0.18s, background 0.18s, transform 0.1s;
+}
+
+.as-bank-account-card:hover {
+  border-color: color-mix(in srgb, var(--primary-color) 45%, var(--border-color));
+  background: color-mix(in srgb, var(--primary-color) 3%, var(--card-bg));
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--primary-color) 10%, transparent);
+}
+
+.as-bank-account-card:active {
+  transform: scale(0.995);
+}
+
+.as-bank-account-icon {
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+  color: var(--primary-color);
+}
+
+.as-bank-account-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.as-bank-account-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.as-bank-account-name {
+  font-size: 13.5px;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.as-bank-account-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.as-bank-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.as-bank-badge-primary {
+  background: color-mix(in srgb, var(--primary-color) 15%, transparent);
+  color: var(--primary-color);
+}
+
+.as-bank-badge-verified {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.dark-theme .as-bank-badge-verified {
+  background: rgba(16, 185, 129, 0.18);
+  color: #34d399;
+}
+
+.as-bank-account-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.as-bank-account-details span:not(:last-child)::after {
+  content: '•';
+  margin-left: 10px;
+  color: var(--border-color);
+}
+
+.as-bank-remove-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  border-radius: 7px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.as-bank-remove-btn:hover {
+  background: color-mix(in srgb, var(--danger-color) 12%, transparent);
+  color: var(--danger-color);
+}
+
+.as-add-bank-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 18px;
+  border: 1.5px dashed color-mix(in srgb, var(--primary-color) 45%, var(--border-color));
+  background: color-mix(in srgb, var(--primary-color) 4%, var(--card-bg));
+  color: var(--primary-color);
+  border-radius: 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s, border-color 0.18s, transform 0.1s;
+}
+
+.as-add-bank-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--primary-color) 10%, var(--card-bg));
+  border-color: var(--primary-color);
+}
+
+.as-add-bank-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.as-add-bank-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.dark-theme .as-bank-account-card {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+}
+
+.dark-theme .as-bank-account-card:hover {
+  background: color-mix(in srgb, var(--primary-color) 8%, #1e293b);
+}
+
+.dark-theme .as-bank-account-icon {
+  background: color-mix(in srgb, var(--primary-color) 18%, transparent);
+}
+
+.dark-theme .as-bank-badge-primary {
+  background: color-mix(in srgb, var(--primary-color) 22%, transparent);
+}
+
+.dark-theme .as-add-bank-btn {
+  background: color-mix(in srgb, var(--primary-color) 8%, #1e293b);
+}
+
+@media (max-width: 520px) {
+  .as-bank-account-card {
+    flex-direction: column;
+    padding-right: 14px;
+  }
+  .as-bank-remove-btn {
+    top: 10px;
+    right: 10px;
+  }
+}
+
+/* ─── Contact Add Button — match avatar circle size ──────────────────── */
+.contact-avatar-circle,
+.contact-add-circle {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.contact-add-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.contact-add-circle {
+  border: 1.5px dashed color-mix(in srgb, var(--primary-color) 45%, var(--border-color));
+  background: color-mix(in srgb, var(--primary-color) 4%, var(--card-bg));
+  color: var(--primary-color);
+  transition: background 0.18s, border-color 0.18s, transform 0.1s;
+}
+
+.contact-add-card:hover .contact-add-circle {
+  background: color-mix(in srgb, var(--primary-color) 10%, var(--card-bg));
+  border-color: var(--primary-color);
+  transform: scale(1.05);
+}
+
+.contact-add-card:disabled .contact-add-circle {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.contact-add-icon {
+  font-size: 16px;
+}
+
+.contact-add-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.dark-theme .contact-add-circle {
+  background: color-mix(in srgb, var(--primary-color) 8%, #1e293b);
+}
+
+/* ─── Contact Modal — wider ───────────────────────────────────────────── */
+.contact-modal {
+  max-width: 900px;
+  width: 92%;
+}
+
+/* ─── Contact Modal — checkboxes in one row ──────────────────────────── */
+.contact-add-icon{
+  color: black;
+}
+@media (max-width: 520px) {
+  .contact-checkboxes-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+}
+/* ─── Contact Modal — title uses theme primary color, not warning amber ─ */
+.contact-modal .modal-header h2 {
+  color: var(--primary-color);
+}
+.contact-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: nowrap;
+  margin-top: 12px;
+}
+
+.contact-checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}

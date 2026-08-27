@@ -1,0 +1,169 @@
+.showcase-container {
+    max-width: 800px;
+    margin: 2rem auto;
+    padding: 1.5rem 2rem;
+    background: #f8fafc;
+    border-radius: 16px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+  
+  .showcase-container h1 {
+    font-size: 1.8rem;
+    font-weight: 600;
+    margin-bottom: 1.5rem;
+    color: #0f172a;
+    border-bottom: 2px solid #e2e8f0;
+    padding-bottom: 0.75rem;
+  }
+  
+  .showcase-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+  
+  .input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+  
+  .input-group label {
+    font-weight: 500;
+    font-size: 0.9rem;
+    color: #1e293b;
+  }
+  
+  .input-group input,
+  .input-group textarea,
+  .input-group select {
+    padding: 0.6rem 0.8rem;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    background: white;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  
+  .input-group input:focus,
+  .input-group textarea:focus,
+  .input-group select:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+  }
+  
+  .input-group textarea {
+    resize: vertical;
+    font-family: inherit;
+  }
+  
+  .input-group select[multiple] {
+    min-height: 80px;
+  }
+  
+  .input-group .hint {
+    font-size: 0.8rem;
+    color: #64748b;
+    margin-top: 0.15rem;
+  }
+  
+  .radio-group,
+  .checkbox-group {
+    display: flex;
+    gap: 1.2rem;
+    flex-wrap: wrap;
+    padding-top: 0.2rem;
+  }
+  
+  .radio-group label,
+  .checkbox-group label,
+  .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.95rem;
+    cursor: pointer;
+    color: #1e293b;
+  }
+  
+  .checkbox-label {
+    gap: 0.6rem;
+  }
+  
+  /* Toggle switch */
+  .toggle-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  
+  .toggle-track {
+    width: 48px;
+    height: 26px;
+    border-radius: 13px;
+    background: #cbd5e1;
+    cursor: pointer;
+    transition: background 0.2s;
+    display: flex;
+    align-items: center;
+    padding: 2px;
+    box-sizing: border-box;
+  }
+  
+  .toggle-track.toggle-on {
+    background: #3b82f6;
+  }
+  
+  .toggle-track.toggle-off {
+    background: #cbd5e1;
+  }
+  
+  .toggle-thumb {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+    transition: transform 0.2s;
+  }
+  
+  .toggle-track.toggle-on .toggle-thumb {
+    transform: translateX(22px);
+  }
+  
+  .toggle-track.toggle-off .toggle-thumb {
+    transform: translateX(0);
+  }
+  
+  /* Submit button */
+  .submit-btn {
+    background: #3b82f6;
+    color: white;
+    border: none;
+    padding: 0.8rem 1.8rem;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background 0.2s;
+    align-self: flex-start;
+  }
+  
+  .submit-btn:hover {
+    background: #2563eb;
+  }
+  
+  /* Responsive */
+  @media (max-width: 600px) {
+    .showcase-container {
+      padding: 1rem;
+    }
+    .radio-group,
+    .checkbox-group {
+      gap: 0.8rem;
+    }
+  }

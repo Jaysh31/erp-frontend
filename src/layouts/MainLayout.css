@@ -1,0 +1,75 @@
+.layout {
+  display: flex;
+  height: 100vh;
+  background: var(--layout-bg, #f9fafb);
+  overflow: hidden;
+  position: relative;
+}
+
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  margin-left: 260px;
+  transition: margin-left 0.3s ease;
+}
+
+.main-content.sidebar-minimized {
+  margin-left: 72px;
+}
+
+.page-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  background: var(--page-bg, #f9fafb);
+}
+
+.page-content h1,
+.page-content h2,
+.page-content h3,
+.page-content h4 {
+  color: var(--text-primary, #111827);
+}
+
+.page-content p,
+.page-content span,
+.page-content div:not(.settings-card):not(.settings-card-header):not(.settings-card-body) {
+  color: var(--text-secondary, #6b7280);
+}
+.page-content:has(.sef-shell) {
+  padding: 0;
+  background: #fff;
+}
+
+/* Scrollbar styling */
+.page-content::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.page-content::-webkit-scrollbar-track {
+  background: var(--border-color, #f1f1f1);
+  border-radius: 4px;
+}
+
+.page-content::-webkit-scrollbar-thumb {
+  background: var(--primary-color, #c1c1c1);
+  border-radius: 4px;
+}
+
+.page-content::-webkit-scrollbar-thumb:hover {
+  background: var(--primary-hover, #a8a8a8);
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .main-content {
+    margin-left: 0;
+  }
+  
+  .main-content.sidebar-minimized {
+    margin-left: 0;
+  }
+}

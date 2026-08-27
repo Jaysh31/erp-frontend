@@ -1,0 +1,175 @@
+/* AccountingDashboard.css */
+.accounting-dashboard .transaction-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background: var(--nav-hover, #f8fafc);
+  border-radius: 8px;
+  transition: all 0.2s;
+  margin-bottom: 8px;
+}
+
+.accounting-dashboard .transaction-item:hover {
+  background: var(--nav-active, #f1f5f9);
+  transform: translateX(4px);
+}
+
+.transaction-description {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary, #1e293b);
+}
+
+.transaction-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.transaction-category {
+  font-size: 11px;
+  padding: 2px 10px;
+  border-radius: 12px;
+  color: white;
+  font-weight: 500;
+}
+
+.transaction-date {
+  font-size: 11px;
+  color: var(--text-secondary, #94a3b8);
+}
+
+.transaction-amount {
+  text-align: right;
+}
+
+.amount {
+  font-size: 16px;
+  font-weight: 600;
+  display: block;
+}
+
+.amount.income {
+  color: #22c55e;
+}
+
+.amount.expense {
+  color: #ef4444;
+}
+
+.transaction-status {
+  font-size: 11px;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-weight: 500;
+}
+
+.status-completed {
+  background: #22c55e;
+  color: white;
+}
+
+.status-pending {
+  background: #f59e0b;
+  color: white;
+}
+
+.status-overdue {
+  background: #ef4444;
+  color: white;
+}
+
+/* Financial Overview */
+.overview-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.overview-item {
+  padding: 16px;
+  background: var(--nav-hover, #f8fafc);
+  border-radius: 8px;
+}
+
+.overview-label {
+  font-size: 12px;
+  color: var(--text-secondary, #64748b);
+  margin-bottom: 4px;
+}
+
+.overview-value {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary, #1e293b);
+}
+
+.overview-value.positive {
+  color: #22c55e;
+}
+
+.overview-value.negative {
+  color: #ef4444;
+}
+
+.overview-change {
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.overview-change.positive {
+  color: #22c55e;
+}
+
+.overview-change.negative {
+  color: #ef4444;
+}
+
+/* Dark Theme */
+.dark-theme.accounting-dashboard .transaction-item,
+.dark-theme.accounting-dashboard .overview-item {
+  background: var(--nav-hover, rgba(255, 255, 255, 0.05));
+}
+
+.dark-theme.accounting-dashboard .transaction-item:hover {
+  background: var(--nav-active, rgba(59, 130, 246, 0.15));
+}
+
+.dark-theme.accounting-dashboard .transaction-description,
+.dark-theme.accounting-dashboard .overview-value {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme.accounting-dashboard .amount.income {
+  color: #4ade80;
+}
+
+.dark-theme.accounting-dashboard .amount.expense {
+  color: #f87171;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .accounting-dashboard .transaction-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
+  .accounting-dashboard .transaction-amount {
+    text-align: left;
+    width: 100%;
+  }
+  
+  .overview-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .accounting-dashboard .transaction-meta {
+    flex-wrap: wrap;
+  }
+}

@@ -1,0 +1,2242 @@
+/* PurchaseOrderForm.css */
+
+/* ─── Container ───────────────────────────────────────────────────────── */
+.pof-page {
+  padding: 0 20px 40px;
+  background: var(--layout-bg);
+  min-height: 100vh;
+}
+
+.pof-inner {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* ─── Header ──────────────────────────────────────────────────────────── */
+.pof-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 4px;
+  padding-bottom: 18px;
+}
+/* ─── Digit Input Styles ────────────────────────────────── */
+
+.digit-input-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.digit-input-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary, #6b7280);
+}
+
+.digit-input {
+  padding: 4px 8px;
+  border: 1px solid var(--border-color, #d1d5db);
+  border-radius: 4px;
+  font-size: 13px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  background: var(--input-bg, #ffffff);
+  color: var(--text-primary, #1a1a2e);
+  width: 100%;
+  min-width: 60px;
+  text-align: center;
+}
+
+.digit-input:focus {
+  outline: none;
+  border-color: var(--primary-color, #6366f1);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
+}
+
+.digit-input:disabled {
+  background: var(--bg-disabled, #f3f4f6);
+  cursor: not-allowed;
+}
+
+.pof-digit-input {
+  width: 80px;
+}
+
+.pof-digit-input .digit-input {
+  text-align: center;
+  padding: 6px 4px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.pof-rate-input {
+  width: 100px;
+}
+
+.pof-rate-input .digit-input {
+  text-align: right;
+  padding: 6px 8px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.pof-adjustment-digit-input {
+  width: 120px;
+}
+
+.pof-adjustment-digit-input .digit-input {
+  text-align: right;
+  padding: 6px 8px;
+  font-size: 14px;
+  font-weight: 500;
+  border-color: var(--primary-color, #6366f1);
+}
+
+.pof-adjustment-digit-input .digit-input:focus {
+  border-color: var(--primary-color, #6366f1);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+.pof-uom-display {
+  display: inline-block;
+  padding: 4px 8px;
+  background: var(--bg-secondary, #f3f4f6);
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary, #1a1a2e);
+  min-width: 50px;
+  text-align: center;
+  border: 1px solid var(--border-color, #e5e7eb);
+}
+
+/* ─── Item Search Wrapper ────────────────────────────────── */
+
+.pof-item-search-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.pof-cell-input {
+  padding-right: 32px !important;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--border-color, #d1d5db);
+  border-radius: 4px;
+  font-size: 13px;
+  background: var(--input-bg, #ffffff);
+  color: var(--text-primary, #1a1a2e);
+  transition: border-color 0.2s;
+}
+
+.pof-cell-input:focus {
+  outline: none;
+  border-color: var(--primary-color, #6366f1);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
+}
+
+.pof-clear-item-btn {
+  position: absolute;
+  right: 28px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--text-secondary, #9ca3af);
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+  z-index: 2;
+}
+
+.pof-clear-item-btn:hover {
+  color: var(--danger-color, #ef4444);
+}
+
+.pof-search-icon {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-secondary, #9ca3af);
+  pointer-events: none;
+}
+
+.pof-search-spinner {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--primary-color, #6366f1);
+}
+
+/* ─── Suggestions Dropdown ───────────────────────────────── */
+
+.pof-suggestions-dropdown-portal {
+  background: var(--bg-primary, #ffffff);
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 4px 0;
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+.pof-suggestion-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+  border-bottom: 1px solid var(--border-color-light, #f3f4f6);
+}
+
+.pof-suggestion-item:hover {
+  background: var(--bg-hover, #f9fafb);
+}
+
+.pof-suggestion-item:last-child {
+  border-bottom: none;
+}
+
+.pof-suggestion-code {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-primary, #1a1a2e);
+}
+
+.pof-suggestion-name {
+  font-size: 12px;
+  color: var(--text-secondary, #6b7280);
+}
+
+.pof-suggestion-hsn {
+  font-size: 11px;
+  color: var(--text-secondary, #9ca3af);
+}
+
+.pof-suggestion-chip {
+  display: inline-block;
+  padding: 1px 6px;
+  background: var(--bg-secondary, #f3f4f6);
+  border-radius: 3px;
+  font-size: 10px;
+  color: var(--text-secondary, #6b7280);
+}
+
+.pof-suggestion-chip-brand {
+  background: var(--primary-light, #e0e7ff);
+  color: var(--primary-color, #6366f1);
+}
+
+.pof-suggestion-rate {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--primary-color, #6366f1);
+}
+
+.pof-suggestion-uom {
+  font-size: 11px;
+  color: var(--text-secondary, #9ca3af);
+}
+
+.pof-suggestions-empty-state {
+  padding: 12px;
+  text-align: center;
+  color: var(--text-secondary, #6b7280);
+  font-size: 13px;
+}
+
+/* ─── Adjustment Controls ────────────────────────────────── */
+
+.pof-adjustment-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.pof-adjustment-sign-select {
+  padding: 4px 8px;
+  border: 1px solid var(--border-color, #d1d5db);
+  border-radius: 4px;
+  font-size: 13px;
+  background: var(--input-bg, #ffffff);
+  color: var(--text-primary, #1a1a2e);
+}
+
+.pof-adjustment-result {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary, #1a1a2e);
+  min-width: 80px;
+  text-align: right;
+}
+
+/* ─── Dark Theme Overrides ───────────────────────────────── */
+
+.pof-page.dark .digit-input {
+  background: var(--input-bg-dark, #1f2937);
+  border-color: var(--border-color-dark, #374151);
+  color: var(--text-primary-dark, #f3f4f6);
+}
+
+.pof-page.dark .digit-input:focus {
+  border-color: var(--primary-color-dark, #818cf8);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+.pof-page.dark .pof-uom-display {
+  background: var(--bg-secondary-dark, #374151);
+  border-color: var(--border-color-dark, #4b5563);
+  color: var(--text-primary-dark, #f3f4f6);
+}
+
+.pof-page.dark .pof-suggestions-dropdown-portal {
+  background: var(--bg-primary-dark, #1f2937);
+  border-color: var(--border-color-dark, #374151);
+}
+
+.pof-page.dark .pof-suggestion-item {
+  border-bottom-color: var(--border-color-dark, #374151);
+}
+
+.pof-page.dark .pof-suggestion-item:hover {
+  background: var(--bg-hover-dark, #374151);
+}
+
+.pof-page.dark .pof-suggestion-code {
+  color: var(--text-primary-dark, #f3f4f6);
+}
+
+.pof-page.dark .pof-suggestion-name {
+  color: var(--text-secondary-dark, #9ca3af);
+}
+
+.pof-page.dark .pof-suggestion-chip {
+  background: var(--bg-secondary-dark, #374151);
+  color: var(--text-secondary-dark, #9ca3af);
+}
+
+.pof-page.dark .pof-suggestion-chip-brand {
+  background: rgba(99, 102, 241, 0.2);
+  color: #818cf8;
+}
+
+.pof-page.dark .pof-clear-item-btn {
+  color: var(--text-secondary-dark, #9ca3af);
+}
+
+.pof-page.dark .pof-clear-item-btn:hover {
+  color: #ef4444;
+}
+
+.pof-page.dark .pof-cell-input {
+  background: var(--input-bg-dark, #1f2937);
+  border-color: var(--border-color-dark, #374151);
+  color: var(--text-primary-dark, #f3f4f6);
+}
+
+.pof-page.dark .pof-adjustment-sign-select {
+  background: var(--input-bg-dark, #1f2937);
+  border-color: var(--border-color-dark, #374151);
+  color: var(--text-primary-dark, #f3f4f6);
+}
+
+.pof-page.dark .pof-adjustment-result {
+  color: var(--text-primary-dark, #f3f4f6);
+}
+
+.pof-page.dark .pof-adjustment-digit-input .digit-input {
+  background: var(--input-bg-dark, #1f2937);
+  border-color: var(--border-color-dark, #374151);
+  color: var(--text-primary-dark, #f3f4f6);
+}
+
+.pof-page.dark .pof-adjustment-digit-input .digit-input:focus {
+  border-color: var(--primary-color-dark, #818cf8);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+}
+
+/* ─── Responsive Adjustments ─────────────────────────────── */
+
+@media (max-width: 768px) {
+  .pof-digit-input {
+    width: 60px;
+  }
+  
+  .pof-rate-input {
+    width: 80px;
+  }
+  
+  .pof-adjustment-digit-input {
+    width: 90px;
+  }
+  
+  .pof-adjustment-controls {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+  }
+}
+
+/* ─── Spinning animation ──────────────────────────────────── */
+
+.pof-spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.pof-back-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 30px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  flex-shrink: 0;
+  transition: background 0.18s, border-color 0.18s, color 0.18s, box-shadow 0.18s;
+}
+
+.pof-back-btn:hover {
+  background: color-mix(in srgb, var(--primary-color) 8%, var(--card-bg));
+  border-color: color-mix(in srgb, var(--primary-color) 40%, var(--border-color));
+  color: var(--primary-color);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--primary-color) 12%, transparent);
+}
+
+.pof-back-btn:active {
+  transform: scale(0.97);
+}
+
+.pof-header-title {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pof-header-title h1 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.pof-status-badge {
+  font-size: 10px;
+  padding: 2px 12px;
+  border-radius: 20px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  background: var(--layout-bg);
+  color: var(--text-secondary);
+}
+
+.pof-error-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fef3c7;
+  padding: 6px 12px;
+  border-radius: 30px;
+  font-size: 11px;
+  color: #92400e;
+  flex-shrink: 0;
+}
+
+/* ─── Loading State ───────────────────────────────────────────────────── */
+.pof-loading {
+  padding: 60px 20px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 16px;
+}
+
+.pof-loading .pof-spinning {
+  margin-right: 12px;
+}
+
+/* ─── Form Card ───────────────────────────────────────────────────────── */
+.pof-card {
+  background: var(--card-bg);
+  border-radius: 14px;
+  padding: 28px 32px;
+  box-shadow: 0 1px 4px var(--shadow-color);
+  border: 1px solid var(--border-color);
+}
+
+/* ─── Compact Two-Column Layout ─────────────────────────────────────── */
+.pof-compact-layout {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 20px;
+}
+
+.pof-left-column {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.pof-right-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ─── Info Sections ──────────────────────────────────────────────────── */
+.pof-info-section {
+  margin-bottom: 16px;
+}
+
+.pof-info-section:last-child {
+  margin-bottom: 0;
+}
+
+.pof-section-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pof-section-icon {
+  font-size: 12px;
+  color: var(--primary-color);
+}
+
+.pof-info-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 10px;
+}
+
+.pof-info-row:last-child {
+  margin-bottom: 0;
+}
+
+.pof-info-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pof-info-field label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.pof-info-field .pof-form-field {
+  padding: 6px 10px;
+  font-size: 12px;
+  height: 32px;
+}
+
+.pof-field-disabled {
+  background: var(--layout-bg);
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* ─── Form Fields ────────────────────────────────────────────────────── */
+.pof-form-field {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1.5px solid var(--border-color);
+  border-radius: 10px;
+  font-size: 13px;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+}
+
+.pof-form-field:hover {
+  border-color: color-mix(in srgb, var(--primary-color) 50%, var(--border-color));
+  background: color-mix(in srgb, var(--primary-color) 2%, var(--card-bg));
+}
+
+.pof-form-field:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 15%, transparent);
+  background: color-mix(in srgb, var(--primary-color) 3%, var(--card-bg));
+}
+
+.pof-form-field.pof-field-error {
+  border-color: var(--danger-color);
+}
+
+.pof-form-field.pof-field-error:hover,
+.pof-form-field.pof-field-error:focus {
+  border-color: var(--danger-color);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger-color) 12%, transparent);
+  background: color-mix(in srgb, var(--danger-color) 2%, var(--card-bg));
+}
+
+.pof-required {
+  color: var(--danger-color);
+}
+
+.pof-error-msg {
+  font-size: 10px;
+  color: var(--danger-color);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.pof-warning-msg {
+  font-size: 10px;
+  color: #f59e0b;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.pof-textarea {
+  resize: vertical;
+  min-height: 60px;
+  font-family: inherit;
+}
+
+/* ─── Supplier Dropdown ──────────────────────────────────────────────── */
+.pof-supplier-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.pof-supplier-spinner {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-secondary);
+}
+
+.pof-supplier-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  max-height: 250px;
+  overflow-y: auto;
+  z-index: 1000;
+  margin-top: 4px;
+}
+
+.pof-supplier-item {
+  padding: 10px 14px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border-color-light, #f3f4f6);
+  transition: background 0.15s ease;
+}
+
+.pof-supplier-item:hover {
+  background: color-mix(in srgb, var(--primary-color) 6%, var(--card-bg));
+}
+
+.pof-supplier-item:last-child {
+  border-bottom: none;
+}
+
+.pof-supplier-item-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.pof-supplier-item-icon {
+  color: var(--primary-color);
+  flex-shrink: 0;
+}
+
+.pof-supplier-item-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.pof-supplier-item-details span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ─── Customer Dropdown ──────────────────────────────────────────────── */
+.pof-customer-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.pof-customer-spinner {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-secondary);
+}
+
+.pof-customer-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 1000;
+  margin-top: 4px;
+}
+
+.pof-customer-item {
+  padding: 10px 14px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border-color-light, #f3f4f6);
+  transition: background 0.15s ease;
+}
+
+.pof-customer-item:hover {
+  background: color-mix(in srgb, var(--primary-color) 6%, var(--card-bg));
+}
+
+.pof-customer-item:last-child {
+  border-bottom: none;
+}
+
+.pof-customer-item-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.pof-customer-item-icon {
+  color: var(--primary-color);
+  flex-shrink: 0;
+}
+
+.pof-customer-item-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.pof-customer-item-details span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ─── Party Detail Card ──────────────────────────────────────────────── */
+.pof-party-detail-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.pof-party-empty-card {
+  opacity: 0.7;
+}
+
+.pof-party-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--layout-bg);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.pof-party-card-content {
+  padding: 14px;
+}
+
+.pof-party-card-content h3 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 12px 0;
+}
+
+.pof-party-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pof-party-info-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.pof-party-info-label {
+  color: var(--text-secondary);
+  font-weight: 500;
+  min-width: 80px;
+}
+
+.pof-party-info-value {
+  color: var(--text-primary);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pof-party-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 20px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.pof-party-empty-state p {
+  margin: 0;
+  font-size: 12px;
+}
+
+/* ─── Divider ────────────────────────────────────────────────────────── */
+.pof-divider {
+  height: 1px;
+  background: var(--border-color);
+  margin: 18px 0;
+}
+
+/* ─── Items Section ──────────────────────────────────────────────────── */
+.pof-items-section {
+  margin-top: 4px;
+}
+
+.pof-items-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.pof-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pof-items-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.pof-add-item-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+}
+
+.pof-add-item-btn:hover {
+  background: var(--primary-hover);
+}
+
+.pof-add-item-btn:active {
+  transform: scale(0.97);
+}
+
+/* ─── Item Filter ────────────────────────────────────────────────────── */
+.pof-item-filter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--layout-bg);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.pof-filter-icon {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.pof-filter-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.pof-filter-select {
+  padding: 4px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 12px;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.pof-filter-select:focus {
+  border-color: var(--primary-color);
+}
+
+.pof-filter-count {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-left: auto;
+}
+
+/* ─── Table ──────────────────────────────────────────────────────────── */
+.pof-table-block {
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  overflow: hidden;
+  overflow-x: auto;
+}
+
+.pof-inline-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  min-width: 1100px;
+}
+
+.pof-ith {
+  padding: 8px 10px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--layout-bg);
+  border-bottom: 1px solid var(--border-color);
+  white-space: nowrap;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.pof-ith-action {
+  width: 36px;
+  text-align: center;
+}
+
+.pof-itr {
+  border-top: 1px solid var(--border-color);
+}
+
+.pof-itr:hover {
+  background: var(--nav-hover);
+}
+
+.pof-itd {
+  padding: 4px 6px;
+  color: var(--text-primary);
+  vertical-align: middle;
+}
+
+.pof-itd-no {
+  color: var(--text-secondary);
+  font-size: 11px;
+  text-align: center;
+  width: 30px;
+}
+
+.pof-itd-amount {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.pof-cell-input {
+  width: 100%;
+  min-width: 50px;
+  height: 28px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  font-size: 11.5px;
+  color: var(--text-primary);
+  background: transparent;
+  outline: none;
+  transition: all 0.15s;
+  box-sizing: border-box;
+}
+
+.pof-cell-input:focus {
+  border-color: var(--primary-color);
+  background: var(--card-bg);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 12%, transparent);
+}
+
+.pof-cell-input:hover {
+  background: color-mix(in srgb, var(--primary-color) 3%, var(--card-bg));
+}
+
+.pof-cell-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: var(--layout-bg);
+}
+
+.pof-cell-number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.pof-order-rate {
+  border-color: var(--border-color);
+  background: color-mix(in srgb, #f59e0b 4%, var(--card-bg));
+}
+
+.pof-order-rate:focus {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 2px color-mix(in srgb, #f59e0b 15%, transparent);
+}
+
+.pof-cell-select {
+  width: 100%;
+  min-width: 60px;
+  height: 28px;
+  padding: 0 4px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  font-size: 11.5px;
+  color: var(--text-primary);
+  background: transparent;
+  outline: none;
+  transition: all 0.15s;
+  cursor: pointer;
+}
+
+.pof-cell-select:focus {
+  border-color: var(--primary-color);
+  background: var(--card-bg);
+}
+
+.pof-cell-select:hover {
+  background: color-mix(in srgb, var(--primary-color) 3%, var(--card-bg));
+}
+
+.pof-remove-row {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.15s;
+  font-size: 16px;
+}
+
+.pof-remove-row:hover {
+  color: var(--danger-color);
+  background: color-mix(in srgb, var(--danger-color) 8%, transparent);
+}
+
+/* ─── Table Footer ───────────────────────────────────────────────────── */
+.pof-inline-table tfoot tr {
+  border-top: 2px solid var(--border-color);
+}
+
+.pof-inline-table tfoot tr:first-child {
+  border-top: 2px solid var(--border-color);
+}
+
+.pof-total-label {
+  padding: 6px 10px;
+  text-align: right;
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.pof-total-label .pof-adjustment-value {
+  color: #f59e0b;
+  margin-left: 8px;
+}
+
+.pof-adjustment-label {
+  color: #f59e0b;
+}
+
+.pof-total-amount {
+  padding: 6px 10px;
+  text-align: right;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.pof-total-grand {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.pof-total-grand-amount {
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--primary-color);
+}
+
+/* ─── Grand Total Adjustment Input (inline in table footer) ─────────── */
+.pof-adjustment-input {
+  height: 32px;
+  border: 1.5px solid #f59e0b !important;
+  background: color-mix(in srgb, #f59e0b 6%, var(--card-bg)) !important;
+  border-radius: 6px;
+  font-size: 13px !important;
+  font-weight: 600;
+  text-align: right;
+  padding: 0 10px !important;
+}
+
+.pof-adjustment-input:focus {
+  border-color: #f59e0b !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, #f59e0b 20%, transparent);
+  background: var(--card-bg) !important;
+}
+
+.dark-theme .pof-adjustment-input {
+  background: color-mix(in srgb, #f59e0b 10%, #1e293b) !important;
+  color: #f8fafc;
+}
+
+/* ─── Item Search Suggestions ───────────────────────────────────────── */
+.pof-item-search-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+
+
+.pof-search-suggestions {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+
+  /* Increase width */
+  width: 450px;          /* Change to 500px/550px if needed */
+  max-width: 600px;
+  min-width: 100%;
+
+  /* White background */
+  background: #ffffff !important;
+
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+
+  max-height: 320px;
+  overflow-y: auto;
+  overflow-x: hidden;
+
+  z-index: 9999;
+}
+.pof-search-suggestion-item {
+  padding: 10px 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.pof-search-spinner {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-secondary);
+}
+
+.pof-search-icon {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-secondary);
+  opacity: 0.5;
+}
+
+.pof-suggestions-dropdown-portal {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+}
+.pof-suggestion-item {
+  padding: 12px 16px;
+  background: #fff;
+}
+/* ─── Item Search Suggestions ───────────────────────────────────────── */
+.pof-suggestions-dropdown-portal {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+  min-width: 380px;          /* wider dropdown */
+  max-width: 500px;          /* prevent too wide on large screens */
+  padding: 4px 0;
+}
+
+.pof-suggestion-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;        /* more padding for breathing room */
+  cursor: pointer;
+  border-bottom: 1px solid var(--border-color-light, #f0f0f0);
+  transition: background 0.12s ease;
+  gap: 12px;
+  min-height: 48px;
+}
+
+.pof-suggestion-item:last-child {
+  border-bottom: none;
+}
+
+.pof-suggestion-item:hover {
+  background: color-mix(in srgb, var(--primary-color) 8%, var(--card-bg));
+}
+
+/* Left part – code, name, details */
+.pof-suggestion-item > div:first-child {
+  flex: 1;
+  min-width: 0;              /* allow truncation if needed, but we prefer wrap */
+}
+
+.pof-suggestion-code {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.pof-suggestion-name {
+  font-size: 13px;
+  color: var(--text-primary);
+  word-break: break-word;    /* allow wrapping */
+  line-height: 1.4;
+}
+
+.pof-suggestion-hsn {
+  font-size: 10px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.pof-suggestion-chip {
+  font-size: 9px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: var(--layout-bg);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  display: inline-block;
+  margin-top: 3px;
+}
+
+.pof-suggestion-chip-brand {
+  background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+  color: var(--primary-color);
+}
+
+/* Right part – rate & UOM */
+.pof-suggestion-item > div:last-child {
+  text-align: right;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.pof-suggestion-rate {
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.pof-suggestion-uom {
+  font-size: 10px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+/* Empty state */
+.pof-suggestions-empty-state {
+  padding: 20px 16px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 13px;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  min-width: 320px;
+}
+
+/* Override portal width for mobile – use min-width */
+@media (max-width: 600px) {
+  .pof-suggestions-dropdown-portal {
+    min-width: 280px;
+    max-width: 90vw;
+  }
+  .pof-suggestion-item {
+    padding: 10px 12px;
+    font-size: 12px;
+  }
+  .pof-suggestion-code,
+  .pof-suggestion-name {
+    font-size: 12px;
+  }
+}
+/* .pof-suggestion-item:hover {
+  background: #f5f7fa;
+} */
+.pof-suggestion-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border-color-light, #f3f4f6);
+  transition: background 0.12s ease;
+}
+
+.pof-suggestion-item:hover {
+  background: color-mix(in srgb, var(--primary-color) 6%, var(--card-bg));
+}
+
+.pof-suggestion-item:last-child {
+  border-bottom: none;
+}
+
+.pof-suggestion-code {
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.pof-suggestion-name {
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.pof-suggestion-hsn {
+  font-size: 10px;
+  color: var(--text-secondary);
+  margin-top: 1px;
+}
+
+.pof-suggestion-chip {
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: var(--layout-bg);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.pof-suggestion-chip-brand {
+  background: color-mix(in srgb, var(--primary-color) 10%, transparent);
+  color: var(--primary-color);
+}
+
+.pof-suggestion-rate {
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.pof-suggestion-uom {
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+.pof-suggestions-empty-state {
+  padding: 12px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 12px;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+/* ─── Footer ──────────────────────────────────────────────────────────── */
+.pof-footer {
+  margin-top: 14px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+}
+
+.pof-cancel-btn {
+  padding: 8px 24px;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  border-radius: 30px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: background 0.18s, border-color 0.18s, color 0.18s, box-shadow 0.18s;
+}
+
+.pof-cancel-btn:hover {
+  background: color-mix(in srgb, var(--danger-color) 6%, var(--card-bg));
+  border-color: color-mix(in srgb, var(--danger-color) 30%, var(--border-color));
+  color: var(--danger-color);
+}
+
+.pof-submit-btn {
+  padding: 8px 32px;
+  background: var(--primary-gradient);
+  color: white;
+  border: none;
+  border-radius: 30px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--primary-color) 25%, transparent);
+  transition: opacity 0.2s, box-shadow 0.18s, transform 0.1s;
+}
+
+.pof-submit-btn:hover:not(:disabled) {
+  opacity: 0.9;
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--primary-color) 40%, transparent);
+  transform: translateY(-1px);
+}
+
+.pof-submit-btn:active:not(:disabled) {
+  transform: translateY(0) scale(0.97);
+}
+
+.pof-submit-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+/* ─── Validation Summary Modal ──────────────────────────────────────── */
+.pof-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.pof-validation-modal {
+  background: var(--card-bg);
+  border-radius: 16px;
+  max-width: 550px;
+  width: 100%;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 40px var(--shadow-color);
+  animation: pofFadeIn 0.3s ease-out;
+}
+
+@keyframes pofFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.pof-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border-color);
+  position: sticky;
+  top: 0;
+  background: var(--card-bg);
+  z-index: 10;
+}
+
+.pof-modal-header h2 {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #f59e0b;
+}
+
+.pof-modal-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: none;
+  background: var(--layout-bg);
+  font-size: 20px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: background 0.15s;
+}
+
+.pof-modal-close:hover {
+  background: color-mix(in srgb, var(--text-secondary) 15%, var(--layout-bg));
+}
+
+.pof-modal-body {
+  padding: 24px;
+}
+
+.pof-modal-description {
+  margin-bottom: 16px;
+  color: var(--text-secondary);
+}
+
+.pof-validation-errors-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pof-validation-error-item {
+  padding: 12px;
+  background: var(--layout-bg);
+  border-radius: 10px;
+  border-left: 3px solid #ef4444;
+  cursor: default;
+}
+
+.pof-error-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.pof-error-header strong {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.pof-error-icon {
+  color: #ef4444;
+  flex-shrink: 0;
+}
+
+.pof-error-message {
+  font-size: 11px;
+  color: #ef4444;
+  margin-left: 26px;
+}
+
+.pof-validation-tip {
+  margin-top: 20px;
+  padding: 12px;
+  background: #fef3c7;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #92400e;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pof-tip-icon {
+  display: inline;
+  margin-right: 6px;
+}
+
+.pof-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--border-color);
+}
+
+.pof-btn-cancel {
+  padding: 8px 20px;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 13px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.pof-btn-cancel:hover {
+  background: var(--layout-bg);
+  color: var(--text-primary);
+}
+
+/* ─── API Error Display ──────────────────────────────────────────────── */
+.pof-api-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fee2e2;
+  border: 1px solid #fca5a5;
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  color: #dc2626;
+  font-size: 13px;
+}
+
+.pof-api-error .pof-error-icon {
+  color: #dc2626;
+  flex-shrink: 0;
+}
+
+.pof-api-error span {
+  flex: 1;
+}
+
+.pof-error-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #dc2626;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+/* ─── Spinning Animation ──────────────────────────────────────────────── */
+.pof-spinning {
+  animation: pofSpin 0.8s linear infinite;
+}
+
+@keyframes pofSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ─── Responsive ──────────────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .pof-compact-layout {
+    grid-template-columns: 1fr 320px;
+    gap: 16px;
+  }
+}
+
+@media (max-width: 768px) {
+  .pof-compact-layout {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  
+  .pof-right-column {
+    order: -1;
+  }
+  
+  .pof-info-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  
+  .pof-card {
+    padding: 16px;
+  }
+  
+  .pof-inline-table {
+    min-width: 1000px;
+  }
+  
+  .pof-header {
+    flex-wrap: wrap;
+  }
+  
+  .pof-error-badge {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .pof-footer {
+    flex-direction: column-reverse;
+    width: 100%;
+  }
+  
+  .pof-footer button {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .pof-items-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  
+  .pof-add-item-btn {
+    justify-content: center;
+  }
+
+  .pof-tax-select {
+    min-width: 80px !important;
+    font-size: 10px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .pof-page {
+    padding: 0 12px 20px;
+  }
+  
+  .pof-card {
+    padding: 12px;
+  }
+  
+  .pof-header-title h1 {
+    font-size: 16px;
+  }
+  
+  .pof-ith {
+    font-size: 9px;
+    padding: 4px 6px;
+  }
+  
+  .pof-itd {
+    padding: 2px 4px;
+  }
+  
+  .pof-cell-input {
+    font-size: 10px;
+    min-width: 40px;
+    height: 24px;
+    padding: 0 4px;
+  }
+  
+  .pof-inline-table {
+    min-width: 850px;
+  }
+  
+  .pof-item-filter {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+  
+  .pof-filter-count {
+    margin-left: 0;
+  }
+}
+
+/* ─── Dark theme support ──────────────────────────────────────────────── */
+.dark-theme .pof-party-detail-card {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+.dark-theme .pof-party-card-header {
+  color: #94a3b8;
+  border-color: #334155;
+}
+
+.dark-theme .pof-party-card-content h3 {
+  color: #f8fafc;
+}
+
+.dark-theme .pof-party-info-item {
+  color: #94a3b8;
+}
+
+.dark-theme .pof-party-info-value {
+  color: #f8fafc;
+}
+
+.dark-theme .pof-suggestion-item {
+  border-color: #1e293b;
+}
+
+.dark-theme .pof-suggestion-item:hover {
+  background: #1e293b;
+}
+
+.dark-theme .pof-suggestions-dropdown-portal {
+  background: #0f172a;
+  border-color: #334155;
+}
+
+.dark-theme .pof-suggestion-code,
+.dark-theme .pof-suggestion-name,
+.dark-theme .pof-suggestion-rate {
+  color: #f8fafc;
+}
+
+.dark-theme .pof-filter-select {
+  background: #1e293b;
+  border-color: #334155;
+  color: #f8fafc;
+}
+
+.dark-theme .pof-item-filter {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+.dark-theme .pof-order-rate {
+  background: color-mix(in srgb, #f59e0b 8%, #1e293b);
+}
+
+
+/* ─── Tax Select in Table ────────────────────────────────────────────── */
+.pof-tax-select {
+  min-width: 100px !important;
+  border-color: color-mix(in srgb, var(--primary-color) 20%, var(--border-color)) !important;
+  background: color-mix(in srgb, var(--primary-color) 3%, var(--card-bg)) !important;
+}
+
+.pof-tax-select:focus {
+  border-color: var(--primary-color) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 12%, transparent) !important;
+}
+
+.pof-tax-select:hover {
+  background: color-mix(in srgb, var(--primary-color) 6%, var(--card-bg)) !important;
+}
+
+.dark-theme .pof-tax-select {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  color: #f8fafc !important;
+}
+
+.dark-theme .pof-tax-select option {
+  background: #0f172a;
+  color: #f8fafc;
+}
+/* ─── Adjustment Controls ───────────────────────────────────────────── */
+.pof-adjustment-cell {
+  padding: 6px 8px !important;
+  text-align: right !important;
+}
+
+.pof-adjustment-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+
+.pof-adjustment-sign-select {
+  padding: 2px 6px;
+  border: 1.5px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 11px;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  outline: none;
+  cursor: pointer;
+  height: 28px;
+  min-width: 70px;
+}
+
+.pof-adjustment-sign-select:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 12%, transparent);
+}
+
+.pof-adjustment-input {
+  width: 90px;
+  padding: 2px 6px;
+  border: 1.5px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 12px;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  outline: none;
+  height: 28px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.pof-adjustment-input:focus {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 2px color-mix(in srgb, #f59e0b 15%, transparent);
+}
+
+.pof-adjustment-input::-webkit-inner-spin-button,
+.pof-adjustment-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.pof-adjustment-input[type=number] {
+  -moz-appearance: textfield;
+}
+
+.pof-adjustment-result {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  min-width: 80px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.pof-adjustment-label {
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-align: right !important;
+}
+
+/* ─── Table footer alignment overrides ────────────────────────────── */
+.pof-inline-table tfoot td.pof-total-label {
+  text-align: right;
+  padding-right: 12px;
+}
+
+.pof-inline-table tfoot td.pof-total-amount {
+  text-align: right;
+  padding-right: 12px;
+}
+
+.pof-inline-table tfoot td.pof-adjustment-cell {
+  text-align: right;
+  padding-right: 4px;
+}
+
+/* ─── Dark theme adjustments ────────────────────────────────────────── */
+.dark-theme .pof-adjustment-sign-select {
+  background: #1e293b;
+  border-color: #334155;
+  color: #f8fafc;
+}
+
+.dark-theme .pof-adjustment-sign-select option {
+  background: #0f172a;
+  color: #f8fafc;
+}
+
+.dark-theme .pof-adjustment-input {
+  background: #1e293b;
+  border-color: #334155;
+  color: #f8fafc;
+}
+
+.dark-theme .pof-adjustment-result {
+  color: #94a3b8;
+}
+
+/* ─── Responsive ──────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .pof-adjustment-controls {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 4px;
+  }
+  
+  .pof-adjustment-sign-select {
+    min-width: 60px;
+    font-size: 10px;
+  }
+  
+  .pof-adjustment-input {
+    width: 70px;
+    font-size: 11px;
+  }
+  
+  .pof-adjustment-result {
+    font-size: 11px;
+    min-width: 60px;
+  }
+}
+
+@media (max-width: 480px) {
+  .pof-adjustment-controls {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 3px;
+  }
+  
+  .pof-adjustment-sign-select {
+    min-width: 50px;
+    font-size: 9px;
+    height: 24px;
+    padding: 1px 4px;
+  }
+  
+  .pof-adjustment-input {
+    width: 60px;
+    font-size: 10px;
+    height: 24px;
+    padding: 1px 4px;
+  }
+  
+  .pof-adjustment-result {
+    font-size: 10px;
+    min-width: 50px;
+  }
+}
+
+
+/* Date Picker Styles */
+.pof-date-picker-wrapper {
+  width: 100%;
+  position: relative;
+}
+
+.pof-date-picker-wrapper .react-datepicker__input-container {
+  width: 100%;
+}
+
+.pof-date-picker-wrapper .react-datepicker__input-container input {
+  width: 100%;
+  padding: 6px 30px 6px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  font-size: 13px;
+  background: white;
+  transition: all 0.2s ease;
+  height: 34px;
+}
+
+.pof-date-picker-wrapper .react-datepicker__input-container input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.pof-date-picker-wrapper .react-datepicker__input-container input:disabled {
+  background: #f3f4f6;
+  cursor: not-allowed;
+}
+
+.pof-date-picker-wrapper .react-datepicker__input-container input.pof-field-error {
+  border-color: #ef4444;
+}
+
+.pof-date-picker-wrapper .react-datepicker__input-container input.pof-field-error:focus {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
+}
+
+.pof-calendar-icon {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #9ca3af;
+  pointer-events: none;
+  font-size: 14px;
+}
+
+.react-datepicker {
+  font-family: inherit;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+}
+
+.react-datepicker__header {
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+  border-radius: 8px 8px 0 0;
+}
+
+.react-datepicker__current-month {
+  font-weight: 600;
+  font-size: 14px;
+  color: #111827;
+}
+
+.react-datepicker__day-name {
+  font-weight: 500;
+  color: #6b7280;
+}
+
+.react-datepicker__day {
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.react-datepicker__day:hover {
+  background: #eff6ff;
+  border-radius: 4px;
+}
+
+.react-datepicker__day--selected {
+  background: #3b82f6 !important;
+  color: white !important;
+  border-radius: 4px;
+}
+
+.react-datepicker__day--keyboard-selected {
+  background: #93c5fd !important;
+  color: white !important;
+  border-radius: 4px;
+}
+
+.react-datepicker__day--today {
+  font-weight: 600;
+  background: #f3f4f6;
+}
+
+.react-datepicker__day--today:hover {
+  background: #eff6ff;
+}
+
+/* Dark theme support for date picker */
+.pof-page.dark .react-datepicker {
+  background: #1f2937;
+  border-color: #374151;
+}
+
+.pof-page.dark .react-datepicker__header {
+  background: #111827;
+  border-color: #374151;
+}
+
+.pof-page.dark .react-datepicker__current-month {
+  color: #e5e7eb;
+}
+
+.pof-page.dark .react-datepicker__day {
+  color: #e5e7eb;
+}
+
+.pof-page.dark .react-datepicker__day:hover {
+  background: #374151;
+}
+
+.pof-page.dark .react-datepicker__day--selected {
+  background: #3b82f6 !important;
+  color: white !important;
+}
+
+.pof-page.dark .react-datepicker__day--today {
+  background: #374151;
+  color: #e5e7eb;
+}
+
+.pof-page.dark .react-datepicker__day--today:hover {
+  background: #4b5563;
+}
+
+.pof-page.dark .react-datepicker__day-name {
+  color: #9ca3af;
+}
+
+.pof-page.dark .react-datepicker__day--keyboard-selected {
+  background: #4b5563 !important;
+  color: #e5e7eb !important;
+}
+
+.pof-page.dark .react-datepicker__navigation-icon::before {
+  border-color: #9ca3af;
+}
+
+.pof-page.dark .react-datepicker__navigation:hover *::before {
+  border-color: #e5e7eb;
+}
+
+.pof-page.dark .react-datepicker__input-container input {
+  background: #1f2937;
+  border-color: #374151;
+  color: #e5e7eb;
+}
+
+.pof-page.dark .react-datepicker__input-container input:focus {
+  border-color: #3b82f6;
+}
+
+.pof-page.dark .pof-calendar-icon {
+  color: #6b7280;
+}
+
+.pof-page.dark .react-datepicker__input-container input:disabled {
+  background: #111827;
+  color: #6b7280;
+}
