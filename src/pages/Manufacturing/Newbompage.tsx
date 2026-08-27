@@ -13,6 +13,9 @@ import {
   Clock,
   TrendingUp,
   GripVertical,
+  TrendingDown,
+  ExternalLink,
+  DollarSign,
 } from "lucide-react";
 import "./Newbompage.css";
 import api from '../../../src/services/api';
@@ -238,7 +241,6 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
           setIsFocused(true);
           setIsOpen(true);
           setSearch('');
-          // Clear the input when focused
           if (selectedOption) {
             setSearch('');
           }
@@ -248,11 +250,11 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
         disabled={disabled}
       />
       {isOpen && !disabled && (
-        <div>
+        <div className="nbom-searchable-dropdown">
           {loading ? (
-            <div>Loading...</div>
+            <div className="nbom-searchable-loading">Loading...</div>
           ) : filteredOptions.length === 0 ? (
-            <div>No results found</div>
+            <div className="nbom-searchable-empty">No results found</div>
           ) : (
             filteredOptions.map((option, idx) => {
               const isHighlighted = idx === highlightIndex;
@@ -260,7 +262,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
               return (
                 <div
                   key={getOptionValue(option)}
-                  className={`${isSelected ? 'selected' : ''} ${isHighlighted ? 'highlighted' : ''}`}
+                  className={`nbom-searchable-item ${isSelected ? 'selected' : ''} ${isHighlighted ? 'highlighted' : ''}`}
                   onMouseDown={e => e.preventDefault()}
                   onClick={() => handleSelect(option)}
                   onMouseEnter={() => setHighlightIndex(idx)}
@@ -484,6 +486,11 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
   const [workstationsLoading, setWorkstationsLoading] = useState(false);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
 
+  // ─── Selling Price State ────────────────────────────────────────────────────
+  const [sellingPrice, setSellingPrice] = useState<number>(0);
+  const [selectedItemDetails, setSelectedItemDetails] = useState<Item | null>(null);
+  const [showProfitWarning, setShowProfitWarning] = useState(false);
+
   // ─── Toast helper functions ──────────────────────────────────────────────────
 
   const addToast = useCallback((type: Toast['type'], title: string, message: string) => {
@@ -563,6 +570,12 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
       setDefaultSourceWarehouse(bom.default_source_warehouse || "");
       setDefaultTargetWarehouse(bom.default_target_warehouse || "");
       setBomType(bom.type === "External" ? "External" : "Internal");
+
+      // Load selling price from the item
+      if (bom.standard_rate) {
+        setSellingPrice(bom.standard_rate);
+        setSelectedItemDetails({ ...bom, standard_rate: bom.standard_rate });
+      }
 
       if (items && items.length > 0) {
         const comps = items.map((item: any) => ({
@@ -897,24 +910,42 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
       }
     });
 
+    const total = bomType === "Internal" 
+      ? totalComponentCost + totalOperationCost 
+      : totalOperationCost;
+
     return {
       totalComponentCost: totalComponentCost.toFixed(2),
       totalOperationCost: totalOperationCost.toFixed(2),
-      totalCost: (totalComponentCost + totalOperationCost).toFixed(2)
+      totalCost: total.toFixed(2)
     };
   };
+
+  // ─── Calculate Profit/Loss ───────────────────────────────────────────────────
+
+  const getProfitLoss = useCallback(() => {
+    const totalCost = parseFloat(calculateTotalCost().totalCost) || 0;
+    const profit = sellingPrice - totalCost;
+    const profitMargin = sellingPrice > 0 ? (profit / sellingPrice) * 100 : 0;
+    
+    return {
+      profit,
+      profitMargin,
+      isProfitable: profit >= 0,
+      totalCost,
+      sellingPrice,
+    };
+  }, [sellingPrice, calculateTotalCost]);
 
   // ─── Validation Functions ──────────────────────────────────────────────────
 
   const validateForm = (): { isValid: boolean; errors: { [key: string]: string } } => {
     const errors: { [key: string]: string } = {};
 
-    // Validate Item to Manufacture
     if (!itemToManufacture.trim()) {
       errors.itemToManufacture = "Item to Manufacture is required";
     }
 
-    // Validate Components (only for Internal BOM)
     if (bomType === "Internal") {
       const filledComps = compRows.filter(r => r.itemCode.trim());
       if (filledComps.length === 0) {
@@ -931,12 +962,10 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
       });
     }
 
-    // Validate Operations for External BOM
     if (bomType === "External" && !withOperations) {
       errors.operations = "Operations are required for External/Service BOM";
     }
 
-    // Validate operation rows
     if (withOperations || bomType === "External") {
       opRows.forEach((r, i) => {
         if (!r.operation.trim()) {
@@ -959,13 +988,31 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
     return fieldErrors[field];
   };
 
+  // ─── Handle Item Selection ───────────────────────────────────────────────────
+
+  const handleItemSelect = (itemCode: string) => {
+    setItemToManufacture(itemCode);
+    const selectedItem = items.find(i => i.item_code === itemCode);
+    if (selectedItem) {
+      setSelectedItemDetails(selectedItem);
+      setSellingPrice(selectedItem.standard_rate || 0);
+      if (fieldErrors.itemToManufacture) {
+        setFieldErrors(prev => ({ ...prev, itemToManufacture: '' }));
+      }
+    } else {
+      setSelectedItemDetails(null);
+      setSellingPrice(0);
+    }
+  };
+
+  // ─── Save Handler ───────────────────────────────────────────────────────────
+
   const handleSave = async () => {
     const { isValid, errors } = validateForm();
     setFieldErrors(errors);
     setShowValidationErrors(true);
 
     if (!isValid) {
-      // Scroll to the first error
       const firstErrorField = Object.keys(errors)[0];
       const element = document.querySelector(`[data-field="${firstErrorField}"]`);
       if (element) {
@@ -990,7 +1037,9 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
         return sum + (parseFloat(row.operatingCost || "0") || 0);
       }, 0);
 
-      const totalCost = totalComponentCost + totalOperationCost;
+      const totalCost = bomType === "Internal" 
+        ? totalComponentCost + totalOperationCost 
+        : totalOperationCost;
 
       let bomResponse;
       const bomPayload = {
@@ -1013,6 +1062,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
         base_raw_material_cost: totalComponentCost,
         total_cost: totalCost,
         base_total_cost: totalCost,
+        standard_rate: sellingPrice || 0,
       };
 
       if (editData && editData.bom && editData.bom.id) {
@@ -1166,6 +1216,19 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
     }
   }, [bomType]);
 
+  // ─── Check Profit Warning ────────────────────────────────────────────────────
+
+  useEffect(() => {
+    const { totalCost } = getProfitLoss();
+    if (sellingPrice > 0 && parseFloat(totalCost.toFixed(2)) > sellingPrice) {
+      setShowProfitWarning(true);
+    } else {
+      setShowProfitWarning(false);
+    }
+  }, [sellingPrice, compRows, opRows]);
+
+  // ─── Render ───────────────────────────────────────────────────────────────────
+
   return (
     <div className="nbom-page">
 
@@ -1219,7 +1282,6 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
               {apiError}
             </div>
           )}
-         
         </div>
       </div>
 
@@ -1259,46 +1321,74 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
           </div>
         </div>
 
-        {/* Item to Manufacture with Quantity */}
+        {/* Item to Manufacture with Quantity and Selling Price */}
         <div className="nbom-card">
-          <div className="nbom-card__body nbom-two-column">
-            {/* Item */}
-            <div className="nbom-field nbom-flex-item" data-field="itemToManufacture">
-              <Label text="Item to Manufacture" required info />
-              <SearchableSelect
-                options={items}
-                value={itemToManufacture}
-                onChange={val => {
-                  setItemToManufacture(val);
-                  if (fieldErrors.itemToManufacture) {
-                    setFieldErrors(prev => ({ ...prev, itemToManufacture: '' }));
-                  }
-                }}
-                placeholder={itemsLoading ? 'Loading items...' : 'Search item code or name...'}
-                disabled={itemsLoading}
-                loading={itemsLoading}
-                getOptionLabel={(item) => `${item.item_code} - ${item.item_name} (${item.item_group})`}
-                getOptionValue={(item) => item.item_code}
-                filterKeys={['item_code', 'item_name', 'item_group']}
-                className="nbom-searchable-select"
-              />
-              {getFieldError('itemToManufacture') && (
-                <div style={{ color: '#dc2626', fontSize: '13px', fontWeight: '500', marginTop: '6px' }}>
-                  {getFieldError('itemToManufacture')}
+          <div className="nbom-card__body">
+            <div className="nbom-three-column">
+              {/* Item */}
+              <div className="nbom-field nbom-flex-item" data-field="itemToManufacture">
+                <Label text="Item to Manufacture" required info />
+                <SearchableSelect
+                  options={items}
+                  value={itemToManufacture}
+                  onChange={handleItemSelect}
+                  placeholder={itemsLoading ? 'Loading items...' : 'Search item code or name...'}
+                  disabled={itemsLoading}
+                  loading={itemsLoading}
+                  getOptionLabel={(item) => `${item.item_code} - ${item.item_name} (${item.item_group})`}
+                  getOptionValue={(item) => item.item_code}
+                  filterKeys={['item_code', 'item_name', 'item_group']}
+                  className="nbom-searchable-select"
+                />
+                {getFieldError('itemToManufacture') && (
+                  <div style={{ color: '#dc2626', fontSize: '13px', fontWeight: '500', marginTop: '6px' }}>
+                    {getFieldError('itemToManufacture')}
+                  </div>
+                )}
+              </div>
+
+              {/* Quantity */}
+              <div className="nbom-field nbom-qty-field">
+                <Label text="Quantity" required />
+                <DigitInput
+                  value={quantity}
+                  onChange={(val) => setQuantity(val)}
+                  placeholder="Enter quantity"
+                  maxLength={10}
+                  className="nbom-digit-input"
+                />
+              </div>
+
+              {/* Selling Price Card - Beside Quantity */}
+              {bomType === "Internal" && selectedItemDetails && (
+                <div className="nbom-selling-price-wrapper">
+                  <div className="nbom-selling-price-mini">
+                    <div className="nbom-selling-price-mini-header">
+                      <div className="nbom-selling-price-mini-label">
+                        <DollarSign size={13} />
+                        <span>Selling Price</span>
+                      </div>
+                      <button
+                        className="nbom-edit-item-link-mini"
+                        onClick={() => window.open(`/item/${selectedItemDetails.id}`, '_blank')}
+                        title="Go to Item Page to change selling price"
+                      >
+                        <span>Change</span>
+                        <ExternalLink size={10} />
+                      </button>
+                    </div>
+                    <div className="nbom-selling-price-mini-value">
+                      ₹ {selectedItemDetails.standard_rate?.toFixed(2) || '0.00'}
+                    </div>
+                    {showProfitWarning && (
+                      <div className="nbom-profit-warning-mini">
+                        <AlertTriangle size={12} />
+                        <span>BOM Cost (₹{calculateTotalCost().totalCost}) exceeds SP</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
-            </div>
-
-            {/* Quantity */}
-            <div className="nbom-field nbom-qty-field">
-              <Label text="Quantity" required />
-              <DigitInput
-                value={quantity}
-                onChange={(val) => setQuantity(val)}
-                placeholder="Enter quantity"
-                maxLength={10}
-                className="nbom-digit-input"
-              />
             </div>
           </div>
         </div>

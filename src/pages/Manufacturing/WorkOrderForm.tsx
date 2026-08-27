@@ -4,7 +4,7 @@ import {
   FaArrowLeft, FaSave, FaSpinner, FaExclamationTriangle,
   FaInfoCircle, FaPlus, FaTrash,
   FaSearch, FaBuilding, FaTruck,
-  FaImage, FaCalendarAlt,
+  FaImage, 
   FaCheckCircle, FaBoxOpen, FaCogs,
   FaClipboardList, FaMoneyBillWave, FaWarehouse,
 } from "react-icons/fa";
@@ -163,6 +163,7 @@ interface WorkOrderData {
   // Connections
   items_produced_pct: number;
   completed_operations: string[];
+  job_card_progress: string;
   stock_entry_count: number;
   job_card_count: number;
   pick_list_count: number;
@@ -370,7 +371,7 @@ interface WOPayloadItem {
   rate: number;
   amount: number;
   source_warehouse: number | string;
-    operation: string;
+  operation: string;
 }
 
 interface WOPayload {
@@ -389,7 +390,7 @@ interface WOPayload {
   process_loss_qty: number;
   disassembled_qty: number;
   source_warehouse: number | string;
-    wip_warehouse: string | number;
+  wip_warehouse: string | number;
   fg_warehouse: string;
   scrap_warehouse: string;
   transfer_material_against: string;
@@ -428,7 +429,7 @@ interface WOPayload {
   status: string;
   track_semi_finished_goods: number;
   amended_from: string;
-  selected_grn_id?: number;
+  grn_id?: number;
   order_type?: OrderType;
   type: string;
   operations: WOPayloadOperation[];
@@ -474,17 +475,15 @@ const formatLeadTime = (totalMins: number): string => {
   return parts.length ? parts.join(" ") : "0 min";
 };
 
-type TabKey = "production_item" | "configuration" | "total_produced" | "grn_selection";
+type TabKey = "production_item" | "total_produced" | "grn_selection";
 const TABS: { key: TabKey; label: string }[] = [
   { key: "production_item", label: "Production Item" },
-  { key: "configuration", label: "Configuration" },
   { key: "total_produced", label: "Total Produced" },
   { key: "grn_selection", label: "GRN Selection" },
 ];
 
 const TAB_ICON: Record<TabKey, React.ComponentType<any>> = {
   production_item: FaBoxOpen,
-  configuration: FaCogs,
   total_produced: FaCheckCircle,
   grn_selection: FaTruck,
 };
@@ -511,7 +510,7 @@ const emptyItem = (): RequiredItemRow => ({
 
 const emptyWO = (): WorkOrderData => ({
   name: "", status: "Draft",
-  company: "", qty_to_manufacture: 0, item_to_manufacture: "", item_name: "", stock_uom: "Nos",
+  company: "SculptorTech", qty_to_manufacture: 0, item_to_manufacture: "", item_name: "", stock_uom: "Nos",
   bom_no: "",
   material_transferred_for_manufacturing: 0, manufactured_qty: 0,
   additional_transferred_qty: 0, disassembled_qty: 0,
@@ -525,6 +524,7 @@ const emptyWO = (): WorkOrderData => ({
   additional_operating_cost: 0, corrective_operation_cost: 0,
   comments: [], activity: [],
   items_produced_pct: 0, completed_operations: [],
+  job_card_progress: "",
   stock_entry_count: 0, job_card_count: 0, pick_list_count: 0,
   serial_no_count: 0, batch_count: 0, material_request_count: 0,
   media_files: [],
@@ -532,168 +532,144 @@ const emptyWO = (): WorkOrderData => ({
   item_id: ""
 });
 
-// ─── Custom DatePicker with Calendar ─────────────────────────────────────────
+// ─── WarehousePickerField ─────────────────────────────────────────────────────
+// A dropdown field that lets the user select a warehouse by name and returns the ID
 
-function DatePickerField({
-  label, value, onChange, required = false, disabled = false,
-  min, max, hint, error,
+function WarehousePickerField({
+  label,
+  value,
+  onChange,
+  required = false,
+  disabled = false,
+  placeholder = "Select warehouse...",
+  hint,
+  error,
 }: {
-  label: string; value: string; onChange: (v: string) => void;
-  required?: boolean; disabled?: boolean; min?: string; max?: string;
-  hint?: string; error?: string;
+  label: string;
+  value: string;
+  onChange: (warehouseId: number | string, warehouseName: string) => void;
+  required?: boolean;
+  disabled?: boolean;
+  placeholder?: string;
+  hint?: string;
+  error?: string;
 }) {
-  const [showCalendar, setShowCalendar] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [term, setTerm] = useState("");
+  const [all, setAll] = useState<Warehouse[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedName, setSelectedName] = useState("");
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setShowCalendar(false);
-      }
+    setLoading(true);
+    api.get<WarehouseResponse>("/warehouse")
+      .then(r => {
+        if (r.data.success === 1) {
+          const records = r.data.data?.records || [];
+          setAll(records);
+          // If value is a number (ID), find and set the name
+          if (value && !isNaN(Number(value))) {
+            const match = records.find(w => w.id === Number(value));
+            if (match) setSelectedName(match.warehouse_name);
+          } else if (value && typeof value === 'string' && !value.match(/^\d+$/)) {
+            // If value is already a name, use it directly
+            setSelectedName(value);
+          }
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [value]);
+
+  // Update selected name when value changes externally
+  useEffect(() => {
+    if (value && !isNaN(Number(value)) && all.length > 0) {
+      const match = all.find(w => w.id === Number(value));
+      if (match) setSelectedName(match.warehouse_name);
+    } else if (typeof value === 'string' && value.match(/^\d+$/)) {
+      // It's an ID as string
+      const match = all.find(w => w.id === Number(value));
+      if (match) setSelectedName(match.warehouse_name);
+    } else if (typeof value === 'string') {
+      setSelectedName(value);
+    }
+  }, [value, all]);
+
+  useEffect(() => {
+    const h = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
   }, []);
 
-  const getDaysInMonth = (year: number, month: number) => {
-    return new Date(year, month + 1, 0).getDate();
-  };
-
-  const getFirstDayOfMonth = (year: number, month: number) => {
-    return new Date(year, month, 1).getDay();
-  };
-
-  const [viewYear, setViewYear] = useState(() => {
-    const d = value ? new Date(value) : new Date();
-    return d.getFullYear();
-  });
-  const [viewMonth, setViewMonth] = useState(() => {
-    const d = value ? new Date(value) : new Date();
-    return d.getMonth();
-  });
-
-  const handleDateSelect = (day: number) => {
-    const date = new Date(viewYear, viewMonth, day);
-    const formatted = date.toISOString().split("T")[0];
-    onChange(formatted);
-    setShowCalendar(false);
-  };
+  const filtered = term.trim()
+    ? all.filter(w => w.warehouse_name.toLowerCase().includes(term.toLowerCase()))
+    : all;
 
   return (
-    <div className="date-picker-field" ref={ref}>
+    <div className="warehouse-search-field" ref={ref}>
       <label className="wof-label">{label}{required && <span className="wof-required"> *</span>}</label>
-      <div className="date-picker-wrapper">
-        <div className="date-picker-input-wrap">
-          <FaCalendarAlt className="date-picker-icon" />
+      <div className="warehouse-search-wrapper">
+        <div className="warehouse-search-input-wrap">
+          <FaSearch className="warehouse-search-icon" />
           <input
             type="text"
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            onFocus={() => setShowCalendar(true)}
-            placeholder="Select date..."
-            disabled={disabled}
-            className={`form-field date-picker-input`}
-            readOnly
+            value={open ? term : selectedName}
+            onChange={e => {
+              setTerm(e.target.value);
+              setOpen(true);
+            }}
+            onFocus={() => {
+              if (!disabled) {
+                setTerm("");
+                setOpen(true);
+              }
+            }}
+            onKeyDown={e => e.key === "Escape" && setOpen(false)}
+            placeholder={placeholder}
+            disabled={disabled || loading}
+            className="form-field warehouse-search-input"
           />
-          {value && !disabled && (
+          {loading && <FaSpinner className="warehouse-loading-spinner wof-spinning" />}
+          {selectedName && !disabled && (
             <button
               type="button"
-              className="date-picker-clear-btn"
-              onClick={() => { onChange(""); setShowCalendar(false); }}
+              className="warehouse-clear-btn"
+              onClick={() => {
+                onChange("", "");
+                setSelectedName("");
+                setTerm("");
+                setOpen(false);
+              }}
             >
               ×
             </button>
           )}
         </div>
-
-        {showCalendar && !disabled && (
-          <div className="date-picker-calendar">
-            <div className="calendar-header">
-              <button
-                type="button"
-                className="calendar-nav-btn"
-                onClick={() => {
-                  if (viewMonth === 0) {
-                    setViewMonth(11);
-                    setViewYear(viewYear - 1);
-                  } else {
-                    setViewMonth(viewMonth - 1);
-                  }
-                }}
-              >
-                ‹
-              </button>
-              <span className="calendar-month-year">
-                {new Date(viewYear, viewMonth).toLocaleString("default", { month: "long", year: "numeric" })}
-              </span>
-              <button
-                type="button"
-                className="calendar-nav-btn"
-                onClick={() => {
-                  if (viewMonth === 11) {
-                    setViewMonth(0);
-                    setViewYear(viewYear + 1);
-                  } else {
-                    setViewMonth(viewMonth + 1);
-                  }
-                }}
-              >
-                ›
-              </button>
-            </div>
-            <div className="calendar-weekdays">
-              {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map(day => (
-                <div key={day} className="calendar-weekday">{day}</div>
-              ))}
-            </div>
-            <div className="calendar-days">
-              {Array.from({ length: getFirstDayOfMonth(viewYear, viewMonth) }, (_, i) => (
-                <div key={`empty-${i}`} className="calendar-day empty" />
-              ))}
-              {Array.from({ length: getDaysInMonth(viewYear, viewMonth) }, (_, i) => {
-                const day = i + 1;
-                const dateObj = new Date(viewYear, viewMonth, day);
-                const dateStr = dateObj.toISOString().split("T")[0];
-                const isToday = dateStr === new Date().toISOString().split("T")[0];
-                const isSelected = dateStr === value;
-                const isDisabled = (min ? dateStr < min : false) || (max ? dateStr > max : false);
-
-                return (
-                  <button
-                    key={day}
-                    type="button"
-                    className={`calendar-day${isSelected ? " selected" : ""}${isToday ? " today" : ""}${isDisabled ? " disabled" : ""}`}
-                    onClick={() => !isDisabled && handleDateSelect(day)}
-                    disabled={isDisabled}
-                  >
-                    {day}
-                  </button>
-                );
-              })}
-            </div>
-            <div className="calendar-footer">
-              <button
-                type="button"
-                className="calendar-today-btn"
-                onClick={() => {
-                  const today = new Date();
-                  const formatted = today.toISOString().split("T")[0];
-                  onChange(formatted);
-                  setViewYear(today.getFullYear());
-                  setViewMonth(today.getMonth());
-                  setShowCalendar(false);
-                }}
-              >
-                Today
-              </button>
-              <button
-                type="button"
-                className="calendar-clear-btn"
-                onClick={() => { onChange(""); setShowCalendar(false); }}
-              >
-                Clear
-              </button>
-            </div>
+        {open && !disabled && (
+          <div className="warehouse-dropdown">
+            {filtered.length === 0
+              ? <div className="warehouse-dropdown-empty">{term ? "No match" : "No warehouses"}</div>
+              : <ul className="warehouse-dropdown-list">
+                  {filtered.map(w => (
+                    <li
+                      key={w.id}
+                      className={`warehouse-dropdown-item${selectedName === w.warehouse_name ? " selected" : ""}`}
+                      onClick={() => {
+                        onChange(w.id, w.warehouse_name);
+                        setSelectedName(w.warehouse_name);
+                        setTerm("");
+                        setOpen(false);
+                      }}
+                    >
+                      <div className="warehouse-item-name">{w.warehouse_name}</div>
+                      {w.company && <div className="warehouse-item-company">{w.company}</div>}
+                    </li>
+                  ))}
+                </ul>
+            }
           </div>
         )}
       </div>
@@ -702,6 +678,9 @@ function DatePickerField({
     </div>
   );
 }
+
+// ─── Custom DatePicker with Calendar ─────────────────────────────────────────
+
 
 // ─── DigitInput ───────────────────────────────────────────────────────────────
 // Numeric-only input (digits + optional single decimal point). Strips any
@@ -761,82 +740,6 @@ function DigitInput({
 
 // ─── WarehouseSearchField ─────────────────────────────────────────────────────
 
-function WarehouseSearchField({
-  label, value, onChange, required = false, disabled = false,
-  placeholder = "Search warehouse…", hint, error,
-}: {
-  label: string; value: string; onChange: (v: string) => void;
-  required?: boolean; disabled?: boolean; placeholder?: string; hint?: string; error?: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const [term, setTerm] = useState("");
-  const [all, setAll] = useState<Warehouse[]>([]);
-  const [loading, setLoading] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    setLoading(true);
-    api.get<WarehouseResponse>("/warehouse")
-      .then(r => { if (r.data.success === 1) setAll(r.data.data.records || []); })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
-
-  useEffect(() => {
-    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, []);
-
-  const filtered = term.trim()
-    ? all.filter(w => w.warehouse_name.toLowerCase().includes(term.toLowerCase()))
-    : all;
-
-  return (
-    <div className="warehouse-search-field" ref={ref}>
-      <label className="wof-label">{label}{required && <span className="wof-required"> *</span>}</label>
-      <div className="warehouse-search-wrapper">
-        <div className="warehouse-search-input-wrap">
-          <FaSearch className="warehouse-search-icon" />
-          <input
-            type="text"
-            value={open ? term : value}
-            onChange={e => { setTerm(e.target.value); onChange(e.target.value); setOpen(true); }}
-            onFocus={() => { if (!disabled) { setTerm(""); setOpen(true); } }}
-            onKeyDown={e => e.key === "Escape" && setOpen(false)}
-            placeholder={placeholder}
-            disabled={disabled || loading}
-            className="form-field warehouse-search-input"
-          />
-          {loading && <FaSpinner className="warehouse-loading-spinner wof-spinning" />}
-          {value && !disabled && (
-            <button type="button" className="warehouse-clear-btn"
-              onClick={() => { onChange(""); setTerm(""); setOpen(false); }}>×</button>
-          )}
-        </div>
-        {open && !disabled && (
-          <div className="warehouse-dropdown">
-            {filtered.length === 0
-              ? <div className="warehouse-dropdown-empty">{term ? "No match" : "No warehouses"}</div>
-              : <ul className="warehouse-dropdown-list">
-                  {filtered.map(w => (
-                    <li key={w.id}
-                      className={`warehouse-dropdown-item${value === w.warehouse_name ? " selected" : ""}`}
-                      onClick={() => { onChange(w.warehouse_name); setTerm(w.warehouse_name); setOpen(false); }}>
-                      <div className="warehouse-item-name">{w.warehouse_name}</div>
-                      {w.company && <div className="warehouse-item-company">{w.company}</div>}
-                    </li>
-                  ))}
-                </ul>
-            }
-          </div>
-        )}
-      </div>
-      {hint && <span className="wof-hint">{hint}</span>}
-      {error && <div style={{ color: '#dc2626', fontSize: '13px', fontWeight: '500', marginTop: '4px' }}>{error}</div>}
-    </div>
-  );
-}
 
 // ─── BomSearchField ───────────────────────────────────────────────────────────
 // filterType restricts the picker to a single BOM "type" — "Internal" for
@@ -1012,18 +915,17 @@ function OperationPickerField({
       </div>
 
       {open && !disabled && coords && createPortal(
-  <div
-    id="op-picker-portal-dropdown"
-    className="warehouse-dropdown"
-    style={{
-      position: "fixed",
-      top: coords.top,
-      left: coords.left,
-      width: coords.width,
-      zIndex: 5000,
-      background: "#ffffff",
-    }}
-  
+        <div
+          id="op-picker-portal-dropdown"
+          className="warehouse-dropdown"
+          style={{
+            position: "fixed",
+            top: coords.top,
+            left: coords.left,
+            width: coords.width,
+            zIndex: 5000,
+            background: "#ffffff",
+          }}
         >
           {filtered.length === 0
             ? <div className="warehouse-dropdown-empty">{term ? "No match" : "No operations found"}</div>
@@ -1169,7 +1071,7 @@ export default function WorkOrderForm() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { theme } = useAdminTheme();
-  const isNew = id === "new";
+  const isNew = !id || id === "new";
 
   const [wo, setWo] = useState<WorkOrderData>(emptyWO());
   const [activeTab, setActiveTab] = useState<TabKey>("production_item");
@@ -1178,6 +1080,31 @@ export default function WorkOrderForm() {
   const [apiError, setApiError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<{ field: string; label: string; message: string }[]>([]);
   const [] = useState(false);
+
+  // WIP Warehouse state
+  const [selectedWipWarehouse, setSelectedWipWarehouse] = useState<{ id: number; name: string }>({
+    id: 10, // Default to WIP warehouse ID 10
+    name: "Work In Progress"
+  });
+
+  // Reset the form to a blank state whenever we land on the "new" route.
+  useEffect(() => {
+    if (isNew) {
+      setWo(emptyWO());
+      setActiveTab("production_item");
+      setSelectedBomLabel("");
+      setBomDetail(null);
+      setSelectedExternalBomLabel("");
+      setExternalBomDetail(null);
+      setMaterialConstraints([]);
+      setMaxProducibleQty(null);
+      setMaterialAvailability([]);
+      setCompletionSummary(null);
+      setValidationErrors([]);
+      setApiError(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   // Stock Warning Modal state
   const [stockWarningModal, setStockWarningModal] = useState<{
@@ -1353,8 +1280,7 @@ export default function WorkOrderForm() {
   }, [wo.type]);
 
   // ─── Load existing WO ────────────────────────────────────────────────
-   // ─── Load existing WO ────────────────────────────────────────────────
-   useEffect(() => {
+  useEffect(() => {
     if (!isNew && id) {
       // Wait for the warehouse id->name map (fetched on mount) before we
       // hydrate source/wip/target warehouse fields — otherwise we'd briefly
@@ -1383,16 +1309,46 @@ export default function WorkOrderForm() {
         console.log("GET work-order response:", r.data); // <- check this shape
 
           if (r.data.success === 1) {
-            const d = r.data.data;
+            // API shape: { success, data: { workOrder, grn, grn_items } }
+            const payload = r.data.data;
+            const d = payload?.workOrder ?? payload; // fall back for older shape
+            const grnDetailRaw = payload?.grn ?? null;
+            const grnItemsRaw = payload?.grn_items ?? [];
+
+            const isExternalType = !!d.grn_id || (d.type && String(d.type).toLowerCase() === "external");
+
+            // job_card_progress e.g. "0/2" — completed/total across job cards
+            const jobCardProgress: string =
+              d.job_card_progress ??
+              (d.completed_job_cards !== undefined && d.total_job_cards !== undefined
+                ? `${d.completed_job_cards}/${d.total_job_cards}`
+                : "");
+
+            // Load WIP warehouse from existing WO
+            let wipWhId = 10;
+            let wipWhName = "Work In Progress";
+            if (d.wip_warehouse) {
+              const resolved = resolveWhName(d.wip_warehouse);
+              const whId = warehouseMap[resolved];
+              if (whId) {
+                wipWhId = whId;
+                wipWhName = resolved;
+              } else if (d.wip_warehouse && !isNaN(Number(d.wip_warehouse))) {
+                const name = whIdToName[Number(d.wip_warehouse)];
+                if (name) {
+                  wipWhId = Number(d.wip_warehouse);
+                  wipWhName = name;
+                }
+              }
+            }
+            setSelectedWipWarehouse({ id: wipWhId, name: wipWhName });
 
             setWo(prev => ({
               ...prev,
               id: d.id,
               name: d.name ?? prev.name,
               status: (d.status as Status) ?? prev.status,
-              type: d.selected_grn_id || (d.type && String(d.type).toLowerCase() === "external")
-                ? "external"
-                : (prev.type ?? "internal"),
+              type: isExternalType ? "external" : (prev.type ?? "internal"),
               company: d.company ?? prev.company,
               qty_to_manufacture: d.qty ?? 0,
               item_to_manufacture: d.production_item ?? "",
@@ -1405,7 +1361,7 @@ export default function WorkOrderForm() {
               disassembled_qty: d.disassembled_qty ?? 0,
               source_warehouse: resolveWhName(d.source_warehouse),
               target_warehouse: resolveWhName(d.fg_warehouse),
-              wip_warehouse: resolveWhName(d.wip_warehouse),
+              wip_warehouse: resolveWhName(d.wip_warehouse) || wipWhName,
               transfer_material_against: (d.transfer_material_against as "Work Order" | "Job Card") ?? prev.transfer_material_against,
               planned_start_date: d.planned_start_date?.split("T")[0] ?? new Date().toISOString().split("T")[0],
               actual_start_date: d.actual_start_date?.split("T")[0] ?? "",
@@ -1415,18 +1371,43 @@ export default function WorkOrderForm() {
               actual_operating_cost: d.actual_operating_cost ?? 0,
               additional_operating_cost: d.additional_operating_cost ?? 0,
               corrective_operation_cost: d.corrective_operation_cost ?? 0,
+              job_card_progress: jobCardProgress,
 
-              selected_grn_id: d.selected_grn_id ?? undefined,
+              selected_grn_id: d.grn_id ?? undefined,
               operations: prev.operations,
               required_items: prev.required_items,
             }));
 
-            // External WO: re-hydrate the GRN detail + material availability
-            if (d.selected_grn_id) {
+            // External WO: re-hydrate the GRN detail + material availability.
+            // Prefer the grn/grn_items already embedded in this response;
+            // fall back to a separate /grn/:id fetch if not present.
+            if (d.grn_id) {
               try {
-                const gr = await api.get<GRNDetailResponse>(`/grn/${d.selected_grn_id}`);
-                if (gr.data.success === 1) {
-                  await hydrateFromGrnDetail(gr.data.data);
+                if (grnDetailRaw) {
+                  const mergedGrnDetail: GRNDetail = {
+                    ...(grnDetailRaw as GRNData),
+                    warehouse_id: grnDetailRaw.warehouse_id ?? null,
+                    warehouse_name: grnDetailRaw.warehouse_name ?? null,
+                    items: grnItemsRaw || [],
+                  };
+                  setWo(prev => ({
+                    ...prev,
+                    selected_grn: grnDetailRaw as GRNData,
+                    customer_name: grnDetailRaw.customer_name || grnDetailRaw.party_name || prev.customer_name,
+                    customer_po: grnDetailRaw.delivery_challan_no || prev.customer_po,
+                  }));
+                  await hydrateFromGrnDetail(mergedGrnDetail);
+                } else {
+                  const gr = await api.get<GRNDetailResponse>(`/grn/${d.grn_id}`);
+                  if (gr.data.success === 1) {
+                    setWo(prev => ({
+                      ...prev,
+                      selected_grn: gr.data.data as unknown as GRNData,
+                      customer_name: gr.data.data.customer_name || gr.data.data.party_name || prev.customer_name,
+                      customer_po: gr.data.data.delivery_challan_no || prev.customer_po,
+                    }));
+                    await hydrateFromGrnDetail(gr.data.data);
+                  }
                 }
               } catch (e) {
                 console.error("Failed to reload linked GRN detail:", e);
@@ -1437,7 +1418,7 @@ export default function WorkOrderForm() {
             // Required Items; for External WOs it only supplies Operations
             // (Required Items always come from the GRN).
             if (d.bom_no) {
-              const isExternal = !!d.selected_grn_id;
+              const isExternal = isExternalType;
               if (isExternal) {
                 setSelectedExternalBomLabel(d.item_name ? `${d.item_name} (${d.production_item})` : String(d.bom_no));
               } else {
@@ -1660,15 +1641,10 @@ export default function WorkOrderForm() {
       operation: "",
     }));
 
-    const totalTime = ops.reduce((s, o) => s + o.time_in_mins, 0);
-    const totalCost = ops.reduce((s, o) => s + o.operating_cost, 0);
-
     setWo(prev => ({
       ...prev,
       operations: ops.length ? ops : [emptyOp()],
       required_items: items.length ? items : [emptyItem()],
-      lead_time_mins: Math.round(totalTime * 100) / 100,
-      planned_operating_cost: Math.round(totalCost * 100) / 100,
     }));
   };
 
@@ -1736,23 +1712,23 @@ export default function WorkOrderForm() {
   }, [wo.qty_to_manufacture]);
 
   // ─── Keep planned_operating_cost / lead_time_mins in sync with the
-  // Operations table for External WOs (Internal WOs get this from
-  // applyBomToWo instead, since qty-scaling also needs to run there). ───
+  // Operations table's Time (mins) / Operating Cost columns — for BOTH
+  // Internal and External Work Orders. Lead Time always reflects the sum
+  // of the Operations table's Time (mins), regardless of where the rows
+  // came from (BOM, GRN's linked BOM, or manual entry). ───
   useEffect(() => {
-    if (wo.type === "external") {
-      const totalTime = wo.operations.reduce((s, o) => s + (o.time_in_mins || 0), 0);
-      const totalCost = wo.operations.reduce((s, o) => s + (o.operating_cost || 0), 0);
-      setWo(prev => {
-        const roundedTime = Math.round(totalTime * 100) / 100;
-        const roundedCost = Math.round(totalCost * 100) / 100;
-        if (prev.lead_time_mins === roundedTime && prev.planned_operating_cost === roundedCost) {
-          return prev;
-        }
-        return { ...prev, lead_time_mins: roundedTime, planned_operating_cost: roundedCost };
-      });
-    }
+    const totalTime = wo.operations.reduce((s, o) => s + (o.time_in_mins || 0), 0);
+    const totalCost = wo.operations.reduce((s, o) => s + (o.operating_cost || 0), 0);
+    setWo(prev => {
+      const roundedTime = Math.round(totalTime * 100) / 100;
+      const roundedCost = Math.round(totalCost * 100) / 100;
+      if (prev.lead_time_mins === roundedTime && prev.planned_operating_cost === roundedCost) {
+        return prev;
+      }
+      return { ...prev, lead_time_mins: roundedTime, planned_operating_cost: roundedCost };
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wo.operations, wo.type]);
+  }, [wo.operations]);
 
   // ─── GRN → Required Items + material availability ─────────────────────
   const hydrateFromGrnDetail = async (detail: GRNDetail) => {
@@ -2340,17 +2316,6 @@ export default function WorkOrderForm() {
       errs.push({ field: "company", label: "Company", message: "Company is required" });
     }
 
-    // Warehouse validations (from table: source_warehouse, wip_warehouse, fg_warehouse are all varchar(140) YES)
-    if (!wo.source_warehouse.trim()) {
-      errs.push({ field: "source_warehouse", label: "Source Warehouse", message: "Required" });
-    }
-    if (!wo.target_warehouse.trim()) {
-      errs.push({ field: "target_warehouse", label: "Target Warehouse (FG)", message: "Required" });
-    }
-    if (!wo.wip_warehouse.trim()) {
-      errs.push({ field: "wip_warehouse", label: "WIP Warehouse", message: "Required" });
-    }
-
     // Planned Start Date validation (from table: planned_start_date datetime(6) YES)
     if (!wo.planned_start_date) {
       errs.push({ field: "planned_start_date", label: "Planned Start Date", message: "Required" });
@@ -2385,7 +2350,7 @@ export default function WorkOrderForm() {
     process_loss_qty: 0,
     disassembled_qty: wo.disassembled_qty,
     source_warehouse: warehouseMap[wo.source_warehouse] ?? wo.source_warehouse,
-        wip_warehouse:warehouseMap[wo.wip_warehouse] ?? wo.wip_warehouse ,
+        wip_warehouse: selectedWipWarehouse.id || 10,
     fg_warehouse: wo.target_warehouse,
     scrap_warehouse: "",
     transfer_material_against: wo.transfer_material_against,
@@ -2424,7 +2389,7 @@ export default function WorkOrderForm() {
     status: overrideStatus ?? wo.status,
     track_semi_finished_goods: 0,
     amended_from: "",
-    selected_grn_id: wo.selected_grn_id,
+    grn_id: wo.type === "external" ? wo.selected_grn_id : undefined,
     type: wo.type === "internal" ? "Internal" : "External",
     sales_order: "",
 
@@ -2646,6 +2611,17 @@ export default function WorkOrderForm() {
   const hasFieldError = (field: string): boolean => {
     return !!getFieldError(field);
   };
+
+  // Parse "completed/total" job_card_progress into numbers for the
+  // Operations Completed progress bar on the Total Produced tab.
+  const parsedJobCardProgress = (() => {
+    const raw = wo.job_card_progress || "";
+    const match = raw.match(/^\s*(\d+)\s*\/\s*(\d+)\s*$/);
+    if (match) {
+      return { completed: Number(match[1]), total: Number(match[2]) };
+    }
+    return { completed: wo.completed_operations.length, total: wo.operations.length };
+  })();
 
   if (loading) {
     return (
@@ -3298,38 +3274,6 @@ export default function WorkOrderForm() {
                   )}
 
                   <div className="wof-divider" />
-                  <span className="wof-section-title"><FaWarehouse /> Warehouses <span className="wof-required">*</span></span>
-                  <div className="wof-grid-3" style={{ marginTop: 10 }}>
-                    <WarehouseSearchField
-                      label="Source Warehouse"
-                      value={wo.source_warehouse}
-                      onChange={v => set("source_warehouse", v)}
-                      required
-                      disabled={disabled}
-                      hint="Where raw materials are picked from"
-                      error={getFieldError("source_warehouse")}
-                    />
-                    <WarehouseSearchField
-                      label="WIP Warehouse"
-                      value={wo.wip_warehouse}
-                      onChange={v => set("wip_warehouse", v)}
-                      required
-                      disabled={disabled}
-                      hint="Where production operations happen"
-                      error={getFieldError("wip_warehouse")}
-                    />
-                    <WarehouseSearchField
-                      label="Target Warehouse (FG)"
-                      value={wo.target_warehouse}
-                      onChange={v => set("target_warehouse", v)}
-                      required
-                      disabled={disabled}
-                      hint="Where finished goods are stored"
-                      error={getFieldError("target_warehouse")}
-                    />
-                  </div>
-
-                  <div className="wof-divider" />
                   <span className="wof-section-title"><FaImage /> Media Attachments</span>
                   <div className="wof-media-upload">
                     <input
@@ -3476,26 +3420,6 @@ export default function WorkOrderForm() {
                       </div>
                     </div>
                   )}
-
-                  <div className="wof-divider" />
-                  <span className="wof-section-title"><FaWarehouse /> Warehouses <span className="wof-required">*</span></span>
-                  <div className="wof-grid-3" style={{ marginTop: 10 }}>
-                    <WarehouseSearchField
-                      label="Source Warehouse" value={wo.source_warehouse}
-                      onChange={v => set("source_warehouse", v)} required disabled={disabled}
-                      hint="Where raw materials are picked from" error={getFieldError("source_warehouse")}
-                    />
-                    <WarehouseSearchField
-                      label="WIP Warehouse" value={wo.wip_warehouse}
-                      onChange={v => set("wip_warehouse", v)} required disabled={disabled}
-                      hint="Where production operations happen" error={getFieldError("wip_warehouse")}
-                    />
-                    <WarehouseSearchField
-                      label="Target Warehouse (FG)" value={wo.target_warehouse}
-                      onChange={v => set("target_warehouse", v)} required disabled={disabled}
-                      hint="Where finished goods are stored" error={getFieldError("target_warehouse")}
-                    />
-                  </div>
 
                   <div className="wof-divider" />
                   <div className="wof-table-header">
@@ -3750,93 +3674,6 @@ export default function WorkOrderForm() {
                 </div>
               )}
 
-              {/* ══════════ TAB: CONFIGURATION ══════════ */}
-              {activeTab === "configuration" && (
-                <div className="wof-card">
-                  <div className="wof-card-header"><FaCogs /> Configuration</div>
-
-                  <span className="wof-section-title">Dates</span>
-                  <div className="wof-grid-2" style={{ marginTop: 10 }}>
-                    <div className="wof-field" data-field="planned_start_date">
-                      <DatePickerField
-                        label="Planned Start Date"
-                        value={wo.planned_start_date}
-                        onChange={v => set("planned_start_date", v)}
-                        required
-                        disabled={disabled}
-                        error={getFieldError("planned_start_date")}
-                      />
-                    </div>
-                    <div className="wof-field">
-                      <DatePickerField
-                        label="Actual Start Date"
-                        value={wo.actual_start_date}
-                        onChange={v => set("actual_start_date", v)}
-                        disabled={disabled}
-                      />
-                    </div>
-                    <div className="wof-field">
-                      <DatePickerField
-                        label="Actual End Date"
-                        value={wo.actual_end_date}
-                        onChange={v => set("actual_end_date", v)}
-                        disabled={disabled}
-                        min={wo.actual_start_date}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="wof-divider" />
-                  <span className="wof-section-title"><FaBuilding /> Company Details</span>
-                  <div className="wof-grid-2" style={{ marginTop: 10 }}>
-                    <div className="wof-field" data-field="company">
-                      <label className="wof-label">Company <span className="wof-required">*</span></label>
-                      <input
-                        type="text"
-                        value={wo.company}
-                        onChange={e => set("company", e.target.value)}
-                        className="form-field"
-                        placeholder="Enter company name"
-                        disabled={disabled}
-                      />
-                      {hasFieldError("company") && (
-                        <div style={{ color: '#dc2626', fontSize: '13px', fontWeight: '500', marginTop: '4px' }}>
-                          {getFieldError("company")}
-                        </div>
-                      )}
-                    </div>
-                    <div className="wof-field">
-                      <label className="wof-label">Stock UOM</label>
-                      <input
-                        type="text"
-                        value={wo.stock_uom}
-                        onChange={e => set("stock_uom", e.target.value)}
-                        className="form-field"
-                        placeholder="e.g. Nos"
-                        disabled={disabled}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="wof-divider" />
-                  <span className="wof-section-title">Transfer Settings</span>
-                  <div className="wof-grid-2" style={{ marginTop: 10 }}>
-                    <div className="wof-field">
-                      <label className="wof-label">Transfer Material Against</label>
-                      <select
-                        value={wo.transfer_material_against}
-                        onChange={e => set("transfer_material_against", e.target.value as "Work Order" | "Job Card")}
-                        className="form-field"
-                        disabled={disabled}
-                      >
-                        <option value="Work Order">Work Order</option>
-                        <option value="Job Card">Job Card</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {/* ══════════ TAB: TOTAL PRODUCED ══════════ */}
               {activeTab === "total_produced" && (
                 <div className="wof-card">
@@ -3845,43 +3682,21 @@ export default function WorkOrderForm() {
                   <span className="wof-section-title">Production Progress</span>
                   <div className="wof-progress-block" style={{ marginTop: 12 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-main)" }}>Items Produced</span>
-                      <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>
-                        {wo.qty_to_manufacture  || 0} / {wo.qty_to_manufacture} {wo.stock_uom}
-                      </span>
-                    </div>
-                    <div className="wof-progress-bar">
-                      <div
-                        className="wof-progress-fill"
-                        style={{
-                          width: `${wo.qty_to_manufacture > 0
-                            ? Math.min(100, Math.max(0, ((completionSummary?.totalCompletedQty || wo.manufactured_qty || 0) / wo.qty_to_manufacture) * 100))
-                            : 0}%`
-                        }}
-                      />
-                    </div>
-                    <span className="wof-progress-label">
-                      {wo.qty_to_manufacture > 0
-                        ? `${Math.round(((completionSummary?.totalCompletedQty || wo.manufactured_qty || 0) / wo.qty_to_manufacture) * 100)}% complete`
-                        : "0% complete"}
-                    </span>
-                  </div>
-
-                  <div className="wof-progress-block" style={{ marginTop: 16 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
                       <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-main)" }}>Operations Completed</span>
                       <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>
-                        {wo.completed_operations.length} / {wo.operations.length}
+                        {parsedJobCardProgress.completed} / {parsedJobCardProgress.total}
                       </span>
                     </div>
                     <div className="wof-progress-bar">
                       <div
                         className="wof-progress-fill"
-                        style={{ width: wo.operations.length > 0 ? `${(wo.completed_operations.length / wo.operations.length) * 100}%` : "0%" }}
+                        style={{ width: parsedJobCardProgress.total > 0 ? `${(parsedJobCardProgress.completed / parsedJobCardProgress.total) * 100}%` : "0%" }}
                       />
                     </div>
                     <span className="wof-progress-label">
-                      Completed Operations: <strong>{wo.completed_operations.join(", ") || "None"}</strong>
+                      {parsedJobCardProgress.total > 0
+                        ? `${Math.round((parsedJobCardProgress.completed / parsedJobCardProgress.total) * 100)}% complete`
+                        : "0% complete"}
                     </span>
                   </div>
 
@@ -3995,9 +3810,9 @@ export default function WorkOrderForm() {
                     <span>{wo.manufactured_qty} {wo.stock_uom}</span>
                   </div>
                   <div className="wof-sidebar-stat-row">
-  <span>Lead Time</span>
-  <span>{formatLeadTime(wo.lead_time_mins)}</span>
-</div>
+                    <span>Lead Time</span>
+                    <span>{formatLeadTime(wo.lead_time_mins)}</span>
+                  </div>
                   {wo.type === "internal" && (
                     <div className="wof-sidebar-stat-row">
                       <span>Material Cost</span>
@@ -4011,6 +3826,29 @@ export default function WorkOrderForm() {
                   <div className="wof-sidebar-stat-row total">
                     <span>Total Cost</span>
                     <span>₹{(totalRawMaterialCost + wo.planned_operating_cost).toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* ─── Warehouse Selection ─── */}
+              <div className="wof-sidebar-card">
+                <div className="wof-sidebar-section-title"><FaWarehouse size={12} /> Warehouses</div>
+                <div className="wof-sidebar-stats">
+                  <div className="wof-sidebar-field">
+                    <WarehousePickerField
+                      label="WIP Warehouse"
+                      value={String(selectedWipWarehouse.id)}
+                      onChange={(id, name) => {
+                        setSelectedWipWarehouse({ id: Number(id), name });
+                      }}
+                      required
+                      disabled={disabled}
+                      hint="Work In Progress warehouse for raw materials during production"
+                    />
+                  </div>
+                  <div className="wof-sidebar-stat-row" style={{ marginTop: 8 }}>
+                    <span>Selected WIP</span>
+                    <span>{selectedWipWarehouse.name}</span>
                   </div>
                 </div>
               </div>

@@ -64,7 +64,7 @@ export default function HomePage() {
       title: "Stock",
       icon: <FaBoxes />,
       path: "/dashboard/stock",
-      module: 'setup' as const,
+      module: 'stock' as const,
       description: "Manage inventory",
       color: "#06b6d4",
       apiModule: 'Setup'

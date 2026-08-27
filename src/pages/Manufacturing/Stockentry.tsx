@@ -140,7 +140,7 @@ export default function Stockentry() {
   const navigate = useNavigate();
   
   // ✅ GET THE DATE FORMAT FUNCTION FROM CONTEXT
-  const { theme, formatDate, getApiDateFormat } = useAdminTheme();
+  const { theme, formatDate } = useAdminTheme();
 
   const [stockEntries, setStockEntries] = useState<StockEntryDisplay[]>([]);
   const [loading, setLoading] = useState(false);
@@ -193,9 +193,6 @@ export default function Stockentry() {
   };
 
   // ✅ NEW: Format date for API (YYYY-MM-DD)
-  const toApiDateFormat = (date: Date) => {
-    return getApiDateFormat(date);
-  };
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
