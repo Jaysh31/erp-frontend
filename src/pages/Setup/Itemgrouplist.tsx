@@ -89,8 +89,6 @@ export default function ItemGroupList() {
   const [itemGroups, setItemGroups] = useState<ItemGroupDisplay[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [allChecked, setAllChecked] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
@@ -438,22 +436,6 @@ export default function ItemGroupList() {
         .filter((p) => p && p !== 'N/A' && p !== 'NA')
     )
   ).sort((a, b) => a.localeCompare(b));
-
-  const toggleAll = () => {
-    if (allChecked) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(paginatedData.map((r) => r.id)));
-    }
-    setAllChecked(!allChecked);
-  };
-
-  const toggleRow = (id: string) => {
-    const next = new Set(selected);
-    next.has(id) ? next.delete(id) : next.add(id);
-    setSelected(next);
-    setAllChecked(next.size === paginatedData.length);
-  };
 
   const goToPage = (page: number) => {
     if (page >= 1 && page <= totalPages) {
@@ -973,9 +955,6 @@ export default function ItemGroupList() {
             <table className="igl-table">
               <thead>
                 <tr>
-                  <th className="igl-th-check">
-                    <input type="checkbox" checked={allChecked} onChange={toggleAll} className="igl-checkbox" />
-                  </th>
                   <th className="igl-th">ID</th>
                   <th className="igl-th">Item Group Name</th>
                   <th className="igl-th">Parent Item Group</th>
@@ -991,7 +970,7 @@ export default function ItemGroupList() {
               <tbody>
                 {paginatedData.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="igl-empty-state">
+                    <td colSpan={5} className="igl-empty-state">
                       <div className="igl-empty-content">
                         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
@@ -1003,10 +982,7 @@ export default function ItemGroupList() {
                   </tr>
                 ) : (
                   paginatedData.map((row) => (
-                    <tr key={row.id} className={`igl-tr ${selected.has(row.id) ? "igl-tr-selected" : ""}`}>
-                      <td className="igl-td-check" onClick={(e) => { e.stopPropagation(); toggleRow(row.id); }}>
-                        <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleRow(row.id)} className="igl-checkbox" />
-                      </td>
+                    <tr key={row.id} className="igl-tr">
                       <td className="igl-td igl-td-id">{row.id}</td>
                       <td className="igl-td">{row.itemGroupName}</td>
                       <td className="igl-td">{row.parentItemGroup}</td>

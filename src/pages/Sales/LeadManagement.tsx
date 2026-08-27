@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FaSearch,
@@ -13,6 +13,7 @@ import {
   FaTrash,
   FaPlus,
   FaBuilding,
+  FaCalendarAlt,
 } from "react-icons/fa";
 import "./LeadManagement.css";
 import { useAdminTheme } from "../../admin-theme/AdminThemeContext";
@@ -55,6 +56,50 @@ const STATUS_LABELS: Record<LeadStatus, string> = {
   Unqualified: "Unqualified",
   Converted: "Converted",
 };
+
+// ─── date filter helpers ────────────────────────────────────────────────
+
+const WEEKDAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+const MONTH_LABELS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+function stripTime(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function formatDisplayDate(d: Date): string {
+  return `${MONTH_LABELS[d.getMonth()].slice(0, 3)} ${d.getDate()}, ${d.getFullYear()}`;
+}
+
+function toLocalDateStr(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function isSameDay(a: Date | null, b: Date | null): boolean {
+  if (!a || !b) return false;
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+function buildCalendarGrid(year: number, month: number): (Date | null)[] {
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  const startWeekday = firstDay.getDay();
+  const totalDays = lastDay.getDate();
+
+  const cells: (Date | null)[] = [];
+  for (let i = 0; i < startWeekday; i++) cells.push(null);
+  for (let d = 1; d <= totalDays; d++) cells.push(new Date(year, month, d));
+  return cells;
+}
 
 // ─── raw API record -> display record ──────────────────────────────────
 
@@ -105,6 +150,118 @@ export default function LeadManagement() {
   const [deleting, setDeleting] = useState(false);
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
 
+  // ─── date range filter state ─────────────────────────────────────────
+  const [showDateFilter, setShowDateFilter] = useState(false);
+  const [dateFrom, setDateFrom] = useState<Date | null>(null);
+  const [dateTo, setDateTo] = useState<Date | null>(null);
+  const [tempDateFrom, setTempDateFrom] = useState<Date | null>(null);
+  const [tempDateTo, setTempDateTo] = useState<Date | null>(null);
+  const [calendarViewDate, setCalendarViewDate] = useState<Date>(new Date());
+  const dateFilterWrapperRef = useRef<HTMLDivElement>(null);
+
+  // close date popup on outside click (discards unapplied edits)
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        showDateFilter &&
+        dateFilterWrapperRef.current &&
+        !dateFilterWrapperRef.current.contains(e.target as Node)
+      ) {
+        setShowDateFilter(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showDateFilter]);
+
+  const openDateFilter = () => {
+    setTempDateFrom(dateFrom);
+    setTempDateTo(dateTo);
+    setCalendarViewDate(dateFrom ?? new Date());
+    setShowDateFilter((prev) => !prev);
+  };
+
+  const handleCalendarDayClick = (day: Date) => {
+    const clicked = stripTime(day);
+    if (!tempDateFrom || (tempDateFrom && tempDateTo)) {
+      setTempDateFrom(clicked);
+      setTempDateTo(null);
+      return;
+    }
+    if (clicked < tempDateFrom) {
+      setTempDateTo(tempDateFrom);
+      setTempDateFrom(clicked);
+    } else {
+      setTempDateTo(clicked);
+    }
+  };
+
+  const applyQuickFilter = (range: "today" | "last7" | "last30" | "thisMonth") => {
+    const today = stripTime(new Date());
+    if (range === "today") {
+      setTempDateFrom(today);
+      setTempDateTo(today);
+      setCalendarViewDate(today);
+    } else if (range === "last7") {
+      const from = new Date(today);
+      from.setDate(from.getDate() - 6);
+      setTempDateFrom(from);
+      setTempDateTo(today);
+      setCalendarViewDate(today);
+    } else if (range === "last30") {
+      const from = new Date(today);
+      from.setDate(from.getDate() - 29);
+      setTempDateFrom(from);
+      setTempDateTo(today);
+      setCalendarViewDate(today);
+    } else if (range === "thisMonth") {
+      const from = new Date(today.getFullYear(), today.getMonth(), 1);
+      const to = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+      setTempDateFrom(from);
+      setTempDateTo(to);
+      setCalendarViewDate(today);
+    }
+  };
+
+  const goToPrevMonth = () => {
+    setCalendarViewDate((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+  };
+  const goToNextMonth = () => {
+    setCalendarViewDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+  };
+
+  const clearDateFilter = () => {
+    setTempDateFrom(null);
+    setTempDateTo(null);
+    setDateFrom(null);
+    setDateTo(null);
+  };
+
+  const applyDateFilter = () => {
+    setDateFrom(tempDateFrom);
+    setDateTo(tempDateTo);
+    setCurrentPage(1);
+    setShowDateFilter(false);
+    // Fetch leads with date filter applied
+    fetchLeadsWithFilters(statusFilter, tempDateFrom, tempDateTo);
+  };
+
+  const clearDateFilterBadge = () => {
+    setDateFrom(null);
+    setDateTo(null);
+    setTempDateFrom(null);
+    setTempDateTo(null);
+    // Refresh leads without date filter
+    fetchLeadsWithFilters(statusFilter, null, null);
+  };
+
+  const dateFilterButtonLabel =
+    dateFrom && dateTo
+      ? `${formatDisplayDate(dateFrom)} – ${formatDisplayDate(dateTo)}`
+      : "From - To";
+
+  const calendarCells = buildCalendarGrid(calendarViewDate.getFullYear(), calendarViewDate.getMonth());
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     const nowDate = new Date();
@@ -122,13 +279,16 @@ export default function LeadManagement() {
     return `${Math.floor(diffDays / 365)} y`;
   };
 
-  // ─── fetch from GET /lead with status filter ───────────────────────────
+  // ─── fetch from GET /lead with status and date filters ──────────────
 
-  const fetchLeads = async (status?: string) => {
+  const fetchLeadsWithFilters = async (
+    status?: string, 
+    fromDate?: Date | null, 
+    toDate?: Date | null
+  ) => {
     setLoading(true);
     setError(null);
     try {
-      let url = "/lead";
       const params = new URLSearchParams();
       
       // Add pagination params
@@ -138,12 +298,21 @@ export default function LeadManagement() {
       // Add status filter if selected and not 'all'
       if (status && status !== 'all') {
         params.append('status', status);
-        url = `/lead?${params.toString()}`;
-      } else if (status === 'all' || !status) {
-        url = `/lead?${params.toString()}`;
       }
-      
+
+      // Add date from filter
+      if (fromDate) {
+        params.append('date_from', toLocalDateStr(fromDate));
+      }
+
+      // Add date to filter
+      if (toDate) {
+        params.append('date_to', toLocalDateStr(toDate));
+      }
+
+      const url = `/lead?${params.toString()}`;
       console.log("GET request URL:", url);
+      
       const response = await api.get(url);
       console.log("GET /lead raw response:", response.data);
 
@@ -175,38 +344,8 @@ export default function LeadManagement() {
   // ─── fetch leads with status filter from API ───────────────────────────
 
   const fetchLeadsByStatus = async (status: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      // Call the API with status filter
-      const response = await api.get(`/lead?page=${currentPage}&limit=${itemsPerPage}&status=${status}`);
-      console.log("GET /lead with status response:", response.data);
-      
-      const list = extractList(response.data);
-      setRawLeads(list);
-
-      if (list.length > 0) {
-        console.log("First filtered lead record:", list[0]);
-      }
-
-      const transformedData: LeadDisplay[] = list.map((item) => mapApiLeadToDisplay(item, formatDate));
-
-      setTotalItems(transformedData.length);
-      setLeads(transformedData);
-      
-      toast.success(`Showing leads with status: ${status}`);
-    } catch (err: any) {
-      console.error("Error fetching leads by status:", err);
-      if (err.response) {
-        setError(err.response.data?.message || `Server error: ${err.response.status}`);
-      } else if (err.request) {
-        setError("Network error. Please check your connection.");
-      } else {
-        setError(err.message || "An error occurred while loading leads");
-      }
-    } finally {
-      setLoading(false);
-    }
+    // Pass the current date filters if they exist
+    fetchLeadsWithFilters(status, dateFrom, dateTo);
   };
 
   // ─── handle filter application ────────────────────────────────────
@@ -215,12 +354,8 @@ export default function LeadManagement() {
     setStatusFilter(status);
     setShowStatusDropdown(false);
     
-    if (status === 'all') {
-      fetchLeads();
-    } else {
-      // Call API with the selected status
-      fetchLeadsByStatus(status);
-    }
+    // Call API with the selected status and current date filters
+    fetchLeadsWithFilters(status === 'all' ? undefined : status, dateFrom, dateTo);
   };
 
   // ─── status options for dropdown ──────────────────────────────────
@@ -234,13 +369,28 @@ export default function LeadManagement() {
     { value: 'Converted', label: 'Converted' },
   ];
 
+  // Initial load
   useEffect(() => {
-    fetchLeads();
+    fetchLeadsWithFilters();
   }, []);
 
+  // Handle page/limit changes
+  useEffect(() => {
+    if (currentPage > 1 || itemsPerPage !== 10) {
+      fetchLeadsWithFilters(
+        statusFilter === 'all' ? undefined : statusFilter,
+        dateFrom,
+        dateTo
+      );
+    }
+  }, [currentPage, itemsPerPage]);
+
+  // Reset page when search changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, statusFilter]);
+  }, [searchTerm]);
+
+  // ─── Local filtering for search ────────────────────────────────────────
 
   const filteredData = leads.filter((item) => {
     const matchesSearch =
@@ -248,8 +398,8 @@ export default function LeadManagement() {
       item.organizationName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.id.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === "all" || item.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    
+    return matchesSearch;
   });
 
   const totalFilteredItems = filteredData.length;
@@ -314,7 +464,11 @@ export default function LeadManagement() {
         setShowDeleteConfirm(false);
         setSelectedItem(null);
         toast.success(response.data.message || "Lead deleted successfully!");
-        await fetchLeads();
+        await fetchLeadsWithFilters(
+          statusFilter === 'all' ? undefined : statusFilter,
+          dateFrom,
+          dateTo
+        );
       } else {
         const errorMsg = response.data?.message || "Failed to delete lead";
         console.error("Delete failed:", errorMsg);
@@ -357,7 +511,11 @@ export default function LeadManagement() {
   const clearFilters = () => {
     setSearchTerm("");
     setStatusFilter("all");
-    fetchLeads();
+    setDateFrom(null);
+    setDateTo(null);
+    setTempDateFrom(null);
+    setTempDateTo(null);
+    fetchLeadsWithFilters();
   };
 
   const getStartIndex = () => (validCurrentPage - 1) * itemsPerPage + 1;
@@ -428,6 +586,119 @@ export default function LeadManagement() {
             )}
           </div>
 
+          {/* Date Range Filter (From - To) */}
+          <div className="jc-date-filter-wrapper" ref={dateFilterWrapperRef}>
+            <button
+              className={`jc-date-filter-btn ${dateFrom && dateTo ? "jc-filter-active" : ""}`}
+              onClick={openDateFilter}
+            >
+              <FaCalendarAlt size={12} />
+              <span>{dateFilterButtonLabel}</span>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ marginLeft: "4px" }}>
+                <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+
+            {showDateFilter && (
+              <div className="jc-date-filter-popup">
+                <div className="jc-date-filter-popup-header">
+                  <span>Filter by Date</span>
+                  <button className="jc-date-filter-popup-close" onClick={() => setShowDateFilter(false)}>
+                    <FaTimes size={14} />
+                  </button>
+                </div>
+
+                <div className="jc-date-filter-inputs">
+                  <input
+                    type="text"
+                    readOnly
+                    placeholder="From"
+                    className="jc-date-filter-input"
+                    value={tempDateFrom ? formatDisplayDate(tempDateFrom) : ""}
+                  />
+                  <input
+                    type="text"
+                    readOnly
+                    placeholder="To"
+                    className="jc-date-filter-input"
+                    value={tempDateTo ? formatDisplayDate(tempDateTo) : ""}
+                  />
+                </div>
+
+                <div className="jc-date-filter-quick-row">
+                  <button className="jc-quick-filter-btn" onClick={() => applyQuickFilter("today")}>
+                    Today
+                  </button>
+                  <button className="jc-quick-filter-btn" onClick={() => applyQuickFilter("last7")}>
+                    Last 7 Days
+                  </button>
+                  <button className="jc-quick-filter-btn" onClick={() => applyQuickFilter("last30")}>
+                    Last 30 Days
+                  </button>
+                </div>
+                <div className="jc-date-filter-quick-row">
+                  <button className="jc-quick-filter-btn" onClick={() => applyQuickFilter("thisMonth")}>
+                    This Month
+                  </button>
+                </div>
+
+                <div className="jc-calendar">
+                  <div className="jc-calendar-header">
+                    <button className="jc-calendar-nav-btn" onClick={goToPrevMonth}>
+                      <FaChevronLeft size={12} />
+                    </button>
+                    <span className="jc-calendar-month-label">
+                      {MONTH_LABELS[calendarViewDate.getMonth()]} {calendarViewDate.getFullYear()}
+                    </span>
+                    <button className="jc-calendar-nav-btn" onClick={goToNextMonth}>
+                      <FaChevronRight size={12} />
+                    </button>
+                  </div>
+
+                  <div className="jc-calendar-weekdays">
+                    {WEEKDAY_LABELS.map((wd) => (
+                      <span key={wd} className="jc-calendar-weekday">{wd}</span>
+                    ))}
+                  </div>
+
+                  <div className="jc-calendar-grid">
+                    {calendarCells.map((day, idx) => {
+                      if (!day) return <span key={`blank-${idx}`} className="jc-calendar-cell jc-calendar-cell-empty" />;
+
+                      const isStart = isSameDay(day, tempDateFrom);
+                      const isEnd = isSameDay(day, tempDateTo);
+                      const inRange =
+                        tempDateFrom && tempDateTo && day > tempDateFrom && day < tempDateTo;
+
+                      return (
+                        <button
+                          key={day.toISOString()}
+                          className={[
+                            "jc-calendar-cell",
+                            isStart || isEnd ? "jc-calendar-cell-selected" : "",
+                            inRange ? "jc-calendar-cell-inrange" : "",
+                          ].filter(Boolean).join(" ")}
+                          onClick={() => handleCalendarDayClick(day)}
+                        >
+                          {day.getDate()}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="jc-date-filter-footer">
+                  <button className="jc-btn-cancel" onClick={clearDateFilter}>
+                    Clear
+                  </button>
+                  <button className="jc-btn-primary" onClick={applyDateFilter}>
+                    Apply Filters
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
           <button className="jc-sort-btn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="15" y2="12" /><line x1="3" y1="18" x2="9" y2="18" />
@@ -443,7 +714,7 @@ export default function LeadManagement() {
       </div>
 
       {/* Active filters indicator */}
-      {(searchTerm || statusFilter !== "all") && (
+      {(searchTerm || statusFilter !== "all" || (dateFrom && dateTo)) && (
         <div className="jc-active-filters">
           <FaFilter size={12} style={{ color: "var(--primary-color)" }} />
           <span style={{ color: "var(--text-primary)" }}>Active filters:</span>
@@ -455,6 +726,19 @@ export default function LeadManagement() {
           {statusFilter !== "all" && (
             <span style={{ color: "var(--text-primary)" }}>
               <strong>Status:</strong> {getCurrentStatusLabel()}
+            </span>
+          )}
+          {dateFrom && dateTo && (
+            <span style={{ color: "var(--text-primary)" }}>
+              <strong>From:</strong> {formatDisplayDate(dateFrom)}{" "}
+              <strong>To:</strong> {formatDisplayDate(dateTo)}
+              <button
+                onClick={clearDateFilterBadge}
+                style={{ marginLeft: 6, background: "none", border: "none", cursor: "pointer", color: "inherit" }}
+                title="Clear date filter"
+              >
+                <FaTimes size={10} />
+              </button>
             </span>
           )}
           <button onClick={clearFilters} className="jc-clear-filters">
@@ -474,7 +758,11 @@ export default function LeadManagement() {
       {error && (
         <div className="jc-error">
           <p>{error}</p>
-          <button onClick={() => fetchLeads(statusFilter)} className="jc-retry-btn">
+          <button onClick={() => fetchLeadsWithFilters(
+            statusFilter === 'all' ? undefined : statusFilter,
+            dateFrom,
+            dateTo
+          )} className="jc-retry-btn">
             Retry
           </button>
         </div>

@@ -404,7 +404,7 @@
 
 /* ─── Contact Modal ──────────────────────────────────────────────────── */
 .contact-modal {
-  max-width: 500px;
+  max-width: 700px;
   width: 90%;
   background: var(--card-bg);
   border-radius: 16px;
@@ -412,6 +412,24 @@
   max-height: 90vh;
   overflow-y: auto;
   animation: fadeIn 0.3s ease-out;
+}
+
+.contact-modal::-webkit-scrollbar {
+  width: 6px;
+}
+
+.contact-modal::-webkit-scrollbar-track {
+  background: var(--layout-bg);
+  border-radius: 3px;
+}
+
+.contact-modal::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
+}
+
+.contact-modal::-webkit-scrollbar-thumb:hover {
+  background: var(--primary-color);
 }
 
 .contact-form {

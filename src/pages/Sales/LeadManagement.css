@@ -1104,3 +1104,200 @@
   color: var(--primary-color, #3b82f6);
   font-weight: 600;
 }
+
+
+/* ─── Add these rules to LeadManagement.css ─── */
+
+.jc-date-filter-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+/* button matches the existing .jc-filter-btn size/shape exactly */
+.jc-date-filter-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 6px;
+  border: 1px solid var(--border-color, #d1d5db);
+  background: var(--bg-secondary, #fff);
+  color: var(--text-primary, #111827);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.jc-date-filter-btn:hover {
+  border-color: var(--primary-color, #2563eb);
+}
+
+.jc-date-filter-btn.jc-filter-active {
+  border-color: var(--primary-color, #2563eb);
+  color: var(--primary-color, #2563eb);
+  background: rgba(37, 99, 235, 0.06);
+}
+
+.jc-date-filter-popup {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 50;
+  width: 300px;
+  background: var(--bg-secondary, #fff);
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  padding: 14px;
+}
+
+.jc-date-filter-popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary, #111827);
+  margin-bottom: 12px;
+}
+
+.jc-date-filter-popup-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary, #6b7280);
+  padding: 2px;
+}
+
+.jc-date-filter-inputs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.jc-date-filter-input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  font-size: 13px;
+  border: 1px solid var(--border-color, #d1d5db);
+  border-radius: 6px;
+  background: var(--bg-primary, #f9fafb);
+  color: var(--text-primary, #111827);
+}
+
+.jc-date-filter-quick-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.jc-quick-filter-btn {
+  padding: 6px 10px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color, #d1d5db);
+  background: var(--bg-primary, #f9fafb);
+  color: var(--text-primary, #111827);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.jc-quick-filter-btn:hover {
+  border-color: var(--primary-color, #2563eb);
+  color: var(--primary-color, #2563eb);
+}
+
+.jc-calendar {
+  margin-top: 8px;
+  margin-bottom: 12px;
+}
+
+.jc-calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.jc-calendar-nav-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary, #6b7280);
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.jc-calendar-nav-btn:hover {
+  background: var(--bg-primary, #f3f4f6);
+}
+
+.jc-calendar-month-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary, #111827);
+}
+
+.jc-calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  margin-bottom: 4px;
+}
+
+.jc-calendar-weekday {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary, #9ca3af);
+  padding: 4px 0;
+}
+
+.jc-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.jc-calendar-cell {
+  aspect-ratio: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  border: none;
+  background: none;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-primary, #111827);
+}
+
+.jc-calendar-cell:hover:not(.jc-calendar-cell-empty) {
+  background: var(--bg-primary, #f3f4f6);
+}
+
+.jc-calendar-cell-empty {
+  cursor: default;
+  pointer-events: none;
+}
+
+.jc-calendar-cell-selected {
+  background: var(--primary-color, #2563eb) !important;
+  color: #fff !important;
+  font-weight: 600;
+}
+
+.jc-calendar-cell-inrange {
+  background: rgba(37, 99, 235, 0.15);
+}
+
+.jc-date-filter-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  border-top: 1px solid var(--border-color, #e5e7eb);
+  padding-top: 12px;
+}
