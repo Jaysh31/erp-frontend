@@ -24,7 +24,6 @@ import {
   FaBox,
   FaWrench,
   FaList,
-  FaChevronUp,
 } from 'react-icons/fa';
 import "./WorkOrder.css";
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
@@ -114,7 +113,7 @@ export default function WorkOrderList() {
   const navigate = useNavigate();
   
   // ✅ GET THE DATE FORMAT FUNCTION FROM CONTEXT
-  const { theme, formatDate, getApiDateFormat } = useAdminTheme();
+  const { theme, formatDate } = useAdminTheme();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -170,9 +169,6 @@ export default function WorkOrderList() {
   };
 
   // ✅ NEW: Format date for API (YYYY-MM-DD)
-  const toApiDateFormat = (date: Date) => {
-    return getApiDateFormat(date);
-  };
 
   const calculateJobCardProgress = (total: number = 0, completed: number = 0): number => {
     if (total === 0) return 0;

@@ -128,7 +128,7 @@ interface RangeCalendarProps {
   formatDisplayDateFn: (iso: string) => string;
 }
 
-function RangeCalendar({ month, onMonthChange, fromDate, toDate, onSelect, formatDisplayDateFn }: RangeCalendarProps) {
+function RangeCalendar({ month, onMonthChange, fromDate, toDate, onSelect }: RangeCalendarProps) {
   const year = month.getFullYear();
   const monthIndex = month.getMonth();
   const firstDayOfMonth = new Date(year, monthIndex, 1);
@@ -232,7 +232,7 @@ export default function GRNList() {
   const navigate = useNavigate();
   
   // ✅ GET THE DATE FORMAT FUNCTION FROM CONTEXT
-  const { theme, formatDate, getApiDateFormat } = useAdminTheme();
+  const { theme, formatDate } = useAdminTheme();
 
   // ── State ──────────────────────────────────────────────────────
   const [allGrns, setAllGrns] = useState<GRNDisplay[]>([]);
@@ -260,9 +260,6 @@ export default function GRNList() {
   };
 
   // ✅ NEW: Format date for API (YYYY-MM-DD)
-  const toApiDateFormat = (date: Date) => {
-    return getApiDateFormat(date);
-  };
 
   // ── Tabs config ─────────────────────────────────────────────────
   const tabs: { id: TabId; label: string; icon: JSX.Element }[] = [

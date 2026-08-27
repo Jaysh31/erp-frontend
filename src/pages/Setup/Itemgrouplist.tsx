@@ -247,12 +247,6 @@ export default function ItemGroupList() {
     
    
 
-    const timer = setTimeout(() => {
-      if (!isDetailView) {
-        setCurrentPage(1);
-        fetchItemGroups();
-      }
-    }, 500);
 
   };
 
