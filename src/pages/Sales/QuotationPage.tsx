@@ -214,6 +214,7 @@ const formatPrintDate = (date: string, formatFn?: (date: string) => string): str
   return `${day}-${month}-${year}`;
 };
 
+
 const escapeHtml = (val: unknown): string => {
   const s = val === null || val === undefined ? '' : String(val);
   return s
@@ -314,6 +315,7 @@ export default function QuotationPage() {
   const navigate = useNavigate();
 
   const { theme, formatDate, getApiDateFormat } = useAdminTheme();
+
 
   const [filterText, setFilterText] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('All');
