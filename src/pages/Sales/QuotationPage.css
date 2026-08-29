@@ -171,6 +171,7 @@
   cursor: pointer;
   outline: none;
   height: 38px;
+  min-width: 120px;
 }
 
 .qt-filter-select:focus {
@@ -178,46 +179,46 @@
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
 }
 
-/* ── Date Range Picker ────────────────────────────────────── */
-.qt-date-range-wrapper {
+/* ─── From - To Date Filter Button ───────────────────────────────────── */
+.qt-date-filter-wrapper {
   position: relative;
   display: inline-block;
 }
 
-.qt-date-toggle-btn {
+.qt-date-filter-btn {
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 6px;
   height: 38px;
-  width: 38px;
+  padding: 0 12px;
   border: 1px solid var(--border-color, #e5e7eb);
   border-radius: 8px;
   background: var(--card-bg, white);
   color: var(--text-secondary, #6b7280);
+  font-size: 13px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.15s;
+  white-space: nowrap;
 }
 
-.qt-date-toggle-btn:hover {
+.qt-date-filter-btn:hover {
   border-color: var(--primary-color, #6366f1);
-  color: var(--primary-color, #6366f1);
+  color: var(--text-primary, #111827);
   background: var(--nav-hover, #f9fafb);
 }
 
-.qt-date-toggle-btn.active {
+.qt-date-filter-btn.qt-filter-active {
   border-color: var(--primary-color, #6366f1);
   color: var(--primary-color, #6366f1);
   background: rgba(99, 102, 241, 0.08);
 }
 
-.qt-date-toggle-btn.has-date {
-  border-color: var(--primary-color, #6366f1);
-  color: var(--primary-color, #6366f1);
-  background: rgba(99, 102, 241, 0.08);
+.qt-date-filter-btn svg {
+  flex-shrink: 0;
 }
 
-/* ── Date Picker Popup ────────────────────────────────────── */
-.qt-date-picker-popup {
+/* ─── Date Filter Popup ───────────────────────────────────────────────── */
+.qt-date-filter-popup {
   position: absolute;
   right: 0;
   top: calc(100% + 8px);
@@ -231,21 +232,20 @@
   animation: qtFadeIn 0.2s ease-out;
 }
 
-/* ── Date Picker Header ───────────────────────────────────── */
-.qt-date-picker-header {
+.qt-date-filter-popup-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 12px;
 }
 
-.qt-date-picker-title {
+.qt-date-filter-popup-header span {
   font-size: 15px;
   font-weight: 600;
   color: var(--text-primary, #111827);
 }
 
-.qt-date-picker-close {
+.qt-date-filter-popup-close {
   width: 28px;
   height: 28px;
   border: none;
@@ -259,37 +259,47 @@
   transition: all 0.15s;
 }
 
-.qt-date-picker-close:hover {
+.qt-date-filter-popup-close:hover {
   background: var(--nav-hover, #f3f4f6);
 }
 
-/* ── Date Range Display ──────────────────────────────────── */
-.qt-date-range-display {
-  background: var(--layout-bg, #f9fafb);
-  border-radius: 8px;
-  padding: 10px 14px;
+/* ─── Date Filter Inputs ──────────────────────────────────────────────── */
+.qt-date-filter-inputs {
+  display: flex;
+  gap: 8px;
   margin-bottom: 14px;
-  text-align: center;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-primary, #111827);
+}
+
+.qt-date-filter-input {
+  flex: 1;
+  padding: 8px 12px;
   border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 6px;
+  font-size: 13px;
+  background: var(--layout-bg, #f9fafb);
+  color: var(--text-primary, #374151);
+  cursor: default;
+  text-align: center;
 }
 
-.qt-date-range-placeholder {
-  color: var(--text-secondary, #9ca3af);
-  font-weight: 400;
+.qt-date-filter-input:focus {
+  outline: none;
+  border-color: var(--primary-color, #6366f1);
 }
 
-/* ── Quick Filters ────────────────────────────────────────── */
-.qt-quick-filters {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
+/* ─── Quick Filter Rows ───────────────────────────────────────────────── */
+.qt-date-filter-quick-row {
+  display: flex;
   gap: 6px;
+  margin-bottom: 8px;
+}
+
+.qt-date-filter-quick-row:last-child {
   margin-bottom: 16px;
 }
 
 .qt-quick-filter-btn {
+  flex: 1;
   padding: 6px 0;
   border: 1px solid var(--border-color, #e5e7eb);
   border-radius: 6px;
@@ -314,7 +324,7 @@
   background: rgba(99, 102, 241, 0.08);
 }
 
-/* ── Calendar ─────────────────────────────────────────────── */
+/* ─── Calendar ─────────────────────────────────────────────────────────── */
 .qt-calendar {
   margin-bottom: 16px;
 }
@@ -326,7 +336,7 @@
   padding: 0 4px 10px 4px;
 }
 
-.qt-calendar-nav {
+.qt-calendar-nav-btn {
   width: 28px;
   height: 28px;
   border: none;
@@ -340,12 +350,12 @@
   transition: all 0.15s;
 }
 
-.qt-calendar-nav:hover {
+.qt-calendar-nav-btn:hover {
   background: var(--nav-hover, #f3f4f6);
   color: var(--text-primary, #111827);
 }
 
-.qt-calendar-month {
+.qt-calendar-month-label {
   font-size: 14px;
   font-weight: 600;
   color: var(--text-primary, #111827);
@@ -361,13 +371,13 @@
   padding: 4px 0 8px 0;
 }
 
-.qt-calendar-days {
+.qt-calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 2px;
 }
 
-.qt-calendar-day {
+.qt-calendar-cell {
   aspect-ratio: 1;
   border: none;
   background: transparent;
@@ -382,25 +392,29 @@
   font-weight: 500;
 }
 
-.qt-calendar-day:hover:not(.selected) {
+.qt-calendar-cell:hover:not(.qt-calendar-cell-selected) {
   background: var(--nav-hover, #f3f4f6);
 }
 
-.qt-calendar-day.selected {
+.qt-calendar-cell-selected {
   background: var(--primary-color, #6366f1);
   color: white;
 }
 
-.qt-calendar-day.selected:hover {
+.qt-calendar-cell-selected:hover {
   background: var(--primary-hover, #4f46e5);
 }
 
-.qt-calendar-day-empty {
+.qt-calendar-cell-inrange {
+  background: rgba(99, 102, 241, 0.12);
+}
+
+.qt-calendar-cell-empty {
   aspect-ratio: 1;
 }
 
-/* ── Date Actions ─────────────────────────────────────────── */
-.qt-date-actions {
+/* ─── Date Filter Footer ──────────────────────────────────────────────── */
+.qt-date-filter-footer {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
@@ -408,8 +422,12 @@
   padding-top: 14px;
 }
 
-.qt-btn-clear-filter {
-  padding: 7px 16px;
+.qt-date-filter-footer .qt-btn-cancel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 16px;
   border: 1px solid var(--border-color, #e5e7eb);
   border-radius: 6px;
   background: var(--card-bg, white);
@@ -419,116 +437,32 @@
   transition: all 0.15s;
 }
 
-.qt-btn-clear-filter:hover {
+.qt-date-filter-footer .qt-btn-cancel:hover {
   background: var(--nav-hover, #f3f4f6);
 }
 
-.qt-btn-apply-filter {
-  padding: 7px 20px;
+.qt-date-filter-footer .qt-btn-primary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 20px;
   border: none;
   border-radius: 6px;
   background: var(--primary-color, #6366f1);
+  color: white;
   font-size: 13px;
   font-weight: 500;
-  color: white;
   cursor: pointer;
   transition: all 0.15s;
 }
 
-.qt-btn-apply-filter:hover:not(:disabled) {
+.qt-date-filter-footer .qt-btn-primary:hover {
   background: var(--primary-hover, #4f46e5);
   box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
 }
 
-.qt-btn-apply-filter:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* ── Dark Theme Date Picker ──────────────────────────────── */
-.dark-theme .qt-date-picker-popup {
-  background: var(--card-bg, #1e293b);
-  border-color: var(--border-color, #334155);
-}
-
-.dark-theme .qt-date-picker-title {
-  color: var(--text-primary, #f8fafc);
-}
-
-.dark-theme .qt-date-range-display {
-  background: var(--layout-bg, #0f172a);
-  border-color: var(--border-color, #334155);
-  color: var(--text-primary, #f8fafc);
-}
-
-.dark-theme .qt-date-range-placeholder {
-  color: var(--text-secondary, #94a3b8);
-}
-
-.dark-theme .qt-quick-filter-btn {
-  background: var(--card-bg, #1e293b);
-  border-color: var(--border-color, #334155);
-  color: var(--text-secondary, #94a3b8);
-}
-
-.dark-theme .qt-quick-filter-btn:hover {
-  border-color: var(--primary-color, #3b82f6);
-  color: var(--primary-color, #3b82f6);
-  background: rgba(59, 130, 246, 0.05);
-}
-
-.dark-theme .qt-calendar-month {
-  color: var(--text-primary, #f8fafc);
-}
-
-.dark-theme .qt-calendar-day {
-  color: var(--text-primary, #f8fafc);
-}
-
-.dark-theme .qt-calendar-day:hover:not(.selected) {
-  background: var(--nav-hover, rgba(255,255,255,0.05));
-}
-
-.dark-theme .qt-calendar-day.selected {
-  background: var(--primary-color, #3b82f6);
-  color: white;
-}
-
-.dark-theme .qt-btn-clear-filter {
-  background: var(--card-bg, #1e293b);
-  border-color: var(--border-color, #334155);
-  color: var(--text-secondary, #94a3b8);
-}
-
-.dark-theme .qt-btn-clear-filter:hover {
-  background: var(--nav-hover, rgba(255,255,255,0.05));
-}
-
-.dark-theme .qt-date-toggle-btn {
-  background: var(--card-bg, #1e293b);
-  border-color: var(--border-color, #334155);
-  color: var(--text-secondary, #94a3b8);
-}
-
-.dark-theme .qt-date-toggle-btn:hover {
-  border-color: var(--primary-color, #3b82f6);
-  color: var(--primary-color, #3b82f6);
-  background: var(--nav-hover, rgba(255,255,255,0.05));
-}
-
-.dark-theme .qt-date-toggle-btn.active {
-  border-color: var(--primary-color, #3b82f6);
-  color: var(--primary-color, #3b82f6);
-  background: rgba(59, 130, 246, 0.08);
-}
-
-.dark-theme .qt-date-toggle-btn.has-date {
-  border-color: var(--primary-color, #3b82f6);
-  color: var(--primary-color, #3b82f6);
-  background: rgba(59, 130, 246, 0.08);
-}
-
-/* ── Primary "New Quote" button — matches jc-btn-primary exactly ── */
+/* ── Primary "New Quote" button ───────────────────────────── */
 .qt-btn-new {
   display: flex;
   align-items: center;
@@ -550,26 +484,6 @@
   background: var(--primary-hover, #4f46e5);
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
-}
-
-.qt-btn-secondary {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  height: 38px;
-  padding: 0 14px;
-  border: 1px solid var(--border-color, #e5e7eb);
-  border-radius: 8px;
-  background: var(--card-bg, white);
-  font-size: 13px;
-  color: var(--text-primary, #374151);
-  cursor: pointer;
-  transition: all 0.15s;
-  white-space: nowrap;
-}
-
-.qt-btn-secondary:hover {
-  background: var(--nav-hover, #f9fafb);
 }
 
 /* ── Active Filters ──────────────────────────────────────── */
@@ -721,6 +635,7 @@
 .qt-status-badge {
   display: inline-flex;
   align-items: center;
+  gap: 4px;
   height: 24px;
   padding: 0 12px;
   border-radius: 99px;
@@ -764,18 +679,7 @@
   border: 1px solid #c7d2fe;
 }
 
-/* ── Action Buttons — same colors as JobCardManagement ───── */
-.qt-ago {
-  font-size: 12px;
-  color: var(--text-secondary, #9ca3af);
-}
-
-.qt-dot {
-  color: var(--text-secondary, #d1d5db);
-  margin: 0 2px;
-  font-size: 12px;
-}
-
+/* ── Action Buttons ──────────────────────────────────────── */
 .qt-action-buttons {
   display: flex;
   align-items: center;
@@ -824,14 +728,6 @@
 }
 
 .qt-action-delete:hover {
-  background: rgba(239, 68, 68, 0.1);
-}
-
-.qt-action-pdf {
-  color: #ef4444;
-}
-
-.qt-action-pdf:hover {
   background: rgba(239, 68, 68, 0.1);
 }
 
@@ -1227,16 +1123,6 @@
   color: var(--text-primary, #f8fafc);
 }
 
-.dark-theme .qt-btn-secondary {
-  background: var(--card-bg, #1e293b);
-  border-color: var(--border-color, #334155);
-  color: var(--text-primary, #f8fafc);
-}
-
-.dark-theme .qt-btn-secondary:hover {
-  background: var(--nav-hover, rgba(255,255,255,0.05));
-}
-
 .dark-theme .qt-btn-new {
   background: var(--primary-color, #3b82f6);
 }
@@ -1400,6 +1286,94 @@
   background: rgba(45, 212, 191, 0.15);
 }
 
+.dark-theme .qt-date-filter-btn {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .qt-date-filter-btn:hover {
+  border-color: var(--primary-color, #3b82f6);
+  color: var(--text-primary, #f8fafc);
+  background: var(--nav-hover, rgba(255,255,255,0.05));
+}
+
+.dark-theme .qt-date-filter-btn.qt-filter-active {
+  border-color: var(--primary-color, #3b82f6);
+  color: var(--primary-color, #3b82f6);
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.dark-theme .qt-date-filter-popup {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+}
+
+.dark-theme .qt-date-filter-popup-header span {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .qt-date-filter-input {
+  background: var(--layout-bg, #0f172a);
+  border-color: var(--border-color, #334155);
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .qt-quick-filter-btn {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .qt-quick-filter-btn:hover {
+  border-color: var(--primary-color, #3b82f6);
+  color: var(--primary-color, #3b82f6);
+  background: rgba(59, 130, 246, 0.05);
+}
+
+.dark-theme .qt-calendar-month-label {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .qt-calendar-cell {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .qt-calendar-cell:hover:not(.qt-calendar-cell-selected) {
+  background: var(--nav-hover, rgba(255,255,255,0.05));
+}
+
+.dark-theme .qt-calendar-cell-selected {
+  background: var(--primary-color, #3b82f6);
+  color: white;
+}
+
+.dark-theme .qt-calendar-cell-inrange {
+  background: rgba(59, 130, 246, 0.15);
+}
+
+.dark-theme .qt-date-filter-footer {
+  border-top-color: var(--border-color, #334155);
+}
+
+.dark-theme .qt-date-filter-footer .qt-btn-cancel {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .qt-date-filter-footer .qt-btn-cancel:hover {
+  background: var(--nav-hover, rgba(255,255,255,0.05));
+}
+
+.dark-theme .qt-date-filter-footer .qt-btn-primary {
+  background: var(--primary-color, #3b82f6);
+}
+
+.dark-theme .qt-date-filter-footer .qt-btn-primary:hover {
+  background: var(--primary-hover, #2563eb);
+}
+
 /* ── Responsive ──────────────────────────────────────────── */
 @media (max-width: 768px) {
   .qt-stats-container {
@@ -1484,14 +1458,10 @@
     justify-content: center;
   }
 
-  .qt-date-picker-popup {
+  .qt-date-filter-popup {
     min-width: 280px;
     padding: 16px;
     right: -20px;
-  }
-
-  .qt-quick-filters {
-    grid-template-columns: repeat(2, 1fr);
   }
 }
 
@@ -1562,22 +1532,31 @@
     width: 100%;
   }
 
-  .qt-date-picker-popup {
+  .qt-date-filter-popup {
     min-width: 260px;
     padding: 14px;
     right: -40px;
   }
 
-  .qt-quick-filters {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 4px;
+  .qt-date-filter-inputs {
+    flex-direction: column;
+    gap: 6px;
   }
 
-  .qt-date-actions {
+  .qt-date-filter-quick-row {
+    flex-wrap: wrap;
+  }
+
+  .qt-date-filter-quick-row .qt-quick-filter-btn {
+    flex: 1 1 calc(50% - 3px);
+    min-width: 0;
+  }
+
+  .qt-date-filter-footer {
     flex-direction: column;
   }
 
-  .qt-date-actions button {
+  .qt-date-filter-footer button {
     width: 100%;
     justify-content: center;
   }

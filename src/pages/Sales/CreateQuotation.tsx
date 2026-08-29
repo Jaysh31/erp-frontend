@@ -1345,6 +1345,15 @@ export default function CreateQuotation() {
     el.focus();
   };
 
+  // ─── Get today's date for validation ────────────────────────────
+  const getTodayDate = (): string => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   // ─── Fetch Tax Options ──────────────────────────────────────────
   const fetchTaxOptions = async () => {
     setLoadingTaxOptions(true);
@@ -1790,6 +1799,16 @@ export default function CreateQuotation() {
     if (!formData.validTill)
       allErrors.push({ field: 'validTill', label: 'Valid Till', message: 'Valid till date is required' });
 
+    // ─── Validate Valid Till is not in the past ──────────────────
+    if (formData.validTill) {
+      const selectedDate = new Date(formData.validTill);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (selectedDate < today) {
+        allErrors.push({ field: 'validTill', label: 'Valid Till', message: 'Valid Till date cannot be in the past. Please select today or a future date.' });
+      }
+    }
+
     let hasValidItem = false;
     formData.items.forEach((item, index) => {
       if (item.itemCode || item.itemName) {
@@ -1895,6 +1914,22 @@ export default function CreateQuotation() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
+    
+    // ─── Validate Valid Till date ──────────────────────────────────
+    if (name === 'validTill') {
+      if (value) {
+        const selectedDate = new Date(value);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        if (selectedDate < today) {
+          setErrors(prev => ({ ...prev, validTill: 'Valid Till date cannot be in the past. Please select today or a future date.' }));
+        } else {
+          setErrors(prev => ({ ...prev, validTill: '' }));
+        }
+      }
+    }
+    
     setFormData(prev => ({
       ...prev,
       [name]: value
@@ -2451,6 +2486,7 @@ export default function CreateQuotation() {
                       name="validTill"
                       value={formData.validTill}
                       onChange={handleInputChange}
+                      min={getTodayDate()}
                       className={`cq-input ${errors.validTill ? 'cq-input-error' : ''}`}
                       ref={setRef('validTill')}
                     />

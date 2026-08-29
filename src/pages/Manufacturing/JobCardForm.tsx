@@ -1222,12 +1222,27 @@ const JobCardForm: React.FC = () => {
   };
 
   // ── Populate the Subcontracting tab (vendor, materials, charges, PO)
-  //    from an already-created Subcontracting Order tied to this job card. ──
+  //    from an already-created Subcontracting Order tied to this job card.
+  //    Also rolls up the SCO's own received/returned quantities (per
+  //    item) into formData.received_qty/rejected_qty so the GRN stat
+  //    chips reflect the server's real state after a reload, instead of
+  //    resetting to 0 until a new GRN is logged in this session. ─────────
   const applySubcontractingOrderToForm = (sco: SubcontractingOrderApi) => {
     setScoRecordId(sco.id ?? null);
     setScoName(sco.name || "");
 
     const mappedItems = mapSCOItemsToSubcontractingItems(sco.items);
+
+    const items = Array.isArray(sco.items) ? sco.items : [];
+    const totalReceivedFromSCO = items.reduce((sum, it) => sum + (it.received_qty ?? 0), 0);
+    // The SCO item schema doesn't carry a dedicated "rejected" quantity —
+    // `returned_qty` is the closest equivalent (material sent back to us
+    // after inspection) so it's used as the Rejected total here.
+    const totalRejectedFromSCO = items.reduce((sum, it) => sum + (it.returned_qty ?? 0), 0);
+
+    let mappedReceiptStatus: 'Pending' | 'Partial' | 'Completed' = 'Pending';
+    if (sco.status === 'Completed' || (sco.per_received ?? 0) >= 100) mappedReceiptStatus = 'Completed';
+    else if ((sco.per_received ?? 0) > 0 || totalReceivedFromSCO > 0 || totalRejectedFromSCO > 0) mappedReceiptStatus = 'Partial';
 
     setFormData((prev) => ({
       ...prev,
@@ -1242,6 +1257,11 @@ const JobCardForm: React.FC = () => {
       subcontracting_notes: sco.remark || prev.subcontracting_notes,
       po_number: sco.name || prev.po_number,
       po_created: true,
+      // Bind the GRN stat chips (Qty To Mfg / Received / Rejected) from
+      // the Subcontracting Order's own data rather than only local state.
+      received_qty: totalReceivedFromSCO,
+      rejected_qty: totalRejectedFromSCO,
+      receipt_status: mappedReceiptStatus,
     }));
   };
 
@@ -2062,10 +2082,13 @@ const JobCardForm: React.FC = () => {
 
   // ── Record a GRN entry: opens from the "Record GRN Entry" button and,
   //    on confirm, (1) submits a Subcontracting Receipt to the vendor-side
-  //    API, then (2) appends the entry locally, rolls up the running
-  //    totals, and (in edit mode) persists them onto the job card. Multiple
-  //    entries can be added over time until the full sent quantity is
-  //    accounted for. ─────────────────────────────────────────────────
+  //    API, then (2) rolls the received/rejected quantities up onto the
+  //    job card itself (as total_completed_qty / process_loss_qty /
+  //    pending_qty — the same fields the internal completion flow uses,
+  //    since job-card has no dedicated received_qty/rejected_qty columns),
+  //    then (3) appends the entry locally so the GRN history table shows
+  //    it. Multiple entries can be added over time until the full
+  //    quantity is accounted for. ─────────────────────────────────────
   const handleGrnConfirm = async (receivedQty: number, rejectedQty: number, remarksNote?: string) => {
     const timestamp = formatTimestamp(new Date());
     const newEntry: GrnEntry = {
@@ -2083,6 +2106,14 @@ const JobCardForm: React.FC = () => {
     const newStatus: 'Pending' | 'Partial' | 'Completed' =
       grnBaseQty > 0 && doneSoFar >= grnBaseQty ? 'Completed' : doneSoFar > 0 ? 'Partial' : 'Pending';
 
+    // Received units count as production output completed; rejected units
+    // count as process loss — mirrors the internal "Process Production"
+    // flow so the job card's own progress numbers stay in sync with GRN.
+    const newTotalCompleted = newReceivedTotal;
+    const newProcessLoss = newRejectedTotal;
+    const newPendingQty = Math.max(0, grnBaseQty - newTotalCompleted - newProcessLoss);
+    const newJcStatus = grnBaseQty > 0 && (newTotalCompleted + newProcessLoss) >= grnBaseQty ? "Completed" : "Work In Progress";
+
     setRecordingGrn(true);
     setApiError(null);
     try {
@@ -2096,15 +2127,27 @@ const JobCardForm: React.FC = () => {
         throw new Error(receiptResponse.data?.message || "Failed to record Subcontracting Receipt");
       }
 
-      // 2. Reflect the running totals onto the job card itself
+      // 2. Reflect the running totals onto the job card itself. Only the
+      //    job-card table's own columns are sent here (total_completed_qty
+      //    / process_loss_qty / pending_qty / status) — received_qty /
+      //    rejected_qty / receipt_status are NOT job-card columns and are
+      //    tracked in local state + the Subcontracting Order instead.
       if (isEditMode && currentJobCardId) {
         const payload = buildApiPayload();
         payload.id = currentJobCardId;
-        payload.received_qty = newReceivedTotal;
-        payload.rejected_qty = newRejectedTotal;
-        payload.receipt_status = newStatus;
+        payload.total_completed_qty = newTotalCompleted;
+        payload.process_loss_qty = newProcessLoss;
+        payload.pending_qty = newPendingQty;
+        payload.status = newJcStatus;
         payload.remarks = updatedRemarks;
-      
+        if (newJcStatus === "Completed") {
+          payload.actual_end_date = formatDateTime(new Date());
+        }
+
+        const jcResponse = await api.put("/job-card", payload);
+        if (jcResponse.data.success !== 1) {
+          throw new Error(jcResponse.data?.message || "Failed to update job card with GRN totals");
+        }
       }
 
       setFormData((prev) => ({
@@ -2113,6 +2156,10 @@ const JobCardForm: React.FC = () => {
         received_qty: newReceivedTotal,
         rejected_qty: newRejectedTotal,
         receipt_status: newStatus,
+        total_completed_qty: newTotalCompleted,
+        process_loss_qty: newProcessLoss,
+        pending_qty: newPendingQty,
+        status: newJcStatus,
         remarks: updatedRemarks,
       }));
 

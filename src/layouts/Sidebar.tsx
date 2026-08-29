@@ -38,7 +38,7 @@ export default function Sidebar({
     return saved ? JSON.parse(saved) : {
       'Manufacturing': true,
       'Sales': true,
-      'Customers': true, // Added Customers - expanded by default
+      'Customers': true,
       'Items & Pricing': false,
       'Organization': false,
       'Setup': false,
@@ -53,12 +53,13 @@ export default function Sidebar({
       'Receivables': false,
       'Payables': false,
       'Banking': false,
-      'Expenses': false
+      'Expenses': false,
+      'Stock': true // ← Added Stock category - expanded by default
     };
   });
 
   // State for user data
-  const [userData, setUserData] = useState({
+  const [, setUserData] = useState({
     fullName: 'User',
     email: '',
     role: '',
@@ -137,21 +138,18 @@ export default function Sidebar({
     }
   };
 
-  // All menu categories
+  // ─── Top level items (Home & Dashboard) ──────────────────────────────
+  const topLevelItems: MenuItem[] = [
+    { title: 'Home', icon: <HomeIcon />, path: '/home' },
+    { 
+      title: 'Dashboard', 
+      icon: <DashboardIcon />, 
+      path: currentModule !== 'home' ? `/dashboard/${currentModule}` : '/dashboard/manufacturing' 
+    }
+  ];
+
+  // All menu categories (without Home)
   const allMenuCategories: { title: string; module: string; icon: JSX.Element; items: MenuItem[] }[] = [
-    {
-      title: 'Home',
-      module: 'home',
-      icon: <HomeIcon />,
-      items: [
-        { title: 'Home', icon: <HomeIcon />, path: '/home' },
-        { 
-          title: 'Dashboard', 
-          icon: <DashboardIcon />, 
-          path: currentModule !== 'home' ? `/dashboard/${currentModule}` : '/dashboard/manufacturing' 
-        }
-      ]
-    },
     {
       title: 'Sales',
       module: 'sales',
@@ -219,6 +217,19 @@ export default function Sidebar({
         { title: 'Operations', icon: <WarehouseIcon />, path: '/operations', apiSubmodule: 'Operations' },
         { title: 'Unit of Measure (UOM)', icon: <RulerIcon />, path: '/uom', apiSubmodule: 'Unit Of Measure (UOM)' },
         { title: 'Quality Inspection', icon: <RiQuillPenAiLine />, path: '/quality-inspection', apiSubmodule: 'Quality Inspection' },
+      ]
+    },
+    // ─── STOCK CATEGORY ──────────────────────────────────────────────────
+    {
+      title: 'Stock',
+      module: 'stock',
+      icon: <StockIcon />,
+      items: [
+        { title: 'Inventory', icon: <BomIcon />, path: '/InventoryList', apiSubmodule: 'Inventory' },
+        { title: 'Raw Material', icon: <WarehouseIcon />, path: '/raw-material', apiSubmodule: 'Raw Material' },
+        { title: 'Work In Progress', icon: <WorkOrderIcon />, path: '/work-in-progress', apiSubmodule: 'Work In Progress' },
+        { title: 'Finished Goods', icon: <CheckIcon />, path: '/finished-goods', apiSubmodule: 'Finished Goods' },
+        { title: 'Stock Reports', icon: <ReportIcon />, path: '/stock-reports', apiSubmodule: 'Stock Reports' },
       ]
     },
     {
@@ -320,7 +331,7 @@ export default function Sidebar({
       ]
     },
     {
-      title: 'Theme',
+      title: 'Setting',
       module: 'theme',
       icon: <SettingsIcon />,
       items: [
@@ -331,24 +342,12 @@ export default function Sidebar({
 
   // Filter categories based on current module
   const getFilteredCategories = () => {
-    if (currentModule === 'home') {
-      return allMenuCategories.filter(cat =>
-        cat.module === 'home' || cat.module === 'theme'
-      );
-    } else {
-      return allMenuCategories.filter(cat =>
-        cat.module === 'home' ||
-        cat.module === currentModule ||
-        cat.module === 'theme'
-      );
-    }
+    return allMenuCategories.filter(cat =>
+      cat.module === currentModule || cat.module === 'theme'
+    );
   };
 
-  // Filters out items the logged-in user has no permission for, matching purely
-  // by submodule NAME (searched across all of the user's modules) — so this
-  // keeps working even if a module's display name and API name drift apart.
-  // Items with no apiSubmodule are always kept (ungated).
-  // Category order and item order are both preserved exactly as declared above.
+  // Filters out items the logged-in user has no permission for
   const applyPermissionFilter = (
     categories: { title: string; module: string; icon: JSX.Element; items: MenuItem[] }[]
   ) => {
@@ -360,27 +359,10 @@ export default function Sidebar({
           return hasSubmoduleByName(item.apiSubmodule);
         })
       }))
-      .filter(category => category.items.length > 0); // drop categories left with 0 visible items
+      .filter(category => category.items.length > 0);
   };
 
   const menuCategories = applyPermissionFilter(getFilteredCategories());
-
-  // Get module display name
-  const getModuleName = () => {
-    const names: Record<string, string> = {
-      'home': 'Home',
-      'manufacturing': 'Manufacturing',
-      'setup': 'Setup',
-      'sales': 'Sales',
-      'purchasing': 'Purchasing',
-      'organization': 'Organization',
-      'tools': 'Tools',
-      'reports': 'Reports',
-      'theme': 'Theme',
-      'accounting': 'Accounting'
-    };
-    return names[currentModule] || 'Home';
-  };
 
   return (
     <>
@@ -395,9 +377,7 @@ export default function Sidebar({
             <div className="logo-icon">
               <img src={logo} alt="SculptERP Logo" className="logo-image" />
             </div>
-              <div className="logo-text">ChandraTara Ind</div>
-              
-          
+            <div className="logo-text">ChandraTara Ind</div>
           </div>
           {onClose && (
             <button className="mobile-close-btn" onClick={onClose}>
@@ -408,9 +388,30 @@ export default function Sidebar({
 
         {/* Navigation */}
         <div className="sidebar-nav">
+          {/* ─── Top Level Items: Home & Dashboard ─────────────────────── */}
+          {topLevelItems.map((item) => (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              className={({ isActive }) =>
+                `nav-item single-category-item ${isActive ? 'active' : ''}`
+              }
+              onClick={handleNavClick}
+            >
+              <span className="nav-icon">{item.icon}</span>
+              <span className="nav-text">{item.title}</span>
+              {isMinimized && (
+                <span className="nav-tooltip">
+                  {item.title}
+                  <span className="tooltip-shortcut">Click to expand</span>
+                </span>
+              )}
+            </NavLink>
+          ))}
+
+          {/* ─── Categories ────────────────────────────────────────────── */}
           {menuCategories.map((category, idx) => {
             // If a category has only a single menu item, render it directly
-            // as a nav link instead of a collapsible dropdown.
             if (category.items.length === 1) {
               const item = category.items[0];
               return (
@@ -477,44 +478,23 @@ export default function Sidebar({
               </div>
             );
           })}
-
-          {/* Getting Started Card - Only show in Home module */}
-          {currentModule === 'home' && (
-            <div className="getting-started-section">
-              <div className="getting-started-card">
-                <div className="gs-icon-wrap">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--sidebar-text-secondary, #9CA3AF)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-                    <path d="M2 17l10 5 10-5"/>
-                    <path d="M2 12l10 5 10-5"/>
-                  </svg>
-                </div>
-                <div className="gs-text">Complete setup to start manufacturing</div>
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* User - Dynamic data from localStorage */}
-        <div className="sidebar-user">
-          <div className="user-avatar">{userData.initials}</div>
-          <div className="user-info">
-            <div className="user-name">{userData.fullName}</div>
-            <div className="user-email">
-              {userData.email.length > 20 
-                ? `${userData.email.substring(0, 20)}...` 
-                : userData.email}
-            </div>
-            {userData.role && (
-              <div className="user-role" style={{ 
-                fontSize: '11px', 
-                color: 'var(--sidebar-text-secondary, #9CA3AF)', 
-                marginTop: '2px' 
-              }}>
-                {userData.role}
-              </div>
-            )}
-          </div>
+        {/* ERP by Sculptotech - Footer */}
+        <div className="sidebar-footer">
+          <a 
+            href="https://sculptortechpvtltd.com/" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="erp-footer-link"
+          >
+            <img 
+              src="/src/assets/logo1.png" 
+              alt="Sculptotech Logo" 
+              className="erp-footer-logo" 
+            />
+            <span className="erp-footer-text">Sculpt-ERP</span>
+          </a>
         </div>
       </aside>
 
@@ -689,6 +669,21 @@ const JobCardIcon = () => (
 const StockIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+  </svg>
+);
+
+const CheckIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="20 6 9 17 4 12"/>
+  </svg>
+);
+
+const ReportIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 12v-2a5 5 0 0 0-5-5H8a5 5 0 0 0-5 5v2"/>
+    <circle cx="12" cy="16" r="5"/>
+    <path d="M12 11v5"/>
+    <path d="M9 14l3 3 3-3"/>
   </svg>
 );
 

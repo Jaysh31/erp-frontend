@@ -11,7 +11,6 @@ import {
   FaEye,
   FaEdit,
   FaTrash,
-
   FaBoxes,
   FaWarehouse,
   FaClipboardList,
@@ -39,6 +38,7 @@ interface InventoryItem {
   id: number;
   name: string;
   item_code: string;
+  item_name: string;
   warehouse_Id: number;
   warehouse_name?: string;
   actual_qty: number;
@@ -76,6 +76,7 @@ interface InventoryDisplay {
   id: string;
   itemCode: string;
   itemName: string;
+  item_name: string; // ← Added this to match the interface requirement
   warehouse: string;
   warehouseId: number;
   actualQty: number;
@@ -214,14 +215,15 @@ export default function InventoryList() {
         const warehouseMap = new Map<number, string>();
         warehouses.forEach((wh) => warehouseMap.set(wh.id, wh.warehouse_name));
 
-        const transformedData: InventoryDisplay[] = records.map((item: { warehouse_Id: number; actual_qty: any; id: { toString: () => any; }; item_code: any; planned_qty: any; ordered_qty: any; reserved_qty: any; reserved_stock: any; projected_qty: any; stock_uom: any; valuation_rate: any; stock_value: any; creation: any; type: any; }) => {
+        const transformedData: InventoryDisplay[] = records.map((item: any) => {
           const warehouseName = warehouseMap.get(item.warehouse_Id) || "Unknown";
           const status = getStockStatus(item.actual_qty || 0);
 
           return {
             id: item.id.toString(),
             itemCode: item.item_code,
-            itemName: item.item_code,
+            itemName: item.item_name || item.item_code,
+            item_name: item.item_name || item.item_code, // ← Added this
             warehouse: warehouseName,
             warehouseId: item.warehouse_Id,
             actualQty: item.actual_qty || 0,
@@ -397,6 +399,7 @@ export default function InventoryList() {
     return items.filter((item) => {
       const matchesSearch =
         item.itemCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.itemName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.uom.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesStatus = statusFilter === "All" || item.status === statusFilter;
       return matchesSearch && matchesStatus;
@@ -437,8 +440,6 @@ export default function InventoryList() {
     setViewMode("warehouses");
     setDetailWarehouseId(null);
   };
-
-
 
   const confirmDelete = async () => {
     if (selectedItemForDelete) {
@@ -652,7 +653,7 @@ export default function InventoryList() {
               <FaSearch className="inv-search-icon" />
               <input
                 type="text"
-                placeholder="Search by item code or UOM..."
+                placeholder="Search by item code, name, or UOM..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="inv-search-input"
@@ -696,9 +697,9 @@ export default function InventoryList() {
             <thead>
               <tr>
                 <th className="inv-th">Item Code</th>
+                <th className="inv-th">Item Name</th>
                 {activeTab === "all" && <th className="inv-th">Type</th>}
                 <th className="inv-th">Actual Qty</th>
-                <th className="inv-th">Reserved Stock</th>
                 <th className="inv-th">Status</th>
                 <th className="inv-th">Valuation Rate</th>
                 <th className="inv-th">Stock Value</th>
@@ -718,7 +719,6 @@ export default function InventoryList() {
                 </tr>
               ) : (
                 paginatedItems.map((item) => {
-                  const reservation = getReservationState(item.actualQty, item.reservedStock);
                   return (
                     <tr key={item.id} className={`inv-tr ${item.isGrouped ? 'inv-tr-grouped' : ''}`}>
                       <td className="inv-td inv-td-code">
@@ -729,6 +729,8 @@ export default function InventoryList() {
                         )}
                         {item.itemCode}
                       </td>
+                      <td className="inv-td">{item.itemName}</td>
+
                       {activeTab === "all" && (
                         <td className="inv-td">
                           <span className={`inv-type-badge ${item.type.toLowerCase()}`}>
@@ -740,18 +742,6 @@ export default function InventoryList() {
                       <td className="inv-td inv-td-number">
                         <span className="inv-qty">{item.actualQty}</span>
                         <span className="inv-uom">{item.uom}</span>
-                      </td>
-                      <td className="inv-td">
-                        <div className="inv-reserved-cell">
-                          <span className="inv-reserved-value">
-                            {item.reservedStock} {item.uom}
-                          </span>
-                          <span className={`inv-reserved-badge inv-reserved-badge--${reservation.tone}`}>
-                            {reservation.tone === "danger" && <FaExclamationTriangle size={9} />}
-                            {reservation.tone === "ok" && <FaCheckCircle size={9} />}
-                            {reservation.label}
-                          </span>
-                        </div>
                       </td>
                       <td className="inv-td">
                         <span className={`inv-status-badge ${item.status.toLowerCase().replace(" ", "-")}`}>
@@ -769,6 +759,7 @@ export default function InventoryList() {
 >
   <FaEye size={12} />
 </button>           
+
                         </div>
                       </td>
                     </tr>
@@ -838,11 +829,6 @@ export default function InventoryList() {
   };
 
   // ─── Helper: Reservation State ────────────────────────────────────
-  const getReservationState = (actualQty: number, reservedStock: number) => {
-    if (reservedStock <= 0) return { label: "Not Reserved", tone: "neutral" as const };
-    if (reservedStock > actualQty) return { label: "Less than reserved", tone: "danger" as const };
-    return { label: "Within Stock", tone: "ok" as const };
-  };
 
   // ─── Main Render ──────────────────────────────────────────────────
 
@@ -855,7 +841,6 @@ export default function InventoryList() {
             <h1><FaClipboardList className="inv-header-icon" /> Inventory Management</h1>
             <span className="inv-subtitle">Track raw materials, work in progress, finished goods & scrap</span>
           </div>
-         
         </div>
 
         {/* ─── Loading State ─── */}
@@ -908,8 +893,7 @@ export default function InventoryList() {
                     <ul>
                       {selectedItem.groupItems.map((subItem) => (
                         <li key={subItem.id}>
-                          {subItem.itemCode} - Qty: {subItem.actualQty} {subItem.uom} -
-                          Reserved: {subItem.reservedStock} {subItem.uom}
+                          {subItem.itemCode} - {subItem.itemName} - Qty: {subItem.actualQty} {subItem.uom}
                         </li>
                       ))}
                     </ul>
@@ -919,6 +903,10 @@ export default function InventoryList() {
                   <div className="inv-detail-item">
                     <label>Item Code</label>
                     <span>{selectedItem.itemCode}</span>
+                  </div>
+                  <div className="inv-detail-item">
+                    <label>Item Name</label>
+                    <span>{selectedItem.itemName}</span>
                   </div>
                   <div className="inv-detail-item">
                     <label>Type</label>
@@ -943,22 +931,6 @@ export default function InventoryList() {
                       {selectedItem.isGrouped && selectedItem.groupItems && (
                         <span className="inv-group-hint"> (total of {selectedItem.groupItems.length} items)</span>
                       )}
-                    </span>
-                  </div>
-                  <div className="inv-detail-item">
-                    <label>Reserved Stock</label>
-                    <span>
-                      {selectedItem.reservedStock} {selectedItem.uom}
-                      {" "}
-                      {selectedItem.reservedStock > selectedItem.actualQty ? (
-                        <span className="inv-reserved-badge inv-reserved-badge--danger">
-                          <FaExclamationTriangle size={9} /> Over-reserved
-                        </span>
-                      ) : selectedItem.reservedStock > 0 ? (
-                        <span className="inv-reserved-badge inv-reserved-badge--ok">
-                          <FaCheckCircle size={9} /> Within Stock
-                        </span>
-                      ) : null}
                     </span>
                   </div>
                   <div className="inv-detail-item">
@@ -1002,7 +974,7 @@ export default function InventoryList() {
               <div className="inv-modal-body">
                 <p>Are you sure you want to delete this inventory item?</p>
                 <p className="inv-modal-item-name">
-                  <strong>{selectedItemForDelete.itemCode}</strong> - {selectedItemForDelete.warehouse}
+                  <strong>{selectedItemForDelete.itemCode}</strong> - {selectedItemForDelete.itemName} - {selectedItemForDelete.warehouse}
                   {selectedItemForDelete.isGrouped && selectedItemForDelete.groupItems && (
                     <span className="inv-group-hint"> ({selectedItemForDelete.groupItems.length} items will be deleted)</span>
                   )}

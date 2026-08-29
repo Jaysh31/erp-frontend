@@ -1,3 +1,4 @@
+// admin-theme/AdminThemeContext.tsx
 import './themes.css';
 
 import {
@@ -13,7 +14,12 @@ export type AdminThemeType =
   | "green-theme"
   | "dark-theme";
 
-export type DateFormatType = "numeric" | "monthName";
+// ✅ ALL 4 date format types
+export type DateFormatType = 
+  | "ddmmyyyy"    // DD/MM/YYYY - 15/03/2026
+  | "ddmmmyyyy"   // DD/MMM/YYYY - 15/Mar/2026
+  | "mmddyyyy"    // MM/DD/YYYY - 03/15/2026
+  | "yyyymmdd";   // YYYY-MM-DD - 2026-03-15
 
 interface AdminThemeContextType {
   theme: AdminThemeType;
@@ -30,6 +36,11 @@ const AdminThemeContext =
 interface Props {
   children: ReactNode;
 }
+
+const MONTH_NAMES_SHORT = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
 
 export const AdminThemeProvider = ({
   children,
@@ -49,12 +60,11 @@ export const AdminThemeProvider = ({
   // --- DATE FORMAT STATE ---
   const [dateFormat, setDateFormatState] =
     useState<DateFormatType>(() => {
-      return (
-        (localStorage.getItem(
-          "date-format"
-        ) as DateFormatType) ||
-        "numeric"
-      );
+      const saved = localStorage.getItem("date-format");
+      const validFormats: DateFormatType[] = ['ddmmyyyy', 'ddmmmyyyy', 'mmddyyyy', 'yyyymmdd'];
+      return (saved && validFormats.includes(saved as DateFormatType)) 
+        ? saved as DateFormatType 
+        : "ddmmyyyy";
     });
 
   // --- THEME SETTER ---
@@ -72,29 +82,33 @@ export const AdminThemeProvider = ({
     localStorage.setItem("date-format", format);
   };
 
-  // --- FORMAT DATE FOR DISPLAY (UI) ---
+  // --- FORMAT DATE FOR DISPLAY (UI) - Supports all 4 formats ---
   const formatDate = (dateString: string): string => {
     if (!dateString) return "";
     
     const date = new Date(dateString);
     if (isNaN(date.getTime())) return dateString;
 
-    const day = date.getDate();
-    const year = date.getFullYear();
+    const day = String(date.getDate()).padStart(2, '0');
     const month = date.getMonth();
+    const year = date.getFullYear();
+    const monthNum = String(month + 1).padStart(2, '0');
 
-    if (dateFormat === "numeric") {
-      return `${day}/${month + 1}/${year}`;
-    } else {
-      const monthNames = [
-        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-      ];
-      return `${day}/${monthNames[month]}/${year}`;
+    switch (dateFormat) {
+      case 'ddmmyyyy':
+        return `${day}/${monthNum}/${year}`; // 15/03/2026
+      case 'ddmmmyyyy':
+        return `${day}/${MONTH_NAMES_SHORT[month]}/${year}`; // 15/Mar/2026
+      case 'mmddyyyy':
+        return `${monthNum}/${day}/${year}`; // 03/15/2026
+      case 'yyyymmdd':
+        return `${year}-${monthNum}-${day}`; // 2026-03-15
+      default:
+        return `${day}/${monthNum}/${year}`;
     }
   };
 
-  // --- FORMAT DATE FOR API (YYYY-MM-DD) ---
+  // --- FORMAT DATE FOR API (Always YYYY-MM-DD) ---
   const getApiDateFormat = (date: Date): string => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');

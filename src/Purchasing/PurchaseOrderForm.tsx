@@ -265,7 +265,7 @@ export default function PurchaseOrderForm() {
   // ─── State for "Add New Item" Popup ──────────────────────
   const [showAddItemPopup, setShowAddItemPopup] = useState(false);
   const [addingItem, setAddingItem] = useState(false);
-  const [pendingItemSearch, setPendingItemSearch] = useState('');
+  const [, setPendingItemSearch] = useState('');
   const [activeRowIndex, setActiveRowIndex] = useState<number | null>(null);
   const [newItem, setNewItem] = useState({
     item_name: '',
@@ -1579,7 +1579,6 @@ export default function PurchaseOrderForm() {
     }
     // ✅ FIXED: Delivery Date validation - ONLY check for field error, don't show in popup
     // We check it but don't add to errors array - only visual red border will show
-    const hasDeliveryDateError = !formData.deliveryDate;
     // Don't push to errors array - only use for visual validation
     
     // ✅ FIXED: Updated validation to work with decimal quantities
@@ -2879,10 +2878,6 @@ export default function PurchaseOrderForm() {
     const trimmedSearch = searchTerm.trim();
     
     // Check if search term matches any item exactly
-    const isExactMatch = items.some(item => 
-      item.item_code.toLowerCase() === trimmedSearch.toLowerCase() ||
-      item.item_name.toLowerCase() === trimmedSearch.toLowerCase()
-    );
     
     // Show dropdown if there are items OR there's a search term (for "Add New" button)
     const showDropdown = showSuggestions[index] || trimmedSearch.length > 0;

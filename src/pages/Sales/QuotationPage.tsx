@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   FaSearch, FaPlus, FaEye, FaEdit, FaTrash, FaFilePdf, FaPrint,
   FaFilter, FaCheckCircle, FaClock, FaTimesCircle,
   FaFileAlt, FaExternalLinkAlt,
-  FaChartLine, FaTimes,  FaSpinner,
+  FaChartLine, FaTimes, FaSpinner,
   FaEnvelope, FaCalendarAlt,
   FaAngleDoubleLeft,
   FaAngleDoubleRight,
@@ -201,13 +201,11 @@ const numberToIndianWords = (value: number): string => {
   return out.trim();
 };
 
-// ✅ UPDATED: Format print date using context formatter
 const formatPrintDate = (date: string, formatFn?: (date: string) => string): string => {
   if (!date) return '';
   if (formatFn) {
     return formatFn(date);
   }
-  // Fallback if formatFn not provided
   const d = new Date(date);
   if (isNaN(d.getTime())) return date;
   const day = String(d.getDate()).padStart(2, '0');
@@ -215,6 +213,7 @@ const formatPrintDate = (date: string, formatFn?: (date: string) => string): str
   const year = String(d.getFullYear()).slice(-2);
   return `${day}-${month}-${year}`;
 };
+
 
 const escapeHtml = (val: unknown): string => {
   const s = val === null || val === undefined ? '' : String(val);
@@ -241,7 +240,6 @@ const readCachedQuotationLineData = (name: string): CachedQuotationLineData | nu
   }
 };
 
-/** Normalizes a list-style API response: { success, data: { records, total } } or { success, data: [...] } */
 const extractRecords = (payload: any): any[] => {
   if (!payload) return [];
   const data = payload.success === 1 || payload.success === 0 ? payload.data : payload;
@@ -250,7 +248,6 @@ const extractRecords = (payload: any): any[] => {
   return [];
 };
 
-/** Maps a raw /quotation API record's `items` child table into UI-shaped QuotationItem[]. */
 const mapApiItemsToQuotationItems = (record: QuotationApiRecord | null | undefined): QuotationItem[] => {
   if (!record || !Array.isArray(record.items)) return [];
   return record.items.map((it, idx) => {
@@ -270,11 +267,55 @@ const mapApiItemsToQuotationItems = (record: QuotationApiRecord | null | undefin
   });
 };
 
+// ─── Date filter helpers ────────────────────────────────────────────────
+
+const WEEKDAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+const MONTH_LABELS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+function stripTime(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function formatDisplayDate(d: Date): string {
+  return `${MONTH_LABELS[d.getMonth()].slice(0, 3)} ${d.getDate()}, ${d.getFullYear()}`;
+}
+
+function toLocalDateStr(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function isSameDay(a: Date | null, b: Date | null): boolean {
+  if (!a || !b) return false;
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+function buildCalendarGrid(year: number, month: number): (Date | null)[] {
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  const startWeekday = firstDay.getDay();
+  const totalDays = lastDay.getDate();
+
+  const cells: (Date | null)[] = [];
+  for (let i = 0; i < startWeekday; i++) cells.push(null);
+  for (let d = 1; d <= totalDays; d++) cells.push(new Date(year, month, d));
+  return cells;
+}
+
 export default function QuotationPage() {
   const navigate = useNavigate();
 
-  // ✅ GET THE DATE FORMAT FUNCTION FROM CONTEXT
   const { theme, formatDate, getApiDateFormat } = useAdminTheme();
+
 
   const [filterText, setFilterText] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('All');
@@ -294,8 +335,11 @@ export default function QuotationPage() {
   // ─── Date Filter States ────────────────────────────────────────────────
   const [fromDate, setFromDate] = useState<string>("");
   const [toDate, setToDate] = useState<string>("");
+  const [tempFromDate, setTempFromDate] = useState<Date | null>(null);
+  const [tempToDate, setTempToDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
-  const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
+  const [calendarViewDate, setCalendarViewDate] = useState<Date>(new Date());
+  const dateFilterWrapperRef = useRef<HTMLDivElement>(null);
 
   // Modal states
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -323,95 +367,120 @@ export default function QuotationPage() {
 
   const debouncedFilterText = useDebounce(filterText, 500);
 
-  // ✅ NEW: Format display date using context
-  const formatDisplayDate = (dateString: string) => {
+  const formatDisplayDateWithContext = (dateString: string) => {
     if (!dateString) return '';
     return formatDate(dateString);
   };
 
-  // ✅ NEW: Format date for API (YYYY-MM-DD)
   const toApiDateFormat = (date: Date) => {
     return getApiDateFormat(date);
   };
 
-  // ─── Date Filter Helper Functions ─────────────────────────────────────
+  // ─── Date Filter Functions ─────────────────────────────────────────────
 
-  // ✅ UPDATED: Format date display using context
-  const formatDateDisplay = (dateStr: string) => {
-    if (!dateStr) return '';
-    return formatDate(dateStr);
-  };
-
-  const getDaysInMonth = (date: Date) => {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const firstDayOfMonth = new Date(year, month, 1).getDay();
-    return { daysInMonth, firstDayOfMonth };
-  };
-
-  const getMonthYear = (date: Date) => {
-    return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-  };
-
-  const handlePrevMonth = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
-  };
-
-  const handleNextMonth = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
-  };
-
-  const isDateSelected = (day: number) => {
-    if (!fromDate || !toDate) return false;
-    const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
-    const from = new Date(fromDate);
-    const to = new Date(toDate);
-    to.setHours(23, 59, 59, 999);
-    return date >= from && date <= to;
-  };
-
-  const handleDateClick = (day: number) => {
-    const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
-    const dateStr = date.toISOString().split('T')[0];
-    
-    if (!fromDate || (fromDate && toDate)) {
-      setFromDate(dateStr);
-      setToDate('');
+  const openDatePicker = () => {
+    // Convert fromDate/toDate strings to Date objects for temp state
+    if (fromDate) {
+      const from = new Date(fromDate);
+      if (!isNaN(from.getTime())) setTempFromDate(from);
     } else {
-      if (new Date(dateStr) < new Date(fromDate)) {
-        setToDate(fromDate);
-        setFromDate(dateStr);
-      } else {
-        setToDate(dateStr);
-      }
+      setTempFromDate(null);
+    }
+    if (toDate) {
+      const to = new Date(toDate);
+      if (!isNaN(to.getTime())) setTempToDate(to);
+    } else {
+      setTempToDate(null);
+    }
+    setCalendarViewDate(fromDate ? new Date(fromDate) : new Date());
+    setShowDatePicker(true);
+  };
+
+  const closeDatePicker = () => {
+    setShowDatePicker(false);
+  };
+
+  const handleCalendarDayClick = (day: Date) => {
+    const clicked = stripTime(day);
+    if (!tempFromDate || (tempFromDate && tempToDate)) {
+      setTempFromDate(clicked);
+      setTempToDate(null);
+      return;
+    }
+    if (clicked < tempFromDate) {
+      setTempToDate(tempFromDate);
+      setTempFromDate(clicked);
+    } else {
+      setTempToDate(clicked);
     }
   };
 
+  const applyQuickFilter = (range: "today" | "last7" | "last30" | "thisMonth") => {
+    const today = stripTime(new Date());
+    if (range === "today") {
+      setTempFromDate(today);
+      setTempToDate(today);
+      setCalendarViewDate(today);
+    } else if (range === "last7") {
+      const from = new Date(today);
+      from.setDate(from.getDate() - 6);
+      setTempFromDate(from);
+      setTempToDate(today);
+      setCalendarViewDate(today);
+    } else if (range === "last30") {
+      const from = new Date(today);
+      from.setDate(from.getDate() - 29);
+      setTempFromDate(from);
+      setTempToDate(today);
+      setCalendarViewDate(today);
+    } else if (range === "thisMonth") {
+      const from = new Date(today.getFullYear(), today.getMonth(), 1);
+      const to = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+      setTempFromDate(from);
+      setTempToDate(to);
+      setCalendarViewDate(today);
+    }
+  };
+
+  const goToPrevMonth = () => {
+    setCalendarViewDate((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+  };
+  const goToNextMonth = () => {
+    setCalendarViewDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+  };
+
   const handleApplyDateFilter = () => {
-    if (fromDate && toDate) {
+    if (tempFromDate && tempToDate) {
+      setFromDate(toLocalDateStr(tempFromDate));
+      setToDate(toLocalDateStr(tempToDate));
       setCurrentPage(1);
       setShowDatePicker(false);
-      fetchQuotations();
     }
   };
 
   const handleClearDateFilter = () => {
+    setTempFromDate(null);
+    setTempToDate(null);
     setFromDate('');
     setToDate('');
     setCurrentPage(1);
     setShowDatePicker(false);
-    fetchQuotations();
   };
 
-  const setQuickDateRange = (days: number) => {
-    const today = new Date();
-    const from = new Date(today);
-    from.setDate(today.getDate() - days);
-    setFromDate(from.toISOString().split('T')[0]);
-    setToDate(today.toISOString().split('T')[0]);
+  const handleClearDateFilterBadge = () => {
+    setTempFromDate(null);
+    setTempToDate(null);
+    setFromDate('');
+    setToDate('');
     setCurrentPage(1);
   };
+
+  const dateFilterButtonLabel = 
+    fromDate && toDate
+      ? `${formatDisplayDate(new Date(fromDate))} – ${formatDisplayDate(new Date(toDate))}`
+      : "From - To";
+
+  const calendarCells = buildCalendarGrid(calendarViewDate.getFullYear(), calendarViewDate.getMonth());
 
   // ─── load from GET /quotation with server-side pagination ──────
 
@@ -455,7 +524,6 @@ export default function QuotationPage() {
         return;
       }
 
-      // ✅ TRANSFORM DATA WITH FORMATTED DATES
       const transformedData: Quotation[] = records.map((q) => ({
         id: q.name,
         quotationNumber: q.name,
@@ -495,6 +563,21 @@ export default function QuotationPage() {
       setLoading(false);
     }
   };
+
+  // ─── Click outside handler for date picker ──────────────────────
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        showDatePicker &&
+        dateFilterWrapperRef.current &&
+        !dateFilterWrapperRef.current.contains(e.target as Node)
+      ) {
+        setShowDatePicker(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showDatePicker]);
 
   // Fetch when page, itemsPerPage, or filters change
   useEffect(() => {
@@ -742,6 +825,8 @@ export default function QuotationPage() {
     setSelectedCurrency('All');
     setFromDate('');
     setToDate('');
+    setTempFromDate(null);
+    setTempToDate(null);
     setCurrentPage(1);
   };
 
@@ -756,10 +841,9 @@ export default function QuotationPage() {
     const totalQty = validItems.reduce((sum, it) => sum + (it.quantity || 0), 0);
     const grandTotal = quote.totalAmount || (baseTotal + cgstAmount + sgstAmount);
 
-    // ✅ Use formatDisplayDate for formatted dates in print
     const formatPrintDateLocal = (dateStr: string) => {
       if (!dateStr) return '';
-      return formatDisplayDate(dateStr);
+      return formatDisplayDateWithContext(dateStr);
     };
 
     const itemRows = validItems.map((item, idx) => `
@@ -1159,91 +1243,112 @@ export default function QuotationPage() {
             <option value="Converted">Converted</option>
           </select>
 
-          {/* ─── Date Range Picker ─── */}
-          <div className="qt-date-range-wrapper">
-            <button 
-              className={`qt-date-toggle-btn ${showDatePicker ? 'active' : ''}`}
-              onClick={() => setShowDatePicker(!showDatePicker)}
-              title="Filter by date range"
+          {/* ─── From - To Date Filter Button ─── */}
+          <div className="qt-date-filter-wrapper" ref={dateFilterWrapperRef}>
+            <button
+              className={`qt-date-filter-btn ${fromDate && toDate ? "qt-filter-active" : ""}`}
+              onClick={openDatePicker}
             >
-              <FaCalendarAlt size={14} />
+              <FaCalendarAlt size={12} />
+              <span>{dateFilterButtonLabel}</span>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ marginLeft: "4px" }}>
+                <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </button>
+
             {showDatePicker && (
-              <div className="qt-date-picker-popup">
-                <div className="qt-date-picker-header">
-                  <span className="qt-date-picker-title">Filter by Date</span>
-                </div>
-                
-                {/* Date Range Display */}
-                <div className="qt-date-range-display">
-                  {fromDate && toDate ? (
-                    <span>{formatDateDisplay(fromDate)} – {formatDateDisplay(toDate)}</span>
-                  ) : (
-                    <span className="qt-date-range-placeholder">Select date range</span>
-                  )}
+              <div className="qt-date-filter-popup">
+                <div className="qt-date-filter-popup-header">
+                  <span>Filter by Date</span>
+                  <button className="qt-date-filter-popup-close" onClick={closeDatePicker}>
+                    <FaTimes size={14} />
+                  </button>
                 </div>
 
-                {/* Quick Filters */}
-                <div className="qt-quick-filters">
-                  <button className="qt-quick-filter-btn" onClick={() => setQuickDateRange(0)}>Today</button>
-                  <button className="qt-quick-filter-btn" onClick={() => setQuickDateRange(7)}>Last 7 Days</button>
-                  <button className="qt-quick-filter-btn" onClick={() => setQuickDateRange(30)}>Last 30 Days</button>
-                  <button className="qt-quick-filter-btn" onClick={() => setQuickDateRange(90)}>This Month</button>
+                <div className="qt-date-filter-inputs">
+                  <input
+                    type="text"
+                    readOnly
+                    placeholder="From"
+                    className="qt-date-filter-input"
+                    value={tempFromDate ? formatDisplayDate(tempFromDate) : ""}
+                  />
+                  <input
+                    type="text"
+                    readOnly
+                    placeholder="To"
+                    className="qt-date-filter-input"
+                    value={tempToDate ? formatDisplayDate(tempToDate) : ""}
+                  />
                 </div>
 
-                {/* Calendar */}
+                <div className="qt-date-filter-quick-row">
+                  <button className="qt-quick-filter-btn" onClick={() => applyQuickFilter("today")}>
+                    Today
+                  </button>
+                  <button className="qt-quick-filter-btn" onClick={() => applyQuickFilter("last7")}>
+                    Last 7 Days
+                  </button>
+                  <button className="qt-quick-filter-btn" onClick={() => applyQuickFilter("last30")}>
+                    Last 30 Days
+                  </button>
+                </div>
+                <div className="qt-date-filter-quick-row">
+                  <button className="qt-quick-filter-btn" onClick={() => applyQuickFilter("thisMonth")}>
+                    This Month
+                  </button>
+                </div>
+
                 <div className="qt-calendar">
                   <div className="qt-calendar-header">
-                    <button className="qt-calendar-nav" onClick={handlePrevMonth}>
+                    <button className="qt-calendar-nav-btn" onClick={goToPrevMonth}>
                       <FaChevronLeft size={12} />
                     </button>
-                    <span className="qt-calendar-month">{getMonthYear(currentMonth)}</span>
-                    <button className="qt-calendar-nav" onClick={handleNextMonth}>
+                    <span className="qt-calendar-month-label">
+                      {MONTH_LABELS[calendarViewDate.getMonth()]} {calendarViewDate.getFullYear()}
+                    </span>
+                    <button className="qt-calendar-nav-btn" onClick={goToNextMonth}>
                       <FaChevronRight size={12} />
                     </button>
                   </div>
+
                   <div className="qt-calendar-weekdays">
-                    <span>Su</span>
-                    <span>Mo</span>
-                    <span>Tu</span>
-                    <span>We</span>
-                    <span>Th</span>
-                    <span>Fr</span>
-                    <span>Sa</span>
-                  </div>
-                  <div className="qt-calendar-days">
-                    {Array.from({ length: getDaysInMonth(currentMonth).firstDayOfMonth }).map((_, i) => (
-                      <span key={`empty-${i}`} className="qt-calendar-day-empty"></span>
+                    {WEEKDAY_LABELS.map((wd) => (
+                      <span key={wd} className="qt-calendar-weekday">{wd}</span>
                     ))}
-                    {Array.from({ length: getDaysInMonth(currentMonth).daysInMonth }).map((_, i) => {
-                      const day = i + 1;
-                      const isSelected = isDateSelected(day);
+                  </div>
+
+                  <div className="qt-calendar-grid">
+                    {calendarCells.map((day, idx) => {
+                      if (!day) return <span key={`blank-${idx}`} className="qt-calendar-cell qt-calendar-cell-empty" />;
+
+                      const isStart = isSameDay(day, tempFromDate);
+                      const isEnd = isSameDay(day, tempToDate);
+                      const inRange =
+                        tempFromDate && tempToDate && day > tempFromDate && day < tempToDate;
+
                       return (
                         <button
-                          key={day}
-                          className={`qt-calendar-day ${isSelected ? 'selected' : ''}`}
-                          onClick={() => handleDateClick(day)}
+                          key={day.toISOString()}
+                          className={[
+                            "qt-calendar-cell",
+                            isStart || isEnd ? "qt-calendar-cell-selected" : "",
+                            inRange ? "qt-calendar-cell-inrange" : "",
+                          ].filter(Boolean).join(" ")}
+                          onClick={() => handleCalendarDayClick(day)}
                         >
-                          {day}
+                          {day.getDate()}
                         </button>
                       );
                     })}
                   </div>
                 </div>
 
-                {/* Action Buttons */}
-                <div className="qt-date-actions">
-                  <button 
-                    className="qt-btn-clear-filter" 
-                    onClick={handleClearDateFilter}
-                  >
+                <div className="qt-date-filter-footer">
+                  <button className="qt-btn-cancel" onClick={handleClearDateFilter}>
                     Clear
                   </button>
-                  <button 
-                    className="qt-btn-apply-filter" 
-                    onClick={handleApplyDateFilter}
-                    disabled={!fromDate || !toDate}
-                  >
+                  <button className="qt-btn-primary" onClick={handleApplyDateFilter}>
                     Apply Filters
                   </button>
                 </div>
@@ -1279,7 +1384,15 @@ export default function QuotationPage() {
           )}
           {fromDate && toDate && (
             <span style={{ color: "var(--text-primary)" }}>
-              <strong>Date Range:</strong> {formatDateDisplay(fromDate)} - {formatDateDisplay(toDate)}
+              <strong>From:</strong> {formatDisplayDate(new Date(fromDate))}{" "}
+              <strong>To:</strong> {formatDisplayDate(new Date(toDate))}
+              <button
+                onClick={handleClearDateFilterBadge}
+                style={{ marginLeft: 6, background: "none", border: "none", cursor: "pointer", color: "inherit" }}
+                title="Clear date filter"
+              >
+                <FaTimes size={10} />
+              </button>
             </span>
           )}
           <button onClick={clearFilters} className="qt-clear-filters">
@@ -1340,10 +1453,9 @@ export default function QuotationPage() {
                         </div>
                       </td>
                       <td className="qt-td">
-                        {/* ✅ USE FORMATTED DATE FOR DISPLAY */}
-                        <div>{quote.date ? formatDisplayDate(quote.date) : '-'}</div>
+                        <div>{quote.date ? formatDisplayDateWithContext(quote.date) : '-'}</div>
                         <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                          Valid: {quote.validTill ? formatDisplayDate(quote.validTill) : '-'}
+                          Valid: {quote.validTill ? formatDisplayDateWithContext(quote.validTill) : '-'}
                         </div>
                       </td>
                       <td className="qt-td">
@@ -1392,7 +1504,6 @@ export default function QuotationPage() {
                   borderTop: '1px solid var(--border-color, #e5e7eb)',
                   marginTop: '8px'
                 }}>
-                  {/* Left side - Show entries dropdown */}
                   <div className="qt-pagination-left" style={{ 
                     display: 'flex', 
                     alignItems: 'center', 
@@ -1423,7 +1534,6 @@ export default function QuotationPage() {
                     <span className="qt-pagination-label">entries</span>
                   </div>
 
-                  {/* Center - Page navigation */}
                   <div className="qt-pagination-center" style={{ 
                     display: 'flex', 
                     alignItems: 'center', 
@@ -1533,7 +1643,6 @@ export default function QuotationPage() {
                     </button>
                   </div>
 
-                  {/* Right side - Showing entries info */}
                   <div className="qt-pagination-right" style={{ 
                     color: 'var(--text-secondary, #6b7280)',
                     fontSize: '13px'
@@ -1635,9 +1744,8 @@ export default function QuotationPage() {
                   <div style={{ padding: '2px 0' }}><strong>Address:</strong> {selectedQuote.customerAddress || 'N/A'}</div>
                 </div>
                 <div style={{ fontSize: '13px', marginBottom: '16px' }}>
-                  {/* ✅ USE FORMATTED DATES FOR DISPLAY */}
-                  <div style={{ padding: '2px 0' }}><strong>Date:</strong> {selectedQuote.date ? formatDisplayDate(selectedQuote.date) : 'N/A'}</div>
-                  <div style={{ padding: '2px 0' }}><strong>Valid Till:</strong> {selectedQuote.validTill ? formatDisplayDate(selectedQuote.validTill) : 'N/A'}</div>
+                  <div style={{ padding: '2px 0' }}><strong>Date:</strong> {selectedQuote.date ? formatDisplayDateWithContext(selectedQuote.date) : 'N/A'}</div>
+                  <div style={{ padding: '2px 0' }}><strong>Valid Till:</strong> {selectedQuote.validTill ? formatDisplayDateWithContext(selectedQuote.validTill) : 'N/A'}</div>
                   <div style={{ padding: '2px 0' }}><strong>Status:</strong> {selectedQuote.status}</div>
                   <div style={{ padding: '2px 0' }}><strong>Currency:</strong> {selectedQuote.currency}</div>
                 </div>
