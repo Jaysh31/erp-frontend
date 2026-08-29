@@ -763,7 +763,7 @@ export default function InventoryList() {
                       <td className="inv-td inv-td-meta">
                         <div className="inv-action-buttons">
                         <button 
-  className="inv-action-btn inv-action-view" 
+  className="wo-action-btn wo-action-view" 
   onClick={() => navigate(`/inventory/detail/${item.itemCode}?type=${item.type}`)} 
   title="View Details"
 >

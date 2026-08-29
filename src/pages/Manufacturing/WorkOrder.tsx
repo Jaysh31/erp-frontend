@@ -805,8 +805,16 @@ export default function WorkOrderList() {
                   <th className="wo-th">Status</th>
                   <th className="wo-th">Planned Dates</th>
                   <th className="wo-th wo-th-meta">
-                    <span className="wo-count-label">{displayTotalItems} total</span>
-                    <FaTasks size={14} style={{ color: 'var(--text-secondary, #9ca3af)' }} />
+                    {/*<span className="wo-count-label">{displayTotalItems} total</span>*/}
+                    <span className="itl-count-label">
+                      {displayTotalItems> 0
+                        ? `${getStartIndex()}–${getEndIndex()}`
+                        : '0'} of {displayTotalItems}
+                    </span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary, #9ca3af)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                    </svg>
+                    {/*<FaTasks size={14} style={{ color: 'var(--text-secondary, #9ca3af)' }} />*/}
                   </th>
                 </tr>
               </thead>
@@ -899,8 +907,8 @@ export default function WorkOrderList() {
                         </div>
                       </td>
                       <td className="wo-td wo-td-meta" onClick={(e) => e.stopPropagation()}>
-                        <span className="wo-ago">{row.createdAgo}</span>
-                        <span className="wo-dot">·</span>
+                        {/*<span className="wo-ago">{row.createdAgo}</span>
+                        <span className="wo-dot">·</span>*/}
                         <div className="wo-action-buttons">
                           <button
                             className="wo-action-btn wo-action-view"
@@ -916,7 +924,7 @@ export default function WorkOrderList() {
                           >
                             <FaEdit size={12} />
                           </button>
-                          {row.canComplete && (
+                          {/*row.canComplete && (
                             <button
                               className="wo-action-btn wo-action-complete"
                               onClick={(e) => handleCompleteWorkOrder(row, e)}
@@ -929,7 +937,7 @@ export default function WorkOrderList() {
                                 <FaCheckCircle size={12} />
                               )}
                             </button>
-                          )}
+                          )*/}
                           <button
                             className="wo-action-btn wo-action-delete"
                             onClick={(e) => handleDelete(row, e)}

@@ -656,6 +656,14 @@
   transform: rotate(90deg);
 }
 
+.rl-settings-view {
+  color: var(--text-secondary, #6b7280);
+}
+
+.rl-settings-view:hover {
+  color: var(--primary-color, #4f46e5);
+}
+
 /* ─── Dropdown Actions ───────────────────────────────────────────────── */
 .rl-dropdown-container {
   position: relative;
