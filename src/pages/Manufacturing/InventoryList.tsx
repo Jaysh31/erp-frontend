@@ -752,13 +752,14 @@ export default function InventoryList() {
                       <td className="inv-td inv-td-amount">₹{item.stockValue.toLocaleString()}</td>
                       <td className="inv-td inv-td-meta">
                         <div className="inv-action-buttons">
-                          <button 
-                            className="inv-action-btn inv-action-view" 
-                            onClick={() => navigate(`/inventory/detail/${item.itemCode}?type=${item.type}`)} 
-                            title="View Details"
-                          >
-                            <FaEye size={12} />
-                          </button>           
+                        <button 
+  className="wo-action-btn wo-action-view" 
+  onClick={() => navigate(`/inventory/detail/${item.itemCode}?type=${item.type}`)} 
+  title="View Details"
+>
+  <FaEye size={12} />
+</button>           
+
                         </div>
                       </td>
                     </tr>

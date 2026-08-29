@@ -2481,11 +2481,11 @@ export default function ProformaInvoice() {
                     </td>
                     <td className="pq-td pq-td-meta">
                       <div className="pq-action-buttons">
-                        <button className="pq-action-btn pq-action-view" onClick={() => handleView(order)} title="View ">
+                        <button className="jc-action-btn jc-action-view" onClick={() => handleView(order)} title="View ">
                           <FaEye size={12} />
                         </button>
                         <button
-                          className="pq-action-btn pq-action-print"
+                          className="qt-action-btn qt-action-print"
                           onClick={() => handlePrintOrder(order)}
                           title="Print Proforma Invoice"
                           disabled={printLoadingId === order.id}
