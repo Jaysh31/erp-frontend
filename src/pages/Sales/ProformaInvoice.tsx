@@ -194,19 +194,6 @@ const numberToIndianWords = (value: number): string => {
 };
 
 // ✅ UPDATED: Format print date using context formatter
-const formatPrintDate = (date: string, formatFn?: (date: string) => string): string => {
-  if (!date) return '';
-  if (formatFn) {
-    return formatFn(date);
-  }
-  // Fallback if formatFn not provided
-  const d = new Date(date);
-  if (isNaN(d.getTime())) return date;
-  const day = String(d.getDate()).padStart(2, '0');
-  const month = d.toLocaleString('en-US', { month: 'short' });
-  const year = String(d.getFullYear()).slice(-2);
-  return `${day}-${month}-${year}`;
-};
 
 const escapeHtml = (val: unknown): string => {
   const s = val === null || val === undefined ? '' : String(val);
@@ -284,7 +271,7 @@ export default function ProformaInvoice() {
   const navigate = useNavigate();
 
   // ✅ GET THE DATE FORMAT FUNCTION FROM CONTEXT
-  const { theme, formatDate, getApiDateFormat } = useAdminTheme();
+  const { theme, formatDate } = useAdminTheme();
 
   const [filterText, setFilterText] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('All');
@@ -328,9 +315,6 @@ export default function ProformaInvoice() {
   };
 
   // ✅ NEW: Format date for API (YYYY-MM-DD)
-  const toApiDateFormat = (date: Date) => {
-    return getApiDateFormat(date);
-  };
 
   // ─── close date picker on outside click ──────────────────────────────
   useEffect(() => {
@@ -2497,11 +2481,11 @@ export default function ProformaInvoice() {
                     </td>
                     <td className="pq-td pq-td-meta">
                       <div className="pq-action-buttons">
-                        <button className="pq-action-btn pq-action-view" onClick={() => handleView(order)} title="View ">
+                        <button className="jc-action-btn jc-action-view" onClick={() => handleView(order)} title="View ">
                           <FaEye size={12} />
                         </button>
                         <button
-                          className="pq-action-btn pq-action-print"
+                          className="qt-action-btn qt-action-print"
                           onClick={() => handlePrintOrder(order)}
                           title="Print Proforma Invoice"
                           disabled={printLoadingId === order.id}

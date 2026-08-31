@@ -184,9 +184,22 @@ const daysBetween = (from: string, to: string): number => {
 const addDays = (date: string, days: number): string => {
   if (!date) return '';
   const d = new Date(date);
-  if (isNaN(d.getTime())) return '';
-  d.setDate(d.getDate() + days);
-  return d.toISOString().split('T')[0];
+
+  if (isNaN(d.getTime())) return date;
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = d.toLocaleString('en-US', { month: 'short' });
+  const year = String(d.getFullYear()).slice(-2);
+  return `${day}-${month}-${year}`;
+};
+
+
+const escapeHtml = (val: unknown): string => {
+  const s = val === null || val === undefined ? '' : String(val);
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 };
 
 const QUOTATION_LINE_CACHE_PREFIX = 'quotation_line_data:';
@@ -275,31 +288,59 @@ interface SearchableSelectProps {
   taxOptions?: TaxOption[];
 }
 
-const SearchableSelect: React.FC<SearchableSelectProps> = ({
-  value,
-  onChange,
-  options,
-  placeholder = 'Search...',
-  disabled = false,
-  error = false,
-  onSearch,
-  loading = false
-}) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filteredOptions, setFilteredOptions] = useState<Product[]>(options);
-  const [highlightedIndex, setHighlightedIndex] = useState(-1);
-  const wrapperRef = useRef<HTMLDivElement | null>(null);
-  const menuRef = useRef<HTMLDivElement | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const menuPos = useDropdownPosition(isOpen, wrapperRef);
+export default function QuotationPage() {
+  const navigate = useNavigate();
 
-  const getTaxRate = (option: Product): number => {
-    if (option.tax) return option.tax;
-    if (option.cgst_rate && option.sgst_rate) return option.cgst_rate + option.sgst_rate;
-    return 0;
+  const { theme, formatDate, getApiDateFormat } = useAdminTheme();
+
+
+  const [filterText, setFilterText] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState('All');
+  const [selectedCurrency, setSelectedCurrency] = useState('All');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [printLoadingId, setPrintLoadingId] = useState<string | null>(null);
+
+  const [quotations, setQuotations] = useState<Quotation[]>([]);
+  
+  // Server-side pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+
+  // ─── Date Filter States ────────────────────────────────────────────────
+  const [fromDate, setFromDate] = useState<string>("");
+  const [toDate, setToDate] = useState<string>("");
+  const [tempFromDate, setTempFromDate] = useState<Date | null>(null);
+  const [tempToDate, setTempToDate] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
+  const [calendarViewDate, setCalendarViewDate] = useState<Date>(new Date());
+  const dateFilterWrapperRef = useRef<HTMLDivElement>(null);
+
+  // Modal states
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showPdfModal, setShowPdfModal] = useState(false);
+  const [selectedQuote, setSelectedQuote] = useState<Quotation | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pdfModalLoading] = useState(false);
+
+  // ─── Debounce function for search ──────────────────────────────────
+  const useDebounce = (value: string, delay: number) => {
+    const [debouncedValue, setDebouncedValue] = useState(value);
+
+    useEffect(() => {
+      const handler = setTimeout(() => {
+        setDebouncedValue(value);
+      }, delay);
+
+      return () => {
+        clearTimeout(handler);
+      };
+    }, [value, delay]);
+
+    return debouncedValue;
   };
 
   useEffect(() => {

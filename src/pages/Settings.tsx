@@ -4,10 +4,6 @@ import { useAdminTheme, type AdminThemeType, type DateFormatType } from '../admi
 import toast from 'react-hot-toast';
 import './Settings.css';
 
-const MONTH_NAMES_SHORT = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-];
 
 // ✅ FIXED: Changed 'dd/mmmyyyy' to 'ddmmmyyyy'
 const formatDate = (date: Date, format: DateFormatType): string => {
@@ -29,6 +25,7 @@ const formatDate = (date: Date, format: DateFormatType): string => {
       return `${day}/${monthNum}/${year}`;
   }
 };
+
 
 const Settings: React.FC = () => {
   const { theme, setTheme, dateFormat, setDateFormat } = useAdminTheme();
@@ -104,11 +101,6 @@ const Settings: React.FC = () => {
     toast.success(`Date format changed to: ${format?.pattern}`);
   };
 
-  const previewRows = [
-    { label: 'Today', date: new Date() },
-    { label: 'Invoice Date', date: new Date(2026, 2, 15) },
-    { label: 'Delivery Date', date: new Date(2026, 11, 22) },
-  ];
 
   return (
     <div className="settings-container">

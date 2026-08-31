@@ -128,7 +128,7 @@ interface RangeCalendarProps {
   formatDisplayDateFn: (iso: string) => string;
 }
 
-function RangeCalendar({ month, onMonthChange, fromDate, toDate, onSelect, formatDisplayDateFn }: RangeCalendarProps) {
+function RangeCalendar({ month, onMonthChange, fromDate, toDate, onSelect }: RangeCalendarProps) {
   const year = month.getFullYear();
   const monthIndex = month.getMonth();
   const firstDayOfMonth = new Date(year, monthIndex, 1);
@@ -232,7 +232,7 @@ export default function GRNList() {
   const navigate = useNavigate();
   
   // ✅ GET THE DATE FORMAT FUNCTION FROM CONTEXT
-  const { theme, formatDate, getApiDateFormat } = useAdminTheme();
+  const { theme, formatDate } = useAdminTheme();
 
   // ── State ──────────────────────────────────────────────────────
   const [allGrns, setAllGrns] = useState<GRNDisplay[]>([]);
@@ -260,9 +260,6 @@ export default function GRNList() {
   };
 
   // ✅ NEW: Format date for API (YYYY-MM-DD)
-  const toApiDateFormat = (date: Date) => {
-    return getApiDateFormat(date);
-  };
 
   // ── Tabs config ─────────────────────────────────────────────────
   const tabs: { id: TabId; label: string; icon: JSX.Element }[] = [
@@ -793,7 +790,11 @@ export default function GRNList() {
               <th className="grn-th">Status</th>
               <th className="grn-th">Qty</th>
               <th className="grn-th grn-th-meta">
-                <span className="grn-count-label">{totalFiltered} records</span>
+                <span className="grn-count-label">{/*{totalFiltered} records</span>*/}
+                {totalFiltered > 0
+                    ? `${(validCurrentPage - 1) * itemsPerPage + 1}–${Math.min(validCurrentPage * itemsPerPage, totalFiltered)}`
+                    : '0'} of {totalFiltered}
+                </span>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary, #9ca3af)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
                 </svg>

@@ -170,19 +170,6 @@ const numberToIndianWords = (value: number): string => {
 };
 
 // ✅ UPDATED: Format print date using context formatter
-const formatPrintDate = (date: string, formatFn?: (date: string) => string): string => {
-  if (!date) return '';
-  if (formatFn) {
-    return formatFn(date);
-  }
-  // Fallback if formatFn not provided
-  const d = new Date(date);
-  if (isNaN(d.getTime())) return date;
-  const day = String(d.getDate()).padStart(2, '0');
-  const month = d.toLocaleString('en-US', { month: 'short' });
-  const year = String(d.getFullYear()).slice(-2);
-  return `${day}-${month}-${year}`;
-};
 
 const escapeHtml = (val: unknown): string => {
   const s = val === null || val === undefined ? '' : String(val);
@@ -219,7 +206,7 @@ const SalesInvoice: React.FC = () => {
   const menuRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
   
   // ✅ GET THE DATE FORMAT FUNCTION FROM CONTEXT
-  const { theme, formatDate, getApiDateFormat } = useAdminTheme();
+  const { theme, formatDate } = useAdminTheme();
   
   // ===== STATE =====
   const [searchTerm, setSearchTerm] = useState('');
@@ -252,9 +239,6 @@ const SalesInvoice: React.FC = () => {
   };
 
   // ✅ NEW: Format date for API (YYYY-MM-DD)
-  const toApiDateFormat = (date: Date) => {
-    return getApiDateFormat(date);
-  };
 
   // ===== CLOSE MENU ON CLICK OUTSIDE =====
   useEffect(() => {
@@ -1608,6 +1592,14 @@ const SalesInvoice: React.FC = () => {
           background: var(--nav-hover, #f3f4f6);
         }
 
+        .qt-action-print {
+  color: #0d9488;
+}
+
+.qt-action-print:hover {
+  background: rgba(13, 148, 136, 0.1);
+}
+
         .qt-action-more {
           color: var(--text-secondary, #6b7280);
         }
@@ -2339,7 +2331,7 @@ const SalesInvoice: React.FC = () => {
                     <td className="qt-td">
                       <div className="qt-action-buttons">
                         <button 
-                          className="qt-action-btn" 
+                          className="qt-action-btn qt-action-print" 
                           onClick={() => handlePrint(item)} 
                           title="Print"
                           disabled={printLoadingId === String(item.id)}
