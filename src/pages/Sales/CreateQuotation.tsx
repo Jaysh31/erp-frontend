@@ -2438,66 +2438,62 @@ export default function CreateQuotation() {
                 </div>
               </div>
 
-              {/* Quotation Details - 3 columns in one line */}
+              {/* Quotation Details - Date fields in a single row with decreased length */}
               <div className="cq-section-header" style={{ marginTop: '12px' }}>
                 <FaFileAlt className="cq-section-icon" />
                 <span>Quotation Details</span>
               </div>
 
-              <div className="cq-grid-3">
-                <div className="cq-field">
-                  <label className="cq-label">Quotation Number</label>
-                  <div className="cq-dc-number-display">{generateQuotationName()}</div>
-                </div>
-
-                <div className="cq-field">
+              {/* ─── DATE ROW - Two date fields in same row ─── */}
+              <div className="cq-date-row">
+                <div className="cq-date-field-small">
                   <label className="cq-label">
                     Date <span className="cq-required">*</span>
                   </label>
-                  <div className="cq-date-field">
+                  <div className="cq-date-wrapper">
                     <input
                       type="date"
                       name="date"
                       value={formData.date}
                       onChange={handleInputChange}
-                      className={`cq-input ${errors.date ? 'cq-input-error' : ''}`}
+                      className={`cq-input-date ${errors.date ? 'cq-input-error' : ''}`}
                       ref={setRef('date')}
                     />
                     <button
                       type="button"
-                      className="cq-date-icon-btn"
+                      className="cq-date-icon-btn-small"
                       onClick={() => openDatePicker('date')}
                       tabIndex={-1}
                       aria-label="Open calendar"
                     >
-                      <FaCalendarAlt size={13} />
+                      <FaCalendarAlt size={12} />
                     </button>
                   </div>
                   {errors.date && <span className="cq-error-text">{errors.date}</span>}
                 </div>
 
-                <div className="cq-field">
+                <div className="cq-date-field-small">
                   <label className="cq-label">
                     Valid Till <span className="cq-required">*</span>
                   </label>
-                  <div className="cq-date-field">
+                  <div className="cq-date-wrapper">
                     <input
                       type="date"
                       name="validTill"
                       value={formData.validTill}
                       onChange={handleInputChange}
                       min={getTodayDate()}
-                      className={`cq-input ${errors.validTill ? 'cq-input-error' : ''}`}
+                      className={`cq-input-date ${errors.validTill ? 'cq-input-error' : ''}`}
                       ref={setRef('validTill')}
                     />
                     <button
                       type="button"
-                      className="cq-date-icon-btn"
+                      className="cq-date-icon-btn-small"
                       onClick={() => openDatePicker('validTill')}
                       tabIndex={-1}
                       aria-label="Open calendar"
                     >
-                      <FaCalendarAlt size={13} />
+                      <FaCalendarAlt size={12} />
                     </button>
                   </div>
                   {errors.validTill && <span className="cq-error-text">{errors.validTill}</span>}

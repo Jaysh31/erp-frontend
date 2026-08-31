@@ -54,7 +54,7 @@ export default function OperationList() {
   const navigate = useNavigate();
   const { theme } = useAdminTheme();
   const datePickerRef = useRef<HTMLDivElement>(null);
-  
+
   const [operations, setOperations] = useState<Operation[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -129,19 +129,19 @@ export default function OperationList() {
     setError(null);
     try {
       let url = '/operation';
-      
+
       // Add search parameter if searchTerm exists
       if (searchTerm.trim()) {
         url += `?search=${encodeURIComponent(searchTerm.trim())}`;
       }
-      
+
       if (fromDate && toDate) {
         url += url.includes('?') ? '&' : '?';
         url += `date_from=${fromDate}&date_to=${toDate}`;
       }
 
       const response = await api.get<ApiResponse>(url);
-      
+
       if (response.data.success === 1) {
         const records = response.data.data || [];
         // Sort by ID in ascending order
@@ -311,7 +311,7 @@ export default function OperationList() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, statusFilter]);
+  }, [searchTerm, statusFilter, itemsPerPage]);
 
   // ─── Filter and sort data ─────────────────────────────────────────────────
 
@@ -322,16 +322,16 @@ export default function OperationList() {
       const description = op.description?.toLowerCase() || '';
       const workstation = op.workstation?.toLowerCase() || '';
       const search = searchTerm.toLowerCase();
-      
+
       const matchesSearch = name.includes(search) ||
                            description.includes(search) ||
                            workstation.includes(search);
-      
-      const matchesStatus = statusFilter === 'all' || 
+
+      const matchesStatus = statusFilter === 'all' ||
                            (statusFilter === 'active' && op.docstatus === 0) ||
                            (statusFilter === 'submitted' && op.docstatus === 1) ||
                            (statusFilter === 'cancelled' && op.docstatus === 2);
-      
+
       return matchesSearch && matchesStatus;
     })
     .sort((a, b) => {
@@ -355,17 +355,31 @@ export default function OperationList() {
       return sortDirection === 'asc' ? comparison : -comparison;
     });
 
-  const paginatedData = filteredAndSortedOperations.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-
-  const totalPages = Math.ceil(filteredAndSortedOperations.length / itemsPerPage) || 1;
-  const validCurrentPage = Math.min(currentPage, totalPages);
+  // Calculate total filtered items and pages
+  const totalFilteredItems = filteredAndSortedOperations.length;
   
-  if (validCurrentPage !== currentPage && currentPage > 1) {
-    setCurrentPage(validCurrentPage);
+  // Calculate total pages - if itemsPerPage is greater than total items, totalPages should be 1
+  const totalPages = Math.max(1, Math.ceil(totalFilteredItems / itemsPerPage));
+  
+  // Ensure current page is valid
+  let validCurrentPage = currentPage;
+  if (currentPage > totalPages) {
+    validCurrentPage = totalPages;
+    if (validCurrentPage !== currentPage) {
+      setCurrentPage(validCurrentPage);
+    }
   }
+  if (currentPage < 1) {
+    validCurrentPage = 1;
+    if (validCurrentPage !== currentPage) {
+      setCurrentPage(validCurrentPage);
+    }
+  }
+
+  // Get paginated data - properly slice the data
+  const startIndex = (validCurrentPage - 1) * itemsPerPage;
+  const endIndex = Math.min(startIndex + itemsPerPage, totalFilteredItems);
+  const paginatedData = filteredAndSortedOperations.slice(startIndex, endIndex);
 
   // ─── Stats ────────────────────────────────────────────────────────────────
 
@@ -374,31 +388,31 @@ export default function OperationList() {
   const uniqueWorkstations = [...new Set(operations.map(op => op.workstation))].length;
 
   const stats = [
-    { 
-      title: 'Total Operations', 
-      value: totalItems, 
-      icon: <FaBoxes />, 
+    {
+      title: 'Total Operations',
+      value: totalItems,
+      icon: <FaBoxes />,
       color: '#3B82F6',
       lightColor: '#EFF6FF'
     },
-    { 
-      title: 'Active', 
-      value: totalActive, 
-      icon: <FaCheckCircle />, 
+    {
+      title: 'Active',
+      value: totalActive,
+      icon: <FaCheckCircle />,
       color: '#10B981',
       lightColor: '#ECFDF5'
     },
-    { 
-      title: 'Submitted', 
-      value: totalSubmitted, 
-      icon: <FaClock />, 
+    {
+      title: 'Submitted',
+      value: totalSubmitted,
+      icon: <FaClock />,
       color: '#F59E0B',
       lightColor: '#FFFBEB'
     },
-    { 
-      title: 'Workstations', 
-      value: uniqueWorkstations, 
-      icon: <FaIndustry />, 
+    {
+      title: 'Workstations',
+      value: uniqueWorkstations,
+      icon: <FaIndustry />,
       color: '#8B5CF6',
       lightColor: '#F5F3FF'
     },
@@ -414,44 +428,50 @@ export default function OperationList() {
 
   const goToFirstPage = () => goToPage(1);
   const goToLastPage = () => goToPage(totalPages);
-  const goToNextPage = () => goToPage(currentPage + 1);
-  const goToPrevPage = () => goToPage(currentPage - 1);
+  const goToNextPage = () => goToPage(validCurrentPage + 1);
+  const goToPrevPage = () => goToPage(validCurrentPage - 1);
 
   const handlePageSizeChange = (newSize: number) => {
     setItemsPerPage(newSize);
-    setCurrentPage(1);
+    setCurrentPage(1); // Reset to first page when changing page size
   };
 
   const getPageNumbers = () => {
     const pages = [];
     const maxVisible = 5;
-    let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+    let startPage = Math.max(1, validCurrentPage - Math.floor(maxVisible / 2));
     let endPage = Math.min(totalPages, startPage + maxVisible - 1);
     if (endPage - startPage + 1 < maxVisible) startPage = Math.max(1, endPage - maxVisible + 1);
     for (let i = startPage; i <= endPage; i++) pages.push(i);
     return pages;
   };
 
-  const getStartIndex = () => (validCurrentPage - 1) * itemsPerPage + 1;
-  const getEndIndex = () => Math.min(validCurrentPage * itemsPerPage, filteredAndSortedOperations.length);
+  const getStartIndex = () => {
+    if (totalFilteredItems === 0) return 0;
+    return startIndex + 1;
+  };
+  
+  const getEndIndex = () => {
+    return endIndex;
+  };
 
   // ─── Actions ─────────────────────────────────────────────────────────────
 
   const handleRowClick = (operation: Operation) => {
-    navigate(`/operation/${operation.id}`, { 
-      state: { operationData: operation, mode: 'view' } 
+    navigate(`/operation/${operation.id}`, {
+      state: { operationData: operation, mode: 'view' }
     });
   };
 
   const handleViewOperation = (operation: Operation) => {
-    navigate(`/operation/${operation.id}`, { 
-      state: { operationData: operation, mode: 'view' } 
+    navigate(`/operation/${operation.id}`, {
+      state: { operationData: operation, mode: 'view' }
     });
   };
 
   const handleEditOperation = (operation: Operation) => {
-    navigate(`/operation/${operation.id}/edit`, { 
-      state: { operationData: operation } 
+    navigate(`/operation/${operation.id}/edit`, {
+      state: { operationData: operation }
     });
   };
 
@@ -481,6 +501,7 @@ export default function OperationList() {
     setFromDate('');
     setToDate('');
     setDateFilterActive(false);
+    setCurrentPage(1);
     fetchOperations();
   };
 
@@ -510,10 +531,10 @@ export default function OperationList() {
       {/* Stats Cards */}
       <div className="op-stats-container">
         {stats.map((stat, index) => (
-          <div 
-            key={index} 
-            className="op-stat-card" 
-            style={{ 
+          <div
+            key={index}
+            className="op-stat-card"
+            style={{
               background: stat.lightColor,
               borderLeft: `4px solid ${stat.color}`
             }}
@@ -549,8 +570,8 @@ export default function OperationList() {
           </div>
         </div>
         <div className="op-filter-right">
-          <select 
-            value={statusFilter} 
+          <select
+            value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
             className="op-filter-select"
           >
@@ -581,20 +602,27 @@ export default function OperationList() {
                 </div>
 
                 <div className="op-date-picker-body">
-                  {/* Date Range Display */}
-                  <div className="op-date-range-display">
-                    <div className="op-date-range-item">
-                      <span className="op-date-range-label">From</span>
-                      <span className="op-date-range-value">
-                        {fromDate ? formatDateForDisplay(fromDate) : 'Select date'}
-                      </span>
+                  {/* ─── From / To — proper bordered input-style boxes (Purchase-Order UI) ─── */}
+                  <div className="op-date-range-inputs">
+                    <div className="op-date-input-group">
+                      <span className="op-date-input-label">From</span>
+                      <input
+                        type="text"
+                        readOnly
+                        className="op-date-input-box"
+                        placeholder="Select date"
+                        value={fromDate ? formatDateForDisplay(fromDate) : ''}
+                      />
                     </div>
-                    <span className="op-date-range-separator">—</span>
-                    <div className="op-date-range-item">
-                      <span className="op-date-range-label">To</span>
-                      <span className="op-date-range-value">
-                        {toDate ? formatDateForDisplay(toDate) : 'Select date'}
-                      </span>
+                    <div className="op-date-input-group">
+                      <span className="op-date-input-label">To</span>
+                      <input
+                        type="text"
+                        readOnly
+                        className="op-date-input-box"
+                        placeholder="Select date"
+                        value={toDate ? formatDateForDisplay(toDate) : ''}
+                      />
                     </div>
                   </div>
 
@@ -686,8 +714,8 @@ export default function OperationList() {
             </svg>
             Sort {sortDirection === 'asc' ? '↑' : '↓'}
           </button>
-          <button 
-            className="op-btn-primary" 
+          <button
+            className="op-btn-primary"
             onClick={handleAddOperation}
           >
             <FaPlus size={12} />
@@ -710,7 +738,7 @@ export default function OperationList() {
           {dateFilterActive && fromDate && toDate && (
             <span><strong>From:</strong> {formatDateForDisplay(fromDate)} <strong>To:</strong> {formatDateForDisplay(toDate)}</span>
           )}
-          <button 
+          <button
             onClick={clearFilters}
             className="op-clear-filters"
           >
@@ -758,9 +786,7 @@ export default function OperationList() {
                     <th>Status</th>
                     <th>Type</th>
                     <th>Time (min)</th>
-                    <th >
-                      Actions
-                    </th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -781,22 +807,22 @@ export default function OperationList() {
                         <span className="op-ago">{formatDate(row.creation)}</span>
                         <span className="op-dot">·</span>
                         <div className="op-action-buttons">
-                          <button 
-                            className="op-action-btn op-action-view" 
+                          <button
+                            className="op-action-btn op-action-view"
                             onClick={(e) => { e.stopPropagation(); handleViewOperation(row); }}
                             title="View"
                           >
                             <FaEye size={12} />
                           </button>
-                          <button 
-                            className="op-action-btn op-action-edit" 
+                          <button
+                            className="op-action-btn op-action-edit"
                             onClick={(e) => { e.stopPropagation(); handleEditOperation(row); }}
                             title="Edit"
                           >
                             <FaEdit size={12} />
                           </button>
-                          <button 
-                            className="op-action-btn op-action-delete" 
+                          <button
+                            className="op-action-btn op-action-delete"
                             onClick={(e) => { e.stopPropagation(); handleDeleteOperation(row); }}
                             disabled={deletingId === row.id}
                             title="Delete"
@@ -812,13 +838,13 @@ export default function OperationList() {
             )}
           </div>
 
-          {/* Pagination */}
-          {filteredAndSortedOperations.length > 0 && totalPages > 1 && (
+          {/* Pagination - Always show when there are items */}
+          {totalFilteredItems > 0 && (
             <div className="op-pagination">
               <div className="op-pagination-left">
                 <span className="op-pagination-label">Show:</span>
-                <select 
-                  value={itemsPerPage} 
+                <select
+                  value={itemsPerPage}
                   onChange={(e) => handlePageSizeChange(Number(e.target.value))}
                   className="op-page-size-select"
                 >
@@ -829,48 +855,54 @@ export default function OperationList() {
                 </select>
                 <span className="op-pagination-label">entries</span>
               </div>
+              
+              {/* Pagination controls */}
               <div className="op-pagination-center">
-                <button 
-                  onClick={goToFirstPage} 
-                  disabled={currentPage === 1} 
+                <button
+                  onClick={goToFirstPage}
+                  disabled={validCurrentPage === 1 || totalPages <= 1}
                   className="op-page-btn"
                 >
                   <FaAngleDoubleLeft size={12} />
                 </button>
-                <button 
-                  onClick={goToPrevPage} 
-                  disabled={currentPage === 1} 
+                <button
+                  onClick={goToPrevPage}
+                  disabled={validCurrentPage === 1 || totalPages <= 1}
                   className="op-page-btn"
                 >
                   <FaChevronLeft size={12} />
                 </button>
+                
+                {/* Show page numbers */}
                 {getPageNumbers().map(page => (
                   <button
                     key={page}
                     onClick={() => goToPage(page)}
-                    className={`op-page-btn ${currentPage === page ? 'op-page-btn-active' : ''}`}
+                    className={`op-page-btn ${validCurrentPage === page ? 'op-page-btn-active' : ''}`}
                   >
                     {page}
                   </button>
                 ))}
-                <button 
-                  onClick={goToNextPage} 
-                  disabled={currentPage === totalPages} 
+                
+                <button
+                  onClick={goToNextPage}
+                  disabled={validCurrentPage === totalPages || totalPages <= 1}
                   className="op-page-btn"
                 >
                   <FaChevronRight size={12} />
                 </button>
-                <button 
-                  onClick={goToLastPage} 
-                  disabled={currentPage === totalPages} 
+                <button
+                  onClick={goToLastPage}
+                  disabled={validCurrentPage === totalPages || totalPages <= 1}
                   className="op-page-btn"
                 >
                   <FaAngleDoubleRight size={12} />
                 </button>
               </div>
+              
               <div className="op-pagination-right">
                 <span className="op-pagination-info">
-                  Showing {getStartIndex()} to {getEndIndex()} of {filteredAndSortedOperations.length} entries
+                  Showing {getStartIndex()} to {getEndIndex()} of {totalFilteredItems} entries
                 </span>
               </div>
             </div>
