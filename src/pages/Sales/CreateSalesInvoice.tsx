@@ -81,9 +81,17 @@ interface Product {
   unit: string;
   rate: number;
   tax: number;
+  tax_id?: number;
+  tax_type?: string;
+  rawTaxId?: number | string;
+  rawTaxType?: string;
+  rawTaxRate?: number;
+  rawItem?: any;
   type: 'product' | 'service';
   stockUom?: string;
   standardRate?: number;
+  sellingPrice?: number;
+  mrp?: number;
   creation?: string;
   modified?: string;
   modified_by?: string;
@@ -114,6 +122,8 @@ interface SalesBillItem {
   quantity: number;
   unit: string;
   rate: number;
+  sellingPrice?: number;
+  standardRate?: number;
   amount: number;
   tax: number;
   tax_id?: number;
@@ -346,13 +356,72 @@ const addDays = (date: string, days: number): string => {
 
 const extractTaxValue = (taxType: string): number => {
   if (!taxType) return 0;
-  const match = taxType.match(/(\d+)/);
-  return match ? parseInt(match[0], 10) : 0;
+  const match = taxType.match(/(\d+(?:\.\d+)?)/);
+  return match ? parseFloat(match[0]) : 0;
 };
 
-const getTaxIdFromRate = (taxRate: number, taxOpts: TaxOption[]): number | undefined => {
-  const taxOption = taxOpts.find(t => extractTaxValue(t.tax_type) === taxRate);
+const DEFAULT_TAX_OPTIONS: TaxOption[] = [
+  { tax_id: 1, tax_type: 'GST 0%' },
+  { tax_id: 2, tax_type: 'GST 5%' },
+  { tax_id: 3, tax_type: 'GST 12%' },
+  { tax_id: 4, tax_type: 'GST 18%' },
+  { tax_id: 5, tax_type: 'GST 28%' },
+];
+
+const getTaxIdFromRate = (taxRate: number, taxOpts: TaxOption[] = []): number | undefined => {
+  const opts = taxOpts && taxOpts.length > 0 ? taxOpts : DEFAULT_TAX_OPTIONS;
+  const taxOption = opts.find(t => extractTaxValue(t.tax_type) === taxRate);
   return taxOption?.tax_id;
+};
+
+const getTaxRateFromItem = (item: any, taxOpts: TaxOption[] = []): { rate: number; tax_id?: number; tax_type?: string } => {
+  const opts = taxOpts && taxOpts.length > 0 ? taxOpts : DEFAULT_TAX_OPTIONS;
+  if (!item) return { rate: 0, tax_id: opts[0]?.tax_id || 1, tax_type: opts[0]?.tax_type || 'GST 0%' };
+
+  // 1. Direct tax_id check against options
+  const rawTaxId = item.tax_id ?? item.taxId ?? item.tax_type_id ?? item.rawTaxId;
+  if (rawTaxId !== undefined && rawTaxId !== null && rawTaxId !== '') {
+    const numTaxId = Number(rawTaxId);
+    const match = opts.find(t => t.tax_id === numTaxId || String(t.tax_id) === String(rawTaxId));
+    if (match) {
+      return { rate: extractTaxValue(match.tax_type), tax_id: match.tax_id, tax_type: match.tax_type };
+    }
+  }
+
+  // 2. Direct tax_type string check (e.g., "GST 18%", "GST18 (18%)", "GST18", "18%")
+  const rawTaxType = item.tax_type ?? item.taxType ?? item.tax_name ?? item.rawTaxType;
+  if (rawTaxType) {
+    const strType = String(rawTaxType).trim();
+    let match = opts.find(t => t.tax_type.toLowerCase() === strType.toLowerCase());
+    if (match) {
+      return { rate: extractTaxValue(match.tax_type), tax_id: match.tax_id, tax_type: match.tax_type };
+    }
+    const rateFromType = extractTaxValue(strType);
+    if (rateFromType > 0) {
+      match = opts.find(t => extractTaxValue(t.tax_type) === rateFromType);
+      if (match) {
+        return { rate: rateFromType, tax_id: match.tax_id, tax_type: match.tax_type };
+      }
+      return { rate: rateFromType, tax_id: getTaxIdFromRate(rateFromType, opts), tax_type: `GST ${rateFromType}%` };
+    }
+  }
+
+  // 3. Direct tax rate / percentage check
+  const directRateRaw = item.tax ?? item.tax_rate ?? item.gst_rate ?? item.gst ?? item.tax_percent ?? item.taxPercentage ?? item.rawTaxRate;
+  if (directRateRaw !== undefined && directRateRaw !== null && directRateRaw !== '') {
+    const directRate = Number(directRateRaw);
+    if (!isNaN(directRate) && directRate >= 0) {
+      const match = opts.find(t => extractTaxValue(t.tax_type) === directRate);
+      if (match) {
+        return { rate: directRate, tax_id: match.tax_id, tax_type: match.tax_type };
+      }
+      if (directRate > 0) {
+        return { rate: directRate, tax_id: getTaxIdFromRate(directRate, opts), tax_type: `GST ${directRate}%` };
+      }
+    }
+  }
+
+  return { rate: 0, tax_id: opts[0]?.tax_id || 1, tax_type: opts[0]?.tax_type || 'GST 0%' };
 };
 
 // ===== COMPANY DETAILS =====
@@ -1003,7 +1072,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontWeight: 500, fontSize: '13px', color: 'var(--text-primary, #0f172a)' }}>{option.itemCode}</span>
               <span style={{ fontSize: '12px', color: 'var(--text-secondary, #64748b)', marginLeft: '8px', textAlign: 'right' }}>
-                ₹{option.rate}
+                Base: ₹{(option.standardRate !== undefined && option.standardRate > 0 ? option.standardRate : (option.rate || 0)).toFixed(2)} | MRP: ₹{(option.sellingPrice !== undefined && option.sellingPrice > 0 ? option.sellingPrice : (option.mrp || option.rate || option.standardRate || 0)).toFixed(2)}
               </span>
             </div>
             <div style={{ fontSize: '11px', color: 'var(--text-secondary, #94a3b8)', marginTop: '2px' }}>
@@ -2600,21 +2669,22 @@ const CreateSalesBill: React.FC = () => {
         let taxData: TaxOption[] = [];
         if (Array.isArray(response.data)) {
           taxData = response.data;
-        } else {
-          const nestedData = (response.data as any)?.data;
-          if (Array.isArray(nestedData)) {
-            taxData = nestedData;
-          }
+        } else if (Array.isArray((response.data as any)?.data)) {
+          taxData = (response.data as any).data;
+        } else if (Array.isArray((response.data as any)?.data?.records)) {
+          taxData = (response.data as any).data.records;
+        } else if (Array.isArray((response.data as any)?.records)) {
+          taxData = (response.data as any).records;
         }
-        setTaxOptions(taxData);
+        setTaxOptions(taxData.length > 0 ? taxData : DEFAULT_TAX_OPTIONS);
         setTaxOptionsLoaded(true);
       } else {
-        setTaxOptions([]);
+        setTaxOptions(DEFAULT_TAX_OPTIONS);
         setTaxOptionsLoaded(true);
       }
     } catch (error) {
       console.error('Error fetching tax options:', error);
-      setTaxOptions([]);
+      setTaxOptions(DEFAULT_TAX_OPTIONS);
       setTaxOptionsLoaded(true);
     } finally {
       setLoadingTaxOptions(false);
@@ -3011,10 +3081,34 @@ const CreateSalesBill: React.FC = () => {
 
   useEffect(() => {
     const total = getGrandTotal();
-    const rounded = Math.round(total / 10) * 10;
+    const rounded = Math.round(total);
     const diff = rounded - total;
-    setRoundOff(diff);
+    setRoundOff(parseFloat(diff.toFixed(2)));
   }, [items]);
+
+  // Re-synchronize product tax rates when taxOptions change
+  useEffect(() => {
+    if (taxOptions.length > 0 && allProducts.length > 0) {
+      setAllProducts(prev => prev.map(p => {
+        const taxInfo = getTaxRateFromItem(p.rawItem || p, taxOptions);
+        return {
+          ...p,
+          tax: taxInfo.rate,
+          tax_id: taxInfo.tax_id,
+          tax_type: taxInfo.tax_type,
+        };
+      }));
+      setProducts(prev => prev.map(p => {
+        const taxInfo = getTaxRateFromItem(p.rawItem || p, taxOptions);
+        return {
+          ...p,
+          tax: taxInfo.rate,
+          tax_id: taxInfo.tax_id,
+          tax_type: taxInfo.tax_type,
+        };
+      }));
+    }
+  }, [taxOptions]);
 
   // Update payment amounts when grand total changes
   useEffect(() => {
@@ -3070,33 +3164,53 @@ const CreateSalesBill: React.FC = () => {
     try {
       const response = await salesBillAPI.getItems({ page: 1, limit: 100 });
       if (response.success && response.data?.data) {
-        const itemsData = response.data.data.map((item: any) => ({
-          id: item.id?.toString() || item.name || '',
-          itemCode: item.item_code || item.name || '',
-          itemName: item.item_name || '',
-          hsn: item.HSN || item.hsn || '',
-          description: item.description || item.item_name || '',
-          unit: item.stock_uom || 'pcs',
-          rate: item.selling_price || 0,
-          tax: item.gst_rate || item.tax_rate || 0,
-          type: 'product' as 'product' | 'service',
-          stockUom: item.stock_uom,
-          standardRate: item.standard_rate,
-          creation: item.creation,
-          modified: item.modified,
-          modified_by: item.modified_by,
-          fg_item: item.fg_item,
-          fg_item_qty: item.fg_item_qty,
-          item_id: item.id,
-          warehouse: item.warehouse,
-          transaction_date: item.transaction_date,
-          uom: item.uom,
-          net_rate: item.net_rate,
-          net_amount: item.net_amount,
-          item_group: item.item_group || 'Products',
-          income_account: item.income_account || 'Sales - A',
-          cost_center: item.cost_center || 'Main - A'
-        }));
+        const itemsData = response.data.data.map((item: any) => {
+          const rawSellingPrice = item.selling_price ?? item.sellingPrice ?? item.mrp;
+          const sellingPriceNum = rawSellingPrice !== undefined && rawSellingPrice !== null && rawSellingPrice !== '' ? Number(rawSellingPrice) : 0;
+          const rawBasePrice = item.standard_rate ?? item.standardRate ?? item.base_price ?? item.basePrice;
+          const basePriceNum = rawBasePrice !== undefined && rawBasePrice !== null && rawBasePrice !== '' ? Number(rawBasePrice) : 0;
+          const fallbackRate = Number(item.rate) || 0;
+          const baseRateVal = basePriceNum > 0 ? basePriceNum : (sellingPriceNum > 0 ? sellingPriceNum : fallbackRate);
+          const finalSellingPriceVal = sellingPriceNum > 0 ? sellingPriceNum : (basePriceNum > 0 ? basePriceNum : fallbackRate);
+
+          const taxInfo = getTaxRateFromItem(item, taxOptions);
+
+          return {
+            id: item.id?.toString() || item.name || '',
+            itemCode: item.item_code || item.name || '',
+            itemName: item.item_name || '',
+            hsn: item.HSN || item.hsn || '',
+            description: item.description || item.item_name || '',
+            unit: item.stock_uom || 'pcs',
+            rate: baseRateVal,
+            tax: taxInfo.rate,
+            tax_id: taxInfo.tax_id,
+            tax_type: taxInfo.tax_type,
+            rawTaxId: item.tax_id ?? item.taxId ?? item.tax_type_id,
+            rawTaxType: item.tax_type ?? item.taxType ?? item.tax_name,
+            rawTaxRate: item.tax ?? item.tax_rate ?? item.gst_rate ?? item.gst ?? item.tax_percent,
+            rawItem: item,
+            type: 'product' as 'product' | 'service',
+            stockUom: item.stock_uom,
+            standardRate: basePriceNum,
+            sellingPrice: finalSellingPriceVal,
+            mrp: finalSellingPriceVal,
+            creation: item.creation,
+            modified: item.modified,
+            modified_by: item.modified_by,
+            fg_item: item.fg_item,
+            fg_item_qty: item.fg_item_qty,
+            item_id: item.id,
+            warehouse: item.warehouse,
+            transaction_date: item.transaction_date,
+            uom: item.uom,
+            net_rate: item.net_rate,
+            net_amount: item.net_amount,
+            item_group: item.item_group || 'Products',
+            income_account: item.income_account || 'Sales - A',
+            cost_center: item.cost_center || 'Main - A'
+          };
+        });
         setAllProducts(itemsData);
         setProducts(itemsData);
       }
@@ -3159,39 +3273,59 @@ const CreateSalesBill: React.FC = () => {
     try {
       const response = await salesBillAPI.getItems({ page: 1, limit: 50, search: searchTerm });
       if (response.success && response.data?.data) {
-        const itemsData = response.data.data.map((item: any) => ({
-          id: item.id?.toString() || item.name || '',
-          itemCode: item.item_code || item.name || '',
-          itemName: item.item_name || '',
-          hsn: item.HSN || item.hsn || '',
-          description: item.description || item.item_name || '',
-          unit: item.stock_uom || 'pcs',
-          rate: item.selling_price || 0,
-          tax: item.gst_rate || item.tax_rate || 0,
-          type: 'product' as 'product' | 'service',
-          stockUom: item.stock_uom,
-          standardRate: item.standard_rate,
-          creation: item.creation,
-          modified: item.modified,
-          modified_by: item.modified_by,
-          fg_item: item.fg_item,
-          fg_item_qty: item.fg_item_qty,
-          item_id: item.id,
-          warehouse: item.warehouse,
-          transaction_date: item.transaction_date,
-          uom: item.uom,
-          net_rate: item.net_rate,
-          net_amount: item.net_amount,
-          item_group: item.item_group || 'Products',
-          income_account: item.income_account || 'Sales - A',
-          cost_center: item.cost_center || 'Main - A'
-        }));
+        const itemsData = response.data.data.map((item: any) => {
+          const rawSellingPrice = item.selling_price ?? item.sellingPrice ?? item.mrp;
+          const sellingPriceNum = rawSellingPrice !== undefined && rawSellingPrice !== null && rawSellingPrice !== '' ? Number(rawSellingPrice) : 0;
+          const rawBasePrice = item.standard_rate ?? item.standardRate ?? item.base_price ?? item.basePrice;
+          const basePriceNum = rawBasePrice !== undefined && rawBasePrice !== null && rawBasePrice !== '' ? Number(rawBasePrice) : 0;
+          const fallbackRate = Number(item.rate) || 0;
+          const baseRateVal = basePriceNum > 0 ? basePriceNum : (sellingPriceNum > 0 ? sellingPriceNum : fallbackRate);
+          const finalSellingPriceVal = sellingPriceNum > 0 ? sellingPriceNum : (basePriceNum > 0 ? basePriceNum : fallbackRate);
+
+          const taxInfo = getTaxRateFromItem(item, taxOptions);
+
+          return {
+            id: item.id?.toString() || item.name || '',
+            itemCode: item.item_code || item.name || '',
+            itemName: item.item_name || '',
+            hsn: item.HSN || item.hsn || '',
+            description: item.description || item.item_name || '',
+            unit: item.stock_uom || 'pcs',
+            rate: baseRateVal,
+            tax: taxInfo.rate,
+            tax_id: taxInfo.tax_id,
+            tax_type: taxInfo.tax_type,
+            rawTaxId: item.tax_id ?? item.taxId ?? item.tax_type_id,
+            rawTaxType: item.tax_type ?? item.taxType ?? item.tax_name,
+            rawTaxRate: item.tax ?? item.tax_rate ?? item.gst_rate ?? item.gst ?? item.tax_percent,
+            rawItem: item,
+            type: 'product' as 'product' | 'service',
+            stockUom: item.stock_uom,
+            standardRate: basePriceNum,
+            sellingPrice: finalSellingPriceVal,
+            mrp: finalSellingPriceVal,
+            creation: item.creation,
+            modified: item.modified,
+            modified_by: item.modified_by,
+            fg_item: item.fg_item,
+            fg_item_qty: item.fg_item_qty,
+            item_id: item.id,
+            warehouse: item.warehouse,
+            transaction_date: item.transaction_date,
+            uom: item.uom,
+            net_rate: item.net_rate,
+            net_amount: item.net_amount,
+            item_group: item.item_group || 'Products',
+            income_account: item.income_account || 'Sales - A',
+            cost_center: item.cost_center || 'Main - A'
+          };
+        });
         setProducts(itemsData);
       }
     } catch (error) {
       console.error('Search error:', error);
     }
-  }, [allProducts]);
+  }, [allProducts, taxOptions]);
 
   // ─── Load Delivery Challans Data ──────────────────────
   const loadDeliveryChallansData = useCallback((dcs: DeliveryChallanData[]) => {
@@ -3305,9 +3439,15 @@ const CreateSalesBill: React.FC = () => {
             taxId = getTaxIdFromRate(taxRate, taxOptions);
           }
 
-          const amount = (item.qty || 0) * (item.rate || 0);
-          const taxAmount = (amount * taxRate) / 100;
-          const { status, availableQty, inventoryRecords } = getStockStatus(item.item_code || '', item.qty || 0);
+          const basePrice = (product?.standardRate !== undefined && product.standardRate > 0)
+            ? product.standardRate
+            : (item.rate || product?.rate || 0);
+
+          const qty = item.qty || 1;
+          const baseAmount = qty * basePrice;
+          const taxAmount = (baseAmount * taxRate) / 100;
+          const totalAmount = baseAmount + taxAmount;
+          const { status, availableQty, inventoryRecords } = getStockStatus(item.item_code || '', qty);
           let inventoryId: number | undefined;
           if (inventoryRecords && inventoryRecords.length > 0) {
             const sorted = [...inventoryRecords].sort((a, b) => b.actual_qty - a.actual_qty);
@@ -3320,14 +3460,16 @@ const CreateSalesBill: React.FC = () => {
             itemName: product?.itemName || item.item_name || item.description || '',
             hsn: product?.hsn || '',
             description: product?.description || item.description || '',
-            quantity: item.qty || 1,
+            quantity: qty,
             unit: item.uom || 'pcs',
-            rate: item.rate || 0,
-            amount: amount,
+            rate: basePrice,
+            standardRate: basePrice,
+            sellingPrice: totalAmount,
+            amount: baseAmount,
             tax: taxRate,
             tax_id: taxId,
             taxAmount: taxAmount,
-            totalAmount: amount + taxAmount,
+            totalAmount: totalAmount,
             type: isService ? 'service' : 'product',
             deliveryChallanId: dc.id,
             stockStatus: status,
@@ -3499,11 +3641,28 @@ const CreateSalesBill: React.FC = () => {
           if (field === 'itemCode') {
             const product = allProducts.find(p => p.itemCode === value);
             if (product) {
-              const taxRate = product.tax || 0;
-              const tax_id = getTaxIdFromRate(taxRate, taxOptions);
-              const amount = (updated.quantity || 0) * product.rate;
-              const taxAmount = (amount * taxRate) / 100;
-              const { status, availableQty, inventoryRecords } = getStockStatus(product.itemCode, updated.quantity || 0);
+              // 1. Base Price from Item Form
+              const basePrice = (product.standardRate !== undefined && product.standardRate > 0)
+                ? product.standardRate
+                : (product.rate || 0);
+
+              // 2. Tax Rate (GST %) from Item Form
+              let taxRate = product.tax || 0;
+              const productTaxId = (product as any).tax_id;
+              if (!taxRate && productTaxId && taxOptions.length > 0) {
+                const opt = taxOptions.find(t => t.tax_id === productTaxId || String(t.tax_id) === String(productTaxId));
+                if (opt) {
+                  taxRate = extractTaxValue(opt.tax_type);
+                }
+              }
+              const tax_id = productTaxId || getTaxIdFromRate(taxRate, taxOptions);
+
+              const qty = updated.quantity || 1;
+              const baseAmount = qty * basePrice;
+              const taxAmount = (baseAmount * taxRate) / 100;
+              const totalAmount = baseAmount + taxAmount;
+
+              const { status, availableQty, inventoryRecords } = getStockStatus(product.itemCode, qty);
               let inventoryId: number | undefined;
               if (inventoryRecords && inventoryRecords.length > 0) {
                 const sorted = [...inventoryRecords].sort((a, b) => b.actual_qty - a.actual_qty);
@@ -3514,12 +3673,15 @@ const CreateSalesBill: React.FC = () => {
               updated.hsn = product.hsn || '';
               updated.description = product.description || '';
               updated.unit = product.unit;
-              updated.rate = product.rate;
+              updated.quantity = qty;
+              updated.rate = basePrice;
+              updated.standardRate = basePrice;
+              updated.sellingPrice = totalAmount;
               updated.tax = taxRate;
               updated.tax_id = tax_id;
-              updated.amount = amount;
+              updated.amount = baseAmount;
               updated.taxAmount = taxAmount;
-              updated.totalAmount = amount + taxAmount;
+              updated.totalAmount = totalAmount;
               updated.stockStatus = status;
               updated.availableQty = availableQty;
               updated.inventoryId = inventoryId;
@@ -3543,15 +3705,20 @@ const CreateSalesBill: React.FC = () => {
           }
 
           if (field === 'quantity') {
-            const amount = (updated.quantity || 0) * (updated.rate || 0);
+            const qty = parseFloat(value) || 0;
+            const baseRate = updated.rate || 0;
+            const baseAmount = qty * baseRate;
             const taxRate = updated.tax || 0;
-            const taxAmount = (amount * taxRate) / 100;
-            updated.amount = amount;
+            const taxAmount = (baseAmount * taxRate) / 100;
+            const totalAmount = baseAmount + taxAmount;
+
+            updated.quantity = qty;
+            updated.amount = baseAmount;
             updated.taxAmount = taxAmount;
-            updated.totalAmount = amount + taxAmount;
+            updated.totalAmount = totalAmount;
 
             if (updated.itemCode) {
-              const { status, availableQty, inventoryRecords } = getStockStatus(updated.itemCode, updated.quantity || 0);
+              const { status, availableQty, inventoryRecords } = getStockStatus(updated.itemCode, qty);
               let inventoryId: number | undefined;
               if (inventoryRecords && inventoryRecords.length > 0) {
                 const sorted = [...inventoryRecords].sort((a, b) => b.actual_qty - a.actual_qty);
@@ -3564,23 +3731,34 @@ const CreateSalesBill: React.FC = () => {
           }
 
           if (field === 'rate') {
-            const amount = (updated.quantity || 0) * (updated.rate || 0);
+            const newBaseRate = parseFloat(value) || 0;
+            const qty = updated.quantity || 0;
+            const baseAmount = qty * newBaseRate;
             const taxRate = updated.tax || 0;
-            const taxAmount = (amount * taxRate) / 100;
-            updated.amount = amount;
+            const taxAmount = (baseAmount * taxRate) / 100;
+            const totalAmount = baseAmount + taxAmount;
+
+            updated.rate = newBaseRate;
+            updated.standardRate = newBaseRate;
+            updated.amount = baseAmount;
             updated.taxAmount = taxAmount;
-            updated.totalAmount = amount + taxAmount;
+            updated.totalAmount = totalAmount;
           }
 
           if (field === 'tax') {
             const taxRate = Number(value) || 0;
             const tax_id = getTaxIdFromRate(taxRate, taxOptions);
-            const amount = (updated.quantity || 0) * (updated.rate || 0);
-            const taxAmount = (amount * taxRate) / 100;
+            const qty = updated.quantity || 0;
+            const baseRate = updated.rate || 0;
+            const baseAmount = qty * baseRate;
+            const taxAmount = (baseAmount * taxRate) / 100;
+            const totalAmount = baseAmount + taxAmount;
+
             updated.tax = taxRate;
             updated.tax_id = tax_id;
+            updated.amount = baseAmount;
             updated.taxAmount = taxAmount;
-            updated.totalAmount = amount + taxAmount;
+            updated.totalAmount = totalAmount;
           }
 
           return updated;
@@ -4933,12 +5111,19 @@ if (isEditMode && id) {
                           className="nsb-table-input"
                           disabled={loadingTaxOptions}
                         >
-                          <option value={0}>0%</option>
-                          {taxOptions.map((tax) => (
-                            <option key={tax.tax_id} value={extractTaxValue(tax.tax_type)}>
-                              {tax.tax_type}
+                          {(taxOptions.length > 0 ? taxOptions : DEFAULT_TAX_OPTIONS).map((tax) => {
+                            const rateVal = extractTaxValue(tax.tax_type);
+                            return (
+                              <option key={tax.tax_id} value={rateVal}>
+                                {tax.tax_type}
+                              </option>
+                            );
+                          })}
+                          {item.tax > 0 && !(taxOptions.length > 0 ? taxOptions : DEFAULT_TAX_OPTIONS).some(t => extractTaxValue(t.tax_type) === item.tax) && (
+                            <option key={`custom-${item.tax}`} value={item.tax}>
+                              GST {item.tax}%
                             </option>
-                          ))}
+                          )}
                         </select>
                       </td>
                       <td className="nsb-col-tax-amount" style={{ textAlign: 'right' }}>
