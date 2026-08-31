@@ -260,6 +260,110 @@
   }
 }
 
+/* ── Date Row Layout - Two dates in same row ── */
+.cq-date-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  align-items: start;
+  width: 100%;
+}
+
+.cq-date-field-small {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.cq-date-field-small .cq-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-secondary, #64748b);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 0;
+}
+
+.cq-date-field-small .cq-input-date {
+  width: 100%;
+  padding: 5px 8px;
+  padding-right: 28px;
+  border: 1.5px solid var(--border-color, #e2e8f0);
+  border-radius: 8px;
+  background: var(--card-bg, #ffffff);
+  color: var(--text-primary, #0f172a);
+  font-size: 12px;
+  font-family: inherit;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-sizing: border-box;
+  min-height: 32px;
+}
+
+.cq-date-field-small .cq-input-date:hover {
+  border-color: color-mix(in srgb, var(--primary-color) 50%, var(--border-color));
+  background: color-mix(in srgb, var(--primary-color) 2%, var(--card-bg));
+}
+
+.cq-date-field-small .cq-input-date:focus {
+  outline: none;
+  border-color: var(--primary-color, #2563eb);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 15%, transparent);
+  background: color-mix(in srgb, var(--primary-color) 3%, var(--card-bg));
+}
+
+.cq-date-field-small .cq-input-date::-webkit-calendar-picker-indicator {
+  display: none;
+}
+
+.cq-date-field-small .cq-date-icon-btn-small {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary, #6b7280);
+  cursor: pointer;
+  padding: 0;
+  font-size: 12px;
+}
+
+.cq-date-field-small .cq-date-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+/* Responsive for date row */
+@media (max-width: 480px) {
+  .cq-date-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+}
+
+/* Dark theme for date fields */
+.dark-theme .cq-date-field-small .cq-input-date {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .cq-date-field-small .cq-input-date:hover {
+  background: color-mix(in srgb, var(--primary-color) 5%, var(--card-bg));
+}
+
+.dark-theme .cq-date-field-small .cq-date-icon-btn-small {
+  color: var(--text-secondary, #94a3b8);
+}
+
 /* ── Form Fields ────────────────────────── */
 .cq-field {
   display: flex;
@@ -1462,6 +1566,11 @@ kbd {
   .cq-col-rate { width: 14%; }
   .cq-col-tax { width: 10%; }
   .cq-col-amount { width: 16%; }
+  
+  .cq-date-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
 }
 
 /* ── Print Styles ────────────────────────── */
@@ -1579,7 +1688,7 @@ kbd {
   .cq-col-amount { width: 14%; }
 }
 
-/* Add to CreateQuotation.css - Payment Schedule column widths (Sales Order style) */
+/* ── Payment Schedule column widths (Sales Order style) ──────────────── */
 
 /* ── Payment Table Column Widths ──────────────── */
 .cq-payment-col-no { width: 4%; text-align: center; }

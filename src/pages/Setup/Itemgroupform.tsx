@@ -21,7 +21,6 @@ interface DefaultRow {
   id: string;
   company: string;
   defaultWarehouse: string;
-  defaultPriceList: string;
 }
 
 interface TaxRow {
@@ -103,7 +102,6 @@ export default function ItemGroupForm() {
             id: row.name ?? `${idx}-${Date.now()}`,
             company: row.company ?? "",
             defaultWarehouse: row.default_warehouse ?? "",
-            defaultPriceList: row.default_price_list ?? "",
           }))
         );
 
@@ -213,7 +211,6 @@ export default function ItemGroupForm() {
     defaults.forEach((row, index) => {
       const companyField = `defaults[${index}].company`;
       const warehouseField = `defaults[${index}].defaultWarehouse`;
-      const priceListField = `defaults[${index}].defaultPriceList`;
       
       if (!row.company.trim()) {
         allErrors.push({
@@ -249,21 +246,6 @@ export default function ItemGroupForm() {
           field: warehouseField,
           label: `Default Row ${index + 1} - Warehouse`,
           message: `Default warehouse must not exceed 140 characters in row ${index + 1}`
-        });
-      }
-
-      if (row.defaultPriceList && row.defaultPriceList.trim() && !/^\d+$/.test(row.defaultPriceList.trim())) {
-        allErrors.push({
-          field: priceListField,
-          label: `Default Row ${index + 1} - Price List`,
-          message: `Default price list should contain only digits in row ${index + 1}`
-        });
-      }
-      if (row.defaultPriceList && row.defaultPriceList.trim().length > 30) {
-        allErrors.push({
-          field: priceListField,
-          label: `Default Row ${index + 1} - Price List`,
-          message: `Default price list must not exceed 30 characters in row ${index + 1}`
         });
       }
     });
@@ -375,7 +357,7 @@ export default function ItemGroupForm() {
 
   // ─── Handlers ────────────────────────────────────────────────────────
   const addDefaultRow = () => {
-    setDefaults([...defaults, { id: Date.now().toString(), company: "", defaultWarehouse: "", defaultPriceList: "" }]);
+    setDefaults([...defaults, { id: Date.now().toString(), company: "", defaultWarehouse: "" }]);
     setIsDirty(true);
   };
 
@@ -755,7 +737,6 @@ export default function ItemGroupForm() {
                       <th className="igf-ith">No.</th>
                       <th className="igf-ith">Company <span className="igf-required">*</span></th>
                       <th className="igf-ith">Default Warehouse</th>
-                      <th className="igf-ith">Default Price List</th>
                       <th className="igf-ith igf-ith-action">
                         <button className="igf-col-settings" title="Column settings" type="button" disabled={submitting}>
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -768,13 +749,12 @@ export default function ItemGroupForm() {
                   <tbody>
                     {defaults.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="igf-empty-row">No rows</td>
+                        <td colSpan={5} className="igf-empty-row">No rows</td>
                       </tr>
                     ) : (
                       defaults.map((row, i) => {
                         const companyField = `defaults[${i}].company`;
                         const warehouseField = `defaults[${i}].defaultWarehouse`;
-                        const priceListField = `defaults[${i}].defaultPriceList`;
                         
                         return (
                           <tr key={row.id} className="igf-itr">
@@ -815,25 +795,6 @@ export default function ItemGroupForm() {
                               {getFieldError(warehouseField) && (
                                 <div className="igf-error-msg" style={{ fontSize: '11px', marginTop: '2px' }}>
                                   {getFieldError(warehouseField)}
-                                </div>
-                              )}
-                            </td>
-                            <td className="igf-itd">
-                              <input 
-                                className={`igf-cell-input${hasFieldError(priceListField) ? ' field-error' : ''}`} 
-                                value={row.defaultPriceList} 
-                                onChange={(e) => {
-                                  setDefaults(defaults.map(r => r.id === row.id ? { ...r, defaultPriceList: e.target.value } : r));
-                                  setIsDirty(true);
-                                }} 
-                                disabled={submitting}
-                                maxLength={30}
-                                placeholder="Digits only"
-                                data-field={priceListField}
-                              />
-                              {getFieldError(priceListField) && (
-                                <div className="igf-error-msg" style={{ fontSize: '11px', marginTop: '2px' }}>
-                                  {getFieldError(priceListField)}
                                 </div>
                               )}
                             </td>

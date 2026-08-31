@@ -683,26 +683,19 @@ function OpeningStockTable({
 // ────────────────────────────────────────────────────────────────────────
 function PricingSummary({
   basePrice,
-  profitMargin,
   taxPercentage,
   taxType,
-  isRawMaterial = false,
 }: {
   basePrice: number;
-  profitMargin: number;
   taxPercentage: number;
   taxType: string;
-  isRawMaterial?: boolean;
 }) {
-  const profitAmount = basePrice * (profitMargin / 100);
-  const priceBeforeTax = basePrice + profitAmount;
-  const taxAmount = priceBeforeTax * (taxPercentage / 100);
-  const finalSellingPrice = priceBeforeTax + taxAmount;
+  const taxAmount = basePrice * (taxPercentage / 100);
+  const finalSellingPrice = basePrice + taxAmount;
 
   const rows = [
     { label: "Base price (purchase rate)", value: basePrice },
-    ...(isRawMaterial ? [] : [{ label: `Profit margin (${profitMargin || 0}%)`, value: profitAmount }]),
-    { label: "Price before tax", value: priceBeforeTax, divider: true },
+    { label: "Price before tax", value: basePrice, divider: true },
     { label: `${taxType} (${taxPercentage}%)`, value: taxAmount },
   ];
 
@@ -1091,7 +1084,6 @@ export default function ItemForm() {
     disabled: false,
     standardRate: "",
     sellingPrice: "0.00",
-    profitMargin: "",
     image: null as string | null,
     isSalesItem: false,
     isPurchaseItem: false,
@@ -1216,19 +1208,16 @@ export default function ItemForm() {
 
   useEffect(() => {
     const basePrice = parseFloat(form.standardRate) || 0;
-    const profitMargin = isRawMaterialGroup(form.itemGroup) ? 0 : parseFloat(form.profitMargin) || 0;
-    const profitAmount = basePrice * (profitMargin / 100);
-    const priceBeforeTax = basePrice + profitAmount;
-    const taxAmount = priceBeforeTax * (taxPercentage / 100);
-    const finalPrice = priceBeforeTax + taxAmount;
+    const taxAmount = basePrice * (taxPercentage / 100);
+    const finalPrice = basePrice + taxAmount;
 
     setFormRaw((prev) => ({
       ...prev,
       sellingPrice: finalPrice.toFixed(2),
-      valuationRate: priceBeforeTax.toFixed(2),
+      valuationRate: basePrice.toFixed(2),
       lastPurchaseRate: basePrice.toFixed(2),
     }));
-  }, [form.standardRate, form.profitMargin, taxPercentage, form.itemGroup]);
+  }, [form.standardRate, taxPercentage]);
 
   // ─── ✅ GET API: Fetch UOMs ─────────────────────────────────
   const fetchUOMs = async () => {
@@ -1464,11 +1453,6 @@ export default function ItemForm() {
         const standardRate = Number(data.standard_rate) || 0;
         const valuationRate = Number(data.valuation_rate) || 0;
 
-        const derivedMargin =
-          standardRate > 0 && valuationRate >= standardRate
-            ? (((valuationRate - standardRate) / standardRate) * 100).toFixed(2)
-            : "";
-
         setFormRaw({
           id: data.id || 0,
           itemName: data.item_name || "",
@@ -1480,7 +1464,6 @@ export default function ItemForm() {
           disabled: data.disabled === 1,
           standardRate: standardRate > 0 ? String(standardRate) : "",
           sellingPrice: String(data.selling_price || 0),
-          profitMargin: derivedMargin,
           image: extractRelativePath(data.image),
           isSalesItem: data.is_sales_item === 1,
           isPurchaseItem: data.is_purchase_item === 1,
@@ -1709,13 +1692,6 @@ export default function ItemForm() {
 
     if (form.isStockItem && !form.warehouseId) {
       errors.push({ field: "warehouseId", label: "Warehouse", message: "Select a warehouse to track inventory for this item" });
-    }
-
-    if (!isRawMaterialGroup(form.itemGroup)) {
-      const profitMargin = parseFloat(form.profitMargin);
-      if (form.profitMargin !== "" && (isNaN(profitMargin) || profitMargin < 0)) {
-        errors.push({ field: "profitMargin", label: "Profit Margin", message: "Profit margin must be a valid number" });
-      }
     }
 
     const valuationRate = parseFloat(form.valuationRate);
@@ -2012,8 +1988,6 @@ export default function ItemForm() {
     );
   }
 
-  const isRawMaterial = isRawMaterialGroup(form.itemGroup);
-
   return (
     <div className="itf-page">
       {/* Top Bar */}
@@ -2162,7 +2136,7 @@ export default function ItemForm() {
                 {/* Left: Pricing */}
                 <div className="itf-col-left-50">
                   <div className="itf-card">
-                    <SectionTitle icon={<FaCalculator size={14} />} subtitle="Set the purchase cost and margin — MRP updates automatically.">
+                    <SectionTitle icon={<FaCalculator size={14} />} subtitle="Set the purchase cost and tax — MRP updates automatically.">
                       Pricing
                     </SectionTitle>
 
@@ -2177,22 +2151,10 @@ export default function ItemForm() {
                           prefix="₹"
                         />
                       </Field>
-                      {!isRawMaterial && (
-                        <Field label="Profit margin (%)" hint="Margin applied on top of the base price." error={fieldError("profitMargin")}>
-                          <NumberInput
-                            value={form.profitMargin}
-                            onChange={(v) => s("profitMargin", v)}
-                            placeholder="10"
-                            min={0}
-                            step={0.5}
-                            suffix="%"
-                          />
-                        </Field>
-                      )}
                     </div>
 
                     <div className="itf-grid-2">
-                      <Field label="Valuation rate" hint="Auto-calculated: base price + profit." error={fieldError("valuationRate")}>
+                      <Field label="Valuation rate" hint="Auto-calculated: base price." error={fieldError("valuationRate")}>
                         <NumberInput
                           value={form.valuationRate}
                           readOnly
@@ -2226,10 +2188,8 @@ export default function ItemForm() {
 
                     <PricingSummary
                       basePrice={parseFloat(form.standardRate) || 0}
-                      profitMargin={isRawMaterial ? 0 : parseFloat(form.profitMargin) || 0}
                       taxPercentage={taxPercentage}
                       taxType={currentTax?.tax_type || "GST"}
-                      isRawMaterial={isRawMaterial}
                     />
                   </div>
                 </div>

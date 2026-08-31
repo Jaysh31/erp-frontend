@@ -48,7 +48,7 @@ interface Workstation {
   owner: string;
   docstatus: number;
   idx: number;
-  is_deleted: number; // Add this field
+  is_deleted: number;
 }
 
 interface ApiResponse {
@@ -304,53 +304,7 @@ export default function WorkstationList() {
     validCurrentPage * itemsPerPage
   );
 
-  // ─── Stats ────────────────────────────────────────────────────────────────
-
- 
-
   // ─── Status colors ────────────────────────────────────────────────────────
-
-  // const getStatusColor = (status: string) => {
-  //   switch (status?.toLowerCase()) {
-  //     case 'active':
-  //       return '#10B981';
-  //     case 'idle':
-  //       return '#6B7280';
-  //     case 'maintenance':
-  //       return '#8B5CF6';
-  //     case 'off':
-  //       return '#EF4444';
-  //     case 'problem':
-  //       return '#EF4444';
-  //     case 'setup':
-  //       return '#F59E0B';
-  //     case 'production':
-  //       return '#3B82F6';
-  //     default:
-  //       return '#6B7280';
-  //   }
-  // };
-
-  // const getStatusBgColor = (status: string) => {
-  //   switch (status?.toLowerCase()) {
-  //     case 'active':
-  //       return '#D1FAE5';
-  //     case 'idle':
-  //       return '#F3F4F6';
-  //     case 'maintenance':
-  //       return '#EDE9FE';
-  //     case 'off':
-  //       return '#FEE2E2';
-  //     case 'problem':
-  //       return '#FECACA';
-  //     case 'setup':
-  //       return '#FEF3C7';
-  //     case 'production':
-  //       return '#DBEAFE';
-  //     default:
-  //       return '#F3F4F6';
-  //   }
-  // };
 
   // ─── Pagination ───────────────────────────────────────────────────────────
 
@@ -878,8 +832,8 @@ export default function WorkstationList() {
                 )}
               </div>
 
-              {/* Pagination */}
-              {totalFilteredItems > 0 && totalPages > 1 && (
+              {/* Pagination - Show only if total items > 0 */}
+              {totalFilteredItems > 0 && (
                 <div className="wo-pagination">
                   <div className="wo-pagination-left">
                     <span className="wo-pagination-label">Show:</span>
