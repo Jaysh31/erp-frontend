@@ -1244,117 +1244,218 @@ export default function QuotationPage() {
           </select>
 
           {/* ─── From - To Date Filter Button ─── */}
-          <div className="qt-date-filter-wrapper" ref={dateFilterWrapperRef}>
-            <button
-              className={`qt-date-filter-btn ${fromDate && toDate ? "qt-filter-active" : ""}`}
-              onClick={openDatePicker}
+           <div className="jc-date-filter-wrapper" ref={dateFilterWrapperRef}>
+  <button
+    type="button"
+    className={`jc-date-filter-btn ${
+      fromDate && toDate ? "jc-filter-active" : ""
+    }`}
+    onClick={openDatePicker}
+  >
+    <FaCalendarAlt className="pq-calendar-icon" />
+
+    <span>{dateFilterButtonLabel}</span>
+
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 12 12"
+      fill="none"
+      style={{ marginLeft: "4px" }}
+    >
+      <path
+        d="M2 4l4 4 4-4"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  </button>
+
+  {showDatePicker && (
+    <div className="jc-date-filter-popup">
+      {/* Header */}
+      <div className="jc-date-filter-popup-header">
+        <span>Filter by Date</span>
+
+        <button
+          type="button"
+          className="jc-date-filter-popup-close"
+          onClick={closeDatePicker}
+        >
+          <FaTimes size={14} />
+        </button>
+      </div>
+
+      {/* Selected Date Inputs */}
+      <div className="jc-date-filter-inputs">
+        <input
+          type="text"
+          readOnly
+          placeholder="From"
+          className="jc-date-filter-input"
+          value={
+            tempFromDate
+              ? formatDisplayDate(tempFromDate)
+              : ""
+          }
+        />
+
+        <input
+          type="text"
+          readOnly
+          placeholder="To"
+          className="jc-date-filter-input"
+          value={
+            tempToDate
+              ? formatDisplayDate(tempToDate)
+              : ""
+          }
+        />
+      </div>
+
+      {/* Quick Filters */}
+      <div className="jc-date-filter-quick-row">
+        <button
+          type="button"
+          className="jc-quick-filter-btn"
+          onClick={() => applyQuickFilter("today")}
+        >
+          Today
+        </button>
+
+        <button
+          type="button"
+          className="jc-quick-filter-btn"
+          onClick={() => applyQuickFilter("last7")}
+        >
+          Last 7 Days
+        </button>
+
+        <button
+          type="button"
+          className="jc-quick-filter-btn"
+          onClick={() => applyQuickFilter("last30")}
+        >
+          Last 30 Days
+        </button>
+      </div>
+
+      <div className="jc-date-filter-quick-row">
+        <button
+          type="button"
+          className="jc-quick-filter-btn"
+          onClick={() => applyQuickFilter("thisMonth")}
+        >
+          This Month
+        </button>
+      </div>
+
+      {/* Calendar */}
+      <div className="jc-calendar">
+        <div className="jc-calendar-header">
+          <button
+            type="button"
+            className="jc-calendar-nav-btn"
+            onClick={goToPrevMonth}
+          >
+            <FaChevronLeft size={12} />
+          </button>
+
+          <span className="jc-calendar-month-label">
+            {MONTH_LABELS[calendarViewDate.getMonth()]}{" "}
+            {calendarViewDate.getFullYear()}
+          </span>
+
+          <button
+            type="button"
+            className="jc-calendar-nav-btn"
+            onClick={goToNextMonth}
+          >
+            <FaChevronRight size={12} />
+          </button>
+        </div>
+
+        {/* Weekdays */}
+        <div className="jc-calendar-weekdays">
+          {WEEKDAY_LABELS.map((wd) => (
+            <span
+              key={wd}
+              className="jc-calendar-weekday"
             >
-              <FaCalendarAlt size={12} />
-              <span>{dateFilterButtonLabel}</span>
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ marginLeft: "4px" }}>
-                <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
+              {wd}
+            </span>
+          ))}
+        </div>
 
-            {showDatePicker && (
-              <div className="qt-date-filter-popup">
-                <div className="qt-date-filter-popup-header">
-                  <span>Filter by Date</span>
-                  <button className="qt-date-filter-popup-close" onClick={closeDatePicker}>
-                    <FaTimes size={14} />
-                  </button>
-                </div>
+        {/* Calendar Days */}
+        <div className="jc-calendar-grid">
+          {calendarCells.map((day, idx) => {
+            if (!day) {
+              return (
+                <span
+                  key={`blank-${idx}`}
+                  className="jc-calendar-cell jc-calendar-cell-empty"
+                />
+              );
+            }
 
-                <div className="qt-date-filter-inputs">
-                  <input
-                    type="text"
-                    readOnly
-                    placeholder="From"
-                    className="qt-date-filter-input"
-                    value={tempFromDate ? formatDisplayDate(tempFromDate) : ""}
-                  />
-                  <input
-                    type="text"
-                    readOnly
-                    placeholder="To"
-                    className="qt-date-filter-input"
-                    value={tempToDate ? formatDisplayDate(tempToDate) : ""}
-                  />
-                </div>
+            const isStart = isSameDay(day, tempFromDate);
+            const isEnd = isSameDay(day, tempToDate);
 
-                <div className="qt-date-filter-quick-row">
-                  <button className="qt-quick-filter-btn" onClick={() => applyQuickFilter("today")}>
-                    Today
-                  </button>
-                  <button className="qt-quick-filter-btn" onClick={() => applyQuickFilter("last7")}>
-                    Last 7 Days
-                  </button>
-                  <button className="qt-quick-filter-btn" onClick={() => applyQuickFilter("last30")}>
-                    Last 30 Days
-                  </button>
-                </div>
-                <div className="qt-date-filter-quick-row">
-                  <button className="qt-quick-filter-btn" onClick={() => applyQuickFilter("thisMonth")}>
-                    This Month
-                  </button>
-                </div>
+            const inRange =
+              !!tempFromDate &&
+              !!tempToDate &&
+              day > tempFromDate &&
+              day < tempToDate;
 
-                <div className="qt-calendar">
-                  <div className="qt-calendar-header">
-                    <button className="qt-calendar-nav-btn" onClick={goToPrevMonth}>
-                      <FaChevronLeft size={12} />
-                    </button>
-                    <span className="qt-calendar-month-label">
-                      {MONTH_LABELS[calendarViewDate.getMonth()]} {calendarViewDate.getFullYear()}
-                    </span>
-                    <button className="qt-calendar-nav-btn" onClick={goToNextMonth}>
-                      <FaChevronRight size={12} />
-                    </button>
-                  </div>
+            return (
+              <button
+                type="button"
+                key={day.toISOString()}
+                className={[
+                  "jc-calendar-cell",
+                  isStart || isEnd
+                    ? "jc-calendar-cell-selected"
+                    : "",
+                  inRange
+                    ? "jc-calendar-cell-inrange"
+                    : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+                onClick={() => handleCalendarDayClick(day)}
+              >
+                {day.getDate()}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
-                  <div className="qt-calendar-weekdays">
-                    {WEEKDAY_LABELS.map((wd) => (
-                      <span key={wd} className="qt-calendar-weekday">{wd}</span>
-                    ))}
-                  </div>
+      {/* Footer */}
+      <div className="jc-date-filter-footer">
+        <button
+          type="button"
+          className="jc-btn-cancel"
+          onClick={handleClearDateFilter}
+        >
+          Clear
+        </button>
 
-                  <div className="qt-calendar-grid">
-                    {calendarCells.map((day, idx) => {
-                      if (!day) return <span key={`blank-${idx}`} className="qt-calendar-cell qt-calendar-cell-empty" />;
-
-                      const isStart = isSameDay(day, tempFromDate);
-                      const isEnd = isSameDay(day, tempToDate);
-                      const inRange =
-                        tempFromDate && tempToDate && day > tempFromDate && day < tempToDate;
-
-                      return (
-                        <button
-                          key={day.toISOString()}
-                          className={[
-                            "qt-calendar-cell",
-                            isStart || isEnd ? "qt-calendar-cell-selected" : "",
-                            inRange ? "qt-calendar-cell-inrange" : "",
-                          ].filter(Boolean).join(" ")}
-                          onClick={() => handleCalendarDayClick(day)}
-                        >
-                          {day.getDate()}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="qt-date-filter-footer">
-                  <button className="qt-btn-cancel" onClick={handleClearDateFilter}>
-                    Clear
-                  </button>
-                  <button className="qt-btn-primary" onClick={handleApplyDateFilter}>
-                    Apply Filters
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+        <button
+          type="button"
+          className="jc-btn-primary"
+          onClick={handleApplyDateFilter}
+          disabled={!tempFromDate || !tempToDate}
+        >
+          Apply Filters
+        </button>
+      </div>
+    </div>
+  )}
+</div>
 
           <button className="qt-btn-new" onClick={() => navigate('/quotation/new')}>
             <FaPlus size={12} /> New Quotation

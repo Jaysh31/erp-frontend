@@ -5344,7 +5344,7 @@ if (isEditMode && id) {
                       <span className="nsb-summary-label">Total Tax</span>
                       <span className="nsb-summary-value">₹{totalTax.toFixed(2)}</span>
                     </div>
-                    <div className="nsb-summary-item">
+                    {/*<div className="nsb-summary-item">
                       <span className="nsb-summary-label">Round Off</span>
                       <div className="nsb-roundoff-wrap">
                         <input
@@ -5354,10 +5354,12 @@ if (isEditMode && id) {
                           className="nsb-roundoff-input"
                         />
                       </div>
-                    </div>
+                    </div>*/}
                     <div className="nsb-summary-grand">
                       <span className="nsb-summary-grand-label">Grand Total</span>
-                      <span className="nsb-summary-grand-value">₹{grandTotalWithRound.toFixed(2)}</span>
+                      {/*<span className="nsb-summary-grand-value">₹{grandTotalWithRound.toFixed(2)}</span>*/}
+                      <span className="nsb-summary-grand-value">₹{getGrandTotal().toFixed(2)}</span>
+                      
                     </div>
                     <div className="nsb-summary-item" style={{ borderTop: '1px solid var(--border-color, #e2e8f0)', marginTop: '4px', paddingTop: '6px' }}>
                       <span className="nsb-summary-label" style={{ fontWeight: 600, color: 'var(--text-primary, #0f172a)' }}>Payment Schedule Total</span>
