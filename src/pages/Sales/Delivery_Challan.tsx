@@ -27,6 +27,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
+import * as XLSX from 'xlsx';
 
 // ===== INTERFACES =====
 
@@ -252,6 +253,7 @@ const DeliveryChallans: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [printLoadingId, setPrintLoadingId] = useState<string | null>(null);
+  const [downloadLoading, setDownloadLoading] = useState(false);
 
   // Debounced search term
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
@@ -766,6 +768,289 @@ const DeliveryChallans: React.FC = () => {
 </html>`;
   };
 
+  // ===== GENERATE PROPER EXCEL FOR DC =====
+  const generateDCExcelData = (challan: DeliveryChallan) => {
+    const items = challan.items || [];
+    const totalQty = items.reduce((sum, item) => sum + (item.qty || 0), 0);
+    const grandTotal = challan.grand_total || 0;
+    const customer = challan.customer_details;
+    
+    const data: any[][] = [];
+    
+    // Row 0: DELIVERY CHALLAN (merged across)
+    data.push(['DELIVERY CHALLAN']);
+    
+    // Row 1: Status
+    data.push([`Status: ${challan.status || 'Draft'}`]);
+    
+    // Row 2: Empty
+    data.push([]);
+    
+    // Row 3: Company Name
+    data.push(['Sculptor Tech Pvt Ltd']);
+    
+    // Row 4: Address
+    data.push(['c-1006, gc, Pune, Maharashtra 411028, India']);
+    
+    // Row 5: Phone
+    data.push(['Phone: 8668584275']);
+    
+    // Row 6: Email
+    data.push(['Email: jayeshwakle@sculptortechpvtltd.com']);
+    
+    // Row 7: State
+    data.push(['State Name: Maharashtra, Code: 27']);
+    
+    // Row 8: Empty
+    data.push([]);
+    
+    // Row 9: DC No and Date
+    data.push(['DC No.', challan.displayDcNumber || challan.name || '', 'Date', formatDisplayDate(challan.posting_date)]);
+    
+    // Row 10: Warehouse and Transporter
+    data.push(['Warehouse', challan.set_warehouse || '', 'Transporter', challan.transporter || challan.driver_name || '']);
+    
+    // Row 11: Vehicle No and Sales Order
+    data.push(['Vehicle No.', challan.vehicle_no || '', 'Sales Order', challan.sales_order_id ? `#${challan.sales_order_id}` : 'N/A']);
+    
+    // Row 12: Empty
+    data.push([]);
+    
+    // Row 13: Consignee
+    data.push(['Consignee (Ship to)']);
+    
+    // Row 14: Customer Name
+    data.push([challan.customer_name || '']);
+    
+    // Row 15: Address
+    data.push([customer?.primary_address || '']);
+    
+    // Row 16: Phone
+    data.push([`Phone: ${customer?.mobile_no || ''}`]);
+    
+    // Row 17: Email
+    data.push([`Email: ${customer?.email_id || ''}`]);
+    
+    // Row 18: GSTIN
+    data.push([`GSTIN/UIN: ${customer?.gstin || ''}`]);
+    
+    // Row 19: State
+    data.push([`State: ${customer?.state || ''}${customer?.state_code ? ` (${customer.state_code})` : ''}`]);
+    
+    // Row 20: Empty
+    data.push([]);
+    
+    // Row 21: Items Header
+    data.push(['#', 'Description of Goods', 'Quantity', 'Rate', 'Amount']);
+    
+    // Row 22+: Items
+    items.forEach((item, idx) => {
+      data.push([
+        idx + 1,
+        item.item_name || item.item_code || '',
+        `${item.qty || 0} ${item.stock_uom || item.uom || 'Nos'}`,
+        (item.rate || 0).toFixed(2),
+        (item.amount || 0).toFixed(2)
+      ]);
+    });
+    
+    // Total row
+    const uom = items.length > 0 ? (items[0]?.stock_uom || items[0]?.uom || 'Nos') : 'Nos';
+    data.push(['Total', '', `${totalQty} ${uom}`, '', grandTotal.toFixed(2)]);
+    
+    // Empty row
+    data.push([]);
+    
+    // Amount in words
+    data.push(['Amount Chargeable (in words)']);
+    data.push([`INR ${numberToIndianWords(grandTotal)} Only`]);
+    
+    // Empty row
+    data.push([]);
+    
+    // Declaration
+    data.push(['Declaration']);
+    data.push(['We declare that the goods described above are as per the delivery challan and all particulars are true and correct.']);
+    data.push([]);
+    
+    // Delivery Details
+    data.push(['Delivery Details']);
+    if (challan.transporter) data.push([`Transporter: ${challan.transporter}`]);
+    if (challan.vehicle_no) data.push([`Vehicle No: ${challan.vehicle_no}`]);
+    if (challan.driver_name) data.push([`Driver: ${challan.driver_name}`]);
+    data.push([]);
+    
+    // Signatory
+    data.push(['for Sculptor Tech Pvt Ltd']);
+    data.push([]);
+    data.push([]);
+    data.push([]);
+    data.push(['Authorised Signatory']);
+    data.push([]);
+    
+    // Footer
+    data.push(['SUBJECT TO PUNE JURISDICTION']);
+    data.push(['This is a computer generated delivery challan.']);
+    
+    return data;
+  };
+
+  // ===== EXCEL DOWNLOAD HANDLER =====
+  const handleExcelDownload = async () => {
+    setDownloadLoading(true);
+    try {
+      const challansToDownload = paginatedData.length > 0 ? paginatedData : challans;
+      
+      if (challansToDownload.length === 0) {
+        toast.error('No delivery challans to download');
+        setDownloadLoading(false);
+        return;
+      }
+
+      // Fetch full details for all challans
+      const fullChallans = await Promise.all(
+        challansToDownload.map(async (ch) => {
+          if (ch.items && ch.items.length > 0) return ch;
+          const fullData = await fetchFullDeliveryChallan(ch.id);
+          return fullData || ch;
+        })
+      );
+
+      // Create a new workbook
+      const wb = XLSX.utils.book_new();
+      
+      // Generate data for each challan and add as separate sheets
+      fullChallans.forEach((challan, index) => {
+        const challanData = generateDCExcelData(challan);
+        const ws = XLSX.utils.aoa_to_sheet(challanData);
+        
+        // Set column widths
+        ws['!cols'] = [
+          { wch: 8 },   // # 
+          { wch: 35 },  // Description
+          { wch: 20 },  // Quantity
+          { wch: 15 },  // Rate
+          { wch: 20 },  // Amount
+        ];
+        
+        // Merge cells for title
+        ws['!merges'] = [
+          { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }, // DELIVERY CHALLAN
+          { s: { r: 3, c: 0 }, e: { r: 3, c: 4 } }, // Company Name
+          { s: { r: 4, c: 0 }, e: { r: 4, c: 4 } }, // Address
+          { s: { r: 5, c: 0 }, e: { r: 5, c: 4 } }, // Phone
+          { s: { r: 6, c: 0 }, e: { r: 6, c: 4 } }, // Email
+          { s: { r: 7, c: 0 }, e: { r: 7, c: 4 } }, // State
+          { s: { r: 13, c: 0 }, e: { r: 13, c: 4 } }, // Consignee
+          { s: { r: 14, c: 0 }, e: { r: 14, c: 4 } }, // Customer Name
+          { s: { r: 15, c: 0 }, e: { r: 15, c: 4 } }, // Address
+          { s: { r: 16, c: 0 }, e: { r: 16, c: 4 } }, // Phone
+          { s: { r: 17, c: 0 }, e: { r: 17, c: 4 } }, // Email
+          { s: { r: 18, c: 0 }, e: { r: 18, c: 4 } }, // GSTIN
+          { s: { r: 19, c: 0 }, e: { r: 19, c: 4 } }, // State
+        ];
+        
+        // Find rows for merging amount in words
+        const wordsRow = challanData.findIndex(row => row && row[0] === 'Amount Chargeable (in words)');
+        if (wordsRow !== -1) {
+          ws['!merges'].push({ s: { r: wordsRow, c: 0 }, e: { r: wordsRow, c: 4 } });
+          ws['!merges'].push({ s: { r: wordsRow + 1, c: 0 }, e: { r: wordsRow + 1, c: 4 } });
+        }
+        
+        // Find rows for declaration
+        const declRow = challanData.findIndex(row => row && row[0] === 'Declaration');
+        if (declRow !== -1) {
+          ws['!merges'].push({ s: { r: declRow, c: 0 }, e: { r: declRow, c: 4 } });
+          ws['!merges'].push({ s: { r: declRow + 1, c: 0 }, e: { r: declRow + 1, c: 4 } });
+        }
+        
+        // Find rows for delivery details
+        const delRow = challanData.findIndex(row => row && row[0] === 'Delivery Details');
+        if (delRow !== -1) {
+          ws['!merges'].push({ s: { r: delRow, c: 0 }, e: { r: delRow, c: 4 } });
+        }
+        
+        // Find rows for footer
+        const footerRow = challanData.findIndex(row => row && row[0] === 'SUBJECT TO PUNE JURISDICTION');
+        if (footerRow !== -1) {
+          ws['!merges'].push({ s: { r: footerRow, c: 0 }, e: { r: footerRow, c: 4 } });
+          ws['!merges'].push({ s: { r: footerRow + 1, c: 0 }, e: { r: footerRow + 1, c: 4 } });
+        }
+        
+        // Find signatory row
+        const signRow = challanData.findIndex(row => row && row[0] === 'Authorised Signatory');
+        if (signRow !== -1) {
+          ws['!merges'].push({ s: { r: signRow, c: 0 }, e: { r: signRow, c: 4 } });
+        }
+        
+        const sheetName = challan.displayDcNumber || challan.name || `DC_${index + 1}`;
+        XLSX.utils.book_append_sheet(wb, ws, sheetName.substring(0, 31));
+      });
+      
+      // Generate Excel file
+      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([wbout], { type: 'application/octet-stream' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Delivery_Challans_${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast.success('Excel file downloaded successfully');
+      
+    } catch (err) {
+      console.error('Download error:', err);
+      toast.error('Failed to download');
+    } finally {
+      setDownloadLoading(false);
+    }
+  };
+
+  // ===== PDF DOWNLOAD HANDLER =====
+  const handlePDFDownload = async () => {
+    setDownloadLoading(true);
+    try {
+      const challansToDownload = paginatedData.length > 0 ? paginatedData : challans;
+      
+      if (challansToDownload.length === 0) {
+        toast.error('No delivery challans to download');
+        setDownloadLoading(false);
+        return;
+      }
+
+      const fullChallans = await Promise.all(
+        challansToDownload.map(async (ch) => {
+          if (ch.items && ch.items.length > 0) return ch;
+          const fullData = await fetchFullDeliveryChallan(ch.id);
+          return fullData || ch;
+        })
+      );
+
+      const allHtmlContent = fullChallans.map(ch => buildDeliveryChallanPrintHtml(ch)).join('<div style="page-break-after: always;"></div>');
+      
+      const printWindow = window.open('', '_blank', 'width=900,height=1000');
+      if (!printWindow) {
+        toast.error('Please allow pop-ups to download PDF');
+        setDownloadLoading(false);
+        return;
+      }
+      printWindow.document.write(allHtmlContent);
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => {
+        printWindow.print();
+      }, 500);
+      
+    } catch (err) {
+      console.error('PDF download error:', err);
+      toast.error('Failed to download PDF');
+    } finally {
+      setDownloadLoading(false);
+    }
+  };
+
   // ===== ACTIONS =====
   const handleCreate = () => navigate('/delivery-challan/new');
   const handleRefresh = () => fetchChallans();
@@ -831,11 +1116,6 @@ const DeliveryChallans: React.FC = () => {
     } catch (err) {
       toast.error('Failed to submit');
     }
-    setShowMoreMenu(null);
-  };
-
-  const handleDownloadPDF = (_id: string | number) => {
-    toast.success('Downloading PDF...');
     setShowMoreMenu(null);
   };
 
@@ -1128,6 +1408,65 @@ const DeliveryChallans: React.FC = () => {
 
         .qt-btn-secondary:hover {
           background: var(--nav-hover, #f9fafb);
+        }
+
+        /* ── Download Buttons ── */
+        .qt-btn-download-excel {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          height: 38px;
+          padding: 0 16px;
+          border: none;
+          border-radius: 8px;
+          background: #10b981;
+          color: white;
+          font-size: 13px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.15s;
+          white-space: nowrap;
+        }
+
+        .qt-btn-download-excel:hover {
+          background: #059669;
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+
+        .qt-btn-download-excel:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+          transform: none;
+        }
+
+        .qt-btn-download-pdf {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          height: 38px;
+          padding: 0 16px;
+          border: none;
+          border-radius: 8px;
+          background: #dc2626;
+          color: white;
+          font-size: 13px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.15s;
+          white-space: nowrap;
+        }
+
+        .qt-btn-download-pdf:hover {
+          background: #b91c1c;
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+        }
+
+        .qt-btn-download-pdf:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+          transform: none;
         }
 
         /* ── Date Range Picker Styles ── */
@@ -1829,6 +2168,22 @@ const DeliveryChallans: React.FC = () => {
           background: var(--primary-hover, #2563eb);
         }
 
+        .dark-theme .qt-btn-download-excel {
+          background: #10b981;
+        }
+
+        .dark-theme .qt-btn-download-excel:hover {
+          background: #059669;
+        }
+
+        .dark-theme .qt-btn-download-pdf {
+          background: #dc2626;
+        }
+
+        .dark-theme .qt-btn-download-pdf:hover {
+          background: #b91c1c;
+        }
+
         .dark-theme .qt-table-wrap {
           background: var(--card-bg, #1e293b);
           border-color: var(--border-color, #334155);
@@ -2184,9 +2539,9 @@ const DeliveryChallans: React.FC = () => {
           <button className="qt-btn-secondary" onClick={handleRefresh}>
             <FaSync size={12} /> Refresh
           </button>
-          <button className="qt-btn-secondary" onClick={() => window.print()}>
-            <FaPrint size={12} /> Print
-          </button>
+          
+         
+          
           <button className="qt-btn-new" onClick={handleCreate}>
             <FaPlus size={12} /> New DC
           </button>
@@ -2314,10 +2669,10 @@ const DeliveryChallans: React.FC = () => {
                             <button onClick={() => handlePrint(item)} disabled={printLoadingId === String(item.id)}>
                               <FaPrintIcon size={12} /> Print
                             </button>
-                            <button onClick={() => handleDownloadPDF(item.id)}>
+                            <button onClick={handlePDFDownload}>
                               <FaFilePdf size={12} /> Download PDF
                             </button>
-                            <button onClick={() => handleDownloadPDF(item.id)}>
+                            <button onClick={handleExcelDownload}>
                               <FaFileExcel size={12} /> Download Excel
                             </button>
                             {item.status !== 'Cancelled' && item.status !== 'Submitted' && (

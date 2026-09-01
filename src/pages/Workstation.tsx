@@ -447,10 +447,7 @@ export default function WorkstationList() {
                 <option value="active">Active</option>
                 <option value="disabled">Disabled</option>
               </select>
-              <button className="wo-filter-btn">
-                <FaFilter size={12} />
-                Filter
-              </button>
+             
 
               {/* ─── From - To Date Filter Button + Calendar Popup ─────────── */}
               <div ref={datePickerRef} style={{ position: 'relative', display: 'inline-block' }}>
@@ -792,8 +789,6 @@ export default function WorkstationList() {
                           <td>{ws.production_capacity}</td>
                           <td>₹{ws.hour_rate}</td>
                           <td className="wo-td-meta">
-                            <span className="wo-ago">{formatDate(ws.creation)}</span>
-                            <span className="wo-dot">·</span>
                             <div className="wo-action-buttons">
                               <button 
                                 className="wo-action-btn wo-action-view" 

@@ -851,8 +851,7 @@ export default function JobCardManagement() {
                                   </span>
                                 </td>
                                 <td className="jc-td jc-td-meta" onClick={(e) => e.stopPropagation()}>
-                                  <span className="jc-ago">{row.createdAgo}</span>
-                                  <span className="jc-dot">·</span>
+                                  
                                   <div className="jc-action-buttons">
                                     <button 
                                       className="jc-action-btn jc-action-view" 

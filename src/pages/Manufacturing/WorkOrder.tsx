@@ -888,8 +888,7 @@ export default function WorkOrderList() {
                         </div>
                       </td>
                       <td className="wo-td wo-td-meta" onClick={(e) => e.stopPropagation()}>
-                        <span className="wo-ago">{row.createdAgo}</span>
-                        <span className="wo-dot">·</span>
+                       
                         <div className="wo-action-buttons">
                           <button
                             className="wo-action-btn wo-action-view"
