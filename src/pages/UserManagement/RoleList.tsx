@@ -349,7 +349,7 @@ export default function RoleList() {
                         <div className="rl-action-wrapper">
                           {/* Settings Button - Left side */}
 <button
-  className="rl-settings-btn"
+  className="rl-settings-btn "
   onClick={() => navigate(`/role/permissions/${row.id}`)}
   title="Module Permissions"
 >

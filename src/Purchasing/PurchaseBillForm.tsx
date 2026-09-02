@@ -177,7 +177,7 @@ export default function PurchaseInvoiceForm() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
-  const { theme } = useAdminTheme();
+  useAdminTheme();
 
   // ── Core form state ────────────────────────────────────────────────────────
   const [formData, setFormData] = useState({
@@ -684,7 +684,7 @@ export default function PurchaseInvoiceForm() {
         grnIds: grnIds,
         isCreateFromGrn: grnIds.length > 0 ? 1 : 0,
       }));
- main
+ 
     } catch (err) {
       console.error('Error loading PO/GRN:', err);
       toast.error('Error loading PO data');

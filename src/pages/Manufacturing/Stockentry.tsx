@@ -140,6 +140,7 @@ export default function Stockentry() {
   
   const { theme, formatDate, getApiDateFormat } = useAdminTheme();
 
+
   const [stockEntries, setStockEntries] = useState<StockEntryDisplay[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -189,6 +190,7 @@ export default function Stockentry() {
   const toApiDateFormat = (date: Date) => {
     return getApiDateFormat(date);
   };
+
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {

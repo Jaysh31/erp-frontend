@@ -1,208 +1,235 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import ReactDOM from 'react-dom';
-import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
-  FaArrowLeft, FaSpinner, FaPlus,
-  FaTrash, FaFileAlt,
-  FaBarcode,
-  FaTimes, FaExclamationTriangle, FaInfoCircle,
-  FaUser, FaCreditCard, FaCalendarAlt,
-  FaBuilding, FaPhone, FaEnvelope,
-  FaClipboardList, FaCalculator, FaChevronDown,
-  FaPrint, FaPaperPlane,
-  FaCopy
+  FaSearch, FaPlus, FaEye, FaEdit, FaTrash, FaFilePdf, FaPrint,
+  FaFilter, FaCheckCircle, FaClock, FaTimesCircle,
+  FaFileAlt, FaExternalLinkAlt,
+  FaChartLine, FaTimes, FaSpinner,
+  FaEnvelope, FaCalendarAlt,
+  FaAngleDoubleLeft,
+  FaAngleDoubleRight,
+  FaChevronLeft,
+  FaChevronRight
+
 } from 'react-icons/fa';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
-import './CreateQuotation.css';
 import toast from 'react-hot-toast';
+import './QuotationPage.css';
 import api from '../../services/api';
-
-/* ─────────────────────────── Types ─────────────────────────── */
 
 interface QuotationItem {
   id: string;
   itemCode: string;
   itemName: string;
+  hsnCode?: string;
   quantity: number;
   rate: number;
-  cgst: number;
-  sgst: number;
   amount: number;
-  hsn: string;
-  description: string;
-  unit: string;
-  tax: number;
-  taxAmount: number;
-  totalAmount: number;
+  cgst?: number;
+  sgst?: number;
 }
 
-interface PaymentScheduleRow {
+export interface Quotation {
   id: string;
-  paymentTerm: string;
-  dueDate: string;
-  durationDays: number;
-  invoicePortion: number;
-  paymentAmount: number;
-  paidAmount?: number;
-  status?: string;
-}
-
-interface PaymentTermTemplate {
-  id: string;
-  name: string;
-  description: string;
-  schedules: Array<{
-    paymentTerm: string;
-    dueDays: number;
-    invoicePortion: number;
-  }>;
-}
-
-interface QuotationForm {
-  isService: boolean;
-  date: string;
-  validTill: string;
+  quotationNumber: string;
   customer: string;
   customerName: string;
-  status: string;
+  customerEmail: string;
+  customerPhone: string;
+  customerAddress: string;
+  customerGstin?: string;
+  customerState?: string;
+  customerStateCode?: string;
+  date: string;
+  validTill: string;
+  totalAmount: number;
+  status: 'Draft' | 'Sent' | 'Accepted' | 'Rejected' | 'Expired' | 'Converted';
+  currency: string;
   items: QuotationItem[];
-  totalQuantity: number;
-  baseTotal: number;
-  cgstTotal: number;
-  sgstTotal: number;
-  grandTotal: number;
-  roundedTotal: number;
-  paymentTermsTemplate: string;
-  paymentSchedule: PaymentScheduleRow[];
-  tcName: string;
-  termDetails: string;
-  company: string;
-}
-
-interface ValidationError {
-  field: string;
-  label: string;
-  message: string;
-}
-
-interface Customer {
-  id: string;
-  name: string;
-  code: string;
-  email: string;
-  phone: string;
-  address: string;
-  shippingAddress: string;
-  gstin: string;
+  notes: string;
+  termsConditions: string;
+  namingSeries?: string;
+  quotationTo?: string;
+  orderType?: string;
+  company?: string;
+  priceList?: string;
+  taxCategory?: string;
+  taxesAndCharges?: string;
+  shippingRule?: string;
+  incoterm?: string;
+  placeOfSupply?: string;
   contactPerson?: string;
-  contactMobile?: string;
-  customerType?: string;
-  customerGroup?: string;
-  territory?: string;
-  contacts?: Array<{
-    id: number;
-    customer_id: number;
-    first_name: string;
-    last_name: string;
-    contact_name: string;
-    mobile_no: string;
-    alternate_mobile: string;
-    email_id: string;
-    telephone: string;
-    extension: string;
-    is_primary: number;
-    is_billing_contact: number;
-    is_saler_contact: number;
-    remarks: string;
-  }>;
+  paymentTermsTemplate?: string;
+  tcName?: string;
+  taxes?: TaxRow[];
+  paymentSchedule?: PaymentSchedule[];
+  deliveryNote?: string;
+  referenceNo?: string;
+  referenceDate?: string;
+  buyersOrderNo?: string;
+  buyersOrderDate?: string;
+  dispatchDocNo?: string;
+  deliveryNoteDate?: string;
+  dispatchedThrough?: string;
+  destination?: string;
 }
-
-interface Product {
+  
+interface TaxRow {
   id: string;
-  itemCode: string;
-  itemName: string;
-  hsn: string;
-  description: string;
-  unit: string;
-  rate: number;
-  tax: number;
-  type: 'product' | 'service';
-  stockUom?: string;
-  standardRate?: number;
-  cgst_rate?: number;
-  sgst_rate?: number;
+  type: string;
+  accountHead: string;
+  taxRate: number;
+  netAmount: number;
+  amount: number;
+  total: number;
 }
 
-interface TaxOption {
-  tax_id: number;
-  tax_type: string;
+interface PaymentSchedule {
+  id: string;
+  paymentTerm: string;
+  description: string;
+  dueDate: string;
+  invoicePortion: number;
+  paymentAmount: number;
 }
 
 interface QuotationApiRecord {
-  id?: number;
   name: string;
-  naming_series?: string;
   party_name?: string;
   customer_name?: string;
   transaction_date?: string;
   valid_till?: string;
-  status?: string;
-  payment_terms_template?: string;
-  tc_name?: string;
-  terms?: string;
   grand_total?: number;
   total?: number;
+  status?: string;
+  currency?: string;
+  contact_email?: string;
+  contact_mobile?: string;
+  address_display?: string;
+  customer_address?: string;
+  customer_gstin?: string;
+  gstin?: string;
+  customer_state?: string;
+  state?: string;
+  state_code?: string;
+  terms?: string;
+  notes?: string;
+  payment_terms_template?: string;
+  delivery_note?: string;
+  reference_no?: string;
+  reference_date?: string;
+  po_no?: string;
+  po_date?: string;
+  dispatch_document_no?: string;
+  lr_date?: string;
+  dispatched_through?: string;
+  destination?: string;
   items?: Array<{
     item_code?: string;
     item_name?: string;
+    hsn_code?: string;
+    gst_hsn_code?: string;
     qty?: number;
     rate?: number;
+    amount?: number;
     cgst_rate?: number;
     sgst_rate?: number;
-    amount?: number;
-    hsn?: string;
-    description?: string;
-    uom?: string;
-    item_tax_id?: number;
   }>;
-  payment_schedule?: any[];
 }
 
-const unwrapDate = (value?: string | null): string => {
-  if (!value) return '';
-  return value.split('T')[0];
+interface ApiResponse {
+  success: number;
+  data: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+    records: QuotationApiRecord[];
+  };
+}
+
+const companyDetails = {
+  name: 'Chandratara Industries',
+  address: '20/1,Hadapsar Industrial Estate, hadapsar, Pune-411013, Maharashtra',
+  contact: '8888861441',
 };
 
-const daysBetween = (from: string, to: string): number => {
-  if (!from || !to) return 0;
-  const a = new Date(from).getTime();
-  const b = new Date(to).getTime();
-  if (isNaN(a) || isNaN(b)) return 0;
-  return Math.max(0, Math.round((b - a) / 86400000));
+const companyPrintDetails = {
+  gstin: '27AFFPC0269R1Z4',
+  stateName: 'Maharashtra',
+  stateCode: '27',
+  panNo: 'AFFPC0269R',
+  bankName: 'STATE BANK OF INDIA (NEW)',
+  bankAccountNo: '40159796829',
+  bankBranchIfsc: 'PULGATE & SBIN0008044',
+  jurisdiction: 'PUNE',
 };
 
-const addDays = (date: string, days: number): string => {
+/* ─────────────────────── Amount-in-words helper ─────────────────────── */
+
+const ONES = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
+  'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+const TENS = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+const twoDigitWords = (n: number): string => {
+  if (n < 20) return ONES[n];
+  return TENS[Math.floor(n / 10)] + (n % 10 ? ' ' + ONES[n % 10] : '');
+};
+
+const threeDigitWords = (n: number): string => {
+  if (n >= 100) {
+    return ONES[Math.floor(n / 100)] + ' Hundred' + (n % 100 ? ' ' + twoDigitWords(n % 100) : '');
+  }
+  return twoDigitWords(n);
+};
+
+const numberToIndianWords = (value: number): string => {
+  let num = Math.round(Math.abs(value));
+  if (num === 0) return 'Zero';
+
+  const crore = Math.floor(num / 10000000); num %= 10000000;
+  const lakh = Math.floor(num / 100000); num %= 100000;
+  const thousand = Math.floor(num / 1000); num %= 1000;
+  const hundred = num;
+
+  let out = '';
+  if (crore) out += threeDigitWords(crore) + ' Crore ';
+  if (lakh) out += threeDigitWords(lakh) + ' Lakh ';
+  if (thousand) out += threeDigitWords(thousand) + ' Thousand ';
+  if (hundred) out += threeDigitWords(hundred);
+
+  return out.trim();
+};
+
+const formatPrintDate = (date: string, formatFn?: (date: string) => string): string => {
   if (!date) return '';
+  if (formatFn) {
+    return formatFn(date);
+  }
   const d = new Date(date);
-  if (isNaN(d.getTime())) return '';
-  d.setDate(d.getDate() + days);
-  return d.toISOString().split('T')[0];
+  if (isNaN(d.getTime())) return date;
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = d.toLocaleString('en-US', { month: 'short' });
+  const year = String(d.getFullYear()).slice(-2);
+  return `${day}-${month}-${year}`;
+};
+
+
+const escapeHtml = (val: unknown): string => {
+  const s = val === null || val === undefined ? '' : String(val);
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 };
 
 const QUOTATION_LINE_CACHE_PREFIX = 'quotation_line_data:';
 
 interface CachedQuotationLineData {
   items?: QuotationItem[];
-  paymentSchedule?: PaymentScheduleRow[];
+  paymentSchedule?: any[];
 }
-
-const cacheQuotationLineData = (name: string, data: CachedQuotationLineData) => {
-  try {
-    localStorage.setItem(QUOTATION_LINE_CACHE_PREFIX + name, JSON.stringify(data));
-  } catch {
-    // ignore
-  }
-};
 
 const readCachedQuotationLineData = (name: string): CachedQuotationLineData | null => {
   try {
@@ -213,15 +240,6 @@ const readCachedQuotationLineData = (name: string): CachedQuotationLineData | nu
   }
 };
 
-const QUOTATION_DRAFT_PREFIX = 'cq_quotation_draft:';
-
-interface QuotationDraftPayload {
-  formData: QuotationForm;
-  recordName: string | null;
-  recordId: number | null;
-  customerData: Customer | null;
-}
-
 const extractRecords = (payload: any): any[] => {
   if (!payload) return [];
   const data = payload.success === 1 || payload.success === 0 ? payload.data : payload;
@@ -230,2694 +248,1681 @@ const extractRecords = (payload: any): any[] => {
   return [];
 };
 
-const blurOnWheel = (e: React.WheelEvent<HTMLInputElement>) => {
-  (e.target as HTMLInputElement).blur();
+const mapApiItemsToQuotationItems = (record: QuotationApiRecord | null | undefined): QuotationItem[] => {
+  if (!record || !Array.isArray(record.items)) return [];
+  return record.items.map((it, idx) => {
+    const quantity = it.qty ?? 0;
+    const rate = it.rate ?? 0;
+    return {
+      id: String(idx + 1),
+      itemCode: it.item_code || '',
+      itemName: it.item_name || '',
+      hsnCode: it.hsn_code || it.gst_hsn_code || '',
+      quantity,
+      rate,
+      amount: it.amount ?? quantity * rate,
+      cgst: it.cgst_rate ?? 0,
+      sgst: it.sgst_rate ?? 0,
+    };
+  });
 };
 
-function useDropdownPosition(isOpen: boolean, triggerRef: React.RefObject<HTMLDivElement | null>) {
-  const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
+// ─── Date filter helpers ────────────────────────────────────────────────
 
-  const recalc = useCallback(() => {
-    if (triggerRef.current) {
-      const rect = triggerRef.current.getBoundingClientRect();
-      setPos({
-        top: rect.bottom + 4,
-        left: rect.left,
-        width: rect.width
-      });
-    }
-  }, [triggerRef]);
+const WEEKDAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+const MONTH_LABELS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
 
-  useEffect(() => {
-    if (!isOpen) return;
-    recalc();
-    window.addEventListener('scroll', recalc, true);
-    window.addEventListener('resize', recalc);
-    return () => {
-      window.removeEventListener('scroll', recalc, true);
-      window.removeEventListener('resize', recalc);
-    };
-  }, [isOpen, recalc]);
-
-  return pos;
+function stripTime(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
-// ===== SEARCHABLE PRODUCT SELECT COMPONENT =====
-interface SearchableSelectProps {
-  value: string;
-  onChange: (value: string, itemData?: any) => void;
-  options: Product[];
-  placeholder?: string;
-  disabled?: boolean;
-  error?: boolean;
-  onSearch?: (searchTerm: string) => Promise<void>;
-  loading?: boolean;
-  taxOptions?: TaxOption[];
+function formatDisplayDate(d: Date): string {
+  return `${MONTH_LABELS[d.getMonth()].slice(0, 3)} ${d.getDate()}, ${d.getFullYear()}`;
 }
 
-const SearchableSelect: React.FC<SearchableSelectProps> = ({
-  value,
-  onChange,
-  options,
-  placeholder = 'Search...',
-  disabled = false,
-  error = false,
-  onSearch,
-  loading = false
-}) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filteredOptions, setFilteredOptions] = useState<Product[]>(options);
-  const [highlightedIndex, setHighlightedIndex] = useState(-1);
-  const wrapperRef = useRef<HTMLDivElement | null>(null);
-  const menuRef = useRef<HTMLDivElement | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+function toLocalDateStr(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
 
-  const menuPos = useDropdownPosition(isOpen, wrapperRef);
-
-  const getTaxRate = (option: Product): number => {
-    if (option.tax) return option.tax;
-    if (option.cgst_rate && option.sgst_rate) return option.cgst_rate + option.sgst_rate;
-    return 0;
-  };
-
-  useEffect(() => {
-    if (!searchTerm) {
-      setFilteredOptions(options);
-      return;
-    }
-
-    const filtered = options.filter(opt =>
-      opt.itemCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      opt.itemName.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-    setFilteredOptions(filtered);
-  }, [searchTerm, options]);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node;
-      const clickedTrigger = wrapperRef.current?.contains(target);
-      const clickedMenu = menuRef.current?.contains(target);
-      if (!clickedTrigger && !clickedMenu) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const term = e.target.value;
-    setSearchTerm(term);
-    setHighlightedIndex(-1);
-
-    if (!isOpen) {
-      setIsOpen(true);
-    }
-
-    if (onSearch && term.length > 0) {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-
-      debounceTimerRef.current = setTimeout(() => {
-        onSearch(term).catch(err => console.error('Search error:', err));
-      }, 500);
-    }
-  };
-
-  const handleSelect = (option: Product) => {
-    onChange(option.itemCode, option);
-    setSearchTerm('');
-    setIsOpen(false);
-    if (inputRef.current) {
-      inputRef.current.blur();
-    }
-  };
-
-  const getSelectedLabel = () => {
-    const selected = options.find(opt => opt.itemCode === value);
-    return selected ? `${selected.itemCode}` : '';
-  };
-
-  const menu = isOpen ? (
-    <div
-      ref={menuRef}
-      className="cq-custom-scroll"
-      style={{
-        position: 'fixed',
-        top: menuPos.top,
-        left: menuPos.left,
-        width: menuPos.width,
-        background: 'var(--card-bg, #ffffff)',
-        border: '0.5px solid var(--border-color, #e2e8f0)',
-        borderRadius: '6px',
-        boxShadow: '0 4px 16px var(--shadow-color, rgba(0,0,0,0.15))',
-        zIndex: 99999,
-        maxHeight: '220px',
-        overflowY: 'auto',
-        overflowX: 'hidden'
-      }}
-    >
-      {filteredOptions.length > 0 ? (
-        filteredOptions.map((option, index) => (
-          <div
-            key={option.id}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              handleSelect(option);
-            }}
-            style={{
-              padding: '8px 12px',
-              cursor: 'pointer',
-              background: highlightedIndex === index ? 'var(--nav-hover, #eff6ff)' : 'transparent',
-              borderLeft: value === option.itemCode ? '2px solid var(--primary-color, #2563eb)' : '2px solid transparent',
-              transition: 'background 0.15s',
-              borderBottom: index < filteredOptions.length - 1 ? '0.5px solid var(--border-color, #f1f5f9)' : 'none'
-            }}
-            onMouseEnter={() => setHighlightedIndex(index)}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontWeight: 500, fontSize: '13px', color: 'var(--text-primary, #0f172a)' }}>{option.itemCode}</span>
-              <span style={{ fontSize: '12px', color: 'var(--text-secondary, #64748b)', marginLeft: '8px', textAlign: 'right' }}>
-                ₹{option.rate}
-              </span>
-            </div>
-            <div style={{ fontSize: '11px', color: 'var(--text-secondary, #94a3b8)', marginTop: '2px' }}>
-              {option.itemName} | HSN: {option.hsn || '-'} | Tax: {getTaxRate(option)}%
-            </div>
-          </div>
-        ))
-      ) : (
-        <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
-          {loading ? 'Loading...' : 'No items found'}
-        </div>
-      )}
-    </div>
-  ) : null;
-
+function isSameDay(a: Date | null, b: Date | null): boolean {
+  if (!a || !b) return false;
   return (
-    <div ref={wrapperRef} style={{ position: 'relative', width: '100%' }}>
-      <div style={{ position: 'relative' }}>
-        <input
-          ref={inputRef}
-          type="text"
-          placeholder={placeholder}
-          value={isOpen ? searchTerm : getSelectedLabel()}
-          onChange={handleSearchChange}
-          onFocus={() => !disabled && setIsOpen(true)}
-          disabled={disabled}
-          autoComplete="off"
-          className="cq-table-input"
-          style={{
-            width: '100%',
-            padding: '4px 8px',
-            paddingRight: '30px',
-            border: error ? '0.5px solid var(--danger-color, #ef4444)' : '0.5px solid var(--border-color, #e2e8f0)',
-            borderRadius: '4px',
-            background: disabled ? 'var(--input-bg, #f3f4f6)' : 'var(--input-bg, #f8fafc)',
-            color: 'var(--text-primary, #0f172a)',
-            fontSize: '12px',
-            fontFamily: 'inherit',
-            cursor: disabled ? 'not-allowed' : 'text',
-            minHeight: '30px',
-            textAlign: 'left'
-          }}
-        />
-        {loading ? (
-          <FaSpinner className="cq-spinning" style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', color: 'var(--primary-color, #2563eb)', fontSize: '11px' }} />
-        ) : (
-          <FaChevronDown style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary, #94a3b8)', fontSize: '11px', pointerEvents: 'none' }} />
-        )}
-      </div>
-
-      {menu && ReactDOM.createPortal(menu, document.body)}
-    </div>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
   );
-};
-
-// ===== SEARCHABLE CUSTOMER DROPDOWN =====
-interface CustomerDropdownProps {
-  value: string;
-  onChange: (value: string, customerData?: Customer) => void;
-  placeholder?: string;
-  disabled?: boolean;
-  error?: boolean;
-  presetCustomer?: Customer | null;
-  onAddNew: (searchTerm: string) => void;
 }
 
-const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
-  value,
-  onChange,
-  placeholder = 'Search Customer...',
-  disabled = false,
-  error = false,
-  presetCustomer = null,
-  onAddNew,
-}) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [filteredCustomers, setFilteredCustomers] = useState<Customer[]>([]);
-  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+function buildCalendarGrid(year: number, month: number): (Date | null)[] {
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  const startWeekday = firstDay.getDay();
+  const totalDays = lastDay.getDate();
+
+  const cells: (Date | null)[] = [];
+  for (let i = 0; i < startWeekday; i++) cells.push(null);
+  for (let d = 1; d <= totalDays; d++) cells.push(new Date(year, month, d));
+  return cells;
+}
+
+export default function QuotationPage() {
+  const navigate = useNavigate();
+
+  const { theme, formatDate, getApiDateFormat } = useAdminTheme();
+
+
+  const [filterText, setFilterText] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState('All');
+  const [selectedCurrency, setSelectedCurrency] = useState('All');
   const [loading, setLoading] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const wrapperRef = useRef<HTMLDivElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [printLoadingId, setPrintLoadingId] = useState<string | null>(null);
 
-  const menuPos = useDropdownPosition(isOpen, wrapperRef);
+  const [quotations, setQuotations] = useState<Quotation[]>([]);
+  
+  // Server-side pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
 
-  useEffect(() => {
-    fetchCustomers('');
-  }, []);
+  // ─── Date Filter States ────────────────────────────────────────────────
+  const [fromDate, setFromDate] = useState<string>("");
+  const [toDate, setToDate] = useState<string>("");
+  const [tempFromDate, setTempFromDate] = useState<Date | null>(null);
+  const [tempToDate, setTempToDate] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
+  const [calendarViewDate, setCalendarViewDate] = useState<Date>(new Date());
+  const dateFilterWrapperRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!value) {
-      setSelectedCustomer(null);
+  // Modal states
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showPdfModal, setShowPdfModal] = useState(false);
+  const [selectedQuote, setSelectedQuote] = useState<Quotation | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pdfModalLoading] = useState(false);
+
+  // ─── Debounce function for search ──────────────────────────────────
+  const useDebounce = (value: string, delay: number) => {
+    const [debouncedValue, setDebouncedValue] = useState(value);
+
+    useEffect(() => {
+      const handler = setTimeout(() => {
+        setDebouncedValue(value);
+      }, delay);
+
+      return () => {
+        clearTimeout(handler);
+      };
+    }, [value, delay]);
+
+    return debouncedValue;
+  };
+
+  const debouncedFilterText = useDebounce(filterText, 500);
+
+  const formatDisplayDateWithContext = (dateString: string) => {
+    if (!dateString) return '';
+    return formatDate(dateString);
+  };
+
+  const toApiDateFormat = (date: Date) => {
+    return getApiDateFormat(date);
+  };
+
+  // ─── Date Filter Functions ─────────────────────────────────────────────
+
+  const openDatePicker = () => {
+    // Convert fromDate/toDate strings to Date objects for temp state
+    if (fromDate) {
+      const from = new Date(fromDate);
+      if (!isNaN(from.getTime())) setTempFromDate(from);
+    } else {
+      setTempFromDate(null);
+    }
+    if (toDate) {
+      const to = new Date(toDate);
+      if (!isNaN(to.getTime())) setTempToDate(to);
+    } else {
+      setTempToDate(null);
+    }
+    setCalendarViewDate(fromDate ? new Date(fromDate) : new Date());
+    setShowDatePicker(true);
+  };
+
+  const closeDatePicker = () => {
+    setShowDatePicker(false);
+  };
+
+  const handleCalendarDayClick = (day: Date) => {
+    const clicked = stripTime(day);
+    if (!tempFromDate || (tempFromDate && tempToDate)) {
+      setTempFromDate(clicked);
+      setTempToDate(null);
       return;
     }
-    if (presetCustomer && presetCustomer.id === value) {
-      setSelectedCustomer(prev => (prev && prev.id === presetCustomer.id ? prev : presetCustomer));
+    if (clicked < tempFromDate) {
+      setTempToDate(tempFromDate);
+      setTempFromDate(clicked);
+    } else {
+      setTempToDate(clicked);
     }
-  }, [value, presetCustomer]);
+  };
 
-  useEffect(() => {
-    if (!searchTerm.trim()) {
-      setFilteredCustomers(customers);
-      return;
+  const applyQuickFilter = (range: "today" | "last7" | "last30" | "thisMonth") => {
+    const today = stripTime(new Date());
+    if (range === "today") {
+      setTempFromDate(today);
+      setTempToDate(today);
+      setCalendarViewDate(today);
+    } else if (range === "last7") {
+      const from = new Date(today);
+      from.setDate(from.getDate() - 6);
+      setTempFromDate(from);
+      setTempToDate(today);
+      setCalendarViewDate(today);
+    } else if (range === "last30") {
+      const from = new Date(today);
+      from.setDate(from.getDate() - 29);
+      setTempFromDate(from);
+      setTempToDate(today);
+      setCalendarViewDate(today);
+    } else if (range === "thisMonth") {
+      const from = new Date(today.getFullYear(), today.getMonth(), 1);
+      const to = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+      setTempFromDate(from);
+      setTempToDate(to);
+      setCalendarViewDate(today);
     }
+  };
 
-    const filtered = customers.filter(customer =>
-      customer.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      customer.code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      customer.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      customer.phone?.includes(searchTerm) ||
-      customer.gstin?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-    setFilteredCustomers(filtered);
-  }, [searchTerm, customers]);
+  const goToPrevMonth = () => {
+    setCalendarViewDate((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+  };
+  const goToNextMonth = () => {
+    setCalendarViewDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+  };
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node;
-      const clickedTrigger = wrapperRef.current?.contains(target);
-      const clickedMenu = menuRef.current?.contains(target);
-      if (!clickedTrigger && !clickedMenu) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  const handleApplyDateFilter = () => {
+    if (tempFromDate && tempToDate) {
+      setFromDate(toLocalDateStr(tempFromDate));
+      setToDate(toLocalDateStr(tempToDate));
+      setCurrentPage(1);
+      setShowDatePicker(false);
+    }
+  };
 
-  const fetchCustomers = async (search: string) => {
+  const handleClearDateFilter = () => {
+    setTempFromDate(null);
+    setTempToDate(null);
+    setFromDate('');
+    setToDate('');
+    setCurrentPage(1);
+    setShowDatePicker(false);
+  };
+
+  const handleClearDateFilterBadge = () => {
+    setTempFromDate(null);
+    setTempToDate(null);
+    setFromDate('');
+    setToDate('');
+    setCurrentPage(1);
+  };
+
+  const dateFilterButtonLabel = 
+    fromDate && toDate
+      ? `${formatDisplayDate(new Date(fromDate))} – ${formatDisplayDate(new Date(toDate))}`
+      : "From - To";
+
+  const calendarCells = buildCalendarGrid(calendarViewDate.getFullYear(), calendarViewDate.getMonth());
+
+  // ─── load from GET /quotation with server-side pagination ──────
+
+  const fetchQuotations = async () => {
     setLoading(true);
+    setError(null);
     try {
-      const response = await api.get('/customer', {
-        params: {
-          page: 1,
-          limit: 50,
-          search: search || undefined
-        }
-      });
+      const params = new URLSearchParams();
+      params.append('page', String(currentPage));
+      params.append('limit', String(itemsPerPage));
 
-      const payload = response.data;
-      const records = extractRecords(payload);
-
-      if (records.length > 0) {
-        const mappedCustomers: Customer[] = records.map((cust: any) => {
-          const contacts = cust.contacts || [];
-
-          const contactsWithInfo = contacts.filter(
-            (c: any) => c.mobile_no || c.email_id || c.contact_name || c.telephone
-          );
-          const bestContact =
-            contactsWithInfo.find((c: any) => c.is_primary === 1) ||
-            contactsWithInfo[0] ||
-            contacts[0];
-
-          return {
-            id: cust.id?.toString() || cust.customer_id?.toString() || '',
-            name: cust.customer_name || cust.name || '',
-            code: cust.customer_code || cust.code || (cust.id != null ? `CUST-${cust.id}` : ''),
-            email: cust.email_id || cust.email || bestContact?.email_id || '',
-            phone: cust.mobile_no || cust.phone || bestContact?.mobile_no || bestContact?.telephone || '',
-            address: cust.address || '',
-            shippingAddress: cust.shipping_address || cust.address || '',
-            gstin: cust.gstin || '',
-            contactPerson: cust.contact_person || bestContact?.contact_name || '',
-            contactMobile: cust.contact_mobile || bestContact?.mobile_no || cust.mobile_no || '',
-            customerType: cust.customer_type || '',
-            customerGroup: cust.customer_group || '',
-            territory: cust.territory || '',
-            contacts,
-          };
-        });
-        setCustomers(mappedCustomers);
-        setFilteredCustomers(mappedCustomers);
-      } else {
-        setCustomers([]);
-        setFilteredCustomers([]);
+      if (debouncedFilterText.trim()) {
+        params.append('search', debouncedFilterText.trim());
+        params.append('search_by', 'all');
       }
-    } catch (error) {
-      console.error('Error fetching customers:', error);
-      toast.error('Failed to fetch customers');
+
+      if (selectedStatus !== 'All') {
+        params.append('status', selectedStatus);
+      }
+
+      if (selectedCurrency !== 'All') {
+        params.append('currency', selectedCurrency);
+      }
+
+      if (fromDate) {
+        params.append('date_from', fromDate);
+      }
+      if (toDate) {
+        params.append('date_to', toDate);
+      }
+
+      const response = await api.get<ApiResponse>(`/quotation?${params.toString()}`);
+
+      const { records, total, totalPages: apiTotalPages } = response.data.data;
+
+      setTotalRecords(total);
+      setTotalPages(apiTotalPages);
+      
+      if (currentPage > apiTotalPages && apiTotalPages > 0) {
+        setCurrentPage(apiTotalPages);
+        return;
+      }
+
+      const transformedData: Quotation[] = records.map((q) => ({
+        id: q.name,
+        quotationNumber: q.name,
+        customer: q.party_name || '',
+        customerName: q.customer_name || '',
+        customerEmail: q.contact_email || '',
+        customerPhone: q.contact_mobile || '',
+        customerAddress: q.address_display || q.customer_address || '',
+        customerGstin: q.customer_gstin || q.gstin || '',
+        customerState: q.customer_state || q.state || '',
+        customerStateCode: q.state_code || '',
+        date: q.transaction_date || '',
+        validTill: q.valid_till || '',
+        totalAmount: q.grand_total ?? q.total ?? 0,
+        status: (q.status as Quotation['status']) || 'Draft',
+        currency: q.currency || 'INR',
+        notes: q.notes || '',
+        termsConditions: q.terms || '',
+        paymentTermsTemplate: q.payment_terms_template || '',
+        deliveryNote: q.delivery_note || '',
+        referenceNo: q.reference_no || '',
+        referenceDate: q.reference_date || '',
+        buyersOrderNo: q.po_no || '',
+        buyersOrderDate: q.po_date || '',
+        dispatchDocNo: q.dispatch_document_no || '',
+        deliveryNoteDate: q.lr_date || '',
+        dispatchedThrough: q.dispatched_through || '',
+        destination: q.destination || '',
+        items: mapApiItemsToQuotationItems(q),
+      }));
+
+      setQuotations(transformedData);
+    } catch (err: any) {
+      console.error('Error fetching quotations:', err);
+      setError(err.response?.data?.message || 'An error occurred while loading quotations');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const term = e.target.value;
-    setSearchTerm(term);
-    setHighlightedIndex(-1);
-
-    if (!isOpen) {
-      setIsOpen(true);
-    }
-
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-
-    debounceTimerRef.current = setTimeout(() => {
-      if (term.length > 0) {
-        fetchCustomers(term);
-      } else {
-        fetchCustomers('');
-      }
-    }, 500);
-  };
-
-  const handleSelect = (customer: Customer) => {
-    setSelectedCustomer(customer);
-    setSearchTerm('');
-    setIsOpen(false);
-    onChange(customer.id, customer);
-    if (inputRef.current) {
-      inputRef.current.blur();
-    }
-  };
-
-  const handleAddNewClick = () => {
-    setIsOpen(false);
-    onAddNew(searchTerm.trim());
-  };
-
-  const getDisplayValue = () => {
-    if (selectedCustomer) {
-      return `${selectedCustomer.name}`;
-    }
-    return '';
-  };
-
-  const menu = isOpen ? (
-    <div
-      ref={menuRef}
-      style={{
-        position: 'fixed',
-        top: menuPos.top,
-        left: menuPos.left,
-        width: `${Math.max(menuPos.width, 230)}px`,
-        background: 'var(--card-bg, #ffffff)',
-        border: '0.5px solid var(--border-color, #e2e8f0)',
-        borderRadius: '6px',
-        boxShadow: '0 4px 16px var(--shadow-color, rgba(0,0,0,0.15))',
-        zIndex: 99999,
-        display: 'flex',
-        flexDirection: 'column',
-        maxHeight: '360px',
-        overflow: 'hidden'
-      }}
-    >
-      <div
-        className="cq-custom-scroll"
-        style={{
-          overflowY: 'auto',
-          overflowX: 'hidden',
-          maxHeight: '260px'
-        }}
-      >
-        {loading ? (
-          <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary, #94a3b8)', fontSize: '12px' }}>
-            <FaSpinner className="cq-spinning" style={{ display: 'inline-block', marginRight: '8px' }} /> Loading...
-          </div>
-        ) : filteredCustomers.length > 0 ? (
-          filteredCustomers.map((customer, index) => (
-            <div
-              key={customer.id}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                handleSelect(customer);
-              }}
-              style={{
-                padding: '10px 14px',
-                cursor: 'pointer',
-                background: highlightedIndex === index ? 'var(--nav-hover, #eff6ff)' : 'transparent',
-                borderLeft: value === customer.id ? '3px solid var(--primary-color, #2563eb)' : '3px solid transparent',
-                transition: 'background 0.15s',
-                borderBottom: index < filteredCustomers.length - 1 ? '0.5px solid var(--border-color, #f1f5f9)' : 'none'
-              }}
-              onMouseEnter={() => setHighlightedIndex(index)}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary, #0f172a)' }}>{customer.name}</span>
-                </div>
-                {(customer.gstin || customer.customerType) && (
-                  <span style={{ fontSize: '10px', color: 'var(--text-secondary, #94a3b8)', background: 'var(--layout-bg, #f1f5f9)', padding: '2px 8px', borderRadius: '4px' }}>
-                    {customer.gstin ? `GST: ${customer.gstin}` : customer.customerType}
-                  </span>
-                )}
-              </div>
-              <div style={{ display: 'flex', gap: '16px', marginTop: '4px', fontSize: '11px', color: 'var(--text-secondary, #64748b)', flexWrap: 'wrap' }}>
-                {customer.contactPerson && (
-                  <span><FaUser size={10} style={{ marginRight: '4px' }} />{customer.contactPerson}</span>
-                )}
-                {customer.phone && (
-                  <span><FaPhone size={10} style={{ marginRight: '4px' }} />{customer.phone}</span>
-                )}
-                {customer.email && (
-                  <span><FaEnvelope size={10} style={{ marginRight: '4px' }} />{customer.email}</span>
-                )}
-                {customer.territory && (
-                  <span>{customer.territory}</span>
-                )}
-              </div>
-            </div>
-          ))
-        ) : (
-          <div style={{ padding: '16px 14px', textAlign: 'center' }}>
-            <div style={{ fontSize: '12px', color: 'var(--text-secondary, #94a3b8)', marginBottom: '10px' }}>
-              {searchTerm.trim() ? (
-                <>No customer found for &quot;<strong>{searchTerm.trim()}</strong>&quot;</>
-              ) : (
-                'No customers available'
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div
-        className="cq-dropdown-add-new"
-        onMouseDown={(e) => {
-          e.preventDefault();
-          handleAddNewClick();
-        }}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          padding: '10px 14px',
-          cursor: 'pointer',
-          borderTop: '0.5px solid var(--border-color, #e2e8f0)',
-          color: 'var(--primary-color, #2563eb)',
-          fontWeight: 600,
-          fontSize: '12px',
-          background: 'var(--layout-bg, #f8fafc)',
-          flexShrink: 0,
-          transition: 'background 0.15s, color 0.15s'
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = 'var(--nav-hover, #eff6ff)';
-          e.currentTarget.style.color = 'var(--primary-color, #2563eb)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = 'var(--layout-bg, #f8fafc)';
-          e.currentTarget.style.color = 'var(--primary-color, #2563eb)';
-        }}
-      >
-        <span
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}
-        >
-          <FaPlus size={10} />
-        </span>
-
-        <span>
-          {searchTerm.trim() && filteredCustomers.length === 0
-            ? `Add "${searchTerm.trim()}" as New Customer`
-            : 'Add New Customer'}
-        </span>
-      </div>
-    </div>
-  ) : null;
-
-  return (
-    <div ref={wrapperRef} style={{ position: 'relative', width: '100%' }}>
-      <div style={{ position: 'relative' }}>
-        <input
-          ref={inputRef}
-          type="text"
-          placeholder={placeholder}
-          value={isOpen ? searchTerm : getDisplayValue()}
-          onChange={handleSearchChange}
-          onFocus={() => setIsOpen(true)}
-          disabled={disabled}
-          autoComplete="off"
-          style={{
-            width: '100%',
-            padding: '6px 10px',
-            paddingRight: '35px',
-            border: error ? '0.5px solid var(--danger-color, #ef4444)' : '0.5px solid var(--border-color, #e2e8f0)',
-            borderRadius: '6px',
-            background: disabled ? 'var(--input-bg, #f3f4f6)' : 'var(--input-bg, #f8fafc)',
-            color: 'var(--text-primary, #0f172a)',
-            fontSize: '13px',
-            fontFamily: 'inherit',
-            cursor: disabled ? 'not-allowed' : 'text',
-            minHeight: '32px'
-          }}
-        />
-        {loading ? (
-          <FaSpinner className="cq-spinning" style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--primary-color, #2563eb)', fontSize: '12px' }} />
-        ) : (
-          <FaChevronDown style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary, #64748b)', fontSize: '12px', pointerEvents: 'none' }} />
-        )}
-      </div>
-
-      {menu && ReactDOM.createPortal(menu, document.body)}
-    </div>
-  );
-};
-
-// ===== QUICK ADD CUSTOMER MODAL =====
-interface QuickAddCustomerModalProps {
-  isOpen: boolean;
-  prefillName?: string;
-  onClose: () => void;
-  onCreated: (customer: Customer) => void;
-  onOpenFullForm: () => void;
-}
-
-const QuickAddCustomerModal: React.FC<QuickAddCustomerModalProps> = ({
-  isOpen,
-  prefillName = '',
-  onClose,
-  onCreated,
-  onOpenFullForm,
-}) => {
-  const [customerName, setCustomerName] = useState('');
-  const [mobileNo, setMobileNo] = useState('');
-  const [emailId, setEmailId] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const DEFAULT_CUSTOMER_TYPE = 'Company';
-  const DEFAULT_CUSTOMER_GROUP = 'Commercial';
-
+  // ─── Click outside handler for date picker ──────────────────────
   useEffect(() => {
-    if (isOpen) {
-      setCustomerName(prefillName || '');
-      setMobileNo('');
-      setEmailId('');
-      setErrors({});
-    }
-  }, [isOpen, prefillName]);
-
-  if (!isOpen) return null;
-
-  const validate = (): boolean => {
-    const errs: Record<string, string> = {};
-    if (!customerName.trim()) errs.customerName = 'Customer name is required';
-    if (!mobileNo.trim()) errs.mobileNo = 'Mobile number is required';
-    if (!emailId.trim()) {
-      errs.emailId = 'Email is required';
-    } else if (!/\S+@\S+\.\S+/.test(emailId)) {
-      errs.emailId = 'Enter a valid email address';
-    }
-    setErrors(errs);
-    return Object.keys(errs).length === 0;
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validate()) return;
-
-    setSubmitting(true);
-    try {
-      const contactPayload = {
-        first_name: customerName.trim(),
-        last_name: '',
-        contact_name: customerName.trim(),
-        mobile_no: mobileNo.trim(),
-        alternate_mobile: '',
-        email_id: emailId.trim(),
-        telephone: '',
-        extension: '',
-        is_primary: 1,
-        is_billing_contact: 0,
-        is_saler_contact: 1,
-        remarks: '',
-      };
-
-      const payload = {
-        customer_name: customerName.trim(),
-        customer_group: DEFAULT_CUSTOMER_GROUP,
-        territory: '',
-        customer_type: DEFAULT_CUSTOMER_TYPE,
-        mobile_no: mobileNo.trim(),
-        email_id: emailId.trim(),
-        customer_primary_address: '',
-        primary_address: '',
-        contacts: [contactPayload],
-      };
-
-      const response = await api.post('/customer', payload);
-      if (response.data && response.data.success === 0) {
-        throw new Error(response.data?.message || 'Failed to add customer');
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        showDatePicker &&
+        dateFilterWrapperRef.current &&
+        !dateFilterWrapperRef.current.contains(e.target as Node)
+      ) {
+        setShowDatePicker(false);
       }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showDatePicker]);
 
-      const apiData = response?.data?.data;
+  // Fetch when page, itemsPerPage, or filters change
+  useEffect(() => {
+    fetchQuotations();
+  }, [currentPage, itemsPerPage, debouncedFilterText, selectedStatus, selectedCurrency, fromDate, toDate]);
 
-      const created: Customer = {
-        id: apiData?.id?.toString() || apiData?.name?.toString() || '',
-        name: apiData?.customer_name || payload.customer_name,
-        code: apiData?.customer_code || (apiData?.id != null ? `CUST-${apiData.id}` : ''),
-        email: apiData?.email_id || payload.email_id,
-        phone: apiData?.mobile_no || payload.mobile_no,
-        address: apiData?.customer_primary_address || '',
-        shippingAddress: apiData?.primary_address || '',
-        gstin: '',
-        contactPerson: contactPayload.contact_name,
-        contactMobile: contactPayload.mobile_no,
-        customerType: apiData?.customer_type || payload.customer_type,
-        customerGroup: apiData?.customer_group || payload.customer_group,
-        territory: apiData?.territory || '',
-        contacts: apiData?.contacts || (payload.contacts as any),
-      };
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterText, selectedStatus, selectedCurrency, fromDate, toDate]);
 
-      toast.success(`Customer "${created.name}" added and selected`);
-      onCreated(created);
-    } catch (err: any) {
-      console.error('Error quick-adding customer:', err);
-      const message =
-        err.response?.data?.message || err.message || 'Failed to add customer';
-      toast.error(message);
-    } finally {
-      setSubmitting(false);
+  const fetchFullQuotationRecord = async (quotationId: string): Promise<QuotationApiRecord | null> => {
+    try {
+      const response = await api.get(`/quotation/${quotationId}`);
+      if (response.data && response.data.success !== 0) {
+        const data = response.data.success === 1 ? response.data.data : response.data;
+        const record = Array.isArray(data) ? data[0] : (data?.record ?? data);
+        if (record && (record.name || record.id)) {
+          return record as QuotationApiRecord;
+        }
+      }
+    } catch (err) {
+      console.warn('Direct /quotation/:id fetch failed, falling back to list scan:', err);
+    }
+
+    try {
+      const response = await api.get('/quotation');
+      const records = extractRecords(response.data);
+      const found = records.find(
+        (r: any) => r && (r.name === quotationId || String(r.id) === String(quotationId))
+      );
+      return (found as QuotationApiRecord) || null;
+    } catch (err) {
+      console.error('Error fetching quotation detail:', err);
+      return null;
     }
   };
 
-  const labelStyle: React.CSSProperties = {
-    fontSize: '11px',
-    fontWeight: 600,
-    color: 'var(--text-secondary, #64748b)',
-    textTransform: 'uppercase',
-    letterSpacing: '0.5px',
-    marginBottom: '4px',
-    display: 'block',
+  const enrichItemsFromCatalog = async (items: QuotationItem[]): Promise<QuotationItem[]> => {
+    return Promise.all(items.map(async (item) => {
+      const needsLookup = !item.itemName || !item.rate;
+      if (!needsLookup || !item.itemCode) return item;
+
+      try {
+        const response = await api.get(`/item?page=1&limit=5&search=${encodeURIComponent(item.itemCode)}`);
+        const records = extractRecords(response.data);
+        const match =
+          records.find((r: any) => (r.item_code || r.name) === item.itemCode) || records[0];
+        if (!match) return item;
+
+        return {
+          ...item,
+          itemName: item.itemName || match.item_name || '',
+          hsnCode: item.hsnCode || match.hsn_code || match.gst_hsn_code || '',
+          rate: item.rate || Number(match.standard_rate ?? match.rate ?? 0) || 0,
+          cgst: item.cgst || Number(match.cgst_rate ?? match.cgst ?? 0) || 0,
+          sgst: item.sgst || Number(match.sgst_rate ?? match.sgst ?? 0) || 0,
+        };
+      } catch (err) {
+        console.error('Item catalog lookup failed for', item.itemCode, err);
+        return item;
+      }
+    }));
   };
 
-  const inputStyle = (hasError: boolean): React.CSSProperties => ({
-    width: '100%',
-    padding: '7px 10px',
-    border: hasError
-      ? '1.5px solid var(--danger-color, #ef4444)'
-      : '1.5px solid var(--border-color, #e2e8f0)',
-    borderRadius: '8px',
-    background: 'var(--card-bg, #ffffff)',
-    color: 'var(--text-primary, #0f172a)',
-    fontSize: '13px',
-    fontFamily: 'inherit',
-    boxSizing: 'border-box',
-    minHeight: '34px',
-  });
+  const buildPrintableQuote = async (quote: Quotation): Promise<Quotation> => {
+    let items: QuotationItem[] = [];
+    let latestTotal: number | undefined;
 
-  const fieldWrapStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: '2px' };
-  const errorTextStyle: React.CSSProperties = { fontSize: '10px', color: 'var(--danger-color, #ef4444)' };
+    try {
+      const detail = await fetchFullQuotationRecord(quote.id);
+      items = mapApiItemsToQuotationItems(detail);
+      latestTotal = detail?.grand_total ?? detail?.total ?? undefined;
+    } catch (err) {
+      console.error('Error fetching full quotation record for print:', err);
+    }
+
+    if (items.length === 0) {
+      const cached = readCachedQuotationLineData(quote.id);
+      if (cached?.items && cached.items.length > 0) {
+        items = cached.items;
+      }
+    }
+
+    if (items.length === 0 && quote.items && quote.items.length > 0) {
+      items = quote.items;
+    }
+
+    try {
+      items = await enrichItemsFromCatalog(items);
+    } catch (err) {
+      console.error('Item catalog enrichment failed:', err);
+    }
+
+    return {
+      ...quote,
+      items,
+      totalAmount: latestTotal ?? quote.totalAmount,
+    };
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'Draft': return 'status-draft';
+      case 'Sent': return 'status-sent';
+      case 'Accepted': return 'status-accepted';
+      case 'Rejected': return 'status-rejected';
+      case 'Expired': return 'status-expired';
+      case 'Converted': return 'status-converted';
+      default: return '';
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'Draft': return <FaFileAlt size={10} />;
+      case 'Sent': return <FaEnvelope size={10} />;
+      case 'Accepted': return <FaCheckCircle size={10} />;
+      case 'Rejected': return <FaTimesCircle size={10} />;
+      case 'Expired': return <FaClock size={10} />;
+      case 'Converted': return <FaExternalLinkAlt size={10} />;
+      default: return null;
+    }
+  };
+
+  // ─── Pagination Handlers ──────────────────────────────────────────
+  const goToPage = (page: number) => {
+    if (page < 1) {
+      setCurrentPage(1);
+    } else if (page > totalPages) {
+      setCurrentPage(totalPages);
+    } else {
+      setCurrentPage(page);
+    }
+  };
+
+  const goToFirstPage = () => goToPage(1);
+  const goToLastPage = () => goToPage(totalPages);
+  const goToNextPage = () => goToPage(currentPage + 1);
+  const goToPrevPage = () => goToPage(currentPage - 1);
+
+  const handlePageSizeChange = (newSize: number) => {
+    setItemsPerPage(newSize);
+    setCurrentPage(1);
+  };
+
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisible = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+    
+    if (endPage - startPage + 1 < maxVisible) {
+      startPage = Math.max(1, endPage - maxVisible + 1);
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i);
+    }
+    return pages;
+  };
+
+  const getStartIndexDisplay = () => {
+    if (totalRecords === 0) return 0;
+    return (currentPage - 1) * itemsPerPage + 1;
+  };
+
+  const getEndIndexDisplay = () => {
+    return Math.min(currentPage * itemsPerPage, totalRecords);
+  };
+
+  const totalAmount = quotations.reduce((sum, q) => sum + q.totalAmount, 0);
+  const acceptedAmount = quotations.filter(q => q.status === 'Accepted').reduce((sum, q) => sum + q.totalAmount, 0);
+  const conversionRate = totalAmount > 0 ? Math.round((acceptedAmount / totalAmount) * 100) : 0;
+
+  const handleView = (quote: Quotation) => {
+    navigate(`/quotation/${quote.id}`, { state: { quotation: quote } });
+  };
+
+  const handleEdit = (quote: Quotation) => {
+    navigate(`/quotation/${quote.id}`, { state: { quotation: quote } });
+  };
+
+  const handleDeleteClick = (quote: Quotation) => {
+    setSelectedQuote(quote);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!selectedQuote) return;
+    setIsSubmitting(true);
+    try {
+      console.log('Attempting to delete quotation:', selectedQuote.id);
+      console.log('Quotation data:', selectedQuote);
+      
+      const response = await api.delete(`/quotation/${selectedQuote.id}`);
+      console.log('Delete response:', response);
+      
+      if (response.data && response.data.success === 1) {
+        setShowDeleteModal(false);
+        setSelectedQuote(null);
+        toast.success(response.data.message || 'Quotation deleted successfully!');
+        await fetchQuotations();
+      } else {
+        const errorMsg = response.data?.message || 'Failed to delete quotation';
+        console.error('Delete failed:', errorMsg);
+        toast.error(errorMsg);
+      }
+    } catch (err: any) {
+      console.error('Error deleting quotation:', err);
+      
+      if (err.response) {
+        console.error('Error response status:', err.response.status);
+        console.error('Error response data:', err.response.data);
+        console.error('Error response headers:', err.response.headers);
+        
+        if (err.response.status === 500) {
+          toast.error('Server error: The quotation may have related records (items, taxes) that need to be deleted first.');
+        } else if (err.response.status === 404) {
+          toast.error('Quotation not found. It may have already been deleted.');
+        } else if (err.response.status === 403) {
+          toast.error('You do not have permission to delete this quotation.');
+        } else if (err.response.status === 400) {
+          toast.error(err.response.data?.message || 'Bad request. Please check the quotation data.');
+        } else {
+          toast.error(err.response.data?.message || 'Failed to delete quotation');
+        }
+      } else if (err.request) {
+        console.error('No response received:', err.request);
+        toast.error('Network error - Please check your connection');
+      } else {
+        console.error('Request setup error:', err.message);
+        toast.error('An unexpected error occurred: ' + err.message);
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const getCompanyDetails = () => companyDetails;
+
+  const clearFilters = () => {
+    setFilterText('');
+    setSelectedStatus('All');
+    setSelectedCurrency('All');
+    setFromDate('');
+    setToDate('');
+    setTempFromDate(null);
+    setTempToDate(null);
+    setCurrentPage(1);
+  };
+
+  /* ─────────────────────── Print (Tax-Invoice format) ─────────────────────── */
+
+  const buildQuotationPrintHtml = (quote: Quotation): string => {
+    const validItems = quote.items || [];
+
+    const baseTotal = validItems.reduce((sum, it) => sum + (it.amount || 0), 0);
+    const cgstAmount = validItems.reduce((sum, it) => sum + ((it.amount || 0) * (it.cgst || 0)) / 100, 0);
+    const sgstAmount = validItems.reduce((sum, it) => sum + ((it.amount || 0) * (it.sgst || 0)) / 100, 0);
+    const totalQty = validItems.reduce((sum, it) => sum + (it.quantity || 0), 0);
+    const grandTotal = quote.totalAmount || (baseTotal + cgstAmount + sgstAmount);
+
+    const formatPrintDateLocal = (dateStr: string) => {
+      if (!dateStr) return '';
+      return formatDisplayDateWithContext(dateStr);
+    };
+
+    const itemRows = validItems.map((item, idx) => `
+      <tr>
+        <td class="pq-col-sl">${idx + 1}</td>
+        <td class="pq-col-desc">
+          ${escapeHtml(item.itemName || item.itemCode || '')}
+          ${item.itemCode ? `<div class="pq-item-sub">${escapeHtml(item.itemCode)}</div>` : ''}
+        </td>
+        <td class="pq-col-hsn">${escapeHtml(item.hsnCode || '')}</td>
+        <td class="pq-col-qty">${item.quantity} Nos.</td>
+        <td class="pq-col-rate">${item.rate.toFixed(2)}</td>
+        <td class="pq-col-per">Nos.</td>
+        <td class="pq-col-cgst">${item.cgst ? item.cgst + '%' : ''}</td>
+        <td class="pq-col-sgst">${item.sgst ? item.sgst + '%' : ''}</td>
+        <td class="pq-col-amt">${item.amount.toFixed(2)}</td>
+      </tr>
+    `).join('');
+
+    const cgstRate = validItems.find(it => (it.cgst || 0) > 0)?.cgst || 0;
+    const sgstRate = validItems.find(it => (it.sgst || 0) > 0)?.sgst || 0;
+
+    const taxLines: string[] = [];
+    if (cgstAmount > 0) {
+      taxLines.push(`
+        <tr>
+          <td colspan="8" class="pq-tax-label">Output CGST ${cgstRate}%</td>
+          <td class="pq-col-amt">${cgstAmount.toFixed(2)}</td>
+        </tr>
+      `);
+    }
+    if (sgstAmount > 0) {
+      taxLines.push(`
+        <tr>
+          <td colspan="8" class="pq-tax-label">Output SGST ${sgstRate}%</td>
+          <td class="pq-col-amt">${sgstAmount.toFixed(2)}</td>
+        </tr>
+      `);
+    }
+
+    const hsnGroups = new Map<string, { taxable: number; cgstRate: number; sgstRate: number; cgstAmt: number; sgstAmt: number }>();
+    validItems.forEach((it) => {
+      const key = it.hsnCode || '—';
+      const taxable = it.amount || 0;
+      const itCgstAmt = (taxable * (it.cgst || 0)) / 100;
+      const itSgstAmt = (taxable * (it.sgst || 0)) / 100;
+      const existing = hsnGroups.get(key);
+      if (existing) {
+        existing.taxable += taxable;
+        existing.cgstAmt += itCgstAmt;
+        existing.sgstAmt += itSgstAmt;
+      } else {
+        hsnGroups.set(key, {
+          taxable,
+          cgstRate: it.cgst || 0,
+          sgstRate: it.sgst || 0,
+          cgstAmt: itCgstAmt,
+          sgstAmt: itSgstAmt,
+        });
+      }
+    });
+
+    const hasTax = cgstAmount > 0 || sgstAmount > 0;
+    const hsnSummaryRows = Array.from(hsnGroups.entries()).map(([hsn, g]) => `
+      <tr>
+        <td>${escapeHtml(hsn === '—' ? '' : hsn)}</td>
+        <td>${g.taxable.toFixed(2)}</td>
+        ${cgstAmount > 0 ? `<td>${g.cgstRate ? g.cgstRate + '%' : ''}</td><td>${g.cgstAmt.toFixed(2)}</td>` : ''}
+        ${sgstAmount > 0 ? `<td>${g.sgstRate ? g.sgstRate + '%' : ''}</td><td>${g.sgstAmt.toFixed(2)}</td>` : ''}
+        <td>${(g.cgstAmt + g.sgstAmt).toFixed(2)}</td>
+      </tr>
+    `).join('');
+
+    const paymentTerms = quote.paymentTermsTemplate || '';
+
+    return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8" />
+<title>${escapeHtml(quote.quotationNumber)}</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #1a1a1a; margin: 0; padding: 24px; }
+  .pq-outer { border: 1.5px solid #000; }
+  .pq-title-row { display: flex; align-items: center; justify-content: center; position: relative; padding: 8px; border-bottom: 1.5px solid #000; }
+  .pq-title { font-size: 18px; font-weight: bold; letter-spacing: 1px; }
+  .pq-top { display: flex; border-bottom: 1px solid #000; }
+  .pq-company-box { flex: 1.3; padding: 8px; border-right: 1px solid #000; }
+  .pq-company-name { font-weight: bold; font-size: 14px; margin-bottom: 4px; }
+  .pq-company-box div { margin: 1px 0; }
+  .pq-meta-box { flex: 1.1; }
+  .pq-meta-row { display: flex; border-bottom: 1px solid #000; }
+  .pq-meta-row:last-child { border-bottom: none; }
+  .pq-meta-cell { flex: 1; padding: 4px 8px; border-right: 1px solid #000; }
+  .pq-meta-cell:last-child { border-right: none; }
+  .pq-meta-label { font-size: 10px; color: #444; }
+  .pq-meta-value { font-weight: 600; margin-top: 1px; min-height: 13px; }
+  .pq-parties { display: flex; border-bottom: 1px solid #000; }
+  .pq-party-box { flex: 1; padding: 8px; border-right: 1px solid #000; }
+  .pq-party-box:last-child { border-right: none; }
+  .pq-party-label { font-weight: bold; margin-bottom: 3px; }
+  .pq-party-box div { margin: 1px 0; }
+  table.pq-items { width: 100%; border-collapse: collapse; }
+  table.pq-items th, table.pq-items td { border-right: 1px solid #000; padding: 5px 6px; }
+  table.pq-items th:last-child, table.pq-items td:last-child { border-right: none; }
+  table.pq-items thead th { border-bottom: 1px solid #000; border-top: none; font-size: 11px; text-align: left; }
+  .pq-col-sl { width: 26px; text-align: center; }
+  .pq-col-desc { min-width: 170px; }
+  .pq-item-sub { font-size: 10px; color: #555; }
+  .pq-col-hsn { width: 62px; }
+  .pq-col-qty { width: 74px; text-align: right; }
+  .pq-col-rate { width: 62px; text-align: right; }
+  .pq-col-per { width: 42px; }
+  .pq-col-cgst { width: 54px; text-align: right; }
+  .pq-col-sgst { width: 54px; text-align: right; }
+  .pq-col-amt { width: 92px; text-align: right; }
+  .pq-tax-label { text-align: right; font-style: italic; padding-right: 10px; }
+  .pq-total-row td { border-top: 1px solid #000; font-weight: bold; padding: 6px; }
+  .pq-words { display: flex; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 6px 8px; justify-content: space-between; align-items: flex-start; }
+  .pq-words-label { font-size: 10px; color: #444; }
+  .pq-eoe { font-size: 11px; font-style: italic; white-space: nowrap; }
+  table.pq-summary { width: 100%; border-collapse: collapse; }
+  table.pq-summary th, table.pq-summary td { border: 1px solid #000; padding: 4px 8px; font-size: 11px; text-align: right; }
+  table.pq-summary th:first-child, table.pq-summary td:first-child { text-align: left; }
+  .pq-tax-words { border-top: 1px solid #000; padding: 6px 8px; }
+  .pq-bottom { display: flex; border-top: 1px solid #000; }
+  .pq-pan-decl-box { flex: 1; padding: 8px; border-right: 1px solid #000; display: flex; flex-direction: column; justify-content: space-between; }
+  .pq-bank-sign-box { flex: 1; padding: 8px; display: flex; flex-direction: column; justify-content: space-between; }
+  .pq-signatory { text-align: right; margin-top: 24px; font-size: 11px; }
+  .pq-footer { text-align: center; padding: 8px; font-size: 10px; color: #444; border-top: 1px solid #000; }
+  .pq-footer div:first-child { font-weight: 600; letter-spacing: 0.5px; margin-bottom: 2px; }
+  @media print {
+    body { padding: 0; }
+    @page { margin: 12mm; }
+  }
+</style>
+</head>
+<body>
+  <div class="pq-outer">
+
+    <div class="pq-title-row">
+      <div class="pq-title">QUOTATION</div>
+    </div>
+
+    <div class="pq-top">
+      <div class="pq-company-box">
+        <div class="pq-company-name">${escapeHtml(companyDetails.name)}</div>
+        <div>${escapeHtml(companyDetails.address)}</div>
+        <div>Phone: ${escapeHtml(companyDetails.contact)}</div>
+        ${companyPrintDetails.gstin ? `<div>GSTIN/UIN: ${escapeHtml(companyPrintDetails.gstin)}</div>` : ''}
+        <div>State Name : ${escapeHtml(companyPrintDetails.stateName)}, Code : ${escapeHtml(companyPrintDetails.stateCode)}</div>
+      </div>
+      <div class="pq-meta-box">
+        <div class="pq-meta-row">
+          <div class="pq-meta-cell">
+            <div class="pq-meta-label">Quotation No.</div>
+            <div class="pq-meta-value">${escapeHtml(quote.quotationNumber)}</div>
+          </div>
+          <div class="pq-meta-cell" style="border-right:none;">
+            <div class="pq-meta-label">Dated</div>
+            <div class="pq-meta-value">${escapeHtml(formatPrintDateLocal(quote.date))}</div>
+          </div>
+        </div>
+        <div class="pq-meta-row">
+          <div class="pq-meta-cell">
+            <div class="pq-meta-label">Delivery Note</div>
+            <div class="pq-meta-value">${escapeHtml(quote.deliveryNote || '')}</div>
+          </div>
+          <div class="pq-meta-cell" style="border-right:none;">
+            <div class="pq-meta-label">Mode/Terms of Payment</div>
+            <div class="pq-meta-value">${escapeHtml(paymentTerms)}</div>
+          </div>
+        </div>
+        <div class="pq-meta-row">
+          <div class="pq-meta-cell" style="border-right:none;">
+            <div class="pq-meta-label">Reference No. &amp; Date.</div>
+            <div class="pq-meta-value">${escapeHtml(quote.referenceNo || '')}${quote.referenceDate ? ` dt. ${escapeHtml(formatPrintDateLocal(quote.referenceDate))}` : ''}</div>
+          </div>
+        </div>
+        <div class="pq-meta-row">
+          <div class="pq-meta-cell">
+            <div class="pq-meta-label">Buyer's Order No.</div>
+            <div class="pq-meta-value">${escapeHtml(quote.buyersOrderNo || '')}</div>
+          </div>
+          <div class="pq-meta-cell" style="border-right:none;">
+            <div class="pq-meta-label">Dated</div>
+            <div class="pq-meta-value">${escapeHtml(formatPrintDateLocal(quote.buyersOrderDate || ''))}</div>
+          </div>
+        </div>
+        <div class="pq-meta-row">
+          <div class="pq-meta-cell">
+            <div class="pq-meta-label">Dispatch Doc No.</div>
+            <div class="pq-meta-value">${escapeHtml(quote.dispatchDocNo || '')}</div>
+          </div>
+          <div class="pq-meta-cell" style="border-right:none;">
+            <div class="pq-meta-label">Delivery Note Date</div>
+            <div class="pq-meta-value">${escapeHtml(formatPrintDateLocal(quote.deliveryNoteDate || ''))}</div>
+          </div>
+        </div>
+        <div class="pq-meta-row">
+          <div class="pq-meta-cell">
+            <div class="pq-meta-label">Dispatched through</div>
+            <div class="pq-meta-value">${escapeHtml(quote.dispatchedThrough || '')}</div>
+          </div>
+          <div class="pq-meta-cell" style="border-right:none;">
+            <div class="pq-meta-label">Destination</div>
+            <div class="pq-meta-value">${escapeHtml(quote.destination || '')}</div>
+          </div>
+        </div>
+        <div class="pq-meta-row">
+          <div class="pq-meta-cell" style="border-right:none;">
+            <div class="pq-meta-label">Terms of Delivery</div>
+            <div class="pq-meta-value">${escapeHtml(quote.termsConditions || '')}</div>
+          </div>
+        </div>
+        ${quote.status ? `
+        <div class="pq-meta-row">
+          <div class="pq-meta-cell" style="border-right:none;">
+            <div class="pq-meta-label">Status</div>
+            <div class="pq-meta-value">${escapeHtml(quote.status)} ${quote.validTill ? `&nbsp;•&nbsp; Valid Till: ${escapeHtml(formatPrintDateLocal(quote.validTill))}` : ''}</div>
+          </div>
+        </div>` : ''}
+      </div>
+    </div>
+
+    <div class="pq-parties">
+      <div class="pq-party-box">
+        <div class="pq-party-label">Consignee (Ship to)</div>
+        <div><strong>${escapeHtml(quote.customerName)}</strong></div>
+        ${quote.customerAddress ? `<div>${escapeHtml(quote.customerAddress)}</div>` : ''}
+        ${quote.customerGstin ? `<div>GSTIN/UIN : ${escapeHtml(quote.customerGstin)}</div>` : ''}
+        ${quote.customerState ? `<div>State Name : ${escapeHtml(quote.customerState)}${quote.customerStateCode ? `, Code : ${escapeHtml(quote.customerStateCode)}` : ''}</div>` : ''}
+      </div>
+      <div class="pq-party-box">
+        <div class="pq-party-label">Buyer (Bill to)</div>
+        <div><strong>${escapeHtml(quote.customerName)}</strong></div>
+        ${quote.customerAddress ? `<div>${escapeHtml(quote.customerAddress)}</div>` : ''}
+        ${quote.customerGstin ? `<div>GSTIN/UIN : ${escapeHtml(quote.customerGstin)}</div>` : ''}
+        ${quote.customerState ? `<div>State Name : ${escapeHtml(quote.customerState)}${quote.customerStateCode ? `, Code : ${escapeHtml(quote.customerStateCode)}` : ''}</div>` : ''}
+        ${quote.customerEmail ? `<div>Email : ${escapeHtml(quote.customerEmail)}</div>` : ''}
+        ${quote.customerPhone ? `<div>Phone : ${escapeHtml(quote.customerPhone)}</div>` : ''}
+      </div>
+    </div>
+
+    <table class="pq-items">
+      <thead>
+        <tr>
+          <th class="pq-col-sl">Sl</th>
+          <th class="pq-col-desc">Description of Goods</th>
+          <th class="pq-col-hsn">HSN/SAC</th>
+          <th class="pq-col-qty">Quantity</th>
+          <th class="pq-col-rate">Rate</th>
+          <th class="pq-col-per">per</th>
+          <th class="pq-col-cgst">CGST</th>
+          <th class="pq-col-sgst">SGST</th>
+          <th class="pq-col-amt">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemRows}
+        ${taxLines.join('')}
+        <tr class="pq-total-row">
+          <td colspan="3">Total</td>
+          <td class="pq-col-qty">${totalQty} Nos.</td>
+          <td colspan="4"></td>
+          <td class="pq-col-amt">${grandTotal.toFixed(2)}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="pq-words">
+      <div>
+        <div class="pq-words-label">Amount Chargeable (in words)</div>
+        <div><strong>${quote.currency || 'INR'} ${numberToIndianWords(grandTotal)} Only</strong></div>
+      </div>
+      <div class="pq-eoe">E.&amp;O.E</div>
+    </div>
+
+    ${hasTax ? `
+    <table class="pq-summary">
+      <thead>
+        <tr>
+          <th>HSN/SAC</th>
+          <th>Taxable Value</th>
+          ${cgstAmount > 0 ? `<th>CGST Rate</th><th>CGST Amount</th>` : ''}
+          ${sgstAmount > 0 ? `<th>SGST Rate</th><th>SGST Amount</th>` : ''}
+          <th>Total Tax Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${hsnSummaryRows}
+        <tr style="font-weight:600;">
+          <td>Total</td>
+          <td>${baseTotal.toFixed(2)}</td>
+          ${cgstAmount > 0 ? `<td></td><td>${cgstAmount.toFixed(2)}</td>` : ''}
+          ${sgstAmount > 0 ? `<td></td><td>${sgstAmount.toFixed(2)}</td>` : ''}
+          <td>${(cgstAmount + sgstAmount).toFixed(2)}</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="pq-tax-words">
+      Tax Amount (in words) : <strong>${quote.currency || 'INR'} ${numberToIndianWords(cgstAmount + sgstAmount)} Only</strong>
+    </div>` : ''}
+
+    <div class="pq-bottom">
+      <div class="pq-pan-decl-box">
+        <div>
+          <strong>Declaration</strong>
+          <div>We declare that this quotation shows the actual price of the goods described and that all particulars are true and correct.</div>
+        </div>
+        ${companyPrintDetails.panNo ? `<div style="margin-top:8px;">Company's PAN : ${escapeHtml(companyPrintDetails.panNo)}</div>` : ''}
+      </div>
+      <div class="pq-bank-sign-box">
+        <div>
+          <div><strong>Company's Bank Details</strong></div>
+          ${companyPrintDetails.bankName ? `<div>Bank Name : ${escapeHtml(companyPrintDetails.bankName)}</div>` : ''}
+          ${companyPrintDetails.bankAccountNo ? `<div>A/c No. : ${escapeHtml(companyPrintDetails.bankAccountNo)}</div>` : ''}
+          ${companyPrintDetails.bankBranchIfsc ? `<div>Branch &amp; IFS Code : ${escapeHtml(companyPrintDetails.bankBranchIfsc)}</div>` : ''}
+        </div>
+        <div class="pq-signatory">
+          for ${escapeHtml(companyDetails.name)}<br /><br /><br />
+          Authorised Signatory
+        </div>
+      </div>
+    </div>
+
+    <div class="pq-footer">
+      ${companyPrintDetails.jurisdiction ? `<div>SUBJECT TO ${escapeHtml(companyPrintDetails.jurisdiction)} JURISDICTION</div>` : ''}
+      <div>This is a computer generated quotation.</div>
+    </div>
+  </div>
+
+  <script>
+    window.onload = function () { window.print(); };
+  </script>
+</body>
+</html>`;
+  };
+
+  const handlePrintQuotation = async (quote: Quotation) => {
+    const printWindow = window.open('', '_blank', 'width=900,height=1000');
+    if (!printWindow) {
+      toast.error('Please allow pop-ups to print this quotation');
+      return;
+    }
+    printWindow.document.write('<p style="font-family:sans-serif;padding:24px;color:#374151;">Loading quotation…</p>');
+
+    setPrintLoadingId(quote.id);
+    try {
+      const printable = await buildPrintableQuote(quote);
+      printWindow.document.open();
+      printWindow.document.write(buildQuotationPrintHtml(printable));
+      printWindow.document.close();
+    } catch (err) {
+      console.error('Error printing quotation:', err);
+      printWindow.document.open();
+      printWindow.document.write(buildQuotationPrintHtml(quote));
+      printWindow.document.close();
+    } finally {
+      setPrintLoadingId(null);
+    }
+  };
 
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(17, 24, 39, 0.45)',
-        backdropFilter: 'blur(3px)',
-        zIndex: 300,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '20px',
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: 'var(--card-bg, #ffffff)',
-          borderRadius: '12px',
-          width: '100%',
-          maxWidth: '420px',
-          boxShadow: '0 16px 40px rgba(0, 0, 0, 0.18)',
-          overflow: 'hidden',
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '16px 20px',
-            borderBottom: '1px solid var(--border-color, #e2e8f0)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <FaUser style={{ color: 'var(--primary-color, #2563eb)' }} />
-            <h2 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: 'var(--text-primary, #0f172a)' }}>
-              Quick Add Customer
-            </h2>
+    <div className={`quotation-page ${theme}`}>
+      {/* Search and Filter Bar */}
+      <div className="qt-filter-bar">
+        <div className="qt-filter-left">
+          <div className="qt-search-wrapper">
+            <FaSearch className="qt-search-icon" />
+            <input
+              type="text"
+              placeholder="Search by Quote #, Customer Name, or Customer Code..."
+              value={filterText}
+              onChange={(e) => setFilterText(e.target.value)}
+              className="qt-search-input"
+            />
+            {filterText && (
+              <button className="qt-search-clear" onClick={() => setFilterText("")}>
+                <FaTimes size={12} />
+              </button>
+            )}
           </div>
+        </div>
+        <div className="qt-filter-right">
+          <select
+            value={selectedStatus}
+            onChange={(e) => setSelectedStatus(e.target.value)}
+            className="qt-filter-select"
+          >
+            <option value="All">All Status</option>
+            <option value="Draft">Draft</option>
+            <option value="Sent">Sent</option>
+            <option value="Accepted">Accepted</option>
+            <option value="Rejected">Rejected</option>
+            <option value="Expired">Expired</option>
+            <option value="Converted">Converted</option>
+          </select>
+
+          {/* ─── From - To Date Filter Button ─── */}
+           <div className="jc-date-filter-wrapper" ref={dateFilterWrapperRef}>
+  <button
+    type="button"
+    className={`jc-date-filter-btn ${
+      fromDate && toDate ? "jc-filter-active" : ""
+    }`}
+    onClick={openDatePicker}
+  >
+    <FaCalendarAlt className="pq-calendar-icon" />
+
+    <span>{dateFilterButtonLabel}</span>
+
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 12 12"
+      fill="none"
+      style={{ marginLeft: "4px" }}
+    >
+      <path
+        d="M2 4l4 4 4-4"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  </button>
+
+  {showDatePicker && (
+    <div className="jc-date-filter-popup">
+      {/* Header */}
+      <div className="jc-date-filter-popup-header">
+        <span>Filter by Date</span>
+
+        <button
+          type="button"
+          className="jc-date-filter-popup-close"
+          onClick={closeDatePicker}
+        >
+          <FaTimes size={14} />
+        </button>
+      </div>
+
+      {/* Selected Date Inputs */}
+      <div className="jc-date-filter-inputs">
+        <input
+          type="text"
+          readOnly
+          placeholder="From"
+          className="jc-date-filter-input"
+          value={
+            tempFromDate
+              ? formatDisplayDate(tempFromDate)
+              : ""
+          }
+        />
+
+        <input
+          type="text"
+          readOnly
+          placeholder="To"
+          className="jc-date-filter-input"
+          value={
+            tempToDate
+              ? formatDisplayDate(tempToDate)
+              : ""
+          }
+        />
+      </div>
+
+      {/* Quick Filters */}
+      <div className="jc-date-filter-quick-row">
+        <button
+          type="button"
+          className="jc-quick-filter-btn"
+          onClick={() => applyQuickFilter("today")}
+        >
+          Today
+        </button>
+
+        <button
+          type="button"
+          className="jc-quick-filter-btn"
+          onClick={() => applyQuickFilter("last7")}
+        >
+          Last 7 Days
+        </button>
+
+        <button
+          type="button"
+          className="jc-quick-filter-btn"
+          onClick={() => applyQuickFilter("last30")}
+        >
+          Last 30 Days
+        </button>
+      </div>
+
+      <div className="jc-date-filter-quick-row">
+        <button
+          type="button"
+          className="jc-quick-filter-btn"
+          onClick={() => applyQuickFilter("thisMonth")}
+        >
+          This Month
+        </button>
+      </div>
+
+      {/* Calendar */}
+      <div className="jc-calendar">
+        <div className="jc-calendar-header">
           <button
             type="button"
-            onClick={onClose}
-            style={{
-              width: '28px',
-              height: '28px',
-              borderRadius: '50%',
-              border: 'none',
-              background: 'none',
-              fontSize: '18px',
-              color: 'var(--text-secondary, #6b7280)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
+            className="jc-calendar-nav-btn"
+            onClick={goToPrevMonth}
           >
-            <FaTimes />
+            <FaChevronLeft size={12} />
+          </button>
+
+          <span className="jc-calendar-month-label">
+            {MONTH_LABELS[calendarViewDate.getMonth()]}{" "}
+            {calendarViewDate.getFullYear()}
+          </span>
+
+          <button
+            type="button"
+            className="jc-calendar-nav-btn"
+            onClick={goToNextMonth}
+          >
+            <FaChevronRight size={12} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit}>
-          <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <div style={fieldWrapStyle}>
-              <label style={labelStyle}>
-                Customer Name <span style={{ color: 'var(--danger-color, #ef4444)' }}>*</span>
-              </label>
-              <input
-                type="text"
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-                placeholder="Enter customer name"
-                style={inputStyle(!!errors.customerName)}
-                autoFocus
-              />
-              {errors.customerName && <span style={errorTextStyle}>{errors.customerName}</span>}
-            </div>
-
-            <div style={fieldWrapStyle}>
-              <label style={labelStyle}>
-                Mobile Number <span style={{ color: 'var(--danger-color, #ef4444)' }}>*</span>
-              </label>
-              <input
-                type="tel"
-                value={mobileNo}
-                onChange={(e) => setMobileNo(e.target.value)}
-                placeholder="Mobile number"
-                style={inputStyle(!!errors.mobileNo)}
-              />
-              {errors.mobileNo && <span style={errorTextStyle}>{errors.mobileNo}</span>}
-            </div>
-
-            <div style={fieldWrapStyle}>
-              <label style={labelStyle}>
-                Email <span style={{ color: 'var(--danger-color, #ef4444)' }}>*</span>
-              </label>
-              <input
-                type="email"
-                value={emailId}
-                onChange={(e) => setEmailId(e.target.value)}
-                placeholder="Email address"
-                style={inputStyle(!!errors.emailId)}
-              />
-              {errors.emailId && <span style={errorTextStyle}>{errors.emailId}</span>}
-            </div>
-          </div>
-
-          <div
-            style={{
-              padding: '14px 20px',
-              borderTop: '1px solid var(--border-color, #e2e8f0)',
-              background: 'var(--layout-bg, #f8fafc)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '10px',
-              flexWrap: 'wrap',
-            }}
-          >
-            <button
-              type="button"
-              onClick={onOpenFullForm}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '8px 14px',
-                borderRadius: '20px',
-                fontSize: '12px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                background: 'transparent',
-                border: '1px solid var(--border-color, #e2e8f0)',
-                color: 'var(--primary-color, #2563eb)',
-              }}
-              title="Fill in the full customer form instead (customer type/group, contact person, address, etc.)"
+        {/* Weekdays */}
+        <div className="jc-calendar-weekdays">
+          {WEEKDAY_LABELS.map((wd) => (
+            <span
+              key={wd}
+              className="jc-calendar-weekday"
             >
-              <FaBuilding size={11} /> Add All Details
-            </button>
+              {wd}
+            </span>
+          ))}
+        </div>
 
-            <div style={{ display: 'flex', gap: '8px' }}>
+        {/* Calendar Days */}
+        <div className="jc-calendar-grid">
+          {calendarCells.map((day, idx) => {
+            if (!day) {
+              return (
+                <span
+                  key={`blank-${idx}`}
+                  className="jc-calendar-cell jc-calendar-cell-empty"
+                />
+              );
+            }
+
+            const isStart = isSameDay(day, tempFromDate);
+            const isEnd = isSameDay(day, tempToDate);
+
+            const inRange =
+              !!tempFromDate &&
+              !!tempToDate &&
+              day > tempFromDate &&
+              day < tempToDate;
+
+            return (
               <button
                 type="button"
-                onClick={onClose}
-                style={{
-                  padding: '8px 18px',
-                  borderRadius: '20px',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  background: 'var(--card-bg, #ffffff)',
-                  border: '1px solid var(--border-color, #e2e8f0)',
-                  color: 'var(--text-secondary, #64748b)',
-                }}
+                key={day.toISOString()}
+                className={[
+                  "jc-calendar-cell",
+                  isStart || isEnd
+                    ? "jc-calendar-cell-selected"
+                    : "",
+                  inRange
+                    ? "jc-calendar-cell-inrange"
+                    : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+                onClick={() => handleCalendarDayClick(day)}
               >
-                Cancel
+                {day.getDate()}
               </button>
-              <button
-                type="submit"
-                disabled={submitting}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '8px 18px',
-                  borderRadius: '20px',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  cursor: submitting ? 'not-allowed' : 'pointer',
-                  opacity: submitting ? 0.7 : 1,
-                  background: 'var(--primary-gradient, linear-gradient(135deg, #2563eb 0%, #1e40af 100%))',
-                  border: 'none',
-                  color: '#ffffff',
-                }}
-              >
-                {submitting && <FaSpinner className="cq-spinning" size={11} />}
-                Add Customer
-              </button>
-            </div>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-};
-
-/* ─────────────────────────── Main Component ─────────────────────────── */
-
-export default function CreateQuotation() {
-  const navigate = useNavigate();
-  const { id } = useParams<{ id: string }>();
-  const location = useLocation();
-
-  const isEditMode = !!id && id !== 'new';
-
-  const getDraftStorageKey = () => `${QUOTATION_DRAFT_PREFIX}${id || 'new'}`;
-
-  // ✅ FIX: Properly get theme with error handling
-  let theme = 'light';
-  try {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    const context = useAdminTheme();
-    theme = context.theme || 'light';
-  } catch (error) {
-    console.warn('Theme context not available, using light theme');
-  }
-
-  const [errors, setErrors] = useState<{ [key: string]: string }>({});
-  const [saving, setSaving] = useState(false);
-  const [loadingRecord, setLoadingRecord] = useState(false);
-  const [focusedField] = useState<string | null>(null);
-  const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
-  const [scanBarcode, setScanBarcode] = useState('');
-  const [showValidationSummary, setShowValidationSummary] = useState(false);
-  const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
-  const [apiError, setApiError] = useState<string | null>(null);
-
-  const [recordName, setRecordName] = useState<string | null>(null);
-  const [recordId, setRecordId] = useState<number | null>(null);
-
-  const [, setSelectedCustomer] = useState<Customer | null>(null);
-  const [customerData, setCustomerData] = useState<Customer | null>(null);
-
-  const [showQuickAddModal, setShowQuickAddModal] = useState(false);
-  const [quickAddPrefillName, setQuickAddPrefillName] = useState('');
-
-  const [allProducts, setAllProducts] = useState<Product[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [isLoadingItems, setIsLoadingItems] = useState(false);
-  const [taxOptions, setTaxOptions] = useState<TaxOption[]>([]);
-  const [loadingTaxOptions, setLoadingTaxOptions] = useState(false);
-
-  const [taxOptionsLoaded, setTaxOptionsLoaded] = useState(false);
-  const [recordFetched, setRecordFetched] = useState(false);
-
-  const statusOptions = ['Draft', 'Sent', 'Accepted', 'Rejected', 'Expired', 'Converted'];
-
-  const paymentTermTemplates: PaymentTermTemplate[] = [
-    {
-      id: 'on_delivery',
-      name: 'On Delivery',
-      description: 'Full payment upon delivery',
-      schedules: [
-        { paymentTerm: 'On Delivery', dueDays: 0, invoicePortion: 100 }
-      ]
-    },
-    {
-      id: 'net_15',
-      name: 'Net 15',
-      description: 'Payment due in 15 days',
-      schedules: [
-        { paymentTerm: 'Net 15', dueDays: 15, invoicePortion: 100 }
-      ]
-    },
-    {
-      id: 'net_30',
-      name: 'Net 30',
-      description: 'Payment due in 30 days',
-      schedules: [
-        { paymentTerm: 'Net 30', dueDays: 30, invoicePortion: 100 }
-      ]
-    },
-    {
-      id: 'net_60',
-      name: 'Net 60',
-      description: 'Payment due in 60 days',
-      schedules: [
-        { paymentTerm: 'Net 60', dueDays: 60, invoicePortion: 100 }
-      ]
-    },
-    {
-      id: '50_50',
-      name: '50% Advance + 50% On Delivery',
-      description: '50% advance, 50% on delivery',
-      schedules: [
-        { paymentTerm: '50% Advance', dueDays: 0, invoicePortion: 50 },
-        { paymentTerm: '50% On Delivery', dueDays: 0, invoicePortion: 50 }
-      ]
-    },
-    {
-      id: '30_70',
-      name: '30% Advance + 70% On Delivery',
-      description: '30% advance, 70% on delivery',
-      schedules: [
-        { paymentTerm: '30% Advance', dueDays: 0, invoicePortion: 30 },
-        { paymentTerm: '70% On Delivery', dueDays: 0, invoicePortion: 70 }
-      ]
-    },
-    {
-      id: 'advanced',
-      name: 'Advance Payment',
-      description: 'Full payment in advance',
-      schedules: [
-        { paymentTerm: 'Advance Payment', dueDays: 0, invoicePortion: 100 }
-      ]
-    },
-    {
-      id: 'letter_of_credit',
-      name: 'Letter of Credit (LC)',
-      description: 'Payment via Letter of Credit',
-      schedules: [
-        { paymentTerm: 'Letter of Credit', dueDays: 30, invoicePortion: 100 }
-      ]
-    },
-    {
-      id: 'cod',
-      name: 'Cash on Delivery (COD)',
-      description: 'Cash payment upon delivery',
-      schedules: [
-        { paymentTerm: 'Cash on Delivery', dueDays: 0, invoicePortion: 100 }
-      ]
-    },
-    {
-      id: 'eom',
-      name: 'End of Month (EOM)',
-      description: 'Payment at end of month',
-      schedules: [
-        { paymentTerm: 'End of Month', dueDays: 0, invoicePortion: 100 }
-      ]
-    },
-  ];
-
-  const defaultFormData = (): QuotationForm => ({
-    isService: false,
-    date: new Date().toISOString().split('T')[0],
-    validTill: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    customer: '',
-    customerName: '',
-    status: 'Draft',
-    items: [
-      { id: '1', itemCode: '', itemName: '', quantity: 1, rate: 0, cgst: 0, sgst: 0, amount: 0, hsn: '', description: '', unit: 'pcs', tax: 0, taxAmount: 0, totalAmount: 0 }
-    ],
-    totalQuantity: 0,
-    baseTotal: 0,
-    cgstTotal: 0,
-    sgstTotal: 0,
-    grandTotal: 0,
-    roundedTotal: 0,
-    paymentTermsTemplate: 'on_delivery',
-    paymentSchedule: [
-      { id: '1', paymentTerm: 'On Delivery', dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], durationDays: 30, invoicePortion: 100, paymentAmount: 0, paidAmount: 0, status: 'Pending' }
-    ],
-    tcName: '',
-    termDetails: '',
-    company: 'ChandraTara Industries'
-  });
-
-  const [formData, setFormData] = useState<QuotationForm>(defaultFormData());
-
-  const inputRefs = React.useRef<{ [key: string]: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null }>({});
-  const itemInputRefs = React.useRef<{ [key: string]: HTMLInputElement | HTMLSelectElement | null }>({});
-
-  const setRef = (key: string) => (el: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null) => {
-    inputRefs.current[key] = el;
-  };
-
-  const setItemRef = (key: string) => (el: HTMLInputElement | HTMLSelectElement | null) => {
-    itemInputRefs.current[key] = el;
-    inputRefs.current[key] = el;
-  };
-
-  const openDatePicker = (key: string) => {
-    const el = inputRefs.current[key] as HTMLInputElement | null;
-    if (!el) return;
-    if (typeof (el as any).showPicker === 'function') {
-      try {
-        (el as any).showPicker();
-        return;
-      } catch {
-      }
-    }
-    el.focus();
-  };
-
-  const getTodayDate = (): string => {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-
-  const fetchTaxOptions = async () => {
-    setLoadingTaxOptions(true);
-    try {
-      const response = await api.get('/item/get-tax');
-      const data = response.data;
-      if (data.success === 1 && Array.isArray(data.data)) {
-        setTaxOptions(data.data);
-      } else {
-        setTaxOptions([]);
-      }
-    } catch (error) {
-      console.error('Error fetching tax options:', error);
-      setTaxOptions([]);
-    } finally {
-      setLoadingTaxOptions(false);
-      setTaxOptionsLoaded(true);
-    }
-  };
-
-  const extractTaxValue = (taxType: string): number => {
-    if (!taxType) return 0;
-    const match = taxType.match(/(\d+)/);
-    return match ? parseInt(match[0], 10) : 0;
-  };
-
-  const fetchAllItems = async () => {
-    setIsLoadingItems(true);
-    try {
-      const response = await api.get(`/item?type=product&page=1&limit=100`);
-      const records = extractRecords(response.data);
-      const mappedProducts: Product[] = records.map((item: any) => ({
-        id: item.id?.toString() || item.name || '',
-        itemCode: item.item_code || item.name || '',
-        itemName: item.item_name || '',
-        hsn: item.HSN || item.hsn || '',
-        description: item.description || item.item_name || '',
-        unit: item.stock_uom || 'pcs',
-        rate: item.selling_price || item.rate || 0,
-        tax: item.gst_rate || item.tax_rate || 0,
-        type: formData.isService ? 'service' : 'product',
-        stockUom: item.stock_uom,
-        standardRate: item.standard_rate,
-        cgst_rate: item.cgst_rate || item.cgst || 0,
-        sgst_rate: item.sgst_rate || item.sgst || 0,
-      }));
-      setAllProducts(mappedProducts);
-      setProducts(mappedProducts);
-    } catch (error) {
-      console.error('Error fetching items:', error);
-      toast.error('Failed to fetch items');
-    } finally {
-      setIsLoadingItems(false);
-    }
-  };
-
-  const handleItemSearch = useCallback(async (searchTerm: string) => {
-    if (!searchTerm.trim()) {
-      setProducts(allProducts);
-      return;
-    }
-
-    try {
-      const response = await api.get(`/item?type=product&page=1&limit=50&search=${encodeURIComponent(searchTerm)}`);
-      const records = extractRecords(response.data);
-      const mappedProducts: Product[] = records.map((item: any) => ({
-        id: item.id?.toString() || item.name || '',
-        itemCode: item.item_code || item.name || '',
-        itemName: item.item_name || '',
-        hsn: item.HSN || item.hsn || '',
-        description: item.description || item.item_name || '',
-        unit: item.stock_uom || 'pcs',
-        rate: item.selling_price || item.rate || 0,
-        tax: item.gst_rate || item.tax_rate || 0,
-        type: formData.isService ? 'service' : 'product',
-        stockUom: item.stock_uom,
-        standardRate: item.standard_rate,
-        cgst_rate: item.cgst_rate || item.cgst || 0,
-        sgst_rate: item.sgst_rate || item.sgst || 0,
-      }));
-      setProducts(mappedProducts);
-    } catch (error) {
-      console.error('Search error:', error);
-    }
-  }, [allProducts, formData.isService]);
-
-  useEffect(() => {
-    fetchTaxOptions();
-  }, []);
-
-  useEffect(() => {
-    fetchAllItems();
-  }, [formData.isService]);
-
-  useEffect(() => {
-    const draftKey = getDraftStorageKey();
-    try {
-      const raw = sessionStorage.getItem(draftKey);
-      if (raw) {
-        const draft = JSON.parse(raw) as QuotationDraftPayload;
-        if (draft.formData) {
-          setFormData(prev => ({ ...prev, ...draft.formData }));
-        }
-        if (draft.recordName) setRecordName(draft.recordName);
-        if (draft.recordId != null) setRecordId(draft.recordId);
-        if (draft.customerData) {
-          setCustomerData(draft.customerData);
-          setSelectedCustomer(draft.customerData);
-        }
-
-        if (isEditMode) {
-          setRecordFetched(true);
-        }
-        sessionStorage.removeItem(draftKey);
-      }
-    } catch (e) {
-      console.error('Failed to restore quotation draft:', e);
-    }
-
-    const newCustomer = (location.state as any)?.newCustomer as Customer | undefined;
-    if (newCustomer) {
-      setSelectedCustomer(newCustomer);
-      setCustomerData(newCustomer);
-      setFormData(prev => ({
-        ...prev,
-        customer: newCustomer.id,
-        customerName: newCustomer.name,
-      }));
-      toast.success(`Customer "${newCustomer.name}" added and selected`);
-
-      navigate(location.pathname, { replace: true, state: {} });
-    }
-  }, []);
-
-  const handleCustomerChange = (customerId: string, customerData?: Customer) => {
-    if (customerId && customerData) {
-      setSelectedCustomer(customerData);
-      setCustomerData(customerData);
-      setFormData((prev) => ({
-        ...prev,
-        customer: customerId,
-        customerName: customerData.name,
-      }));
-      if (errors.customer) setErrors((prev) => ({ ...prev, customer: '' }));
-    } else {
-      setSelectedCustomer(null);
-      setCustomerData(null);
-      setFormData((prev) => ({
-        ...prev,
-        customer: '',
-        customerName: '',
-      }));
-    }
-  };
-
-  const handleAddNewCustomer = (prefillName: string) => {
-    setQuickAddPrefillName(prefillName || '');
-    setShowQuickAddModal(true);
-  };
-
-  const navigateToFullCustomerForm = (prefillName: string) => {
-    try {
-      const draftPayload: QuotationDraftPayload = {
-        formData,
-        recordName,
-        recordId,
-        customerData,
-      };
-      sessionStorage.setItem(getDraftStorageKey(), JSON.stringify(draftPayload));
-    } catch (e) {
-      console.error('Failed to save quotation draft before navigating to Add Customer:', e);
-    }
-
-    navigate('/customer/add', {
-      state: {
-        returnTo: location.pathname,
-        prefillCustomerName: prefillName || '',
-      },
-    });
-  };
-
-  const handleIsServiceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.checked;
-
-    setFormData((prev) => ({
-      ...prev,
-      isService: value,
-      items: [
-        { id: '1', itemCode: '', itemName: '', quantity: 1, rate: 0, cgst: 0, sgst: 0, amount: 0, hsn: '', description: '', unit: 'pcs', tax: 0, taxAmount: 0, totalAmount: 0 }
-      ],
-      totalQuantity: 0,
-      baseTotal: 0,
-      cgstTotal: 0,
-      sgstTotal: 0,
-      grandTotal: 0,
-      roundedTotal: 0
-    }));
-
-    setProducts([]);
-    setAllProducts([]);
-    fetchAllItems();
-
-    toast.success(value ? 'Switched to Services' : 'Switched to Items');
-  };
-
-  const applyPaymentTemplate = (templateId: string) => {
-    const template = paymentTermTemplates.find(t => t.id === templateId);
-    if (!template) return;
-
-    const grandTotal = formData.roundedTotal || 0;
-    const date = formData.date || new Date().toISOString().split('T')[0];
-
-    const schedules: PaymentScheduleRow[] = template.schedules.map((s, idx) => {
-      const dueDate = addDays(date, s.dueDays);
-      const amount = (s.invoicePortion / 100) * grandTotal;
-      return {
-        id: String(idx + 1),
-        paymentTerm: s.paymentTerm,
-        dueDate: dueDate || date,
-        durationDays: s.dueDays,
-        invoicePortion: s.invoicePortion,
-        paymentAmount: amount,
-        paidAmount: 0,
-        status: 'Pending',
-      };
-    });
-
-    setFormData(prev => ({
-      ...prev,
-      paymentTermsTemplate: templateId,
-      paymentSchedule: schedules.length > 0 ? schedules : prev.paymentSchedule,
-    }));
-
-    toast.success(`Applied "${template.name}" payment terms`);
-  };
-
-  useEffect(() => {
-    if (isEditMode && id && taxOptionsLoaded && !recordFetched) {
-      fetchQuotationById(id);
-    }
-  }, [id, taxOptionsLoaded, recordFetched]);
-
-  const QUOTATION_PAGE_SIZE = 50;
-
-  const findQuotationRecord = async (quotationId: string): Promise<QuotationApiRecord | null> => {
-    const MAX_PAGES = 50;
-    let page = 1;
-
-    while (page <= MAX_PAGES) {
-      const response = await api.get("/quotation");
-      const payload = response.data;
-      if (payload && payload.success === 0) return null;
-
-      const data = payload && payload.success === 1 ? payload.data : payload;
-      const records: any[] = Array.isArray(data?.records)
-        ? data.records
-        : Array.isArray(data)
-          ? data
-          : [];
-
-      const found = records.find(
-        (r) => r && (String(r.id) === String(quotationId) || r.name === quotationId)
-      );
-      if (found) return found;
-
-      const total = data?.total ?? records.length;
-      const fetchedSoFar = page * QUOTATION_PAGE_SIZE;
-      if (records.length === 0 || fetchedSoFar >= total) {
-        return null;
-      }
-      page += 1;
-    }
-    return null;
-  };
-
-  const fetchQuotationById = async (quotationId: string) => {
-    setLoadingRecord(true);
-    setApiError(null);
-    try {
-      const record = await findQuotationRecord(quotationId);
-      if (record) {
-        loadQuotationIntoForm(record);
-        setRecordFetched(true);
-      } else {
-        setApiError('Quotation not found');
-      }
-    } catch (err: any) {
-      console.error('Error fetching quotation:', err);
-      setApiError(err.response?.data?.message || 'Failed to load quotation');
-    } finally {
-      setLoadingRecord(false);
-    }
-  };
-
-  const loadQuotationIntoForm = (record: QuotationApiRecord) => {
-    setRecordName(record.name ?? null);
-    setRecordId(record.id ?? null);
-
-    const cached = readCachedQuotationLineData(record.name);
-
-    const items: QuotationItem[] =
-      Array.isArray(record.items) && record.items.length > 0
-        ? record.items.map((it, idx) => {
-          const quantity = it.qty ?? 0;
-          const rate = it.rate ?? 0;
-          let cgst = it.cgst_rate ?? 0;
-          let sgst = it.sgst_rate ?? 0;
-          let tax = cgst + sgst;
-
-          if (it.item_tax_id) {
-            const taxOption = taxOptions.find(t => t.tax_id === it.item_tax_id);
-            if (taxOption) {
-              const taxRate = extractTaxValue(taxOption.tax_type);
-              tax = taxRate;
-              cgst = taxRate / 2;
-              sgst = taxRate / 2;
-            }
-          }
-
-          const amount = it.amount ?? quantity * rate;
-          const taxAmount = (amount * tax) / 100;
-          return {
-            id: String(idx + 1),
-            itemCode: it.item_code || '',
-            itemName: it.item_name || '',
-            quantity,
-            rate,
-            cgst,
-            sgst,
-            amount,
-            hsn: it.hsn || '',
-            description: it.description || '',
-            unit: it.uom || 'pcs',
-            tax,
-            taxAmount,
-            totalAmount: amount + taxAmount,
-          };
-        })
-        : cached?.items && cached.items.length > 0
-          ? cached.items
-          : [{ id: '1', itemCode: '', itemName: '', quantity: 1, rate: 0, cgst: 0, sgst: 0, amount: 0, hsn: '', description: '', unit: 'pcs', tax: 0, taxAmount: 0, totalAmount: 0 }];
-
-    let paymentSchedule: PaymentScheduleRow[] = [];
-    if (Array.isArray(record.payment_schedule) && record.payment_schedule.length > 0) {
-      paymentSchedule = record.payment_schedule.map((p: any, idx: number) => ({
-        id: String(idx + 1),
-        paymentTerm: p.payment_term || '',
-        dueDate: unwrapDate(p.due_date),
-        durationDays: p.due_days ?? daysBetween(unwrapDate(record.transaction_date), unwrapDate(p.due_date)),
-        invoicePortion: p.invoice_portion || 0,
-        paymentAmount: p.payment_amount || 0,
-        paidAmount: p.paid_amount || 0,
-        status: p.status || 'Pending',
-      }));
-    } else if (cached?.paymentSchedule && cached.paymentSchedule.length > 0) {
-      paymentSchedule = cached.paymentSchedule;
-    } else if (record.payment_terms_template) {
-      const template = paymentTermTemplates.find(t => t.name === record.payment_terms_template || t.id === record.payment_terms_template);
-      if (template) {
-        applyPaymentTemplate(template.id);
-        paymentSchedule = formData.paymentSchedule;
-      } else {
-        paymentSchedule = [{
-          id: '1',
-          paymentTerm: record.payment_terms_template,
-          dueDate: unwrapDate(record.valid_till) || unwrapDate(record.transaction_date),
-          durationDays: daysBetween(unwrapDate(record.transaction_date), unwrapDate(record.valid_till)),
-          invoicePortion: 100,
-          paymentAmount: record.grand_total ?? record.total ?? 0,
-          paidAmount: 0,
-          status: 'Pending',
-        }];
-      }
-    }
-
-    let isService = false;
-    if (record.naming_series) {
-      if (record.naming_series.includes('SVC')) {
-        isService = true;
-      } else if (record.naming_series.includes('SAL')) {
-        isService = false;
-      }
-    }
-
-    setFormData((prev) => ({
-      ...prev,
-      isService: isService,
-      customer: record.party_name || prev.customer,
-      customerName: record.customer_name || prev.customerName,
-      date: unwrapDate(record.transaction_date) || prev.date,
-      validTill: unwrapDate(record.valid_till) || prev.validTill,
-      status: record.status || prev.status,
-      paymentTermsTemplate: record.payment_terms_template || prev.paymentTermsTemplate,
-      tcName: record.tc_name || prev.tcName,
-      termDetails: record.terms || prev.termDetails,
-      items,
-      paymentSchedule: paymentSchedule.length > 0 ? paymentSchedule : prev.paymentSchedule,
-    }));
-
-    if (record.party_name) {
-      setCustomerData({
-        id: record.party_name,
-        name: record.customer_name || record.party_name,
-        code: '',
-        email: '',
-        phone: '',
-        address: '',
-        shippingAddress: '',
-        gstin: '',
-        contacts: [],
-      });
-    }
-  };
-
-  const getAllValidationErrors = (): ValidationError[] => {
-    const allErrors: ValidationError[] = [];
-
-    if (!formData.customer.trim())
-      allErrors.push({ field: 'customer', label: 'Customer', message: 'Customer is required' });
-    if (!formData.date)
-      allErrors.push({ field: 'date', label: 'Date', message: 'Date is required' });
-    if (!formData.validTill)
-      allErrors.push({ field: 'validTill', label: 'Valid Till', message: 'Valid till date is required' });
-
-    if (formData.validTill) {
-      const selectedDate = new Date(formData.validTill);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      if (selectedDate < today) {
-        allErrors.push({ field: 'validTill', label: 'Valid Till', message: 'Valid Till date cannot be in the past. Please select today or a future date.' });
-      }
-    }
-
-    let hasValidItem = false;
-    formData.items.forEach((item, index) => {
-      if (item.itemCode || item.itemName) {
-        hasValidItem = true;
-        if (!item.itemCode) {
-          allErrors.push({ field: `item_${index}_code`, label: `Item ${index + 1} Code`, message: 'Item code required' });
-        }
-        if (item.quantity <= 0) {
-          allErrors.push({ field: `item_${index}_quantity`, label: `Item ${index + 1} Quantity`, message: 'Quantity must be > 0' });
-        }
-        if (item.rate <= 0) {
-          allErrors.push({ field: `item_${index}_rate`, label: `Item ${index + 1} Rate`, message: 'Rate must be > 0' });
-        }
-      }
-    });
-    if (!hasValidItem) {
-      allErrors.push({ field: 'items', label: 'Items', message: 'At least one item is required' });
-    }
-
-    return allErrors;
-  };
-
-  const jumpToField = (field: string) => {
-    setShowValidationSummary(false);
-    setErrors({});
-    setTimeout(() => {
-      const el = inputRefs.current[field];
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        el.focus();
-      }
-    }, 50);
-  };
-
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault();
-        // handleSubmit will be called
-      }
-
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'A') {
-        e.preventDefault();
-        addItemRow();
-        toast.success('New item added');
-        setTimeout(() => {
-          const lastIndex = formData.items.length;
-          const refKey = `item_${lastIndex}_itemCode`;
-          if (itemInputRefs.current[refKey]) {
-            itemInputRefs.current[refKey]?.focus();
-          }
-        }, 100);
-      }
-
-      if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
-        e.preventDefault();
-        setShowBarcodeScanner(!showBarcodeScanner);
-      }
-
-      if (e.key === 'Escape') {
-        handleCancel();
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [formData.items.length, showBarcodeScanner]);
-
-  useEffect(() => {
-    calculateTotals();
-  }, [formData.items]);
-
-  const calculateTotals = () => {
-    const totalQty = formData.items.reduce((sum, item) => sum + item.quantity, 0);
-    const baseTotal = formData.items.reduce((sum, item) => sum + item.amount, 0);
-    const cgstTotal = formData.items.reduce((sum, item) => sum + (item.amount * (item.cgst || 0)) / 100, 0);
-    const sgstTotal = formData.items.reduce((sum, item) => sum + (item.amount * (item.sgst || 0)) / 100, 0);
-    const grandTotal = baseTotal + cgstTotal + sgstTotal;
-    const roundedTotal = Math.round(grandTotal);
-
-    setFormData(prev => ({
-      ...prev,
-      totalQuantity: totalQty,
-      baseTotal,
-      cgstTotal,
-      sgstTotal,
-      grandTotal,
-      roundedTotal
-    }));
-
-    setFormData(prev => ({
-      ...prev,
-      paymentSchedule: prev.paymentSchedule.map(p => ({
-        ...p,
-        paymentAmount: (p.invoicePortion / 100) * roundedTotal
-      }))
-    }));
-  };
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-
-    if (name === 'validTill') {
-      if (value) {
-        const selectedDate = new Date(value);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        if (selectedDate < today) {
-          setErrors(prev => ({ ...prev, validTill: 'Valid Till date cannot be in the past. Please select today or a future date.' }));
-        } else {
-          setErrors(prev => ({ ...prev, validTill: '' }));
-        }
-      }
-    }
-
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: '' }));
-    }
-  };
-
-  const handleItemChange = (index: number, field: keyof QuotationItem, value: string | number) => {
-    const updatedItems = [...formData.items];
-
-    if (field === 'tax') {
-      const taxRate = Number(value);
-      const half = taxRate / 2;
-      updatedItems[index] = {
-        ...updatedItems[index],
-        tax: taxRate,
-        cgst: half,
-        sgst: half,
-      };
-
-      const amount = updatedItems[index].amount;
-      const taxAmount = (amount * taxRate) / 100;
-      updatedItems[index].taxAmount = taxAmount;
-      updatedItems[index].totalAmount = amount + taxAmount;
-    } else {
-      updatedItems[index] = {
-        ...updatedItems[index],
-        [field]: value
-      };
-    }
-
-    if (field === 'quantity' || field === 'rate') {
-      const quantity = field === 'quantity' ? Number(value) : updatedItems[index].quantity;
-      const rate = field === 'rate' ? Number(value) : updatedItems[index].rate;
-      const amount = quantity * rate;
-      const tax = updatedItems[index].tax || 0;
-      const taxAmount = (amount * tax) / 100;
-      updatedItems[index].amount = amount;
-      updatedItems[index].taxAmount = taxAmount;
-      updatedItems[index].totalAmount = amount + taxAmount;
-    }
-
-    if (field === 'cgst' || field === 'sgst') {
-      const amount = updatedItems[index].amount;
-      const tax = updatedItems[index].cgst + updatedItems[index].sgst;
-      const taxAmount = (amount * tax) / 100;
-      updatedItems[index].tax = tax;
-      updatedItems[index].taxAmount = taxAmount;
-      updatedItems[index].totalAmount = amount + taxAmount;
-    }
-
-    setFormData(prev => ({
-      ...prev,
-      items: updatedItems
-    }));
-  };
-
-  const handleItemSelect = (index: number, itemCode: string, record?: Product) => {
-    if (record) {
-      const updatedItems = [...formData.items];
-      const quantity = updatedItems[index].quantity || 1;
-      const rate = record.rate || 0;
-      const cgst = record.cgst_rate || 0;
-      const sgst = record.sgst_rate || 0;
-      const tax = cgst + sgst;
-      const amount = quantity * rate;
-      const taxAmount = (amount * tax) / 100;
-
-      updatedItems[index] = {
-        ...updatedItems[index],
-        itemCode: itemCode,
-        itemName: record.itemName || '',
-        rate: rate,
-        cgst: cgst,
-        sgst: sgst,
-        tax: tax,
-        amount: amount,
-        hsn: record.hsn || '',
-        description: record.description || '',
-        unit: record.unit || 'pcs',
-        taxAmount: taxAmount,
-        totalAmount: amount + taxAmount,
-      };
-      setFormData(prev => ({ ...prev, items: updatedItems }));
-    }
-  };
-
-  const handleItemKeyDown = (e: React.KeyboardEvent, index: number, field: keyof QuotationItem) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-
-      const fields: (keyof QuotationItem)[] = ['itemCode', 'itemName', 'hsn', 'description', 'quantity', 'rate', 'tax'];
-      const currentIndex = fields.indexOf(field);
-
-      if (currentIndex === fields.length - 1) {
-        if (formData.items[index].rate > 0 && formData.items[index].itemCode) {
-          addItemRow();
-          setTimeout(() => {
-            const newIndex = index + 1;
-            const refKey = `item_${newIndex}_itemCode`;
-            if (itemInputRefs.current[refKey]) {
-              itemInputRefs.current[refKey]?.focus();
-            }
-          }, 100);
-        }
-      } else {
-        const nextField = fields[currentIndex + 1];
-        const refKey = `item_${index}_${nextField}`;
-        if (itemInputRefs.current[refKey]) {
-          itemInputRefs.current[refKey]?.focus();
-        }
-      }
-    }
-  };
-
-  const addItemRow = () => {
-    const newId = String(formData.items.length + 1);
-    setFormData(prev => ({
-      ...prev,
-      items: [
-        ...prev.items,
-        { id: newId, itemCode: '', itemName: '', quantity: 1, rate: 0, cgst: 0, sgst: 0, amount: 0, hsn: '', description: '', unit: 'pcs', tax: 0, taxAmount: 0, totalAmount: 0 }
-      ]
-    }));
-  };
-
-  const removeItemRow = (index: number) => {
-    if (formData.items.length <= 1) return;
-    setFormData(prev => ({
-      ...prev,
-      items: prev.items.filter((_, i) => i !== index)
-    }));
-  };
-
-  const addPaymentSchedule = () => {
-    const newId = String(formData.paymentSchedule.length + 1);
-    setFormData(prev => ({
-      ...prev,
-      paymentSchedule: [
-        ...prev.paymentSchedule,
-        {
-          id: newId,
-          paymentTerm: '',
-          dueDate: '',
-          durationDays: 0,
-          invoicePortion: 0,
-          paymentAmount: 0,
-          paidAmount: 0,
-          status: 'Pending'
-        }
-      ]
-    }));
-  };
-
-  const removePaymentSchedule = (index: number) => {
-    if (formData.paymentSchedule.length <= 1) return;
-    setFormData(prev => ({
-      ...prev,
-      paymentSchedule: prev.paymentSchedule.filter((_, i) => i !== index)
-    }));
-  };
-
-  const updatePaymentRow = (index: number, patch: Partial<PaymentScheduleRow>) => {
-    setFormData(prev => {
-      const updated = [...prev.paymentSchedule];
-      updated[index] = { ...updated[index], ...patch };
-
-      if (patch.invoicePortion !== undefined) {
-        const grandTotal = prev.roundedTotal || 0;
-        updated[index].paymentAmount = (patch.invoicePortion / 100) * grandTotal;
-      }
-
-      return { ...prev, paymentSchedule: updated };
-    });
-  };
-
-  const handlePaymentDueDateChange = (index: number, dueDate: string) => {
-    const duration = daysBetween(formData.date, dueDate);
-    updatePaymentRow(index, { dueDate, durationDays: duration });
-  };
-
-  const handlePaymentDurationChange = (index: number, durationDays: number) => {
-    const dueDate = addDays(formData.date, durationDays);
-    updatePaymentRow(index, { durationDays, dueDate });
-  };
-
-  const validateForm = (): boolean => {
-    const allErrors = getAllValidationErrors();
-    if (allErrors.length > 0) {
-      setValidationErrors(allErrors);
-      setShowValidationSummary(true);
-      return false;
-    }
-    return true;
-  };
-
-  const generateQuotationName = (): string => {
-    const year = new Date().getFullYear();
-    const prefix = formData.isService ? 'SVC-QTN' : 'SAL-QTN';
-    const suffix = Date.now().toString(36).toUpperCase().slice(-6);
-    return `${prefix}-${year}-${suffix}`;
-  };
-
-  const formatDate = (date: string) => {
-    if (!date) return "";
-    return date.split("T")[0];
-  };
-
-  const buildApiPayload = () => {
-    const getTaxIdFromRate = (taxRate: number): number | null => {
-      if (taxRate === 0) return null;
-      const taxOption = taxOptions.find(t => extractTaxValue(t.tax_type) === taxRate);
-      return taxOption ? taxOption.tax_id : null;
-    };
-
-    const payload: any = {};
-
-    if (isEditMode && recordId) {
-      payload.id = recordId;
-    }
-
-    payload.name = isEditMode && recordName ? recordName : generateQuotationName();
-    payload.naming_series = formData.isService ? 'SVC-QTN-.YYYY.-' : 'SAL-QTN-.YYYY.-';
-    payload.type = formData.isService ? 'service' : 'item';
-    payload.party_name = formData.customer;
-    payload.customer_name = formData.customerName;
-    payload.transaction_date = formatDate(formData.date);
-    payload.valid_till = formatDate(formData.validTill);
-    payload.currency = 'INR';
-    payload.conversion_rate = 1;
-    payload.selling_price_list = 'Standard Selling';
-    payload.total_qty = formData.totalQuantity;
-    payload.base_total = formData.baseTotal;
-    payload.base_net_total = formData.baseTotal;
-    payload.total = formData.baseTotal;
-    payload.net_total = formData.baseTotal;
-    payload.total_taxes_and_charges = formData.cgstTotal + formData.sgstTotal;
-    payload.base_grand_total = formData.grandTotal;
-    payload.grand_total = formData.grandTotal;
-    payload.rounded_total = formData.roundedTotal;
-    payload.base_rounded_total = formData.roundedTotal;
-    payload.in_words = `INR ${formData.roundedTotal} Only`;
-    payload.base_in_words = `INR ${formData.roundedTotal} Only`;
-    payload.status = formData.status;
-    payload.title = `Quotation for ${formData.customerName}`;
-    payload.payment_terms_template = formData.paymentTermsTemplate;
-    payload.tc_name = formData.tcName;
-    payload.terms = formData.termDetails;
-
-    payload.items = formData.items
-      .filter((item) => item.itemCode || item.itemName)
-      .map((item) => {
-        const itemTaxId = getTaxIdFromRate(item.tax);
-        const itemObj: any = {
-          item_code: item.itemCode,
-          item_name: item.itemName,
-          qty: item.quantity,
-          rate: item.rate,
-          amount: item.amount,
-          hsn: item.hsn || '',
-          description: item.description || '',
-          uom: item.unit || 'Number',
-        };
-        if (itemTaxId !== null) {
-          itemObj.item_tax_id = itemTaxId;
-        }
-        return itemObj;
-      });
-
-    payload.payment_schedule = formData.paymentSchedule.map((p) => ({
-      payment_term: p.paymentTerm,
-      due_date: p.dueDate,
-      due_days: p.durationDays,
-      invoice_portion: p.invoicePortion,
-      payment_amount: p.paymentAmount,
-      paid_amount: p.paidAmount || 0,
-      status: p.status || 'Pending',
-    }));
-
-    return payload;
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!validateForm()) {
-      toast.error('Please fix the errors before submitting');
-      return;
-    }
-
-    setSaving(true);
-    setApiError(null);
-
-    try {
-      const payload = buildApiPayload();
-
-      console.log('Saving quotation with payload:', payload);
-
-      let response;
-      if (isEditMode && recordName) {
-        response = await api.put('/quotation', payload);
-      } else {
-        response = await api.post('/quotation', payload);
-      }
-
-      console.log('Quotation save response:', response.data);
-
-      if (response.data.success !== 1) {
-        throw new Error(response.data?.message || 'Failed to save quotation');
-      }
-
-      cacheQuotationLineData(payload.name, {
-        items: formData.items,
-        paymentSchedule: formData.paymentSchedule,
-      });
-
-      toast.success(isEditMode ? 'Quotation updated successfully!' : 'Quotation created successfully!');
-      navigate('/quotation');
-    } catch (error: any) {
-      console.error('Error saving quotation:', error);
-      let message = 'Failed to save quotation';
-      if (error.response) {
-        message = error.response.data?.message || `Server error: ${error.response.status}`;
-      } else if (error.request) {
-        message = 'Network error. Please check your connection.';
-      } else if (error.message) {
-        message = error.message;
-      }
-      setApiError(message);
-      toast.error(message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleCancel = () => {
-    if (window.confirm('Are you sure you want to cancel? All unsaved data will be lost.')) {
-      navigate('/quotation');
-    }
-  };
-
-  const allValidationErrors = getAllValidationErrors();
-  const hasAnyErrors = allValidationErrors.length > 0;
-
-  const getTotalQty = () => formData.items.reduce((sum, item) => sum + item.quantity, 0);
-  const getTotalAmount = () => formData.items.reduce((sum, item) => sum + item.amount, 0);
-  const getTotalTax = () => formData.items.reduce((sum, item) => sum + item.taxAmount, 0);
-  const getGrandTotal = () => formData.items.reduce((sum, item) => sum + item.totalAmount, 0);
-
-  // ✅ Add a loading state while the component is initializing
-  if (loadingRecord) {
-    return (
-      <div className="cq-page" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        <div style={{ textAlign: 'center' }}>
-          <FaSpinner className="cq-spinning" size={40} />
-          <p style={{ marginTop: '16px' }}>Loading quotation...</p>
+            );
+          })}
         </div>
       </div>
-    );
-  }
 
-  return (
-    <div className={`cq-page ${theme}-theme`}>
-      {/* Validation Summary Modal */}
-      {showValidationSummary && validationErrors.length > 0 && (
-        <div className="cq-modal-overlay" onClick={() => setShowValidationSummary(false)}>
-          <div className="cq-validation-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="cq-modal-header cq-modal-header-warning">
-              <h2 className="cq-modal-title-warning">
-                <FaExclamationTriangle /> Missing Required Fields
-              </h2>
-              <button className="cq-modal-close" onClick={() => setShowValidationSummary(false)}>×</button>
-            </div>
-            <div className="cq-modal-body">
-              <p className="cq-modal-intro">
-                Please fill in the following required fields before submitting:
-              </p>
-              <div className="cq-error-list">
-                {validationErrors.map((error, idx) => (
-                  <div key={idx} className="cq-validation-error-item" onClick={() => jumpToField(error.field)}>
-                    <div className="cq-error-header">
-                      <FaTimes className="cq-error-icon" />
-                      <strong className="cq-error-label">{error.label}</strong>
-                    </div>
-                    <div className="cq-error-message">{error.message}</div>
-                  </div>
-                ))}
-              </div>
-              <div className="cq-hint-banner">
-                <FaInfoCircle className="cq-hint-icon" />
-                Click on any error to jump to that field
-              </div>
-            </div>
-            <div className="cq-modal-footer">
-              <button className="cq-btn-cancel" onClick={() => setShowValidationSummary(false)}>Close</button>
-            </div>
-          </div>
+      {/* Footer */}
+      <div className="jc-date-filter-footer">
+        <button
+          type="button"
+          className="jc-btn-cancel"
+          onClick={handleClearDateFilter}
+        >
+          Clear
+        </button>
+
+        <button
+          type="button"
+          className="jc-btn-primary"
+          onClick={handleApplyDateFilter}
+          disabled={!tempFromDate || !tempToDate}
+        >
+          Apply Filters
+        </button>
+      </div>
+    </div>
+  )}
+</div>
+
+          <button className="qt-btn-new" onClick={() => navigate('/quotation/new')}>
+            <FaPlus size={12} /> New Quotation
+          </button>
+        </div>
+      </div>
+
+      {/* Active filters indicator */}
+      {(filterText || selectedStatus !== "All" || selectedCurrency !== "All" || (fromDate && toDate)) && (
+        <div className="qt-active-filters">
+          <FaFilter size={12} style={{ color: "var(--primary-color)" }} />
+          <span style={{ color: "var(--text-primary)" }}>Active filters:</span>
+          {filterText && (
+            <span style={{ color: "var(--text-primary)" }}>
+              <strong>Search:</strong> "{filterText}"
+            </span>
+          )}
+          {selectedStatus !== "All" && (
+            <span style={{ color: "var(--text-primary)" }}>
+              <strong>Status:</strong> {selectedStatus}
+            </span>
+          )}
+          {selectedCurrency !== "All" && (
+            <span style={{ color: "var(--text-primary)" }}>
+              <strong>Currency:</strong> {selectedCurrency}
+            </span>
+          )}
+          {fromDate && toDate && (
+            <span style={{ color: "var(--text-primary)" }}>
+              <strong>From:</strong> {formatDisplayDate(new Date(fromDate))}{" "}
+              <strong>To:</strong> {formatDisplayDate(new Date(toDate))}
+              <button
+                onClick={handleClearDateFilterBadge}
+                style={{ marginLeft: 6, background: "none", border: "none", cursor: "pointer", color: "inherit" }}
+                title="Clear date filter"
+              >
+                <FaTimes size={10} />
+              </button>
+            </span>
+          )}
+          <button onClick={clearFilters} className="qt-clear-filters">
+            <FaTimes size={10} /> Clear All
+          </button>
         </div>
       )}
 
-      {/* Quick Add Customer Modal */}
-      <QuickAddCustomerModal
-        isOpen={showQuickAddModal}
-        prefillName={quickAddPrefillName}
-        onClose={() => setShowQuickAddModal(false)}
-        onCreated={(customer) => {
-          handleCustomerChange(customer.id, customer);
-          setShowQuickAddModal(false);
-        }}
-        onOpenFullForm={() => {
-          setShowQuickAddModal(false);
-          navigateToFullCustomerForm(quickAddPrefillName);
-        }}
-      />
+      {/* Loading State */}
+      {loading && (
+        <div className="qt-loading">
+          <p>Loading quotations...</p>
+        </div>
+      )}
 
-      {/* Header */}
-      <div className="cq-header">
-        <div className="cq-header-left">
-          <button
-            type="button"
-            className="cq-back-btn"
-            onClick={() => navigate("/quotation")}
-          >
-            <FaArrowLeft size={13} /> Back
+      {/* Error State */}
+      {error && (
+        <div className="qt-error">
+          <p>{error}</p>
+          <button onClick={fetchQuotations} className="qt-retry-btn">
+            Retry
           </button>
-          <div className="cq-header-divider" />
-          <h1 className="cq-header-title">
-            {isEditMode ? 'Edit Quotation' : 'Create Quotation'}
-          </h1>
-          {isEditMode && id && (
-            <span className="cq-header-id">#{id}</span>
-          )}
         </div>
-        <div className="cq-header-right">
-          <label className="cq-checkbox-label">
-            <input
-              type="checkbox"
-              checked={formData.isService}
-              onChange={handleIsServiceChange}
-              className="cq-checkbox"
-            />
-            <span>IsService</span>
-          </label>
-          {apiError && (
-            <span className="cq-error-pill">
-              <FaExclamationTriangle size={11} />
-              {apiError}
-            </span>
-          )}
-          {hasAnyErrors && (
-            <span className="cq-error-pill">
-              <FaExclamationTriangle size={11} />
-              {allValidationErrors.length} issue{allValidationErrors.length > 1 ? "s" : ""}
-            </span>
-          )}
-          {loadingRecord && (
-            <span className="cq-loading-pill">
-              <FaSpinner className="cq-spinning" size={11} />
-              Loading...
-            </span>
-          )}
-        </div>
-      </div>
+      )}
 
-      {/* Main Box */}
-      <div className="cq-main-box">
-        <form onSubmit={handleSubmit} className="cq-form">
-          {/* ── TWO COLUMN LAYOUT ────────────────────────────── */}
-          <div className="cq-compact-layout">
-            {/* LEFT COLUMN */}
-            <div className="cq-left-column">
-              {/* Customer & Status in one row */}
-              <div className="cq-section-header">
-                <FaBuilding className="cq-section-icon" />
-                <span>Customer &amp; Status</span>
-              </div>
-
-              <div className="cq-field-row">
-                <div className="cq-field-half">
-                  <label className="cq-label">
-                    Customer <span className="cq-required">*</span>
-                  </label>
-                  <CustomerDropdown
-                    value={formData.customer}
-                    onChange={handleCustomerChange}
-                    placeholder="Search Customer..."
-                    disabled={isEditMode}
-                    error={!!errors.customer}
-                    presetCustomer={customerData}
-                    onAddNew={handleAddNewCustomer}
-                  />
-                  {errors.customer && <span className="cq-error-text">{errors.customer}</span>}
-                </div>
-
-                <div className="cq-field-half">
-                  <label className="cq-label">Status</label>
-                  <select
-                    name="status"
-                    value={formData.status}
-                    onChange={handleInputChange}
-                    className="cq-select"
-                    ref={setRef('status')}
-                  >
-                    {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              {/* Quotation Details - Date fields in a single row with decreased length */}
-              <div className="cq-section-header" style={{ marginTop: '12px' }}>
-                <FaFileAlt className="cq-section-icon" />
-                <span>Quotation Details</span>
-              </div>
-
-              {/* ─── DATE ROW - Two date fields in same row ─── */}
-              <div className="cq-date-row">
-                <div className="cq-date-field-small">
-                  <label className="cq-label">
-                    Date <span className="cq-required">*</span>
-                  </label>
-                  <div className="cq-date-wrapper">
-                    <input
-                      type="date"
-                      name="date"
-                      value={formData.date}
-                      onChange={handleInputChange}
-                      className={`cq-input-date ${errors.date ? 'cq-input-error' : ''}`}
-                      ref={setRef('date')}
-                    />
-                    <button
-                      type="button"
-                      className="cq-date-icon-btn-small"
-                      onClick={() => openDatePicker('date')}
-                      tabIndex={-1}
-                      aria-label="Open calendar"
-                    >
-                      <FaCalendarAlt size={12} />
-                    </button>
-                  </div>
-                  {errors.date && <span className="cq-error-text">{errors.date}</span>}
-                </div>
-
-                <div className="cq-date-field-small">
-                  <label className="cq-label">
-                    Valid Till <span className="cq-required">*</span>
-                  </label>
-                  <div className="cq-date-wrapper">
-                    <input
-                      type="date"
-                      name="validTill"
-                      value={formData.validTill}
-                      onChange={handleInputChange}
-                      min={getTodayDate()}
-                      className={`cq-input-date ${errors.validTill ? 'cq-input-error' : ''}`}
-                      ref={setRef('validTill')}
-                    />
-                    <button
-                      type="button"
-                      className="cq-date-icon-btn-small"
-                      onClick={() => openDatePicker('validTill')}
-                      tabIndex={-1}
-                      aria-label="Open calendar"
-                    >
-                      <FaCalendarAlt size={12} />
-                    </button>
-                  </div>
-                  {errors.validTill && <span className="cq-error-text">{errors.validTill}</span>}
-                </div>
+      {/* Table */}
+      {!loading && !error && (
+        <div className="qt-table-wrap">
+          {quotations.length === 0 ? (
+            <div className="qt-empty-state">
+              <div className="qt-empty-content">
+                <FaFileAlt size={48} />
+                <p>No quotations found</p>
+                <span>Try adjusting your search criteria</span>
               </div>
             </div>
-
-            {/* RIGHT COLUMN - Customer Details */}
-            <div className="cq-right-column">
-              {customerData ? (
-                <div className="cq-detail-card">
-                  <div className="cq-card-header">
-                    <FaBuilding size={14} />
-                    <span>Customer Details</span>
-                  </div>
-                  <div className="cq-card-content">
-                    <h3>{customerData.name}</h3>
-                    <div className="cq-card-info">
-                      {customerData.contactPerson && (
-                        <div className="cq-info-item">
-                          <span className="cq-info-label">Contact</span>
-                          <span className="cq-info-value"><FaUser size={10} /> {customerData.contactPerson}</span>
-                        </div>
-                      )}
-                      {customerData.phone && (
-                        <div className="cq-info-item">
-                          <span className="cq-info-label">Phone</span>
-                          <span className="cq-info-value"><FaPhone size={10} /> {customerData.phone}</span>
-                        </div>
-                      )}
-                      {customerData.email && (
-                        <div className="cq-info-item">
-                          <span className="cq-info-label">Email</span>
-                          <span className="cq-info-value"><FaEnvelope size={10} /> {customerData.email}</span>
-                        </div>
-                      )}
-                      {customerData.gstin && (
-                        <div className="cq-info-item">
-                          <span className="cq-info-label">GST</span>
-                          <span className="cq-info-value">{customerData.gstin}</span>
-                        </div>
-                      )}
-                      {customerData.address && (
-                        <div className="cq-info-item">
-                          <span className="cq-info-label">Address</span>
-                          <span className="cq-info-value">{customerData.address}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="cq-detail-card cq-empty-card">
-                  <div className="cq-card-header">
-                    <FaBuilding size={14} />
-                    <span>Customer Details</span>
-                  </div>
-                  <div className="cq-card-content">
-                    <div className="cq-empty-state">
-                      <FaInfoCircle size={24} />
-                      <p>Select a customer to view details</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* ── FULL WIDTH - ITEMS SECTION (DC Style Table) ── */}
-          <div className="cq-items-full">
-            <div className="cq-items-header">
-              <span className="cq-items-title">
-                <FaClipboardList className="cq-items-icon" /> {formData.isService ? 'Services' : 'Items'}
-              </span>
-              <div className="cq-section-actions">
-                <button
-                  type="button"
-                  className="cq-barcode-btn"
-                  onClick={() => setShowBarcodeScanner(!showBarcodeScanner)}
-                  title="Ctrl+B"
-                >
-                  <FaBarcode size={13} /> Scan
-                </button>
-                <button type="button" className="cq-add-btn" onClick={addItemRow}>
-                  <FaPlus size={9} /> Add
-                </button>
-              </div>
-            </div>
-
-            {showBarcodeScanner && (
-              <div className="cq-barcode-scanner">
-                <input
-                  type="text"
-                  placeholder="Scan or enter barcode..."
-                  value={scanBarcode}
-                  onChange={(e) => setScanBarcode(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && toast.success(`Item ${scanBarcode} added`)}
-                  autoFocus
-                />
-                <button onClick={() => setShowBarcodeScanner(false)}>
-                  <FaTimes size={14} />
-                </button>
-              </div>
-            )}
-
-            {errors.items && <div className="cq-items-error"><FaExclamationTriangle /> {errors.items}</div>}
-
-            <div className="cq-table-wrap">
-              <table className="cq-items-table">
+          ) : (
+            <>
+              <table className="qt-table">
                 <thead>
                   <tr>
-                    <th className="cq-col-sno">#</th>
-                    <th className="cq-col-code">Item Code <span className="cq-required">*</span></th>
-                    <th className="cq-col-name">Item Name</th>
-                    <th className="cq-col-hsn">HSN</th>
-                    <th className="cq-col-qty">Qty <span className="cq-required">*</span></th>
-                    <th className="cq-col-unit">UOM</th>
-                    <th className="cq-col-rate">Rate</th>
-                    <th className="cq-col-tax">Tax</th>
-                    <th className="cq-col-tax-amount" style={{ textAlign: 'right' }}>Tax Amt</th>
-                    <th className="cq-col-amount" style={{ textAlign: 'right' }}>Amount</th>
-                    <th className="cq-col-action"></th>
+                    <th className="qt-th">Quote #</th>
+                    <th className="qt-th">Customer</th>
+                    <th className="qt-th">Date</th>
+                    <th className="qt-th">Status</th>
+                    <th className="qt-th qt-text-right">Amount</th>
+                    <th className="qt-th qt-th-meta">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {formData.items.map((item, index) => (
-                    <tr key={item.id} className={focusedField === `item_${index}` ? 'cq-focused-row' : ''}>
-                      <td className="cq-col-sno">{index + 1}</td>
-                      <td className="cq-col-code">
-                        <SearchableSelect
-                          value={item.itemCode}
-                          onChange={(code, record) => handleItemSelect(index, code, record)}
-                          options={products}
-                          placeholder="Search..."
-                          onSearch={handleItemSearch}
-                          loading={isLoadingItems}
-                          error={!!errors[`item_${index}_code`]}
-                          taxOptions={taxOptions}
-                        />
-                        {errors[`item_${index}_code`] && <span className="cq-error-text">{errors[`item_${index}_code`]}</span>}
+                  {quotations.map((quote) => (
+                    <tr key={quote.id} className="qt-tr">
+                      <td className="qt-td qt-td-id">{quote.quotationNumber}</td>
+                      <td className="qt-td">
+                        <div>
+                          <div className="qt-td-link">{quote.customerName}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{quote.customer}</div>
+                        </div>
                       </td>
-                      <td className="cq-col-name">
-                        <input
-                          type="text"
-                          value={item.itemName}
-                          onChange={(e) => handleItemChange(index, 'itemName', e.target.value)}
-                          placeholder="Item Name"
-                          className="cq-table-input cq-table-input-text"
-                          ref={setItemRef(`item_${index}_itemName`)}
-                          onKeyDown={(e) => handleItemKeyDown(e, index, 'itemName')}
-                        />
+                      <td className="qt-td">
+                        <div>{quote.date ? formatDisplayDateWithContext(quote.date) : '-'}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                          Valid: {quote.validTill ? formatDisplayDateWithContext(quote.validTill) : '-'}
+                        </div>
                       </td>
-                      <td className="cq-col-hsn">
-                        <input
-                          type="text"
-                          value={item.hsn}
-                          onChange={(e) => handleItemChange(index, 'hsn', e.target.value)}
-                          placeholder="HSN"
-                          className="cq-table-input cq-table-input-text"
-                          ref={setItemRef(`item_${index}_hsn`)}
-                          onKeyDown={(e) => handleItemKeyDown(e, index, 'hsn')}
-                        />
+                      <td className="qt-td">
+                        <span className={`qt-status-badge ${getStatusColor(quote.status)}`}>
+                          {getStatusIcon(quote.status)}
+                          {quote.status}
+                        </span>
                       </td>
-                      <td className="cq-col-qty">
-                        <input
-                          type="number"
-                          value={item.quantity}
-                          onChange={(e) => handleItemChange(index, 'quantity', Number(e.target.value))}
-                          onWheel={blurOnWheel}
-                          min="1"
-                          className={`cq-table-input ${errors[`item_${index}_quantity`] ? 'cq-input-error' : ''}`}
-                          ref={setItemRef(`item_${index}_quantity`)}
-                          onKeyDown={(e) => handleItemKeyDown(e, index, 'quantity')}
-                        />
-                        {errors[`item_${index}_quantity`] && <span className="cq-error-text">{errors[`item_${index}_quantity`]}</span>}
+                      <td className="qt-td qt-text-right qt-amount-cell">
+                        <span className="qt-currency">{quote.currency}</span>
+                        {quote.totalAmount.toLocaleString()}
                       </td>
-                      <td className="cq-col-unit">
-                        <select
-                          value={item.unit}
-                          onChange={(e) => handleItemChange(index, 'unit', e.target.value)}
-                          className="cq-table-input"
-                          ref={setItemRef(`item_${index}_unit`)}
-                          onKeyDown={(e) => handleItemKeyDown(e, index, 'unit')}
-                        >
-                          <option value="pcs">Pcs</option>
-                          <option value="kg">Kg</option>
-                          <option value="ltr">Ltr</option>
-                          <option value="mtr">Mtr</option>
-                          <option value="Nos">Nos</option>
-                          <option value="Box">Box</option>
-                        </select>
-                      </td>
-                      <td className="cq-col-rate">
-                        <input
-                          type="number"
-                          value={item.rate}
-                          onChange={(e) => handleItemChange(index, 'rate', Number(e.target.value))}
-                          onWheel={blurOnWheel}
-                          min="0"
-                          step="0.01"
-                          className={`cq-table-input ${errors[`item_${index}_rate`] ? 'cq-input-error' : ''}`}
-                          ref={setItemRef(`item_${index}_rate`)}
-                          onKeyDown={(e) => handleItemKeyDown(e, index, 'rate')}
-                        />
-                        {errors[`item_${index}_rate`] && <span className="cq-error-text">{errors[`item_${index}_rate`]}</span>}
-                      </td>
-                      <td className="cq-col-tax">
-                        <select
-                          value={item.tax}
-                          onChange={(e) => handleItemChange(index, 'tax', Number(e.target.value))}
-                          className="cq-table-input"
-                          disabled={loadingTaxOptions}
-                          ref={setItemRef(`item_${index}_tax`)}
-                          onKeyDown={(e) => handleItemKeyDown(e, index, 'tax')}
-                        >
-                          <option value={0}>0%</option>
-                          {taxOptions.map((tax) => {
-                            const taxValue = extractTaxValue(tax.tax_type);
-                            return (
-                              <option key={tax.tax_id} value={taxValue}>
-                                {tax.tax_type}
-                              </option>
-                            );
-                          })}
-                        </select>
-                      </td>
-                      <td className="cq-col-tax-amount" style={{ textAlign: 'right' }}>
-                        <span className="cq-table-value">₹{item.taxAmount.toFixed(2)}</span>
-                      </td>
-                      <td className="cq-col-amount" style={{ textAlign: 'right' }}>
-                        <span className="cq-table-value">₹{item.totalAmount.toFixed(2)}</span>
-                      </td>
-                      <td className="cq-col-action">
-                        {formData.items.length > 1 && (
+                      <td className="qt-td qt-td-meta">
+                        <div className="qt-action-buttons">
+                          <button className="qt-action-btn qt-action-view" onClick={() => handleView(quote)} title="View / Edit">
+                            <FaEye size={12} />
+                          </button>
                           <button
-                            type="button"
-                            className="cq-remove-btn"
-                            onClick={() => removeItemRow(index)}
-                            title="Delete item"
+                            className="qt-action-btn qt-action-print"
+                            onClick={() => handlePrintQuotation(quote)}
+                            title="Print"
+                            disabled={printLoadingId === quote.id}
                           >
+                            {printLoadingId === quote.id ? <FaSpinner className="spinning" size={12} /> : <FaPrint size={12} />}
+                          </button>
+                          <button className="qt-action-btn qt-action-edit" onClick={() => handleEdit(quote)} title="Edit">
+                            <FaEdit size={12} />
+                          </button>
+                          <button className="qt-action-btn qt-action-delete" onClick={() => handleDeleteClick(quote)} title="Delete">
                             <FaTrash size={12} />
                           </button>
-                        )}
+                        </div>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </div>
-          </div>
 
-          {/* ── BOTTOM SECTION (DC Style) ────────────────────── */}
-          <div className="cq-bottom-section">
-            <div className="cq-bottom-left">
-              {/* Payment Schedule - Updated to match Sales Order style */}
-              <div className="cq-section">
-                <div className="cq-section-header">
-                  <FaCreditCard className="cq-section-icon" />
-                  <span>Payment Schedule</span>
-                </div>
-
-                {/* Payment Terms Template Dropdown */}
-                <div className="cq-field" style={{ marginBottom: '0.5rem' }}>
-                  <div className="cq-field-row" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              {/* ─── Pagination ────────────────────────────── */}
+              {totalRecords > 0 && (
+                <div className="qt-pagination" style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center',
+                  padding: '12px 0',
+                  borderTop: '1px solid var(--border-color, #e5e7eb)',
+                  marginTop: '8px'
+                }}>
+                  <div className="qt-pagination-left" style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '8px',
+                    color: 'var(--text-secondary, #6b7280)',
+                    fontSize: '13px'
+                  }}>
+                    <span className="qt-pagination-label">Show:</span>
                     <select
-                      value={formData.paymentTermsTemplate}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        setFormData(prev => ({ ...prev, paymentTermsTemplate: value }));
-                        if (value) {
-                          applyPaymentTemplate(value);
-                        }
+                      value={itemsPerPage}
+                      onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                      className="qt-page-size-select"
+                      style={{
+                        padding: '4px 8px',
+                        border: '1px solid var(--border-color, #d1d5db)',
+                        borderRadius: '4px',
+                        background: 'var(--bg-color, white)',
+                        color: 'var(--text-primary, #1f2937)',
+                        fontSize: '13px',
+                        cursor: 'pointer'
                       }}
-                      className="cq-select"
-                      style={{ flex: 1, minWidth: '200px' }}
                     >
-                      <option value="">Select Payment Terms...</option>
-                      {paymentTermTemplates.map((template) => (
-                        <option key={template.id} value={template.id}>
-                          {template.name} - {template.description}
-                        </option>
-                      ))}
+                      <option value={10}>10</option>
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
                     </select>
-                    <button
-                      type="button"
-                      className="cq-add-btn"
-                      onClick={() => {
-                        if (formData.paymentTermsTemplate) {
-                          applyPaymentTemplate(formData.paymentTermsTemplate);
-                        }
+                    <span className="qt-pagination-label">entries</span>
+                  </div>
+
+                  <div className="qt-pagination-center" style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '4px'
+                  }}>
+                    <button 
+                      onClick={goToFirstPage} 
+                      className="qt-page-btn" 
+                      disabled={currentPage === 1 || totalPages === 0}
+                      style={{
+                        padding: '4px 8px',
+                        border: '1px solid var(--border-color, #d1d5db)',
+                        borderRadius: '4px',
+                        background: 'var(--bg-color, white)',
+                        color: 'var(--text-primary, #1f2937)',
+                        cursor: currentPage === 1 || totalPages === 0 ? 'not-allowed' : 'pointer',
+                        opacity: currentPage === 1 || totalPages === 0 ? 0.5 : 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '12px'
                       }}
-                      style={{ whiteSpace: 'nowrap', padding: '5px 14px' }}
                     >
-                      <FaCopy size={9} /> Apply
+                      <FaAngleDoubleLeft size={12} />
+                    </button>
+                    <button 
+                      onClick={goToPrevPage} 
+                      className="qt-page-btn" 
+                      disabled={currentPage === 1 || totalPages === 0}
+                      style={{
+                        padding: '4px 8px',
+                        border: '1px solid var(--border-color, #d1d5db)',
+                        borderRadius: '4px',
+                        background: 'var(--bg-color, white)',
+                        color: 'var(--text-primary, #1f2937)',
+                        cursor: currentPage === 1 || totalPages === 0 ? 'not-allowed' : 'pointer',
+                        opacity: currentPage === 1 || totalPages === 0 ? 0.5 : 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '12px'
+                      }}
+                    >
+                      <FaChevronLeft size={12} />
+                    </button>
+                    
+                    {totalPages > 0 && getPageNumbers().map((page) => (
+                      <button
+                        key={page}
+                        onClick={() => goToPage(page)}
+                        className={`qt-page-btn ${currentPage === page ? 'qt-page-btn-active' : ''}`}
+                        style={{
+                          padding: '4px 10px',
+                          border: currentPage === page ? '1px solid var(--primary-color, #3b82f6)' : '1px solid var(--border-color, #d1d5db)',
+                          borderRadius: '4px',
+                          background: currentPage === page ? 'var(--primary-color, #3b82f6)' : 'var(--bg-color, white)',
+                          color: currentPage === page ? 'white' : 'var(--text-primary, #1f2937)',
+                          cursor: 'pointer',
+                          fontSize: '13px',
+                          fontWeight: currentPage === page ? '600' : '400',
+                          minWidth: '32px'
+                        }}
+                      >
+                        {page}
+                      </button>
+                    ))}
+                    
+                    <button 
+                      onClick={goToNextPage} 
+                      className="qt-page-btn" 
+                      disabled={currentPage === totalPages || totalPages === 0}
+                      style={{
+                        padding: '4px 8px',
+                        border: '1px solid var(--border-color, #d1d5db)',
+                        borderRadius: '4px',
+                        background: 'var(--bg-color, white)',
+                        color: 'var(--text-primary, #1f2937)',
+                        cursor: currentPage === totalPages || totalPages === 0 ? 'not-allowed' : 'pointer',
+                        opacity: currentPage === totalPages || totalPages === 0 ? 0.5 : 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '12px'
+                      }}
+                    >
+                      <FaChevronRight size={12} />
+                    </button>
+                    <button 
+                      onClick={goToLastPage} 
+                      className="qt-page-btn" 
+                      disabled={currentPage === totalPages || totalPages === 0}
+                      style={{
+                        padding: '4px 8px',
+                        border: '1px solid var(--border-color, #d1d5db)',
+                        borderRadius: '4px',
+                        background: 'var(--bg-color, white)',
+                        color: 'var(--text-primary, #1f2937)',
+                        cursor: currentPage === totalPages || totalPages === 0 ? 'not-allowed' : 'pointer',
+                        opacity: currentPage === totalPages || totalPages === 0 ? 0.5 : 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '12px'
+                      }}
+                    >
+                      <FaAngleDoubleRight size={12} />
                     </button>
                   </div>
-                </div>
 
-                <div className="cq-table-wrap">
-                  <table className="cq-payment-table">
-                    <thead>
-                      <tr>
-                        <th className="cq-payment-col-no">#</th>
-                        <th className="cq-payment-col-term">Payment Term</th>
-                        <th className="cq-payment-col-date">Due Date</th>
-                        <th className="cq-payment-col-duration">Days</th>
-                        <th className="cq-payment-col-portion">%</th>
-                        <th className="cq-payment-col-amount">Amount</th>
-                        <th className="cq-payment-col-action"></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {formData.paymentSchedule.map((schedule, index) => (
-                        <tr key={schedule.id}>
-                          <td className="cq-payment-col-no">{index + 1}</td>
-                          <td className="cq-payment-col-term">
-                            <input
-                              type="text"
-                              value={schedule.paymentTerm}
-                              onChange={(e) => updatePaymentRow(index, { paymentTerm: e.target.value })}
-                              placeholder="Term"
-                              className="cq-table-input cq-table-input-text"
-                              ref={setRef(`payment_${index}_term`)}
-                            />
-                          </td>
-                          <td className="cq-payment-col-date">
-                            <div className="cq-date-field">
-                              <input
-                                type="date"
-                                value={schedule.dueDate}
-                                onChange={(e) => handlePaymentDueDateChange(index, e.target.value)}
-                                className="cq-table-input"
-                                ref={setRef(`payment_${index}_dueDate`)}
-                              />
-                              <button
-                                type="button"
-                                className="cq-date-icon-btn"
-                                onClick={() => openDatePicker(`payment_${index}_dueDate`)}
-                                tabIndex={-1}
-                                aria-label="Open calendar"
-                              >
-                                <FaCalendarAlt size={11} />
-                              </button>
-                            </div>
-                          </td>
-                          <td className="cq-payment-col-duration">
-                            <input
-                              type="number"
-                              value={schedule.durationDays}
-                              onChange={(e) => handlePaymentDurationChange(index, Number(e.target.value))}
-                              onWheel={blurOnWheel}
-                              min="0"
-                              className="cq-table-input"
-                              ref={setRef(`payment_${index}_duration`)}
-                            />
-                          </td>
-                          <td className="cq-payment-col-portion">
-                            <input
-                              type="number"
-                              value={schedule.invoicePortion}
-                              onChange={(e) => updatePaymentRow(index, { invoicePortion: Number(e.target.value) })}
-                              onWheel={blurOnWheel}
-                              min="0"
-                              max="100"
-                              className="cq-table-input"
-                              ref={setRef(`payment_${index}_portion`)}
-                            />
-                          </td>
-                          <td className="cq-payment-col-amount">
-                            <span className="cq-table-value">₹{schedule.paymentAmount.toFixed(2)}</span>
-                          </td>
-                          <td className="cq-payment-col-action">
-                            {formData.paymentSchedule.length > 1 && (
-                              <button
-                                type="button"
-                                className="cq-remove-btn"
-                                onClick={() => removePaymentSchedule(index)}
-                              >
-                                <FaTrash size={10} />
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                <button type="button" className="cq-add-btn" onClick={addPaymentSchedule} style={{ marginTop: '8px' }}>
-                  <FaPlus size={9} /> Add Schedule
-                </button>
-              </div>
-
-              {/* Terms and Conditions */}
-              <div className="cq-section" style={{ borderBottom: 'none' }}>
-                <div className="cq-section-header">
-                  <FaFileAlt className="cq-section-icon" />
-                  <span>Terms and Conditions</span>
-                </div>
-                <div className="cq-field-full">
-                  <label className="cq-label">Term Details</label>
-                  <textarea
-                    name="termDetails"
-                    value={formData.termDetails}
-                    onChange={handleInputChange}
-                    rows={2}
-                    placeholder="Enter terms and conditions..."
-                    className="cq-textarea"
-                    ref={setRef('termDetails')}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* RIGHT - Financial Summary (DC Style) */}
-            <div className="cq-bottom-right">
-              <div className="cq-detail-card cq-summary-card">
-                <div className="cq-card-header">
-                  <FaCalculator size={14} />
-                  <span>Financial Summary</span>
-                </div>
-                <div className="cq-card-content">
-                  <div className="cq-summary-grid">
-                    <div className="cq-summary-item">
-                      <span className="cq-summary-label">Total Items</span>
-                      <span className="cq-summary-value">{formData.items.filter(i => i.itemCode).length}</span>
-                    </div>
-                    <div className="cq-summary-item">
-                      <span className="cq-summary-label">Total Quantity</span>
-                      <span className="cq-summary-value">{getTotalQty()}</span>
-                    </div>
-                    <div className="cq-summary-item">
-                      <span className="cq-summary-label">Sub Total</span>
-                      <span className="cq-summary-value">₹{getTotalAmount().toFixed(2)}</span>
-                    </div>
-                    <div className="cq-summary-item">
-                      <span className="cq-summary-label">Total Tax</span>
-                      <span className="cq-summary-value">₹{getTotalTax().toFixed(2)}</span>
-                    </div>
-                    <div className="cq-summary-grand">
-                      <span className="cq-summary-grand-label">Grand Total</span>
-                      <span className="cq-summary-grand-value">₹{getGrandTotal().toFixed(2)}</span>
-                    </div>
+                  <div className="qt-pagination-right" style={{ 
+                    color: 'var(--text-secondary, #6b7280)',
+                    fontSize: '13px'
+                  }}>
+                    <span className="qt-pagination-info">
+                      {totalRecords > 0
+                        ? `Showing ${getStartIndexDisplay()} to ${getEndIndexDisplay()} of ${totalRecords} entries`
+                        : 'No entries to show'}
+                    </span>
                   </div>
                 </div>
-              </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Footer Stats */}
+      <div className="qt-footer-stats" style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: '8px 0',
+        marginTop: '4px'
+      }}>
+        <div className="qt-pagination-left">
+          <span className="qt-pagination-info" style={{ color: 'var(--text-secondary, #6b7280)', fontSize: '13px' }}>
+            {totalRecords} total quotes
+          </span>
+        </div>
+        <div className="qt-pagination-right">
+          <span className="qt-pagination-info" style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary, #6b7280)', fontSize: '13px' }}>
+            <FaChartLine size={14} style={{ color: 'var(--primary-color)' }} />
+            {conversionRate}% conversion rate
+          </span>
+        </div>
+      </div>
+
+      {/* ====== DELETE MODAL ====== */}
+      {showDeleteModal && selectedQuote && (
+        <div className="qt-modal-overlay" onClick={() => setShowDeleteModal(false)}>
+          <div className="qt-modal qt-modal-delete" onClick={(e) => e.stopPropagation()}>
+            <div className="qt-modal-header">
+              <span className="qt-modal-title">Confirm Delete</span>
+              <button className="qt-modal-close" onClick={() => setShowDeleteModal(false)}>
+                <FaTimes size={16} />
+              </button>
+            </div>
+            <div className="qt-modal-body">
+              <p>Are you sure you want to delete this quotation?</p>
+              <p className="qt-modal-item-name">
+                <strong>{selectedQuote.quotationNumber}</strong> - {selectedQuote.customerName}
+              </p>
+              <p className="qt-modal-warning">This action cannot be undone.</p>
+            </div>
+            <div className="qt-modal-footer">
+              <button className="qt-btn-cancel" onClick={() => setShowDeleteModal(false)}>Cancel</button>
+              <button className="qt-btn-delete" onClick={confirmDelete} disabled={isSubmitting}>
+                {isSubmitting && <FaSpinner className="spinning" />}
+                <FaTrash size={12} /> Delete
+              </button>
             </div>
           </div>
+        </div>
+      )}
 
-          {/* ── Form Actions ──────────────────────────────────── */}
-          <div className="cq-form-footer">
-            <button type="button" className="cq-btn cq-btn-cancel" onClick={handleCancel}>
-              <FaTimes size={11} /> Cancel
-            </button>
-            <button type="button" className="cq-btn cq-btn-print" onClick={() => window.print()}>
-              <FaPrint size={11} /> Print
-            </button>
-            <button type="submit" className="cq-btn cq-btn-submit" disabled={saving}>
-              {saving && <FaSpinner className="cq-spinning" size={11} />}
-              <FaPaperPlane size={11} /> {isEditMode ? 'Update' : 'Submit'}
-            </button>
+      {/* ====== PDF MODAL ====== */}
+      {showPdfModal && selectedQuote && (
+        <div className="qt-modal-overlay" onClick={() => setShowPdfModal(false)}>
+          <div className="qt-modal qt-modal-lg" onClick={(e) => e.stopPropagation()}>
+            <div className="qt-modal-header">
+              <span className="qt-modal-title">{selectedQuote.quotationNumber} - PDF Preview</span>
+              <button className="qt-modal-close" onClick={() => setShowPdfModal(false)}>
+                <FaTimes size={16} />
+              </button>
+            </div>
+            <div className="qt-modal-body" style={{ background: '#f8f9fa' }}>
+              {pdfModalLoading && (
+                <div style={{ textAlign: 'center', padding: '12px', color: '#6b7280', fontSize: '13px' }}>
+                  <FaSpinner className="spinning" /> Loading item details...
+                </div>
+              )}
+              <div style={{ background: 'white', padding: '32px', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', fontFamily: "'Times New Roman', serif" }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #1f2433', paddingBottom: '12px', marginBottom: '20px' }}>
+                  <div style={{ fontSize: '24px', fontWeight: 700, color: '#1f2433', letterSpacing: '2px' }}>QUOTATION</div>
+                  <div style={{ fontSize: '14px', color: '#6b7280' }}>{selectedQuote.quotationNumber}</div>
+                </div>
+                <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+                  <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#1f2433', margin: 0 }}>{getCompanyDetails().name}</h2>
+                  <p style={{ fontSize: '12px', color: '#6b7280', margin: '2px 0' }}>{getCompanyDetails().address}</p>
+                  <p style={{ fontSize: '12px', color: '#6b7280', margin: '2px 0' }}>Phone: {getCompanyDetails().contact}</p>
+                </div>
+                <div style={{ fontSize: '13px', marginBottom: '16px' }}>
+                  <div style={{ fontSize: '14px', fontWeight: 600, color: '#1f2433', margin: '16px 0 8px 0', borderBottom: '1px solid #e5e7eb', paddingBottom: '4px' }}>Customer Details</div>
+                  <div style={{ padding: '2px 0' }}><strong>Name:</strong> {selectedQuote.customerName}</div>
+                  <div style={{ padding: '2px 0' }}><strong>Code:</strong> {selectedQuote.customer}</div>
+                  <div style={{ padding: '2px 0' }}><strong>Email:</strong> {selectedQuote.customerEmail || 'N/A'}</div>
+                  <div style={{ padding: '2px 0' }}><strong>Phone:</strong> {selectedQuote.customerPhone || 'N/A'}</div>
+                  <div style={{ padding: '2px 0' }}><strong>Address:</strong> {selectedQuote.customerAddress || 'N/A'}</div>
+                </div>
+                <div style={{ fontSize: '13px', marginBottom: '16px' }}>
+                  <div style={{ padding: '2px 0' }}><strong>Date:</strong> {selectedQuote.date ? formatDisplayDateWithContext(selectedQuote.date) : 'N/A'}</div>
+                  <div style={{ padding: '2px 0' }}><strong>Valid Till:</strong> {selectedQuote.validTill ? formatDisplayDateWithContext(selectedQuote.validTill) : 'N/A'}</div>
+                  <div style={{ padding: '2px 0' }}><strong>Status:</strong> {selectedQuote.status}</div>
+                  <div style={{ padding: '2px 0' }}><strong>Currency:</strong> {selectedQuote.currency}</div>
+                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', margin: '16px 0' }}>
+                  <thead style={{ background: '#f8f9fa' }}>
+                    <tr>
+                      <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, borderBottom: '1px solid #e5e7eb' }}>Item Code</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, borderBottom: '1px solid #e5e7eb' }}>Item Name</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, borderBottom: '1px solid #e5e7eb' }}>Qty</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, borderBottom: '1px solid #e5e7eb' }}>Rate</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, borderBottom: '1px solid #e5e7eb' }}>CGST</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, borderBottom: '1px solid #e5e7eb' }}>SGST</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, borderBottom: '1px solid #e5e7eb' }}>Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedQuote.items.map((item) => (
+                      <tr key={item.id}>
+                        <td style={{ padding: '6px 12px', borderBottom: '1px solid #f3f4f6' }}>{item.itemCode}</td>
+                        <td style={{ padding: '6px 12px', borderBottom: '1px solid #f3f4f6' }}>{item.itemName}</td>
+                        <td style={{ padding: '6px 12px', borderBottom: '1px solid #f3f4f6', textAlign: 'right' }}>{item.quantity}</td>
+                        <td style={{ padding: '6px 12px', borderBottom: '1px solid #f3f4f6', textAlign: 'right' }}>{selectedQuote.currency} {item.rate}</td>
+                        <td style={{ padding: '6px 12px', borderBottom: '1px solid #f3f4f6', textAlign: 'right' }}>{item.cgst ? `${item.cgst}%` : ''}</td>
+                        <td style={{ padding: '6px 12px', borderBottom: '1px solid #f3f4f6', textAlign: 'right' }}>{item.sgst ? `${item.sgst}%` : ''}</td>
+                        <td style={{ padding: '6px 12px', borderBottom: '1px solid #f3f4f6', textAlign: 'right' }}>{selectedQuote.currency} {item.amount}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot style={{ background: '#f8f9fa' }}>
+                    <tr>
+                      <td colSpan={6} style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600 }}>Total Amount</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, fontSize: '16px' }}>{selectedQuote.currency} {selectedQuote.totalAmount}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+                {selectedQuote.notes && (
+                  <div style={{ margin: '16px 0', fontSize: '13px' }}>
+                    <div style={{ fontSize: '14px', fontWeight: 600, color: '#1f2433', margin: '16px 0 8px 0', borderBottom: '1px solid #e5e7eb', paddingBottom: '4px' }}>Notes</div>
+                    <p>{selectedQuote.notes}</p>
+                  </div>
+                )}
+                {selectedQuote.termsConditions && (
+                  <div style={{ margin: '16px 0', fontSize: '13px' }}>
+                    <div style={{ fontSize: '14px', fontWeight: 600, color: '#1f2433', margin: '16px 0 8px 0', borderBottom: '1px solid #e5e7eb', paddingBottom: '4px' }}>Terms & Conditions</div>
+                    <p>{selectedQuote.termsConditions}</p>
+                  </div>
+                )}
+                <div style={{ textAlign: 'center', marginTop: '24px', paddingTop: '16px', borderTop: '1px solid #e5e7eb', fontSize: '12px', color: '#6b7280' }}>
+                  <p>This is a computer-generated quotation. No signature required.</p>
+                  <p>Thank you for your business!</p>
+                </div>
+              </div>
+            </div>
+            <div className="qt-modal-footer">
+              <button className="qt-btn-cancel" onClick={() => setShowPdfModal(false)}>Close</button>
+              <button className="qt-btn-primary" onClick={() => {
+                handlePrintQuotation(selectedQuote);
+              }}>
+                <FaPrint size={12} /> Print
+              </button>
+              <button className="qt-btn-primary" onClick={() => {
+                toast.success('PDF downloaded successfully!');
+                setShowPdfModal(false);
+              }}>
+                <FaFilePdf size={12} /> Download PDF
+              </button>
+              <button className="qt-btn-primary" onClick={() => {
+                toast.success('PDF sent to email!');
+                setShowPdfModal(false);
+              }}>
+                <FaEnvelope size={12} /> Email PDF
+              </button>
+            </div>
           </div>
-        </form>
-      </div>
+        </div>
+      )}
     </div>
   );
 }

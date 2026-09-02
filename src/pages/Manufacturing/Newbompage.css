@@ -1903,3 +1903,422 @@ select.nbom-input {
 .admin-theme.dark-theme .nbom-bom-type-title {
   color: var(--text-primary, #f8fafc);
 }
+
+/* ─── Selling Price Card ───────────────────────────────────────────────────── */
+
+.nbom-selling-price-container {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 16px;
+  padding: 0 4px;
+}
+
+.nbom-selling-price-card {
+  background: var(--c-bg-card, #ffffff);
+  border: 1px solid var(--c-border, #e2e8f0);
+  border-radius: 12px;
+  padding: 16px 20px;
+  min-width: 320px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease;
+}
+
+.nbom-selling-price-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.nbom-selling-price-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.nbom-selling-price-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nbom-selling-price-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--c-text-secondary, #64748b);
+}
+
+.nbom-selling-price-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--c-text-primary, #0f172a);
+}
+
+.nbom-edit-item-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  background: var(--c-bg-muted, #f1f5f9);
+  border-radius: 12px;
+  font-size: 11px;
+  color: var(--c-primary, #2563eb);
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+}
+
+.nbom-edit-item-link:hover {
+  background: var(--c-primary-light, #dbeafe);
+  color: var(--c-primary-dark, #1d4ed8);
+}
+
+.nbom-edit-item-text {
+  font-weight: 500;
+}
+
+.nbom-selling-price-details {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 10px;
+  border-top: 1px solid var(--c-border-light, #f1f5f9);
+  margin-bottom: 6px;
+}
+
+.nbom-selling-price-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.nbom-selling-price-label-sm {
+  font-size: 11px;
+  color: var(--c-text-secondary, #64748b);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.nbom-selling-price-value-sm {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.nbom-profit {
+  color: #10b981;
+}
+
+.nbom-loss {
+  color: #ef4444;
+}
+
+/* ─── Profit Warning ────────────────────────────────────────────────────────── */
+
+.nbom-profit-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-top: 10px;
+  color: #dc2626;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.nbom-profit-warning svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: #dc2626;
+}
+
+/* ─── Dark theme adjustments ────────────────────────────────────────────────── */
+
+.nbom-page.dark .nbom-selling-price-card {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+.nbom-page.dark .nbom-selling-price-value {
+  color: #f1f5f9;
+}
+
+.nbom-page.dark .nbom-selling-price-label {
+  color: #94a3b8;
+}
+
+.nbom-page.dark .nbom-selling-price-details {
+  border-top-color: #334155;
+}
+
+.nbom-page.dark .nbom-profit-warning {
+  background: #451a1a;
+  border-color: #7f1d1d;
+  color: #fca5a5;
+}
+
+.nbom-page.dark .nbom-profit-warning svg {
+  color: #fca5a5;
+}
+
+.nbom-page.dark .nbom-edit-item-link {
+  background: #1e293b;
+  color: #60a5fa;
+}
+
+.nbom-page.dark .nbom-edit-item-link:hover {
+  background: #1e3a5f;
+  color: #93bbfc;
+}
+
+.nbom-page.dark .nbom-profit {
+  color: #34d399;
+}
+
+.nbom-page.dark .nbom-loss {
+  color: #f87171;
+}
+
+/* ─── Searchable Select Dropdown ───────────────────────────────────────────── */
+
+.nbom-searchable-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--c-bg-card, #ffffff);
+  border: 1px solid var(--c-border, #e2e8f0);
+  border-radius: 6px;
+  margin-top: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.nbom-searchable-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.15s ease;
+}
+
+.nbom-searchable-item:hover,
+.nbom-searchable-item.highlighted {
+  background: var(--c-primary-light, #eff6ff);
+}
+
+.nbom-searchable-item.selected {
+  background: var(--c-primary, #2563eb);
+  color: white;
+}
+
+.nbom-searchable-loading,
+.nbom-searchable-empty {
+  padding: 10px 12px;
+  color: var(--c-text-secondary, #64748b);
+  font-size: 13px;
+  text-align: center;
+}/* ─── Three Column Layout ──────────────────────────────────────────────────── */
+
+.nbom-three-column {
+  display: grid;
+  grid-template-columns: 1fr 200px 280px;
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 992px) {
+  .nbom-three-column {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .nbom-three-column {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ─── Selling Price Mini Card ──────────────────────────────────────────────── */
+
+.nbom-selling-price-wrapper {
+  display: flex;
+  align-items: stretch;
+  height: 100%;
+}
+
+.nbom-selling-price-mini {
+  background: var(--c-bg-card, #ffffff);
+  border: 1px solid var(--c-border, #e2e8f0);
+  border-radius: 8px;
+  padding: 10px 14px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 56px;
+  transition: all 0.2s ease;
+}
+
+.nbom-selling-price-mini:hover {
+  border-color: var(--c-primary, #2563eb);
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.08);
+}
+
+.nbom-selling-price-mini-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.nbom-selling-price-mini-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--c-text-secondary, #64748b);
+}
+
+.nbom-selling-price-mini-label svg {
+  color: var(--c-text-secondary, #64748b);
+}
+
+.nbom-edit-item-link-mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 8px;
+  background: var(--c-bg-muted, #f1f5f9);
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--c-primary, #2563eb);
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+}
+
+.nbom-edit-item-link-mini:hover {
+  background: var(--c-primary-light, #dbeafe);
+  color: var(--c-primary-dark, #1d4ed8);
+}
+
+.nbom-selling-price-mini-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--c-text-primary, #0f172a);
+}
+
+/* ─── Profit Warning Mini ───────────────────────────────────────────────────── */
+
+.nbom-profit-warning-mini {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 4px;
+  padding: 4px 8px;
+  margin-top: 6px;
+  color: #dc2626;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.nbom-profit-warning-mini svg {
+  flex-shrink: 0;
+  color: #dc2626;
+}
+
+/* ─── Dark theme adjustments ────────────────────────────────────────────────── */
+
+.nbom-page.dark .nbom-selling-price-mini {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+.nbom-page.dark .nbom-selling-price-mini:hover {
+  border-color: #3b82f6;
+}
+
+.nbom-page.dark .nbom-selling-price-mini-value {
+  color: #f1f5f9;
+}
+
+.nbom-page.dark .nbom-selling-price-mini-label {
+  color: #94a3b8;
+}
+
+.nbom-page.dark .nbom-selling-price-mini-label svg {
+  color: #94a3b8;
+}
+
+.nbom-page.dark .nbom-edit-item-link-mini {
+  background: #1e293b;
+  color: #60a5fa;
+}
+
+.nbom-page.dark .nbom-edit-item-link-mini:hover {
+  background: #1e3a5f;
+  color: #93bbfc;
+}
+
+.nbom-page.dark .nbom-profit-warning-mini {
+  background: #451a1a;
+  border-color: #7f1d1d;
+  color: #fca5a5;
+}
+
+.nbom-page.dark .nbom-profit-warning-mini svg {
+  color: #fca5a5;
+}
+
+/* ─── Searchable Select Dropdown ───────────────────────────────────────────── */
+
+.nbom-searchable-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--c-bg-card, #ffffff);
+  border: 1px solid var(--c-border, #e2e8f0);
+  border-radius: 6px;
+  margin-top: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.nbom-searchable-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.15s ease;
+}
+
+.nbom-searchable-item:hover,
+.nbom-searchable-item.highlighted {
+  background: var(--c-primary-light, #eff6ff);
+}
+
+.nbom-searchable-item.selected {
+  background: var(--c-primary, #2563eb);
+  color: white;
+}
+
+.nbom-searchable-loading,
+.nbom-searchable-empty {
+  padding: 10px 12px;
+  color: var(--c-text-secondary, #64748b);
+  font-size: 13px;
+  text-align: center;
+}

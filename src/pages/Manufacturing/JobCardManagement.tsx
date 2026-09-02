@@ -1,4 +1,4 @@
-// JobCardManagement.tsx - Fixed version with Date Format
+
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -10,14 +10,14 @@ import {
   FaTrash,
   FaBuilding,
   FaClipboardList,
-  FaCheckCircle,
-  FaClock,
   FaChevronLeft,
   FaChevronRight,
   FaAngleDoubleLeft,
   FaAngleDoubleRight,
   FaSpinner,
   FaCalendarAlt,
+  FaExchangeAlt,
+  FaTruck,
 } from "react-icons/fa";
 import "./JobCardManagement.css";
 import { useAdminTheme } from "../../admin-theme/AdminThemeContext";
@@ -45,6 +45,9 @@ interface JobCardApiRecord {
   actual_start_date?: string | null;
   actual_end_date?: string | null;
   production_item: string;
+  items?: any[];
+  is_subcontracted?: number;
+  [key: string]: any;
 }
 
 interface JobCardDisplay {
@@ -74,6 +77,11 @@ interface JobCardDisplay {
   displayExpectedEnd?: string;
   displayActualStart?: string;
   displayActualEnd?: string;
+
+  items?: any[];
+  isSubcontracted?: number;
+  rawData?: any;
+
 }
 
 interface WorkOrderGroup {
@@ -84,6 +92,7 @@ interface WorkOrderGroup {
   production_item: string;
   lossQty: number;
   progress: number;
+  isSubcontracted?: boolean;
 }
 
 const STATUS_CLASS: Record<Status, string> = {
@@ -158,7 +167,7 @@ export default function JobCardManagement() {
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
 
-  const [jobCards, setJobCards] = useState<JobCardDisplay[]>([]);
+  const [, setJobCards] = useState<JobCardDisplay[]>([]);
   const [groups, setGroups] = useState<WorkOrderGroup[]>([]);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
@@ -170,7 +179,6 @@ export default function JobCardManagement() {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [now, setNow] = useState<Date>(() => new Date());
 
-  // ─── Date Filter States ────────────────────────────────────────────────
   const [fromDate, setFromDate] = useState<string>("");
   const [toDate, setToDate] = useState<string>("");
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
@@ -295,6 +303,50 @@ export default function JobCardManagement() {
     return Math.min(Math.round((totalDone / qty) * 100), 100);
   };
 
+  // ─── Navigate to job card using stored data ───────────────────────────
+  const navigateToJobCard = (item: JobCardDisplay) => {
+    console.log("🚀 Navigating to job card:", item.recordId);
+    console.log("📋 Items from stored data:", item.items);
+    console.log("📦 Raw data from stored data:", item.rawData);
+    
+    // Use the stored rawData which already contains items
+    if (item.rawData) {
+      console.log("✅ Using stored rawData with items:", item.rawData.items);
+      navigate(`/job-cards/${item.recordId}`, { 
+        state: { jobCard: item.rawData }
+      });
+    } else {
+      // Fallback: try to fetch from API
+      fetchAndNavigate(item.recordId);
+    }
+  };
+
+  // ─── Fallback: Fetch from API if no stored data ──────────────────────
+  const fetchAndNavigate = async (id: number) => {
+    try {
+      console.log(`🔍 Fetching job card data for ID: ${id}`);
+      const response = await api.get(`/job-card/${id}`);
+      console.log("📦 API Response:", response.data);
+      
+      if (response.data.success === 1) {
+        const raw = response.data.data;
+        const jobCard = Array.isArray(raw) ? raw[0] : raw;
+        console.log("✅ Job card data:", jobCard);
+        console.log("📋 Items:", jobCard?.items);
+        
+        navigate(`/job-cards/${id}`, { 
+          state: { jobCard: jobCard }
+        });
+      } else {
+        // Last resort: navigate with minimal data
+        navigate(`/job-cards/${id}`);
+      }
+    } catch (err) {
+      console.error("❌ Error fetching job card:", err);
+      navigate(`/job-cards/${id}`);
+    }
+  };
+
   const fetchJobCards = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -311,7 +363,6 @@ export default function JobCardManagement() {
         params.append('status', statusFilter);
       }
 
-      // Add date filters
       if (fromDate) {
         params.append('date_from', fromDate);
       }
@@ -319,7 +370,7 @@ export default function JobCardManagement() {
         params.append('date_to', toDate);
       }
 
-      console.log(`Calling API: /job-card?${params.toString()}`);
+      console.log(`📡 Calling API: /job-card?${params.toString()}`);
       const response = await api.get(`/job-card?${params.toString()}`);
       
       if (response.data.success !== 1) {
@@ -345,12 +396,19 @@ export default function JobCardManagement() {
         setTotalPages(1);
       }
 
-      // ✅ TRANSFORM DATA WITH FORMATTED DATES
+
+      console.log(`📊 Records received: ${records.length}`);
+      if (records.length > 0) {
+        console.log(`📋 First record has ${records[0]?.items?.length || 0} items`);
+        console.log("📋 First record items:", records[0]?.items);
+      }
+
       const transformed = records.map((item) => {
         const qty = item.for_quantity ?? item.requested_qty ?? 0;
         const completed = item.total_completed_qty || 0;
         const loss = item.process_loss_qty || 0;
         const createdOn = item.creation || item.posting_date || new Date().toISOString();
+        
         return {
           productionItem: item.production_item,
           id: item.name || `jc-${item.id}`,
@@ -378,6 +436,9 @@ export default function JobCardManagement() {
           displayExpectedEnd: item.expected_end_date ? formatDisplayDate(item.expected_end_date) : '',
           displayActualStart: item.actual_start_date ? formatDisplayDate(item.actual_start_date) : '',
           displayActualEnd: item.actual_end_date ? formatDisplayDate(item.actual_end_date) : '',
+          items: item.items || [],
+          isSubcontracted: item.is_subcontracted || 0,
+          rawData: item, // Store the full raw data with items
         };
       });
       
@@ -387,7 +448,7 @@ export default function JobCardManagement() {
       groupByWorkOrder(transformed);
       
     } catch (err: any) {
-      console.error("Error fetching job cards:", err);
+      console.error("❌ Error fetching job cards:", err);
       setError(err.response?.data?.message || "An error occurred while loading job cards");
     } finally {
       setLoading(false);
@@ -411,6 +472,9 @@ export default function JobCardManagement() {
       const lossQty = sortedCards.reduce((sum, c) => sum + c.lossQty, 0);
       const progress = totalQty > 0 ? Math.round(((completedQty + lossQty) / totalQty) * 100) : 0;
       
+      // Check if any job card in this group is subcontracted
+      const isSubcontracted = sortedCards.some(card => card.isSubcontracted === 1);
+      
       return {
         workOrder,
         jobCards: sortedCards,
@@ -419,6 +483,7 @@ export default function JobCardManagement() {
         lossQty,
         production_item: sortedCards[0]?.productionItem ?? "",
         progress,
+        isSubcontracted,
       };
     });
 
@@ -538,15 +603,15 @@ export default function JobCardManagement() {
   };
 
   const handleRowClick = (item: JobCardDisplay) => {
-    navigate(`/job-cards/${item.recordId}`);
+    navigateToJobCard(item);
   };
 
   const handleEdit = (item: JobCardDisplay) => {
-    navigate(`/job-cards/${item.recordId}`);
+    navigateToJobCard(item);
   };
 
   const handleView = (item: JobCardDisplay) => {
-    navigate(`/job-cards/${item.recordId}`);
+    navigateToJobCard(item);
   };
 
   const clearFilters = () => {
@@ -556,11 +621,6 @@ export default function JobCardManagement() {
     setToDate("");
     setCurrentPage(1);
   };
-
-  const totalQty = jobCards.reduce((sum, jc) => sum + jc.qty, 0);
-  const totalCompleted = jobCards.reduce((sum, jc) => sum + jc.completedQty, 0);
-  const totalLoss = jobCards.reduce((sum, jc) => sum + jc.lossQty, 0);
-  const overallProgress = totalQty > 0 ? Math.round(((totalCompleted + totalLoss) / totalQty) * 100) : 0;
 
   return (
     <div className={`jc-page ${theme}`}>
@@ -596,7 +656,6 @@ export default function JobCardManagement() {
             <option value="On Hold">On Hold</option>
             <option value="Cancelled">Cancelled</option>
           </select>
-          {/* Date Range Picker */}
           <div className="jc-date-range-wrapper">
             <button 
               className={`jc-date-toggle-btn ${showDatePicker ? 'active' : ''}`}
@@ -611,7 +670,6 @@ export default function JobCardManagement() {
                   <span className="jc-date-picker-title">Filter by Date</span>
                 </div>
                 
-                {/* Date Range Display */}
                 <div className="jc-date-range-display">
                   {fromDate && toDate ? (
                     <span>{formatDateDisplay(fromDate)} – {formatDateDisplay(toDate)}</span>
@@ -620,7 +678,6 @@ export default function JobCardManagement() {
                   )}
                 </div>
 
-                {/* Quick Filters */}
                 <div className="jc-quick-filters">
                   <button className="jc-quick-filter-btn" onClick={() => setQuickDateRange(0)}>Today</button>
                   <button className="jc-quick-filter-btn" onClick={() => setQuickDateRange(7)}>Last 7 Days</button>
@@ -628,7 +685,6 @@ export default function JobCardManagement() {
                   <button className="jc-quick-filter-btn" onClick={() => setQuickDateRange(90)}>This Month</button>
                 </div>
 
-                {/* Calendar */}
                 <div className="jc-calendar">
                   <div className="jc-calendar-header">
                     <button className="jc-calendar-nav" onClick={handlePrevMonth}>
@@ -668,7 +724,6 @@ export default function JobCardManagement() {
                   </div>
                 </div>
 
-                {/* Action Buttons */}
                 <div className="jc-date-actions">
                   <button 
                     className="jc-btn-clear-filter" 
@@ -752,7 +807,7 @@ export default function JobCardManagement() {
                 return (
                   <div key={group.workOrder} className="jc-group">
                     <div
-                      className="jc-group-header"
+                      className={`jc-group-header ${group.isSubcontracted ? 'jc-group-subcontracted' : ''}`}
                       onClick={() => toggleGroup(group.workOrder)}
                     >
                       <div className="jc-group-header-left">
@@ -763,6 +818,11 @@ export default function JobCardManagement() {
                           <FaBuilding className="jc-group-icon" />
                           {"WorkOrder Number : "}{group.workOrder}{" | Product: "}{group.production_item}
                         </span>
+                        {group.isSubcontracted && (
+                          <span className="jc-subcontracted-badge">
+                            <FaExchangeAlt size={10} /> Subcontracted
+                          </span>
+                        )}
                       </div>
                       <div className="jc-group-header-right">
                         <span className="jc-group-stats">
@@ -771,7 +831,7 @@ export default function JobCardManagement() {
                         <div className="jc-group-progress">
                           <div className="jc-group-progress-bar">
                             <div
-                              className="jc-group-progress-fill"
+                              className={`jc-group-progress-fill ${group.isSubcontracted ? 'jc-progress-subcontracted' : ''}`}
                               style={{ width: `${group.progress}%` }}
                             />
                           </div>
@@ -791,6 +851,7 @@ export default function JobCardManagement() {
                             <th className="jc-th">Qty</th>
                             <th className="jc-th">Progress</th>
                             <th className="jc-th">Status</th>
+                            <th className="jc-th">Type</th>
                             <th className="jc-th">Timer</th>
                             <th className="jc-th jc-th-meta">Actions</th>
                           </tr>
@@ -798,22 +859,33 @@ export default function JobCardManagement() {
                         <tbody>
                           {filteredCards.map((row, index) => {
                             const timer = getTimerInfo(row, now);
+                            const isSubcontracted = row.isSubcontracted === 1;
                             return (
                               <tr
                                 key={row.id}
-                                className="jc-tr"
+                                className={`jc-tr ${isSubcontracted ? 'jc-tr-subcontracted' : ''}`}
                                 onClick={() => handleRowClick(row)}
                                 style={{ cursor: "pointer" }}
                               >
                                 <td className="jc-td jc-td-number">{index + 1}</td>
-                                <td className="jc-td jc-td-id">{row.jobCardId}</td>
+                                <td className="jc-td jc-td-id">
+                                  {row.jobCardId}
+                                  {isSubcontracted && (
+                                    <span className="jc-subcontracted-icon" title="Subcontracted">
+                                      <FaTruck size={10} />
+                                    </span>
+                                  )}
+                                </td>
                                 <td className="jc-td">{row.operation}</td>
                                 <td className="jc-td">{row.workstation}</td>
                                 <td className="jc-td jc-td-number">{row.qty.toLocaleString()}</td>
                                 <td className="jc-td">
                                   <div className="jc-progress-container">
                                     <div className="jc-progress-bar">
-                                      <div className="jc-progress-fill" style={{ width: `${row.progress}%` }} />
+                                      <div 
+                                        className={`jc-progress-fill ${isSubcontracted ? 'jc-progress-subcontracted' : ''}`} 
+                                        style={{ width: `${row.progress}%` }} 
+                                      />
                                     </div>
                                     <span className="jc-progress-text">{row.progress}%</span>
                                   </div>
@@ -822,6 +894,17 @@ export default function JobCardManagement() {
                                   <span className={`jc-status-badge ${STATUS_CLASS[row.status]}`}>
                                     {STATUS_LABELS[row.status]}
                                   </span>
+                                </td>
+                                <td className="jc-td">
+                                  {isSubcontracted ? (
+                                    <span className="jc-type-badge jc-type-subcontracted">
+                                      <FaExchangeAlt size={10} /> Subcon
+                                    </span>
+                                  ) : (
+                                    <span className="jc-type-badge jc-type-internal">
+                                      <FaBuilding size={10} /> Internal
+                                    </span>
+                                  )}
                                 </td>
                                 <td className="jc-td">
                                   <span
@@ -996,6 +1079,98 @@ export default function JobCardManagement() {
         }
         .spinning {
           animation: spin 1s linear infinite;
+        }
+
+        /* ─── Lighter Subcontracting Styles ─── */
+        
+        /* Group Header - Soft orange background */
+        .jc-group-subcontracted {
+          background: linear-gradient(135deg, #fffbf0 0%, #fff8e8 100%) !important;
+          border-left: 3px solid #ffb74d !important;
+        }
+
+        .jc-group-subcontracted .jc-group-title {
+          color: #e65100;
+        }
+
+        /* Subcontracted Badge - Soft orange */
+        .jc-subcontracted-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          background: #ffcc80;
+          color: #e65100;
+          font-size: 10px;
+          font-weight: 600;
+          padding: 2px 10px;
+          border-radius: 12px;
+          margin-left: 8px;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          border: 1px solid #ffe0b2;
+        }
+
+        .jc-subcontracted-badge svg {
+          color: #e65100;
+        }
+
+        /* Row Background - Very light cream */
+        .jc-tr-subcontracted {
+          background: #fffdf7 !important;
+        }
+
+        .jc-tr-subcontracted:hover {
+          background: #fff8f0 !important;
+        }
+
+        /* Truck Icon - Soft orange */
+        .jc-subcontracted-icon {
+          display: inline-flex;
+          align-items: center;
+          margin-left: 6px;
+          color: #ffa726;
+        }
+
+        /* Type Badges */
+        .jc-type-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          font-size: 10px;
+          font-weight: 500;
+          padding: 2px 10px;
+          border-radius: 10px;
+          text-transform: uppercase;
+          letter-spacing: 0.3px;
+        }
+
+        /* Subcontracted Type Badge - Soft orange */
+        .jc-type-subcontracted {
+          background: #fff3e0;
+          color: #e65100;
+          border: 1px solid #ffe0b2;
+        }
+
+        /* Internal Type Badge - Soft blue */
+        .jc-type-internal {
+          background: #e3f2fd;
+          color: #0d47a1;
+          border: 1px solid #bbdefb;
+        }
+
+        /* Progress Bar - Soft orange gradient for subcontracted */
+        .jc-progress-subcontracted {
+          background: linear-gradient(90deg, #ffb74d, #ff8a65) !important;
+        }
+
+        /* Group progress fill for subcontracted */
+        .jc-group-progress-fill.jc-progress-subcontracted {
+          background: linear-gradient(90deg, #ffb74d, #ff8a65) !important;
+        }
+
+        /* Optional: Add a subtle glow effect on hover for subcontracted rows */
+        .jc-tr-subcontracted:hover {
+          box-shadow: inset 0 0 0 1px #ffe0b2;
         }
       `}</style>
     </div>
