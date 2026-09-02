@@ -80,6 +80,7 @@ interface SalesOrderApiRecord {
   customer_gstin?: string;
   gstin?: string;
   customer_state?: string;
+  tax_type?: string;
   state?: string;
   state_code?: string;
   terms?: string;

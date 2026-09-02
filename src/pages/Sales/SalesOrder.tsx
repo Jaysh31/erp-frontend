@@ -1712,7 +1712,7 @@ export default function SalesOrder() {
           margin-left: 8px;
         }
 
-        .qt-date-picker-trigger {
+        . {
           display: flex;
           align-items: center;
           gap: 8px;
