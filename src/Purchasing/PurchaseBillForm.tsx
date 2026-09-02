@@ -1,4 +1,4 @@
-// PurchaseInvoiceForm.tsx - Modified with is_create_from_grn and grn_ids
+// PurchaseBillForm.tsx - Modified with is_create_from_grn and grn_ids
 import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   FaSave, FaSpinner, FaArrowLeft,
