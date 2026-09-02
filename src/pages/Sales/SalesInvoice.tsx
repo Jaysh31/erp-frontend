@@ -26,11 +26,13 @@ import {
   FaClock,
   FaTimesCircle,
   FaCalendarAlt,
+  FaDownload,
 } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
+import * as XLSX from 'xlsx';
 
 // ===== INTERFACES =====
 
@@ -169,7 +171,19 @@ const numberToIndianWords = (value: number): string => {
   return out.trim();
 };
 
-// ✅ UPDATED: Format print date using context formatter
+const formatPrintDate = (date: string, formatFn?: (date: string) => string): string => {
+  if (!date) return '';
+  if (formatFn) {
+    return formatFn(date);
+  }
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return date;
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = d.toLocaleString('en-US', { month: 'short' });
+  const year = String(d.getFullYear()).slice(-2);
+  return `${day}-${month}-${year}`;
+};
+
 
 const escapeHtml = (val: unknown): string => {
   const s = val === null || val === undefined ? '' : String(val);
@@ -205,8 +219,9 @@ const SalesInvoice: React.FC = () => {
   const navigate = useNavigate();
   const menuRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
   
-  // ✅ GET THE DATE FORMAT FUNCTION FROM CONTEXT
-  const { theme, formatDate } = useAdminTheme();
+ 
+  const { theme, formatDate, getApiDateFormat } = useAdminTheme();
+
   
   // ===== STATE =====
   const [searchTerm, setSearchTerm] = useState('');
@@ -219,6 +234,7 @@ const SalesInvoice: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [printLoadingId, setPrintLoadingId] = useState<string | null>(null);
+  const [downloadLoading, setDownloadLoading] = useState(false);
 
   // ===== DATE FILTER STATES =====
   const [fromDate, setFromDate] = useState<string>('');
@@ -232,13 +248,15 @@ const SalesInvoice: React.FC = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
 
-  // ✅ NEW: Format display date using context
   const formatDisplayDate = (dateString: string) => {
     if (!dateString) return '';
     return formatDate(dateString);
   };
 
-  // ✅ NEW: Format date for API (YYYY-MM-DD)
+  const toApiDateFormat = (date: Date) => {
+    return getApiDateFormat(date);
+  };
+
 
   // ===== CLOSE MENU ON CLICK OUTSIDE =====
   useEffect(() => {
@@ -276,7 +294,6 @@ const SalesInvoice: React.FC = () => {
   }, []);
 
   // ===== DATE HELPER FUNCTIONS =====
-  // ✅ UPDATED: Format date for display using context
   const formatDateForDisplay = (dateStr: string): string => {
     if (!dateStr) return '';
     return formatDate(dateStr);
@@ -510,7 +527,6 @@ const SalesInvoice: React.FC = () => {
   }, [searchTerm, selectedStatus, fromDate, toDate]);
 
   // ===== HELPERS =====
-  // ✅ UPDATED: Format date using context formatter
   const formatDateDisplay = (date: string) => {
     if (!date) return '-';
     return formatDisplayDate(date);
@@ -600,12 +616,10 @@ const SalesInvoice: React.FC = () => {
     const totalTax = invoice.total_taxes_and_charges || 0;
     const netTotal = invoice.net_total || invoice.total || 0;
 
-    // Calculate tax per item (simplified)
     const taxRate = totalTax > 0 && netTotal > 0 ? (totalTax / netTotal) * 100 : 0;
     const cgstRate = taxRate / 2;
     const sgstRate = taxRate / 2;
 
-    // ✅ Use formatDisplayDate for formatted dates in print
     const formatPrintDateLocal = (dateStr: string) => {
       if (!dateStr) return '';
       return formatDisplayDate(dateStr);
@@ -628,7 +642,6 @@ const SalesInvoice: React.FC = () => {
       </tr>
     `).join('');
 
-    // Payment schedule rows
     const paymentRows = (invoice.payment_schedule || []).map((ps, idx) => `
       <tr>
         <td>${idx + 1}</td>
@@ -878,6 +891,108 @@ const SalesInvoice: React.FC = () => {
 </html>`;
   };
 
+  // ===== GENERATE PROPER EXCEL DATA =====
+  const generateExcelData = (invoices: SalesInvoice[]) => {
+    const rows: any[] = [];
+    
+    invoices.forEach((invoice, index) => {
+      // Header row with company name
+      rows.push(['TAX INVOICE']);
+      rows.push([`Status: ${invoice.status || 'Draft'}`]);
+      rows.push([]);
+      
+      // Company details
+      rows.push(['Sculptor Tech Pvt Ltd']);
+      rows.push(['c-1006, gc, Pune, Maharashtra 411028, India']);
+      rows.push([`Phone: 8668584275`]);
+      rows.push([`Email: jayeshwakle@sculptortechpvtltd.com`]);
+      rows.push([`State Name: Maharashtra, Code: 27`]);
+      rows.push([]);
+      
+      // Invoice details
+      rows.push(['Invoice No.', invoice.displayInvoiceNumber || invoice.id || '']);
+      rows.push(['Date', formatDisplayDate(invoice.posting_date)]);
+      rows.push(['Due Date', formatDisplayDate(invoice.due_date)]);
+      rows.push(['Currency', invoice.currency || 'INR']);
+      rows.push(['Total Qty', invoice.total_qty || 0]);
+      rows.push(['Payment Status', invoice.status || 'Draft']);
+      rows.push([]);
+      
+      // Customer details
+      rows.push(['Bill To', invoice.customer_name || '']);
+      rows.push(['Customer Code', invoice.customer || '']);
+      rows.push(['Company', invoice.company || '']);
+      rows.push([]);
+      
+      // Items header
+      rows.push(['#', 'Description', 'Group', 'Qty', 'Rate', 'CGST', 'SGST', 'Amount']);
+      
+      // Items rows
+      const items = invoice.items || [];
+      items.forEach((item, idx) => {
+        rows.push([
+          idx + 1,
+          item.item_name || item.item_code || '',
+          item.item_group || '',
+          `${item.qty || 0} ${item.uom || item.stock_uom || 'Nos'}`,
+          (item.rate || 0).toFixed(2),
+          '',
+          '',
+          (item.amount || 0).toFixed(2)
+        ]);
+      });
+      
+      // Total row
+      const grandTotal = invoice.grand_total || invoice.total || 0;
+      const totalQty = items.reduce((sum, item) => sum + (item.qty || 0), 0);
+      rows.push(['Total', '', '', totalQty, '', '', '', grandTotal.toFixed(2)]);
+      rows.push([]);
+      
+      // Amount in words
+      rows.push(['Amount Chargeable (in words)']);
+      rows.push([`${invoice.currency || 'INR'} ${numberToIndianWords(grandTotal)} Only`]);
+      rows.push([]);
+      
+      // Payment schedule if exists
+      if (invoice.payment_schedule && invoice.payment_schedule.length > 0) {
+        rows.push(['Payment Schedule']);
+        rows.push(['#', 'Payment Term', 'Due Date', 'Days', 'Portion', 'Amount', 'Status']);
+        invoice.payment_schedule.forEach((ps, idx) => {
+          rows.push([
+            idx + 1,
+            ps.payment_term,
+            formatDisplayDate(ps.due_date),
+            ps.due_days,
+            `${ps.invoice_portion}%`,
+            ps.payment_amount.toFixed(2),
+            ps.payment_status || 'Pending'
+          ]);
+        });
+        rows.push([]);
+      }
+      
+      // Declaration
+      rows.push(['Declaration']);
+      rows.push(['We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.']);
+      rows.push([]);
+      
+      // Footer
+      rows.push(['SUBJECT TO PUNE JURISDICTION']);
+      rows.push(['This is a computer generated sales invoice.']);
+      rows.push([]);
+      rows.push([]);
+      rows.push([]);
+      
+      // Separator between invoices
+      if (index < invoices.length - 1) {
+        rows.push(['========================================']);
+        rows.push([]);
+      }
+    });
+    
+    return rows;
+  };
+
   // ===== ACTIONS =====
   const handleCreate = () => navigate('/sales-bill/new');
   const handleRefresh = () => fetchInvoices();
@@ -933,7 +1048,113 @@ const SalesInvoice: React.FC = () => {
     loadAndPrint();
   };
 
-  const handleCancel = async (id: string | number) => {
+  // ===== EXCEL DOWNLOAD HANDLER =====
+  const handleExcelDownload = async () => {
+    setDownloadLoading(true);
+    try {
+      const invoicesToDownload = paginatedData.length > 0 ? paginatedData : filteredData;
+      
+      if (invoicesToDownload.length === 0) {
+        toast.error('No invoices to download');
+        setDownloadLoading(false);
+        return;
+      }
+
+      // Fetch full details for all invoices
+      const fullInvoices = await Promise.all(
+        invoicesToDownload.map(async (inv) => {
+          if (inv.items && inv.items.length > 0) return inv;
+          const fullData = await fetchFullSalesInvoice(inv.id);
+          return fullData || inv;
+        })
+      );
+
+      // Generate Excel data
+      const excelData = generateExcelData(fullInvoices);
+      
+      // Create workbook
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(excelData);
+      
+      // Set column widths
+      ws['!cols'] = [
+        { wch: 20 }, // Column A
+        { wch: 30 }, // Column B
+        { wch: 15 }, // Column C
+        { wch: 15 }, // Column D
+        { wch: 15 }, // Column E
+        { wch: 15 }, // Column F
+        { wch: 15 }, // Column G
+        { wch: 20 }, // Column H
+      ];
+      
+      XLSX.utils.book_append_sheet(wb, ws, 'Invoices');
+      
+      // Generate Excel file
+      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([wbout], { type: 'application/octet-stream' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Sales_Invoices_${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast.success('Excel file downloaded successfully');
+      
+    } catch (err) {
+      console.error('Download error:', err);
+      toast.error('Failed to download');
+    } finally {
+      setDownloadLoading(false);
+    }
+  };
+
+  // ===== DIRECT PDF DOWNLOAD HANDLER =====
+  const handleDirectPDFDownload = async () => {
+    setDownloadLoading(true);
+    try {
+      const invoicesToDownload = paginatedData.length > 0 ? paginatedData : filteredData;
+      
+      if (invoicesToDownload.length === 0) {
+        toast.error('No invoices to download');
+        setDownloadLoading(false);
+        return;
+      }
+
+      const fullInvoices = await Promise.all(
+        invoicesToDownload.map(async (inv) => {
+          if (inv.items && inv.items.length > 0) return inv;
+          const fullData = await fetchFullSalesInvoice(inv.id);
+          return fullData || inv;
+        })
+      );
+
+      const allHtmlContent = fullInvoices.map(inv => buildSalesInvoicePrintHtml(inv)).join('<div style="page-break-after: always;"></div>');
+      
+      const printWindow = window.open('', '_blank', 'width=900,height=1000');
+      if (!printWindow) {
+        toast.error('Please allow pop-ups to download PDF');
+        setDownloadLoading(false);
+        return;
+      }
+      printWindow.document.write(allHtmlContent);
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => {
+        printWindow.print();
+      }, 500);
+      
+    } catch (err) {
+      console.error('PDF download error:', err);
+      toast.error('Failed to download PDF');
+    } finally {
+      setDownloadLoading(false);
+    }
+  };
+
+  const handleCancelInvoice = async (id: string | number) => {
     if (!window.confirm('Are you sure you want to cancel this Sales Bill?')) return;
     try {
       await api.post(`/sales-invoice/${id}/cancel`, {});
@@ -954,11 +1175,6 @@ const SalesInvoice: React.FC = () => {
     } catch (err) {
       toast.error('Failed to submit');
     }
-    setShowMoreMenu(null);
-  };
-
-  const handleDownloadPDF = (_id: string | number) => {
-    toast.success('Downloading PDF...');
     setShowMoreMenu(null);
   };
 
@@ -1401,6 +1617,64 @@ const SalesInvoice: React.FC = () => {
 
         .qt-btn-secondary:hover {
           background: var(--nav-hover, #f9fafb);
+        }
+
+        .qt-btn-download {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          height: 38px;
+          padding: 0 16px;
+          border: none;
+          border-radius: 8px;
+          background: #10b981;
+          color: white;
+          font-size: 13px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.15s;
+          white-space: nowrap;
+        }
+
+        .qt-btn-download:hover {
+          background: #059669;
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+
+        .qt-btn-download:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+          transform: none;
+        }
+
+        .qt-btn-download-pdf {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          height: 38px;
+          padding: 0 16px;
+          border: none;
+          border-radius: 8px;
+          background: #dc2626;
+          color: white;
+          font-size: 13px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.15s;
+          white-space: nowrap;
+        }
+
+        .qt-btn-download-pdf:hover {
+          background: #b91c1c;
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+        }
+
+        .qt-btn-download-pdf:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+          transform: none;
         }
 
         /* ── Active Filters ── */
@@ -1865,6 +2139,22 @@ const SalesInvoice: React.FC = () => {
           background: var(--primary-hover, #2563eb);
         }
 
+        .dark-theme .qt-btn-download {
+          background: #10b981;
+        }
+
+        .dark-theme .qt-btn-download:hover {
+          background: #059669;
+        }
+
+        .dark-theme .qt-btn-download-pdf {
+          background: #dc2626;
+        }
+
+        .dark-theme .qt-btn-download-pdf:hover {
+          background: #b91c1c;
+        }
+
         .dark-theme .qt-table-wrap {
           background: var(--card-bg, #1e293b);
           border-color: var(--border-color, #334155);
@@ -2053,6 +2343,14 @@ const SalesInvoice: React.FC = () => {
             justify-content: center;
           }
 
+          .qt-btn-download {
+            justify-content: center;
+          }
+
+          .qt-btn-download-pdf {
+            justify-content: center;
+          }
+
           .qt-pagination {
             padding: 8px 0 0 0;
           }
@@ -2221,9 +2519,9 @@ const SalesInvoice: React.FC = () => {
           <button className="qt-btn-secondary" onClick={handleRefresh}>
             <FaSync size={12} /> Refresh
           </button>
-          <button className="qt-btn-secondary" onClick={() => window.print()}>
-            <FaPrint size={12} /> Print
-          </button>
+
+         
+
           <button className="qt-btn-new" onClick={handleCreate}>
             <FaPlus size={12} /> New Sales Bill
           </button>
@@ -2370,14 +2668,14 @@ const SalesInvoice: React.FC = () => {
                               <button onClick={() => handlePrint(item)} disabled={printLoadingId === String(item.id)}>
                                 <FaPrintIcon size={12} /> Print
                               </button>
-                              <button onClick={() => handleDownloadPDF(item.id)}>
+                              <button onClick={handleDirectPDFDownload}>
                                 <FaFilePdf size={12} /> Download PDF
                               </button>
-                              <button onClick={() => handleDownloadPDF(item.id)}>
+                              <button onClick={handleExcelDownload}>
                                 <FaFileExcel size={12} /> Download Excel
                               </button>
                               {item.status !== 'Cancelled' && item.status !== 'Paid' && (
-                                <button className="danger" onClick={() => handleCancel(item.id)}>
+                                <button className="danger" onClick={() => handleCancelInvoice(item.id)}>
                                   <FaBan size={12} /> Cancel
                                 </button>
                               )}

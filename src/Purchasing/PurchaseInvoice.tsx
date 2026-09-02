@@ -826,8 +826,7 @@ export default function PurchaseInvoice() {
                     </span>
                   </td>
                   <td className="inv-td inv-td-meta">
-                    {/*<span className="inv-ago">{new Date(inv.createdAt).toLocaleDateString()}</span>
-                    <span className="inv-dot">·</span>*/}
+
                     <div className="inv-action-buttons">
                       <button 
                         className="grn-action-btn grn-action-view" 
@@ -843,7 +842,6 @@ export default function PurchaseInvoice() {
                       >
                         <FaEdit size={12} />
                       </button>
-                    
                       <button 
                         className="grn-action-btn grn-action-delete" 
                         onClick={(e) => handleDelete(inv, e)}

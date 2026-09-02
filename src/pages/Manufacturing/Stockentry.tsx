@@ -830,7 +830,6 @@ export default function Stockentry() {
                                     year: "numeric" 
                                   })
                                 : "—")}
-                            <span className="se-ago-badge">{row.createdAgo}</span>
                           </div>
                         </td>
                       </tr>

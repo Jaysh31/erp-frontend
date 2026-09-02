@@ -383,40 +383,7 @@ export default function OperationList() {
 
   // ─── Stats ────────────────────────────────────────────────────────────────
 
-  const totalActive = operations.filter(op => op.docstatus === 0).length;
-  const totalSubmitted = operations.filter(op => op.docstatus === 1).length;
-  const uniqueWorkstations = [...new Set(operations.map(op => op.workstation))].length;
-
-  const stats = [
-    {
-      title: 'Total Operations',
-      value: totalItems,
-      icon: <FaBoxes />,
-      color: '#3B82F6',
-      lightColor: '#EFF6FF'
-    },
-    {
-      title: 'Active',
-      value: totalActive,
-      icon: <FaCheckCircle />,
-      color: '#10B981',
-      lightColor: '#ECFDF5'
-    },
-    {
-      title: 'Submitted',
-      value: totalSubmitted,
-      icon: <FaClock />,
-      color: '#F59E0B',
-      lightColor: '#FFFBEB'
-    },
-    {
-      title: 'Workstations',
-      value: uniqueWorkstations,
-      icon: <FaIndustry />,
-      color: '#8B5CF6',
-      lightColor: '#F5F3FF'
-    },
-  ];
+ 
 
   // ─── Pagination ───────────────────────────────────────────────────────────
 
@@ -529,26 +496,7 @@ export default function OperationList() {
   return (
     <div className={`op-page ${theme}`}>
       {/* Stats Cards */}
-      <div className="op-stats-container">
-        {stats.map((stat, index) => (
-          <div
-            key={index}
-            className="op-stat-card"
-            style={{
-              background: stat.lightColor,
-              borderLeft: `4px solid ${stat.color}`
-            }}
-          >
-            <div className="op-stat-icon" style={{ color: stat.color }}>
-              {stat.icon}
-            </div>
-            <div className="op-stat-content">
-              <p className="op-stat-title">{stat.title}</p>
-              <p className="op-stat-value">{stat.value}</p>
-            </div>
-          </div>
-        ))}
-      </div>
+      
 
       {/* Search and Filter Bar */}
       <div className="op-filter-bar">
@@ -804,8 +752,7 @@ export default function OperationList() {
                       <td>{getOperationType(row)}</td>
                       <td>{row.total_operation_time}</td>
                       <td className="op-td-meta">
-                        <span className="op-ago">{formatDate(row.creation)}</span>
-                        <span className="op-dot">·</span>
+                        
                         <div className="op-action-buttons">
                           <button
                             className="op-action-btn op-action-view"

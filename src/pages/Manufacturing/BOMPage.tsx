@@ -961,8 +961,7 @@ const BOMPage: React.FC = () => {
                         <td className="bom-td">{row.uom}</td>
                         <td className="bom-td bom-cost">{row.totalCost}</td>
                         <td className="bom-td bom-td-meta">
-                          <span className="bom-ago">{row.createdOn}</span>
-                          <span className="bom-dot">·</span>
+                         
                           <div className="bom-action-buttons">
                             <button 
                               className="bom-action-btn bom-action-view" 
