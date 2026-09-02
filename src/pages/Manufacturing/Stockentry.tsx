@@ -138,7 +138,7 @@ const ENTRY_TYPES: EntryType[] = [
 export default function Stockentry() {
   const navigate = useNavigate();
   
-  const { theme, formatDate, getApiDateFormat } = useAdminTheme();
+  const { theme, formatDate } = useAdminTheme();
 
 
   const [stockEntries, setStockEntries] = useState<StockEntryDisplay[]>([]);
@@ -187,9 +187,6 @@ export default function Stockentry() {
     return formatDate(dateString);
   };
 
-  const toApiDateFormat = (date: Date) => {
-    return getApiDateFormat(date);
-  };
 
 
   const formatCurrency = (amount: number) => {

@@ -152,7 +152,6 @@ export default function StockDashboard() {
         ).length;
         const outOfStockItems = data.filter(item => item.items_count === 0).length;
         const overReservedCount = data.reduce((sum, item) => sum + (item.over_reserved_count || 0), 0);
-        const activeWarehouses = data.filter(item => item.items_count > 0).length;
 
         setStats(prev => ({
           ...prev,

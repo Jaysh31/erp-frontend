@@ -20,7 +20,6 @@ import {
   FaClock,
   FaStop,
   FaFileAlt,
-  FaTasks,
   FaBox,
   FaWrench,
   FaList,
@@ -131,7 +130,7 @@ export default function WorkOrderList() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [completingId, setCompletingId] = useState<string | null>(null);
   const [allWorkOrders, setAllWorkOrders] = useState<WorkOrderDisplay[]>([]);
-  const [completionProgress, setCompletionProgress] = useState<number>(0);
+  const [completionProgress] = useState<number>(0);
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
 
@@ -475,19 +474,6 @@ export default function WorkOrderList() {
     }
   };
 
-  const handleCompleteWorkOrder = (item: WorkOrderDisplay, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!item.canComplete) {
-      alert('This work order cannot be completed. Please check job cards.');
-      return;
-    }
-    setSelectedItem(item);
-    const progress = item.totalJobCards > 0 
-      ? Math.round((item.completedJobCards / item.totalJobCards) * 100)
-      : 0;
-    setCompletionProgress(progress);
-    setShowCompleteConfirm(true);
-  };
 
   const confirmComplete = async () => {
     if (!selectedItem) return;
