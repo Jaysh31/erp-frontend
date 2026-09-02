@@ -110,8 +110,6 @@ export default function Employee() {
   const [employees, setEmployees] = useState<EmployeeDisplay[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [allChecked, setAllChecked] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
@@ -123,28 +121,6 @@ export default function Employee() {
   const [selectedItem, setSelectedItem] = useState<EmployeeDisplay | null>(null);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const dropdownRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
-
-  // const formatDate = (dateString: string) => {
-  //   if (!dateString) return "N/A";
-  //   try {
-  //     const date = new Date(dateString);
-  //     const now = new Date();
-  //     const diffMs = now.getTime() - date.getTime();
-  //     const diffMins = Math.floor(diffMs / 60000);
-  //     const diffHours = Math.floor(diffMs / 3600000);
-  //     const diffDays = Math.floor(diffMs / 86400000);
-
-  //     if (diffMins < 1) return "Just now";
-  //     if (diffMins < 60) return `${diffMins} min ago`;
-  //     if (diffHours < 24) return `${diffHours} h ago`;
-  //     if (diffDays < 7) return `${diffDays} d ago`;
-  //     if (diffDays < 30) return `${Math.floor(diffDays / 7)} w ago`;
-  //     if (diffDays < 365) return `${Math.floor(diffDays / 30)} mo ago`;
-  //     return `${Math.floor(diffDays / 365)} y ago`;
-  //   } catch {
-  //     return dateString;
-  //   }
-  // };
 
   const fetchEmployees = async () => {
     setLoading(true);
@@ -171,7 +147,6 @@ export default function Employee() {
           branch: item.branch || "",
           gender: item.gender || "",
           ctc: item.ctc || 0,
-          // Use the actual API response for is_user
           isUser: item.is_user === 1,
           userId: item.user_id || null,
         }));
@@ -245,22 +220,6 @@ export default function Employee() {
     validCurrentPage * itemsPerPage
   );
 
-  const toggleAll = () => {
-    if (allChecked) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(paginatedData.map((r) => r.id)));
-    }
-    setAllChecked(!allChecked);
-  };
-
-  const toggleRow = (id: string) => {
-    const next = new Set(selected);
-    next.has(id) ? next.delete(id) : next.add(id);
-    setSelected(next);
-    setAllChecked(next.size === paginatedData.length);
-  };
-
   const goToPage = (page: number) => {
     if (page >= 1 && page <= filteredTotalPages) {
       setCurrentPage(page);
@@ -323,22 +282,22 @@ export default function Employee() {
     setOpenDropdownId(null);
   };
 
-const handleToggleUser = async (item: EmployeeDisplay) => {
-  try {
-    if (item.isUser) {
-      // Navigate to user roles page with user ID
-      navigate(`/user/roles/${item.userId}`);
-      setOpenDropdownId(null);
-    } else {
-      // Navigate to user creation page with employee_id
-      navigate(`/user/create?employee_id=${item.id}&email=${encodeURIComponent(item.email)}`);
-      setOpenDropdownId(null);
+  const handleToggleUser = async (item: EmployeeDisplay) => {
+    try {
+      if (item.isUser) {
+        // Navigate to user roles page with user ID
+        navigate(`/user/roles/${item.userId}`);
+        setOpenDropdownId(null);
+      } else {
+        // Navigate to user creation page with employee_id
+        navigate(`/user/create?employee_id=${item.id}&email=${encodeURIComponent(item.email)}`);
+        setOpenDropdownId(null);
+      }
+    } catch (err) {
+      console.error("Error toggling user status:", err);
+      alert("Failed to toggle user status");
     }
-  } catch (err) {
-    console.error("Error toggling user status:", err);
-    alert("Failed to toggle user status");
-  }
-};
+  };
 
   const toggleDropdown = (id: string, event: React.MouseEvent) => {
     event.stopPropagation();
@@ -362,14 +321,6 @@ const handleToggleUser = async (item: EmployeeDisplay) => {
   const getStatusBadgeClass = (status: string) => {
     return STATUS_CLASS[status] || "status-default";
   };
-
-  // const getUserStatusIcon = (isUser: boolean) => {
-  //   return isUser ? (
-  //     <FaUserCheck className="emp-user-icon active" title="User has access" />
-  //   ) : (
-  //     <FaUserSlash className="emp-user-icon inactive" title="User does not have access" />
-  //   );
-  // };
 
   return (
     <div className={`emp-page ${theme}`}>
@@ -477,9 +428,6 @@ const handleToggleUser = async (item: EmployeeDisplay) => {
             <table className="emp-table">
               <thead>
                 <tr>
-                  <th className="emp-th-check">
-                    <input type="checkbox" checked={allChecked} onChange={toggleAll} className="emp-checkbox" />
-                  </th>
                   <th className="emp-th">Employee</th>
                   <th className="emp-th">Name</th>
                   <th className="emp-th">Department</th>
@@ -496,7 +444,7 @@ const handleToggleUser = async (item: EmployeeDisplay) => {
               <tbody>
                 {paginatedData.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="emp-empty-state">
+                    <td colSpan={9} className="emp-empty-state">
                       <div className="emp-empty-content">
                         <FaUsers size={48} style={{ color: "var(--text-secondary)" }} />
                         <p>No employees found</p>
@@ -508,13 +456,10 @@ const handleToggleUser = async (item: EmployeeDisplay) => {
                   paginatedData.map((row) => (
                     <tr
                       key={row.id}
-                      className={`emp-tr ${selected.has(row.id) ? "emp-tr-selected" : ""}`}
+                      className="emp-tr"
                       onClick={() => handleRowClick(row)}
                       style={{ cursor: "pointer" }}
                     >
-                      <td className="emp-td-check" onClick={(e) => { e.stopPropagation(); toggleRow(row.id); }}>
-                        <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleRow(row.id)} className="emp-checkbox" />
-                      </td>
                       <td className="emp-td emp-td-id">
                         <span className="emp-employee-id">{row.employee || row.id}</span>
                       </td>

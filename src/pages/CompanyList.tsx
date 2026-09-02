@@ -441,8 +441,7 @@ export default function CompanyList() {
                       )}
                     </td>
                     <td className="cl-td cl-td-meta">
-                      <span className="cl-ago">{formatTimeAgo(row.creation || row.created_at)}</span>
-                      <span className="cl-dot">·</span>
+                     
                       <div className="cl-action-buttons">
                         <button
                           className="cl-action-btn cl-action-view"
