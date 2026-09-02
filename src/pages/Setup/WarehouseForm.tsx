@@ -563,10 +563,6 @@ export default function WarehouseForm() {
     toast.success('Contact added successfully!');
   };
 
-  const handleRemoveContact = (contactId: string) => {
-    setSelectedContacts(prev => prev.filter(c => c.id !== contactId));
-    toast.success('Contact removed from warehouse');
-  };
 
   // ─── Validation Functions ──────────────────────────────────────────────
 

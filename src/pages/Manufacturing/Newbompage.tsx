@@ -13,7 +13,6 @@ import {
   Clock,
   TrendingUp,
   GripVertical,
-  TrendingDown,
   ExternalLink,
   DollarSign,
 } from "lucide-react";

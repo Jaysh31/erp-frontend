@@ -160,7 +160,7 @@ export default function JobCardManagement() {
   const navigate = useNavigate();
   
   // ✅ GET THE DATE FORMAT FUNCTION FROM CONTEXT
-  const { theme, formatDate, getApiDateFormat } = useAdminTheme();
+  const { theme, formatDate } = useAdminTheme();
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -193,9 +193,6 @@ export default function JobCardManagement() {
   };
 
   // ✅ NEW: Format date for API (YYYY-MM-DD)
-  const toApiDateFormat = (date: Date) => {
-    return getApiDateFormat(date);
-  };
 
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 1000);

@@ -201,18 +201,6 @@ const numberToIndianWords = (value: number): string => {
   return out.trim();
 };
 
-const formatPrintDate = (date: string, formatFn?: (date: string) => string): string => {
-  if (!date) return '';
-  if (formatFn) {
-    return formatFn(date);
-  }
-  const d = new Date(date);
-  if (isNaN(d.getTime())) return date;
-  const day = String(d.getDate()).padStart(2, '0');
-  const month = d.toLocaleString('en-US', { month: 'short' });
-  const year = String(d.getFullYear()).slice(-2);
-  return `${day}-${month}-${year}`;
-};
 
 
 const escapeHtml = (val: unknown): string => {
@@ -314,7 +302,7 @@ function buildCalendarGrid(year: number, month: number): (Date | null)[] {
 export default function QuotationPage() {
   const navigate = useNavigate();
 
-  const { theme, formatDate, getApiDateFormat } = useAdminTheme();
+  const { theme, formatDate } = useAdminTheme();
 
 
   const [filterText, setFilterText] = useState('');
@@ -372,9 +360,6 @@ export default function QuotationPage() {
     return formatDate(dateString);
   };
 
-  const toApiDateFormat = (date: Date) => {
-    return getApiDateFormat(date);
-  };
 
   // ─── Date Filter Functions ─────────────────────────────────────────────
 

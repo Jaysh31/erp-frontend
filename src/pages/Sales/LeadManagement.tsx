@@ -343,10 +343,6 @@ export default function LeadManagement() {
 
   // ─── fetch leads with status filter from API ───────────────────────────
 
-  const fetchLeadsByStatus = async (status: string) => {
-    // Pass the current date filters if they exist
-    fetchLeadsWithFilters(status, dateFrom, dateTo);
-  };
 
   // ─── handle filter application ────────────────────────────────────
 
