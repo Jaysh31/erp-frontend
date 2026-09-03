@@ -96,16 +96,6 @@ const toISODate = (d: Date): string => {
 };
 
 // ✅ UPDATED: Format display date using context (will be replaced in component)
-const formatDisplayDate = (iso: string, formatFn?: (date: string) => string): string => {
-  if (!iso) return '';
-  if (formatFn) {
-    return formatFn(iso);
-  }
-  // Fallback if formatFn not provided
-  const [y, m, d] = iso.split('-').map(Number);
-  const date = new Date(y, m - 1, d);
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-};
 
 const WEEKDAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
@@ -120,7 +110,7 @@ interface RangeCalendarProps {
   formatDisplayDateFn: (iso: string) => string;
 }
 
-function RangeCalendar({ month, onMonthChange, fromDate, toDate, onSelect, formatDisplayDateFn }: RangeCalendarProps) {
+function RangeCalendar({ month, onMonthChange, fromDate, toDate, onSelect }: RangeCalendarProps) {
   const year = month.getFullYear();
   const monthIndex = month.getMonth();
   const firstDayOfMonth = new Date(year, monthIndex, 1);
@@ -224,7 +214,7 @@ export default function PurchaseOrder() {
   const navigate = useNavigate();
   
   // ✅ GET THE DATE FORMAT FUNCTION FROM CONTEXT
-  const { theme, formatDate, getApiDateFormat } = useAdminTheme();
+  const { theme, formatDate } = useAdminTheme();
 
   // Filters
   const [filterText, setFilterText] = useState('');
@@ -264,9 +254,6 @@ export default function PurchaseOrder() {
   };
 
   // ✅ NEW: Format date for API (YYYY-MM-DD)
-  const toApiDateFormat = (date: Date) => {
-    return getApiDateFormat(date);
-  };
 
   // ─── Click outside handler ──────────────────────────────
 

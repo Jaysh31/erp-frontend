@@ -2318,6 +2318,13 @@ const DeliveryChallans: React.FC = () => {
         .qt-action-btn:hover {
           background: #f3f4f6;
         }
+          .qt-action-print {
+  color: #0d9488;
+}
+
+.qt-action-print:hover {
+  background: rgba(13, 148, 136, 0.1);
+}
 
         .qt-action-more {
           color: #6b7280;
@@ -2868,7 +2875,7 @@ const DeliveryChallans: React.FC = () => {
                   <td className="qt-td">
                     <div className="qt-action-buttons">
                       <button 
-                        className="qt-action-btn" 
+                        className="qt-action-btn qt-action-print" 
                         onClick={() => handlePrint(item)} 
                         title="Print"
                         disabled={printLoadingId === String(item.id)}

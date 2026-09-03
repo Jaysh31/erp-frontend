@@ -291,7 +291,7 @@
   width: 100%;
   border-collapse: collapse;
   font-size: 12px;
-  min-width: 1200px;
+  min-width: 100px;
 }
 
 .grnf-ith {

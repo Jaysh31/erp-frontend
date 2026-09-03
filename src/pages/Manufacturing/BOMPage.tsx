@@ -898,7 +898,14 @@ const BOMPage: React.FC = () => {
                     <th className="bom-th">UOM</th>
                     <th className="bom-th">Total Cost</th>
                     <th className="bom-th bom-th-meta">
-                      <span className="bom-count-label">{totalRecords} total</span>
+                      <span className="bom-count-label">{/*totalRecords} total</span>*/}
+                      {totalRecords > 0
+                    ? `${(validCurrentPage - 1) * itemsPerPage + 1}–${Math.min(validCurrentPage * itemsPerPage, totalRecords)}`
+                    : '0'} of {totalRecords}
+                </span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary, #9ca3af)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                </svg>
                     </th>
                   </tr>
                 </thead>
