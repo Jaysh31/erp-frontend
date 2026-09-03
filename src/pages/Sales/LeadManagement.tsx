@@ -291,7 +291,7 @@ export default function LeadManagement() {
     try {
       const params = new URLSearchParams();
       
-      // Add pagination params
+      // ✅ SERVER-SIDE PAGINATION PARAMS
       params.append('page', String(currentPage));
       params.append('limit', String(itemsPerPage));
       
@@ -325,7 +325,9 @@ export default function LeadManagement() {
 
       const transformedData: LeadDisplay[] = list.map((item) => mapApiLeadToDisplay(item, formatDate));
 
-      setTotalItems(transformedData.length);
+      // ✅ Set total items from API response
+      const total = response.data?.data?.total ?? response.data?.total ?? transformedData.length;
+      setTotalItems(total);
       setLeads(transformedData);
     } catch (err: any) {
       console.error("Error fetching leads:", err);
@@ -374,23 +376,21 @@ export default function LeadManagement() {
     fetchLeadsWithFilters();
   }, []);
 
-  // Handle page/limit changes
+  // ✅ Fetch when filters or pagination changes
   useEffect(() => {
-    if (currentPage > 1 || itemsPerPage !== 10) {
-      fetchLeadsWithFilters(
-        statusFilter === 'all' ? undefined : statusFilter,
-        dateFrom,
-        dateTo
-      );
-    }
+    fetchLeadsWithFilters(
+      statusFilter === 'all' ? undefined : statusFilter,
+      dateFrom,
+      dateTo
+    );
   }, [currentPage, itemsPerPage]);
 
-  // Reset page when search changes
+  // ✅ Reset to first page when search changes
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm]);
 
-  // ─── Local filtering for search ────────────────────────────────────────
+  // ─── Local filtering for search (client-side search only) ────────────
 
   const filteredData = leads.filter((item) => {
     const matchesSearch =
@@ -402,27 +402,33 @@ export default function LeadManagement() {
     return matchesSearch;
   });
 
-  const totalFilteredItems = filteredData.length;
-  const filteredTotalPages = Math.ceil(totalFilteredItems / itemsPerPage);
-
-  const validCurrentPage = Math.min(currentPage, filteredTotalPages || 1);
-  if (validCurrentPage !== currentPage) {
+  // ✅ Pagination calculations - SERVER SIDE
+  const totalFilteredItems = totalItems;
+  const totalPages = Math.ceil(totalFilteredItems / itemsPerPage) || 1;
+  const validCurrentPage = Math.min(currentPage, totalPages || 1);
+  
+  if (validCurrentPage !== currentPage && currentPage > 0) {
     setCurrentPage(validCurrentPage);
   }
 
-  const paginatedData = filteredData.slice(
-    (validCurrentPage - 1) * itemsPerPage,
-    validCurrentPage * itemsPerPage
-  );
+  const getStartIndex = () => {
+    if (totalFilteredItems === 0) return 0;
+    return (validCurrentPage - 1) * itemsPerPage + 1;
+  };
+
+  const getEndIndex = () => {
+    if (totalFilteredItems === 0) return 0;
+    return Math.min(validCurrentPage * itemsPerPage, totalFilteredItems);
+  };
 
   const goToPage = (page: number) => {
-    if (page >= 1 && page <= filteredTotalPages) {
+    if (page >= 1 && page <= totalPages) {
       setCurrentPage(page);
     }
   };
 
   const goToFirstPage = () => goToPage(1);
-  const goToLastPage = () => goToPage(filteredTotalPages);
+  const goToLastPage = () => goToPage(totalPages);
   const goToNextPage = () => goToPage(currentPage + 1);
   const goToPrevPage = () => goToPage(currentPage - 1);
 
@@ -435,7 +441,7 @@ export default function LeadManagement() {
     const pages = [];
     const maxVisible = 5;
     let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
-    let endPage = Math.min(filteredTotalPages, startPage + maxVisible - 1);
+    let endPage = Math.min(totalPages, startPage + maxVisible - 1);
     if (endPage - startPage + 1 < maxVisible) startPage = Math.max(1, endPage - maxVisible + 1);
     for (let i = startPage; i <= endPage; i++) pages.push(i);
     return pages;
@@ -515,11 +521,9 @@ export default function LeadManagement() {
     setDateTo(null);
     setTempDateFrom(null);
     setTempDateTo(null);
+    setCurrentPage(1);
     fetchLeadsWithFilters();
   };
-
-  const getStartIndex = () => (validCurrentPage - 1) * itemsPerPage + 1;
-  const getEndIndex = () => Math.min(validCurrentPage * itemsPerPage, totalFilteredItems);
 
   // Get current status label
   const getCurrentStatusLabel = () => {
@@ -776,7 +780,7 @@ export default function LeadManagement() {
                   <th className="jc-th">Mobile No</th>
                   <th className="jc-th">Status</th>
                   <th className="jc-th jc-th-meta">
-                    <span className="jc-count-label">{totalFilteredItems} of {totalItems}</span>
+                    <span className="jc-count-label">{leads.length} of {totalItems}</span>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary, #9ca3af)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
                     </svg>
@@ -784,7 +788,7 @@ export default function LeadManagement() {
                 </tr>
               </thead>
               <tbody>
-                {paginatedData.length === 0 ? (
+                {leads.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="jc-empty-state">
                       <div className="jc-empty-content">
@@ -798,7 +802,7 @@ export default function LeadManagement() {
                     </td>
                   </tr>
                 ) : (
-                  paginatedData.map((row) => (
+                  leads.map((row) => (
                     <tr
                       key={row.id}
                       className={`jc-tr ${selected.has(row.id) ? "jc-tr-selected" : ""}`}
@@ -848,32 +852,34 @@ export default function LeadManagement() {
                 <option value={50}>50</option>
                 <option value={100}>100</option>
               </select>
-              <span className="jc-pagination-label">entries</span>
+              <span className="jc-pagination-info">
+                {totalItems > 0
+                  ? `Showing ${getStartIndex()} to ${getEndIndex()} of ${totalItems} entries`
+                  : "No entries to show"}
+              </span>
             </div>
             <div className="jc-pagination-center">
-              <button onClick={goToFirstPage} disabled={currentPage === 1 || totalFilteredItems === 0} className="jc-page-btn">
+              <button onClick={goToFirstPage} disabled={currentPage === 1 || totalItems === 0} className="jc-page-btn">
                 <FaAngleDoubleLeft size={12} />
               </button>
-              <button onClick={goToPrevPage} disabled={currentPage === 1 || totalFilteredItems === 0} className="jc-page-btn">
+              <button onClick={goToPrevPage} disabled={currentPage === 1 || totalItems === 0} className="jc-page-btn">
                 <FaChevronLeft size={12} />
               </button>
-              {totalFilteredItems > 0 && getPageNumbers().map((page) => (
+              {totalItems > 0 && getPageNumbers().map((page) => (
                 <button key={page} onClick={() => goToPage(page)} className={`jc-page-btn ${currentPage === page ? "jc-page-btn-active" : ""}`}>
                   {page}
                 </button>
               ))}
-              <button onClick={goToNextPage} disabled={currentPage === filteredTotalPages || totalFilteredItems === 0} className="jc-page-btn">
+              <button onClick={goToNextPage} disabled={currentPage === totalPages || totalItems === 0} className="jc-page-btn">
                 <FaChevronRight size={12} />
               </button>
-              <button onClick={goToLastPage} disabled={currentPage === filteredTotalPages || totalFilteredItems === 0} className="jc-page-btn">
+              <button onClick={goToLastPage} disabled={currentPage === totalPages || totalItems === 0} className="jc-page-btn">
                 <FaAngleDoubleRight size={12} />
               </button>
             </div>
             <div className="jc-pagination-right">
               <span className="jc-pagination-info">
-                {totalFilteredItems > 0
-                  ? `Showing ${getStartIndex()} to ${getEndIndex()} of ${totalFilteredItems} entries`
-                  : "No entries to show"}
+                Page {currentPage} of {totalPages}
               </span>
             </div>
           </div>

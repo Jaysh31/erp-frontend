@@ -235,9 +235,9 @@ export default function PurchaseInvoice() {
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [totalRecords, setTotalRecords] = useState(0);
 
   const [invoices, setInvoices] = useState<PurchaseInvoice[]>([]);
-  const [totalRecords, setTotalRecords] = useState(0);
   const [suppliersList, setSuppliersList] = useState<string[]>([]);
 
   // ✅ NEW: Format display date using context
@@ -318,17 +318,24 @@ export default function PurchaseInvoice() {
     }
   };
 
-  // Fetch purchase invoices from API
+  // Fetch purchase invoices from API with SERVER-SIDE PAGINATION
   const fetchPurchaseInvoices = async () => {
     setFetching(true);
     setApiError(null);
     try {
       const params = new URLSearchParams();
+      
+      // ✅ SERVER-SIDE PAGINATION PARAMS
       params.append('page', String(currentPage));
       params.append('limit', String(itemsPerPage));
 
       if (filterText.trim()) {
         params.append('search', filterText.trim());
+      }
+
+      // ✅ Pass status filter to API if not 'All'
+      if (selectedStatus !== 'All') {
+        params.append('status', selectedStatus);
       }
 
       if (dateFrom) {
@@ -342,6 +349,7 @@ export default function PurchaseInvoice() {
       
       if (response.data.success === 1) {
         const records = response.data.data.records || [];
+        // ✅ Set total records from API response
         setTotalRecords(response.data.data.total || 0);
         
         // ✅ TRANSFORM DATA WITH FORMATTED DATES
@@ -369,6 +377,7 @@ export default function PurchaseInvoice() {
         
         setInvoices(transformedInvoices);
         
+        // Update suppliers list from current page data
         const uniqueSuppliers = [...new Set(transformedInvoices.map(inv => inv.supplier))];
         setSuppliersList(uniqueSuppliers);
       } else {
@@ -382,35 +391,40 @@ export default function PurchaseInvoice() {
     }
   };
 
-  // Fetch when dependencies change
+  // ✅ Fetch when dependencies change (including pagination and status)
   useEffect(() => {
     fetchPurchaseInvoices();
-  }, [currentPage, itemsPerPage, dateFrom, dateTo, filterText]);
+  }, [currentPage, itemsPerPage, dateFrom, dateTo, filterText, selectedStatus]);
 
-  // Reset page when filters change
+  // ✅ Reset page when filters change (except selectedStatus which is handled above)
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterText, selectedStatus, selectedSupplier, dateFrom, dateTo]);
+  }, [filterText, selectedSupplier, dateFrom, dateTo]);
 
-  // Filter data based on search and status (only status and supplier since search is handled by API)
+  // ✅ Filter supplier only (client-side filtering for supplier since API doesn't support it)
   const filteredInvoices = invoices.filter(inv => {
-    const matchesStatus = selectedStatus === 'All' || inv.status === selectedStatus;
     const matchesSupplier = selectedSupplier === 'All' || inv.supplier === selectedSupplier;
-    return matchesStatus && matchesSupplier;
+    return matchesSupplier;
   });
 
-  // Pagination calculations
-  const totalFilteredItems = filteredInvoices.length;
-  const totalPages = Math.ceil(totalFilteredItems / itemsPerPage);
+  // ✅ Pagination calculations - SERVER SIDE
+  const totalFilteredItems = totalRecords;
+  const totalPages = Math.ceil(totalFilteredItems / itemsPerPage) || 1;
   const validCurrentPage = Math.min(currentPage, totalPages || 1);
   
-  const paginatedData = filteredInvoices.slice(
-    (validCurrentPage - 1) * itemsPerPage,
-    validCurrentPage * itemsPerPage
-  );
+  if (validCurrentPage !== currentPage && currentPage > 0) {
+    setCurrentPage(validCurrentPage);
+  }
 
-  const getStartIndex = () => (validCurrentPage - 1) * itemsPerPage + 1;
-  const getEndIndex = () => Math.min(validCurrentPage * itemsPerPage, totalFilteredItems);
+  const getStartIndex = () => {
+    if (totalRecords === 0) return 0;
+    return (validCurrentPage - 1) * itemsPerPage + 1;
+  };
+  
+  const getEndIndex = () => {
+    if (totalRecords === 0) return 0;
+    return Math.min(validCurrentPage * itemsPerPage, totalRecords);
+  };
 
   const goToPage = (page: number) => {
     if (page >= 1 && page <= totalPages) {
@@ -513,6 +527,7 @@ export default function PurchaseInvoice() {
     setSelectedSupplier('All');
     setDateFrom('');
     setDateTo('');
+    setCurrentPage(1);
     setShowDateFilterDropdown(false);
   };
 
@@ -567,7 +582,10 @@ export default function PurchaseInvoice() {
         <div className="inv-filter-right">
           <select 
             value={selectedStatus} 
-            onChange={(e) => setSelectedStatus(e.target.value)}
+            onChange={(e) => {
+              setSelectedStatus(e.target.value);
+              setCurrentPage(1);
+            }}
             className="inv-filter-select"
           >
             <option value="All">All Status</option>
@@ -758,7 +776,10 @@ export default function PurchaseInvoice() {
             <label>Supplier</label>
             <select
               value={selectedSupplier}
-              onChange={(e) => setSelectedSupplier(e.target.value)}
+              onChange={(e) => {
+                setSelectedSupplier(e.target.value);
+                setCurrentPage(1);
+              }}
             >
               <option value="All">All Suppliers</option>
               {suppliersList.map(s => <option key={s} value={s}>{s}</option>)}
@@ -787,12 +808,12 @@ export default function PurchaseInvoice() {
               <th className="inv-th">Balance</th>
               <th className="inv-th">Status</th>
               <th className="inv-th inv-th-meta">
-                <span className="inv-count-label">{totalFilteredItems} of {totalRecords}</span>
+                <span className="inv-count-label">{filteredInvoices.length} of {totalRecords}</span>
               </th>
             </tr>
           </thead>
           <tbody>
-            {paginatedData.length === 0 ? (
+            {filteredInvoices.length === 0 ? (
               <tr>
                 <td colSpan={7} className="inv-empty-state">
                   <div className="inv-empty-content">
@@ -806,7 +827,7 @@ export default function PurchaseInvoice() {
                 </td>
               </tr>
             ) : (
-              paginatedData.map((inv) => (
+              filteredInvoices.map((inv) => (
                 <tr
                   key={inv.id}
                   className="inv-tr"
@@ -877,24 +898,30 @@ export default function PurchaseInvoice() {
             <option value={50}>50</option>
             <option value={100}>100</option>
           </select>
-          <span className="inv-pagination-label">entries</span>
+          <span className="inv-pagination-info">
+            {totalRecords > 0 ? (
+              `Showing ${getStartIndex()} to ${getEndIndex()} of ${totalRecords} entries`
+            ) : (
+              'No entries to show'
+            )}
+          </span>
         </div>
         <div className="inv-pagination-center">
           <button 
             onClick={goToFirstPage} 
-            disabled={currentPage === 1 || totalFilteredItems === 0} 
+            disabled={currentPage === 1 || totalRecords === 0} 
             className="inv-page-btn"
           >
             <FaAngleDoubleLeft size={12} />
           </button>
           <button 
             onClick={goToPrevPage} 
-            disabled={currentPage === 1 || totalFilteredItems === 0} 
+            disabled={currentPage === 1 || totalRecords === 0} 
             className="inv-page-btn"
           >
             <FaChevronLeft size={12} />
           </button>
-          {totalFilteredItems > 0 && getPageNumbers().map(page => (
+          {totalRecords > 0 && getPageNumbers().map(page => (
             <button
               key={page}
               onClick={() => goToPage(page)}
@@ -905,14 +932,14 @@ export default function PurchaseInvoice() {
           ))}
           <button 
             onClick={goToNextPage} 
-            disabled={currentPage === totalPages || totalFilteredItems === 0} 
+            disabled={currentPage === totalPages || totalRecords === 0} 
             className="inv-page-btn"
           >
             <FaChevronRight size={12} />
           </button>
           <button 
             onClick={goToLastPage} 
-            disabled={currentPage === totalPages || totalFilteredItems === 0} 
+            disabled={currentPage === totalPages || totalRecords === 0} 
             className="inv-page-btn"
           >
             <FaAngleDoubleRight size={12} />
@@ -920,11 +947,7 @@ export default function PurchaseInvoice() {
         </div>
         <div className="inv-pagination-right">
           <span className="inv-pagination-info">
-            {totalFilteredItems > 0 ? (
-              `Showing ${getStartIndex()} to ${getEndIndex()} of ${totalFilteredItems} entries`
-            ) : (
-              'No entries to show'
-            )}
+            Page {currentPage} of {totalPages}
           </span>
         </div>
       </div>

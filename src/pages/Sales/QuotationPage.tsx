@@ -458,7 +458,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
   );
 };
 
-// ===== SEARCHABLE CUSTOMER DROPDOWN =====
+// ===== SEARCHABLE CUSTOMER DROPDOWN WITH PAGINATION =====
 interface CustomerDropdownProps {
   value: string;
   onChange: (value: string, customerData?: Customer) => void;
@@ -490,10 +490,16 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
+
   const menuPos = useDropdownPosition(isOpen, wrapperRef);
 
   useEffect(() => {
-    fetchCustomers('');
+    fetchCustomers('', 1);
   }, []);
 
   useEffect(() => {
@@ -506,48 +512,31 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
     }
   }, [value, presetCustomer]);
 
+  // Re-fetch when page or pageSize changes
   useEffect(() => {
-    if (!searchTerm.trim()) {
-      setFilteredCustomers(customers);
-      return;
+    if (isOpen) {
+      fetchCustomers(searchTerm, currentPage);
     }
+  }, [currentPage, pageSize]);
 
-    const filtered = customers.filter(customer =>
-      customer.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      customer.code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      customer.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      customer.phone?.includes(searchTerm) ||
-      customer.gstin?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-    setFilteredCustomers(filtered);
-  }, [searchTerm, customers]);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node;
-      const clickedTrigger = wrapperRef.current?.contains(target);
-      const clickedMenu = menuRef.current?.contains(target);
-      if (!clickedTrigger && !clickedMenu) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const fetchCustomers = async (search: string) => {
+  const fetchCustomers = async (search: string, page: number = 1) => {
     setLoading(true);
     try {
       const response = await api.get('/customer', {
         params: {
-          page: 1,
-          limit: 50,
+          page: page,
+          limit: pageSize,
           search: search || undefined
         }
       });
 
       const payload = response.data;
       const records = extractRecords(payload);
+      
+      // Get total from response
+      const total = payload?.data?.total || payload?.total || records.length;
+      setTotalRecords(total);
+      setTotalPages(Math.ceil(total / pageSize));
 
       if (records.length > 0) {
         const mappedCustomers: Customer[] = records.map((cust: any) => {
@@ -578,11 +567,19 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
             contacts,
           };
         });
-        setCustomers(mappedCustomers);
-        setFilteredCustomers(mappedCustomers);
+        
+        if (page === 1) {
+          setCustomers(mappedCustomers);
+          setFilteredCustomers(mappedCustomers);
+        } else {
+          setCustomers(prev => [...prev, ...mappedCustomers]);
+          setFilteredCustomers(prev => [...prev, ...mappedCustomers]);
+        }
       } else {
-        setCustomers([]);
-        setFilteredCustomers([]);
+        if (page === 1) {
+          setCustomers([]);
+          setFilteredCustomers([]);
+        }
       }
     } catch (error) {
       console.error('Error fetching customers:', error);
@@ -596,6 +593,7 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
     const term = e.target.value;
     setSearchTerm(term);
     setHighlightedIndex(-1);
+    setCurrentPage(1);
 
     if (!isOpen) {
       setIsOpen(true);
@@ -606,11 +604,7 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
     }
 
     debounceTimerRef.current = setTimeout(() => {
-      if (term.length > 0) {
-        fetchCustomers(term);
-      } else {
-        fetchCustomers('');
-      }
+      fetchCustomers(term, 1);
     }, 500);
   };
 
@@ -636,6 +630,25 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
     return '';
   };
 
+  const goToPage = (page: number) => {
+    if (page < 1 || page > totalPages) return;
+    setCurrentPage(page);
+  };
+
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize);
+    setCurrentPage(1);
+    fetchCustomers(searchTerm, 1);
+  };
+
+  const getPageRange = () => {
+    const start = (currentPage - 1) * pageSize + 1;
+    const end = Math.min(currentPage * pageSize, totalRecords);
+    return { start, end };
+  };
+
+  const { start, end } = getPageRange();
+
   const menu = isOpen ? (
     <div
       ref={menuRef}
@@ -643,7 +656,7 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
         position: 'fixed',
         top: menuPos.top,
         left: menuPos.left,
-        width: `${Math.max(menuPos.width, 230)}px`,
+        width: `${Math.max(menuPos.width, 280)}px`,
         background: 'var(--card-bg, #ffffff)',
         border: '0.5px solid var(--border-color, #e2e8f0)',
         borderRadius: '6px',
@@ -651,7 +664,7 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
         zIndex: 99999,
         display: 'flex',
         flexDirection: 'column',
-        maxHeight: '360px',
+        maxHeight: '400px',
         overflow: 'hidden'
       }}
     >
@@ -660,7 +673,7 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
         style={{
           overflowY: 'auto',
           overflowX: 'hidden',
-          maxHeight: '260px'
+          maxHeight: '280px'
         }}
       >
         {loading ? (
@@ -724,6 +737,119 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
         )}
       </div>
 
+      {/* Pagination Controls */}
+      {totalRecords > 0 && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '8px 12px',
+            borderTop: '0.5px solid var(--border-color, #e2e8f0)',
+            background: 'var(--layout-bg, #f8fafc)',
+            flexShrink: 0,
+            flexWrap: 'wrap',
+            gap: '6px'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--text-secondary, #64748b)' }}>
+            <span>Show:</span>
+            <select
+              value={pageSize}
+              onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+              style={{
+                padding: '2px 6px',
+                border: '0.5px solid var(--border-color, #e2e8f0)',
+                borderRadius: '4px',
+                fontSize: '11px',
+                background: 'var(--card-bg, #ffffff)',
+                color: 'var(--text-primary, #0f172a)',
+                cursor: 'pointer'
+              }}
+            >
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+            <span>entries</span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: 'var(--text-secondary, #64748b)' }}>
+            <span>{start} to {end} of {totalRecords} entries</span>
+          </div>
+
+          <div style={{ display: 'flex', gap: '2px' }}>
+            <button
+              onClick={() => goToPage(currentPage - 1)}
+              disabled={currentPage === 1}
+              style={{
+                padding: '2px 8px',
+                border: '0.5px solid var(--border-color, #e2e8f0)',
+                borderRadius: '4px',
+                background: 'var(--card-bg, #ffffff)',
+                color: currentPage === 1 ? 'var(--text-secondary, #94a3b8)' : 'var(--text-primary, #0f172a)',
+                cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                fontSize: '11px',
+                opacity: currentPage === 1 ? 0.5 : 1
+              }}
+            >
+              Previous
+            </button>
+            
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              let pageNum;
+              if (totalPages <= 5) {
+                pageNum = i + 1;
+              } else if (currentPage <= 3) {
+                pageNum = i + 1;
+              } else if (currentPage >= totalPages - 2) {
+                pageNum = totalPages - 4 + i;
+              } else {
+                pageNum = currentPage - 2 + i;
+              }
+              
+              return (
+                <button
+                  key={pageNum}
+                  onClick={() => goToPage(pageNum)}
+                  style={{
+                    padding: '2px 8px',
+                    border: '0.5px solid var(--border-color, #e2e8f0)',
+                    borderRadius: '4px',
+                    background: currentPage === pageNum ? 'var(--primary-color, #2563eb)' : 'var(--card-bg, #ffffff)',
+                    color: currentPage === pageNum ? '#ffffff' : 'var(--text-primary, #0f172a)',
+                    cursor: 'pointer',
+                    fontSize: '11px',
+                    fontWeight: currentPage === pageNum ? 600 : 400
+                  }}
+                >
+                  {pageNum}
+                </button>
+              );
+            })}
+            
+            <button
+              onClick={() => goToPage(currentPage + 1)}
+              disabled={currentPage === totalPages}
+              style={{
+                padding: '2px 8px',
+                border: '0.5px solid var(--border-color, #e2e8f0)',
+                borderRadius: '4px',
+                background: 'var(--card-bg, #ffffff)',
+                color: currentPage === totalPages ? 'var(--text-secondary, #94a3b8)' : 'var(--text-primary, #0f172a)',
+                cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                fontSize: '11px',
+                opacity: currentPage === totalPages ? 0.5 : 1
+              }}
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Add New Customer Button */}
       <div
         className="cq-dropdown-add-new"
         onMouseDown={(e) => {

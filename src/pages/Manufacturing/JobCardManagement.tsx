@@ -1,4 +1,4 @@
-// JobCardManagement.tsx - Fixed version with Date Format
+// JobCardManagement.tsx - Fixed version with Server-Side Pagination
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -300,6 +300,8 @@ export default function JobCardManagement() {
     setError(null);
     try {
       const params = new URLSearchParams();
+      
+      // ✅ SERVER-SIDE PAGINATION PARAMS
       params.append('page', currentPage.toString());
       params.append('limit', itemsPerPage.toString());
       
@@ -328,22 +330,25 @@ export default function JobCardManagement() {
 
       const rawData = response.data.data;
       let records: JobCardApiRecord[] = [];
+      let total = 0;
       
       if (Array.isArray(rawData)) {
         records = rawData;
-        const total = 100;
-        setTotalItems(total);
-        setTotalPages(Math.max(1, Math.ceil(total / itemsPerPage)));
+        total = records.length;
       } else if (rawData && typeof rawData === 'object' && 'records' in rawData) {
         const paginatedData = rawData as { records: JobCardApiRecord[]; total: number; page: number; limit: number };
         records = paginatedData.records || [];
-        setTotalItems(paginatedData.total || records.length);
-        setTotalPages(Math.max(1, Math.ceil((paginatedData.total || records.length) / itemsPerPage)));
+        total = paginatedData.total || records.length;
+        console.log(`Total records from API: ${total}, Current page: ${currentPage}, Limit: ${itemsPerPage}`);
       } else {
         records = [];
-        setTotalItems(0);
-        setTotalPages(1);
+        total = 0;
       }
+
+      // ✅ Set total items from API response
+      setTotalItems(total);
+      setTotalPages(Math.max(1, Math.ceil(total / itemsPerPage)));
+      console.log(`Total Pages: ${Math.ceil(total / itemsPerPage)}`);
 
       // ✅ TRANSFORM DATA WITH FORMATTED DATES
       const transformed = records.map((item) => {
@@ -447,6 +452,7 @@ export default function JobCardManagement() {
     });
   };
 
+  // ✅ Filter groups based on search and status (client-side filtering on the current page data)
   const getFilteredGroups = () => {
     let filtered = groups;
 
@@ -469,49 +475,52 @@ export default function JobCardManagement() {
     return filtered;
   };
 
-  const goToFirstPage = () => {
-    if (totalPages > 0) {
-      setCurrentPage(1);
+  // ✅ Pagination calculations
+  const getStartIndex = () => {
+    if (totalItems === 0) return 0;
+    return (currentPage - 1) * itemsPerPage + 1;
+  };
+  
+  const getEndIndex = () => {
+    if (totalItems === 0) return 0;
+    return Math.min(currentPage * itemsPerPage, totalItems);
+  };
+
+  const goToPage = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
     }
   };
 
-  const goToLastPage = () => {
-    if (totalPages > 0) {
-      setCurrentPage(totalPages);
-    }
-  };
-
-  const goToNextPage = () => {
-    if (currentPage < totalPages) {
-      setCurrentPage(currentPage + 1);
-    } else {
-      setCurrentPage(1);
-    }
-  };
-
-  const goToPrevPage = () => {
-    if (currentPage > 1) {
-      setCurrentPage(currentPage - 1);
-    } else {
-      setCurrentPage(totalPages);
-    }
-  };
+  const goToFirstPage = () => goToPage(1);
+  const goToLastPage = () => goToPage(totalPages);
+  const goToNextPage = () => goToPage(currentPage + 1);
+  const goToPrevPage = () => goToPage(currentPage - 1);
 
   const handlePageSizeChange = (newSize: number) => {
     setItemsPerPage(newSize);
     setCurrentPage(1);
   };
 
-  const getStartIndex = () => (currentPage - 1) * itemsPerPage + 1;
-  const getEndIndex = () => Math.min(currentPage * itemsPerPage, totalItems);
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisible = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+    if (endPage - startPage + 1 < maxVisible) startPage = Math.max(1, endPage - maxVisible + 1);
+    for (let i = startPage; i <= endPage; i++) pages.push(i);
+    return pages;
+  };
 
+  // ✅ Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, statusFilter, fromDate, toDate]);
 
+  // ✅ Fetch when dependencies change
   useEffect(() => {
     fetchJobCards();
-  }, [currentPage, itemsPerPage, searchTerm, statusFilter, fromDate, toDate, fetchJobCards]);
+  }, [currentPage, itemsPerPage, searchTerm, statusFilter, fromDate, toDate]);
 
   const handleDelete = (item: JobCardDisplay) => {
     setSelectedItem(item);
@@ -909,36 +918,46 @@ export default function JobCardManagement() {
                 <option key={size} value={size}>{size}</option>
               ))}
             </select>
-            <span className="jc-pagination-label">entries</span>
+            <span className="jc-pagination-info">
+              {totalItems > 0
+                ? `Showing ${getStartIndex()} to ${getEndIndex()} of ${totalItems} entries`
+                : 'No entries to show'}
+            </span>
           </div>
           <div className="jc-pagination-center">
             <button
               onClick={goToFirstPage}
-              disabled={currentPage === 1 || totalPages === 0}
+              disabled={currentPage === 1 || totalItems === 0}
               className="jc-page-btn"
             >
               <FaAngleDoubleLeft size={12} />
             </button>
             <button
               onClick={goToPrevPage}
-              disabled={totalPages === 0}
+              disabled={currentPage === 1 || totalItems === 0}
               className="jc-page-btn"
             >
               <FaChevronLeft size={12} />
             </button>
-            <button className="jc-page-btn jc-page-btn-active">
-              {currentPage}
-            </button>
+            {totalItems > 0 && getPageNumbers().map(page => (
+              <button
+                key={page}
+                onClick={() => goToPage(page)}
+                className={`jc-page-btn ${currentPage === page ? 'jc-page-btn-active' : ''}`}
+              >
+                {page}
+              </button>
+            ))}
             <button
               onClick={goToNextPage}
-              disabled={totalPages === 0}
+              disabled={currentPage === totalPages || totalItems === 0}
               className="jc-page-btn"
             >
               <FaChevronRight size={12} />
             </button>
             <button
               onClick={goToLastPage}
-              disabled={currentPage === totalPages || totalPages === 0}
+              disabled={currentPage === totalPages || totalItems === 0}
               className="jc-page-btn"
             >
               <FaAngleDoubleRight size={12} />
@@ -946,9 +965,7 @@ export default function JobCardManagement() {
           </div>
           <div className="jc-pagination-right">
             <span className="jc-pagination-info">
-              {totalItems > 0
-                ? `Showing ${getStartIndex()} to ${getEndIndex()} of ${totalItems} entries`
-                : 'No entries to show'}
+              Page {currentPage} of {totalPages}
             </span>
           </div>
         </div>

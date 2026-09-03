@@ -1,4 +1,4 @@
-// Workstation.tsx - Updated with correct status handling
+// Workstation.tsx - Fixed with Proper Server-Side Pagination
 
 import { useState, useEffect, useRef } from "react";
 import {
@@ -216,21 +216,35 @@ export default function WorkstationList() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showDatePicker]);
 
-  // ─── Fetch workstations ─────────────────────────────────────────────────────
+  // ─── Fetch workstations with SERVER-SIDE PAGINATION ─────────────────────
 
   const fetchWorkstations = async () => {
     setLoading(true);
     setError(null);
     try {
-      let url = `/workstation?page=${currentPage}&limit=${itemsPerPage}&sort_order=asc&sort_by=id`;
+      const params = new URLSearchParams();
+      
+      // ✅ SERVER-SIDE PAGINATION PARAMS
+      params.append('page', String(currentPage));
+      params.append('limit', String(itemsPerPage));
+      params.append('sort_order', 'asc');
+      params.append('sort_by', 'id');
       
       // Add search parameter if searchTerm exists
       if (searchTerm.trim()) {
-        url += `&search=${encodeURIComponent(searchTerm.trim())}`;
+        params.append('search', searchTerm.trim());
       }
       
-      if (dateFrom) url += `&from=${toISODate(dateFrom)}`;
-      if (dateTo) url += `&to=${toISODate(dateTo)}`;
+      if (dateFrom) params.append('from', toISODate(dateFrom));
+      if (dateTo) params.append('to', toISODate(dateTo));
+
+      // Add status filter
+      if (statusFilter !== 'all') {
+        params.append('is_deleted', statusFilter === 'active' ? '0' : '1');
+      }
+
+      const url = `/workstation?${params.toString()}`;
+      console.log('API URL:', url);
 
       const response = await api.get<ApiResponse>(url);
       
@@ -245,16 +259,39 @@ export default function WorkstationList() {
           total = data.length;
         } else if (data && 'records' in data) {
           records = data.records || [];
+          // ✅ Use the total from API response
           total = data.total || records.length;
         } else {
           records = data.records || [];
           total = records.length;
         }
         
-        records.sort((a, b) => a.id - b.id);
+        // ✅ Filter out deleted records if statusFilter is 'all' - use the actual data length
+        // The API should handle filtering, but we also filter client-side for safety
+        let filteredRecords = records;
+        if (statusFilter === 'all') {
+          // When 'all' is selected, show all records (both active and disabled)
+          filteredRecords = records;
+          // Use the total from API response
+          setTotalItems(total);
+        } else if (statusFilter === 'active') {
+          filteredRecords = records.filter(ws => ws.is_deleted === 0);
+          setTotalItems(filteredRecords.length);
+        } else if (statusFilter === 'disabled') {
+          filteredRecords = records.filter(ws => ws.is_deleted === 1);
+          setTotalItems(filteredRecords.length);
+        }
         
-        setWorkstations(records);
-        setTotalItems(total);
+        filteredRecords.sort((a, b) => a.id - b.id);
+        
+        setWorkstations(filteredRecords);
+        
+        // ✅ If statusFilter is 'all', use API total, otherwise use filtered count
+        if (statusFilter === 'all') {
+          setTotalItems(total);
+        }
+        
+        console.log(`Total records: ${total}, Filtered: ${filteredRecords.length}, Current page: ${currentPage}, Limit: ${itemsPerPage}`);
       } else {
         setError('Failed to fetch workstations');
         setWorkstations([]);
@@ -270,26 +307,19 @@ export default function WorkstationList() {
     }
   };
 
+  // ✅ Fetch when dependencies change (including pagination)
   useEffect(() => {
     fetchWorkstations();
-  }, [currentPage, itemsPerPage, dateFrom, dateTo, searchTerm]);
+  }, [currentPage, itemsPerPage, dateFrom, dateTo, searchTerm, statusFilter]);
 
+  // ✅ Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, statusFilter, dateFrom, dateTo]);
 
-  // ─── Filter data ──────────────────────────────────────────────────────────
-
-  const filteredData = workstations.filter(ws => {
-    const matchesSearch = ws.workstation_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          ws.workstation_type?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          ws.plant_floor?.toLowerCase().includes(searchTerm.toLowerCase());
-    // Use is_deleted instead of disabled for filtering
-    const matchesStatus = statusFilter === 'all' || 
-                         (statusFilter === 'active' && ws.is_deleted === 0) ||
-                         (statusFilter === 'disabled' && ws.is_deleted === 1);
-    return matchesSearch && matchesStatus;
-  });
+  // ─── Filter data (client-side for any remaining filters) ─────────────────
+  // Since we're now using server-side filtering, we only need to filter what's already fetched
+  const filteredData = workstations;
 
   const totalFilteredItems = filteredData.length;
   const totalPages = Math.ceil(totalFilteredItems / itemsPerPage) || 1;
@@ -299,12 +329,8 @@ export default function WorkstationList() {
     setCurrentPage(validCurrentPage);
   }
   
-  const paginatedData = filteredData.slice(
-    (validCurrentPage - 1) * itemsPerPage,
-    validCurrentPage * itemsPerPage
-  );
-
-  // ─── Status colors ────────────────────────────────────────────────────────
+  // Use the filtered data directly (already paginated from server)
+  const paginatedData = filteredData;
 
   // ─── Pagination ───────────────────────────────────────────────────────────
 
@@ -334,8 +360,15 @@ export default function WorkstationList() {
     return pages;
   };
 
-  const getStartIndex = () => (validCurrentPage - 1) * itemsPerPage + 1;
-  const getEndIndex = () => Math.min(validCurrentPage * itemsPerPage, totalFilteredItems);
+  const getStartIndex = () => {
+    if (totalFilteredItems === 0) return 0;
+    return (validCurrentPage - 1) * itemsPerPage + 1;
+  };
+  
+  const getEndIndex = () => {
+    if (totalFilteredItems === 0) return 0;
+    return Math.min(validCurrentPage * itemsPerPage, totalFilteredItems);
+  };
 
   // ─── Actions ─────────────────────────────────────────────────────────────
 
@@ -385,6 +418,7 @@ export default function WorkstationList() {
     setSearchTerm('');
     setStatusFilter('all');
     clearDateFilterOnly();
+    setCurrentPage(1);
   };
 
   // ─── Check if workstation is active ──────────────────────────────────────
@@ -752,7 +786,7 @@ export default function WorkstationList() {
                         <th>Capacity</th>
                         <th>Hour Rate</th>
                         <th className="wo-th-meta">
-                          <span>{paginatedData.length} of {totalItems}</span>
+                          <span>{paginatedData.length} of {totalFilteredItems}</span>
                         </th>
                       </tr>
                     </thead>
@@ -835,24 +869,30 @@ export default function WorkstationList() {
                       <option value={50}>50</option>
                       <option value={100}>100</option>
                     </select>
-                    <span className="wo-pagination-label">entries</span>
+                    <span className="wo-pagination-info">
+                      {totalFilteredItems > 0 ? (
+                        `Showing ${getStartIndex()} to ${getEndIndex()} of ${totalFilteredItems} entries`
+                      ) : (
+                        'No entries to show'
+                      )}
+                    </span>
                   </div>
                   <div className="wo-pagination-center">
                     <button 
                       onClick={goToFirstPage} 
-                      disabled={currentPage === 1} 
+                      disabled={currentPage === 1 || totalFilteredItems === 0} 
                       className="wo-page-btn"
                     >
                       <FaAngleDoubleLeft size={12} />
                     </button>
                     <button 
                       onClick={goToPrevPage} 
-                      disabled={currentPage === 1} 
+                      disabled={currentPage === 1 || totalFilteredItems === 0} 
                       className="wo-page-btn"
                     >
                       <FaChevronLeft size={12} />
                     </button>
-                    {getPageNumbers().map(page => (
+                    {totalFilteredItems > 0 && getPageNumbers().map(page => (
                       <button
                         key={page}
                         onClick={() => goToPage(page)}
@@ -863,14 +903,14 @@ export default function WorkstationList() {
                     ))}
                     <button 
                       onClick={goToNextPage} 
-                      disabled={currentPage === totalPages} 
+                      disabled={currentPage === totalPages || totalFilteredItems === 0} 
                       className="wo-page-btn"
                     >
                       <FaChevronRight size={12} />
                     </button>
                     <button 
                       onClick={goToLastPage} 
-                      disabled={currentPage === totalPages} 
+                      disabled={currentPage === totalPages || totalFilteredItems === 0} 
                       className="wo-page-btn"
                     >
                       <FaAngleDoubleRight size={12} />
@@ -878,7 +918,7 @@ export default function WorkstationList() {
                   </div>
                   <div className="wo-pagination-right">
                     <span className="wo-pagination-info">
-                      Showing {getStartIndex()} to {getEndIndex()} of {totalFilteredItems} entries
+                      Page {currentPage} of {totalPages}
                     </span>
                   </div>
                 </div>

@@ -243,6 +243,7 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
 const SalesInvoice: React.FC = () => {
   const navigate = useNavigate();
   const menuRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
+  const printWindowRef = useRef<Window | null>(null); // ✅ Track print window
   
   const { theme, formatDate, getApiDateFormat } = useAdminTheme();
   
@@ -254,6 +255,7 @@ const SalesInvoice: React.FC = () => {
   const [showMoreMenu, setShowMoreMenu] = useState<string | null>(null);
   
   const [invoices, setInvoices] = useState<SalesInvoice[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [printLoadingId, setPrintLoadingId] = useState<string | null>(null);
@@ -285,30 +287,33 @@ const SalesInvoice: React.FC = () => {
   const fetchCompanyDetails = async () => {
     try {
       const response = await api.get('/company');
+      console.log('Company API Response:', response.data);
+      
       if (response.data.success === 1) {
         const companies = response.data.data || [];
-        // Find ChandraTara Industries
+        console.log('Companies:', companies);
+        
         const chandratara = companies.find((c: Company) => 
           c.company_name.includes('ChandraTara') || 
           c.abbr === 'CT_IND' ||
           c.company_name.toLowerCase().includes('chandratara')
         );
         
-        if (chandratara) {
-          setCompanyData(chandratara);
-          // Update company details for print/export
+        const selectedCompany = chandratara || (companies.length > 0 ? companies[0] : null);
+        
+        if (selectedCompany) {
+          setCompanyData(selectedCompany);
           companyDetails = {
             ...companyDetails,
-            name: chandratara.company_name || companyDetails.name,
-            address: chandratara.country || companyDetails.address,
-            contact: chandratara.phone_no || companyDetails.contact,
-            email: chandratara.email || companyDetails.email,
-            gstin: chandratara.tax_id || companyDetails.gstin,
+            name: selectedCompany.company_name || companyDetails.name,
+            address: selectedCompany.country || companyDetails.address,
+            contact: selectedCompany.phone_no || companyDetails.contact,
+            email: selectedCompany.email || companyDetails.email,
+            gstin: selectedCompany.tax_id || companyDetails.gstin,
           };
           
-          // Update bank details if available
-          if (chandratara.bank_details && chandratara.bank_details.length > 0) {
-            const primaryBank = chandratara.bank_details.find((b: BankDetail) => b.is_primary === 1) || chandratara.bank_details[0];
+          if (selectedCompany.bank_details && selectedCompany.bank_details.length > 0) {
+            const primaryBank = selectedCompany.bank_details.find((b: BankDetail) => b.is_primary === 1) || selectedCompany.bank_details[0];
             if (primaryBank) {
               companyDetails.bankName = primaryBank.bank_name || companyDetails.bankName;
               companyDetails.bankAccountNo = primaryBank.account_number || companyDetails.bankAccountNo;
@@ -316,22 +321,12 @@ const SalesInvoice: React.FC = () => {
             }
           }
           
-          console.log('Company loaded:', chandratara.company_name);
+          console.log('Company loaded:', selectedCompany.company_name);
         } else {
-          console.warn('ChandraTara Industries not found, using default company details');
-          // Try to use first company as fallback
-          if (companies.length > 0) {
-            const firstCompany = companies[0];
-            companyDetails = {
-              ...companyDetails,
-              name: firstCompany.company_name || companyDetails.name,
-              address: firstCompany.country || companyDetails.address,
-              contact: firstCompany.phone_no || companyDetails.contact,
-              email: firstCompany.email || companyDetails.email,
-              gstin: firstCompany.tax_id || companyDetails.gstin,
-            };
-          }
+          console.warn('No companies found, using default company details');
         }
+      } else {
+        console.warn('API returned success !== 1');
       }
     } catch (err) {
       console.error('Error fetching company details:', err);
@@ -370,6 +365,16 @@ const SalesInvoice: React.FC = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // ===== CLEAN UP PRINT WINDOW ON UNMOUNT =====
+  useEffect(() => {
+    return () => {
+      if (printWindowRef.current && !printWindowRef.current.closed) {
+        printWindowRef.current.close();
+        printWindowRef.current = null;
+      }
     };
   }, []);
 
@@ -545,6 +550,9 @@ const SalesInvoice: React.FC = () => {
         const data = response.data.success === 1 ? response.data.data : response.data;
         const record = Array.isArray(data) ? data[0] : (data?.record ?? data);
         if (record && (record.id || record.name)) {
+          if (!record.items) {
+            record.items = [];
+          }
           return {
             ...record,
             displayInvoiceNumber: formatInvoiceNumber(record.id || record.name)
@@ -557,18 +565,29 @@ const SalesInvoice: React.FC = () => {
     return null;
   };
 
-  // ===== FETCH DATA =====
+  // ===== FETCH DATA WITH SERVER-SIDE PAGINATION =====
   const fetchInvoices = async () => {
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams();
-      if (searchTerm) params.append('search', searchTerm);
-      if (selectedStatus !== 'All') params.append('status', selectedStatus);
-      if (fromDate) params.append('from_date', fromDate);
-      if (toDate) params.append('to_date', toDate);
+      
       params.append('page', String(currentPage));
       params.append('limit', String(itemsPerPage));
+      
+      if (searchTerm.trim()) {
+        params.append('search', searchTerm.trim());
+        params.append('search_by', 'all');
+      }
+      if (selectedStatus !== 'All') {
+        params.append('status', selectedStatus);
+      }
+      if (fromDate) {
+        params.append('from_date', fromDate);
+      }
+      if (toDate) {
+        params.append('to_date', toDate);
+      }
       
       const query = params.toString() ? `?${params.toString()}` : '';
       const response = await api.get<ApiResponse>(`/sales-invoice${query}`);
@@ -579,8 +598,10 @@ const SalesInvoice: React.FC = () => {
           displayInvoiceNumber: formatInvoiceNumber(record.id)
         }));
         setInvoices(recordsWithDisplayNumber);
+        setTotalRecords(response.data.data.total || recordsWithDisplayNumber.length);
       } else {
         setInvoices([]);
+        setTotalRecords(0);
       }
     } catch (err: any) {
       console.error('Error:', err);
@@ -598,11 +619,9 @@ const SalesInvoice: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const timer = setTimeout(() => fetchInvoices(), 500);
-    return () => clearTimeout(timer);
+    fetchInvoices();
   }, [searchTerm, selectedStatus, currentPage, itemsPerPage, fromDate, toDate]);
 
-  // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, selectedStatus, fromDate, toDate]);
@@ -613,48 +632,25 @@ const SalesInvoice: React.FC = () => {
     return formatDisplayDate(date);
   };
 
-  // ===== FILTER DATA =====
-  const filteredData = invoices.filter(item => {
-    const search = searchTerm.toLowerCase();
-    const displayNumber = item.displayInvoiceNumber?.toLowerCase() || '';
-    const matchesSearch = 
-      displayNumber.includes(search) ||
-      (item.customer_name || '').toLowerCase().includes(search) ||
-      (item.customer || '').toLowerCase().includes(search);
-    const matchesStatus = selectedStatus === 'All' || item.status === selectedStatus;
-    
-    let matchesDate = true;
-    if (fromDate) {
-      const start = new Date(fromDate);
-      start.setHours(0, 0, 0, 0);
-      const orderDate = new Date(item.posting_date);
-      matchesDate = orderDate >= start;
-    }
-    if (toDate && matchesDate) {
-      const end = new Date(toDate);
-      end.setHours(23, 59, 59, 999);
-      const orderDate = new Date(item.posting_date);
-      matchesDate = orderDate <= end;
-    }
-    
-    return matchesSearch && matchesStatus && matchesDate;
-  });
-
-  // ===== PAGINATION =====
-  const totalFilteredItems = filteredData.length;
-  const totalPages = Math.ceil(totalFilteredItems / itemsPerPage);
+  // ===== PAGINATION CALCULATIONS =====
+  const totalFilteredItems = totalRecords;
+  const totalPages = Math.ceil(totalFilteredItems / itemsPerPage) || 1;
   const validCurrentPage = Math.min(currentPage, totalPages || 1);
   
-  if (validCurrentPage !== currentPage) {
+  if (validCurrentPage !== currentPage && currentPage > 0) {
     setCurrentPage(validCurrentPage);
   }
 
-  const paginatedData = filteredData.slice(
-    (validCurrentPage - 1) * itemsPerPage,
-    validCurrentPage * itemsPerPage
-  );
+  const getStartIndex = () => {
+    if (totalFilteredItems === 0) return 0;
+    return (validCurrentPage - 1) * itemsPerPage + 1;
+  };
 
-  // ===== PAGINATION HELPERS =====
+  const getEndIndex = () => {
+    if (totalFilteredItems === 0) return 0;
+    return Math.min(validCurrentPage * itemsPerPage, totalFilteredItems);
+  };
+
   const goToPage = (page: number) => {
     if (page >= 1 && page <= totalPages) {
       setCurrentPage(page);
@@ -679,14 +675,6 @@ const SalesInvoice: React.FC = () => {
     if (endPage - startPage + 1 < maxVisible) startPage = Math.max(1, endPage - maxVisible + 1);
     for (let i = startPage; i <= endPage; i++) pages.push(i);
     return pages;
-  };
-
-  const getStartIndex = () => {
-    return (validCurrentPage - 1) * itemsPerPage + 1;
-  };
-
-  const getEndIndex = () => {
-    return Math.min(validCurrentPage * itemsPerPage, totalFilteredItems);
   };
 
   // ===== BUILD PRINT HTML =====
@@ -964,25 +952,19 @@ const SalesInvoice: React.FC = () => {
       <div>This is a computer generated sales invoice.</div>
     </div>
   </div>
-
-  <script>
-    window.onload = function () { window.print(); };
-  </script>
 </body>
 </html>`;
   };
 
-  // ===== GENERATE PROPER EXCEL DATA =====
+  // ===== GENERATE EXCEL DATA =====
   const generateExcelData = (invoices: SalesInvoice[]) => {
     const rows: any[] = [];
     
     invoices.forEach((invoice, index) => {
-      // Header row with company name
       rows.push(['TAX INVOICE']);
       rows.push([`Status: ${invoice.status || 'Draft'}`]);
       rows.push([]);
       
-      // Company details (using dynamic companyDetails from API)
       rows.push([companyDetails.name]);
       rows.push([companyDetails.address]);
       rows.push([`Phone: ${companyDetails.contact}`]);
@@ -991,7 +973,6 @@ const SalesInvoice: React.FC = () => {
       rows.push([`State Name: ${companyDetails.stateName}, Code: ${companyDetails.stateCode}`]);
       rows.push([]);
       
-      // Invoice details
       rows.push(['Invoice No.', invoice.displayInvoiceNumber || invoice.id || '']);
       rows.push(['Date', formatDisplayDate(invoice.posting_date)]);
       rows.push(['Due Date', formatDisplayDate(invoice.due_date)]);
@@ -1000,16 +981,13 @@ const SalesInvoice: React.FC = () => {
       rows.push(['Payment Status', invoice.status || 'Draft']);
       rows.push([]);
       
-      // Customer details
       rows.push(['Bill To', invoice.customer_name || '']);
       rows.push(['Customer Code', invoice.customer || '']);
       rows.push(['Company', invoice.company || '']);
       rows.push([]);
       
-      // Items header
       rows.push(['#', 'Description', 'Group', 'Qty', 'Rate', 'CGST', 'SGST', 'Amount']);
       
-      // Items rows
       const items = invoice.items || [];
       items.forEach((item, idx) => {
         rows.push([
@@ -1024,25 +1002,21 @@ const SalesInvoice: React.FC = () => {
         ]);
       });
       
-      // Total row
       const grandTotal = invoice.grand_total || invoice.total || 0;
       const totalQty = items.reduce((sum, item) => sum + (item.qty || 0), 0);
       rows.push(['Total', '', '', totalQty, '', '', '', grandTotal.toFixed(2)]);
       rows.push([]);
       
-      // Amount in words
       rows.push(['Amount Chargeable (in words)']);
       rows.push([`${invoice.currency || 'INR'} ${numberToIndianWords(grandTotal)} Only`]);
       rows.push([]);
       
-      // Bank Details
       rows.push(['Bank Details']);
       if (companyDetails.bankName) rows.push([`Bank Name: ${companyDetails.bankName}`]);
       if (companyDetails.bankAccountNo) rows.push([`Account No: ${companyDetails.bankAccountNo}`]);
       if (companyDetails.bankBranchIfsc) rows.push([`IFSC Code: ${companyDetails.bankBranchIfsc}`]);
       rows.push([]);
       
-      // Payment schedule if exists
       if (invoice.payment_schedule && invoice.payment_schedule.length > 0) {
         rows.push(['Payment Schedule']);
         rows.push(['#', 'Payment Term', 'Due Date', 'Days', 'Portion', 'Amount', 'Status']);
@@ -1060,19 +1034,16 @@ const SalesInvoice: React.FC = () => {
         rows.push([]);
       }
       
-      // Declaration
       rows.push(['Declaration']);
       rows.push(['We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.']);
       rows.push([]);
       
-      // Footer
       rows.push([`SUBJECT TO ${companyDetails.jurisdiction} JURISDICTION`]);
       rows.push(['This is a computer generated sales invoice.']);
       rows.push([]);
       rows.push([]);
       rows.push([]);
       
-      // Separator between invoices
       if (index < invoices.length - 1) {
         rows.push(['========================================']);
         rows.push([]);
@@ -1082,36 +1053,25 @@ const SalesInvoice: React.FC = () => {
     return rows;
   };
 
-  // ===== ACTIONS =====
-  const handleCreate = () => navigate('/sales-bill/new');
-  const handleRefresh = () => fetchInvoices();
-  const handleView = (id: string | number) => {
-    const invoiceId = String(id);
-    setShowMoreMenu(null);
-    navigate(`/sales-bill/view/${invoiceId}`, {
-      state: { invoiceId, mode: 'view' }
-    });
-  };
-
-  const handleEdit = (id: string | number) => {
-    const invoiceId = String(id);
-    setShowMoreMenu(null);
-    navigate(`/sales-bill/edit/${invoiceId}`, {
-      state: { invoiceId, mode: 'edit' }
-    });
-  };
-  const handleDuplicate = (id: string | number) => navigate(`/sales-bill/duplicate/${id}`);
-
+  // ===== FIXED HANDLE PRINT =====
   const handlePrint = (invoice: SalesInvoice) => {
+    // ✅ Close any existing print window first
+    if (printWindowRef.current && !printWindowRef.current.closed) {
+      printWindowRef.current.close();
+      printWindowRef.current = null;
+    }
+
     const printWindow = window.open('', '_blank', 'width=900,height=1000');
+    printWindowRef.current = printWindow;
+    
     if (!printWindow) {
       toast.error('Please allow pop-ups to print this invoice');
       return;
     }
-    printWindow.document.write('<p style="font-family:sans-serif;padding:24px;color:#374151;">Loading invoice…</p>');
-
-    setPrintLoadingId(String(invoice.id));
     
+    printWindow.document.write('<p style="font-family:sans-serif;padding:24px;color:#374151;">Loading invoice…</p>');
+    setPrintLoadingId(String(invoice.id));
+
     const loadAndPrint = async () => {
       try {
         let printData = invoice;
@@ -1121,14 +1081,34 @@ const SalesInvoice: React.FC = () => {
             printData = fullData;
           }
         }
+        
         printWindow.document.open();
         printWindow.document.write(buildSalesInvoicePrintHtml(printData));
         printWindow.document.close();
+        printWindow.focus();
+        
+        // ✅ Use afterprint event to clean up
+        printWindow.onafterprint = () => {
+          setTimeout(() => {
+            if (printWindowRef.current && !printWindowRef.current.closed) {
+              printWindowRef.current.close();
+              printWindowRef.current = null;
+            }
+          }, 500);
+        };
+        
+        // ✅ Print after a short delay
+        setTimeout(() => {
+          printWindow.print();
+        }, 800);
+        
       } catch (err) {
         console.error('Error printing invoice:', err);
-        printWindow.document.open();
-        printWindow.document.write(buildSalesInvoicePrintHtml(invoice));
-        printWindow.document.close();
+        toast.error('Print failed. Please try again.');
+        if (printWindowRef.current && !printWindowRef.current.closed) {
+          printWindowRef.current.close();
+          printWindowRef.current = null;
+        }
       } finally {
         setPrintLoadingId(null);
       }
@@ -1137,11 +1117,11 @@ const SalesInvoice: React.FC = () => {
     loadAndPrint();
   };
 
-  // ===== EXCEL DOWNLOAD HANDLER =====
+  // ===== FIXED EXCEL DOWNLOAD =====
   const handleExcelDownload = async () => {
     setDownloadLoading(true);
     try {
-      const invoicesToDownload = paginatedData.length > 0 ? paginatedData : filteredData;
+      const invoicesToDownload = invoices.length > 0 ? invoices : [];
       
       if (invoicesToDownload.length === 0) {
         toast.error('No invoices to download');
@@ -1149,7 +1129,6 @@ const SalesInvoice: React.FC = () => {
         return;
       }
 
-      // Fetch full details for all invoices
       const fullInvoices = await Promise.all(
         invoicesToDownload.map(async (inv) => {
           if (inv.items && inv.items.length > 0) return inv;
@@ -1158,28 +1137,24 @@ const SalesInvoice: React.FC = () => {
         })
       );
 
-      // Generate Excel data
       const excelData = generateExcelData(fullInvoices);
       
-      // Create workbook
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.aoa_to_sheet(excelData);
       
-      // Set column widths
       ws['!cols'] = [
-        { wch: 20 }, // Column A
-        { wch: 30 }, // Column B
-        { wch: 15 }, // Column C
-        { wch: 15 }, // Column D
-        { wch: 15 }, // Column E
-        { wch: 15 }, // Column F
-        { wch: 15 }, // Column G
-        { wch: 20 }, // Column H
+        { wch: 20 },
+        { wch: 30 },
+        { wch: 15 },
+        { wch: 15 },
+        { wch: 15 },
+        { wch: 15 },
+        { wch: 15 },
+        { wch: 20 },
       ];
       
       XLSX.utils.book_append_sheet(wb, ws, 'Invoices');
       
-      // Generate Excel file
       const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
       const blob = new Blob([wbout], { type: 'application/octet-stream' });
       const url = URL.createObjectURL(blob);
@@ -1200,11 +1175,11 @@ const SalesInvoice: React.FC = () => {
     }
   };
 
-  // ===== DIRECT PDF DOWNLOAD HANDLER =====
+  // ===== FIXED PDF DOWNLOAD =====
   const handleDirectPDFDownload = async () => {
     setDownloadLoading(true);
     try {
-      const invoicesToDownload = paginatedData.length > 0 ? paginatedData : filteredData;
+      const invoicesToDownload = invoices.length > 0 ? invoices : [];
       
       if (invoicesToDownload.length === 0) {
         toast.error('No invoices to download');
@@ -1222,15 +1197,35 @@ const SalesInvoice: React.FC = () => {
 
       const allHtmlContent = fullInvoices.map(inv => buildSalesInvoicePrintHtml(inv)).join('<div style="page-break-after: always;"></div>');
       
+      // ✅ Close any existing print window
+      if (printWindowRef.current && !printWindowRef.current.closed) {
+        printWindowRef.current.close();
+        printWindowRef.current = null;
+      }
+      
       const printWindow = window.open('', '_blank', 'width=900,height=1000');
+      printWindowRef.current = printWindow;
+      
       if (!printWindow) {
         toast.error('Please allow pop-ups to download PDF');
         setDownloadLoading(false);
         return;
       }
+      
       printWindow.document.write(allHtmlContent);
       printWindow.document.close();
       printWindow.focus();
+      
+      // ✅ Use afterprint event to clean up
+      printWindow.onafterprint = () => {
+        setTimeout(() => {
+          if (printWindowRef.current && !printWindowRef.current.closed) {
+            printWindowRef.current.close();
+            printWindowRef.current = null;
+          }
+        }, 500);
+      };
+      
       setTimeout(() => {
         printWindow.print();
       }, 500);
@@ -1242,6 +1237,28 @@ const SalesInvoice: React.FC = () => {
       setDownloadLoading(false);
     }
   };
+
+  // ===== ACTIONS =====
+  const handleCreate = () => navigate('/sales-bill/new');
+  const handleRefresh = () => fetchInvoices();
+  
+  const handleView = (id: string | number) => {
+    const invoiceId = String(id);
+    setShowMoreMenu(null);
+    navigate(`/sales-bill/view/${invoiceId}`, {
+      state: { invoiceId, mode: 'view' }
+    });
+  };
+
+  const handleEdit = (id: string | number) => {
+    const invoiceId = String(id);
+    setShowMoreMenu(null);
+    navigate(`/sales-bill/edit/${invoiceId}`, {
+      state: { invoiceId, mode: 'edit' }
+    });
+  };
+  
+  const handleDuplicate = (id: string | number) => navigate(`/sales-bill/duplicate/${id}`);
 
   const handleCancelInvoice = async (id: string | number) => {
     if (!window.confirm('Are you sure you want to cancel this Sales Bill?')) return;
@@ -2501,7 +2518,6 @@ const SalesInvoice: React.FC = () => {
                   </button>
                 </div>
                 
-                {/* Quick Filters */}
                 <div className="qt-quick-filters">
                   <button 
                     className={`qt-quick-filter-btn ${selectedQuickFilter === 'today' ? 'active' : ''}`}
@@ -2529,7 +2545,6 @@ const SalesInvoice: React.FC = () => {
                   </button>
                 </div>
                 
-                {/* Calendar */}
                 <div className="qt-calendar-header">
                   <button className="qt-nav-btn" onClick={() => changeMonth(-1)}>
                     <FaChevronLeft size={12} />
@@ -2645,7 +2660,7 @@ const SalesInvoice: React.FC = () => {
               <FaSync size={12} style={{ marginRight: '6px' }} /> Retry
             </button>
           </div>
-        ) : paginatedData.length === 0 ? (
+        ) : invoices.length === 0 ? (
           <div className="qt-empty-state">
             <div className="qt-empty-content">
               <FaFileInvoice size={48} />
@@ -2670,7 +2685,7 @@ const SalesInvoice: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {paginatedData.map((item) => {
+              {invoices.map((item) => {
                 const isPaid = item.status === 'Paid';
                 const isPartial = item.status === 'Partially Paid';
                 const outstanding = item.outstanding_amount || item.grand_total || 0;
@@ -2783,24 +2798,30 @@ const SalesInvoice: React.FC = () => {
               <option value={50}>50</option>
               <option value={100}>100</option>
             </select>
-            <span className="qt-pagination-label">entries</span>
+            <span className="qt-pagination-info">
+              {totalRecords > 0 ? (
+                `Showing ${getStartIndex()} to ${getEndIndex()} of ${totalRecords} entries`
+              ) : (
+                'No entries to show'
+              )}
+            </span>
           </div>
           <div className="qt-pagination-center">
             <button
               onClick={goToFirstPage}
-              disabled={currentPage === 1 || totalFilteredItems === 0}
+              disabled={currentPage === 1 || totalRecords === 0}
               className="qt-page-btn"
             >
               <FaAngleDoubleLeft size={12} />
             </button>
             <button
               onClick={goToPrevPage}
-              disabled={currentPage === 1 || totalFilteredItems === 0}
+              disabled={currentPage === 1 || totalRecords === 0}
               className="qt-page-btn"
             >
               <FaChevronLeft size={12} />
             </button>
-            {totalFilteredItems > 0 && getPageNumbers().map(page => (
+            {totalRecords > 0 && getPageNumbers().map(page => (
               <button
                 key={page}
                 onClick={() => goToPage(page)}
@@ -2811,14 +2832,14 @@ const SalesInvoice: React.FC = () => {
             ))}
             <button
               onClick={goToNextPage}
-              disabled={currentPage === totalPages || totalFilteredItems === 0}
+              disabled={currentPage === totalPages || totalRecords === 0}
               className="qt-page-btn"
             >
               <FaChevronRight size={12} />
             </button>
             <button
               onClick={goToLastPage}
-              disabled={currentPage === totalPages || totalFilteredItems === 0}
+              disabled={currentPage === totalPages || totalRecords === 0}
               className="qt-page-btn"
             >
               <FaAngleDoubleRight size={12} />
@@ -2826,11 +2847,7 @@ const SalesInvoice: React.FC = () => {
           </div>
           <div className="qt-pagination-right">
             <span className="qt-pagination-info">
-              {totalFilteredItems > 0 ? (
-                `Showing ${getStartIndex()} to ${getEndIndex()} of ${totalFilteredItems} entries`
-              ) : (
-                'No entries to show'
-              )}
+              Page {currentPage} of {totalPages}
             </span>
           </div>
         </div>

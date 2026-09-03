@@ -193,13 +193,11 @@ const numberToIndianWords = (value: number): string => {
   return out.trim();
 };
 
-// ✅ UPDATED: Format print date using context formatter
 const formatPrintDate = (date: string, formatFn?: (date: string) => string): string => {
   if (!date) return '';
   if (formatFn) {
     return formatFn(date);
   }
-  // Fallback if formatFn not provided
   const d = new Date(date);
   if (isNaN(d.getTime())) return date;
   const day = String(d.getDate()).padStart(2, '0');
@@ -233,7 +231,6 @@ const readCachedSalesOrderLineData = (name: string): CachedSalesOrderLineData | 
   }
 };
 
-/** Normalizes a list-style API response: { success, data: { records, total } } or { success, data: [...] } */
 const extractRecords = (payload: any): any[] => {
   if (!payload) return [];
   const data = payload.success === 1 || payload.success === 0 ? payload.data : payload;
@@ -242,7 +239,6 @@ const extractRecords = (payload: any): any[] => {
   return [];
 };
 
-/** Maps a raw /sales-order API record's `items` child table into UI-shaped SalesOrderItem[]. */
 const mapApiItemsToSalesOrderItems = (record: SalesOrderApiRecord | null | undefined): SalesOrderItem[] => {
   if (!record || !Array.isArray(record.items)) return [];
   return record.items.map((it, idx) => {
@@ -263,7 +259,6 @@ const mapApiItemsToSalesOrderItems = (record: SalesOrderApiRecord | null | undef
   });
 };
 
-// ─── Debounce function ──────────────────────────────────────────────────
 const useDebounce = (value: string, delay: number) => {
   const [debouncedValue, setDebouncedValue] = useState(value);
 
@@ -283,7 +278,6 @@ const useDebounce = (value: string, delay: number) => {
 export default function ProformaInvoice() {
   const navigate = useNavigate();
 
-  // ✅ GET THE DATE FORMAT FUNCTION FROM CONTEXT
   const { theme, formatDate, getApiDateFormat } = useAdminTheme();
 
   const [filterText, setFilterText] = useState('');
@@ -301,10 +295,14 @@ export default function ProformaInvoice() {
   const [selectedQuickFilter, setSelectedQuickFilter] = useState<string>('');
 
   const [salesOrders, setSalesOrders] = useState<SalesOrder[]>([]);
-  const [allSalesOrders, setAllSalesOrders] = useState<SalesOrder[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState<number | null>(null);
   const [selectedBankId, setSelectedBankId] = useState<number | null>(null);
+
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalRecords, setTotalRecords] = useState(0);
 
   // Calendar state
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
@@ -320,18 +318,15 @@ export default function ProformaInvoice() {
   // Debounced search term
   const debouncedFilterText = useDebounce(filterText, 500);
 
-  // ✅ NEW: Format display date using context
   const formatDisplayDate = (dateString: string) => {
     if (!dateString) return '';
     return formatDate(dateString);
   };
 
-  // ✅ NEW: Format date for API (YYYY-MM-DD)
   const toApiDateFormat = (date: Date) => {
     return getApiDateFormat(date);
   };
 
-  // ─── close date picker on outside click ──────────────────────────────
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
@@ -347,8 +342,6 @@ export default function ProformaInvoice() {
     };
   }, []);
 
-  // ─── Date helper functions ─────────────────────────────────────────────
-  // ✅ UPDATED: Format date for display using context
   const formatDateForDisplay = (dateStr: string): string => {
     if (!dateStr) return '';
     return formatDate(dateStr);
@@ -375,7 +368,6 @@ export default function ProformaInvoice() {
     return date.toISOString().split('T')[0];
   };
 
-  // ─── Quick filter handlers ─────────────────────────────────────────────
   const applyQuickFilter = (filter: string) => {
     setSelectedQuickFilter(filter);
     let start = '';
@@ -403,7 +395,6 @@ export default function ProformaInvoice() {
     setTempToDate(end);
   };
 
-  // ─── Fetch Companies ───────────────────────────────────────
   const fetchCompanies = async () => {
     try {
       const response = await api.get('/company');
@@ -430,13 +421,14 @@ export default function ProformaInvoice() {
     }
   };
 
-  // ─── load from GET /sales-order with search ───────────────────────────
-
   const fetchSalesOrders = async () => {
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams();
+      
+      params.append('page', String(currentPage));
+      params.append('limit', String(pageSize));
       
       if (debouncedFilterText.trim()) {
         params.append('search', debouncedFilterText.trim());
@@ -474,7 +466,10 @@ export default function ProformaInvoice() {
         all = [];
       }
 
-      // ✅ TRANSFORM DATA WITH FORMATTED DATES
+      // Get total from API response
+      const total = raw?.total ?? raw?.records?.length ?? all.length;
+      setTotalRecords(total);
+
       const transformedData: SalesOrder[] = all.map((o, idx) => {
         const resolvedId =
           o.id !== undefined && o.id !== null && String(o.id).trim() !== ''
@@ -515,7 +510,6 @@ export default function ProformaInvoice() {
         };
       });
 
-      setAllSalesOrders(transformedData);
       setSalesOrders(transformedData);
     } catch (err: any) {
       console.error('Error fetching sales orders:', err);
@@ -526,13 +520,18 @@ export default function ProformaInvoice() {
   };
 
   useEffect(() => {
-    fetchSalesOrders();
     fetchCompanies();
   }, []);
 
+  // Fetch when filters or pagination changes
   useEffect(() => {
     fetchSalesOrders();
-  }, [debouncedFilterText, selectedOrderType, fromDate, toDate]);
+  }, [debouncedFilterText, selectedOrderType, fromDate, toDate, currentPage, pageSize]);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterText, selectedOrderType, fromDate, toDate]);
 
   const fetchFullSalesOrderRecord = async (orderId: string): Promise<SalesOrderApiRecord | null> => {
     try {
@@ -625,8 +624,6 @@ export default function ProformaInvoice() {
     };
   };
 
-  const filteredOrders = salesOrders;
-
   const totalAmount = salesOrders.reduce((sum, o) => sum + o.totalAmount, 0);
   const completedAmount = salesOrders.filter(o => o.status === 'Completed').reduce((sum, o) => sum + o.totalAmount, 0);
   const fulfillmentRate = totalAmount > 0 ? Math.round((completedAmount / totalAmount) * 100) : 0;
@@ -636,7 +633,6 @@ export default function ProformaInvoice() {
       toast.error('Unable to open this proforma — missing ID');
       return;
     }
-    // Navigate to view mode (read-only)
     navigate(`/proforma-invoice/${order.id}`, { state: { proforma: order, readOnly: true } });
   };
 
@@ -674,6 +670,7 @@ export default function ProformaInvoice() {
     setTempFromDate('');
     setTempToDate('');
     setSelectedQuickFilter('');
+    setCurrentPage(1);
     setShowDatePicker(false);
   };
 
@@ -700,6 +697,40 @@ export default function ProformaInvoice() {
     setFromDate('');
     setToDate('');
     setShowDatePicker(false);
+  };
+
+  // Pagination functions
+  const totalFiltered = totalRecords;
+  const totalPages = Math.ceil(totalFiltered / pageSize) || 1;
+  const startIndex = (currentPage - 1) * pageSize + 1;
+  const endIndex = Math.min(currentPage * pageSize, totalFiltered);
+
+  const handlePageSizeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newSize = parseInt(e.target.value, 10);
+    setPageSize(newSize);
+    setCurrentPage(1);
+  };
+
+  const goToPage = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+    }
+  };
+
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisible = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+    
+    if (endPage - startPage + 1 < maxVisible) {
+      startPage = Math.max(1, endPage - maxVisible + 1);
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i);
+    }
+    return pages;
   };
 
   // Calendar functions
@@ -786,8 +817,6 @@ export default function ProformaInvoice() {
     return new Date(currentYear, month).toLocaleString('en-US', { month: 'long' });
   };
 
-  /* ─────────────────────── Build Proforma Invoice HTML ─────────────────────── */
-
   const buildProformaInvoiceHtml = (order: SalesOrder, company?: Company, bank?: BankDetail): string => {
     const validItems = order.items || [];
 
@@ -810,7 +839,6 @@ export default function ProformaInvoice() {
     const accountHolder = bank?.account_holder_name || 'Chandratara';
     const accountType = bank?.account_type || 'Savings';
 
-    // ✅ Use formatDisplayDate for formatted dates in print
     const formatPrintDateLocal = (dateStr: string) => {
       if (!dateStr) return '';
       return formatDisplayDate(dateStr);
@@ -1769,6 +1797,88 @@ export default function ProformaInvoice() {
           color: var(--text-secondary, #6b7280);
         }
 
+        /* Pagination Bar Styles */
+        .pq-pagination-bar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 12px 16px;
+          border-top: 1px solid var(--border-color, #e5e7eb);
+          flex-wrap: wrap;
+          gap: 8px;
+          background: var(--card-bg, #fff);
+        }
+
+        .pq-pagination-left {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 13px;
+          color: var(--text-secondary, #6b7280);
+        }
+
+        .pq-pagination-left select {
+          padding: 4px 8px;
+          border: 1px solid var(--border-color, #e5e7eb);
+          border-radius: 4px;
+          background: var(--card-bg, #fff);
+          color: var(--text-primary, #1e293b);
+          font-size: 13px;
+          cursor: pointer;
+        }
+
+        .pq-pagination-left select:focus {
+          outline: none;
+          border-color: var(--primary-color, #2563eb);
+        }
+
+        .pq-pagination-center {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+
+        .pq-page-btn {
+          padding: 6px 12px;
+          border: 1px solid var(--border-color, #e5e7eb);
+          border-radius: 4px;
+          background: var(--card-bg, #fff);
+          color: var(--text-primary, #1e293b);
+          font-size: 13px;
+          cursor: pointer;
+          transition: all 0.2s;
+          min-width: 32px;
+          text-align: center;
+        }
+
+        .pq-page-btn:hover:not(:disabled):not(.active) {
+          background: var(--nav-hover, #f8fafc);
+          border-color: var(--primary-color, #2563eb);
+        }
+
+        .pq-page-btn.active {
+          background: var(--primary-color, #2563eb);
+          border-color: var(--primary-color, #2563eb);
+          color: #fff;
+        }
+
+        .pq-page-btn:disabled {
+          opacity: 0.4;
+          cursor: not-allowed;
+        }
+
+        .pq-page-btn.arrow {
+          padding: 6px 10px;
+        }
+
+        .pq-pagination-right {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 13px;
+          color: var(--text-secondary, #6b7280);
+        }
+
         /* Modal styles */
         .pq-modal-overlay {
           position: fixed;
@@ -1955,6 +2065,16 @@ export default function ProformaInvoice() {
             flex-direction: column;
             align-items: center;
             gap: 8px;
+          }
+          .pq-pagination-bar {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 8px;
+          }
+          .pq-pagination-left,
+          .pq-pagination-center,
+          .pq-pagination-right {
+            justify-content: center;
           }
         }
       `}</style>
@@ -2162,7 +2282,7 @@ export default function ProformaInvoice() {
       {/* Table */}
       {!loading && !error && (
         <div className="pq-table-wrap">
-          {filteredOrders.length === 0 ? (
+          {salesOrders.length === 0 ? (
             <div className="pq-empty-state">
               <div className="pq-empty-content">
                 <FaBoxOpen size={48} />
@@ -2171,60 +2291,109 @@ export default function ProformaInvoice() {
               </div>
             </div>
           ) : (
-            <table className="pq-table">
-              <thead>
-                <tr>
-                  <th className="pq-th">Proforma #</th>
-                  <th className="pq-th">Customer</th>
-                  <th className="pq-th">Date</th>
-                  <th className="pq-th">Order Type</th>
-                  <th className="pq-th pq-text-right">Amount</th>
-                  <th className="pq-th pq-th-meta">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredOrders.map((order, index) => (
-                  <tr key={order.id || `so-${index}`} className="pq-tr">
-                    <td className="pq-td pq-td-id">
-                      {order.salesOrderNumber}
-                    </td>
-                    <td className="pq-td">
-                      <div>
-                        <div className="pq-td-link">{order.customerName}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{order.customer}</div>
-                      </div>
-                    </td>
-                    <td className="pq-td">
-                      {/* ✅ USE FORMATTED DATE FOR DISPLAY */}
-                      <div>{order.date ? formatDisplayDate(order.date) : '-'}</div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                        Valid Until: {order.deliveryDate ? formatDisplayDate(order.deliveryDate) : '-'}
-                      </div>
-                    </td>
-                    <td className="pq-td">{order.orderType}</td>
-                    <td className="pq-td pq-text-right pq-amount-cell">
-                      <span className="pq-currency">{order.currency}</span>
-                      {order.totalAmount.toLocaleString()}
-                    </td>
-                    <td className="pq-td pq-td-meta">
-                      <div className="pq-action-buttons">
-                        <button className="pq-action-btn pq-action-view" onClick={() => handleView(order)} title="View Proforma">
-                          <FaEye size={12} />
-                        </button>
-                        <button
-                          className="pq-action-btn pq-action-print"
-                          onClick={() => handlePrintOrder(order)}
-                          title="Print Proforma Invoice"
-                          disabled={printLoadingId === order.id}
-                        >
-                          {printLoadingId === order.id ? <FaSpinner className="spinning" size={12} /> : <FaPrint size={12} />}
-                        </button>
-                      </div>
-                    </td>
+            <>
+              <table className="pq-table">
+                <thead>
+                  <tr>
+                    <th className="pq-th">Proforma #</th>
+                    <th className="pq-th">Customer</th>
+                    <th className="pq-th">Date</th>
+                    <th className="pq-th">Order Type</th>
+                    <th className="pq-th pq-text-right">Amount</th>
+                    <th className="pq-th pq-th-meta">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {salesOrders.map((order, index) => (
+                    <tr key={order.id || `so-${index}`} className="pq-tr">
+                      <td className="pq-td pq-td-id">
+                        {order.salesOrderNumber}
+                      </td>
+                      <td className="pq-td">
+                        <div>
+                          <div className="pq-td-link">{order.customerName}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{order.customer}</div>
+                        </div>
+                      </td>
+                      <td className="pq-td">
+                        <div>{order.date ? formatDisplayDate(order.date) : '-'}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                          Valid Until: {order.deliveryDate ? formatDisplayDate(order.deliveryDate) : '-'}
+                        </div>
+                      </td>
+                      <td className="pq-td">{order.orderType}</td>
+                      <td className="pq-td pq-text-right pq-amount-cell">
+                        <span className="pq-currency">{order.currency}</span>
+                        {order.totalAmount.toLocaleString()}
+                      </td>
+                      <td className="pq-td pq-td-meta">
+                        <div className="pq-action-buttons">
+                          <button className="pq-action-btn pq-action-view" onClick={() => handleView(order)} title="View Proforma">
+                            <FaEye size={12} />
+                          </button>
+                          <button
+                            className="pq-action-btn pq-action-print"
+                            onClick={() => handlePrintOrder(order)}
+                            title="Print Proforma Invoice"
+                            disabled={printLoadingId === order.id}
+                          >
+                            {printLoadingId === order.id ? <FaSpinner className="spinning" size={12} /> : <FaPrint size={12} />}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {/* Pagination Bar */}
+              <div className="pq-pagination-bar">
+                <div className="pq-pagination-left">
+                  <span>Show:</span>
+                  <select value={pageSize} onChange={handlePageSizeChange}>
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                  <span>
+                    Showing {startIndex} to {endIndex} of {totalRecords} entries
+                  </span>
+                </div>
+
+                <div className="pq-pagination-center">
+                  <button
+                    className="pq-page-btn arrow"
+                    onClick={() => goToPage(currentPage - 1)}
+                    disabled={currentPage === 1}
+                  >
+                    <FaChevronLeft size={12} />
+                  </button>
+                  
+                  {getPageNumbers().map(page => (
+                    <button
+                      key={page}
+                      className={`pq-page-btn ${page === currentPage ? 'active' : ''}`}
+                      onClick={() => goToPage(page)}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                  
+                  <button
+                    className="pq-page-btn arrow"
+                    onClick={() => goToPage(currentPage + 1)}
+                    disabled={currentPage === totalPages || totalPages === 0}
+                  >
+                    <FaChevronRight size={12} />
+                  </button>
+                </div>
+
+                <div className="pq-pagination-right">
+                  <span>Page {currentPage} of {totalPages}</span>
+                </div>
+              </div>
+            </>
           )}
         </div>
       )}
@@ -2233,7 +2402,7 @@ export default function ProformaInvoice() {
       <div className="pq-pagination">
         <div className="pq-pagination-left">
           <span className="pq-pagination-info">
-            {filteredOrders.length} of {allSalesOrders.length} proformas
+            {salesOrders.length} proformas on page {currentPage}
           </span>
         </div>
         <div className="pq-pagination-right">
@@ -2309,7 +2478,6 @@ export default function ProformaInvoice() {
                   <div style={{ padding: '2px 0' }}><strong>State:</strong> {selectedOrder.customerState || 'N/A'}{selectedOrder.customerStateCode ? ` (Code: ${selectedOrder.customerStateCode})` : ''}</div>
                 </div>
                 <div style={{ fontSize: '13px', marginBottom: '16px' }}>
-                  {/* ✅ USE FORMATTED DATES FOR DISPLAY */}
                   <div style={{ padding: '2px 0' }}><strong>Date:</strong> {selectedOrder.date ? formatDisplayDate(selectedOrder.date) : 'N/A'}</div>
                   <div style={{ padding: '2px 0' }}><strong>Valid Until:</strong> {selectedOrder.deliveryDate ? formatDisplayDate(selectedOrder.deliveryDate) : 'N/A'}</div>
                   <div style={{ padding: '2px 0' }}><strong>Order Type:</strong> {selectedOrder.orderType}</div>
