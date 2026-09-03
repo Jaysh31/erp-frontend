@@ -2546,9 +2546,9 @@ export default function CreateQuotation() {
             <FaArrowLeft size={13} /> Back
           </button>
           <div className="cq-header-divider" />
-          <h1 className="cq-header-title">
+          {/*<h1 className="cq-header-title">
             {isEditMode ? 'Edit Quotation' : 'Create Quotation'}
-          </h1>
+          </h1>*/}
           {isEditMode && id && (
             <span className="cq-header-id">#{id}</span>
           )}

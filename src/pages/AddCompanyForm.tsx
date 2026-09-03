@@ -822,9 +822,9 @@ const AddCompanyForm: React.FC = () => {
           <button type="button" onClick={handleCancel} className="acf-back-btn">
             <FaArrowLeft size={12} /> Back
           </button>
-          <h1 className="acf-title">
+          {/*<h1 className="acf-title">
             {isEditMode ? "Edit Company" : "New Company"}
-          </h1>
+          </h1>*/}
 
           {apiError && (
             <div className="acf-error-pill">

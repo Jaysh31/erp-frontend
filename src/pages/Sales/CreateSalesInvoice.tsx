@@ -4654,7 +4654,7 @@ if (isEditMode && id) {
             <FaArrowLeft size={13} /> Back
           </button>
           <div className="nsb-header-divider" />
-          <h1 className="nsb-header-title">{pageTitle}</h1>
+          {/*<h1 className="nsb-header-title">{pageTitle}</h1>*/}
           {selectedDeliveryChallans.length > 0 && (
             <span className="nsb-dc-count">
               ({selectedDeliveryChallans.length} DCs selected)

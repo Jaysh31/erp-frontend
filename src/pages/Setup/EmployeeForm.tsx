@@ -204,6 +204,10 @@ export default function EmployeeForm() {
     }
   };
 
+  const handleCancel = () => {
+    navigate("/employee");
+  };
+
   const validate = (): ValidationError[] => {
     const errors: ValidationError[] = [];
     if (!formData.first_name.trim()) errors.push({ field: "first_name", label: "First Name", message: "First name is required" });
@@ -303,11 +307,11 @@ export default function EmployeeForm() {
 
         {/* Header */}
         <div className="empf-header">
-          <button onClick={() => navigate("/employee")} className="back-btn">
-            <FaArrowLeft size={20} />
+          <button onClick={handleCancel} className="pof-back-btn">
+            <FaArrowLeft size={9} /> Back
           </button>
           <div className="header-title">
-            <h1>{isNew ? "Add New Employee" : `Edit: ${formData.employee_name || formData.employee}`}</h1>
+            {/*<h1>{isNew ? "Add New Employee" : `Edit: ${formData.employee_name || formData.employee}`}</h1>*/}
             {!isNew && <span className="empf-status-badge">{formData.status}</span>}
           </div>
         </div>

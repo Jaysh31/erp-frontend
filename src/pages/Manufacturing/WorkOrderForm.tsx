@@ -2831,7 +2831,7 @@ export default function WorkOrderForm() {
           <button type="button" onClick={() => navigate("/work-order")} className="wof-back-btn">
             <FaArrowLeft size={12} /> Back
           </button>
-          <h1 className="wof-title">{isNew ? "New Work Order" : `Edit: ${wo.item_name || wo.name}`}</h1>
+          {/*<h1 className="wof-title">{isNew ? "New Work Order" : `Edit: ${wo.item_name || wo.name}`}</h1>*/}
           {!isNew && <span className={`wof-status-badge ${STATUS_CLASS[wo.status]}`}>{wo.status}</span>}
           {apiError && (
             <div className="wof-error-pill">

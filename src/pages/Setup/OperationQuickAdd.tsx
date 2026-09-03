@@ -417,7 +417,7 @@ export default function OperationForm() {
             <FaArrowLeft size={18} />
             <span>Back</span>
           </button>
-          <h1>{title}</h1>
+          {/*<h1>{title}</h1>*/}
           <div className="opf-header-actions">
             {isViewMode && (
               <button 

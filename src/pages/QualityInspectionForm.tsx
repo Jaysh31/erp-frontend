@@ -2489,7 +2489,7 @@ export default function QualityInspectionForm() {
           <button type="button" className="qir-back-btn" onClick={handleBack}>
             <FaArrowLeft size={12} /> Back
           </button>
-          <h1 className="qir-title"><FaClipboardCheck size={15} /> {isViewMode ? 'View Inspection Report' : isEditMode ? 'Edit Inspection Report' : 'New Inspection Report'}</h1>
+          {/*<h1 className="qir-title"><FaClipboardCheck size={15} /> {isViewMode ? 'View Inspection Report' : isEditMode ? 'Edit Inspection Report' : 'New Inspection Report'}</h1>*/}
 
           {apiError && (
             <div className="qir-error-pill">

@@ -724,9 +724,9 @@ const LeadForm: React.FC = () => {
           <button type="button" onClick={() => navigate("/lead")} className="jcf-back-btn">
             <FaArrowLeft size={12} /> Back
           </button>
-          <h1 className="jcf-title">
+          {/*<h1 className="jcf-title">
             {isEditMode ? "Edit Lead" : "New Lead"}
-          </h1>
+          </h1>*/}
 
           {apiError && (
             <div className="jcf-error-pill">
