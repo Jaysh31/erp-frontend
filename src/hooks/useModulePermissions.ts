@@ -1,5 +1,6 @@
 // src/hooks/useModulePermissions.ts
 
+import { useState, useEffect } from 'react';
 import { storage } from '../utils/storage';
 
 export interface SubModulePermission {
@@ -82,8 +83,44 @@ export const SUBMODULE_MAP: Record<string, number> = {
 };
 
 export function useModulePermissions() {
-  const modules = storage.getModules();
-  const user = storage.getUser();
+  const [isLoading, setIsLoading] = useState(true);
+  const [modules, setModules] = useState(storage.getModules() || []);
+  const [user, setUser] = useState(storage.getUser());
+
+  // Reload modules when auth state changes
+  useEffect(() => {
+    const loadPermissions = () => {
+      setIsLoading(true);
+      try {
+        const authData = storage.getAuthData();
+        if (authData) {
+          setModules(authData.modules || []);
+          setUser(authData.user || null);
+        } else {
+          setModules([]);
+          setUser(null);
+        }
+      } catch (error) {
+        console.error('Error loading permissions:', error);
+        setModules([]);
+        setUser(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadPermissions();
+
+    // Listen for storage changes (in case of login/logout in other tabs)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'auth_data') {
+        loadPermissions();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
 
   // Check if a module is accessible
   const hasModule = (moduleName: string): boolean => {
@@ -253,6 +290,7 @@ export function useModulePermissions() {
   return {
     modules,
     user,
+    isLoading,
     hasModule,
     hasSubModule,
     getSubModules,

@@ -19,8 +19,7 @@ import {
   FaWarehouse, 
   FaFileInvoice, 
   FaBox, 
-  FaBoxes, 
-  FaFilter, 
+ 
   FaPhone, 
   FaEnvelope, 
   FaMapMarkerAlt, 
@@ -33,8 +32,7 @@ import {
   FaMoneyBillWave, 
   FaGlobeAsia, 
   FaBuilding, 
-  FaTimes, 
-  FaStickyNote, 
+ 
 } from 'react-icons/fa'; 
 import "./GRNForm.css"; 
 import { useAdminTheme } from '../admin-theme/AdminThemeContext'; 
@@ -380,10 +378,6 @@ interface ItemMaster {
   HSN?: string; 
 } 
  
-interface ItemMasterApiResponse { 
-  success: number; 
-  data: ItemMaster[]; 
-} 
  
 interface TaxType { 
   tax_id: number; 
@@ -588,7 +582,7 @@ export default function GRNForm() {
   // ─── Item Master & Portal States ─────────────────────────────────── 
   const [itemsMaster, setItemsMaster] = useState<ItemMaster[]>([]); 
   const [allItems, setAllItems] = useState<ItemMaster[]>([]); 
-  const [filteredItems, setFilteredItems] = useState<{ [key: number]: ItemMaster[] }>({}); 
+  const [, setFilteredItems] = useState<{ [key: number]: ItemMaster[] }>({}); 
   const [searchTerms, setSearchTerms] = useState<{ [key: number]: string }>({}); 
   const [showSuggestions, setShowSuggestions] = useState<{ [key: number]: boolean }>({}); 
   const [dropdownPositions, setDropdownPositions] = useState<{ [key: number]: { top: number; left: number; width: number } }>({}); 
@@ -597,13 +591,13 @@ export default function GRNForm() {
   const suggestionRefs = useRef<{ [key: number]: HTMLDivElement | null }>({}); 
  
   // ─── Item Group Filter ────────────────────────────────────────────── 
-  const [itemGroupFilter, setItemGroupFilter] = useState<string>('all'); 
-  const [itemGroups, setItemGroups] = useState<string[]>([]); 
+  const [itemGroupFilter] = useState<string>('all'); 
+  const [, setItemGroups] = useState<string[]>([]); 
  
   // ─── Add Item Popup Modal States ──────────────────────────────────── 
   const [showAddItemPopup, setShowAddItemPopup] = useState<boolean>(false); 
   const [activeRowIndex, setActiveRowIndex] = useState<number | null>(null); 
-  const [pendingItemSearch, setPendingItemSearch] = useState<string>(''); 
+  const [, setPendingItemSearch] = useState<string>(''); 
   const [addingItem, setAddingItem] = useState<boolean>(false); 
   const [newItem, setNewItem] = useState({ 
     item_name: '', 
@@ -618,7 +612,7 @@ export default function GRNForm() {
   }); 
  
   const [loadingItemsMaster, setLoadingItemsMaster] = useState(false); 
-  const [activeItemSearchIndex, setActiveItemSearchIndex] = useState<number | null>(null); 
+  const [, setActiveItemSearchIndex] = useState<number | null>(null); 
   const itemSearchDropdownRef = useRef<HTMLDivElement>(null); 
  
   // ─── Tax Types State ─────────────────────────────────────────────── 
@@ -630,12 +624,12 @@ export default function GRNForm() {
   const [loadingPOItems, setLoadingPOItems] = useState<{ [poId: number]: boolean }>({}); 
  
   // ─── PurchaseBillForm-style Item Search & Note Popover States ──────── 
-  const [itemSearch, setItemSearch] = useState<string>(''); 
-  const [selectedItemRowIndex, setSelectedItemRowIndex] = useState<number | null>(null); 
-  const [showItemDropdown, setShowItemDropdown] = useState<boolean>(false); 
-  const [notePopoverIndex, setNotePopoverIndex] = useState<number | null>(null); 
-  const [, setItemCodeOptions] = useState<ItemMaster[]>([]); 
-  const [, setLoadingItemCode] = useState<boolean>(false); 
+  const [, setItemSearch] = useState<string>(''); 
+  const [, setSelectedItemRowIndex] = useState<number | null>(null); 
+  const [, setShowItemDropdown] = useState<boolean>(false); 
+  const [] = useState<number | null>(null); 
+  const [] = useState<ItemMaster[]>([]); 
+  const [] = useState<boolean>(false); 
  
   // ─── Fetch Warehouses ────────────────────────────────────────────── 
   const fetchWarehouses = async () => { 
@@ -749,25 +743,8 @@ export default function GRNForm() {
   }; 
  
   // ─── Fetch Item Code Options (Purchase Order style API) ───────────── 
-  const fetchItemCodeOptions = async () => { 
-    setLoadingItemCode(true); 
-    try { 
-      const response = await api.get('/item?page=1&limit=10'); 
-      if (response.data && response.data.success === 1) { 
-        const items = response.data.data?.records || response.data.data || []; 
-        setItemCodeOptions(items); 
-      } 
-    } catch (err) { 
-      console.error('Error fetching item codes:', err); 
-    } finally { 
-      setLoadingItemCode(false); 
-    } 
-  }; 
  
   // ─── Fetch All Items (alias matching PurchaseOrderForm) ───────────── 
-  const fetchAllItems = async () => { 
-    return await fetchItemsMaster(); 
-  }; 
  
   // ─── Fetch Tax Types ──────────────────────────────────────────────── 
   // FIX: same pattern as fetchItemsMaster — return the fetched array 
@@ -1074,18 +1051,7 @@ export default function GRNForm() {
     return matchesSearch && matchesSupplier; 
   }); 
  
-  const activeItemSearchTerm = activeItemSearchIndex !== null 
-    ? (formData.items[activeItemSearchIndex]?.itemName || '') 
-    : ''; 
  
-  const filteredItemsMaster = itemsMaster.filter(im => { 
-    if (im.disabled) return false; 
-    const searchLower = (activeItemSearchTerm || '').toLowerCase(); 
-    if (!searchLower) return true; 
-    const itemName = (im.item_name || '').toLowerCase(); 
-    const itemCode = (im.item_code || '').toLowerCase(); 
-    return itemName.includes(searchLower) || itemCode.includes(searchLower); 
-  }); 
  
   // ─── Update Dropdown Position for Portal ─────────────────────────── 
   const updateDropdownPosition = (index: number) => { 
@@ -1736,16 +1702,6 @@ export default function GRNForm() {
   }; 
  
   // ─── Filtered Items for in-table dropdown search (PurchaseBillForm style) ─── 
-  const filteredItemsList = (allItems.length > 0 ? allItems : itemsMaster).filter(item => { 
-    if (!itemSearch) return true; 
-    const search = itemSearch.toLowerCase().trim(); 
-    return ( 
-      (item.item_code || '').toLowerCase().includes(search) || 
-      (item.item_name || '').toLowerCase().includes(search) || 
-      (item.item_group || '').toLowerCase().includes(search) || 
-      (item.description || '').toLowerCase().includes(search) 
-    ); 
-  }); 
  
   // ─── Handle item selection from suggestions ────────────────────── 
   const handleSelectItem = (index: number, item: ItemMaster) => { 
@@ -1886,9 +1842,6 @@ export default function GRNForm() {
     } 
   }; 
  
-  const handleItemMasterSelect = (index: number, master: ItemMaster) => { 
-    handleSelectItem(index, master); 
-  }; 
  
   const handleItemTaxChange = (index: number, taxId: number) => { 
     const tax = taxTypes.find(t => t.tax_id === taxId); 

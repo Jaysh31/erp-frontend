@@ -2,10 +2,9 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   FaSearch, FaPlus, FaEye, FaTrash, FaFilePdf, FaPrint,
-  FaFilter, FaCheckCircle, FaClock, FaTimesCircle,
-  FaFileAlt, FaExternalLinkAlt,
+  FaFilter,
   FaChartLine, FaTimes, FaSpinner, FaBoxOpen, FaEnvelope,
-  FaFileInvoice, FaBuilding, FaBan, FaCalendarAlt,
+  FaCalendarAlt,
   FaChevronLeft, FaChevronRight
 } from 'react-icons/fa';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';

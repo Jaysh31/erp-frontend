@@ -76,22 +76,6 @@ const mapApiRowToFormCompany = (row: CompanyRow) => ({
   is_group: row.is_group === 1 || row.is_group === true,
 });
 
-const formatTimeAgo = (dateStr?: string | null): string => {
-  if (!dateStr) return "-";
-  const then = new Date(dateStr).getTime();
-  if (isNaN(then)) return "-";
-  const diffMs = Date.now() - then;
-  const mins = Math.floor(diffMs / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h`;
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d`;
-  const months = Math.floor(days / 30);
-  if (months < 12) return `${months}mo`;
-  return `${Math.floor(months / 12)}y`;
-};
 
 export default function CompanyList() {
   const navigate = useNavigate();

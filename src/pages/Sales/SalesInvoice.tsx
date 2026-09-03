@@ -3,7 +3,6 @@ import {
   FaPlus, 
   FaSearch, 
   FaFilter, 
-  FaPrint,
   FaEye,
   FaEdit,
   FaPrint as FaPrintIcon,
@@ -26,7 +25,6 @@ import {
   FaClock,
   FaTimesCircle,
   FaCalendarAlt,
-  FaDownload,
 } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
@@ -197,18 +195,6 @@ const numberToIndianWords = (value: number): string => {
   return out.trim();
 };
 
-const formatPrintDate = (date: string, formatFn?: (date: string) => string): string => {
-  if (!date) return '';
-  if (formatFn) {
-    return formatFn(date);
-  }
-  const d = new Date(date);
-  if (isNaN(d.getTime())) return date;
-  const day = String(d.getDate()).padStart(2, '0');
-  const month = d.toLocaleString('en-US', { month: 'short' });
-  const year = String(d.getFullYear()).slice(-2);
-  return `${day}-${month}-${year}`;
-};
 
 
 const escapeHtml = (val: unknown): string => {
@@ -247,7 +233,7 @@ const SalesInvoice: React.FC = () => {
   const printWindowRef = useRef<Window | null>(null); // ✅ Track print window
   
  
-  const { theme, formatDate, getApiDateFormat } = useAdminTheme();
+  const { theme, formatDate } = useAdminTheme();
 
   
   // ===== STATE =====
@@ -262,8 +248,8 @@ const SalesInvoice: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [printLoadingId, setPrintLoadingId] = useState<string | null>(null);
-  const [downloadLoading, setDownloadLoading] = useState(false);
-  const [companyData, setCompanyData] = useState<Company | null>(null);
+  const [, setDownloadLoading] = useState(false);
+  const [, setCompanyData] = useState<Company | null>(null);
 
   // ===== DATE FILTER STATES =====
   const [fromDate, setFromDate] = useState<string>('');
@@ -282,9 +268,6 @@ const SalesInvoice: React.FC = () => {
     return formatDate(dateString);
   };
 
-  const toApiDateFormat = (date: Date) => {
-    return getApiDateFormat(date);
-  };
 
   // ===== FETCH COMPANY DETAILS =====
   const fetchCompanyDetails = async () => {
