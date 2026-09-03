@@ -16,6 +16,7 @@ import toast from 'react-hot-toast';
 import api from '../../services/api';
 import ReactDOM from 'react-dom';
 
+
 /* ─────────────────────────── Types ─────────────────────────── */
 
 type StockStatus = 'checking' | 'available' | 'insufficient' | 'unknown' | undefined;
@@ -47,8 +48,11 @@ interface Product {
   unit: string;
   rate: number;
   tax: number;
+  tax_id?: number;
+  tax_type?: string;
   stockUom?: string;
   standardRate?: number;
+  basePrice?: number;
   creation?: string;
   modified?: string;
   modified_by?: string;
@@ -60,6 +64,10 @@ interface Product {
   uom?: string;
   net_rate?: number;
   net_amount?: number;
+  rawItem?: any;
+  rawTaxId?: any;
+  rawTaxType?: any;
+  rawTaxRate?: any;
 }
 
 interface SalesOrderItem {
@@ -72,6 +80,7 @@ interface SalesOrderItem {
   stockUom: string;
   tax: number;
   tax_id?: number;
+  tax_type?: string;
   amount: number;
   taxAmount: number;
   totalAmount: number;
@@ -294,7 +303,7 @@ function useDropdownPosition(isOpen: boolean, triggerRef: React.RefObject<HTMLDi
 // ===== SEARCHABLE PRODUCT SELECT COMPONENT =====
 interface SearchableSelectProps {
   value: string;
-  onChange: (value: string) => void;
+  onChange: (value: string, selectedProduct?: Product) => void;
   options: Product[];
   placeholder?: string;
   disabled?: boolean;
@@ -373,7 +382,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
   };
 
   const handleSelect = (option: Product) => {
-    onChange(option.itemCode);
+    onChange(option.itemCode, option);
     setSearchTerm('');
     setIsOpen(false);
     if (inputRef.current) {
@@ -1488,25 +1497,110 @@ const generateSalesOrderName = (): string => {
   return `SAL-ORD-${year}-${suffix}`;
 };
 
-// Helper to get tax value from tax_id
-const getTaxValueFromId = (taxId: number | string | undefined, taxOptions: TaxOption[]): number => {
-  if (!taxId) return 0;
-  const id = typeof taxId === 'string' ? parseInt(taxId, 10) : taxId;
-  const taxOption = taxOptions.find(t => t.tax_id === id);
-  return taxOption ? extractTaxValue(taxOption.tax_type) : 0;
-};
+const DEFAULT_TAX_OPTIONS: TaxOption[] = [
+  { tax_id: 1, tax_type: 'GST 0%' },
+  { tax_id: 2, tax_type: 'GST 5%' },
+  { tax_id: 3, tax_type: 'GST 12%' },
+  { tax_id: 4, tax_type: 'GST 18%' },
+  { tax_id: 5, tax_type: 'GST 28%' },
+];
 
 // Helper to extract numeric tax value from tax_type
 const extractTaxValue = (taxType: string): number => {
   if (!taxType) return 0;
-  const match = taxType.match(/(\d+)/);
-  return match ? parseInt(match[0], 10) : 0;
+  const match = taxType.match(/(\d+(?:\.\d+)?)/);
+  return match ? parseFloat(match[0]) : 0;
+};
+
+// Helper to get tax value from tax_id
+const getTaxValueFromId = (taxId: number | string | undefined, taxOptions: TaxOption[] = []): number => {
+  if (taxId === undefined || taxId === null || taxId === '') return 0;
+  const opts = taxOptions && taxOptions.length > 0 ? taxOptions : DEFAULT_TAX_OPTIONS;
+  const idStr = String(taxId).trim();
+  const numId = Number(taxId);
+  const taxOption = opts.find(t => String(t.tax_id) === idStr || String((t as any).id) === idStr || t.tax_id === numId);
+  if (taxOption) {
+    return extractTaxValue(taxOption.tax_type || (taxOption as any).tax_name || '');
+  }
+  if (!isNaN(numId) && [0, 5, 12, 18, 28].includes(numId)) {
+    return numId;
+  }
+  return 0;
 };
 
 // Helper to get tax_id from tax rate value
-const getTaxIdFromRate = (taxRate: number, taxOptions: TaxOption[]): number | undefined => {
-  const taxOption = taxOptions.find(t => extractTaxValue(t.tax_type) === taxRate);
-  return taxOption?.tax_id;
+const getTaxIdFromRate = (taxRate: number, taxOptions: TaxOption[] = []): number | undefined => {
+  const opts = taxOptions && taxOptions.length > 0 ? taxOptions : DEFAULT_TAX_OPTIONS;
+  const taxOption = opts.find(t => extractTaxValue(t.tax_type || (t as any).tax_name || '') === taxRate);
+  return taxOption?.tax_id ?? (taxOption as any)?.id;
+};
+
+// Helper to resolve tax info from item master
+const getTaxRateFromItem = (item: any, taxOpts: TaxOption[] = []): { rate: number; tax_id?: number; tax_type?: string } => {
+  const opts = taxOpts && taxOpts.length > 0 ? taxOpts : DEFAULT_TAX_OPTIONS;
+  if (!item) return { rate: 0, tax_id: opts[0]?.tax_id || 1, tax_type: opts[0]?.tax_type || 'GST 0%' };
+
+  // 1. Direct tax_id check against options
+  const rawTaxId = item.tax_id ?? item.taxId ?? item.tax_type_id ?? item.rawTaxId;
+  if (rawTaxId !== undefined && rawTaxId !== null && rawTaxId !== '') {
+    const numTaxId = Number(rawTaxId);
+    const match = opts.find(t => t.tax_id === numTaxId || String(t.tax_id) === String(rawTaxId) || (t as any).id === numTaxId);
+    if (match) {
+      const typeStr = match.tax_type || (match as any).tax_name || (match as any).name || '';
+      return { rate: extractTaxValue(typeStr), tax_id: match.tax_id ?? (match as any).id, tax_type: typeStr };
+    }
+  }
+
+  // 2. Direct tax_type string check (e.g., "GST 18%", "GST18 (18%)", "GST18", "18%")
+  const rawTaxType = item.tax_type ?? item.taxType ?? item.tax_name ?? item.rawTaxType;
+  if (rawTaxType) {
+    const strType = String(rawTaxType).trim();
+    let match = opts.find(t => (t.tax_type || (t as any).tax_name || '').toLowerCase() === strType.toLowerCase());
+    if (match) {
+      const typeStr = match.tax_type || (match as any).tax_name || '';
+      return { rate: extractTaxValue(typeStr), tax_id: match.tax_id ?? (match as any).id, tax_type: typeStr };
+    }
+    const rateFromType = extractTaxValue(strType);
+    if (rateFromType > 0) {
+      match = opts.find(t => extractTaxValue(t.tax_type || (t as any).tax_name || '') === rateFromType);
+      if (match) {
+        const typeStr = match.tax_type || (match as any).tax_name || '';
+        return { rate: rateFromType, tax_id: match.tax_id ?? (match as any).id, tax_type: typeStr };
+      }
+      return { rate: rateFromType, tax_id: getTaxIdFromRate(rateFromType, opts), tax_type: `GST ${rateFromType}%` };
+    }
+  }
+
+  // 3. Direct tax rate / percentage check
+  const directRateRaw = item.tax ?? item.tax_rate ?? item.gst_rate ?? item.gst ?? item.tax_percent ?? item.taxPercentage ?? item.rawTaxRate;
+  if (directRateRaw !== undefined && directRateRaw !== null && directRateRaw !== '') {
+    const directRate = Number(directRateRaw);
+    if (!isNaN(directRate) && directRate >= 0) {
+      const match = opts.find(t => extractTaxValue(t.tax_type || (t as any).tax_name || '') === directRate);
+      if (match) {
+        const typeStr = match.tax_type || (match as any).tax_name || '';
+        return { rate: directRate, tax_id: match.tax_id ?? (match as any).id, tax_type: typeStr };
+      }
+      if (directRate > 0) {
+        return { rate: directRate, tax_id: getTaxIdFromRate(directRate, opts), tax_type: `GST ${directRate}%` };
+      }
+    }
+  }
+
+  // 4. If rawTaxId was given, check if it directly matches a percentage
+  if (rawTaxId !== undefined && rawTaxId !== null && rawTaxId !== '') {
+    const num = Number(rawTaxId);
+    if (!isNaN(num) && [0, 5, 12, 18, 28].includes(num)) {
+      const match = opts.find(t => extractTaxValue(t.tax_type || (t as any).tax_name || '') === num);
+      if (match) {
+        const typeStr = match.tax_type || (match as any).tax_name || '';
+        return { rate: num, tax_id: match.tax_id ?? (match as any).id, tax_type: typeStr };
+      }
+      return { rate: num, tax_id: num, tax_type: `GST ${num}%` };
+    }
+  }
+
+  return { rate: 0, tax_id: opts[0]?.tax_id || 1, tax_type: opts[0]?.tax_type || 'GST 0%' };
 };
 
 /* ═════ SUCCESS MODAL COMPONENT ═════ */
@@ -1803,26 +1897,18 @@ export default function CreateSalesOrder() {
       const response = await api.get('/item/get-tax');
       const data = response.data;
       if (data.success === 1 && Array.isArray(data.data)) {
-        setTaxOptions(data.data);
+        const normalized = data.data.map((t: any) => ({
+          tax_id: Number(t.tax_id ?? t.id),
+          tax_type: t.tax_type || t.tax_name || t.name || `GST ${extractTaxValue(t.tax_type || '')}%`,
+        }));
+        setTaxOptions(normalized.length > 0 ? normalized : DEFAULT_TAX_OPTIONS);
       } else {
-        setTaxOptions([
-          { tax_id: 1, tax_type: 'GST18' },
-          { tax_id: 2, tax_type: 'GST12' },
-          { tax_id: 3, tax_type: 'GST5' },
-          { tax_id: 4, tax_type: 'GST0' },
-          { tax_id: 5, tax_type: 'IGST18' },
-        ]);
+        setTaxOptions(DEFAULT_TAX_OPTIONS);
       }
       setTaxOptionsLoaded(true);
     } catch (error) {
       console.error('Error fetching tax options:', error);
-      setTaxOptions([
-        { tax_id: 1, tax_type: 'GST18' },
-        { tax_id: 2, tax_type: 'GST12' },
-        { tax_id: 3, tax_type: 'GST5' },
-        { tax_id: 4, tax_type: 'GST0' },
-        { tax_id: 5, tax_type: 'IGST18' },
-      ]);
+      setTaxOptions(DEFAULT_TAX_OPTIONS);
       setTaxOptionsLoaded(true);
     } finally {
       setLoadingTaxOptions(false);
@@ -1860,29 +1946,49 @@ export default function CreateSalesOrder() {
       const response = await api.get('/item?type=product&page=1&limit=100');
       const records = extractRecords(response.data);
 
-      const itemsData: Product[] = records.map((item: any) => ({
-        id: item.id?.toString() || item.name || '',
-        itemCode: item.item_code || item.name || '',
-        itemName: item.item_name || '',
-        hsn: item.HSN || item.hsn || '',
-        description: item.description || item.item_name || '',
-        unit: item.stock_uom || 'Nos',
-        rate: item.selling_price || 0,
-        tax: item.tax_rate || 0,
-        stockUom: item.stock_uom,
-        standardRate: item.standard_rate,
-        creation: item.creation,
-        modified: item.modified,
-        modified_by: item.modified_by,
-        fg_item: item.fg_item,
-        fg_item_qty: item.fg_item_qty,
-        item_id: item.id,
-        warehouse: item.warehouse,
-        transaction_date: item.transaction_date,
-        uom: item.uom,
-        net_rate: item.net_rate,
-        net_amount: item.net_amount,
-      }));
+      const itemsData: Product[] = records.map((item: any) => {
+        const stdRate = item.standard_rate !== undefined && item.standard_rate !== null && item.standard_rate !== ''
+          ? Number(item.standard_rate)
+          : (item.base_price !== undefined && item.base_price !== null && item.base_price !== ''
+              ? Number(item.base_price)
+              : undefined);
+        const rate = (stdRate !== undefined && !isNaN(stdRate) && stdRate > 0)
+          ? stdRate
+          : (Number(item.selling_price) || Number(item.rate) || 0);
+
+        const taxInfo = getTaxRateFromItem(item, taxOptions);
+
+        return {
+          id: item.id?.toString() || item.name || '',
+          itemCode: item.item_code || item.name || '',
+          itemName: item.item_name || '',
+          hsn: item.HSN || item.hsn || '',
+          description: item.description || item.item_name || '',
+          unit: item.stock_uom || 'Nos',
+          rate: rate,
+          tax: taxInfo.rate,
+          tax_id: taxInfo.tax_id,
+          tax_type: taxInfo.tax_type,
+          stockUom: item.stock_uom,
+          standardRate: stdRate,
+          basePrice: stdRate,
+          creation: item.creation,
+          modified: item.modified,
+          modified_by: item.modified_by,
+          fg_item: item.fg_item,
+          fg_item_qty: item.fg_item_qty,
+          item_id: item.id,
+          warehouse: item.warehouse,
+          transaction_date: item.transaction_date,
+          uom: item.uom,
+          net_rate: item.net_rate,
+          net_amount: item.net_amount,
+          rawItem: item,
+          rawTaxId: item.tax_id ?? item.taxId,
+          rawTaxType: item.tax_type ?? item.taxType,
+          rawTaxRate: item.tax_rate ?? item.gst_rate,
+        };
+      });
 
       setAllProducts(itemsData);
       setProducts(itemsData);
@@ -1895,7 +2001,7 @@ export default function CreateSalesOrder() {
 
   useEffect(() => {
     fetchAllItems();
-  }, []);
+  }, [taxOptionsLoaded]);
 
   const handleItemSearch = useCallback(async (searchTerm: string) => {
     if (!searchTerm.trim()) {
@@ -1907,35 +2013,55 @@ export default function CreateSalesOrder() {
       const response = await api.get(`/item?type=product&page=1&limit=50&search=${encodeURIComponent(searchTerm)}`);
       const records = extractRecords(response.data);
 
-      const itemsData: Product[] = records.map((item: any) => ({
-        id: item.id?.toString() || item.name || '',
-        itemCode: item.item_code || item.name || '',
-        itemName: item.item_name || '',
-        hsn: item.HSN || item.hsn || '',
-        description: item.description || item.item_name || '',
-        unit: item.stock_uom || 'Nos',
-        rate: item.selling_price || 0,
-        tax: item.tax_rate || 0,
-        stockUom: item.stock_uom,
-        standardRate: item.standard_rate,
-        creation: item.creation,
-        modified: item.modified,
-        modified_by: item.modified_by,
-        fg_item: item.fg_item,
-        fg_item_qty: item.fg_item_qty,
-        item_id: item.id,
-        warehouse: item.warehouse,
-        transaction_date: item.transaction_date,
-        uom: item.uom,
-        net_rate: item.net_rate,
-        net_amount: item.net_amount,
-      }));
+      const itemsData: Product[] = records.map((item: any) => {
+        const stdRate = item.standard_rate !== undefined && item.standard_rate !== null && item.standard_rate !== ''
+          ? Number(item.standard_rate)
+          : (item.base_price !== undefined && item.base_price !== null && item.base_price !== ''
+              ? Number(item.base_price)
+              : undefined);
+        const rate = (stdRate !== undefined && !isNaN(stdRate) && stdRate > 0)
+          ? stdRate
+          : (Number(item.selling_price) || Number(item.rate) || 0);
+
+        const taxInfo = getTaxRateFromItem(item, taxOptions);
+
+        return {
+          id: item.id?.toString() || item.name || '',
+          itemCode: item.item_code || item.name || '',
+          itemName: item.item_name || '',
+          hsn: item.HSN || item.hsn || '',
+          description: item.description || item.item_name || '',
+          unit: item.stock_uom || 'Nos',
+          rate: rate,
+          tax: taxInfo.rate,
+          tax_id: taxInfo.tax_id,
+          tax_type: taxInfo.tax_type,
+          stockUom: item.stock_uom,
+          standardRate: stdRate,
+          basePrice: stdRate,
+          creation: item.creation,
+          modified: item.modified,
+          modified_by: item.modified_by,
+          fg_item: item.fg_item,
+          fg_item_qty: item.fg_item_qty,
+          item_id: item.id,
+          warehouse: item.warehouse,
+          transaction_date: item.transaction_date,
+          uom: item.uom,
+          net_rate: item.net_rate,
+          net_amount: item.net_amount,
+          rawItem: item,
+          rawTaxId: item.tax_id ?? item.taxId,
+          rawTaxType: item.tax_type ?? item.taxType,
+          rawTaxRate: item.tax_rate ?? item.gst_rate,
+        };
+      });
 
       setProducts(itemsData);
     } catch (error) {
       console.error('Search error:', error);
     }
-  }, [allProducts]);
+  }, [allProducts, taxOptions]);
 
   // ─── load inventory ──────────────────────────
   const fetchInventory = async () => {
@@ -2696,12 +2822,7 @@ export default function CreateSalesOrder() {
       baseTotal,
       taxTotal,
       grandTotal,
-      roundedTotal
-    }));
-
-    // Update payment amounts based on grand total
-    setFormData(prev => ({
-      ...prev,
+      roundedTotal,
       paymentSchedule: prev.paymentSchedule.map(p => ({
         ...p,
         paymentAmount: (p.invoicePortion / 100) * roundedTotal
@@ -2722,87 +2843,134 @@ export default function CreateSalesOrder() {
     }
   };
 
-  const handleItemChange = (index: number, field: keyof SalesOrderItem, value: string | number) => {
+  const handleItemChange = (index: number, field: keyof SalesOrderItem, value: string | number, selectedProduct?: Product) => {
     const updatedItems = [...formData.items];
-    updatedItems[index] = {
-      ...updatedItems[index],
-      [field]: value
-    };
-
-    if (field === 'quantity' || field === 'rate') {
-      const quantity = field === 'quantity' ? Number(value) : updatedItems[index].quantity;
-      const rate = field === 'rate' ? Number(value) : updatedItems[index].rate;
-      const amount = quantity * rate;
-      const tax = updatedItems[index].tax || 0;
-      const taxAmount = (amount * tax) / 100;
-      updatedItems[index].amount = amount;
-      updatedItems[index].taxAmount = taxAmount;
-      updatedItems[index].totalAmount = amount + taxAmount;
-    }
+    const currentItem = updatedItems[index];
+    if (!currentItem) return;
 
     if (field === 'itemCode') {
-      const product = allProducts.find(p => p.itemCode === value);
+      const product = selectedProduct || allProducts.find(p => p.itemCode === value) || products.find(p => p.itemCode === value);
       if (product) {
-        const quantity = updatedItems[index].quantity || 1;
-        const rate = product.rate || 0;
+        const quantity = currentItem.quantity || 1;
+        const stdRate = (product.standardRate !== undefined && !isNaN(product.standardRate) && product.standardRate > 0)
+          ? product.standardRate
+          : (product.rate || 0);
+        const rate = stdRate;
         const amount = quantity * rate;
-        const tax = product.tax || 0;
-        const tax_id = getTaxIdFromRate(tax, taxOptions);
+        const taxInfo = getTaxRateFromItem(product.rawItem || product, taxOptions);
+        const tax = taxInfo.rate;
+        const tax_id = taxInfo.tax_id;
         const taxAmount = (amount * tax) / 100;
-
-        updatedItems[index].itemName = product.itemName || '';
-        updatedItems[index].hsn = product.hsn || '';
-        updatedItems[index].rate = rate;
-        updatedItems[index].stockUom = product.unit || 'Nos';
-        updatedItems[index].tax = tax;
-        updatedItems[index].tax_id = tax_id;
-        updatedItems[index].amount = amount;
-        updatedItems[index].taxAmount = taxAmount;
-        updatedItems[index].totalAmount = amount + taxAmount;
-        updatedItems[index].creation = product.creation;
-        updatedItems[index].modified = product.modified;
-        updatedItems[index].modified_by = product.modified_by;
-        updatedItems[index].fg_item = product.fg_item;
-        updatedItems[index].fg_item_qty = product.fg_item_qty;
-        updatedItems[index].item_id = product.item_id;
-        updatedItems[index].uom = product.uom;
-        updatedItems[index].net_rate = product.net_rate;
-        updatedItems[index].net_amount = product.net_amount;
-        updatedItems[index].warehouse = product.warehouse;
-        updatedItems[index].transaction_date = product.transaction_date;
+        const totalAmount = amount + taxAmount;
 
         const { status, availableQty } = getStockStatus(String(value), quantity);
-        updatedItems[index].stockStatus = status;
-        updatedItems[index].availableQty = availableQty;
+
+        updatedItems[index] = {
+          ...currentItem,
+          itemCode: product.itemCode,
+          itemName: product.itemName || '',
+          hsn: product.hsn || '',
+          quantity,
+          rate,
+          stockUom: product.unit || product.stockUom || 'Nos',
+          tax,
+          tax_id,
+          amount,
+          taxAmount,
+          totalAmount,
+          stockStatus: status,
+          availableQty,
+          creation: product.creation,
+          modified: product.modified,
+          modified_by: product.modified_by,
+          fg_item: product.fg_item,
+          fg_item_qty: product.fg_item_qty,
+          item_id: product.item_id,
+          uom: product.uom,
+          net_rate: product.net_rate,
+          net_amount: product.net_amount,
+          warehouse: product.warehouse,
+          transaction_date: product.transaction_date,
+        };
+      } else {
+        updatedItems[index] = {
+          ...currentItem,
+          itemCode: String(value)
+        };
       }
-    }
-
-    if (field === 'quantity') {
-      const itemCode = updatedItems[index].itemCode;
-      const quantity = Number(value);
-      const rate = updatedItems[index].rate || 0;
+    } else if (field === 'quantity') {
+      const quantity = Number(value) || 0;
+      const rate = Number(currentItem.rate) || 0;
+      const tax = Number(currentItem.tax) || 0;
       const amount = quantity * rate;
-      const tax = updatedItems[index].tax || 0;
       const taxAmount = (amount * tax) / 100;
+      const totalAmount = amount + taxAmount;
 
-      updatedItems[index].amount = amount;
-      updatedItems[index].taxAmount = taxAmount;
-      updatedItems[index].totalAmount = amount + taxAmount;
+      const { status, availableQty } = getStockStatus(currentItem.itemCode, quantity);
 
-      const { status, availableQty } = getStockStatus(itemCode, quantity);
-      updatedItems[index].stockStatus = status;
-      updatedItems[index].availableQty = availableQty;
-    }
+      updatedItems[index] = {
+        ...currentItem,
+        quantity,
+        amount,
+        taxAmount,
+        totalAmount,
+        stockStatus: status,
+        availableQty,
+      };
+    } else if (field === 'rate') {
+      const rate = Number(value) || 0;
+      const quantity = Number(currentItem.quantity) || 0;
+      const tax = Number(currentItem.tax) || 0;
+      const amount = quantity * rate;
+      const taxAmount = (amount * tax) / 100;
+      const totalAmount = amount + taxAmount;
 
-    if (field === 'tax_id') {
-      const amount = updatedItems[index].amount || 0;
+      updatedItems[index] = {
+        ...currentItem,
+        rate,
+        amount,
+        taxAmount,
+        totalAmount,
+      };
+    } else if (field === 'tax_id') {
       const taxIdValue = value === '' || value === undefined || value === null ? undefined : Number(value);
-      const tax = taxIdValue ? getTaxValueFromId(taxIdValue, taxOptions) : 0;
+      const tax = taxIdValue !== undefined ? getTaxValueFromId(taxIdValue, taxOptions) : 0;
+      const quantity = Number(currentItem.quantity) || 0;
+      const rate = Number(currentItem.rate) || 0;
+      const amount = quantity * rate;
       const taxAmount = (amount * tax) / 100;
-      updatedItems[index].tax_id = taxIdValue;
-      updatedItems[index].tax = tax;
-      updatedItems[index].taxAmount = taxAmount;
-      updatedItems[index].totalAmount = amount + taxAmount;
+      const totalAmount = amount + taxAmount;
+
+      updatedItems[index] = {
+        ...currentItem,
+        tax_id: taxIdValue,
+        tax,
+        amount,
+        taxAmount,
+        totalAmount,
+      };
+    } else if (field === 'tax') {
+      const tax = Number(value) || 0;
+      const tax_id = getTaxIdFromRate(tax, taxOptions);
+      const quantity = Number(currentItem.quantity) || 0;
+      const rate = Number(currentItem.rate) || 0;
+      const amount = quantity * rate;
+      const taxAmount = (amount * tax) / 100;
+      const totalAmount = amount + taxAmount;
+
+      updatedItems[index] = {
+        ...currentItem,
+        tax_id,
+        tax,
+        amount,
+        taxAmount,
+        totalAmount,
+      };
+    } else {
+      updatedItems[index] = {
+        ...currentItem,
+        [field]: value
+      };
     }
 
     setFormData(prev => ({
@@ -2819,6 +2987,14 @@ export default function CreateSalesOrder() {
         ...prev.items,
         { id: newId, itemCode: '', itemName: '', hsn: '', quantity: 1, rate: 0, stockUom: 'Nos', tax: 0, tax_id: undefined, amount: 0, taxAmount: 0, totalAmount: 0 }
       ]
+    }));
+  };
+
+  const removeItemRow = (index: number) => {
+    if (formData.items.length <= 1) return;
+    setFormData(prev => ({
+      ...prev,
+      items: prev.items.filter((_, i) => i !== index)
     }));
   };
 
@@ -3119,6 +3295,23 @@ export default function CreateSalesOrder() {
         }
         .so-custom-scroll::-webkit-scrollbar-thumb:hover {
           background: var(--text-secondary, #94a3b8);
+        }
+
+        .so-remove-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 28px;
+          height: 28px;
+          background: transparent;
+          border: none;
+          color: #ef4444;
+          cursor: pointer;
+          border-radius: 4px;
+          transition: background-color 0.15s;
+        }
+        .so-remove-btn:hover {
+          background-color: #fee2e2;
         }
       `}</style>
 
@@ -3512,19 +3705,21 @@ export default function CreateSalesOrder() {
 
           {errors.items && <div className="so-items-error"><FaExclamationTriangle /> {errors.items}</div>}
 
-          <div className="so-table-wrap">
-            <table className="so-items-table">
+          <div className="ndc-table-wrap">
+            <table className="ndc-items-table">
               <thead>
                 <tr>
-                  <th className="so-col-sno">#</th>
-                  <th className="so-col-code">Item Code <span className="so-required">*</span></th>
-                  <th className="so-col-name">Item Name <span className="so-required">*</span></th>
-                  <th className="so-col-hsn">HSN</th>
-                  <th className="so-col-qty">Qty <span className="so-required">*</span></th>
-                  <th className="so-col-uom">UOM</th>
-                  <th className="so-col-rate">Rate</th>
-                  <th className="so-col-tax">Tax</th>
-                  <th className="so-col-amount">Amount</th>
+                  <th className="ndc-col-sno">#</th>
+                  <th className="ndc-col-code">Item Code <span className="so-required">*</span></th>
+                  <th className="ndc-col-name">Item Name <span className="so-required">*</span></th>
+                  <th className="ndc-col-hsn">HSN</th>
+                  <th className="ndc-col-qty">Qty <span className="so-required">*</span></th>
+                  <th className="ndc-col-uom">UOM</th>
+                  <th className="ndc-col-rate">Rate</th>
+                  <th className="ndc-col-tax">Tax</th>
+                  <th className="ndc-col-tax-amount" style={{ textAlign: 'right' }}>Tax Amount</th>
+                  <th className="ndc-col-amount" style={{ textAlign: 'right' }}>Total Amount</th>
+                  <th className="ndc-col-action"></th>
                 </tr>
               </thead>
               <tbody>
@@ -3534,7 +3729,7 @@ export default function CreateSalesOrder() {
                     <td className="so-col-code">
                       <SearchableSelect
                         value={item.itemCode}
-                        onChange={(value) => handleItemChange(index, 'itemCode', value)}
+                        onChange={(value, selectedProduct) => handleItemChange(index, 'itemCode', value, selectedProduct)}
                         options={products}
                         placeholder="Search..."
                         onSearch={handleItemSearch}
@@ -3603,22 +3798,46 @@ export default function CreateSalesOrder() {
                     </td>
                     <td className="so-col-tax">
                       <select
-                        value={item.tax_id ?? ''}
-                        onChange={(e) => handleItemChange(index, 'tax_id', e.target.value)}
+                        value={item.tax}
+                        onChange={(e) => handleItemChange(index, 'tax', Number(e.target.value))}
                         className="so-table-input"
                         ref={setItemRef(`item_${index}_tax`)}
                         disabled={loadingTaxOptions}
                       >
-                        <option value="">0%</option>
-                        {taxOptions.map((tax) => (
-                          <option key={tax.tax_id} value={tax.tax_id}>
-                            {tax.tax_type}
-                          </option>
-                        ))}
+                        {(taxOptions.length > 0 ? taxOptions : DEFAULT_TAX_OPTIONS).map((tax) => {
+                          const taxValue = extractTaxValue(tax.tax_type);
+                          return (
+                            <option key={tax.tax_id} value={taxValue}>
+                              {tax.tax_type}
+                            </option>
+                          );
+                        })}
+                        {item.tax !== undefined &&
+                          item.tax !== null &&
+                          !(taxOptions.length > 0 ? taxOptions : DEFAULT_TAX_OPTIONS).some(
+                            (t) => extractTaxValue(t.tax_type) === item.tax
+                          ) && (
+                            <option value={item.tax}>GST {item.tax}%</option>
+                          )}
                       </select>
                     </td>
-                    <td className="so-col-amount">
-                      <span className="so-table-value">₹{item.totalAmount.toFixed(2)}</span>
+                    <td className="so-col-tax-amount" style={{ textAlign: 'right' }}>
+                      <span className="so-table-value">₹{(item.taxAmount || 0).toFixed(2)}</span>
+                    </td>
+                    <td className="so-col-amount" style={{ textAlign: 'right' }}>
+                      <span className="so-table-value">₹{(item.totalAmount || 0).toFixed(2)}</span>
+                    </td>
+                    <td className="so-col-action">
+                      {formData.items.length > 1 && (
+                        <button
+                          type="button"
+                          className="so-remove-btn"
+                          onClick={() => removeItemRow(index)}
+                          title="Remove item"
+                        >
+                          <FaTrash size={11} />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

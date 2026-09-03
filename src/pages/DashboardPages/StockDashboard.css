@@ -305,4 +305,113 @@
   .stock-dashboard .transaction-item {
     flex-wrap: wrap;
   }
+}/* StockDashboard.css - Add these styles */
+
+/* ===== Loading State ===== */
+.dashboard-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  gap: 16px;
+  color: var(--text-secondary, #6B7280);
+}
+
+.dashboard-loading .spinning {
+  animation: spin 1s linear infinite;
+  color: var(--primary-color, #2563EB);
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.dashboard-loading h3 {
+  margin: 0;
+  color: var(--text-primary, #111827);
+}
+
+.dashboard-loading p {
+  margin: 0;
+  font-size: 14px;
+}
+
+/* ===== Error State ===== */
+.dashboard-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  gap: 12px;
+  text-align: center;
+  padding: 20px;
+}
+
+.dashboard-error h3 {
+  margin: 0;
+  color: var(--text-primary, #111827);
+}
+
+.dashboard-error p {
+  margin: 0;
+  color: var(--text-secondary, #6B7280);
+  max-width: 400px;
+}
+
+.dashboard-error .btn-primary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 24px;
+  border: none;
+  border-radius: 8px;
+  background: var(--primary-color, #2563EB);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.dashboard-error .btn-primary:hover {
+  background: var(--primary-hover, #1D4ED8);
+  transform: scale(1.02);
+}
+
+/* ===== Empty State ===== */
+.empty-state {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-secondary, #6B7280);
+  font-size: 14px;
+}
+
+/* ===== Live Badge ===== */
+.badge.live {
+  background: #22c55e;
+  color: white;
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* ===== Dark Theme Fixes ===== */
+.dark-theme .dashboard-loading h3,
+.dark-theme .dashboard-error h3 {
+  color: #F9FAFB;
+}
+
+.dark-theme .dashboard-loading p,
+.dark-theme .dashboard-error p {
+  color: #9CA3AF;
+}
+
+.dark-theme .empty-state {
+  color: #9CA3AF;
 }

@@ -210,6 +210,7 @@ const formatPrintDate = (date: string, formatFn?: (date: string) => string): str
   return `${day}-${month}-${year}`;
 };
 
+
 const escapeHtml = (val: unknown): string => {
   const s = val === null || val === undefined ? '' : String(val);
   return s
@@ -244,7 +245,9 @@ const SalesInvoice: React.FC = () => {
   const navigate = useNavigate();
   const menuRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
   
+ 
   const { theme, formatDate, getApiDateFormat } = useAdminTheme();
+
   
   // ===== STATE =====
   const [searchTerm, setSearchTerm] = useState('');
@@ -1952,6 +1955,14 @@ const SalesInvoice: React.FC = () => {
           background: var(--nav-hover, #f3f4f6);
         }
 
+        .qt-action-print {
+  color: #0d9488;
+}
+
+.qt-action-print:hover {
+  background: rgba(13, 148, 136, 0.1);
+}
+
         .qt-action-more {
           color: var(--text-secondary, #6b7280);
         }
@@ -2705,7 +2716,7 @@ const SalesInvoice: React.FC = () => {
                     <td className="qt-td">
                       <div className="qt-action-buttons">
                         <button 
-                          className="qt-action-btn" 
+                          className="qt-action-btn qt-action-print" 
                           onClick={() => handlePrint(item)} 
                           title="Print"
                           disabled={printLoadingId === String(item.id)}
