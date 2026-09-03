@@ -19,7 +19,6 @@ import './PurchaseInvoice.css';
 
 // ─── Date helpers ─────────────────────────────────────────────────
 
-// ✅ NEW: Format date for API (YYYY-MM-DD)
 const toISODate = (d: Date): string => {
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -27,7 +26,12 @@ const toISODate = (d: Date): string => {
   return `${year}-${month}-${day}`;
 };
 
-// ✅ UPDATED: Format display date using context (will be replaced in component)
+const formatDisplayDate = (iso: string): string => {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+};
 
 const WEEKDAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
@@ -39,7 +43,6 @@ interface RangeCalendarProps {
   fromDate: string;
   toDate: string;
   onSelect: (from: string, to: string) => void;
-  formatDisplayDateFn: (iso: string) => string;
 }
 
 function RangeCalendar({ month, onMonthChange, fromDate, toDate, onSelect }: RangeCalendarProps) {
@@ -159,9 +162,6 @@ interface PurchaseInvoice {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
-  // Formatted display fields
-  displayDate?: string;
-  displayDueDate?: string;
 }
 
 // API Response interface
@@ -200,8 +200,13 @@ interface ApiResponse {
 export default function PurchaseInvoice() {
   const navigate = useNavigate();
   
-  // ✅ GET THE DATE FORMAT FUNCTION FROM CONTEXT
-  const { theme, formatDate } = useAdminTheme();
+  let theme = 'light';
+  try {
+    const context = useAdminTheme();
+    theme = context.theme;
+  } catch (error) {
+    console.log('Using default light theme');
+  }
 
   const [filterText, setFilterText] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('All');
@@ -229,14 +234,6 @@ export default function PurchaseInvoice() {
   const [invoices, setInvoices] = useState<PurchaseInvoice[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
   const [suppliersList, setSuppliersList] = useState<string[]>([]);
-
-  // ✅ NEW: Format display date using context
-  const formatDisplayDateWithContext = (dateString: string) => {
-    if (!dateString) return '';
-    return formatDate(dateString);
-  };
-
-  // ✅ NEW: Format date for API (YYYY-MM-DD)
 
   // ─── Click outside handler ──────────────────────────────────────
 
@@ -282,10 +279,9 @@ export default function PurchaseInvoice() {
     setDateTo('');
   };
 
-  // ✅ UPDATED: Date button label using context formatter
   const dateButtonLabel = () => {
     if (dateFrom) {
-      return `${formatDisplayDateWithContext(dateFrom)}${dateTo ? ' – ' + formatDisplayDateWithContext(dateTo) : ''}`;
+      return `${formatDisplayDate(dateFrom)}${dateTo ? ' – ' + formatDisplayDate(dateTo) : ''}`;
     }
     return 'From - To';
   };
@@ -314,10 +310,7 @@ export default function PurchaseInvoice() {
       params.append('page', String(currentPage));
       params.append('limit', String(itemsPerPage));
 
-      if (filterText.trim()) {
-        params.append('search', filterText.trim());
-      }
-
+      // Date filters
       if (dateFrom) {
         params.append('date_from', dateFrom);
       }
@@ -331,7 +324,7 @@ export default function PurchaseInvoice() {
         const records = response.data.data.records || [];
         setTotalRecords(response.data.data.total || 0);
         
-        // ✅ TRANSFORM DATA WITH FORMATTED DATES
+        // Transform API data to component format
         const transformedInvoices: PurchaseInvoice[] = records.map((item: ApiPurchaseInvoice) => ({
           id: String(item.id),
           invoiceNumber: `PINV-${String(item.id).padStart(5, '0')}`,
@@ -348,14 +341,12 @@ export default function PurchaseInvoice() {
           itemsCount: item.items_count || 0,
           createdBy: item.created_by || 'System',
           createdAt: item.creation || new Date().toISOString(),
-          updatedAt: item.modified || new Date().toISOString(),
-          // ✅ ADD FORMATTED DATES FOR DISPLAY
-          displayDate: item.posting_date ? formatDisplayDateWithContext(item.posting_date) : '',
-          displayDueDate: item.due_date ? formatDisplayDateWithContext(item.due_date) : ''
+          updatedAt: item.modified || new Date().toISOString()
         }));
         
         setInvoices(transformedInvoices);
         
+        // Extract unique suppliers for filter
         const uniqueSuppliers = [...new Set(transformedInvoices.map(inv => inv.supplier))];
         setSuppliersList(uniqueSuppliers);
       } else {
@@ -372,18 +363,21 @@ export default function PurchaseInvoice() {
   // Fetch when dependencies change
   useEffect(() => {
     fetchPurchaseInvoices();
-  }, [currentPage, itemsPerPage, dateFrom, dateTo, filterText]);
+  }, [currentPage, itemsPerPage, dateFrom, dateTo]);
 
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [filterText, selectedStatus, selectedSupplier, dateFrom, dateTo]);
 
-  // Filter data based on search and status (only status and supplier since search is handled by API)
+  // Filter data based on search and status
   const filteredInvoices = invoices.filter(inv => {
+    const matchesSearch = inv.invoiceNumber.toLowerCase().includes(filterText.toLowerCase()) ||
+                         inv.supplier.toLowerCase().includes(filterText.toLowerCase()) ||
+                         inv.purchaseOrder.toLowerCase().includes(filterText.toLowerCase());
     const matchesStatus = selectedStatus === 'All' || inv.status === selectedStatus;
     const matchesSupplier = selectedSupplier === 'All' || inv.supplier === selectedSupplier;
-    return matchesStatus && matchesSupplier;
+    return matchesSearch && matchesStatus && matchesSupplier;
   });
 
   // Pagination calculations
@@ -520,16 +514,12 @@ export default function PurchaseInvoice() {
   return (
     <div className={`inv-page ${theme}-theme`}>
       {/* Header */}
-      <div className="inv-header">
+      {/*<div className="inv-header">
         <div className="inv-header-left">
           <h1 className="inv-title">Purchase Bill</h1>
           <span className="inv-badge">{totalRecords}</span>
         </div>
-        <div className="inv-header-actions">
-          <button className="inv-btn-primary" onClick={handleCreate}>
-            <FaPlus size={12} /> New Purchase Bill
-          </button>
-        </div>
+       
       </div>
 
       {/* Search and Filter Bar */}
@@ -550,6 +540,7 @@ export default function PurchaseInvoice() {
               </button>
             )}
           </div>
+          
         </div>
         <div className="inv-filter-right">
           <select 
@@ -603,13 +594,13 @@ export default function PurchaseInvoice() {
                     flex: 1, padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: '4px',
                     fontSize: '12px', color: dateFrom ? '#1a202c' : '#a0aec0'
                   }}>
-                    {dateFrom ? formatDisplayDateWithContext(dateFrom) : 'From'}
+                    {dateFrom ? formatDisplayDate(dateFrom) : 'From'}
                   </div>
                   <div style={{
                     flex: 1, padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: '4px',
                     fontSize: '12px', color: dateTo ? '#1a202c' : '#a0aec0'
                   }}>
-                    {dateTo ? formatDisplayDateWithContext(dateTo) : 'To'}
+                    {dateTo ? formatDisplayDate(dateTo) : 'To'}
                   </div>
                 </div>
 
@@ -639,6 +630,7 @@ export default function PurchaseInvoice() {
                     </button>
                   ))}
                 </div>
+                
 
                 {/* Calendar */}
                 <RangeCalendar
@@ -647,7 +639,6 @@ export default function PurchaseInvoice() {
                   fromDate={dateFrom}
                   toDate={dateTo}
                   onSelect={(from, to) => { setDateFrom(from); setDateTo(to); }}
-                  formatDisplayDateFn={formatDisplayDateWithContext}
                 />
 
                 <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '14px' }}>
@@ -696,6 +687,11 @@ export default function PurchaseInvoice() {
             Filter
           </button>
         </div>
+         <div className="inv-header-actions">
+          <button className="inv-btn-primary" onClick={handleCreate}>
+            <FaPlus size={12} /> New Purchase Bill
+          </button>
+        </div>
       </div>
 
       {/* API Error */}
@@ -727,8 +723,8 @@ export default function PurchaseInvoice() {
               <strong>Supplier:</strong> {selectedSupplier}
             </span>
           )}
-          {dateFrom && <span><strong>From:</strong> {formatDisplayDateWithContext(dateFrom)}</span>}
-          {dateTo && <span><strong>To:</strong> {formatDisplayDateWithContext(dateTo)}</span>}
+          {dateFrom && <span><strong>From:</strong> {dateFrom}</span>}
+          {dateTo && <span><strong>To:</strong> {dateTo}</span>}
           <button 
             onClick={clearFilters}
             className="inv-clear-filters"
@@ -774,10 +770,10 @@ export default function PurchaseInvoice() {
               <th className="inv-th">Balance</th>
               <th className="inv-th">Status</th>
               <th className="inv-th inv-th-meta">
-                <span className="inv-count-label">{/*{totalFilteredItems} of {totalRecords} </span>*/}
-                {totalFilteredItems > 0
+                <span className="inv-count-label">{/*{totalFilteredItems} of {totalRecords}</span>*/}
+                 {totalRecords > 0
                     ? `${(validCurrentPage - 1) * itemsPerPage + 1}–${Math.min(validCurrentPage * itemsPerPage, totalRecords)}`
-                    : '0'} of {totalFilteredItems}
+                    : '0'} of {totalRecords}
                 </span>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary, #9ca3af)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
@@ -810,45 +806,48 @@ export default function PurchaseInvoice() {
                   <td className="inv-td inv-td-id">
                     <div>
                       <div style={{ fontWeight: 600 }}>{inv.invoiceNumber}</div>
-                       {/*<div style={{ fontSize: '11px', opacity: 0.6 }}>PINV-{inv.id}</div>*/}
+                      {/*<div style={{ fontSize: '11px', opacity: 0.6 }}>PINV-{inv.id}</div>*/}
                     </div>
                   </td>
                   <td className="inv-td">{inv.supplier}</td>
-                  <td className="inv-td">{inv.displayDate || new Date(inv.date).toLocaleDateString()}</td>
+                  <td className="inv-td">{new Date(inv.date).toLocaleDateString()}</td>
                   <td className="inv-td">{inv.currency} {inv.totalAmount.toLocaleString()}</td>
                   <td className={`inv-td ${inv.balanceAmount > 0 && new Date(inv.dueDate) < new Date() ? 'inv-balance-overdue' : ''}`}>
                     {inv.currency} {inv.balanceAmount.toLocaleString()}
                   </td>
                   <td className="inv-td">
-                    <span className={`inv-status-badge ${getStatusColor(inv.status)}`}>
+                    <span className={`po-status-badge ${getStatusColor(inv.status)}`}>
                       {getStatusIcon(inv.status)}
                       {inv.status}
                     </span>
                   </td>
                   <td className="inv-td inv-td-meta">
-
+                   {/* <span className="inv-ago">{new Date(inv.createdAt).toLocaleDateString()}</span>*/}
+                    {/*<span className="inv-dot">·</span>*/}
                     <div className="inv-action-buttons">
                       <button 
-                        className="grn-action-btn grn-action-view" 
+                        className="inv-action-btn grn-action-view" 
                         onClick={(e) => handleView(inv, e)}
                         title="View"
                       >
                         <FaEye size={12} />
                       </button>
                       <button 
-                        className="grn-action-btn grn-action-edit" 
+                        className="inv-action-btn grn-action-edit" 
                         onClick={(e) => { e.stopPropagation(); handleEdit(inv); }}
                         title="Edit"
                       >
                         <FaEdit size={12} />
                       </button>
+                    
                       <button 
-                        className="grn-action-btn grn-action-delete" 
+                        className="inv-action-btn grn-action-delete" 
                         onClick={(e) => handleDelete(inv, e)}
                         title="Delete"
                       >
                         <FaTrash size={12} />
                       </button>
+                      
                     </div>
                   </td>
                 </tr>
@@ -940,8 +939,8 @@ export default function PurchaseInvoice() {
                   <h4>Invoice Details</h4>
                   <div className="inv-view-row"><label>Number:</label><span>{selectedInvoice.invoiceNumber}</span></div>
                   <div className="inv-view-row"><label>Status:</label><span className={`inv-status-badge ${getStatusColor(selectedInvoice.status)}`}>{selectedInvoice.status}</span></div>
-                  <div className="inv-view-row"><label>Date:</label><span>{selectedInvoice.displayDate || new Date(selectedInvoice.date).toLocaleDateString()}</span></div>
-                  <div className="inv-view-row"><label>Due Date:</label><span>{selectedInvoice.displayDueDate || new Date(selectedInvoice.dueDate).toLocaleDateString()}</span></div>
+                  <div className="inv-view-row"><label>Date:</label><span>{new Date(selectedInvoice.date).toLocaleDateString()}</span></div>
+                  <div className="inv-view-row"><label>Due Date:</label><span>{new Date(selectedInvoice.dueDate).toLocaleDateString()}</span></div>
                 </div>
                 <div className="inv-view-section">
                   <h4>Supplier Details</h4>
