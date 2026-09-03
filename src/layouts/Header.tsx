@@ -79,7 +79,13 @@ const PAGE_TITLES: Record<string, string> = {
   "/expenses/expense": "Expense",
   "/quotation": "Quotation",
   "/Workstation": "Workstation",
-  "/operations": "Operations"
+  "/operations": "Operations",
+  "/sales-bill": "Sales Bill",
+  "/sales-bill/new": "Add Sales Bill",
+  "/delivery-challan":"Delivery Challan",
+  "/delivery-challan/new":"Add Delivery Challan",
+  "/proforma-invoice": "Proforma Invoice",
+  "/proforma-invoice/new": "Proforma Invoice / Add Proforma Invoice",
 };
 
 // Module names for display

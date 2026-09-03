@@ -1253,7 +1253,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                 <Home size={13} />
               </button>
             </li>
-            <li className="nbom-breadcrumb__sep" aria-hidden><ChevronRight size={12} /></li>
+            {/*<li className="nbom-breadcrumb__sep" aria-hidden><ChevronRight size={12} /></li>
             <li className="nbom-breadcrumb__item">
               <button className="nbom-breadcrumb__link" onClick={onBack}>
                 Manufacturing
@@ -1271,7 +1271,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                 <span className="nbom-breadcrumb__current-dot" />
                 {editData ? 'Edit' : 'New'} BOM
               </span>
-            </li>
+            </li>*/}
           </ol>
         </nav>
         <div className="nbom-topbar__right">

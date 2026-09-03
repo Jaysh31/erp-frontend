@@ -4322,9 +4322,9 @@ const NewDeliveryChallan: React.FC = () => {
             <FaArrowLeft size={13} /> Back
           </button>
           <div className="ndc-header-divider" />
-          <h1 className="ndc-header-title">
+         {/*} <h1 className="ndc-header-title">
             {isViewMode ? 'View Delivery Challan' : isEditMode ? 'Edit Delivery Challan' : 'Create Delivery Challan'}
-          </h1>
+          </h1>*/}
           {isViewMode && (
             <span className="ndc-view-badge">View Only</span>
           )}
