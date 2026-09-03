@@ -189,13 +189,41 @@ export default function UserManagement() {
     if (!window.confirm('Are you sure you want to delete this user?')) return;
     
     try {
-      const response = await api.delete(`/user/${userId}`);
-      if (response.data.success === 1) {
+      // Try different possible endpoint patterns
+      let response;
+      
+      // Try with /user/{id} first
+      try {
+        response = await api.delete(`/user/${userId}`);
+      } catch (err: any) {
+        // If that fails, try alternative endpoints
+        if (err.response?.status === 404 || err.response?.status === 500) {
+          // Try with /users/{id}
+          try {
+            response = await api.delete(`/users/${userId}`);
+          } catch (err2: any) {
+            // Try with /user/delete/{id}
+            try {
+              response = await api.delete(`/user/delete/${userId}`);
+            } catch (err3: any) {
+              // Try with POST method for delete
+              response = await api.post(`/user/delete/${userId}`);
+            }
+          }
+        } else {
+          throw err;
+        }
+      }
+      
+      if (response?.data?.success === 1) {
         await fetchUsers();
+        alert('User deleted successfully');
+      } else {
+        alert(response?.data?.message || 'Failed to delete user');
       }
     } catch (err) {
       console.error('Error deleting user:', err);
-      alert('Failed to delete user');
+      alert('Failed to delete user. Please try again.');
     }
   };
 
@@ -339,8 +367,7 @@ export default function UserManagement() {
                       </span>
                     </td>
                     <td className="um-td um-td-meta">
-                      <span className="um-ago">{formatDate(user.creation)}</span>
-                      {/*<span className="um-dot">·</span>*/}
+
                       <div className="um-action-buttons">
                         <button 
                           className="um-action-btn um-action-edit" 

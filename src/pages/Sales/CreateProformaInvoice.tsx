@@ -24,9 +24,10 @@ import {
   FaExclamationCircle,
   FaQuestionCircle,
   FaFileAlt,
-  FaFileInvoice
+  FaFileInvoice,
+  FaEye
 } from 'react-icons/fa';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
@@ -852,9 +853,13 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
 const CreateProformaInvoice: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id?: string }>();
+  const location = useLocation();
   const { theme } = useAdminTheme();
   const [loadingExistingRecord, setLoadingExistingRecord] = useState<boolean>(false);
   const [recordLoaded, setRecordLoaded] = useState<boolean>(false);
+
+  // ✅ READ-ONLY MODE: Check if this is a view-only request
+  const isReadOnly = location.state?.readOnly === true;
 
   const [selectedCustomer, setSelectedCustomer] = useState<string>('');
   const [isService, setIsService] = useState<boolean>(false);
@@ -965,6 +970,7 @@ const CreateProformaInvoice: React.FC = () => {
 
   // ─── Apply Payment Template ──────────────────────────
   const applyPaymentTemplate = (templateId: string) => {
+    if (isReadOnly) return; // ✅ Prevent changes in read-only mode
     const template = paymentTermTemplates.find(t => t.id === templateId);
     if (!template) return;
 
@@ -994,6 +1000,7 @@ const CreateProformaInvoice: React.FC = () => {
 
   // ─── Payment Schedule CRUD ──────────────────────────
   const addPaymentSchedule = () => {
+    if (isReadOnly) return; // ✅ Prevent changes in read-only mode
     const newId = String(paymentSchedule.length + 1);
     setPaymentSchedule([
       ...paymentSchedule,
@@ -1011,11 +1018,13 @@ const CreateProformaInvoice: React.FC = () => {
   };
 
   const removePaymentSchedule = (index: number) => {
+    if (isReadOnly) return; // ✅ Prevent changes in read-only mode
     if (paymentSchedule.length <= 1) return;
     setPaymentSchedule(paymentSchedule.filter((_, i) => i !== index));
   };
 
   const updatePaymentRow = (index: number, patch: Partial<PaymentScheduleRow>) => {
+    if (isReadOnly) return; // ✅ Prevent changes in read-only mode
     const updated = [...paymentSchedule];
     updated[index] = { ...updated[index], ...patch };
     
@@ -1028,11 +1037,13 @@ const CreateProformaInvoice: React.FC = () => {
   };
 
   const handlePaymentDueDateChange = (index: number, dueDate: string) => {
+    if (isReadOnly) return; // ✅ Prevent changes in read-only mode
     const duration = daysBetween(proformaDate, dueDate);
     updatePaymentRow(index, { dueDate, durationDays: duration });
   };
 
   const handlePaymentDurationChange = (index: number, durationDays: number) => {
+    if (isReadOnly) return; // ✅ Prevent changes in read-only mode
     const dueDate = addDays(proformaDate, durationDays);
     updatePaymentRow(index, { durationDays, dueDate });
   };
@@ -1357,6 +1368,7 @@ const CreateProformaInvoice: React.FC = () => {
   }, [allProducts]);
 
   const handleCustomerChange = (customerId: string, customerData?: Customer) => {
+    if (isReadOnly) return; // ✅ Prevent changes in read-only mode
     setSelectedCustomer(customerId);
     if (customerId && customerData) {
       setCustomerData(customerData);
@@ -1366,6 +1378,7 @@ const CreateProformaInvoice: React.FC = () => {
   };
 
   const addItem = () => {
+    if (isReadOnly) return; // ✅ Prevent changes in read-only mode
     const newItem: ProformaItem = {
       id: Date.now().toString(),
       itemCode: '',
@@ -1391,6 +1404,7 @@ const CreateProformaInvoice: React.FC = () => {
   };
 
   const removeItem = (id: string) => {
+    if (isReadOnly) return; // ✅ Prevent changes in read-only mode
     if (items.length <= 1) {
       toast.error('At least one item is required');
       return;
@@ -1399,6 +1413,7 @@ const CreateProformaInvoice: React.FC = () => {
   };
 
   const updateItem = (id: string, field: keyof ProformaItem, value: any) => {
+    if (isReadOnly) return; // ✅ Prevent changes in read-only mode
     setItems(prevItems =>
       prevItems.map(item => {
         if (item.id === id) {
@@ -1528,6 +1543,7 @@ const CreateProformaInvoice: React.FC = () => {
   };
 
   const validateForm = (): boolean => {
+    if (isReadOnly) return true; // ✅ Skip validation in read-only mode
     const newErrors: { [key: string]: string } = {};
     if (!selectedCustomer) {
       newErrors.customer = 'Please select a Customer';
@@ -1542,6 +1558,7 @@ const CreateProformaInvoice: React.FC = () => {
   };
 
   const handleSubmit = async () => {
+    if (isReadOnly) return; // ✅ Prevent submission in read-only mode
     if (!validateForm()) return;
     setIsSubmitting(true);
     const toastId = toast.loading('Creating proforma invoice...');
@@ -1578,6 +1595,7 @@ const CreateProformaInvoice: React.FC = () => {
   };
 
   const handleSaveDraft = async () => {
+    if (isReadOnly) return; // ✅ Prevent draft save in read-only mode
     if (!validateForm()) return;
     setIsSubmitting(true);
     const toastId = toast.loading('Saving draft...');
@@ -1681,6 +1699,37 @@ const CreateProformaInvoice: React.FC = () => {
           scrollbar-color: var(--text-secondary, #cbd5e1) var(--border-color, #f1f5f9);
         }
 
+        /* ✅ Read-only mode styles */
+        .npi-readonly .npi-input,
+        .npi-readonly .npi-select,
+        .npi-readonly .npi-table-input,
+        .npi-readonly .npi-roundoff-input {
+          background: var(--input-bg, #f3f4f6) !important;
+          cursor: not-allowed !important;
+          opacity: 0.8;
+        }
+        .npi-readonly .npi-remove-btn,
+        .npi-readonly .npi-add-btn,
+        .npi-readonly .npi-add-payment-btn,
+        .npi-readonly .npi-form-footer button:not(.npi-btn-print) {
+          display: none !important;
+        }
+        .npi-readonly .npi-form-footer {
+          justify-content: flex-end !important;
+        }
+        .npi-readonly .npi-checkbox {
+          pointer-events: none !important;
+          opacity: 0.6;
+        }
+        .npi-readonly .npi-table-input[type="number"] {
+          -moz-appearance: textfield;
+        }
+        .npi-readonly .npi-table-input[type="number"]::-webkit-inner-spin-button,
+        .npi-readonly .npi-table-input[type="number"]::-webkit-outer-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+        }
+
         @media print {
           .npi-form-footer, button { display: none !important; }
           body { padding: 0; }
@@ -1707,8 +1756,22 @@ const CreateProformaInvoice: React.FC = () => {
           </button>
           <div className="npi-header-divider" />
           <h1 className="npi-header-title">
-            <FaFileInvoice className="npi-header-icon" /> Create Proforma Invoice
+            <FaFileInvoice className="npi-header-icon" /> 
+            {isReadOnly ? 'View Proforma Invoice' : 'Create Proforma Invoice'}
           </h1>
+          {isReadOnly && (
+            <span style={{ 
+              marginLeft: '12px', 
+              background: 'var(--primary-color, #2563eb)', 
+              color: '#fff', 
+              padding: '2px 12px', 
+              borderRadius: '12px', 
+              fontSize: '11px',
+              fontWeight: 600
+            }}>
+              <FaEye size={10} style={{ marginRight: '4px' }} /> Read Only
+            </span>
+          )}
         </div>
         <div className="npi-header-right">
           <label className="npi-checkbox-label">
@@ -1716,6 +1779,7 @@ const CreateProformaInvoice: React.FC = () => {
               type="checkbox"
               checked={isService}
               onChange={(e) => {
+                if (isReadOnly) return; // ✅ Prevent changes in read-only mode
                 setIsService(e.target.checked);
                 setItems(items.map(item => ({
                   ...item,
@@ -1723,14 +1787,15 @@ const CreateProformaInvoice: React.FC = () => {
                 })));
               }}
               className="npi-checkbox"
+              disabled={isReadOnly}
             />
             <span>IsService</span>
           </label>
         </div>
       </div>
 
-      {/* MAIN BOX */}
-      <div className="npi-main-box">
+      {/* MAIN BOX - Add read-only class */}
+      <div className={`npi-main-box ${isReadOnly ? 'npi-readonly' : ''}`}>
         {/* TWO COLUMN LAYOUT */}
         <div className="npi-compact-layout">
           {/* LEFT COLUMN */}
@@ -1750,7 +1815,7 @@ const CreateProformaInvoice: React.FC = () => {
                   value={selectedCustomer}
                   onChange={handleCustomerChange}
                   placeholder="Search Customer..."
-                  disabled={isLoading}
+                  disabled={isLoading || isReadOnly}
                   error={!!errors.customer}
                 />
                 {errors.customer && <span className="npi-error-text">{errors.customer}</span>}
@@ -1777,8 +1842,12 @@ const CreateProformaInvoice: React.FC = () => {
                   <input
                     type="date"
                     value={proformaDate}
-                    onChange={(e) => setProformaDate(e.target.value)}
+                    onChange={(e) => {
+                      if (isReadOnly) return; // ✅ Prevent changes in read-only mode
+                      setProformaDate(e.target.value);
+                    }}
                     className={`npi-input ${errors.proformaDate ? 'npi-input-error' : ''}`}
+                    disabled={isReadOnly}
                   />
                 </div>
               </div>
@@ -1791,22 +1860,28 @@ const CreateProformaInvoice: React.FC = () => {
                   <input
                     type="date"
                     value={validUntil}
-                    onChange={(e) => setValidUntil(e.target.value)}
+                    onChange={(e) => {
+                      if (isReadOnly) return; // ✅ Prevent changes in read-only mode
+                      setValidUntil(e.target.value);
+                    }}
                     className={`npi-input ${errors.validUntil ? 'npi-input-error' : ''}`}
+                    disabled={isReadOnly}
                   />
                 </div>
               </div>
             </div>
 
             <div className="npi-grid-3">
-             
-
               <div className="npi-field">
                 <label className="npi-label">Proforma Status</label>
                 <select
                   value={proformaStatus}
-                  onChange={(e) => setProformaStatus(e.target.value)}
+                  onChange={(e) => {
+                    if (isReadOnly) return; // ✅ Prevent changes in read-only mode
+                    setProformaStatus(e.target.value);
+                  }}
                   className="npi-select"
+                  disabled={isReadOnly}
                 >
                   <option value="Draft">Draft</option>
                   <option value="Confirmed">Confirmed</option>
@@ -1818,7 +1893,7 @@ const CreateProformaInvoice: React.FC = () => {
 
               <div className="npi-field">
                 <label className="npi-label">Currency</label>
-                <select className="npi-select" defaultValue="INR">
+                <select className="npi-select" defaultValue="INR" disabled={isReadOnly}>
                   <option value="INR">INR</option>
                   <option value="USD">USD</option>
                   <option value="EUR">EUR</option>
@@ -1894,9 +1969,11 @@ const CreateProformaInvoice: React.FC = () => {
             <span className="npi-items-title">
               <FaClipboardList className="npi-items-icon" /> {isService ? 'Services' : 'Products'}
             </span>
-            <button onClick={addItem} className="npi-add-btn">
-              <FaPlus size={9} /> Add
-            </button>
+            {!isReadOnly && (
+              <button onClick={addItem} className="npi-add-btn">
+                <FaPlus size={9} /> Add
+              </button>
+            )}
           </div>
 
           {errors.items && <div className="npi-items-error"><FaExclamationTriangle /> {errors.items}</div>}
@@ -1931,6 +2008,7 @@ const CreateProformaInvoice: React.FC = () => {
                         onSearch={handleItemSearch}
                         loading={isLoadingItems}
                         error={!!errors[`item_${index}_code`]}
+                        disabled={isReadOnly}
                       />
                     </td>
                     <td className="npi-col-name">
@@ -1940,6 +2018,8 @@ const CreateProformaInvoice: React.FC = () => {
                         onChange={(e) => updateItem(item.id, 'itemName', e.target.value)}
                         placeholder="Item Name"
                         className="npi-table-input npi-table-input-text"
+                        disabled={isReadOnly}
+                        readOnly={isReadOnly}
                       />
                     </td>
                     <td className="npi-col-hsn">
@@ -1949,6 +2029,8 @@ const CreateProformaInvoice: React.FC = () => {
                         onChange={(e) => updateItem(item.id, 'hsn', e.target.value)}
                         placeholder="HSN"
                         className="npi-table-input npi-table-input-text"
+                        disabled={isReadOnly}
+                        readOnly={isReadOnly}
                       />
                     </td>
                     <td className="npi-col-qty">
@@ -1958,6 +2040,8 @@ const CreateProformaInvoice: React.FC = () => {
                         onChange={(e) => updateItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
                         min="1"
                         className="npi-table-input"
+                        disabled={isReadOnly}
+                        readOnly={isReadOnly}
                       />
                     </td>
                     <td className="npi-col-unit">
@@ -1965,6 +2049,7 @@ const CreateProformaInvoice: React.FC = () => {
                         value={item.unit}
                         onChange={(e) => updateItem(item.id, 'unit', e.target.value)}
                         className="npi-table-input"
+                        disabled={isReadOnly}
                       >
                         <option value="pcs">Pcs</option>
                         <option value="kg">Kg</option>
@@ -1982,6 +2067,8 @@ const CreateProformaInvoice: React.FC = () => {
                         min="0"
                         step="0.01"
                         className="npi-table-input"
+                        disabled={isReadOnly}
+                        readOnly={isReadOnly}
                       />
                     </td>
                     <td className="npi-col-tax">
@@ -1989,7 +2076,7 @@ const CreateProformaInvoice: React.FC = () => {
                         value={item.tax}
                         onChange={(e) => updateItem(item.id, 'tax', parseFloat(e.target.value) || 0)}
                         className="npi-table-input"
-                        disabled={loadingTaxOptions}
+                        disabled={loadingTaxOptions || isReadOnly}
                       >
                         <option value={0}>0%</option>
                         {taxOptions.map((tax) => (
@@ -2006,9 +2093,11 @@ const CreateProformaInvoice: React.FC = () => {
                       <span className="npi-table-value">₹{item.totalAmount.toFixed(2)}</span>
                     </td>
                     <td className="npi-col-action">
-                      <button onClick={() => removeItem(item.id)} className="npi-remove-btn">
-                        <FaTrash size={12} />
-                      </button>
+                      {!isReadOnly && (
+                        <button onClick={() => removeItem(item.id)} className="npi-remove-btn">
+                          <FaTrash size={12} />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -2041,6 +2130,7 @@ const CreateProformaInvoice: React.FC = () => {
                   }}
                   className="npi-select"
                   style={{ minWidth: '200px' }}
+                  disabled={isReadOnly}
                 >
                   <option value="">Select Payment Terms...</option>
                   {paymentTermTemplates.map((template) => (
@@ -2049,18 +2139,20 @@ const CreateProformaInvoice: React.FC = () => {
                     </option>
                   ))}
                 </select>
-                <button
-                  type="button"
-                  className="npi-add-btn"
-                  onClick={() => {
-                    if (selectedPaymentTemplate) {
-                      applyPaymentTemplate(selectedPaymentTemplate);
-                    }
-                  }}
-                  style={{ whiteSpace: 'nowrap', padding: '5px 14px' }}
-                >
-                  <FaCopy size={9} /> Apply
-                </button>
+                {!isReadOnly && (
+                  <button
+                    type="button"
+                    className="npi-add-btn"
+                    onClick={() => {
+                      if (selectedPaymentTemplate) {
+                        applyPaymentTemplate(selectedPaymentTemplate);
+                      }
+                    }}
+                    style={{ whiteSpace: 'nowrap', padding: '5px 14px' }}
+                  >
+                    <FaCopy size={9} /> Apply
+                  </button>
+                )}
               </div>
             </div>
 
@@ -2089,6 +2181,8 @@ const CreateProformaInvoice: React.FC = () => {
                           onChange={(e) => updatePaymentRow(index, { paymentTerm: e.target.value })}
                           placeholder="Term"
                           className="npi-table-input npi-table-input-text"
+                          disabled={isReadOnly}
+                          readOnly={isReadOnly}
                         />
                       </td>
                       <td className="npi-payment-col-date">
@@ -2097,6 +2191,8 @@ const CreateProformaInvoice: React.FC = () => {
                           value={schedule.dueDate}
                           onChange={(e) => handlePaymentDueDateChange(index, e.target.value)}
                           className="npi-table-input"
+                          disabled={isReadOnly}
+                          readOnly={isReadOnly}
                         />
                       </td>
                       <td className="npi-payment-col-duration">
@@ -2106,6 +2202,8 @@ const CreateProformaInvoice: React.FC = () => {
                           onChange={(e) => handlePaymentDurationChange(index, Number(e.target.value) || 0)}
                           min="0"
                           className="npi-table-input"
+                          disabled={isReadOnly}
+                          readOnly={isReadOnly}
                         />
                       </td>
                       <td className="npi-payment-col-portion">
@@ -2116,13 +2214,15 @@ const CreateProformaInvoice: React.FC = () => {
                           min="0"
                           max="100"
                           className="npi-table-input"
+                          disabled={isReadOnly}
+                          readOnly={isReadOnly}
                         />
                       </td>
                       <td className="npi-payment-col-amount">
                         <span className="npi-table-value">₹{schedule.paymentAmount.toFixed(2)}</span>
                       </td>
                       <td className="npi-payment-col-action">
-                        {paymentSchedule.length > 1 && (
+                        {!isReadOnly && paymentSchedule.length > 1 && (
                           <button
                             type="button"
                             className="npi-remove-btn"
@@ -2138,9 +2238,11 @@ const CreateProformaInvoice: React.FC = () => {
               </table>
             </div>
 
-            <button type="button" className="npi-add-payment-btn" onClick={addPaymentSchedule}>
-              <FaPlus size={9} /> Add Schedule
-            </button>
+            {!isReadOnly && (
+              <button type="button" className="npi-add-payment-btn" onClick={addPaymentSchedule}>
+                <FaPlus size={9} /> Add Schedule
+              </button>
+            )}
 
             {/* Remarks */}
             <div className="npi-field" style={{ marginTop: '1rem' }}>
@@ -2149,8 +2251,13 @@ const CreateProformaInvoice: React.FC = () => {
                 type="text"
                 placeholder="Add notes..."
                 value={remarks}
-                onChange={(e) => setRemarks(e.target.value)}
+                onChange={(e) => {
+                  if (isReadOnly) return; // ✅ Prevent changes in read-only mode
+                  setRemarks(e.target.value);
+                }}
                 className="npi-input"
+                disabled={isReadOnly}
+                readOnly={isReadOnly}
               />
             </div>
           </div>
@@ -2186,8 +2293,13 @@ const CreateProformaInvoice: React.FC = () => {
                       <input
                         type="number"
                         value={roundOff.toFixed(2)}
-                        onChange={(e) => setRoundOff(parseFloat(e.target.value) || 0)}
+                        onChange={(e) => {
+                          if (isReadOnly) return; // ✅ Prevent changes in read-only mode
+                          setRoundOff(parseFloat(e.target.value) || 0);
+                        }}
                         className="npi-roundoff-input"
+                        disabled={isReadOnly}
+                        readOnly={isReadOnly}
                       />
                     </div>
                   </div>
@@ -2213,14 +2325,18 @@ const CreateProformaInvoice: React.FC = () => {
         <button onClick={() => window.print()} className="npi-btn npi-btn-print">
           <FaPrint size={11} /> Print
         </button>
-        <button onClick={handleSaveDraft} disabled={isSubmitting} className="npi-btn npi-btn-draft">
-          {isSubmitting ? <FaSpinner className="npi-spinning" size={11} /> : <FaSave size={11} />} Draft
-        </button>
-        <button onClick={handleSubmit} disabled={isSubmitting} className="npi-btn npi-btn-submit">
-          {isSubmitting ? <FaSpinner className="npi-spinning" size={11} /> : <FaPaperPlane size={11} />} Create Proforma
-        </button>
+        {!isReadOnly && (
+          <>
+            <button onClick={handleSaveDraft} disabled={isSubmitting} className="npi-btn npi-btn-draft">
+              {isSubmitting ? <FaSpinner className="npi-spinning" size={11} /> : <FaSave size={11} />} Draft
+            </button>
+            <button onClick={handleSubmit} disabled={isSubmitting} className="npi-btn npi-btn-submit">
+              {isSubmitting ? <FaSpinner className="npi-spinning" size={11} /> : <FaPaperPlane size={11} />} Create Proforma
+            </button>
+          </>
+        )}
         <button onClick={handleCancel} className="npi-btn npi-btn-cancel">
-          <FaTimes size={11} /> Cancel
+          <FaTimes size={11} /> {isReadOnly ? 'Close' : 'Cancel'}
         </button>
       </div>
     </div>

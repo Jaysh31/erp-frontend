@@ -275,7 +275,6 @@ export default function ProformaInvoice() {
   const { theme, formatDate } = useAdminTheme();
 
   const [filterText, setFilterText] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState('All');
   const [selectedOrderType, setSelectedOrderType] = useState('All');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -429,10 +428,6 @@ export default function ProformaInvoice() {
         params.append('search_by', 'all');
       }
 
-      if (selectedStatus !== 'All') {
-        params.append('status', selectedStatus);
-      }
-
       if (selectedOrderType !== 'All') {
         params.append('order_type', selectedOrderType);
       }
@@ -522,7 +517,7 @@ export default function ProformaInvoice() {
 
   useEffect(() => {
     fetchSalesOrders();
-  }, [debouncedFilterText, selectedStatus, selectedOrderType, fromDate, toDate]);
+  }, [debouncedFilterText, selectedOrderType, fromDate, toDate]);
 
   const fetchFullSalesOrderRecord = async (orderId: string): Promise<SalesOrderApiRecord | null> => {
     try {
@@ -615,30 +610,6 @@ export default function ProformaInvoice() {
     };
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Draft': return 'status-draft';
-      case 'Confirmed': return 'status-sent';
-      case 'On Hold': return 'status-expired';
-      case 'Completed': return 'status-accepted';
-      case 'Cancelled': return 'status-rejected';
-      case 'Closed': return 'status-converted';
-      default: return '';
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'Draft': return <FaFileAlt size={10} />;
-      case 'Confirmed': return <FaCheckCircle size={10} />;
-      case 'On Hold': return <FaClock size={10} />;
-      case 'Completed': return <FaCheckCircle size={10} />;
-      case 'Cancelled': return <FaTimesCircle size={10} />;
-      case 'Closed': return <FaExternalLinkAlt size={10} />;
-      default: return null;
-    }
-  };
-
   const filteredOrders = salesOrders;
 
   const totalAmount = salesOrders.reduce((sum, o) => sum + o.totalAmount, 0);
@@ -650,7 +621,8 @@ export default function ProformaInvoice() {
       toast.error('Unable to open this proforma — missing ID');
       return;
     }
-    navigate(`/proforma-invoice/${order.id}`, { state: { proforma: order } });
+    // Navigate to view mode (read-only)
+    navigate(`/proforma-invoice/${order.id}`, { state: { proforma: order, readOnly: true } });
   };
 
   const confirmDelete = async () => {
@@ -681,7 +653,6 @@ export default function ProformaInvoice() {
 
   const clearFilters = () => {
     setFilterText('');
-    setSelectedStatus('All');
     setSelectedOrderType('All');
     setFromDate('');
     setToDate('');
@@ -1673,23 +1644,6 @@ export default function ProformaInvoice() {
           margin-right: 2px;
         }
 
-        .pq-status-badge {
-          display: inline-flex;
-          align-items: center;
-          gap: 4px;
-          padding: 3px 10px;
-          border-radius: 12px;
-          font-size: 11px;
-          font-weight: 500;
-        }
-
-        .status-draft { background: #e5e7eb; color: #6b7280; }
-        .status-sent { background: #dbeafe; color: #2563eb; }
-        .status-expired { background: #fef3c7; color: #d97706; }
-        .status-accepted { background: #d1fae5; color: #059669; }
-        .status-rejected { background: #fecaca; color: #dc2626; }
-        .status-converted { background: #e0e7ff; color: #4f46e5; }
-
         .pq-action-buttons {
           display: flex;
           align-items: center;
@@ -2020,19 +1974,6 @@ export default function ProformaInvoice() {
             <option value="Return">Return</option>
             <option value="Credit Note">Credit Note</option>
           </select>
-          <select
-            value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value)}
-            className="pq-filter-select"
-          >
-            <option value="All">All Status</option>
-            <option value="Draft">Draft</option>
-            <option value="Confirmed">Confirmed</option>
-            <option value="On Hold">On Hold</option>
-            <option value="Completed">Completed</option>
-            <option value="Cancelled">Cancelled</option>
-            <option value="Closed">Closed</option>
-          </select>
 
           {/* Date Range Picker - Before New Proforma Button */}
           <div className="pq-date-picker-container">
@@ -2161,18 +2102,13 @@ export default function ProformaInvoice() {
       </div>
 
       {/* Active filters indicator */}
-      {(filterText || selectedStatus !== 'All' || selectedOrderType !== 'All' || fromDate || toDate) && (
+      {(filterText || selectedOrderType !== 'All' || fromDate || toDate) && (
         <div className="pq-active-filters">
           <FaFilter size={12} style={{ color: 'var(--primary-color)' }} />
           <span style={{ color: 'var(--text-primary)' }}>Active filters:</span>
           {filterText && (
             <span style={{ color: 'var(--text-primary)' }}>
               <strong>Search:</strong> "{filterText}"
-            </span>
-          )}
-          {selectedStatus !== 'All' && (
-            <span style={{ color: 'var(--text-primary)' }}>
-              <strong>Status:</strong> {selectedStatus}
             </span>
           )}
           {selectedOrderType !== 'All' && (
@@ -2227,7 +2163,6 @@ export default function ProformaInvoice() {
                   <th className="pq-th">Customer</th>
                   <th className="pq-th">Date</th>
                   <th className="pq-th">Order Type</th>
-                  <th className="pq-th">Status</th>
                   <th className="pq-th pq-text-right">Amount</th>
                   <th className="pq-th pq-th-meta">Actions</th>
                 </tr>
@@ -2252,19 +2187,13 @@ export default function ProformaInvoice() {
                       </div>
                     </td>
                     <td className="pq-td">{order.orderType}</td>
-                    <td className="pq-td">
-                      <span className={`pq-status-badge ${getStatusColor(order.status)}`}>
-                        {getStatusIcon(order.status)}
-                        {order.status}
-                      </span>
-                    </td>
                     <td className="pq-td pq-text-right pq-amount-cell">
                       <span className="pq-currency">{order.currency}</span>
                       {order.totalAmount.toLocaleString()}
                     </td>
                     <td className="pq-td pq-td-meta">
                       <div className="pq-action-buttons">
-                        <button className="jc-action-btn jc-action-view" onClick={() => handleView(order)} title="View ">
+                        <button className="pq-action-btn pq-action-view" onClick={() => handleView(order)} title="View Proforma">
                           <FaEye size={12} />
                         </button>
                         <button
@@ -2369,7 +2298,6 @@ export default function ProformaInvoice() {
                   <div style={{ padding: '2px 0' }}><strong>Date:</strong> {selectedOrder.date ? formatDisplayDate(selectedOrder.date) : 'N/A'}</div>
                   <div style={{ padding: '2px 0' }}><strong>Valid Until:</strong> {selectedOrder.deliveryDate ? formatDisplayDate(selectedOrder.deliveryDate) : 'N/A'}</div>
                   <div style={{ padding: '2px 0' }}><strong>Order Type:</strong> {selectedOrder.orderType}</div>
-                  <div style={{ padding: '2px 0' }}><strong>Status:</strong> {selectedOrder.status}</div>
                   <div style={{ padding: '2px 0' }}><strong>Currency:</strong> {selectedOrder.currency}</div>
                 </div>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', margin: '16px 0' }}>

@@ -101,8 +101,34 @@ interface ApiResponse {
   };
 }
 
-// ===== COMPANY DETAILS =====
-const companyDetails = {
+// ===== COMPANY INTERFACE =====
+interface Company {
+  id: number;
+  company_name: string;
+  abbr: string;
+  default_currency: string;
+  country: string;
+  tax_id?: string;
+  email?: string;
+  phone_no?: string;
+  website?: string;
+  bank_details?: BankDetail[];
+}
+
+interface BankDetail {
+  id: number;
+  bank_name: string;
+  branch_name: string;
+  account_number: string;
+  ifsc_code: string;
+  account_holder_name: string;
+  account_type: string;
+  currency: string;
+  is_primary: number;
+}
+
+// ===== COMPANY DETAILS (will be updated from API) =====
+let companyDetails = {
   name: 'Sculptor Tech Pvt Ltd',
   address: 'c-1006, gc, Pune, Maharashtra 411028, India',
   website: 'sculptortechpvtltd@gmail.com',
@@ -241,6 +267,7 @@ const DeliveryChallans: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [printLoadingId, setPrintLoadingId] = useState<string | null>(null);
   const [downloadLoading, setDownloadLoading] = useState(false);
+  const [companyData, setCompanyData] = useState<Company | null>(null);
 
   // Debounced search term
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
@@ -252,6 +279,63 @@ const DeliveryChallans: React.FC = () => {
   };
 
   // ✅ NEW: Format date for API (YYYY-MM-DD)
+
+  // ─── Fetch Company Details ──────────────────────────────
+  const fetchCompanyDetails = async () => {
+    try {
+      const response = await api.get('/company');
+      if (response.data.success === 1) {
+        const companies = response.data.data || [];
+        // Find ChandraTara Industries
+        const chandratara = companies.find((c: Company) => 
+          c.company_name.includes('ChandraTara') || 
+          c.abbr === 'CT_IND' ||
+          c.company_name.toLowerCase().includes('chandratara')
+        );
+        
+        if (chandratara) {
+          setCompanyData(chandratara);
+          // Update company details for print/export
+          companyDetails = {
+            ...companyDetails,
+            name: chandratara.company_name || companyDetails.name,
+            address: chandratara.country || companyDetails.address,
+            contact: chandratara.phone_no || companyDetails.contact,
+            email: chandratara.email || companyDetails.email,
+            gstin: chandratara.tax_id || companyDetails.gstin,
+          };
+          
+          // Update bank details if available
+          if (chandratara.bank_details && chandratara.bank_details.length > 0) {
+            const primaryBank = chandratara.bank_details.find((b: BankDetail) => b.is_primary === 1) || chandratara.bank_details[0];
+            if (primaryBank) {
+              companyDetails.bankName = primaryBank.bank_name || companyDetails.bankName;
+              companyDetails.bankAccountNo = primaryBank.account_number || companyDetails.bankAccountNo;
+              companyDetails.bankBranchIfsc = primaryBank.ifsc_code || companyDetails.bankBranchIfsc;
+            }
+          }
+          
+          console.log('Company loaded:', chandratara.company_name);
+        } else {
+          console.warn('ChandraTara Industries not found, using default company details');
+          // Try to use first company as fallback
+          if (companies.length > 0) {
+            const firstCompany = companies[0];
+            companyDetails = {
+              ...companyDetails,
+              name: firstCompany.company_name || companyDetails.name,
+              address: firstCompany.country || companyDetails.address,
+              contact: firstCompany.phone_no || companyDetails.contact,
+              email: firstCompany.email || companyDetails.email,
+              gstin: firstCompany.tax_id || companyDetails.gstin,
+            };
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching company details:', err);
+    }
+  };
 
   // ─── close date picker on outside click ──────────────────────────────
   useEffect(() => {
@@ -418,6 +502,7 @@ const DeliveryChallans: React.FC = () => {
   // ===== EFFECTS =====
   // Initial fetch
   useEffect(() => {
+    fetchCompanyDetails();
     fetchChallans();
   }, []);
 
@@ -770,64 +855,67 @@ const DeliveryChallans: React.FC = () => {
     // Row 2: Empty
     data.push([]);
     
-    // Row 3: Company Name
-    data.push(['Sculptor Tech Pvt Ltd']);
+    // Row 3: Company Name (using companyDetails from API)
+    data.push([companyDetails.name]);
     
     // Row 4: Address
-    data.push(['c-1006, gc, Pune, Maharashtra 411028, India']);
+    data.push([companyDetails.address]);
     
     // Row 5: Phone
-    data.push(['Phone: 8668584275']);
+    data.push([`Phone: ${companyDetails.contact}`]);
     
     // Row 6: Email
-    data.push(['Email: jayeshwakle@sculptortechpvtltd.com']);
+    data.push([`Email: ${companyDetails.email}`]);
     
-    // Row 7: State
-    data.push(['State Name: Maharashtra, Code: 27']);
+    // Row 7: GSTIN
+    data.push([`GSTIN: ${companyDetails.gstin || ''}`]);
     
-    // Row 8: Empty
+    // Row 8: State
+    data.push([`State Name: ${companyDetails.stateName}, Code: ${companyDetails.stateCode}`]);
+    
+    // Row 9: Empty
     data.push([]);
     
-    // Row 9: DC No and Date
+    // Row 10: DC No and Date
     data.push(['DC No.', challan.displayDcNumber || challan.name || '', 'Date', formatDisplayDate(challan.posting_date)]);
     
-    // Row 10: Warehouse and Transporter
+    // Row 11: Warehouse and Transporter
     data.push(['Warehouse', challan.set_warehouse || '', 'Transporter', challan.transporter || challan.driver_name || '']);
     
-    // Row 11: Vehicle No and Sales Order
+    // Row 12: Vehicle No and Sales Order
     data.push(['Vehicle No.', challan.vehicle_no || '', 'Sales Order', challan.sales_order_id ? `#${challan.sales_order_id}` : 'N/A']);
     
-    // Row 12: Empty
+    // Row 13: Empty
     data.push([]);
     
-    // Row 13: Consignee
+    // Row 14: Consignee
     data.push(['Consignee (Ship to)']);
     
-    // Row 14: Customer Name
+    // Row 15: Customer Name
     data.push([challan.customer_name || '']);
     
-    // Row 15: Address
+    // Row 16: Address
     data.push([customer?.primary_address || '']);
     
-    // Row 16: Phone
+    // Row 17: Phone
     data.push([`Phone: ${customer?.mobile_no || ''}`]);
     
-    // Row 17: Email
+    // Row 18: Email
     data.push([`Email: ${customer?.email_id || ''}`]);
     
-    // Row 18: GSTIN
+    // Row 19: GSTIN
     data.push([`GSTIN/UIN: ${customer?.gstin || ''}`]);
     
-    // Row 19: State
+    // Row 20: State
     data.push([`State: ${customer?.state || ''}${customer?.state_code ? ` (${customer.state_code})` : ''}`]);
     
-    // Row 20: Empty
+    // Row 21: Empty
     data.push([]);
     
-    // Row 21: Items Header
+    // Row 22: Items Header
     data.push(['#', 'Description of Goods', 'Quantity', 'Rate', 'Amount']);
     
-    // Row 22+: Items
+    // Row 23+: Items
     items.forEach((item, idx) => {
       data.push([
         idx + 1,
@@ -852,6 +940,13 @@ const DeliveryChallans: React.FC = () => {
     // Empty row
     data.push([]);
     
+    // Bank Details
+    data.push(['Bank Details']);
+    if (companyDetails.bankName) data.push([`Bank Name: ${companyDetails.bankName}`]);
+    if (companyDetails.bankAccountNo) data.push([`Account No: ${companyDetails.bankAccountNo}`]);
+    if (companyDetails.bankBranchIfsc) data.push([`IFSC Code: ${companyDetails.bankBranchIfsc}`]);
+    data.push([]);
+    
     // Declaration
     data.push(['Declaration']);
     data.push(['We declare that the goods described above are as per the delivery challan and all particulars are true and correct.']);
@@ -865,7 +960,7 @@ const DeliveryChallans: React.FC = () => {
     data.push([]);
     
     // Signatory
-    data.push(['for Sculptor Tech Pvt Ltd']);
+    data.push([`for ${companyDetails.name}`]);
     data.push([]);
     data.push([]);
     data.push([]);
@@ -873,7 +968,7 @@ const DeliveryChallans: React.FC = () => {
     data.push([]);
     
     // Footer
-    data.push(['SUBJECT TO PUNE JURISDICTION']);
+    data.push([`SUBJECT TO ${companyDetails.jurisdiction} JURISDICTION`]);
     data.push(['This is a computer generated delivery challan.']);
     
     return data;
@@ -924,14 +1019,15 @@ const DeliveryChallans: React.FC = () => {
           { s: { r: 4, c: 0 }, e: { r: 4, c: 4 } }, // Address
           { s: { r: 5, c: 0 }, e: { r: 5, c: 4 } }, // Phone
           { s: { r: 6, c: 0 }, e: { r: 6, c: 4 } }, // Email
-          { s: { r: 7, c: 0 }, e: { r: 7, c: 4 } }, // State
-          { s: { r: 13, c: 0 }, e: { r: 13, c: 4 } }, // Consignee
-          { s: { r: 14, c: 0 }, e: { r: 14, c: 4 } }, // Customer Name
-          { s: { r: 15, c: 0 }, e: { r: 15, c: 4 } }, // Address
-          { s: { r: 16, c: 0 }, e: { r: 16, c: 4 } }, // Phone
-          { s: { r: 17, c: 0 }, e: { r: 17, c: 4 } }, // Email
-          { s: { r: 18, c: 0 }, e: { r: 18, c: 4 } }, // GSTIN
-          { s: { r: 19, c: 0 }, e: { r: 19, c: 4 } }, // State
+          { s: { r: 7, c: 0 }, e: { r: 7, c: 4 } }, // GSTIN
+          { s: { r: 8, c: 0 }, e: { r: 8, c: 4 } }, // State
+          { s: { r: 14, c: 0 }, e: { r: 14, c: 4 } }, // Consignee
+          { s: { r: 15, c: 0 }, e: { r: 15, c: 4 } }, // Customer Name
+          { s: { r: 16, c: 0 }, e: { r: 16, c: 4 } }, // Address
+          { s: { r: 17, c: 0 }, e: { r: 17, c: 4 } }, // Phone
+          { s: { r: 18, c: 0 }, e: { r: 18, c: 4 } }, // Email
+          { s: { r: 19, c: 0 }, e: { r: 19, c: 4 } }, // GSTIN
+          { s: { r: 20, c: 0 }, e: { r: 20, c: 4 } }, // State
         ];
         
         // Find rows for merging amount in words
@@ -939,6 +1035,12 @@ const DeliveryChallans: React.FC = () => {
         if (wordsRow !== -1) {
           ws['!merges'].push({ s: { r: wordsRow, c: 0 }, e: { r: wordsRow, c: 4 } });
           ws['!merges'].push({ s: { r: wordsRow + 1, c: 0 }, e: { r: wordsRow + 1, c: 4 } });
+        }
+        
+        // Bank Details merge
+        const bankRow = challanData.findIndex(row => row && row[0] === 'Bank Details');
+        if (bankRow !== -1) {
+          ws['!merges'].push({ s: { r: bankRow, c: 0 }, e: { r: bankRow, c: 4 } });
         }
         
         // Find rows for declaration
@@ -955,7 +1057,7 @@ const DeliveryChallans: React.FC = () => {
         }
         
         // Find rows for footer
-        const footerRow = challanData.findIndex(row => row && row[0] === 'SUBJECT TO PUNE JURISDICTION');
+        const footerRow = challanData.findIndex(row => row && row[0] === `SUBJECT TO ${companyDetails.jurisdiction} JURISDICTION`);
         if (footerRow !== -1) {
           ws['!merges'].push({ s: { r: footerRow, c: 0 }, e: { r: footerRow, c: 4 } });
           ws['!merges'].push({ s: { r: footerRow + 1, c: 0 }, e: { r: footerRow + 1, c: 4 } });
@@ -1240,7 +1342,8 @@ const DeliveryChallans: React.FC = () => {
           border-radius: 8px;
           padding: 20px;
           gap: 16px;
-          overflow: hidden;
+          overflow-y: auto;
+          overflow-x: hidden;
         }
 
         .quotation-page::-webkit-scrollbar {
@@ -1757,9 +1860,8 @@ const DeliveryChallans: React.FC = () => {
           box-shadow: 0 1px 3px var(--shadow-color, rgba(0,0,0,0.05));
           border: 1px solid var(--border-color, #e5e7eb);
           overflow-x: auto;
-          overflow-y: auto;
+          overflow-y: visible;
           flex: 0 0 auto;
-          max-height: calc(100vh - 310px);
         }
 
         .qt-table-wrap::-webkit-scrollbar {
@@ -1796,9 +1898,6 @@ const DeliveryChallans: React.FC = () => {
           white-space: nowrap;
           text-transform: uppercase;
           letter-spacing: 0.3px;
-          position: sticky;
-          top: 0;
-          z-index: 10;
         }
 
         .qt-tr {
@@ -2530,8 +2629,6 @@ const DeliveryChallans: React.FC = () => {
           <button className="qt-btn-secondary" onClick={handleRefresh}>
             <FaSync size={12} /> Refresh
           </button>
-          
-         
           
           <button className="qt-btn-new" onClick={handleCreate}>
             <FaPlus size={12} /> New DC

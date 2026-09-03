@@ -112,8 +112,34 @@ interface ApiResponse {
   };
 }
 
-// ===== COMPANY DETAILS =====
-const companyDetails = {
+// ===== COMPANY INTERFACE =====
+interface Company {
+  id: number;
+  company_name: string;
+  abbr: string;
+  default_currency: string;
+  country: string;
+  tax_id?: string;
+  email?: string;
+  phone_no?: string;
+  website?: string;
+  bank_details?: BankDetail[];
+}
+
+interface BankDetail {
+  id: number;
+  bank_name: string;
+  branch_name: string;
+  account_number: string;
+  ifsc_code: string;
+  account_holder_name: string;
+  account_type: string;
+  currency: string;
+  is_primary: number;
+}
+
+// ===== COMPANY DETAILS (will be updated from API) =====
+let companyDetails = {
   name: 'Sculptor Tech Pvt Ltd',
   address: 'c-1006, gc, Pune, Maharashtra 411028, India',
   website: 'sculptortechpvtltd@gmail.com',
@@ -235,6 +261,7 @@ const SalesInvoice: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [printLoadingId, setPrintLoadingId] = useState<string | null>(null);
   const [downloadLoading, setDownloadLoading] = useState(false);
+  const [companyData, setCompanyData] = useState<Company | null>(null);
 
   // ===== DATE FILTER STATES =====
   const [fromDate, setFromDate] = useState<string>('');
@@ -257,6 +284,62 @@ const SalesInvoice: React.FC = () => {
     return getApiDateFormat(date);
   };
 
+  // ===== FETCH COMPANY DETAILS =====
+  const fetchCompanyDetails = async () => {
+    try {
+      const response = await api.get('/company');
+      if (response.data.success === 1) {
+        const companies = response.data.data || [];
+        // Find ChandraTara Industries
+        const chandratara = companies.find((c: Company) => 
+          c.company_name.includes('ChandraTara') || 
+          c.abbr === 'CT_IND' ||
+          c.company_name.toLowerCase().includes('chandratara')
+        );
+        
+        if (chandratara) {
+          setCompanyData(chandratara);
+          // Update company details for print/export
+          companyDetails = {
+            ...companyDetails,
+            name: chandratara.company_name || companyDetails.name,
+            address: chandratara.country || companyDetails.address,
+            contact: chandratara.phone_no || companyDetails.contact,
+            email: chandratara.email || companyDetails.email,
+            gstin: chandratara.tax_id || companyDetails.gstin,
+          };
+          
+          // Update bank details if available
+          if (chandratara.bank_details && chandratara.bank_details.length > 0) {
+            const primaryBank = chandratara.bank_details.find((b: BankDetail) => b.is_primary === 1) || chandratara.bank_details[0];
+            if (primaryBank) {
+              companyDetails.bankName = primaryBank.bank_name || companyDetails.bankName;
+              companyDetails.bankAccountNo = primaryBank.account_number || companyDetails.bankAccountNo;
+              companyDetails.bankBranchIfsc = primaryBank.ifsc_code || companyDetails.bankBranchIfsc;
+            }
+          }
+          
+          console.log('Company loaded:', chandratara.company_name);
+        } else {
+          console.warn('ChandraTara Industries not found, using default company details');
+          // Try to use first company as fallback
+          if (companies.length > 0) {
+            const firstCompany = companies[0];
+            companyDetails = {
+              ...companyDetails,
+              name: firstCompany.company_name || companyDetails.name,
+              address: firstCompany.country || companyDetails.address,
+              contact: firstCompany.phone_no || companyDetails.contact,
+              email: firstCompany.email || companyDetails.email,
+              gstin: firstCompany.tax_id || companyDetails.gstin,
+            };
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching company details:', err);
+    }
+  };
 
   // ===== CLOSE MENU ON CLICK OUTSIDE =====
   useEffect(() => {
@@ -513,6 +596,7 @@ const SalesInvoice: React.FC = () => {
 
   // ===== EFFECTS =====
   useEffect(() => {
+    fetchCompanyDetails();
     fetchInvoices();
   }, []);
 
@@ -901,12 +985,13 @@ const SalesInvoice: React.FC = () => {
       rows.push([`Status: ${invoice.status || 'Draft'}`]);
       rows.push([]);
       
-      // Company details
-      rows.push(['Sculptor Tech Pvt Ltd']);
-      rows.push(['c-1006, gc, Pune, Maharashtra 411028, India']);
-      rows.push([`Phone: 8668584275`]);
-      rows.push([`Email: jayeshwakle@sculptortechpvtltd.com`]);
-      rows.push([`State Name: Maharashtra, Code: 27`]);
+      // Company details (using dynamic companyDetails from API)
+      rows.push([companyDetails.name]);
+      rows.push([companyDetails.address]);
+      rows.push([`Phone: ${companyDetails.contact}`]);
+      rows.push([`Email: ${companyDetails.email}`]);
+      rows.push([`GSTIN: ${companyDetails.gstin || ''}`]);
+      rows.push([`State Name: ${companyDetails.stateName}, Code: ${companyDetails.stateCode}`]);
       rows.push([]);
       
       // Invoice details
@@ -953,6 +1038,13 @@ const SalesInvoice: React.FC = () => {
       rows.push([`${invoice.currency || 'INR'} ${numberToIndianWords(grandTotal)} Only`]);
       rows.push([]);
       
+      // Bank Details
+      rows.push(['Bank Details']);
+      if (companyDetails.bankName) rows.push([`Bank Name: ${companyDetails.bankName}`]);
+      if (companyDetails.bankAccountNo) rows.push([`Account No: ${companyDetails.bankAccountNo}`]);
+      if (companyDetails.bankBranchIfsc) rows.push([`IFSC Code: ${companyDetails.bankBranchIfsc}`]);
+      rows.push([]);
+      
       // Payment schedule if exists
       if (invoice.payment_schedule && invoice.payment_schedule.length > 0) {
         rows.push(['Payment Schedule']);
@@ -977,7 +1069,7 @@ const SalesInvoice: React.FC = () => {
       rows.push([]);
       
       // Footer
-      rows.push(['SUBJECT TO PUNE JURISDICTION']);
+      rows.push([`SUBJECT TO ${companyDetails.jurisdiction} JURISDICTION`]);
       rows.push(['This is a computer generated sales invoice.']);
       rows.push([]);
       rows.push([]);
@@ -1206,7 +1298,8 @@ const SalesInvoice: React.FC = () => {
           border-radius: 8px;
           padding: 20px;
           gap: 16px;
-          overflow: hidden;
+          overflow-y: auto;
+          overflow-x: hidden;
         }
 
         .quotation-page::-webkit-scrollbar {
@@ -1721,9 +1814,8 @@ const SalesInvoice: React.FC = () => {
           box-shadow: 0 1px 3px var(--shadow-color, rgba(0,0,0,0.05));
           border: 1px solid var(--border-color, #e5e7eb);
           overflow-x: auto;
-          overflow-y: auto;
+          overflow-y: visible;
           flex: 0 0 auto;
-          max-height: calc(100vh - 310px);
         }
 
         .qt-table-wrap::-webkit-scrollbar {
@@ -1760,9 +1852,6 @@ const SalesInvoice: React.FC = () => {
           white-space: nowrap;
           text-transform: uppercase;
           letter-spacing: 0.3px;
-          position: sticky;
-          top: 0;
-          z-index: 10;
         }
 
         .qt-tr {
@@ -2519,8 +2608,6 @@ const SalesInvoice: React.FC = () => {
           <button className="qt-btn-secondary" onClick={handleRefresh}>
             <FaSync size={12} /> Refresh
           </button>
-
-         
 
           <button className="qt-btn-new" onClick={handleCreate}>
             <FaPlus size={12} /> New Sales Bill
