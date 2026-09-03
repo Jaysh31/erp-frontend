@@ -277,7 +277,7 @@ export default function SalesOrder() {
   // Pagination states - SERVER SIDE
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [, setTotalRecords] = useState(0);
+  const [totalRecords, setTotalRecords] = useState(0);
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showPdfModal, setShowPdfModal] = useState(false);
@@ -1655,7 +1655,7 @@ export default function SalesOrder() {
           margin-left: 8px;
         }
 
-        . {
+        .qt-date-picker-trigger {
           display: flex;
           align-items: center;
           gap: 8px;
