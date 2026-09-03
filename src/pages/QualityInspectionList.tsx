@@ -6,6 +6,7 @@ import {
   FaSpinner, FaTimes,
   FaClipboardCheck, FaCalendarAlt, FaChevronDown,
   FaChevronLeft, FaChevronRight,
+  FaAngleDoubleLeft, FaAngleDoubleRight,
 } from 'react-icons/fa';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
@@ -64,6 +65,11 @@ export default function QualityInspectionList() {
   const [error, setError] = useState<string | null>(null);
 
   const [reports, setReports] = useState<InspectionListItem[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+
+  // ─── Pagination States ────────────────────────────────────────────────
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedReport, setSelectedReport] = useState<InspectionListItem | null>(null);
@@ -175,8 +181,8 @@ export default function QualityInspectionList() {
   const applyDateFilter = () => {
     setDateFrom(tempFrom);
     setDateTo(tempTo);
+    setCurrentPage(1);
     setShowDatePicker(false);
-    // fetchReports will be triggered by useEffect
   };
 
   const clearDateFilterOnly = () => {
@@ -199,7 +205,7 @@ export default function QualityInspectionList() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showDatePicker]);
 
-  /* ─── load from GET /quality-inspection ────────────────────────── */
+  /* ─── load from GET /quality-inspection with SERVER-SIDE PAGINATION ────────── */
 
   const fetchReports = async () => {
     setLoading(true);
@@ -207,6 +213,10 @@ export default function QualityInspectionList() {
     try {
       let url = '/quality-inspection';
       const params = new URLSearchParams();
+      
+      // ✅ SERVER-SIDE PAGINATION PARAMS
+      params.append('page', String(currentPage));
+      params.append('limit', String(itemsPerPage));
       
       if (filterText.trim()) {
         params.append('search', filterText.trim());
@@ -233,6 +243,10 @@ export default function QualityInspectionList() {
       }
 
       const all: InspectionApiRecord[] = extractRecords(response.data);
+      
+      // ✅ Get total from API response
+      const total = response.data?.data?.total ?? response.data?.total ?? all.length;
+      setTotalRecords(total);
 
       // ✅ TRANSFORM DATA WITH FORMATTED DATES
       const transformed: InspectionListItem[] = all.map((r) => ({
@@ -269,17 +283,22 @@ export default function QualityInspectionList() {
     return () => clearTimeout(timer);
   }, [filterText]);
 
-  // Fetch when date range changes
+  // ✅ Fetch when date range or pagination changes
   useEffect(() => {
     fetchReports();
-  }, [dateFrom, dateTo]);
+  }, [dateFrom, dateTo, currentPage, itemsPerPage]);
+
+  // ✅ Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterText, selectedResult, dateFrom, dateTo]);
 
   // Initial fetch
   useEffect(() => {
     fetchReports();
   }, []);
 
-  // Fixed filter - now checking against actual data (only for result filter since search is done by API)
+  // Filter for result (client-side filtering since API doesn't support result filter)
   const filteredReports = reports.filter((r) => {
     const matchesResult =
       selectedResult === 'All' ||
@@ -288,6 +307,51 @@ export default function QualityInspectionList() {
     
     return matchesResult;
   });
+
+  // ✅ Pagination calculations - SERVER SIDE
+  const totalFilteredItems = totalRecords;
+  const totalPages = Math.ceil(totalFilteredItems / itemsPerPage) || 1;
+  const validCurrentPage = Math.min(currentPage, totalPages || 1);
+  
+  if (validCurrentPage !== currentPage && currentPage > 0) {
+    setCurrentPage(validCurrentPage);
+  }
+
+  const getStartIndex = () => {
+    if (totalRecords === 0) return 0;
+    return (validCurrentPage - 1) * itemsPerPage + 1;
+  };
+  
+  const getEndIndex = () => {
+    if (totalRecords === 0) return 0;
+    return Math.min(validCurrentPage * itemsPerPage, totalRecords);
+  };
+
+  const goToPage = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+    }
+  };
+
+  const goToFirstPage = () => goToPage(1);
+  const goToLastPage = () => goToPage(totalPages);
+  const goToNextPage = () => goToPage(currentPage + 1);
+  const goToPrevPage = () => goToPage(currentPage - 1);
+
+  const handlePageSizeChange = (newSize: number) => {
+    setItemsPerPage(newSize);
+    setCurrentPage(1);
+  };
+
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisible = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+    if (endPage - startPage + 1 < maxVisible) startPage = Math.max(1, endPage - maxVisible + 1);
+    for (let i = startPage; i <= endPage; i++) pages.push(i);
+    return pages;
+  };
 
   const totalReports = reports.length;
   const passedCount = reports.filter((r) => r.overallResult?.toLowerCase() === 'pass').length;
@@ -334,6 +398,7 @@ export default function QualityInspectionList() {
     setFilterText('');
     setSelectedResult('All');
     clearDateFilterOnly();
+    setCurrentPage(1);
   };
 
   return (
@@ -609,14 +674,84 @@ export default function QualityInspectionList() {
         </div>
       )}
 
+      {/* Pagination */}
+      {!loading && !error && (
+        <div className="qi-pagination">
+          <div className="qi-pagination-left">
+            <span className="qi-pagination-label">Show:</span>
+            <select
+              value={itemsPerPage}
+              onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+              className="qi-page-size-select"
+            >
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+            <span className="qi-pagination-info">
+              {totalRecords > 0 ? (
+                `Showing ${getStartIndex()} to ${getEndIndex()} of ${totalRecords} entries`
+              ) : (
+                'No entries to show'
+              )}
+            </span>
+          </div>
+          <div className="qi-pagination-center">
+            <button
+              onClick={goToFirstPage}
+              disabled={currentPage === 1 || totalRecords === 0}
+              className="qi-page-btn"
+            >
+              <FaAngleDoubleLeft size={12} />
+            </button>
+            <button
+              onClick={goToPrevPage}
+              disabled={currentPage === 1 || totalRecords === 0}
+              className="qi-page-btn"
+            >
+              <FaChevronLeft size={12} />
+            </button>
+            {totalRecords > 0 && getPageNumbers().map(page => (
+              <button
+                key={page}
+                onClick={() => goToPage(page)}
+                className={`qi-page-btn ${currentPage === page ? 'qi-page-btn-active' : ''}`}
+              >
+                {page}
+              </button>
+            ))}
+            <button
+              onClick={goToNextPage}
+              disabled={currentPage === totalPages || totalRecords === 0}
+              className="qi-page-btn"
+            >
+              <FaChevronRight size={12} />
+            </button>
+            <button
+              onClick={goToLastPage}
+              disabled={currentPage === totalPages || totalRecords === 0}
+              className="qi-page-btn"
+            >
+              <FaAngleDoubleRight size={12} />
+            </button>
+          </div>
+          <div className="qi-pagination-right">
+            <span className="qi-pagination-info">
+              Page {currentPage} of {totalPages}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Footer */}
-      <div className="qi-pagination">
-        <div className="qi-pagination-left">
+      <div className="qi-footer">
+        <div className="qi-footer-left">
           <span className="qi-pagination-info">
-            {filteredReports.length} of {reports.length} reports
+            {filteredReports.length} of {totalRecords} reports
           </span>
         </div>
-        <div className="qi-pagination-right">
+        <div className="qi-footer-right">
           <span className="qi-pagination-info" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <FaCheckCircle size={14} style={{ color: 'var(--primary-color)' }} />
             {passRate}% pass rate

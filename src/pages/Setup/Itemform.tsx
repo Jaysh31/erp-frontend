@@ -4,7 +4,6 @@ import {
   FaArrowLeft,
   FaSave,
   FaSpinner,
- 
   FaTag,
   FaCheck,
   FaImage,
@@ -14,6 +13,8 @@ import {
   FaWarehouse,
   FaInfoCircle,
   FaPlus,
+  FaExclamationTriangle,
+  FaEdit,
 } from "react-icons/fa";
 import "./ItemForm.css";
 import { useAdminTheme } from "../../admin-theme/AdminThemeContext";
@@ -390,7 +391,7 @@ function SelectInput({
                   onClick={() => {
                     onChange?.(opt.value);
                     setSearchTerm("");
-                    setIsOpen(false); // Close dropdown when option is selected
+                    setIsOpen(false);
                   }}
                 >
                   {opt.label}
@@ -399,7 +400,6 @@ function SelectInput({
             )}
           </div>
 
-          {/* ✅ Fixed / stable "Add New" footer */}
           {!loading && trimmedSearch && !isExactMatch && onCustomValueConfirm && (
             <div
               className="itf-select-option itf-select-option-add"
@@ -407,7 +407,7 @@ function SelectInput({
                 e.stopPropagation();
                 onCustomValueConfirm(trimmedSearch);
                 setSearchTerm("");
-                setIsOpen(false); // Close dropdown when adding new item
+                setIsOpen(false);
               }}
               style={{
                 display: 'flex',
@@ -447,7 +447,7 @@ function SelectInput({
               onClick={(e) => {
                 e.stopPropagation();
                 onAddClick?.();
-                setIsOpen(false); // Close dropdown when "Add New" button is clicked
+                setIsOpen(false);
               }}
               style={{
                 display: 'flex',
@@ -1046,6 +1046,266 @@ function AddUOMModal({
 }
 
 // ────────────────────────────────────────────────────────────────────────
+// Loading Overlay Component for Save Action (Page Level)
+// ────────────────────────────────────────────────────────────────────────
+function PageSavingLoader() {
+  return (
+    <div className="itf-page-loader-overlay">
+      <div className="itf-page-loader-container">
+        <div className="itf-page-loader-spinner">
+          <FaSpinner className="itf-spin" size={48} />
+        </div>
+        <h3 className="itf-page-loader-title">Saving Item...</h3>
+        <p className="itf-page-loader-subtitle">Please wait while we save your changes.</p>
+        <div className="itf-page-loader-progress">
+          <div className="itf-page-loader-progress-bar"></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// Duplicate Item Warning Modal with Inline Styles
+// ────────────────────────────────────────────────────────────────────────
+interface DuplicateWarningModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  existingItem: any;
+  itemName: string;
+  itemCode: string;
+}
+
+function DuplicateWarningModal({ isOpen, onClose, existingItem, itemName, itemCode }: DuplicateWarningModalProps) {
+  if (!isOpen || !existingItem) return null;
+
+  const navigate = useNavigate();
+
+  // ─── Styles ──────────────────────────────────────────────────────────
+  const overlayStyle: React.CSSProperties = {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: 'rgba(0, 0, 0, 0.5)',
+    backdropFilter: 'blur(4px)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 99999,
+    animation: 'itf-modal-fade-in 0.3s ease',
+    padding: '20px',
+  };
+
+  const modalStyle: React.CSSProperties = {
+    background: '#ffffff',
+    borderRadius: '16px',
+    width: '100%',
+    maxWidth: '480px',
+    maxHeight: '90vh',
+    overflow: 'hidden',
+    boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
+    animation: 'itf-modal-scale-in 0.3s ease',
+    display: 'flex',
+    flexDirection: 'column',
+  };
+
+  const headerStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '20px 24px',
+    borderBottom: '1px solid #e5e7eb',
+    background: '#fef2f2',
+  };
+
+  const headerLeftStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+  };
+
+  const iconWrapperStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '40px',
+    height: '40px',
+    borderRadius: '50%',
+    background: '#fee2e2',
+    color: '#dc2626',
+  };
+
+  const titleStyle: React.CSSProperties = {
+    margin: 0,
+    fontSize: '18px',
+    fontWeight: 700,
+    color: '#991b1b',
+  };
+
+  const closeButtonStyle: React.CSSProperties = {
+    background: 'none',
+    border: 'none',
+    color: '#6b7280',
+    cursor: 'pointer',
+    padding: '4px',
+    borderRadius: '50%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transition: 'all 0.2s',
+    width: '32px',
+    height: '32px',
+    fontSize: '18px',
+  };
+
+  const bodyStyle: React.CSSProperties = {
+    padding: '24px',
+    overflowY: 'auto',
+  };
+
+  const warningTextStyle: React.CSSProperties = {
+    fontSize: '14px',
+    color: '#1e293b',
+    margin: '0 0 16px 0',
+    lineHeight: 1.6,
+  };
+
+  const detailsStyle: React.CSSProperties = {
+    background: '#f8fafc',
+    borderRadius: '10px',
+    padding: '16px',
+    marginBottom: '20px',
+    border: '1px solid #e5e7eb',
+  };
+
+  const rowStyle: React.CSSProperties = {
+    display: 'flex',
+    justifyContent: 'space-between',
+    padding: '6px 0',
+    borderBottom: '1px solid #f1f5f9',
+  };
+
+  const rowLastStyle: React.CSSProperties = {
+    ...rowStyle,
+    borderBottom: 'none',
+  };
+
+  const labelStyle = {
+    fontSize: '13px',
+    fontWeight: 600,
+    color: '#64748b',
+  };
+
+  const valueStyle = {
+    fontSize: '13px',
+    fontWeight: 500,
+    color: '#0f172a',
+  };
+
+  const actionsStyle: React.CSSProperties = {
+    display: 'flex',
+    gap: '10px',
+    justifyContent: 'flex-end',
+    flexWrap: 'wrap',
+  };
+
+  const closeBtnStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '8px 18px',
+    border: '1px solid #e5e7eb',
+    borderRadius: '8px',
+    background: '#ffffff',
+    color: '#1e293b',
+    fontSize: '13px',
+    fontWeight: 500,
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+  };
+
+  const editBtnStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '8px 18px',
+    border: 'none',
+    borderRadius: '8px',
+    background: '#2563eb',
+    color: '#ffffff',
+    fontSize: '13px',
+    fontWeight: 500,
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+  };
+
+  const handleEditClick = () => {
+    onClose();
+    if (existingItem.id) {
+      navigate(`/item/${existingItem.id}`);
+    }
+  };
+
+  return (
+    <div style={overlayStyle} onClick={onClose}>
+      <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div style={headerStyle}>
+          <div style={headerLeftStyle}>
+            <div style={iconWrapperStyle}>
+              <FaExclamationTriangle size={20} />
+            </div>
+            <h3 style={titleStyle}>Duplicate Item Found</h3>
+          </div>
+          <button style={closeButtonStyle} onClick={onClose}>
+            <FaTimes size={18} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div style={bodyStyle}>
+          <p style={warningTextStyle}>
+            This item already exists in the system. Please use a different name or code.
+          </p>
+
+          <div style={detailsStyle}>
+            <div style={rowStyle}>
+              <span style={labelStyle}>Item Name:</span>
+              <span style={valueStyle}>{existingItem.item_name || itemName || 'N/A'}</span>
+            </div>
+            <div style={rowStyle}>
+              <span style={labelStyle}>Item Code:</span>
+              <span style={valueStyle}>{existingItem.item_code || itemCode || 'N/A'}</span>
+            </div>
+            <div style={rowStyle}>
+              <span style={labelStyle}>Item Group:</span>
+              <span style={valueStyle}>{existingItem.item_group || 'N/A'}</span>
+            </div>
+            {existingItem.id && (
+              <div style={rowLastStyle}>
+                <span style={labelStyle}>ID:</span>
+                <span style={valueStyle}>#{existingItem.id}</span>
+              </div>
+            )}
+          </div>
+
+          <div style={actionsStyle}>
+            <button style={closeBtnStyle} onClick={onClose}>
+              <FaTimes size={12} /> Close
+            </button>
+            <button style={editBtnStyle} onClick={handleEditClick}>
+              <FaEdit size={12} /> Edit Existing Item
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────
 // Main Component
 // ────────────────────────────────────────────────────────────────────────
 export default function ItemForm() {
@@ -1068,6 +1328,10 @@ export default function ItemForm() {
   const [showAddUOMModal, setShowAddUOMModal] = useState(false);
   const [addingUOM, setAddingUOM] = useState(false);
   const [pendingUOMName, setPendingUOMName] = useState("");
+
+  // ─── State for Duplicate Warning Modal ─────────────────────────────
+  const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
+  const [duplicateItemData, setDuplicateItemData] = useState<any>(null);
 
   // ─── State for UOM Categories ──────────────────────────────────────
   const [uomCategories, setUomCategories] = useState<UOMCategory[]>([]);
@@ -1100,6 +1364,7 @@ export default function ItemForm() {
 
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [openingStockEntries, setOpeningStockEntries] = useState<OpeningStockEntry[]>([]);
+  const [existingItems, setExistingItems] = useState<any[]>([]);
 
   const setForm = (f: any) => {
     setFormRaw(f);
@@ -1121,6 +1386,7 @@ export default function ItemForm() {
   const currentTax = taxes.find((t) => t.tax_id.toString() === form.taxId);
   const taxPercentage = currentTax ? parseFloat(currentTax.tax_type.replace("GST", "")) || 0 : 0;
 
+  // ─── Helper function to determine if item group is raw material ───
   const isRawMaterialGroup = (groupName: string): boolean => {
     if (!groupName) return false;
     const rawMaterialGroups = [
@@ -1129,9 +1395,52 @@ export default function ItemForm() {
       "component", "components", "parts",
       "sub assembly", "sub-assembly",
       "raw material -", "raw materials -",
+      "external raw material"
     ];
     const lowerGroup = groupName.toLowerCase().trim();
     return rawMaterialGroups.some(g => lowerGroup.includes(g));
+  };
+
+  // ─── Helper function to determine if item group is product ────────
+  const isProductGroup = (groupName: string): boolean => {
+    if (!groupName) return false;
+    const productGroups = [
+      "product", "service product", "finished good", 
+      "finished goods", "sub assembly", "assembly",
+      "final product"
+    ];
+    const lowerGroup = groupName.toLowerCase().trim();
+    return productGroups.some(g => lowerGroup.includes(g));
+  };
+
+  // ─── Get pricing label based on item group ────────────────────────
+  const getPricingLabel = (groupName: string): string => {
+    if (isRawMaterialGroup(groupName)) {
+      return "Standard purchase rate (base price)";
+    } else if (isProductGroup(groupName)) {
+      return "Standard sell rate (base price)";
+    }
+    if (form.isPurchaseItem && !form.isSalesItem) {
+      return "Standard purchase rate (base price)";
+    } else if (form.isSalesItem && !form.isPurchaseItem) {
+      return "Standard sell rate (base price)";
+    }
+    return "Standard rate (base price)";
+  };
+
+  // ─── Get pricing hint based on item group ─────────────────────────
+  const getPricingHint = (groupName: string): string => {
+    if (isRawMaterialGroup(groupName)) {
+      return "The cost at which you purchase this item.";
+    } else if (isProductGroup(groupName)) {
+      return "The price at which you sell this item.";
+    }
+    if (form.isPurchaseItem && !form.isSalesItem) {
+      return "The cost at which you purchase this item.";
+    } else if (form.isSalesItem && !form.isPurchaseItem) {
+      return "The price at which you sell this item.";
+    }
+    return "The base price for this item.";
   };
 
   const getDefaultWarehouse = (itemGroup: string, warehouseList: Warehouse[]): Warehouse | null => {
@@ -1219,6 +1528,19 @@ export default function ItemForm() {
     }));
   }, [form.standardRate, taxPercentage]);
 
+  // ─── ✅ GET API: Fetch Existing Items for Duplicate Check ─────────────────
+  const fetchExistingItems = async () => {
+    try {
+      const response = await api.get("/item?page=1&limit=1000&type=all");
+      if (response.data.success === 1) {
+        const records = response.data.data?.records || response.data.data || [];
+        setExistingItems(records);
+      }
+    } catch (err) {
+      console.error("Error fetching existing items:", err);
+    }
+  };
+
   // ─── ✅ GET API: Fetch UOMs ─────────────────────────────────
   const fetchUOMs = async () => {
     setLoadingUoms(true);
@@ -1299,7 +1621,6 @@ export default function ItemForm() {
       const selectedCategory = uomCategories.find(cat => String(cat.id) === categoryId);
       const generatedCommonCode = symbol || uomName.substring(0, 3).toUpperCase();
 
-      // ✅ Duplicate checks
       const nameClash = uoms.find(
         (u) => u.uom_name.trim().toLowerCase() === uomName.trim().toLowerCase()
       );
@@ -1348,10 +1669,8 @@ export default function ItemForm() {
         setShowAddUOMModal(false);
         setPendingUOMName("");
         
-        // ✅ Refresh the UOM list to show the newly added UOM
         await fetchUOMs();
         
-        // ✅ Select the newly added UOM in the form
         setTimeout(() => {
           s("defaultUOM", uomName);
           toast.success(`UOM "${uomName}" is now available in the dropdown`);
@@ -1406,11 +1725,40 @@ export default function ItemForm() {
     setShowAddUOMModal(true);
   };
 
+  // ─── Check for Duplicate Item ──────────────────────────────────────
+  const checkDuplicateItem = (): { isDuplicate: boolean; existingItem: any | null } => {
+    if (!isNew) return { isDuplicate: false, existingItem: null };
+    
+    const itemName = form.itemName.trim().toLowerCase();
+    const itemCode = form.itemCode.trim().toLowerCase();
+    
+    if (!itemName && !itemCode) return { isDuplicate: false, existingItem: null };
+    
+    const nameMatch = existingItems.find(
+      (item) => item.item_name && item.item_name.trim().toLowerCase() === itemName
+    );
+    
+    const codeMatch = existingItems.find(
+      (item) => item.item_code && item.item_code.trim().toLowerCase() === itemCode
+    );
+    
+    if (nameMatch && itemName) {
+      return { isDuplicate: true, existingItem: nameMatch };
+    }
+    
+    if (codeMatch && itemCode) {
+      return { isDuplicate: true, existingItem: codeMatch };
+    }
+    
+    return { isDuplicate: false, existingItem: null };
+  };
+
   useEffect(() => {
     const fetchLookups = async () => {
       await fetchItemGroups();
       await fetchUOMs();
       await fetchUOMCategories();
+      await fetchExistingItems();
 
       setLoadingTaxes(true);
       try {
@@ -1743,6 +2091,25 @@ export default function ItemForm() {
     }
     setValidationErrors([]);
 
+    // ─── ✅ CHECK FOR DUPLICATE ITEM ──────────────────────────────────────
+    if (isNew) {
+      const { isDuplicate, existingItem } = checkDuplicateItem();
+      if (isDuplicate && existingItem) {
+        setDuplicateItemData(existingItem);
+        setShowDuplicateWarning(true);
+        // Scroll to item name field to highlight it
+        const nameField = document.querySelector('input[name="itemName"]') as HTMLInputElement;
+        if (nameField) {
+          nameField.focus();
+          nameField.style.borderColor = 'red';
+          setTimeout(() => {
+            nameField.style.borderColor = '';
+          }, 3000);
+        }
+        return;
+      }
+    }
+
     setSubmitting(true);
     try {
       const totalOpeningStock = openingStockEntries.reduce((sum, entry) => sum + entry.quantity, 0);
@@ -1837,6 +2204,11 @@ export default function ItemForm() {
       }
 
       if (!(response.data && response.data.success === 1)) {
+        if (response.data?.message?.toLowerCase().includes("duplicate") || 
+            response.data?.message?.toLowerCase().includes("already exists")) {
+          toast.error("⚠️ Duplicate Item! This item already exists in the system.");
+          return;
+        }
         toast.error(response.data?.message || "Failed to save item");
         setSubmitting(false);
         return;
@@ -1966,7 +2338,7 @@ export default function ItemForm() {
     } catch (err: any) {
       console.error("Error saving item:", err);
       if (err.response?.status === 409) {
-        toast.error("An item with this code already exists");
+        toast.error("⚠️ Duplicate Item! An item with this code or name already exists.");
       } else if (err.response?.status === 413) {
         toast.error("Request entity too large. Please try with a smaller image.");
       } else {
@@ -1988,8 +2360,26 @@ export default function ItemForm() {
     );
   }
 
+  const pricingLabel = getPricingLabel(form.itemGroup);
+  const pricingHint = getPricingHint(form.itemGroup);
+
   return (
     <div className="itf-page">
+      {/* ─── Page Saving Loader Overlay ───────────────────────────────── */}
+      {submitting && <PageSavingLoader />}
+
+      {/* ─── Duplicate Warning Modal ──────────────────────────────────── */}
+      <DuplicateWarningModal
+        isOpen={showDuplicateWarning}
+        onClose={() => {
+          setShowDuplicateWarning(false);
+          setDuplicateItemData(null);
+        }}
+        existingItem={duplicateItemData}
+        itemName={form.itemName}
+        itemCode={form.itemCode}
+      />
+
       {/* Top Bar */}
       <div className="itf-topbar">
         <div className="itf-breadcrumb">
@@ -2141,7 +2531,11 @@ export default function ItemForm() {
                     </SectionTitle>
 
                     <div className="itf-grid-2">
-                      <Field label="Standard purchase rate (base price)" hint="The cost at which you purchase this item." error={fieldError("standardRate")}>
+                      <Field 
+                        label={pricingLabel} 
+                        hint={pricingHint}
+                        error={fieldError("standardRate")}
+                      >
                         <NumberInput
                           value={form.standardRate}
                           onChange={(v) => s("standardRate", v)}
