@@ -3,7 +3,6 @@ import {
   FaPlus, 
   FaSearch, 
   FaFilter, 
-  FaPrint,
   FaEye,
   FaEdit,
   FaPrint as FaPrintIcon,
@@ -266,8 +265,8 @@ const DeliveryChallans: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [printLoadingId, setPrintLoadingId] = useState<string | null>(null);
-  const [downloadLoading, setDownloadLoading] = useState(false);
-  const [companyData, setCompanyData] = useState<Company | null>(null);
+  const [, setDownloadLoading] = useState(false);
+  const [, setCompanyData] = useState<Company | null>(null);
 
   // Debounced search term
   const debouncedSearchTerm = useDebounce(searchTerm, 500);

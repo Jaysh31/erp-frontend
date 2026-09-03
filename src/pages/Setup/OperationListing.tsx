@@ -9,14 +9,13 @@ import {
   FaAngleDoubleLeft,
   FaAngleDoubleRight,
   FaBoxes,
-  FaCheckCircle,
+  
   FaSpinner,
   FaEdit,
   FaTrash,
   FaEye,
   FaPlus,
-  FaClock,
-  FaIndustry,
+ 
   FaCalendarAlt,
 } from 'react-icons/fa';
 import "./OperationListing.css";
@@ -62,7 +61,7 @@ export default function OperationList() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [totalItems, setTotalItems] = useState(0);
+  const [, setTotalItems] = useState(0);
   const [sortField] = useState<string>('creation');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -76,22 +75,6 @@ export default function OperationList() {
 
   // ─── Format date ──────────────────────────────────────────────────────────
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m`;
-    if (diffHours < 24) return `${diffHours}h`;
-    if (diffDays < 7) return `${diffDays}d`;
-    if (diffDays < 30) return `${Math.floor(diffDays / 7)}w`;
-    if (diffDays < 365) return `${Math.floor(diffDays / 30)}mo`;
-    return `${Math.floor(diffDays / 365)}y`;
-  };
 
   // Local (non-UTC) YYYY-MM-DD formatter, avoids the timezone-shift bug
   // that toISOString() causes when converting local dates to API params.

@@ -24,6 +24,7 @@ import {
   FaQuestionCircle,
   FaCalendarAlt,
   FaClipboardCheck,
+  FaEye,
 } from 'react-icons/fa';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import api from '../../services/api';
@@ -33,10 +34,8 @@ import { useFormState } from '../../context/FormStateContext';
 import { useFormNavigation } from '../../hooks/useFormNavigation';
 import './CreateDeliveryChallan.css';
 import { FaTrash } from 'react-icons/fa6';
+
 // ===== SHARED DELIVERY CHALLAN PRINT HELPERS =====
-// Keep this print implementation identical to the one used by delivery_challan.tsx.
-// Both the Create Delivery Challan Print button and the post-create Print confirmation
-// use the same HTML builder/opening function.
 const printCompanyDetails = {
   name: 'Sculptor Tech Pvt Ltd',
   address: 'c-1006, gc, Pune, Maharashtra 411028, India',
@@ -48,8 +47,6 @@ const printCompanyDetails = {
   panNo: '',
   jurisdiction: 'PUNE',
 };
-
-
 
 const printFormatDcNumber = (id: string | number): string => {
   const numId = typeof id === 'string' ? parseInt(id, 10) : id;
@@ -276,6 +273,7 @@ interface DeliveryNotePayload {
   instructions: string;
   status: string;
   type: string;
+  quality_inspection_id?: number | null;
   items: Array<{
     name: string;
     item_code: string;
@@ -468,10 +466,6 @@ class DeliveryChallanAPI {
     return this.apiService.put('/delivery-note', payload);
   }
 
-  async submitDeliveryNote(name: string): Promise<ApiResponse<any>> {
-    return this.apiService.post(`/delivery-note/${name}/submit`, {});
-  }
-
   async getDeliveryNote(id: string): Promise<ApiResponse<any>> {
     return this.apiService.get(`/delivery-note/${id}`);
   }
@@ -510,6 +504,10 @@ class DeliveryChallanAPI {
 
   async updateInventory(_id: number, data: any): Promise<ApiResponse<any>> {
     return this.apiService.put(`/inventory`, data);
+  }
+
+  async getQualityInspectionByDC(dcId: string | number): Promise<ApiResponse<any>> {
+    return this.apiService.get(`/quality-inspection/delivery-challan/${dcId}`);
   }
 }
 
@@ -870,7 +868,6 @@ const SalesOrderDropdown: React.FC<SalesOrderDropdownProps> = ({
           po_date: record.po_date || '',
           tax_id: record.tax_id || '',
           items: (record.sales_items || []).map((item: any) => {
-        
             const lineTaxId = item.item_tax_id
               ? Number(item.item_tax_id)
               : (item.tax_id ? Number(item.tax_id) : (record.tax_id ? Number(record.tax_id) : null));
@@ -1056,7 +1053,6 @@ interface CustomerDropdownProps {
   error?: boolean;
   fullWidth?: boolean;
   onAddNewCustomer?: (searchTerm: string) => void;
-  
   presetCustomer?: Customer | null;
 }
 
@@ -1521,7 +1517,6 @@ const QuickAddCustomerModal: React.FC<QuickAddCustomerModalProps> = ({
           overflow: 'hidden',
         }}
       >
-        {/* Header */}
         <div
           style={{
             display: 'flex',
@@ -1558,7 +1553,6 @@ const QuickAddCustomerModal: React.FC<QuickAddCustomerModalProps> = ({
           </button>
         </div>
 
-        {/* Body */}
         <form onSubmit={handleSubmit}>
           <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={fieldWrapStyle}>
@@ -1605,7 +1599,6 @@ const QuickAddCustomerModal: React.FC<QuickAddCustomerModalProps> = ({
             </div>
           </div>
 
-          {/* Footer */}
           <div
             style={{
               padding: '14px 20px',
@@ -1750,6 +1743,162 @@ const SuccessModal: React.FC<SuccessModalProps> = ({
     document.body
   );
 };
+
+// ===== INSPECTION VIEW MODAL =====
+interface InspectionViewModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  inspectionData: any;
+}
+
+const InspectionViewModal: React.FC<InspectionViewModalProps> = ({
+  isOpen,
+  onClose,
+  inspectionData,
+}) => {
+  if (!isOpen || !inspectionData) return null;
+
+  const details = inspectionData.details || [];
+  const hasObservations = details.some((d: any) => d.observations && d.observations.length > 0);
+  const sampleCount = hasObservations ? details[0].observations.length : 0;
+
+  return ReactDOM.createPortal(
+    <div className="ndc-modal-overlay" onClick={onClose}>
+      <div className="ndc-modal-container ndc-inspection-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="ndc-modal-header">
+          <h2 className="ndc-modal-title">
+            <FaClipboardCheck size={20} style={{ marginRight: '8px' }} />
+            Quality Inspection Details
+          </h2>
+          <button onClick={onClose} className="ndc-modal-close-btn">
+            <FaTimes size={18} />
+          </button>
+        </div>
+
+        <div className="ndc-inspection-summary">
+          <div className="ndc-inspection-summary-grid">
+            <div className="ndc-inspection-summary-item">
+              <span className="ndc-inspection-summary-label">Inspection No</span>
+              <span className="ndc-inspection-summary-value">{inspectionData.inspection_no || '-'}</span>
+            </div>
+            <div className="ndc-inspection-summary-item">
+              <span className="ndc-inspection-summary-label">Status</span>
+              <span className={`ndc-inspection-status ${inspectionData.status?.toLowerCase() || ''}`}>
+                {inspectionData.status || '-'}
+              </span>
+            </div>
+            <div className="ndc-inspection-summary-item">
+              <span className="ndc-inspection-summary-label">Overall Result</span>
+              <span className={`ndc-inspection-result ${inspectionData.overall_result?.toLowerCase() || ''}`}>
+                {inspectionData.overall_result || '-'}
+              </span>
+            </div>
+            <div className="ndc-inspection-summary-item">
+              <span className="ndc-inspection-summary-label">Date</span>
+              <span className="ndc-inspection-summary-value">
+                {inspectionData.inspection_date ? new Date(inspectionData.inspection_date).toLocaleDateString() : '-'}
+              </span>
+            </div>
+            <div className="ndc-inspection-summary-item">
+              <span className="ndc-inspection-summary-label">Item</span>
+              <span className="ndc-inspection-summary-value">
+                {inspectionData.part_product_name || inspectionData.item_name || '-'}
+              </span>
+            </div>
+            <div className="ndc-inspection-summary-item">
+              <span className="ndc-inspection-summary-label">Customer</span>
+              <span className="ndc-inspection-summary-value">
+                {inspectionData.customer_name || '-'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="ndc-inspection-details">
+          <div className="ndc-inspection-details-header">
+            <span>Parameters & Observations</span>
+            {inspectionData.rejected_qty > 0 && (
+              <span className="ndc-inspection-rejected-badge">
+                <FaExclamationTriangle size={12} /> {inspectionData.rejected_qty} Rejected
+              </span>
+            )}
+          </div>
+
+          <div className="ndc-inspection-table-wrap">
+            <table className="ndc-inspection-table">
+              <thead>
+                <tr>
+                  <th className="ndc-inspection-col-sr">#</th>
+                  <th className="ndc-inspection-col-param">Parameter</th>
+                  <th className="ndc-inspection-col-spec">Specification</th>
+                  <th className="ndc-inspection-col-method">Inspection Method</th>
+                  {Array.from({ length: sampleCount }, (_, i) => (
+                    <th key={i} className="ndc-inspection-col-obs">Obs {i + 1}</th>
+                  ))}
+                  <th className="ndc-inspection-col-result">Result</th>
+                </tr>
+              </thead>
+              <tbody>
+                {details.length === 0 ? (
+                  <tr>
+                    <td colSpan={sampleCount + 5} className="ndc-inspection-empty">
+                      No inspection details available
+                    </td>
+                  </tr>
+                ) : (
+                  details.map((detail: any, index: number) => {
+                    const observations = detail.observations || [];
+                    const isFail = detail.result === 'Fail';
+                    return (
+                      <tr key={detail.id || index} className={isFail ? 'ndc-inspection-row-fail' : ''}>
+                        <td className="ndc-inspection-col-sr">{index + 1}</td>
+                        <td className="ndc-inspection-col-param">{detail.parameter_name || '-'}</td>
+                        <td className="ndc-inspection-col-spec">{detail.specification || '-'}</td>
+                        <td className="ndc-inspection-col-method">{detail.inspection_method_name || '-'}</td>
+                        {observations.map((obs: any, obsIndex: number) => (
+                          <td key={obsIndex} className="ndc-inspection-col-obs">
+                            <span className={obs.result === 'Fail' ? 'ndc-inspection-obs-fail' : ''}>
+                              {obs.observed_value || '-'}
+                            </span>
+                          </td>
+                        ))}
+                        {observations.length < sampleCount && (
+                          Array.from({ length: sampleCount - observations.length }, (_, i) => (
+                            <td key={`empty-${i}`} className="ndc-inspection-col-obs">-</td>
+                          ))
+                        )}
+                        <td className="ndc-inspection-col-result">
+                          <span className={`ndc-inspection-badge ${detail.result?.toLowerCase() || ''}`}>
+                            {detail.result || '-'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {inspectionData.remarks && (
+            <div className="ndc-inspection-remarks">
+              <span className="ndc-inspection-remarks-label">Remarks:</span>
+              <span>{inspectionData.remarks}</span>
+            </div>
+          )}
+        </div>
+
+        <div className="ndc-modal-footer">
+          <button onClick={onClose} className="ndc-modal-btn ndc-modal-btn-secondary">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+};
+
 // ===== MAIN COMPONENT =====
 
 const NewDeliveryChallan: React.FC = () => {
@@ -1781,11 +1930,8 @@ const NewDeliveryChallan: React.FC = () => {
   const [items, setItems] = useState<DeliveryChallanItem[]>([]);
   const [customerData, setCustomerData] = useState<Customer | null>(null);
 
-  // Guards against a mount-time effect re-seeding a blank row/warehouse
-  // after data has been restored from a Quality Inspection round-trip.
   const itemsRestoredRef = useRef(false);
 
-  // ─── Quick Add Customer modal state ─────────────────────────────
   const [showQuickAddModal, setShowQuickAddModal] = useState<boolean>(false);
   const [quickAddPrefillName, setQuickAddPrefillName] = useState<string>('');
 
@@ -1825,6 +1971,14 @@ const NewDeliveryChallan: React.FC = () => {
     message: ''
   });
 
+  // NEW: Quality Inspection ID to pass to DC
+  const [qualityInspectionId, setQualityInspectionId] = useState<number | null>(null);
+
+  // View Inspection state
+  const [viewInspectionData, setViewInspectionData] = useState<any>(null);
+  const [showViewInspectionModal, setShowViewInspectionModal] = useState<boolean>(false);
+  const [isLoadingInspection, setIsLoadingInspection] = useState<boolean>(false);
+
   const deliveryChallanAPI = new DeliveryChallanAPI();
 
   // ===== HELPER FUNCTIONS =====
@@ -1860,7 +2014,6 @@ const NewDeliveryChallan: React.FC = () => {
     const opts = taxOpts && taxOpts.length > 0 ? taxOpts : DEFAULT_TAX_OPTIONS;
     if (!item) return { rate: 0, tax_id: opts[0]?.tax_id || 1, tax_type: opts[0]?.tax_type || 'GST 0%' };
 
-    // 1. Direct tax_id check against options
     const rawTaxId = item.tax_id ?? item.taxId ?? item.tax_type_id ?? item.rawTaxId;
     if (rawTaxId !== undefined && rawTaxId !== null && rawTaxId !== '') {
       const numTaxId = Number(rawTaxId);
@@ -1870,7 +2023,6 @@ const NewDeliveryChallan: React.FC = () => {
       }
     }
 
-    // 2. Direct tax_type string check (e.g., "GST 18%", "GST18 (18%)", "GST18", "18%")
     const rawTaxType = item.tax_type ?? item.taxType ?? item.tax_name ?? item.rawTaxType;
     if (rawTaxType) {
       const strType = String(rawTaxType).trim();
@@ -1888,7 +2040,6 @@ const NewDeliveryChallan: React.FC = () => {
       }
     }
 
-    // 3. Direct tax rate / percentage check
     const directRateRaw = item.tax ?? item.tax_rate ?? item.gst_rate ?? item.gst ?? item.tax_percent ?? item.taxPercentage ?? item.rawTaxRate;
     if (directRateRaw !== undefined && directRateRaw !== null && directRateRaw !== '') {
       const directRate = Number(directRateRaw);
@@ -2050,6 +2201,10 @@ const NewDeliveryChallan: React.FC = () => {
           setHasSalesOrder(false);
         }
         
+        if (data.quality_inspection_id) {
+          setQualityInspectionId(data.quality_inspection_id);
+        }
+        
         if (data.items && Array.isArray(data.items) && data.items.length > 0) {
           const mappedItems: DeliveryChallanItem[] = data.items.map((item: any, index: number) => {
             const product = allProducts.find(p => p.itemCode === item.item_code);
@@ -2060,15 +2215,12 @@ const NewDeliveryChallan: React.FC = () => {
             let taxRate: number = item.tax_rate ?? item.tax ?? 0;
 
             if (taxId) {
-            
               if (!taxRate || taxRate <= 0) {
                 taxRate = getTaxRateFromId(taxId, taxOptions);
               }
             } else if (taxRate > 0) {
-             
               taxId = getTaxIdFromRate(taxRate, taxOptions);
             } else if (product?.tax) {
-             
               taxRate = product.tax;
               taxId = getTaxIdFromRate(taxRate, taxOptions);
             }
@@ -2119,10 +2271,34 @@ const NewDeliveryChallan: React.FC = () => {
     }
   };
 
+  // ===== VIEW QUALITY INSPECTION =====
+  const handleViewQualityInspection = async () => {
+    if (!id) {
+      toast.error('No Delivery Challan ID found');
+      return;
+    }
+
+    setIsLoadingInspection(true);
+    try {
+      const response = await deliveryChallanAPI.getQualityInspectionByDC(id);
+      
+      if (response.success && response.data) {
+        const inspectionData = response.data.data || response.data;
+        setViewInspectionData(inspectionData);
+        setShowViewInspectionModal(true);
+      } else {
+        toast.error('No Quality Inspection found for this Delivery Challan');
+      }
+    } catch (error: any) {
+      console.error('Error fetching inspection:', error);
+      toast.error(error?.response?.data?.message || 'Failed to fetch Quality Inspection');
+    } finally {
+      setIsLoadingInspection(false);
+    }
+  };
+
   // ===== RESTORE STATE FROM QUALITY INSPECTION =====
   const restoreStateFromQI = useCallback(() => {
-    // View mode must never restore editable FormState.
-    // Edit mode MUST restore when returning from Quality Inspection.
     if (isViewMode) return;
 
     const searchParams = new URLSearchParams(location.search);
@@ -2132,12 +2308,8 @@ const NewDeliveryChallan: React.FC = () => {
     const savedState = formNav.returnFromQualityInspection();
     if (!savedState) return;
 
-    // Restore all form fields
     if (savedState.selectedCustomer) {
       setSelectedCustomer(savedState.selectedCustomer);
-      // Try to resolve the full customer object right away. If the
-      // customers list hasn't loaded yet, a separate effect (below)
-      // re-syncs customerData once it does.
       const customer = customers.find(c => c.id === savedState.selectedCustomer);
       if (customer) {
         setCustomerData(customer);
@@ -2185,21 +2357,20 @@ const NewDeliveryChallan: React.FC = () => {
     } else if (savedState.qualityInspection) {
       setQualityInspection(true);
     }
+    if (savedState.qualityInspectionId) {
+      setQualityInspectionId(savedState.qualityInspectionId);
+    }
 
     toast.success('Delivery Challan data restored from Quality Inspection');
 
-    // Clean up URL
     const cleanUrl = window.location.pathname;
     window.history.replaceState({}, document.title, cleanUrl);
   }, [formNav, customers, isViewMode, location.search]);
 
   useEffect(() => {
     restoreStateFromQI();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Re-sync full customer details once the customers list has loaded,
-  // in case restoration happened before the list was ready.
   useEffect(() => {
     if (selectedCustomer && !customerData && customers.length > 0) {
       const customer = customers.find(c => c.id === selectedCustomer);
@@ -2230,7 +2401,8 @@ const NewDeliveryChallan: React.FC = () => {
       hasSalesOrder,
       roundOff,
       pendingQualityInspection,
-      qualityInspection: !!pendingQualityInspection || qualityInspection
+      qualityInspection: !!pendingQualityInspection || qualityInspection,
+      qualityInspectionId,
     };
     formState.saveFormState('delivery_challan', formDataToSave, id);
 
@@ -2246,7 +2418,7 @@ const NewDeliveryChallan: React.FC = () => {
   }, [
     selectedCustomer, selectedSalesOrder, isService, dcDate, warehouse,
     transporter, vehicleNumber, remarks, items, customerData, dcNumber,
-    hasSalesOrder, roundOff, formState, id, location.pathname, navigate
+    hasSalesOrder, roundOff, qualityInspectionId, formState, id, location.pathname, navigate
   ]);
 
   // ===== RESTORE STATE AFTER ADDING A NEW CUSTOMER =====
@@ -2276,6 +2448,7 @@ const NewDeliveryChallan: React.FC = () => {
       if (savedState.dcNumber) setDcNumber(savedState.dcNumber);
       if (savedState.hasSalesOrder !== undefined) setHasSalesOrder(savedState.hasSalesOrder);
       if (savedState.roundOff !== undefined) setRoundOff(savedState.roundOff);
+      if (savedState.qualityInspectionId) setQualityInspectionId(savedState.qualityInspectionId);
       if (!newCustomerId && savedState.selectedCustomer) {
         setSelectedCustomer(savedState.selectedCustomer);
         const customer = (customers.length > 0 ? customers : []).find(c => c.id === savedState.selectedCustomer);
@@ -2337,7 +2510,6 @@ const NewDeliveryChallan: React.FC = () => {
 
   useEffect(() => {
     restoreStateFromCustomerAdd();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.search]);
 
   useEffect(() => {
@@ -2352,9 +2524,6 @@ const NewDeliveryChallan: React.FC = () => {
     const searchParams = new URLSearchParams(location.search);
     const isReturningFromQI = searchParams.get('returnFromQI') === '1';
 
-    // When coming back from Quality Inspection, FormState contains the
-    // exact in-progress Delivery Challan. Do not fetch the old API record
-    // and overwrite the values the user just entered before opening QI.
     if (isReturningFromQI) return;
 
     if (
@@ -2417,8 +2586,6 @@ const NewDeliveryChallan: React.FC = () => {
             w => w.warehouse_name.toLowerCase() === 'finished goods'
           );
 
-          // Don't clobber a warehouse already restored from a Quality
-          // Inspection round-trip (or something the user already picked).
           setWarehouse(prev => {
             if (prev) return prev;
             if (finishedGoods) return finishedGoods.warehouse_name;
@@ -2803,12 +2970,10 @@ const NewDeliveryChallan: React.FC = () => {
               || allProducts.find(p => p.itemCode === value || p.id === value || p.itemName === value)
               || products.find(p => p.itemCode === value || p.id === value || p.itemName === value);
             if (product) {
-              // 1. Base Price from Item Form
               const rawBasePrice = product.rawItem?.standard_rate ?? product.rawItem?.standardRate ?? product.rawItem?.base_price ?? product.rawItem?.basePrice ?? product.standardRate;
               const parsedBasePrice = rawBasePrice !== undefined && rawBasePrice !== null && rawBasePrice !== '' ? Number(rawBasePrice) : 0;
               const basePrice = parsedBasePrice > 0 ? parsedBasePrice : (product.rate || 0);
 
-              // 2. Tax Rate (GST %) from Item Form - dynamic calculation using current taxOptions
               const taxInfo = getTaxRateFromItem(
                 product.rawItem || {
                   tax_id: product.rawTaxId ?? product.tax_id,
@@ -2945,14 +3110,12 @@ const NewDeliveryChallan: React.FC = () => {
 
   // ===== NAVIGATE TO QUALITY INSPECTION =====
   const navigateToQualityInspection = () => {
-    // Check if there are items to inspect
     const hasItems = items.some(item => item.itemCode && item.quantity > 0);
     if (!hasItems) {
       toast.error('Please add at least one item before creating a Quality Inspection');
       return;
     }
 
-    // Snapshot current form state BEFORE navigating away
     const formDataToSave = {
       selectedCustomer,
       selectedSalesOrder,
@@ -2967,14 +3130,13 @@ const NewDeliveryChallan: React.FC = () => {
       dcNumber,
       hasSalesOrder,
       roundOff,
-      // Preserve the complete pending inspection when opening Edit Inspection.
       pendingQualityInspection: pendingQualityInspection
         ? JSON.parse(JSON.stringify(pendingQualityInspection))
         : null,
-      qualityInspection: !!pendingQualityInspection || qualityInspection
+      qualityInspection: !!pendingQualityInspection || qualityInspection,
+      qualityInspectionId,
     };
 
-    // Get the first item's name and code for the inspection
     const firstItem = items.find(item => item.itemCode && item.quantity > 0);
 
     setQualityInspection(true);
@@ -2997,7 +3159,7 @@ const NewDeliveryChallan: React.FC = () => {
     toast.success('Opening Quality Inspection for this delivery challan');
   };
 
-  const handleViewQualityInspection = () => {
+  const handleNavigateToExistingQI = () => {
     if (!pendingQualityInspection?.formData) {
       toast.error('No Quality Inspection is attached to this Delivery Challan');
       return;
@@ -3019,6 +3181,7 @@ const NewDeliveryChallan: React.FC = () => {
       roundOff,
       pendingQualityInspection,
       qualityInspection: true,
+      qualityInspectionId,
     };
 
     formNav.navigateToQualityInspectionView(
@@ -3110,6 +3273,7 @@ const NewDeliveryChallan: React.FC = () => {
     return failedUpdates;
   };
 
+  // ===== BUILD PAYLOAD WITH QUALITY INSPECTION ID =====
   const buildPayload = (): DeliveryNotePayload => {
     const selectedWarehouse = warehouses.find(w => w.warehouse_name === warehouse);
     
@@ -3130,10 +3294,10 @@ const NewDeliveryChallan: React.FC = () => {
       instructions: remarks || '',
       status: 'Submitted',
       type: isService ? 'Services' : 'Products',
+      quality_inspection_id: qualityInspectionId || null,
       items: items
         .filter(item => item.itemCode && item.quantity > 0)
         .map(item => {
-          
           const itemTaxId = item.tax_id ?? getTaxIdFromRate(item.tax || 0, taxOptions) ?? null;
           return {
             name: item.itemName || item.itemCode,
@@ -3163,37 +3327,129 @@ const NewDeliveryChallan: React.FC = () => {
     return payload;
   };
 
+  // ===== SAVE PENDING QUALITY INSPECTION =====
+  const savePendingQualityInspection = async (createdDC: any, responseData: any): Promise<any> => {
+    if (!pendingQualityInspection?.payload) {
+      // If there's already a qualityInspectionId, use it
+      if (qualityInspectionId) {
+        return { data: { headerId: qualityInspectionId } };
+      }
+      return null;
+    }
+
+    const pending = pendingQualityInspection;
+    const payload = JSON.parse(JSON.stringify(pending.payload));
+    const inspectionForm = pending.formData || {};
+    const parameters = Array.isArray(inspectionForm.parameters) ? inspectionForm.parameters : [];
+
+    const savedParameters: Record<string, number> = {};
+    const savedMethods: Record<string, number> = {};
+
+    // Create masters that don't have IDs
+    for (const row of parameters) {
+      const name = String(row?.parameter || '').trim();
+      if (!name || row?.parameterId) continue;
+      const r = await api.post('/quality-parameter', {
+        parameter_name: name,
+        parameter_code: name.substring(0, 10).toUpperCase().replace(/\s+/g, '_'),
+        parameter_group_id: 1,
+        default_method_id: null,
+        unit: null,
+        description: 'Auto-created from inspection form',
+        is_mandatory: 0,
+        is_active: 1
+      });
+      if (r.data?.success !== 1 || !r.data?.data) {
+        throw new Error(r.data?.message || `Failed to save parameter: ${name}`);
+      }
+      const id = r.data.data.id || r.data.data.parameter_id || r.data.data.insertId;
+      if (!id) throw new Error(`No ID returned for parameter: ${name}`);
+      savedParameters[name] = Number(id);
+    }
+
+    for (const row of parameters) {
+      const name = String(row?.inspectionMethod || '').trim();
+      if (!name || row?.inspectionMethodId) continue;
+      const r = await api.post('/inspection-method', {
+        method_name: name,
+        description: 'Auto-created from inspection form',
+        is_active: 1
+      });
+      if (r.data?.success !== 1 || !r.data?.data) {
+        throw new Error(r.data?.message || `Failed to save inspection method: ${name}`);
+      }
+      const id = r.data.data.id || r.data.data.method_id || r.data.data.insertId;
+      if (!id) throw new Error(`No ID returned for inspection method: ${name}`);
+      savedMethods[name] = Number(id);
+    }
+
+    payload.details = (payload.details || []).map((detail: any, index: number) => {
+      const row = parameters[index] || {};
+      const parameterName = String(row.parameter || '').trim();
+      const methodName = String(row.inspectionMethod || '').trim();
+      return {
+        ...detail,
+        parameter_id: Number(row.parameterId || savedParameters[parameterName] || detail.parameter_id || 0),
+        inspection_method_id: Number(row.inspectionMethodId || savedMethods[methodName] || detail.inspection_method_id || 0)
+      };
+    });
+
+    // Set reference info if we have a DC
+    if (createdDC) {
+      const dcId = getPrintDeliveryChallanId(createdDC) ?? getPrintDeliveryChallanId(responseData) ?? null;
+      const dcName = createdDC?.data?.delivery_note || createdDC?.delivery_note || createdDC?.name || dcNumber;
+      
+      payload.reference_type = 'Delivery Challan';
+      payload.reference_id = dcId && /^\d+$/.test(String(dcId)) ? Number(dcId) : 0;
+      payload.source_type = 'delivery_challan';
+      payload.source_id = payload.reference_id || undefined;
+      payload.doc_no = dcName || payload.doc_no || dcNumber;
+      payload.challan_no_date = dcName || payload.challan_no_date || dcNumber;
+    } else {
+      // If no DC yet, set source info
+      payload.source_type = 'delivery_challan';
+      payload.source_id = id ? Number(id) : undefined;
+    }
+
+    const qiResponse = await api.post('/quality-inspection', payload);
+    if (qiResponse.data?.success !== 1) {
+      throw new Error(qiResponse.data?.message || 'Failed to save Quality Inspection');
+    }
+
+    const headerId = qiResponse.data?.data?.headerId;
+    if (headerId) {
+      setQualityInspectionId(headerId);
+    }
+
+    return qiResponse.data;
+  };
+
+  // ===== VALIDATE FORM =====
   const validateForm = (): boolean => {
     if (isViewMode) return true;
     const newErrors: { [key: string]: string } = {};
     
-    // Customer validation
     if (!selectedCustomer) {
       newErrors.customer = 'Please select a customer';
     }
     
-    // Sales Order validation
     if (hasSalesOrder && !selectedSalesOrder) {
       newErrors.salesOrder = 'Please select a sales order';
     }
     
-    // DC Date validation
     if (!dcDate) {
       newErrors.dcDate = 'DC Date is required';
     }
     
-    // Warehouse validation
     if (!warehouse) {
       newErrors.warehouse = 'Warehouse is required';
     }
     
-    // Items validation
     const hasItems = items.some(item => item.itemCode && item.quantity > 0);
     if (!hasItems) {
       newErrors.items = 'At least one item is required';
     }
     
-    // Check each item for required fields
     items.forEach((item, index) => {
       if (!item.itemCode) {
         newErrors[`item_${index}_code`] = 'Item code is required';
@@ -3287,7 +3543,6 @@ const NewDeliveryChallan: React.FC = () => {
   };
 
   // ===== SHARED DELIVERY CHALLAN PRINT =====
-  // This builder is intentionally the same template used by delivery_challan.tsx.
   const buildDeliveryChallanPrintHtml = (challan: DeliveryChallanPrintData): string => {
     const printItems = challan.items || [];
     const totalQty = printItems.reduce((sum, item) => sum + (item.qty || 0), 0);
@@ -3690,94 +3945,8 @@ const NewDeliveryChallan: React.FC = () => {
     setShowPrintConfirmModal(false);
     navigate('/delivery-challan');
   };
-  // Persist the inspection only after the Delivery Challan has been created.
-  // This keeps the QI and DC in the same user-driven submit flow.
-  const savePendingQualityInspection = async (createdDC: any, responseData: any) => {
-    if (!pendingQualityInspection?.payload) return null;
 
-    const pending = pendingQualityInspection;
-    const payload = JSON.parse(JSON.stringify(pending.payload));
-    const inspectionForm = pending.formData || {};
-    const parameters = Array.isArray(inspectionForm.parameters) ? inspectionForm.parameters : [];
-
-    const savedParameters: Record<string, number> = {};
-    const savedMethods: Record<string, number> = {};
-
-    // Create only masters that did not already have IDs. This is deliberately
-    // deferred until DC Submit, so clicking Save on the inspection makes zero
-    // persistence API calls.
-    for (const row of parameters) {
-      const name = String(row?.parameter || '').trim();
-      if (!name || row?.parameterId) continue;
-      const r = await api.post('/quality-parameter', {
-        parameter_name: name,
-        parameter_code: name.substring(0, 10).toUpperCase().replace(/\s+/g, '_'),
-        parameter_group_id: 1,
-        default_method_id: null,
-        unit: null,
-        description: 'Auto-created from inspection form',
-        is_mandatory: 0,
-        is_active: 1
-      });
-      if (r.data?.success !== 1 || !r.data?.data) {
-        throw new Error(r.data?.message || `Failed to save parameter: ${name}`);
-      }
-      const id = r.data.data.id || r.data.data.parameter_id || r.data.data.insertId;
-      if (!id) throw new Error(`No ID returned for parameter: ${name}`);
-      savedParameters[name] = Number(id);
-    }
-
-    for (const row of parameters) {
-      const name = String(row?.inspectionMethod || '').trim();
-      if (!name || row?.inspectionMethodId) continue;
-      const r = await api.post('/inspection-method', {
-        method_name: name,
-        description: 'Auto-created from inspection form',
-        is_active: 1
-      });
-      if (r.data?.success !== 1 || !r.data?.data) {
-        throw new Error(r.data?.message || `Failed to save inspection method: ${name}`);
-      }
-      const id = r.data.data.id || r.data.data.method_id || r.data.data.insertId;
-      if (!id) throw new Error(`No ID returned for inspection method: ${name}`);
-      savedMethods[name] = Number(id);
-    }
-
-    payload.details = (payload.details || []).map((detail: any, index: number) => {
-      const row = parameters[index] || {};
-      const parameterName = String(row.parameter || '').trim();
-      const methodName = String(row.inspectionMethod || '').trim();
-      return {
-        ...detail,
-        parameter_id: Number(row.parameterId || savedParameters[parameterName] || detail.parameter_id || 0),
-        inspection_method_id: Number(row.inspectionMethodId || savedMethods[methodName] || detail.inspection_method_id || 0)
-      };
-    });
-
-    const dcId = getPrintDeliveryChallanId(createdDC) ?? getPrintDeliveryChallanId(responseData) ?? null;
-    const dcName = createdDC?.data?.delivery_note || createdDC?.delivery_note || createdDC?.name || dcNumber;
-
-    payload.reference_type = 'Delivery Challan';
-    payload.reference_id = dcId && /^\d+$/.test(String(dcId)) ? Number(dcId) : 0;
-    payload.source_type = 'delivery_challan';
-    payload.source_id = payload.reference_id || undefined;
-    payload.customer_id = customerData?.id ? Number(customerData.id) : 0;
-    payload.customer_name = customerData?.name || payload.customer_name || '';
-    payload.doc_no = dcName || payload.doc_no || dcNumber;
-    payload.challan_no_date = dcName || payload.challan_no_date || dcNumber;
-    payload.inspection_date = inspectionForm.date || dcDate || null;
-    payload.invoice_qty = inspectionForm.invoiceQty || String(getTotalQty());
-    payload.inspection_qty = parseInt(payload.invoice_qty, 10) || getTotalQty();
-    payload.item_id = Number(pending.selectedItemId || payload.item_id || 0);
-
-    const qiResponse = await api.post('/quality-inspection', payload);
-    if (qiResponse.data?.success !== 1) {
-      throw new Error(qiResponse.data?.message || 'Failed to save Quality Inspection');
-    }
-
-    return qiResponse.data;
-  };
-
+  // ===== HANDLE SUBMIT =====
   const handleSubmit = async () => {
     if (isViewMode) return;
     if (!validateForm()) {
@@ -3786,9 +3955,35 @@ const NewDeliveryChallan: React.FC = () => {
     }
     setIsSubmitting(true);
     const toastId = toast.loading(isEditMode ? 'Updating delivery challan...' : 'Creating delivery challan...');
+    
     try {
-      const payload = buildPayload();
+      // STEP 1: Save Quality Inspection first if pending
+      let savedQiHeaderId: number | null = qualityInspectionId;
       
+      if (pendingQualityInspection) {
+        try {
+          toast.loading('Saving Quality Inspection...', { id: toastId });
+          const qiResult = await savePendingQualityInspection(null, null);
+          if (qiResult?.data?.headerId) {
+            savedQiHeaderId = qiResult.data.headerId;
+            setQualityInspectionId(savedQiHeaderId);
+            toast.success('Quality Inspection saved!', { id: toastId });
+          }
+        } catch (qiError: any) {
+          console.error('Error saving quality inspection:', qiError);
+          toast.error(qiError.message || 'Failed to save Quality Inspection', { id: toastId });
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
+      // STEP 2: Build payload with quality_inspection_id
+      const payload = buildPayload();
+      if (savedQiHeaderId) {
+        payload.quality_inspection_id = savedQiHeaderId;
+      }
+
+      // STEP 3: Create/Update Delivery Challan
       let response;
       if (isEditMode && id) {
         response = await deliveryChallanAPI.updateDeliveryNote(payload);
@@ -3814,6 +4009,25 @@ const NewDeliveryChallan: React.FC = () => {
                      response.message || 
                      (isEditMode ? 'Delivery Note updated successfully.' : 'Delivery Note created successfully.');
       
+      // STEP 4: Link Quality Inspection with DC if needed
+      if (savedQiHeaderId && createdDC) {
+        const dcId = getPrintDeliveryChallanId(createdDC) ?? getPrintDeliveryChallanId(response.data) ?? null;
+        if (dcId) {
+          try {
+            await api.put('/quality-inspection', {
+              id: savedQiHeaderId,
+              reference_type: 'Delivery Challan',
+              reference_id: Number(dcId),
+              doc_no: deliveryNote,
+              challan_no_date: deliveryNote
+            });
+          } catch (linkError) {
+            console.warn('Could not link inspection with DC:', linkError);
+          }
+        }
+      }
+      
+      // STEP 5: Update inventory
       if (!isEditMode) {
         const itemsToDispatch = items.filter(item => item.itemCode && item.quantity > 0);
         if (itemsToDispatch.length > 0) {
@@ -3828,8 +4042,6 @@ const NewDeliveryChallan: React.FC = () => {
         }
       }
       
-      // Do not clear the pending state yet. The inspection must be persisted
-      // before the Delivery Challan is finally submitted.
       toast.success(isEditMode ? 'Delivery Challan saved!' : 'Delivery Challan created!', { id: toastId });
       
       setSuccessData({
@@ -3839,51 +4051,38 @@ const NewDeliveryChallan: React.FC = () => {
         customerName: customerData?.name
       });
 
-      // Preserve the actual backend id/name so the print action can fetch the
-      // just-created record and render the exact same print template.
       setPrintDeliveryChallanId(
         getPrintDeliveryChallanId(createdDC) ??
         getPrintDeliveryChallanId(response.data) ??
         (id || null)
       );
 
-      // After creating a new Delivery Challan, ask whether it should be printed.
-      // The Yes action uses the exact same print template as delivery_challan.tsx.
       if (!isEditMode) {
         setShowPrintConfirmModal(true);
       } else {
         setShowSuccessModal(true);
       }
-      
-      // Save the pending Quality Inspection before final DC submission.
-      // If this fails, the DC remains as a saved draft and the pending QI state
-      // is intentionally preserved so the user can retry without losing data.
-      if (pendingQualityInspection) {
-        toast.loading('Saving Quality Inspection...', { id: toastId });
-        await savePendingQualityInspection(createdDC, response.data);
-        toast.success('Quality Inspection saved!', { id: toastId });
-      }
 
       const finalDcName = createdDC?.data?.delivery_note || createdDC?.delivery_note || createdDC?.name || dcNumber;
       if (!isEditMode && finalDcName) {
-        await deliveryChallanAPI.submitDeliveryNote(String(finalDcName));
         toast.success(`DC ${finalDcName} submitted!`, { id: toastId });
       }
 
       formState.clearFormState('delivery_challan');
       setPendingQualityInspection(null);
       setQualityInspection(true);
+      
     } catch (error: any) {
       toast.error(error.message || (isEditMode ? 'Failed to update' : 'Failed to create'), { id: toastId });
       if (pendingQualityInspection) {
         toast('Your inspection is still attached to this Delivery Challan. Fix the issue and submit again.', { icon: 'ℹ️' });
       }
-      setIsSubmitting(false);
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  // ===== HANDLE SAVE DRAFT =====
   const handleSaveDraft = async () => {
     if (isViewMode) return;
     if (!validateForm()) {
@@ -3892,8 +4091,31 @@ const NewDeliveryChallan: React.FC = () => {
     }
     setIsSubmitting(true);
     const toastId = toast.loading(isEditMode ? 'Updating draft...' : 'Saving draft...');
+    
     try {
+      // Save quality inspection if pending
+      let savedQiHeaderId: number | null = qualityInspectionId;
+      
+      if (pendingQualityInspection) {
+        try {
+          const qiResult = await savePendingQualityInspection(null, null);
+          if (qiResult?.data?.headerId) {
+            savedQiHeaderId = qiResult.data.headerId;
+            setQualityInspectionId(savedQiHeaderId);
+            toast.success('Quality Inspection saved!', { id: toastId });
+          }
+        } catch (qiError: any) {
+          console.error('Error saving quality inspection:', qiError);
+          toast.error(qiError.message || 'Failed to save Quality Inspection', { id: toastId });
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
       const payload = buildPayload();
+      if (savedQiHeaderId) {
+        payload.quality_inspection_id = savedQiHeaderId;
+      }
       
       let response;
       if (isEditMode && id) {
@@ -3910,7 +4132,24 @@ const NewDeliveryChallan: React.FC = () => {
                           createdDC?.name || 
                           dcNumber;
       
-      // Clear saved form state after saving draft
+      // Link inspection with DC if needed
+      if (savedQiHeaderId && createdDC) {
+        const dcId = getPrintDeliveryChallanId(createdDC) ?? getPrintDeliveryChallanId(response.data) ?? null;
+        if (dcId) {
+          try {
+            await api.put('/quality-inspection', {
+              id: savedQiHeaderId,
+              reference_type: 'Delivery Challan',
+              reference_id: Number(dcId),
+              doc_no: deliveryNote,
+              challan_no_date: deliveryNote
+            });
+          } catch (linkError) {
+            console.warn('Could not link inspection with DC:', linkError);
+          }
+        }
+      }
+      
       formState.clearFormState('delivery_challan');
       
       toast.success(`${isEditMode ? 'Draft updated' : 'Draft saved'}: ${deliveryNote}`, { id: toastId });
@@ -3928,7 +4167,6 @@ const NewDeliveryChallan: React.FC = () => {
       return;
     }
     if (window.confirm('Are you sure? Unsaved data will be lost.')) {
-      // Clear saved form state on cancel
       formState.clearFormState('delivery_challan');
       navigate('/delivery-challan');
     }
@@ -4013,7 +4251,6 @@ const NewDeliveryChallan: React.FC = () => {
           scrollbar-color: var(--text-secondary, #cbd5e1) var(--border-color, #f1f5f9);
         }
 
-        /* Grid for 3 columns in one line */
         .ndc-grid-3 {
           display: grid;
           grid-template-columns: 1fr 1fr 1fr;
@@ -4058,7 +4295,6 @@ const NewDeliveryChallan: React.FC = () => {
           display: block;
         }
 
-        /* QI Button in bottom section */
         .ndc-qi-action-btn {
           display: inline-flex !important;
           align-items: center !important;
@@ -4111,6 +4347,319 @@ const NewDeliveryChallan: React.FC = () => {
           font-size: 12px;
           font-weight: 500;
           color: var(--text-secondary, #64748b);
+        }
+
+        .ndc-qi-view-btn {
+          display: inline-flex !important;
+          align-items: center !important;
+          gap: 6px !important;
+          background: var(--success-color, #10b981) !important;
+          color: #fff !important;
+          border: none !important;
+          border-radius: 6px !important;
+          padding: 6px 14px !important;
+          cursor: pointer !important;
+          font-size: 12px !important;
+          font-weight: 500 !important;
+          transition: all 0.2s !important;
+          min-height: 32px !important;
+          text-decoration: none !important;
+          white-space: nowrap !important;
+        }
+
+        .ndc-qi-view-btn:hover {
+          background: color-mix(in srgb, var(--success-color, #10b981) 85%, #000) !important;
+          transform: translateY(-1px);
+          box-shadow: 0 2px 8px color-mix(in srgb, var(--success-color) 30%, transparent);
+        }
+
+        .ndc-qi-view-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+          transform: none !important;
+        }
+
+        .ndc-modal-overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 99999;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 20px;
+          background: rgba(15, 23, 42, 0.55);
+          backdrop-filter: blur(2px);
+        }
+
+        .ndc-modal-container {
+          width: min(95vw, 1200px);
+          max-height: 90vh;
+          background: var(--card-bg, #ffffff);
+          border: 1px solid var(--border-color, #e2e8f0);
+          border-radius: 16px;
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
+          box-shadow: 0 20px 50px rgba(15, 23, 42, 0.22);
+        }
+
+        .ndc-modal-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 16px 24px;
+          border-bottom: 1px solid var(--border-color, #e2e8f0);
+          flex-shrink: 0;
+        }
+
+        .ndc-modal-title {
+          margin: 0;
+          font-size: 18px;
+          font-weight: 700;
+          color: var(--text-primary, #0f172a);
+          display: flex;
+          align-items: center;
+        }
+
+        .ndc-modal-close-btn {
+          width: 32px;
+          height: 32px;
+          border: none;
+          background: transparent;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          color: var(--text-secondary, #64748b);
+          transition: background 0.2s;
+        }
+
+        .ndc-modal-close-btn:hover {
+          background: var(--layout-bg, #f1f5f9);
+        }
+
+        .ndc-inspection-summary {
+          padding: 16px 24px;
+          border-bottom: 1px solid var(--border-color, #e2e8f0);
+          flex-shrink: 0;
+        }
+
+        .ndc-inspection-summary-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+          gap: 12px 24px;
+        }
+
+        .ndc-inspection-summary-item {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+        }
+
+        .ndc-inspection-summary-label {
+          font-size: 10px;
+          font-weight: 600;
+          color: var(--text-secondary, #64748b);
+          text-transform: uppercase;
+          letter-spacing: 0.3px;
+        }
+
+        .ndc-inspection-summary-value {
+          font-size: 13px;
+          font-weight: 500;
+          color: var(--text-primary, #0f172a);
+        }
+
+        .ndc-inspection-status {
+          display: inline-block;
+          padding: 2px 10px;
+          border-radius: 12px;
+          font-size: 11px;
+          font-weight: 600;
+        }
+
+        .ndc-inspection-status.accepted {
+          background: #d1fae5;
+          color: #065f46;
+        }
+
+        .ndc-inspection-status.rejected {
+          background: #fee2e2;
+          color: #991b1b;
+        }
+
+        .ndc-inspection-result {
+          display: inline-block;
+          padding: 2px 10px;
+          border-radius: 12px;
+          font-size: 11px;
+          font-weight: 600;
+        }
+
+        .ndc-inspection-result.pass {
+          background: #d1fae5;
+          color: #065f46;
+        }
+
+        .ndc-inspection-result.fail {
+          background: #fee2e2;
+          color: #991b1b;
+        }
+
+        .ndc-inspection-details {
+          padding: 16px 24px;
+          overflow-y: auto;
+          flex: 1;
+        }
+
+        .ndc-inspection-details-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 12px;
+          font-weight: 600;
+          font-size: 13px;
+          color: var(--text-primary, #0f172a);
+        }
+
+        .ndc-inspection-rejected-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 4px 12px;
+          background: #fee2e2;
+          color: #991b1b;
+          border-radius: 12px;
+          font-size: 11px;
+          font-weight: 600;
+        }
+
+        .ndc-inspection-table-wrap {
+          overflow-x: auto;
+        }
+
+        .ndc-inspection-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 12px;
+        }
+
+        .ndc-inspection-table th {
+          background: var(--layout-bg, #f8fafc);
+          padding: 8px 10px;
+          text-align: left;
+          font-weight: 600;
+          color: var(--text-secondary, #475569);
+          border-bottom: 2px solid var(--border-color, #e2e8f0);
+          white-space: nowrap;
+        }
+
+        .ndc-inspection-table td {
+          padding: 6px 10px;
+          border-bottom: 1px solid var(--border-color, #f1f5f9);
+          vertical-align: middle;
+        }
+
+        .ndc-inspection-col-sr {
+          width: 40px;
+          text-align: center;
+        }
+
+        .ndc-inspection-col-param {
+          min-width: 150px;
+        }
+
+        .ndc-inspection-col-spec {
+          min-width: 100px;
+        }
+
+        .ndc-inspection-col-method {
+          min-width: 120px;
+        }
+
+        .ndc-inspection-col-obs {
+          min-width: 50px;
+          text-align: center;
+        }
+
+        .ndc-inspection-col-result {
+          min-width: 80px;
+          text-align: center;
+        }
+
+        .ndc-inspection-row-fail {
+          background: #fef2f2;
+        }
+
+        .ndc-inspection-obs-fail {
+          color: #dc2626;
+          font-weight: 600;
+        }
+
+        .ndc-inspection-badge {
+          display: inline-block;
+          padding: 1px 10px;
+          border-radius: 10px;
+          font-size: 10px;
+          font-weight: 600;
+        }
+
+        .ndc-inspection-badge.pass {
+          background: #d1fae5;
+          color: #065f46;
+        }
+
+        .ndc-inspection-badge.fail {
+          background: #fee2e2;
+          color: #991b1b;
+        }
+
+        .ndc-inspection-empty {
+          text-align: center;
+          padding: 20px;
+          color: var(--text-secondary, #94a3b8);
+        }
+
+        .ndc-inspection-remarks {
+          margin-top: 12px;
+          padding: 10px 14px;
+          background: var(--layout-bg, #f8fafc);
+          border-radius: 6px;
+          font-size: 12px;
+        }
+
+        .ndc-inspection-remarks-label {
+          font-weight: 600;
+          color: var(--text-secondary, #475569);
+          margin-right: 8px;
+        }
+
+        .ndc-modal-footer {
+          padding: 12px 24px;
+          border-top: 1px solid var(--border-color, #e2e8f0);
+          display: flex;
+          justify-content: flex-end;
+          flex-shrink: 0;
+        }
+
+        .ndc-modal-btn {
+          padding: 8px 20px;
+          border-radius: 8px;
+          border: 1px solid var(--border-color, #e2e8f0);
+          font-size: 12px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .ndc-modal-btn-secondary {
+          background: var(--card-bg, #ffffff);
+          color: var(--text-primary, #0f172a);
+        }
+
+        .ndc-modal-btn-secondary:hover {
+          background: var(--layout-bg, #f8fafc);
         }
 
         .ndc-print-confirm-overlay {
@@ -4227,6 +4776,14 @@ const NewDeliveryChallan: React.FC = () => {
           .ndc-print-confirm-btn {
             width: 100%;
           }
+
+          .ndc-inspection-summary-grid {
+            grid-template-columns: 1fr 1fr;
+          }
+
+          .ndc-modal-container {
+            width: 98vw;
+          }
         }
 
         @media print {
@@ -4298,7 +4855,14 @@ const NewDeliveryChallan: React.FC = () => {
         </div>
       )}
 
-      {/* Quick Add Customer Modal — same popup and flow as Create Quotation */}
+      {/* Inspection View Modal */}
+      <InspectionViewModal
+        isOpen={showViewInspectionModal}
+        onClose={() => setShowViewInspectionModal(false)}
+        inspectionData={viewInspectionData}
+      />
+
+      {/* Quick Add Customer Modal */}
       <QuickAddCustomerModal
         isOpen={showQuickAddModal}
         prefillName={quickAddPrefillName}
@@ -4315,7 +4879,7 @@ const NewDeliveryChallan: React.FC = () => {
         }}
       />
 
-      {/* Header with IsService on right */}
+      {/* Header */}
       <div className="ndc-header">
         <div className="ndc-header-left">
           <button onClick={handleCancel} className="ndc-back-btn">
@@ -4395,7 +4959,7 @@ const NewDeliveryChallan: React.FC = () => {
         <div className="ndc-compact-layout">
           {/* LEFT COLUMN */}
           <div className="ndc-left-column">
-            {/* Customer & Sales Order - Conditional Layout */}
+            {/* Customer & Sales Order */}
             <div className="ndc-section-header">
               <FaBuilding className="ndc-section-icon" />
               <span>Customer & Order</span>
@@ -4456,7 +5020,7 @@ const NewDeliveryChallan: React.FC = () => {
               </div>
             )}
 
-            {/* Delivery Challan Details - 3 columns in one line */}
+            {/* Delivery Challan Details */}
             <div className="ndc-section-header" style={{ marginTop: hasSalesOrder ? '0' : '0rem' }}>
               <FaBox className="ndc-section-icon" />
               <span>Challan Details</span>
@@ -4588,7 +5152,7 @@ const NewDeliveryChallan: React.FC = () => {
           </div>
         </div>
 
-        {/* FULL WIDTH - ITEMS SECTION */}
+        {/* ITEMS SECTION */}
         <div className="ndc-items-full">
           <div className="ndc-items-header">
             <span className="ndc-items-title">
@@ -4789,7 +5353,9 @@ const NewDeliveryChallan: React.FC = () => {
                     Quality Inspection
                   </span>
                   <span className="ndc-qi-help">
-                    {pendingQualityInspection ? 'Inspection is attached to this Delivery Challan and will be saved on Submit.' : 'Create an inspection before submitting this Delivery Challan.'}
+                    {qualityInspectionId ? `Inspection #${qualityInspectionId} attached` : 
+                     pendingQualityInspection ? 'Inspection is attached to this Delivery Challan and will be saved on Submit.' : 
+                     'Create an inspection before submitting this Delivery Challan.'}
                   </span>
                 </div>
                 <div className="ndc-qi-header-actions">
@@ -4798,25 +5364,41 @@ const NewDeliveryChallan: React.FC = () => {
                       <FaCheckCircle size={12} /> Inspection ready
                     </span>
                   )}
-                  <button
-                    type="button"
-                    onClick={navigateToQualityInspection}
-                    className="ndc-qi-action-btn"
-                    disabled={isViewMode || items.every(item => !item.itemCode || item.quantity <= 0)}
-                    title={items.every(item => !item.itemCode || item.quantity <= 0) ? 'Add at least one item first' : 'Create Quality Inspection'}
-                  >
-                    <FaClipboardCheck size={14} />
-                    {pendingQualityInspection ? 'Edit Inspection' : 'Create Inspection'}
-                  </button>
+                  {isViewMode ? (
+                    <button
+                      type="button"
+                      onClick={handleViewQualityInspection}
+                      className="ndc-qi-view-btn"
+                      disabled={isLoadingInspection}
+                    >
+                      {isLoadingInspection ? (
+                        <FaSpinner className="ndc-spinning" size={14} />
+                      ) : (
+                        <FaEye size={14} />
+                      )}
+                      {isLoadingInspection ? 'Loading...' : 'View Inspection'}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={navigateToQualityInspection}
+                      className="ndc-qi-action-btn"
+                      disabled={items.every(item => !item.itemCode || item.quantity <= 0)}
+                      title={items.every(item => !item.itemCode || item.quantity <= 0) ? 'Add at least one item first' : 'Create Quality Inspection'}
+                    >
+                      <FaClipboardCheck size={14} />
+                      {pendingQualityInspection || qualityInspectionId ? 'Edit Inspection' : 'Create Inspection'}
+                    </button>
+                  )}
                 </div>
               </div>
 
-              {pendingQualityInspection?.formData && (
+              {(pendingQualityInspection?.formData || qualityInspectionId) && !isViewMode && (
                 <div className="ndc-qi-report-actions">
                   <button
                     type="button"
                     className="ndc-qi-view-btn"
-                    onClick={handleViewQualityInspection}
+                    onClick={qualityInspectionId ? handleViewQualityInspection : handleNavigateToExistingQI}
                   >
                     <FaClipboardCheck size={14} />
                     View Inspection
