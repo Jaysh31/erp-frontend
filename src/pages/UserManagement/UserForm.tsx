@@ -359,10 +359,10 @@ export default function UserForm() {
             <FaArrowLeft size={9} /> Back
           </button>
           <div className="header-title">
-            <h1>{isNew ? 'Add New User' : 'Edit User'}</h1>
-            <span className="header-subtitle">
+            {/*<h1>{isNew ? 'Add New User' : 'Edit User'}</h1>*/}
+            {/*<span className="header-subtitle">
               {isNew ? 'Create a new user account with role assignments' : 'Update user information and roles'}
-            </span>
+            </span>*/}
           </div>
         </div>
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
+  ArrowLeft,
   Home,
   ChevronRight,
   X,
@@ -1249,9 +1250,9 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
         <nav className="nbom-breadcrumb" aria-label="Breadcrumb">
           <ol className="nbom-breadcrumb__list">
             <li className="nbom-breadcrumb__item nbom-breadcrumb__item--home">
-              <button className="nbom-breadcrumb__home-btn" title="Home" onClick={onBack}>
-                <Home size={13} />
-              </button>
+              <button type="button" onClick={() => onBack?.()} className="wof-back-btn">
+                          <ArrowLeft size={12} /> Back
+                        </button>
             </li>
             {/*<li className="nbom-breadcrumb__sep" aria-hidden><ChevronRight size={12} /></li>
             <li className="nbom-breadcrumb__item">

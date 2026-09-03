@@ -1996,12 +1996,12 @@ export default function ItemForm() {
           <button onClick={() => navigate("/item-list")} className="itf-back-btn">
             <FaArrowLeft size={11} /> Back
           </button>
-          <span className="itf-bc-sep">/</span>
+          {/*<span className="itf-bc-sep">/</span>
           <span className="itf-bc-link" onClick={() => navigate("/item-list")}>Stock</span>
           <span className="itf-bc-sep">/</span>
           <span className="itf-bc-link" onClick={() => navigate("/item-list")}>Item</span>
           <span className="itf-bc-sep">/</span>
-          <span className="itf-bc-current">{isNew ? "New item" : form.itemName || form.itemCode}</span>
+          <span className="itf-bc-current">{isNew ? "New item" : form.itemName || form.itemCode}</span>*/}
           {!isNew && (
             <span className={`itf-status-pill ${form.disabled ? "disabled" : "enabled"}`}>
               {form.disabled ? "Disabled" : "Enabled"}

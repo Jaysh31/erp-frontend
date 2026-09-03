@@ -1066,7 +1066,7 @@ export default function WarehouseForm() {
             <FaArrowLeft size={9} /> Back
           </button>
           <div className="header-title">
-            <h1>{isNew ? 'Add New Warehouse' : `Edit: ${form.warehouseName || 'Warehouse'}`}</h1>
+            {/*<h1>{isNew ? 'Add New Warehouse' : `Edit: ${form.warehouseName || 'Warehouse'}`}</h1>*/}
           </div>
           {hasErrors && (
             <div className="error-badge" onClick={() => setShowValidationSummary(true)} style={{ cursor: 'pointer' }}>

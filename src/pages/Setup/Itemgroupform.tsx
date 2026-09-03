@@ -598,9 +598,9 @@ export default function ItemGroupForm() {
           <button onClick={() => navigate('/item-group')} className="back-btn">
             <FaArrowLeft size={9} /> Back
           </button>
-          <div className="header-title">
+          {/*<div className="header-title">
             <h1>{isNew ? 'Add New Item Group' : `Edit: ${itemGroupName}`}</h1>
-          </div>
+          </div>*/}
           {hasErrors && (
             <div className="error-badge" onClick={() => setShowValidationSummary(true)} style={{
               background: '#dc3545',
