@@ -11,6 +11,7 @@ import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
 import './QualityInspectionList.css';
 import api from '../../src/services/api';
+import { PageLoader } from '../components/PageLoader';
 
 /* ─────────────────────────── Types ─────────────────────────── */
 
@@ -335,6 +336,18 @@ export default function QualityInspectionList() {
     setSelectedResult('All');
     clearDateFilterOnly();
   };
+
+    // ─── Loading Screen ─────────────────────────────────────────────────────
+    if (loading) {
+      return (
+        <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
+          <PageLoader 
+            message="Loading Setup & Quality Inspection List..." 
+            //subtitle="Calculating bill of materials, operations rates, and component structures"
+          />
+        </div>
+      );
+    }
 
   return (
     <div className={`qi-list-page ${theme}`}>

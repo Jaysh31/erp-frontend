@@ -1250,7 +1250,10 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
         <nav className="nbom-breadcrumb" aria-label="Breadcrumb">
           <ol className="nbom-breadcrumb__list">
             <li className="nbom-breadcrumb__item nbom-breadcrumb__item--home">
-              <button type="button" onClick={() => onBack?.()} className="wof-back-btn">
+              {/*<button className="nbom-breadcrumb__home-btn" title="Home" onClick={onBack}>
+                <Home size={13} />
+              </button>*/}
+              <button className="nbom-breadcrumb__home-btn" title="Home" onClick={onBack}>
                           <ArrowLeft size={12} /> Back
                         </button>
             </li>

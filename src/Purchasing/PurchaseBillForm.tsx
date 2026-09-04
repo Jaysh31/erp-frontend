@@ -17,6 +17,7 @@ import toast from 'react-hot-toast';
 import api from '../services/api';
 import './PurchaseBillForm.css';
 import { getUserRole } from '../utils/storage';
+import { PageLoader } from '../components/PageLoader';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1881,14 +1882,14 @@ if (grnIds.length > 0) {
     navigate('/purchase-invoice');
   };
 
-  // ─── Render ────────────────────────────────────────────────────────────────
-  if (pageLoading) {
+ // ─── Loading Screen ─────────────────────────────────────────────────────
+  if (loading) {
     return (
-      <div className="pif-page">
-        <div className="pif-inner pif-loading">
-          <FaSpinner className="spinning" size={24} />
-          <span>Loading invoice…</span>
-        </div>
+      <div className="p-6 max-w-7xl mx-auto">
+        <PageLoader 
+          message="Loading Purchasing & Purchase Bill..." 
+          //subtitle="Calculating bill of materials, operations rates, and component structures"
+        />
       </div>
     );
   }
@@ -1967,7 +1968,7 @@ if (grnIds.length > 0) {
             <FaArrowLeft size={9} /> Back
           </button>
           <div className="header-title">
-            <h1>{isEdit ? `${formData.invoiceNumber || 'Edit Purchase Bill'}` : 'New Purchase Bill'}</h1>
+            {/*<h1>{isEdit ? `${formData.invoiceNumber || 'Edit Purchase Bill'}` : 'New Purchase Bill'}</h1>*/}
           </div>
           <button type="button" onClick={handlePrint} className="print-btn" disabled={items.length === 0}>
             <FaPrint size={12} /> Print

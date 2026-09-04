@@ -28,6 +28,7 @@ import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import * as XLSX from 'xlsx';
+import { PageLoader } from '../components/PageLoader';
 
 // ===== INTERFACES =====
 
@@ -1329,6 +1330,18 @@ const DeliveryChallans: React.FC = () => {
   const getMonthName = (month: number): string => {
     return new Date(currentYear, month).toLocaleString('en-US', { month: 'long' });
   };
+
+    // ─── Loading Screen ─────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
+        <PageLoader 
+          message="Loading Sales & Delivery Challans..." 
+          //subtitle="Calculating bill of materials, operations rates, and component structures"
+        />
+      </div>
+    );
+  }
 
   // ===== RENDER =====
   return (

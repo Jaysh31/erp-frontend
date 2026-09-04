@@ -16,6 +16,7 @@ import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
 import api from '../services/api';
 import './PurchaseInvoice.css';
+import { PageLoader } from '../components/PageLoader';
 
 // ─── Date helpers ─────────────────────────────────────────────────
 
@@ -500,12 +501,24 @@ export default function PurchaseInvoice() {
   const statusOptions = ['Draft', 'Submitted', 'Partially Paid', 'Fully Paid', 'Overdue', 'Cancelled'];
   const currencies = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD'];
 
-  if (fetching) {
+  {/*if (fetching) {
     return (
       <div className={`inv-page ${theme}-theme`}>
         <div className="inv-loading">
           <FaSpinner className="inv-spinning" size={32} />
           <p>Loading purchase invoices...</p>
+        </div>
+      </div>
+    );
+  }*/}
+    if (loading) {
+    return (
+      <div className={`grnf-page ${theme}`}>
+        <div className="grnf-inner">
+          <PageLoader 
+            message="Loading Purchase Invoice..." 
+            subtitle="Synchronizing warehouse receipt entries, line item counts, and supplier records"
+          />
         </div>
       </div>
     );

@@ -25,6 +25,7 @@ import "./WarehouseList.css";
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
+import { PageLoader } from "../components/PageLoader";
 
 interface Warehouse {
   id: number;
@@ -378,6 +379,18 @@ export default function WarehouseList() {
       default: return '';
     }
   };
+
+    // ─── Loading Screen ─────────────────────────────────────────────────────
+    if (loading) {
+      return (
+        <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
+          <PageLoader 
+            message="Loading Setup & Warehouse List..." 
+            //subtitle="Calculating bill of materials, operations rates, and component structures"
+          />
+        </div>
+      );
+    }
 
   return (
     <div className={`wl-page ${theme}`}>

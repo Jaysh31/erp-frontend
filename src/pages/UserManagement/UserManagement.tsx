@@ -16,6 +16,7 @@ import {
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
 import './UserManagement.css';
+import { PageLoader } from '../components/PageLoader';
 
 interface User {
   id: number;
@@ -227,18 +228,17 @@ export default function UserManagement() {
     }
   };
 
-  // ─── Render ────────────────────────────────────────────────────────────
-
-  if (loading && users.length === 0) {
-    return (
-      <div className={`um-page ${theme}`}>
-        <div className="um-loading">
-          <FaSpinner className="um-spinning" size={32} />
-          <p>Loading users...</p>
+  // ─── Loading Screen ─────────────────────────────────────────────────────
+    if (loading) {
+      return (
+        <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
+          <PageLoader
+            message="Loading Organization & User Management List..." 
+            //subtitle="Calculating bill of materials, operations rates, and component structures"
+          />
         </div>
-      </div>
-    );
-  }
+      );
+    }
 
   return (
     <div className={`um-page ${theme}`}>

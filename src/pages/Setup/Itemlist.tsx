@@ -17,6 +17,8 @@ import {
 import "./ItemList.css";
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
+import { PageLoader } from "../components/PageLoader";
+
 
 interface Item {
   id: number;
@@ -456,6 +458,17 @@ export default function ItemList() {
   const handleBulkUpload = () => {
     navigate("/item-bulk-upload");
   };
+   // ─── Loading Screen ─────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
+        <PageLoader 
+          message="Loading Setup & Item List..." 
+          //subtitle="Calculating bill of materials, operations rates, and component structures"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className={`itl-page ${theme}`}>

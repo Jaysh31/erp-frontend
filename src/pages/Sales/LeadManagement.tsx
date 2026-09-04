@@ -19,6 +19,7 @@ import "./LeadManagement.css";
 import { useAdminTheme } from "../../admin-theme/AdminThemeContext";
 import api from "../../services/api";
 import toast from 'react-hot-toast';
+import { PageLoader } from "../components/PageLoader";
 
 // ─── types ──────────────────────────────────────────────────────────────
 
@@ -522,6 +523,18 @@ export default function LeadManagement() {
     const option = statusOptions.find(opt => opt.value === statusFilter);
     return option ? option.label : 'Status *';
   };
+
+      // ─── Loading Screen ─────────────────────────────────────────────────────
+      if (loading) {
+        return (
+          <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
+            <PageLoader 
+              message="Loading Sales & Lead List..." 
+              //subtitle="Calculating bill of materials, operations rates, and component structures"
+            />
+          </div>
+        );
+      }
 
   return (
     <div className={`jc-page ${theme}`}>

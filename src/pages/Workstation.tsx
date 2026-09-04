@@ -22,6 +22,7 @@ import "./Workstation.css";
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import api from '../services/api';
 import NewWorkstation from './NewWorkstation';
+import { PageLoader } from "../components/PageLoader";
 
 interface Workstation {
   id: number;
@@ -393,6 +394,18 @@ export default function WorkstationList() {
   };
 
   const weekdayLabels = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+
+      // ─── Loading Screen ─────────────────────────────────────────────────────
+      if (loading) {
+        return (
+          <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
+            <PageLoader 
+              message="Loading Setup & Workstation List..." 
+              //subtitle="Calculating bill of materials, operations rates, and component structures"
+            />
+          </div>
+        );
+      }
 
   // ─── Render ───────────────────────────────────────────────────────────────
 

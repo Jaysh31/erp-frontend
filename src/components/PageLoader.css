@@ -1,0 +1,184 @@
+/* src/components/PageLoader.css */
+
+.pl-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  width: 100%;
+  box-sizing: border-box;
+  animation: pl-fade-in 0.25s ease-out;
+}
+
+.pl-container--fullpage {
+  min-height: calc(100vh - 120px);
+}
+
+.pl-container--card {
+  min-height: 420px;
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 16px;
+  box-shadow: 0 4px 20px var(--shadow-color, rgba(0, 0, 0, 0.05));
+  margin: 16px 0;
+}
+
+.pl-container--inline {
+  min-height: 200px;
+  padding: 24px;
+}
+
+/* Spinner visual */
+.pl-spinner-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 68px;
+  height: 68px;
+  margin-bottom: 20px;
+}
+
+.pl-spinner-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 3.5px solid transparent;
+  border-top-color: var(--primary-color, #2563eb);
+  border-right-color: color-mix(in srgb, var(--primary-color, #2563eb) 40%, transparent);
+  animation: pl-spin 0.85s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+}
+
+.pl-spinner-pulse {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--primary-color, #2563eb) 20%, transparent) 0%, transparent 70%);
+  animation: pl-pulse 1.8s ease-in-out infinite;
+}
+
+.pl-spinner-core {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--primary-color, #2563eb) 12%, var(--card-bg, #ffffff));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary-color, #2563eb);
+}
+
+.pl-spinner-dots {
+  display: flex;
+  gap: 4px;
+}
+
+.pl-spinner-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background-color: var(--primary-color, #2563eb);
+  animation: pl-dot-bounce 1.2s ease-in-out infinite;
+}
+
+.pl-spinner-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.pl-spinner-dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+/* Text typography */
+.pl-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary, #0f172a);
+  margin: 0 0 6px 0;
+  letter-spacing: -0.01em;
+  text-align: center;
+}
+
+.pl-subtitle {
+  font-size: 12.5px;
+  color: var(--text-secondary, #64748b);
+  margin: 0;
+  text-align: center;
+  max-width: 320px;
+  line-height: 1.5;
+}
+
+/* Skeleton Loading Elements */
+.pl-skeleton-pulse {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--border-color, #e2e8f0) 50%, var(--card-bg, #ffffff)) 0%,
+    color-mix(in srgb, var(--border-color, #e2e8f0) 90%, var(--card-bg, #ffffff)) 50%,
+    color-mix(in srgb, var(--border-color, #e2e8f0) 50%, var(--card-bg, #ffffff)) 100%
+  );
+  background-size: 200% 100%;
+  animation: pl-shimmer 1.5s infinite;
+  border-radius: 6px;
+}
+
+/* Top Progress Bar (Navigation Loader) */
+.pl-top-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 9999;
+  background: linear-gradient(
+    90deg,
+    #3b82f6 0%,
+    #2563eb 35%,
+    #06b6d4 70%,
+    #10b981 100%
+  );
+  box-shadow: 0 1px 6px rgba(37, 99, 235, 0.4);
+  animation: pl-bar-indeterminate 1.2s cubic-bezier(0.65, 0.815, 0.735, 0.395) infinite;
+  pointer-events: none;
+}
+
+/* Keyframes */
+@keyframes pl-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes pl-pulse {
+  0%, 100% { opacity: 0.3; transform: scale(0.95); }
+  50% { opacity: 0.75; transform: scale(1.15); }
+}
+
+@keyframes pl-dot-bounce {
+  0%, 80%, 100% { transform: scale(0.7); opacity: 0.4; }
+  40% { transform: scale(1.15); opacity: 1; }
+}
+
+@keyframes pl-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pl-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes pl-bar-indeterminate {
+  0% {
+    left: -35%;
+    right: 100%;
+  }
+  60% {
+    left: 100%;
+    right: -90%;
+  }
+  100% {
+    left: 100%;
+    right: -90%;
+  }
+}

@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../services/api';
 import './PurchaseOrder.css';
+import { PageLoader } from '../components/PageLoader';
 
 // ─── Types ──────────────────────────────────────────────────
 
@@ -557,12 +558,24 @@ export default function PurchaseOrder() {
 
   // ─── Render ──────────────────────────────────────────────
 
-  if (fetching) {
+  {/*if (fetching) {
     return (
       <div className={`po-page ${theme}`}>
         <div className="po-loading">
           <FaSpinner className="po-spinning" size={32} />
           <p>Loading purchase orders...</p>
+        </div>
+      </div>
+    );
+  */}
+    if (loading) {
+    return (
+      <div className={`grnf-page ${theme}`}>
+        <div className="grnf-inner">
+          <PageLoader 
+            message="Loading Purchase Order..." 
+            subtitle="Synchronizing warehouse receipt entries, line item counts, and supplier records"
+          />
         </div>
       </div>
     );

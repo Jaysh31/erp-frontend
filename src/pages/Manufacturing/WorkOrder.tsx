@@ -25,6 +25,7 @@ import {
   FaList,
 } from 'react-icons/fa';
 import "./WorkOrder.css";
+import { PageLoader } from "../components/PageLoader.tsx";
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
 
@@ -547,6 +548,19 @@ export default function WorkOrderList() {
     if (progress >= 40) return '#f59e0b';
     return '#ef4444';
   };
+
+  
+  // ─── Loading Screen ─────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
+        <PageLoader 
+          message="Loading Manufacturing & Work Order..." 
+          subtitle="Calculating bill of materials, operations rates, and component structures"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className={`wo-page ${theme}`}>

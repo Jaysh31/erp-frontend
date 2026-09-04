@@ -21,6 +21,7 @@ import api from '../services/api';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import './PurchaseOrderForm.css';
+import { PageLoader } from '../components/PageLoader';
 
 // ─── DigitInput Component ──────────────────────────────────
 
@@ -3028,10 +3029,10 @@ export default function PurchaseOrderForm() {
     return (
       <div className={`pof-page ${theme}`}>
         <div className="pof-inner">
-          <div className="pof-loading">
-            <FaSpinner className="spinning" size={24} />
-            <span>Loading purchase order...</span>
-          </div>
+          <PageLoader 
+            message="Loading Purchase Order..." 
+            subtitle="Fetching vendor allocations, items schedule, and pricing agreements"
+          />
         </div>
       </div>
     );
@@ -3100,10 +3101,10 @@ export default function PurchaseOrderForm() {
           <button onClick={handleCancel} className="pof-back-btn">
             <FaArrowLeft size={9} /> Back
           </button>
-          <div className="pof-header-title">
-            <h1>{isEdit ? 'Edit Purchase Order' : 'New Purchase Order'}</h1>
+           {/*<div className="pof-header-title">
+           <h1>{isEdit ? 'Edit Purchase Order' : 'New Purchase Order'}</h1>
             {isEdit && <span className="pof-status-badge">{formData.status}</span>}
-          </div>
+          </div>*/}
           {hasErrors && (
             <div className="pof-error-badge">
               <FaExclamationTriangle size={12} />

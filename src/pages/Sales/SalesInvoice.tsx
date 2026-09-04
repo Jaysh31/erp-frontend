@@ -33,6 +33,7 @@ import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import * as XLSX from 'xlsx';
+import { PageLoader } from '../components/PageLoader';
 
 // ===== INTERFACES =====
 
@@ -231,6 +232,7 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
     'Overdue': { color: '#dc2626', bg: '#fee2e2', label: 'Overdue', icon: <FaExclamationTriangle size={10} /> }
   };
   const config = configs[status] || configs['Draft'];
+  
   
   return (
     <span className="qt-status-badge" style={{ color: config.color, background: config.bg }}>
@@ -1285,6 +1287,18 @@ const SalesInvoice: React.FC = () => {
     setCurrentPage(1);
     setShowDatePicker(false);
   };
+
+      // ─── Loading Screen ─────────────────────────────────────────────────────
+    if (loading) {
+      return (
+        <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
+          <PageLoader 
+            message="Loading Sales & Sales Bill List..." 
+            //subtitle="Calculating bill of materials, operations rates, and component structures"
+          />
+        </div>
+      );
+    }
 
   // ===== RENDER =====
   return (

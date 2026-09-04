@@ -23,6 +23,7 @@ import "./CompanyList.css";
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import api from "../../src/services/api";
 import toast from "react-hot-toast";
+import { PageLoader } from "../components/PageLoader";
 
 
 interface CompanyRow {
@@ -266,16 +267,17 @@ export default function CompanyList() {
     });
   };
 
-  if (loading) {
-    return (
-      <div className={`cl-page ${theme}`}>
-        <div className="cl-empty-content" style={{ padding: "60px 0" }}>
-          <FaSpinner className="cl-spinning" size={28} />
-          <p>Loading companies...</p>
+  // ─── Loading Screen ─────────────────────────────────────────────────────
+    if (loading) {
+      return (
+        <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
+          <PageLoader
+            message="Loading Organization & Company List..." 
+            //subtitle="Calculating bill of materials, operations rates, and component structures"
+          />
         </div>
-      </div>
-    );
-  }
+      );
+    }
 
   return (
     <div className={`cl-page ${theme}`}>

@@ -22,6 +22,7 @@ import {
 import "./UOMList.css";
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
+import { PageLoader } from "../components/PageLoader";
 
 interface UOM {
   id: string;
@@ -498,6 +499,18 @@ export default function UOMList() {
   };
 
   const weekdayLabels = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+
+    // ─── Loading Screen ─────────────────────────────────────────────────────
+    if (loading) {
+      return (
+        <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
+          <PageLoader 
+            message="Loading Setup & UOMList..." 
+            //subtitle="Calculating bill of materials, operations rates, and component structures"
+          />
+        </div>
+      );
+    }
 
   return (
     <div className={`uoml-page ${theme}`}>

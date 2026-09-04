@@ -25,7 +25,7 @@ import "./BOMPage.css";
 import NewBOMPage from "./Newbompage";
 import { useAdminTheme } from "../../admin-theme/AdminThemeContext";
 import api from '../../services/api';
-
+import { PageLoader } from "../components/PageLoader.tsx";
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const SORT_FIELDS = ["Created On", "Last Updated On", "ID", "Item to Manufacture"];
@@ -539,6 +539,18 @@ const BOMPage: React.FC = () => {
   const handleDelete = (row: BOMRow) => {
     openDeleteModal(row);
   };
+
+  // ─── Loading Screen ─────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
+        <PageLoader 
+          message="Loading Manufacturing & BOMs..." 
+          //subtitle="Calculating bill of materials, operations rates, and component structures"
+        />
+      </div>
+    );
+  }
 
   // ─── Render ───────────────────────────────────────────────────────────────
 

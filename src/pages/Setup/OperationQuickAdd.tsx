@@ -4,6 +4,7 @@ import { FaArrowLeft, FaSave, FaSpinner, FaTrash, FaEdit } from 'react-icons/fa'
 import "./OperationQuickAdd.css";
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
+import { PageLoader } from "../components/PageLoader";
 
 interface Operation {
   id: number;
@@ -397,13 +398,14 @@ export default function OperationForm() {
   const isNewMode = mode === 'new';
   const title = isNewMode ? 'Add New Operation' : isViewMode ? 'View Operation' : 'Edit Operation';
 
+  // ─── Loading Screen ─────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className={`opf-page ${theme}`}>
-        <div className="opf-loading">
-          <FaSpinner className="spinning" size={32} />
-          <p>Loading...</p>
-        </div>
+      <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
+        <PageLoader 
+          message="Loading Setup & Operation Quick Add..." 
+          //subtitle="Calculating bill of materials, operations rates, and component structures"
+        />
       </div>
     );
   }

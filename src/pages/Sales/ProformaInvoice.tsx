@@ -12,6 +12,7 @@ import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
 import './ProformaInvoice.css';
 import api from '../../services/api';
+import { PageLoader } from "../components/PageLoader.tsx";
 
 interface SalesOrderItem {
   id: string;
@@ -157,6 +158,7 @@ const generateFallbackOrderNumber = (index: number): string => {
   const year = new Date().getFullYear();
   return `PI-${year}-${String(index + 1).padStart(5, '0')}`;
 };
+
 
 /* ─────────────────────── Amount-in-words helper ─────────────────────── */
 
@@ -1163,6 +1165,18 @@ export default function ProformaInvoice() {
       setPrintLoadingId(null);
     }
   };
+
+      // ─── Loading Screen ─────────────────────────────────────────────────────
+      if (loading) {
+        return (
+          <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
+            <PageLoader 
+              message="Loading Sales & Proforma Invoice List..." 
+              //subtitle="Calculating bill of materials, operations rates, and component structures"
+            />
+          </div>
+        );
+      }
 
   return (
     <div className={`proforma-page ${theme}-theme`}>

@@ -30,6 +30,7 @@ import "./Stockentry.css";
 import { useAdminTheme } from "../../admin-theme/AdminThemeContext";
 import api from "../../services/api";
 import { FaSpinner } from "react-icons/fa6";
+import { PageLoader } from "../components/PageLoader.tsx";
 
 type EntryType =
   | "Disassemble"
@@ -563,6 +564,18 @@ export default function Stockentry() {
       ))}
     </div>
   );
+
+  // ─── Loading Screen ─────────────────────────────────────────────────────
+    if (loading) {
+      return (
+        <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
+          <PageLoader 
+            message="Loading Manufacturing & Stock Entry..." 
+            //subtitle="Calculating bill of materials, operations rates, and component structures"
+          />
+        </div>
+      );
+    }
 
   return (
     <div className={`se-page ${theme}`}>

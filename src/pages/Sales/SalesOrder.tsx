@@ -12,6 +12,7 @@ import toast from 'react-hot-toast';
 import './SalesOrder.css';
 import api from '../../services/api';
 import { FaFileInvoice } from 'react-icons/fa6';
+import { PageLoader } from '../components/PageLoader';
 
 interface SalesOrderItem {
   id: string;
@@ -1639,6 +1640,18 @@ export default function SalesOrder() {
       setProformaLoadingId(null);
     }
   };
+
+      // ─── Loading Screen ─────────────────────────────────────────────────────
+      if (loading) {
+        return (
+          <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
+            <PageLoader 
+              message="Loading Sales & Sales Order List..." 
+              //subtitle="Calculating bill of materials, operations rates, and component structures"
+            />
+          </div>
+        );
+      }
 
   return (
     <div className={`sales-order-page ${theme}-theme`}>

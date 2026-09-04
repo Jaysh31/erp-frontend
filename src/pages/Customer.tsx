@@ -26,6 +26,7 @@ import './Customer.css';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import api from '../services/api';
 import toast from 'react-hot-toast';
+import { PageLoader } from '../components/PageLoader';
 
 interface Contact {
   id: number;
@@ -374,6 +375,18 @@ const Customer: React.FC = () => {
     setStatusFilter(value);
     // The fetch will be triggered by the useEffect that depends on statusFilter
   };
+
+    // ─── Loading Screen ─────────────────────────────────────────────────────
+    if (loading) {
+      return (
+        <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
+          <PageLoader 
+            message="Loading Customer List..." 
+            //subtitle="Calculating bill of materials, operations rates, and component structures"
+          />
+        </div>
+      );
+    }
 
   return (
     <div className={`igl-page ${theme}`}>

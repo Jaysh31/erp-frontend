@@ -21,6 +21,7 @@ import {
 import "./Itemgrouplist.css";
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
+import { PageLoader } from "../components/PageLoader";
 
 interface ItemGroup {
   id: string;
@@ -734,6 +735,18 @@ export default function ItemGroupList() {
       </div>
     );
   }
+
+      // ─── Loading Screen ─────────────────────────────────────────────────────
+      if (loading) {
+        return (
+          <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
+            <PageLoader 
+              message="Loading Setup & Item Group List..." 
+              //subtitle="Calculating bill of materials, operations rates, and component structures"
+            />
+          </div>
+        );
+      }
 
   return (
     <div className={`igl-page ${theme}`}>

@@ -32,6 +32,7 @@ import {
 import "./InventoryDetail.css";
 import { useAdminTheme } from "../../admin-theme/AdminThemeContext";
 import api from "../../services/api";
+import { PageLoader } from "../components/PageLoader";
 
 // ─── Types ───────────────────────────────────────────────────────────────
 
@@ -279,16 +280,17 @@ export default function InventoryDetail() {
     return 'pending';
   };
 
-  if (loading) {
-    return (
-      <div className={`inv-detail-page ${theme}`}>
-        <div className="inv-detail-loading">
-          <FaSpinner className="inv-spinner" />
-          <p>Loading inventory details...</p>
+    // ─── Loading Screen ─────────────────────────────────────────────────────
+    if (loading) {
+      return (
+        <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
+          <PageLoader 
+            message="Loading Manufacturing  & Inventory List..." 
+            //subtitle="Calculating bill of materials, operations rates, and component structures"
+          />
         </div>
-      </div>
-    );
-  }
+      );
+    }
 
   if (error || !data) {
     return (

@@ -21,6 +21,7 @@ import {
   FaExclamationTriangle,
 } from 'react-icons/fa';
 import "./GRNList.css";
+import { PageLoader } from '../components/PageLoader';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import api from '../services/api';
 
@@ -552,14 +553,17 @@ export default function GRNList() {
 
   if (loading) {
     return (
-      <div className={`grn-page ${theme}`}>
-        <div className="grn-loading">
-          <div className="grn-loading-spinner"></div>
-          <p>Loading GRNs...</p>
+      <div className={`grnf-page ${theme}`}>
+        <div className="grnf-inner">
+          <PageLoader 
+            message="Loading Goods Receipt Note..." 
+            //subtitle="Synchronizing warehouse receipt entries, line item counts, and supplier records"
+          />
         </div>
       </div>
     );
   }
+  
 
   return (
     <div className={`grn-page ${theme}`}>

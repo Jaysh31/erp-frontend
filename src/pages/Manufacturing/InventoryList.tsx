@@ -31,6 +31,7 @@ import {
 import "./InventoryList.css";
 import { useAdminTheme } from "../../admin-theme/AdminThemeContext";
 import api from "../../services/api";
+import { PageLoader } from "../components/PageLoader";
 
 // ─── Types ───────────────────────────────────────────────────────────────
 
@@ -827,6 +828,19 @@ export default function InventoryList() {
       </>
     );
   };
+
+
+ // ─── Loading Screen ─────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
+        <PageLoader 
+          message="Loading Manufacturing & Inventory..." 
+          //subtitle="Calculating bill of materials, operations rates, and component structures"
+        />
+      </div>
+    );
+  }
 
   // ─── Helper: Reservation State ────────────────────────────────────
 
