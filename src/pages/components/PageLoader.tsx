@@ -1,6 +1,6 @@
 import React from 'react';
 import './PageLoader.css';
-import { useAdminTheme } from  "../../admin-theme/AdminThemeContext";
+import { useAdminTheme } from "../../admin-theme/AdminThemeContext";
 
 interface PageLoaderProps {
   message?: string;
