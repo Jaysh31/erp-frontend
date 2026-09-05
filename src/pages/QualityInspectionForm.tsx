@@ -48,8 +48,10 @@ interface InspectionForm {
   supplierRemarks: string;
   footerRevNo: string;
   footerRevDate: string;
-  inspectedBy: string;
-  reviewedBy: string;
+  inspectedBy: string;  // For display name
+  inspectedById?: number | null;  // For ID (this is what gets saved to DB)
+  reviewedBy: string;   // For display name
+  reviewedById?: number | null;   // For ID (this is what gets saved to DB)
   qualityTemplateId?: number | null;
   sourceType?: string;
   sourceId?: number;
@@ -97,9 +99,6 @@ interface MethodSuggestion {
   created_at: string;
 }
 
-// Shape assumed for GET /employee — adjust displayField/labelField/
-// subLabelField on the two AutocompleteInput usages below if the API
-// returns different field names.
 interface EmployeeSuggestion {
   id: number;
   employee_name: string;
@@ -176,15 +175,15 @@ const DatePicker: React.FC<DatePickerProps> = ({
   };
 
   const handleDateSelect = (day: number) => {
-  const year = currentYear;
-  const month = String(currentMonth + 1).padStart(2, '0');
-  const selectedDay = String(day).padStart(2, '0');
+    const year = currentYear;
+    const month = String(currentMonth + 1).padStart(2, '0');
+    const selectedDay = String(day).padStart(2, '0');
 
-  const formatted = `${year}-${month}-${selectedDay}`;
+    const formatted = `${year}-${month}-${selectedDay}`;
 
-  onChange(formatted);
-  setIsOpen(false);
-};
+    onChange(formatted);
+    setIsOpen(false);
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -227,35 +226,29 @@ const DatePicker: React.FC<DatePickerProps> = ({
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const dayNames = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
- const today = new Date();
+  const today = new Date();
 
-const todayYear = today.getFullYear();
-const todayMonth = today.getMonth();
-const todayDay = today.getDate();
+  const todayYear = today.getFullYear();
+  const todayMonth = today.getMonth();
+  const todayDay = today.getDate();
 
-const isToday = (day: number) => {
-  return (
-    currentYear === todayYear &&
-    currentMonth === todayMonth &&
-    day === todayDay
-  );
-};
+  const isToday = (day: number) => {
+    return (
+      currentYear === todayYear &&
+      currentMonth === todayMonth &&
+      day === todayDay
+    );
+  };
 
   const isSelected = (day: number) => {
-  if (!value) return false;
+    if (!value) return false;
 
-  const year = currentYear;
-  const month = String(currentMonth + 1).padStart(2, '0');
-  const selectedDay = String(day).padStart(2, '0');
+    const year = currentYear;
+    const month = String(currentMonth + 1).padStart(2, '0');
+    const selectedDay = String(day).padStart(2, '0');
 
-  return `${year}-${month}-${selectedDay}` === value;
-};
-
-  // const displayValue = value ? new Date(value + 'T00:00:00').toLocaleDateString('en-US', {
-  //   year: 'numeric',
-  //   month: 'short',
-  //   day: 'numeric'
-  // }) : '';
+    return `${year}-${month}-${selectedDay}` === value;
+  };
 
   return (
     <div className="date-picker-wrapper" ref={wrapperRef}>
@@ -374,42 +367,39 @@ const SpecificationInput: React.FC<SpecificationInputProps> = ({
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [showHelper, setShowHelper] = useState(false);
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 });
-const updateDropdownPosition = () => {
-  if (!inputRef.current) return;
+  
+  const updateDropdownPosition = () => {
+    if (!inputRef.current) return;
 
-  const rect = inputRef.current.getBoundingClientRect();
+    const rect = inputRef.current.getBoundingClientRect();
 
-  const viewportPadding = 8;
-  const availableWidth = window.innerWidth - viewportPadding * 2;
+    const viewportPadding = 8;
+    const availableWidth = window.innerWidth - viewportPadding * 2;
 
-  const dropdownWidth = Math.min(
-    rect.width,
-    availableWidth
-  );
+    const dropdownWidth = Math.min(
+      rect.width,
+      availableWidth
+    );
 
-  const maxLeft =
-    window.innerWidth - dropdownWidth - viewportPadding;
+    const maxLeft =
+      window.innerWidth - dropdownWidth - viewportPadding;
 
-  const left = Math.max(
-    viewportPadding,
-    Math.min(rect.left, maxLeft)
-  );
+    const left = Math.max(
+      viewportPadding,
+      Math.min(rect.left, maxLeft)
+    );
 
-  setDropdownPos({
-    top: rect.bottom + 4,
-    left,
-    width: dropdownWidth
-  });
-};
+    setDropdownPos({
+      top: rect.bottom + 4,
+      left,
+      width: dropdownWidth
+    });
+  };
 
-  // Reposition (or track scroll/resize) while the helper is open so it never
-  // gets clipped by the scrollable observation table wrapper.
   useEffect(() => {
     if (!showHelper) return;
     updateDropdownPosition();
     const reposition = () => updateDropdownPosition();
-    // capture=true so we also catch scroll events from nested scroll
-    // containers (e.g. the observation table's horizontal scrollbar).
     window.addEventListener('scroll', reposition, true);
     window.addEventListener('resize', reposition);
     return () => {
@@ -622,7 +612,9 @@ const defaultFormData = (): InspectionForm => ({
   footerRevNo: '00',
   footerRevDate: '',
   inspectedBy: '',
+  inspectedById: null,
   reviewedBy: '',
+  reviewedById: null,
   qualityTemplateId: null,
   sourceType: undefined,
   sourceId: undefined,
@@ -690,7 +682,6 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
     const spaceBelow = window.innerHeight - rect.bottom - viewportPadding;
     const spaceAbove = rect.top - viewportPadding;
 
-    // Open upward when there is not enough room below the input.
     const openUpward =
       spaceBelow < preferredHeight && spaceAbove > spaceBelow;
 
@@ -722,14 +713,10 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
     });
   };
 
-  // Keep the dropdown correctly positioned while it's open, including when
-  // the page or an inner scroll container is scrolled.
   useEffect(() => {
     if (!isOpen) return;
     updateDropdownPosition();
     const reposition = () => updateDropdownPosition();
-    // capture=true so this also fires for scroll events inside nested
-    // scroll containers (e.g. the observation table's own scrollbar).
     window.addEventListener('scroll', reposition, true);
     window.addEventListener('resize', reposition);
     return () => {
@@ -741,8 +728,6 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
   const fetchSuggestions = async (searchTerm: string = '') => {
     const isEmployeeDropdown = apiEndpoint === '/employee';
 
-    // Employee dropdowns should show all employees immediately when
-    // the field is focused, even when the search box is empty.
     if (!searchTerm.trim() && !isEmployeeDropdown) {
       setSuggestions([]);
       setIsOpen(false);
@@ -757,7 +742,6 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
         limit: isEmployeeDropdown ? 100 : 10
       };
 
-      // Only send the search parameter when the user has typed something.
       if (searchTerm.trim()) {
         params[searchParam] = searchTerm.trim();
       }
@@ -843,8 +827,6 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node;
-      // The dropdown is rendered in a portal (document.body), so it lives
-      // outside wrapperRef's DOM subtree — check both before closing.
       const insideWrapper = !!wrapperRef.current && wrapperRef.current.contains(target);
       const insideDropdown = !!dropdownRef.current && dropdownRef.current.contains(target);
       if (!insideWrapper && !insideDropdown) {
@@ -1240,10 +1222,8 @@ export default function QualityInspectionForm() {
     inputRefs.current[key] = el;
   };
 
-  // Check if coming from a source (Delivery Challan, Sales Invoice, etc.)
   const isFromSource = !!formData.sourceType;
 
-  // Get the source path for navigation
   const getSourcePath = () => {
     const paths: Record<string, string> = {
       'delivery_challan': '/delivery-challan',
@@ -1275,7 +1255,6 @@ export default function QualityInspectionForm() {
   /* ─── Read query parameters ────────────────────────────────────── */
 
   useEffect(() => {
-    // Get all query params
     const docNoParam = searchParams.get('docNo');
     const sourceType = searchParams.get('sourceType');
     const sourceId = searchParams.get('sourceId');
@@ -1286,7 +1265,6 @@ export default function QualityInspectionForm() {
     const invoiceQtyParam = searchParams.get('invoiceQty');
     const reportNoParam = searchParams.get('reportNo');
 
-    // Set docNo, sourceType, sourceId
     if (docNoParam) {
       setFormData(prev => ({
         ...prev,
@@ -1296,7 +1274,6 @@ export default function QualityInspectionForm() {
       }));
     }
 
-    // Auto-populate partProductName and partNo from URL params
     if (partProductNameParam) {
       const decodedName = decodeURIComponent(partProductNameParam);
       setFormData(prev => ({
@@ -1313,7 +1290,6 @@ export default function QualityInspectionForm() {
       }));
     }
 
-    // Auto-populate customer name
     if (customerNameParam) {
       const decodedCustomerName = decodeURIComponent(customerNameParam);
       setFormData(prev => ({
@@ -1322,7 +1298,6 @@ export default function QualityInspectionForm() {
       }));
     }
 
-    // Auto-populate challan no / date
     if (challanNoDateParam) {
       const decodedChallanNoDate = decodeURIComponent(challanNoDateParam);
       setFormData(prev => ({
@@ -1331,7 +1306,6 @@ export default function QualityInspectionForm() {
       }));
     }
 
-    // Auto-populate invoice qty
     if (invoiceQtyParam) {
       const decodedInvoiceQty = decodeURIComponent(invoiceQtyParam);
       setFormData(prev => ({
@@ -1340,7 +1314,6 @@ export default function QualityInspectionForm() {
       }));
     }
 
-    // Auto-populate report no
     if (reportNoParam) {
       const decodedReportNo = decodeURIComponent(reportNoParam);
       setFormData(prev => ({
@@ -1349,8 +1322,6 @@ export default function QualityInspectionForm() {
       }));
     }
 
-    // If a pending inspection already exists, never replace its saved rows
-    // and observations with a newly fetched template.
     const savedSourceForTemplate = sourceType
       ? formState.getFormState(sourceType, sourceId ? sourceId : undefined)?.formData
       : null;
@@ -1358,7 +1329,6 @@ export default function QualityInspectionForm() {
 
     if (partProductNameParam && !hasPendingInspection) {
       const decodedName = decodeURIComponent(partProductNameParam);
-      // Search for the item by name
       const searchItemAndLoadTemplate = async () => {
         try {
           const response = await api.get('/item', {
@@ -1379,63 +1349,36 @@ export default function QualityInspectionForm() {
               items = response.data.data.data;
             }
 
-            // Find exact match by name
             const matchedItem = items.find(
               (item: any) => item.item_name === decodedName || item.item_code === partNoParam
             );
 
             if (matchedItem) {
               setSelectedItemId(matchedItem.id);
-              // Load the quality template for this item
               await loadQualityTemplate(matchedItem.id);
               toast.success(`Loaded item: ${matchedItem.item_name}`);
             }
           }
         } catch (error) {
           console.error('Error searching for item:', error);
-          // Don't show error toast - just use the name as provided
         }
       };
 
       searchItemAndLoadTemplate();
     }
 
-    // Check if returning from another module and restore state
     const returnFlag = searchParams.get('returnFromQI');
     if (returnFlag === '1' && sourceType) {
       const moduleType = sourceType;
       const savedState = formState.restoreFormState(moduleType);
       if (savedState) {
         toast.success(`Restored data from ${moduleType}`);
-        // Clean up URL
         const newParams = new URLSearchParams(searchParams);
         newParams.delete('returnFromQI');
         window.history.replaceState({}, document.title, `${window.location.pathname}?${newParams.toString()}`);
       }
     }
   }, [searchParams, formState]);
-
-  // const compareParameters = (templateParams: any[], formParams: ParameterRow[]): boolean => {
-  //   if (templateParams.length !== formParams.length) {
-  //     return true;
-  //   }
-
-  //   const sortedTemplate = [...templateParams].sort((a, b) => a.parameter_id - b.parameter_id);
-  //   const sortedForm = [...formParams].sort((a, b) => (a.parameterId || 0) - (b.parameterId || 0));
-
-  //   for (let i = 0; i < sortedTemplate.length; i++) {
-  //     const t = sortedTemplate[i];
-  //     const f = sortedForm[i];
-
-  //     if (t.parameter_id !== f.parameterId) return true;
-  //     if (t.inspection_method_id !== f.inspectionMethodId) return true;
-  //     if (t.specification !== f.specification) return true;
-  //     if ((t.remarks || '') !== (f.remarks || '')) return true;
-  //     if ((t.is_mandatory || 1) !== (f.isMandatory || 1)) return true;
-  //   }
-
-  //   return false;
-  // };
 
   const loadQualityTemplate = async (itemId: number) => {
     setLoadingTemplate(true);
@@ -1589,8 +1532,10 @@ export default function QualityInspectionForm() {
       supplierRemarks: record.supplier_remarks || prev.supplierRemarks,
       footerRevNo: record.footer_rev_no || prev.footerRevNo,
       footerRevDate: unwrapDate(record.footer_rev_date) || prev.footerRevDate,
-      inspectedBy: record.inspected_by || prev.inspectedBy,
-      reviewedBy: record.reviewed_by || prev.reviewedBy,
+      inspectedBy: record.inspected_by_name || record.inspected_by || prev.inspectedBy,
+      inspectedById: record.inspected_by || null,
+      reviewedBy: record.reviewed_by_name || record.reviewed_by || prev.reviewedBy,
+      reviewedById: record.reviewed_by || null,
       qualityTemplateId: record.quality_template_id || prev.qualityTemplateId,
     }));
   };
@@ -1625,12 +1570,8 @@ export default function QualityInspectionForm() {
     if (isEditMode && id) {
       fetchInspectionById(id);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  // Restore an inspection that is already attached to a Delivery Challan.
-  // This is used by both Edit Inspection and View Inspection so every field,
-  // parameter and observation comes back exactly as it was entered.
   useEffect(() => {
     if (isEditMode) return;
 
@@ -1643,8 +1584,6 @@ export default function QualityInspectionForm() {
       sourceId ? sourceId : undefined
     )?.formData;
 
-    // Restore the exact pending inspection, including every parameter and
-    // observation. Do not rebuild the form from URL values.
     const pendingInspection = savedSource?.pendingQualityInspection;
     const pending = pendingInspection?.formData;
 
@@ -1669,7 +1608,6 @@ export default function QualityInspectionForm() {
       const timer = setTimeout(() => handlePrint(), 400);
       return () => clearTimeout(timer);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoPrint, loadingRecord]);
 
   const handleFieldChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -1718,19 +1656,35 @@ export default function QualityInspectionForm() {
   };
 
   const handleInspectedByChange = (value: string) => {
-    setFormData(prev => ({ ...prev, inspectedBy: value }));
+    setFormData(prev => ({ 
+      ...prev, 
+      inspectedBy: value,
+      inspectedById: null
+    }));
   };
 
   const handleInspectedBySelect = (item: EmployeeSuggestion) => {
-    setFormData(prev => ({ ...prev, inspectedBy: item.employee_name }));
+    setFormData(prev => ({ 
+      ...prev, 
+      inspectedBy: item.employee_name,
+      inspectedById: item.id
+    }));
   };
 
   const handleReviewedByChange = (value: string) => {
-    setFormData(prev => ({ ...prev, reviewedBy: value }));
+    setFormData(prev => ({ 
+      ...prev, 
+      reviewedBy: value,
+      reviewedById: null
+    }));
   };
 
   const handleReviewedBySelect = (item: EmployeeSuggestion) => {
-    setFormData(prev => ({ ...prev, reviewedBy: item.employee_name }));
+    setFormData(prev => ({ 
+      ...prev, 
+      reviewedBy: item.employee_name,
+      reviewedById: item.id
+    }));
   };
 
   const handleParameterFieldChange = (rowIndex: number, field: 'parameter' | 'specification' | 'inspectionMethod', value: string) => {
@@ -2016,18 +1970,15 @@ export default function QualityInspectionForm() {
     doc.close();
   };
 
-  // ===== FIXED: validate with observations check and visual indicators =====
   const validate = (): boolean => {
     const newErrors: { [key: string]: string } = {};
 
-    // Basic required fields
     if (!formData.docNo.trim()) newErrors.docNo = 'Doc No is required';
     if (!formData.reportNo.trim()) newErrors.reportNo = 'Report No is required';
     if (!formData.partProductName.trim()) newErrors.partProductName = 'Part / Product Name is required';
     if (!formData.customerName.trim()) newErrors.customerName = 'Customer Name is required';
     if (!formData.date) newErrors.date = 'Date is required';
 
-    // Check each parameter row
     let hasObservationError = false;
     formData.parameters.forEach((row, index) => {
       if (!row.parameter.trim()) {
@@ -2037,7 +1988,6 @@ export default function QualityInspectionForm() {
         newErrors[`method_${index}`] = 'Inspection method is required';
       }
 
-      // ===== CRITICAL: Check if at least one observation has a value =====
       const hasObservation = row.observations.some(obs => obs && obs.trim() !== '');
       if (!hasObservation) {
         newErrors[`observation_${index}`] = 'At least one observation value is required';
@@ -2048,7 +1998,6 @@ export default function QualityInspectionForm() {
     setErrors(newErrors);
 
     if (Object.keys(newErrors).length > 0) {
-      // Show a toast message for observation errors
       if (hasObservationError) {
         toast.error('Please fill in at least one observation value for each parameter');
       } else {
@@ -2305,10 +2254,6 @@ export default function QualityInspectionForm() {
     }
   };
 
-  // ===== SAVE INSPECTION AS PENDING DRAFT =====
-  // A Quality Inspection created from a Delivery Challan is intentionally NOT
-  // persisted here. The complete inspection is kept in FormState and is saved
-  // together with the Delivery Challan when the user clicks Submit on the DC.
   const handleSave = async () => {
     if (!validate()) return;
 
@@ -2334,13 +2279,10 @@ export default function QualityInspectionForm() {
         }, formData.sourceId);
 
         toast.success('Inspection saved. Complete and submit the Delivery Challan to save both.');
-        // Navigate back to the exact source page (new or edit) that this
-        // inspection was created from, instead of always going to "new".
         navigate(getSourcePath());
         return;
       }
 
-      // Standalone QI records retain immediate persistence.
       const response = isEditMode && recordName
         ? await api.put('/quality-inspection', { ...payload, id: parseInt(id!) })
         : await api.post('/quality-inspection', payload);
@@ -2441,7 +2383,6 @@ export default function QualityInspectionForm() {
     navigate(targetPath);
   };
 
-  // ===== FIXED: buildApiPayload - Use 0 as fallback =====
   const buildApiPayload = () => {
     const inspectionNo = isEditMode && recordName ? recordName : `QIR-${Date.now().toString(36).toUpperCase()}`;
     const overallResult = outOfSpecCount > 0 ? 'Fail' : 'Pass';
@@ -2457,7 +2398,6 @@ export default function QualityInspectionForm() {
         remarks: null
       }));
 
-      // Use 0 as fallback - will be updated in performSave if needed
       return {
         parameter_id: param.parameterId || 0,
         inspection_method_id: param.inspectionMethodId || 0,
@@ -2483,13 +2423,13 @@ export default function QualityInspectionForm() {
       company_id: 1,
       inspection_date: formData.date || null,
       inspection_type: inspectionType,
-      reference_type: 'Purchase Order',
+      reference_type: 'Delivery Challan',
       reference_id: 0,
       item_id: selectedItemId || 22,
       quality_template_id: formData.qualityTemplateId || null,
       warehouse_id: null,
       batch_id: null,
-      customer_id: 0,
+      customer_id: 47,
       supplier_id: 0,
       drawing_no: formData.drawingNo || null,
       revision_no: formData.revNo || null,
@@ -2499,8 +2439,9 @@ export default function QualityInspectionForm() {
       status: status,
       overall_result: overallResult,
       remarks: formData.supplierRemarks || null,
-      inspected_by: formData.inspectedBy || null,
-      reviewed_by: formData.reviewedBy || null,
+      // CRITICAL FIX: Send the ID, not the name
+      inspected_by: formData.inspectedById || null,
+      reviewed_by: formData.reviewedById || null,
       approved_by: null,
       doc_no: formData.docNo,
       company_name: formData.companyName,
@@ -2519,7 +2460,6 @@ export default function QualityInspectionForm() {
       details: details
     };
 
-    // Add source info if coming from another module
     if (formData.sourceType && formData.sourceId) {
       payload.source_type = formData.sourceType;
       payload.source_id = formData.sourceId;
@@ -2530,9 +2470,6 @@ export default function QualityInspectionForm() {
 
   const handleBack = () => {
     if (formData.sourceType === 'delivery_challan') {
-      // Return to the exact DC (new or edit) this inspection was opened from,
-      // without discarding whatever pendingQualityInspection may already be
-      // saved in FormState for it.
       navigate(getSourcePath());
       return;
     }
@@ -2679,7 +2616,6 @@ export default function QualityInspectionForm() {
                 />
               </td>
             </tr>
-            {/* ── Hide these fields when coming from a source ── */}
             {!isFromSource && (
               <tr>
                 <td className="qir-meta-label">Drawing No :-</td>
@@ -2913,32 +2849,46 @@ export default function QualityInspectionForm() {
                 </div>
               </td>
               <td className="qir-signoff-name">
-                <span className="qir-label-inline">Inspected By:</span>
-                <AutocompleteInput
-                  value={formData.inspectedBy}
-                  onChange={handleInspectedByChange}
-                  onSelect={handleInspectedBySelect}
-                  placeholder="Search employee..."
-                  apiEndpoint="/employee"
-                  displayField="employee_name"
-                  labelField="employee_code"
-                  subLabelField="designation"
-                  searchParam="search"
-                />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <span className="qir-label-inline">Inspected By:</span>
+                  <AutocompleteInput
+                    value={formData.inspectedBy}
+                    onChange={handleInspectedByChange}
+                    onSelect={handleInspectedBySelect}
+                    placeholder="Search employee..."
+                    apiEndpoint="/employee"
+                    displayField="employee_name"
+                    labelField="employee_code"
+                    subLabelField="designation"
+                    searchParam="search"
+                  />
+                  {formData.inspectedById && (
+                    <span style={{ fontSize: '10px', color: '#6b7280' }}>
+                      (ID: {formData.inspectedById})
+                    </span>
+                  )}
+                </div>
               </td>
               <td className="qir-signoff-name">
-                <span className="qir-label-inline">Reviewed By:</span>
-                <AutocompleteInput
-                  value={formData.reviewedBy}
-                  onChange={handleReviewedByChange}
-                  onSelect={handleReviewedBySelect}
-                  placeholder="Search employee..."
-                  apiEndpoint="/employee"
-                  displayField="employee_name"
-                  labelField="employee_code"
-                  subLabelField="designation"
-                  searchParam="search"
-                />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <span className="qir-label-inline">Reviewed By:</span>
+                  <AutocompleteInput
+                    value={formData.reviewedBy}
+                    onChange={handleReviewedByChange}
+                    onSelect={handleReviewedBySelect}
+                    placeholder="Search employee..."
+                    apiEndpoint="/employee"
+                    displayField="employee_name"
+                    labelField="employee_code"
+                    subLabelField="designation"
+                    searchParam="search"
+                  />
+                  {formData.reviewedById && (
+                    <span style={{ fontSize: '10px', color: '#6b7280' }}>
+                      (ID: {formData.reviewedById})
+                    </span>
+                  )}
+                </div>
               </td>
             </tr>
           </tbody>

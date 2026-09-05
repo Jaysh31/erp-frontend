@@ -13,6 +13,10 @@ export default function MainLayout() {
     return localStorage.getItem('sidebarMinimized') === 'true';
   });
 
+      const handleToggleSidebar = () => {
+    setIsSidebarOpen(prev => !prev);
+  };
+
   const handleToggleMinimize = () => {
     setIsSidebarMinimized(prev => {
       const newState = !prev;
@@ -30,7 +34,10 @@ export default function MainLayout() {
         onToggleMinimize={handleToggleMinimize}
       />
       <div className={`main-content ${isSidebarMinimized ? 'sidebar-minimized' : ''}`}>
-        <Header />
+        <Header 
+          isSidebarOpen={isSidebarOpen}
+          onToggleSidebar={handleToggleSidebar}
+        />
         <div className="page-content">
           <Outlet />
         </div>
@@ -38,3 +45,6 @@ export default function MainLayout() {
     </div>
   );
 }
+
+
+

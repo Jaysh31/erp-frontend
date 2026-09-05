@@ -1755,10 +1755,10 @@ const CreateProformaInvoice: React.FC = () => {
             <FaArrowLeft size={13} /> Back
           </button>
           <div className="npi-header-divider" />
-          <h1 className="npi-header-title">
+          {/*<h1 className="npi-header-title">
             <FaFileInvoice className="npi-header-icon" /> 
             {isReadOnly ? 'View Proforma Invoice' : 'Create Proforma Invoice'}
-          </h1>
+          </h1>*/}
           {isReadOnly && (
             <span style={{ 
               marginLeft: '12px', 

@@ -3,7 +3,6 @@ import {
   FaPlus, 
   FaSearch, 
   FaFilter, 
-  FaPrint,
   FaEye,
   FaEdit,
   FaPrint as FaPrintIcon,
@@ -50,6 +49,29 @@ interface DeliveryChallanItem {
   batch_no?: string;
 }
 
+// ===== CUSTOMER DETAILS INTERFACE =====
+interface CustomerDetails {
+  id: number;
+  customer_name: string;
+  customer_type: string;
+  customer_group: string;
+  territory: string;
+  mobile_no: string;
+  email_id: string;
+  primary_address: string;
+  tax_id: string | null;
+  default_currency: string | null;
+  payment_terms: string | null;
+  disabled: number;
+  gstin?: string;
+  address?: string;
+  shipping_address?: string;
+  state?: string;
+  state_code?: string;
+  phone_no?: string;
+  email?: string;
+}
+
 interface DeliveryChallan {
   id: string | number;
   name: string;
@@ -69,25 +91,7 @@ interface DeliveryChallan {
   instructions?: string;
   sales_order_id?: number | null;
   items?: DeliveryChallanItem[];
-  customer_details?: {
-    id: number;
-    customer_name: string;
-    customer_type: string;
-    customer_group: string;
-    territory: string;
-    mobile_no: string;
-    email_id: string;
-    primary_address: string;
-    tax_id: string | null;
-    default_currency: string | null;
-    payment_terms: string | null;
-    disabled: number;
-    gstin?: string;
-    address?: string;
-    shipping_address?: string;
-    state?: string;
-    state_code?: string;
-  };
+  customer_details?: CustomerDetails;
   payment_schedule?: any[];
   displayDcNumber?: string;
 }
@@ -187,8 +191,6 @@ const numberToIndianWords = (value: number): string => {
   return out.trim();
 };
 
-// ✅ UPDATED: Format print date using context formatter
-
 const escapeHtml = (val: unknown): string => {
   const s = val === null || val === undefined ? '' : String(val);
   return s
@@ -239,9 +241,9 @@ const useDebounce = (value: string, delay: number) => {
 const DeliveryChallans: React.FC = () => {
   const navigate = useNavigate();
   const menuRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
+  const printWindowRef = useRef<Window | null>(null);
   
-  // ✅ GET THE DATE FORMAT FUNCTION FROM CONTEXT
-  const { theme, formatDate } = useAdminTheme();
+  const { theme, formatDate, getApiDateFormat } = useAdminTheme();
   
   // ===== STATE =====
   const [searchTerm, setSearchTerm] = useState('');
@@ -249,6 +251,7 @@ const DeliveryChallans: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [showMoreMenu, setShowMoreMenu] = useState<string | null>(null);
+  const [totalRecords, setTotalRecords] = useState(0);
   
   // Date range filter states
   const [startDate, setStartDate] = useState<string>('');
@@ -263,31 +266,34 @@ const DeliveryChallans: React.FC = () => {
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   
   const [challans, setChallans] = useState<DeliveryChallan[]>([]);
-  const [allChallans, setAllChallans] = useState<DeliveryChallan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [printLoadingId, setPrintLoadingId] = useState<string | null>(null);
-  const [downloadLoading, setDownloadLoading] = useState(false);
-  const [companyData, setCompanyData] = useState<Company | null>(null);
+  const [, setDownloadLoading] = useState(false);
+  const [, setCompanyData] = useState<Company | null>(null);
 
   // Debounced search term
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
 
-  // ✅ NEW: Format display date using context
   const formatDisplayDate = (dateString: string) => {
     if (!dateString) return '';
     return formatDate(dateString);
   };
 
-  // ✅ NEW: Format date for API (YYYY-MM-DD)
+  const toApiDateFormat = (date: Date) => {
+    return getApiDateFormat(date);
+  };
 
   // ─── Fetch Company Details ──────────────────────────────
   const fetchCompanyDetails = async () => {
     try {
       const response = await api.get('/company');
+      console.log('Company API Response:', response.data);
+      
       if (response.data.success === 1) {
         const companies = response.data.data || [];
-        // Find ChandraTara Industries
+        console.log('Companies:', companies);
+        
         const chandratara = companies.find((c: Company) => 
           c.company_name.includes('ChandraTara') || 
           c.abbr === 'CT_IND' ||
@@ -296,7 +302,6 @@ const DeliveryChallans: React.FC = () => {
         
         if (chandratara) {
           setCompanyData(chandratara);
-          // Update company details for print/export
           companyDetails = {
             ...companyDetails,
             name: chandratara.company_name || companyDetails.name,
@@ -306,7 +311,6 @@ const DeliveryChallans: React.FC = () => {
             gstin: chandratara.tax_id || companyDetails.gstin,
           };
           
-          // Update bank details if available
           if (chandratara.bank_details && chandratara.bank_details.length > 0) {
             const primaryBank = chandratara.bank_details.find((b: BankDetail) => b.is_primary === 1) || chandratara.bank_details[0];
             if (primaryBank) {
@@ -319,7 +323,6 @@ const DeliveryChallans: React.FC = () => {
           console.log('Company loaded:', chandratara.company_name);
         } else {
           console.warn('ChandraTara Industries not found, using default company details');
-          // Try to use first company as fallback
           if (companies.length > 0) {
             const firstCompany = companies[0];
             companyDetails = {
@@ -332,6 +335,8 @@ const DeliveryChallans: React.FC = () => {
             };
           }
         }
+      } else {
+        console.warn('API returned success !== 1');
       }
     } catch (err) {
       console.error('Error fetching company details:', err);
@@ -355,7 +360,6 @@ const DeliveryChallans: React.FC = () => {
   }, []);
 
   // ─── Date helper functions ─────────────────────────────────────────────
-  // ✅ UPDATED: Format date for display using context
   const formatDateForDisplay = (dateStr: string): string => {
     if (!dateStr) return '';
     return formatDate(dateStr);
@@ -433,10 +437,15 @@ const DeliveryChallans: React.FC = () => {
   const fetchFullDeliveryChallan = async (id: string | number): Promise<DeliveryChallan | null> => {
     try {
       const response = await api.get(`/delivery-note/${id}`);
+      console.log('Full DC Response:', response.data);
+      
       if (response.data && response.data.success !== 0) {
         const data = response.data.success === 1 ? response.data.data : response.data;
         const record = Array.isArray(data) ? data[0] : (data?.record ?? data);
         if (record && (record.name || record.id)) {
+          console.log('Vehicle No from API:', record.vehicle_no);
+          console.log('Transporter from API:', record.transporter);
+          console.log('Driver Name from API:', record.driver_name);
           return {
             ...record,
             displayDcNumber: formatDcNumber(record.id || record.name)
@@ -449,12 +458,15 @@ const DeliveryChallans: React.FC = () => {
     return null;
   };
 
-  // ===== FETCH DATA =====
+  // ===== FETCH DATA WITH SERVER-SIDE PAGINATION =====
   const fetchChallans = async () => {
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams();
+      
+      params.append('page', String(currentPage));
+      params.append('limit', String(itemsPerPage));
       
       if (debouncedSearchTerm.trim()) {
         params.append('search', debouncedSearchTerm.trim());
@@ -465,16 +477,12 @@ const DeliveryChallans: React.FC = () => {
         params.append('status', selectedStatus);
       }
       
-      // Add date filters
       if (startDate) {
         params.append('from_date', startDate);
       }
       if (endDate) {
         params.append('to_date', endDate);
       }
-      
-      params.append('page', String(currentPage));
-      params.append('limit', String(itemsPerPage));
       
       const query = params.toString() ? `?${params.toString()}` : '';
       const url = `/delivery-note${query}`;
@@ -487,9 +495,11 @@ const DeliveryChallans: React.FC = () => {
           ...record,
           displayDcNumber: formatDcNumber(record.id)
         }));
-        setAllChallans(recordsWithDisplayNumber);
+        setChallans(recordsWithDisplayNumber);
+        setTotalRecords(response.data.data.total || recordsWithDisplayNumber.length);
       } else {
-        setAllChallans([]);
+        setChallans([]);
+        setTotalRecords(0);
       }
     } catch (err: any) {
       console.error('Error:', err);
@@ -501,80 +511,39 @@ const DeliveryChallans: React.FC = () => {
   };
 
   // ===== EFFECTS =====
-  // Initial fetch
   useEffect(() => {
     fetchCompanyDetails();
-    fetchChallans();
   }, []);
 
-  // Fetch when filters change
+  // Fetch when filters or pagination changes
   useEffect(() => {
     fetchChallans();
   }, [debouncedSearchTerm, selectedStatus, currentPage, itemsPerPage, startDate, endDate]);
 
-  // ===== FILTER DATA (client-side backup) =====
+  // Reset to first page when filters change
   useEffect(() => {
-    let filtered = allChallans;
-    
-    if (searchTerm.trim()) {
-      const searchLower = searchTerm.toLowerCase();
-      filtered = filtered.filter(item => {
-        const displayNumber = item.displayDcNumber?.toLowerCase() || '';
-        return displayNumber.includes(searchLower) ||
-          (item.name || '').toLowerCase().includes(searchLower) ||
-          (item.customer_name || '').toLowerCase().includes(searchLower);
-      });
-    }
-
-    if (selectedStatus !== 'All') {
-      filtered = filtered.filter(item => item.status === selectedStatus);
-    }
-
-    // Client-side date filtering
-    if (startDate) {
-      const start = new Date(startDate);
-      start.setHours(0, 0, 0, 0);
-      filtered = filtered.filter(item => {
-        if (!item.posting_date) return false;
-        const itemDate = new Date(item.posting_date);
-        return itemDate >= start;
-      });
-    }
-    if (endDate) {
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
-      filtered = filtered.filter(item => {
-        if (!item.posting_date) return false;
-        const itemDate = new Date(item.posting_date);
-        return itemDate <= end;
-      });
-    }
-
-    setChallans(filtered);
-  }, [allChallans, searchTerm, selectedStatus, startDate, endDate]);
-
-  // ===== HELPERS =====
-  // ✅ UPDATED: Format date using context formatter
-  const formatDateDisplay = (date: string) => {
-    if (!date) return '-';
-    return formatDisplayDate(date);
-  };
+    setCurrentPage(1);
+  }, [searchTerm, selectedStatus, startDate, endDate]);
 
   // ===== PAGINATION =====
-  const totalFilteredItems = challans.length;
-  const totalPages = Math.ceil(totalFilteredItems / itemsPerPage);
+  const totalFilteredItems = totalRecords;
+  const totalPages = Math.ceil(totalFilteredItems / itemsPerPage) || 1;
   const validCurrentPage = Math.min(currentPage, totalPages || 1);
   
-  if (validCurrentPage !== currentPage) {
+  if (validCurrentPage !== currentPage && currentPage > 0) {
     setCurrentPage(validCurrentPage);
   }
 
-  const paginatedData = challans.slice(
-    (validCurrentPage - 1) * itemsPerPage,
-    validCurrentPage * itemsPerPage
-  );
+  const getStartIndex = () => {
+    if (totalFilteredItems === 0) return 0;
+    return (validCurrentPage - 1) * itemsPerPage + 1;
+  };
 
-  // ===== PAGINATION HELPERS =====
+  const getEndIndex = () => {
+    if (totalFilteredItems === 0) return 0;
+    return Math.min(validCurrentPage * itemsPerPage, totalFilteredItems);
+  };
+
   const goToPage = (page: number) => {
     if (page >= 1 && page <= totalPages) {
       setCurrentPage(page);
@@ -601,12 +570,87 @@ const DeliveryChallans: React.FC = () => {
     return pages;
   };
 
-  const getStartIndex = () => {
-    return (validCurrentPage - 1) * itemsPerPage + 1;
-  };
-
-  const getEndIndex = () => {
-    return Math.min(validCurrentPage * itemsPerPage, totalFilteredItems);
+  // ===== GENERATE EXCEL DATA =====
+  const generateDCExcelData = (challan: DeliveryChallan) => {
+    const items = challan.items || [];
+    const totalQty = items.reduce((sum, item) => sum + (item.qty || 0), 0);
+    const grandTotal = challan.grand_total || 0;
+    const customer = challan.customer_details || {} as CustomerDetails;
+    const subTotal = items.reduce((sum, item) => sum + (item.amount || 0), 0);
+    const totalTax = items.reduce((sum, item) => sum + ((item.amount || 0) * 0.18), 0);
+    
+    const data: any[][] = [];
+    
+    data.push(['DELIVERY CHALLAN']);
+    data.push([`Status: ${challan.status || 'Draft'}`]);
+    data.push([]);
+    data.push([companyDetails.name]);
+    data.push([companyDetails.address]);
+    data.push([`Phone: ${companyDetails.contact}`]);
+    data.push([`Email: ${companyDetails.email}`]);
+    data.push([`GSTIN: ${companyDetails.gstin || ''}`]);
+    data.push([`State Name: ${companyDetails.stateName}, Code: ${companyDetails.stateCode}`]);
+    data.push([]);
+    data.push(['DC No.', challan.displayDcNumber || challan.name || '', 'Date', formatDisplayDate(challan.posting_date)]);
+    data.push(['Warehouse', challan.set_warehouse || 'Finished Goods', 'Transporter', challan.transporter || challan.driver_name || '']);
+    data.push(['Vehicle No.', challan.vehicle_no || '', 'Sales Order', challan.sales_order_id ? `#${challan.sales_order_id}` : 'N/A']);
+    data.push([]);
+    data.push(['Consignee (Ship to)']);
+    data.push([challan.customer_name || '']);
+    data.push([customer?.primary_address || customer?.address || '']);
+    data.push([`Phone: ${customer?.mobile_no || customer?.phone_no || ''}`]);
+    data.push([`Email: ${customer?.email_id || customer?.email || ''}`]);
+    data.push([`GSTIN/UIN: ${customer?.gstin || customer?.tax_id || ''}`]);
+    data.push([`State: ${customer?.state || ''}${customer?.state_code ? ` (${customer.state_code})` : ''}`]);
+    data.push([]);
+    data.push(['#', 'Description of Goods', 'HSN', 'Qty', 'UOM', 'Rate', 'Tax', 'Tax Amt', 'Amount']);
+    
+    items.forEach((item, idx) => {
+      data.push([
+        idx + 1,
+        item.item_name || item.item_code || '',
+        item.item_code || '',
+        item.qty || 0,
+        item.stock_uom || item.uom || 'Nos',
+        (item.rate || 0).toFixed(2),
+        'GST18%',
+        ((item.amount || 0) * 0.18).toFixed(2),
+        (item.amount || 0).toFixed(2)
+      ]);
+    });
+    
+    const uom = items.length > 0 ? (items[0]?.stock_uom || items[0]?.uom || 'Nos') : 'Nos';
+    data.push(['Total', '', '', totalQty, uom, '', '', totalTax.toFixed(2), subTotal.toFixed(2)]);
+    data.push([]);
+    data.push(['Financial Summary']);
+    data.push([`Total Items: ${items.length}`]);
+    data.push([`Total Quantity: ${totalQty}`]);
+    data.push([`Sub Total: ₹${subTotal.toFixed(2)}`]);
+    data.push([`Total Tax: ₹${totalTax.toFixed(2)}`]);
+    data.push([`Grand Total: ₹${grandTotal.toFixed(2)}`]);
+    data.push([]);
+    data.push(['Amount Chargeable (in words)']);
+    data.push([`INR ${numberToIndianWords(grandTotal)} Only`]);
+    data.push([]);
+    data.push(['Delivery Details']);
+    if (challan.transporter) data.push([`Transporter: ${challan.transporter}`]);
+    if (challan.vehicle_no) data.push([`Vehicle No: ${challan.vehicle_no}`]);
+    if (challan.driver_name) data.push([`Driver: ${challan.driver_name}`]);
+    if (challan.instructions) data.push([`Remarks: ${challan.instructions}`]);
+    data.push([]);
+    data.push(['Declaration']);
+    data.push(['We declare that the goods described above are as per the delivery challan and all particulars are true and correct.']);
+    data.push([]);
+    data.push([`for ${companyDetails.name}`]);
+    data.push([]);
+    data.push([]);
+    data.push([]);
+    data.push(['Authorised Signatory']);
+    data.push([]);
+    data.push([`SUBJECT TO ${companyDetails.jurisdiction} JURISDICTION`]);
+    data.push(['This is a computer generated delivery challan.']);
+    
+    return data;
   };
 
   // ===== BUILD PRINT HTML =====
@@ -614,28 +658,64 @@ const DeliveryChallans: React.FC = () => {
     const items = challan.items || [];
     const totalQty = items.reduce((sum, item) => sum + (item.qty || 0), 0);
     const grandTotal = challan.grand_total || 0;
+    // ✅ FIX: Properly type the customer object with a fallback to empty object
+    const customer: CustomerDetails = challan.customer_details || {} as CustomerDetails;
 
-    // ✅ Use formatDisplayDate for formatted dates in print
     const formatPrintDateLocal = (dateStr: string) => {
       if (!dateStr) return '';
       return formatDisplayDate(dateStr);
     };
+
+    // Calculate financial details
+    const subTotal = items.reduce((sum, item) => sum + (item.amount || 0), 0);
+    const totalTax = items.reduce((sum, item) => sum + ((item.amount || 0) * 0.18), 0);
+    const roundOff = Math.round((subTotal + totalTax) - grandTotal);
+
+    // ✅ FIX: SAFE DATA EXTRACTION - with proper fallbacks using the typed customer object
+    const customerName = challan.customer_name || customer?.customer_name || '';
+    const customerPhone = customer?.mobile_no || customer?.phone_no || '';
+    const customerEmail = customer?.email_id || customer?.email || '';
+    const customerAddress = customer?.primary_address || customer?.address || '';
+    const customerGstin = customer?.gstin || customer?.tax_id || '';
+    const customerState = customer?.state || '';
+    const customerStateCode = customer?.state_code || '';
+
+    // Transporter details - with fallbacks - Only show if data exists
+    const transporter = challan.transporter || '';
+    const vehicleNo = challan.vehicle_no || '';
+    const driverName = challan.driver_name || '';
+    const warehouse = challan.set_warehouse || 'Finished Goods';
+    const instructions = challan.instructions || '';
+
+    // Check if we have any delivery details to show
+    const hasDeliveryDetails = transporter || vehicleNo || driverName || instructions;
 
     const itemRows = items.map((item, idx) => `
       <tr>
         <td class="pq-col-sl">${idx + 1}</td>
         <td class="pq-col-desc">
           ${escapeHtml(item.item_name || item.item_code || '')}
-          ${item.item_code ? `<div class="pq-item-sub">${escapeHtml(item.item_code)}</div>` : ''}
+          ${item.item_code ? `<div class="pq-item-sub">Code: ${escapeHtml(item.item_code)}</div>` : ''}
           ${item.description ? `<div class="pq-item-desc">${escapeHtml(item.description)}</div>` : ''}
         </td>
-        <td class="pq-col-qty">${item.qty || 0} ${escapeHtml(item.stock_uom || item.uom || 'Nos')}</td>
+        <td class="pq-col-hsn">${escapeHtml(item.item_code || '')}</td>
+        <td class="pq-col-qty">${item.qty || 0}</td>
+        <td class="pq-col-uom">${escapeHtml(item.stock_uom || item.uom || 'Nos')}</td>
         <td class="pq-col-rate">${(item.rate || 0).toFixed(2)}</td>
+        <td class="pq-col-tax">GST18%</td>
+        <td class="pq-col-taxamt">${((item.amount || 0) * 0.18).toFixed(2)}</td>
         <td class="pq-col-amt">${(item.amount || 0).toFixed(2)}</td>
       </tr>
     `).join('');
 
-    const customer = challan.customer_details;
+    // Build delivery details HTML only if there are details
+    const deliveryDetailsHtml = hasDeliveryDetails ? `
+      <div style="font-weight:700;font-size:13px;margin-bottom:4px;color:#000000;">Delivery Details</div>
+      ${transporter ? `<div>🚚 Transporter: ${escapeHtml(transporter)}</div>` : ''}
+      ${vehicleNo ? `<div>🚗 Vehicle No: ${escapeHtml(vehicleNo)}</div>` : ''}
+      ${driverName ? `<div>👤 Driver: ${escapeHtml(driverName)}</div>` : ''}
+      ${instructions ? `<div style="margin-top:4px;"><strong>Remarks:</strong> ${escapeHtml(instructions)}</div>` : ''}
+    ` : '';
 
     return `<!DOCTYPE html>
 <html>
@@ -643,76 +723,469 @@ const DeliveryChallans: React.FC = () => {
 <meta charset="UTF-8" />
 <title>${escapeHtml(challan.displayDcNumber || challan.name || 'Delivery Challan')}</title>
 <style>
-  * { box-sizing: border-box; }
-  body { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #1a1a1a; margin: 0; padding: 24px; }
-  .pq-outer { border: 1.5px solid #000; }
-  .pq-title-row { display: flex; align-items: center; justify-content: center; position: relative; padding: 8px; border-bottom: 1.5px solid #000; }
-  .pq-title { font-size: 18px; font-weight: bold; letter-spacing: 1px; }
-  .pq-top { display: flex; border-bottom: 1px solid #000; }
-  .pq-company-box { flex: 1.3; padding: 8px; border-right: 1px solid #000; }
-  .pq-company-name { font-weight: bold; font-size: 14px; margin-bottom: 4px; }
-  .pq-company-box div { margin: 1px 0; }
-  .pq-meta-box { flex: 1.1; }
-  .pq-meta-row { display: flex; border-bottom: 1px solid #000; }
-  .pq-meta-row:last-child { border-bottom: none; }
-  .pq-meta-cell { flex: 1; padding: 4px 8px; border-right: 1px solid #000; }
-  .pq-meta-cell:last-child { border-right: none; }
-  .pq-meta-label { font-size: 10px; color: #444; }
-  .pq-meta-value { font-weight: 600; margin-top: 1px; min-height: 13px; }
-  .pq-parties { display: flex; border-bottom: 1px solid #000; }
-  .pq-party-box { flex: 1; padding: 8px; border-right: 1px solid #000; }
-  .pq-party-box:last-child { border-right: none; }
-  .pq-party-label { font-weight: bold; margin-bottom: 3px; }
-  .pq-party-box div { margin: 1px 0; }
-  table.pq-items { width: 100%; border-collapse: collapse; }
-  table.pq-items th, table.pq-items td { border-right: 1px solid #000; padding: 5px 6px; }
-  table.pq-items th:last-child, table.pq-items td:last-child { border-right: none; }
-  table.pq-items thead th { border-bottom: 1px solid #000; border-top: none; font-size: 11px; text-align: left; }
-  .pq-col-sl { width: 26px; text-align: center; }
-  .pq-col-desc { min-width: 200px; }
-  .pq-item-sub { font-size: 10px; color: #555; }
-  .pq-item-desc { font-size: 10px; color: #666; margin-top: 2px; }
-  .pq-col-qty { width: 80px; text-align: right; }
-  .pq-col-rate { width: 70px; text-align: right; }
-  .pq-col-amt { width: 90px; text-align: right; }
-  .pq-total-row td { border-top: 1px solid #000; font-weight: bold; padding: 6px; }
-  .pq-words { display: flex; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 6px 8px; justify-content: space-between; align-items: flex-start; }
-  .pq-words-label { font-size: 10px; color: #444; }
-  .pq-eoe { font-size: 11px; font-style: italic; white-space: nowrap; }
-  .pq-bottom { display: flex; border-top: 1px solid #000; }
-  .pq-decl-box { flex: 1; padding: 8px; border-right: 1px solid #000; }
-  .pq-sign-box { flex: 1; padding: 8px; display: flex; flex-direction: column; justify-content: space-between; }
-  .pq-signatory { text-align: right; margin-top: 24px; font-size: 11px; }
-  .pq-footer { text-align: center; padding: 8px; font-size: 10px; color: #444; border-top: 1px solid #000; }
-  .pq-footer div:first-child { font-weight: 600; letter-spacing: 0.5px; margin-bottom: 2px; }
-  .pq-status-badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 10px; font-weight: 600; }
-  .pq-status-Submitted { background: #dbeafe; color: #1e40af; }
-  .pq-status-Draft { background: #f3f4f6; color: #6b7280; }
-  .pq-status-Cancelled { background: #fee2e2; color: #991b1b; }
+  * { 
+    box-sizing: border-box; 
+    margin: 0;
+    padding: 0;
+  }
+  
+  body { 
+    font-family: 'Arial', 'Helvetica', sans-serif; 
+    font-size: 12px; 
+    color: #1a1a1a; 
+    margin: 0; 
+    padding: 15px; 
+    background: #ffffff;
+  }
+  
+  .pq-outer { 
+    border: 2px solid #000000; 
+    max-width: 1000px;
+    margin: 0 auto;
+    background: #ffffff;
+  }
+  
+  .pq-title-row { 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    position: relative; 
+    padding: 12px; 
+    border-bottom: 2px solid #000000; 
+    background: #f0f0f0;
+  }
+  .pq-title { 
+    font-size: 22px; 
+    font-weight: bold; 
+    letter-spacing: 3px; 
+    color: #000000;
+  }
+  .pq-title-status {
+    position: absolute;
+    right: 15px;
+    font-size: 12px;
+  }
+  .pq-status-badge { 
+    display: inline-block; 
+    padding: 3px 14px; 
+    border-radius: 12px; 
+    font-size: 11px; 
+    font-weight: 700;
+    border: 1px solid #000000;
+  }
+  .pq-status-Submitted { 
+    background: #dbeafe; 
+    color: #1e40af; 
+    border-color: #1e40af;
+  }
+  .pq-status-Draft { 
+    background: #f3f4f6; 
+    color: #6b7280; 
+    border-color: #6b7280;
+  }
+  .pq-status-Cancelled { 
+    background: #fee2e2; 
+    color: #991b1b; 
+    border-color: #991b1b;
+  }
+  .pq-status-Pending { 
+    background: #fef3c7; 
+    color: #92400e; 
+    border-color: #92400e;
+  }
+
+  .pq-top { 
+    display: flex; 
+    border-bottom: 1.5px solid #000000; 
+  }
+  
+  .pq-company-box { 
+    flex: 1.3; 
+    padding: 10px 12px; 
+    border-right: 1.5px solid #000000; 
+  }
+  .pq-company-name { 
+    font-weight: bold; 
+    font-size: 16px; 
+    margin-bottom: 4px; 
+    color: #000000;
+  }
+  .pq-company-box div { 
+    margin: 2px 0; 
+    line-height: 1.5;
+    font-size: 12px;
+  }
+  
+  .pq-meta-box { 
+    flex: 1.1; 
+  }
+  .pq-meta-row { 
+    display: flex; 
+    border-bottom: 1px solid #000000; 
+  }
+  .pq-meta-row:last-child { 
+    border-bottom: none; 
+  }
+  .pq-meta-cell { 
+    flex: 1; 
+    padding: 6px 10px; 
+    border-right: 1px solid #000000; 
+  }
+  .pq-meta-cell:last-child { 
+    border-right: none; 
+  }
+  .pq-meta-label { 
+    font-size: 10px; 
+    color: #555555; 
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .pq-meta-value { 
+    font-weight: 600; 
+    margin-top: 2px; 
+    min-height: 18px; 
+    font-size: 13px;
+    color: #000000;
+  }
+
+  .pq-parties { 
+    display: flex; 
+    border-bottom: 1.5px solid #000000; 
+  }
+  .pq-party-box { 
+    flex: 1; 
+    padding: 10px 12px; 
+    border-right: 1.5px solid #000000; 
+  }
+  .pq-party-box:last-child { 
+    border-right: none; 
+  }
+  .pq-party-label { 
+    font-weight: 700; 
+    margin-bottom: 4px; 
+    font-size: 13px;
+    color: #000000;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .pq-party-box div { 
+    margin: 2px 0; 
+    line-height: 1.5;
+    font-size: 12px;
+  }
+  .pq-party-box strong {
+    font-size: 14px;
+    color: #000000;
+  }
+
+  table.pq-items { 
+    width: 100%; 
+    border-collapse: collapse; 
+    font-size: 12px;
+  }
+  table.pq-items th, 
+  table.pq-items td { 
+    border: 1px solid #000000; 
+    padding: 6px 8px; 
+    text-align: left;
+  }
+  table.pq-items thead th { 
+    font-size: 11px; 
+    font-weight: 700;
+    background: #e8e8e8;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #000000;
+    text-align: center;
+  }
+  
+  .pq-col-sl { 
+    width: 30px; 
+    text-align: center; 
+  }
+  .pq-col-desc { 
+    min-width: 180px; 
+  }
+  .pq-col-hsn { 
+    width: 60px; 
+    text-align: center; 
+  }
+  .pq-col-qty { 
+    width: 45px; 
+    text-align: center; 
+  }
+  .pq-col-uom { 
+    width: 45px; 
+    text-align: center; 
+  }
+  .pq-col-rate { 
+    width: 70px; 
+    text-align: right; 
+  }
+  .pq-col-tax { 
+    width: 60px; 
+    text-align: center; 
+  }
+  .pq-col-taxamt { 
+    width: 75px; 
+    text-align: right; 
+  }
+  .pq-col-amt { 
+    width: 85px; 
+    text-align: right; 
+  }
+  
+  .pq-item-sub { 
+    font-size: 10px; 
+    color: #666666; 
+  }
+  .pq-item-desc { 
+    font-size: 10px; 
+    color: #777777; 
+    margin-top: 2px; 
+  }
+  
+  .pq-total-row td { 
+    border-top: 2px solid #000000; 
+    font-weight: 700; 
+    padding: 8px; 
+    background: #f5f5f5;
+    color: #000000;
+  }
+
+  .pq-summary { 
+    display: flex; 
+    border-top: 1.5px solid #000000; 
+    border-bottom: 1.5px solid #000000; 
+  }
+  .pq-summary-left { 
+    flex: 1; 
+    padding: 8px 12px; 
+    border-right: 1.5px solid #000000; 
+  }
+  .pq-summary-right { 
+    flex: 0 0 280px; 
+    padding: 8px 12px; 
+  }
+  .pq-summary-row { 
+    display: flex; 
+    justify-content: space-between; 
+    padding: 3px 0; 
+    font-size: 12px;
+    border-bottom: 1px dashed #dddddd;
+  }
+  .pq-summary-row:last-child {
+    border-bottom: none;
+  }
+  .pq-summary-row.total { 
+    font-weight: 700; 
+    font-size: 14px; 
+    border-top: 2px solid #000000; 
+    padding-top: 6px; 
+    margin-top: 4px;
+    border-bottom: none;
+  }
+
+  .pq-words { 
+    display: flex; 
+    padding: 8px 12px; 
+    justify-content: space-between; 
+    align-items: flex-start; 
+    border-bottom: 1.5px solid #000000;
+    background: #f5f5f5;
+  }
+  .pq-words-label { 
+    font-size: 10px; 
+    color: #555555; 
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .pq-words-amount {
+    font-weight: 700;
+    font-size: 14px;
+    margin-top: 2px;
+    color: #000000;
+  }
+  .pq-eoe { 
+    font-size: 12px; 
+    font-style: italic; 
+    white-space: nowrap; 
+    color: #666666;
+    font-weight: 600;
+  }
+
+  .pq-bottom { 
+    display: flex; 
+    border-top: 1.5px solid #000000; 
+  }
+  .pq-decl-box { 
+    flex: 1; 
+    padding: 10px 12px; 
+    border-right: 1.5px solid #000000; 
+  }
+  .pq-decl-box strong {
+    font-size: 13px;
+    color: #000000;
+  }
+  .pq-decl-box div {
+    font-size: 11px;
+    line-height: 1.6;
+    color: #333333;
+  }
+  
+  .pq-sign-box { 
+    flex: 1; 
+    padding: 10px 12px; 
+    display: flex; 
+    flex-direction: column; 
+    justify-content: space-between; 
+  }
+  .pq-sign-box strong {
+    font-size: 13px;
+    color: #000000;
+  }
+  .pq-sign-box div {
+    font-size: 11px;
+    color: #333333;
+  }
+  
+  .pq-signatory { 
+    text-align: right; 
+    margin-top: 20px; 
+    font-size: 12px; 
+    color: #000000;
+  }
+  .pq-signatory .signature-line {
+    margin-top: 25px;
+    padding-top: 8px;
+    border-top: 1.5px solid #000000;
+    width: 200px;
+    margin-left: auto;
+    text-align: center;
+    font-weight: 600;
+  }
+  
+  .pq-receiver-signature {
+    display: inline-block;
+    margin-top: 20px;
+    border-bottom: 1.5px solid #000000;
+    width: 180px;
+    text-align: center;
+    padding-top: 4px;
+    font-size: 11px;
+    color: #555555;
+  }
+
+  .pq-footer { 
+    text-align: center; 
+    padding: 8px; 
+    font-size: 10px; 
+    color: #555555; 
+    border-top: 1.5px solid #000000; 
+    background: #f0f0f0;
+  }
+  .pq-footer .pq-footer-text {
+    margin-top: 2px;
+  }
+  .pq-footer .pq-jurisdiction {
+    font-weight: 700; 
+    letter-spacing: 0.5px; 
+    color: #000000;
+  }
+
   @media print {
-    body { padding: 0; }
-    @page { margin: 12mm; }
+    body { 
+      padding: 0; 
+      margin: 0;
+    }
+    @page { 
+      margin: 10mm 12mm; 
+      size: A4;
+    }
+    .pq-outer { 
+      border-color: #000000 !important; 
+    }
+    .pq-title-row { 
+      background: #f0f0f0 !important; 
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    table.pq-items thead th { 
+      background: #e8e8e8 !important; 
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    .pq-total-row td { 
+      background: #f5f5f5 !important; 
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    .pq-words { 
+      background: #f5f5f5 !important; 
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    .pq-footer { 
+      background: #f0f0f0 !important; 
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    .pq-status-badge {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+  }
+
+  @media screen and (max-width: 768px) {
+    body { padding: 8px; }
+    .pq-top { flex-direction: column; }
+    .pq-company-box { border-right: none; border-bottom: 1.5px solid #000000; }
+    .pq-parties { flex-direction: column; }
+    .pq-party-box { border-right: none; border-bottom: 1.5px solid #000000; }
+    .pq-party-box:last-child { border-bottom: none; }
+    .pq-bottom { flex-direction: column; }
+    .pq-decl-box { border-right: none; border-bottom: 1.5px solid #000000; }
+    table.pq-items { font-size: 10px; }
+    table.pq-items th, table.pq-items td { padding: 4px 5px; }
+    .pq-summary { flex-direction: column; }
+    .pq-summary-left { border-right: none; border-bottom: 1.5px solid #000000; }
+    .pq-summary-right { flex: 1; }
+    .pq-col-hsn, .pq-col-tax { display: none; }
+    .pq-title { font-size: 18px; }
+  }
+
+  @media screen and (max-width: 480px) {
+    table.pq-items { font-size: 9px; }
+    table.pq-items th, table.pq-items td { padding: 3px 4px; }
+    .pq-col-rate, .pq-col-taxamt, .pq-col-amt { font-size: 10px; }
+    .pq-col-desc { min-width: 100px; }
+    .pq-title { font-size: 16px; }
+    .pq-meta-value { font-size: 11px; }
   }
 </style>
 </head>
 <body>
   <div class="pq-outer">
 
+    <!-- TITLE -->
     <div class="pq-title-row">
       <div class="pq-title">DELIVERY CHALLAN</div>
-      <span style="position:absolute;right:12px;font-size:11px;color:#555;">
+      <div class="pq-title-status">
         <span class="pq-status-badge pq-status-${escapeHtml(challan.status || 'Draft')}">${escapeHtml(challan.status || 'Draft')}</span>
-      </span>
+      </div>
     </div>
 
+    <!-- TOP: Company & Meta -->
     <div class="pq-top">
       <div class="pq-company-box">
         <div class="pq-company-name">${escapeHtml(companyDetails.name)}</div>
         <div>${escapeHtml(companyDetails.address)}</div>
-        <div>Phone: ${escapeHtml(companyDetails.contact)}</div>
-        ${companyDetails.email ? `<div>Email: ${escapeHtml(companyDetails.email)}</div>` : ''}
+        <div>📞 Phone: ${escapeHtml(companyDetails.contact)}</div>
+        ${companyDetails.email ? `<div>✉️ Email: ${escapeHtml(companyDetails.email)}</div>` : ''}
         ${companyDetails.gstin ? `<div>GSTIN/UIN: ${escapeHtml(companyDetails.gstin)}</div>` : ''}
-        <div>State Name : ${escapeHtml(companyDetails.stateName)}, Code : ${escapeHtml(companyDetails.stateCode)}</div>
+        <div>State: ${escapeHtml(companyDetails.stateName)} (Code: ${escapeHtml(companyDetails.stateCode)})</div>
       </div>
       <div class="pq-meta-box">
         <div class="pq-meta-row">
@@ -728,258 +1201,179 @@ const DeliveryChallans: React.FC = () => {
         <div class="pq-meta-row">
           <div class="pq-meta-cell">
             <div class="pq-meta-label">Warehouse</div>
-            <div class="pq-meta-value">${escapeHtml(challan.set_warehouse || '')}</div>
+            <div class="pq-meta-value">${escapeHtml(warehouse)}</div>
           </div>
           <div class="pq-meta-cell" style="border-right:none;">
             <div class="pq-meta-label">Transporter</div>
-            <div class="pq-meta-value">${escapeHtml(challan.transporter || challan.driver_name || '')}</div>
+            <div class="pq-meta-value">${escapeHtml(transporter || 'N/A')}</div>
           </div>
         </div>
         <div class="pq-meta-row">
           <div class="pq-meta-cell">
             <div class="pq-meta-label">Vehicle No.</div>
-            <div class="pq-meta-value">${escapeHtml(challan.vehicle_no || '')}</div>
+            <div class="pq-meta-value">${escapeHtml(vehicleNo || 'N/A')}</div>
           </div>
           <div class="pq-meta-cell" style="border-right:none;">
             <div class="pq-meta-label">Sales Order</div>
             <div class="pq-meta-value">${challan.sales_order_id ? `#${escapeHtml(String(challan.sales_order_id))}` : 'N/A'}</div>
           </div>
         </div>
-        ${challan.instructions ? `
+        ${instructions ? `
         <div class="pq-meta-row">
           <div class="pq-meta-cell" style="border-right:none;">
-            <div class="pq-meta-label">Instructions</div>
-            <div class="pq-meta-value">${escapeHtml(challan.instructions)}</div>
+            <div class="pq-meta-label">Remarks</div>
+            <div class="pq-meta-value">${escapeHtml(instructions)}</div>
           </div>
         </div>` : ''}
       </div>
     </div>
 
+    <!-- PARTIES: Consignee & Buyer -->
     <div class="pq-parties">
       <div class="pq-party-box">
-        <div class="pq-party-label">Consignee (Ship to)</div>
-        <div><strong>${escapeHtml(challan.customer_name || '')}</strong></div>
-        ${customer?.primary_address ? `<div>${escapeHtml(customer.primary_address)}</div>` : ''}
-        ${customer?.mobile_no ? `<div>Phone: ${escapeHtml(customer.mobile_no)}</div>` : ''}
-        ${customer?.email_id ? `<div>Email: ${escapeHtml(customer.email_id)}</div>` : ''}
-        ${customer?.gstin ? `<div>GSTIN/UIN : ${escapeHtml(customer.gstin)}</div>` : ''}
-        ${customer?.state ? `<div>State: ${escapeHtml(customer.state)}${customer?.state_code ? ` (${escapeHtml(customer.state_code)})` : ''}</div>` : ''}
+        <div class="pq-party-label">📦 Consignee (Ship to)</div>
+        <div><strong>${escapeHtml(customerName)}</strong></div>
+        ${customerAddress ? `<div>${escapeHtml(customerAddress)}</div>` : ''}
+        ${customerPhone ? `<div>📞 Phone: ${escapeHtml(customerPhone)}</div>` : ''}
+        ${customerEmail ? `<div>✉️ Email: ${escapeHtml(customerEmail)}</div>` : ''}
+        ${customerGstin ? `<div>GSTIN/UIN: ${escapeHtml(customerGstin)}</div>` : ''}
+        ${customerState ? `<div>State: ${escapeHtml(customerState)}${customerStateCode ? ` (${escapeHtml(customerStateCode)})` : ''}</div>` : ''}
       </div>
       <div class="pq-party-box">
-        <div class="pq-party-label">Buyer (Bill to)</div>
-        <div><strong>${escapeHtml(challan.customer_name || '')}</strong></div>
-        ${customer?.primary_address ? `<div>${escapeHtml(customer.primary_address)}</div>` : ''}
-        ${customer?.mobile_no ? `<div>Phone: ${escapeHtml(customer.mobile_no)}</div>` : ''}
-        ${customer?.email_id ? `<div>Email: ${escapeHtml(customer.email_id)}</div>` : ''}
-        ${customer?.gstin ? `<div>GSTIN/UIN : ${escapeHtml(customer.gstin)}</div>` : ''}
-        ${customer?.state ? `<div>State: ${escapeHtml(customer.state)}${customer?.state_code ? ` (${escapeHtml(customer.state_code)})` : ''}</div>` : ''}
+        <div class="pq-party-label">🏢 Buyer (Bill to)</div>
+        <div><strong>${escapeHtml(customerName)}</strong></div>
+        ${customerAddress ? `<div>${escapeHtml(customerAddress)}</div>` : ''}
+        ${customerPhone ? `<div>📞 Phone: ${escapeHtml(customerPhone)}</div>` : ''}
+        ${customerEmail ? `<div>✉️ Email: ${escapeHtml(customerEmail)}</div>` : ''}
+        ${customerGstin ? `<div>GSTIN/UIN: ${escapeHtml(customerGstin)}</div>` : ''}
+        ${customerState ? `<div>State: ${escapeHtml(customerState)}${customerStateCode ? ` (${escapeHtml(customerStateCode)})` : ''}</div>` : ''}
       </div>
     </div>
 
+    <!-- ITEMS TABLE -->
     <table class="pq-items">
       <thead>
         <tr>
           <th class="pq-col-sl">#</th>
           <th class="pq-col-desc">Description of Goods</th>
-          <th class="pq-col-qty">Quantity</th>
+          <th class="pq-col-hsn">HSN</th>
+          <th class="pq-col-qty">Qty</th>
+          <th class="pq-col-uom">UOM</th>
           <th class="pq-col-rate">Rate</th>
+          <th class="pq-col-tax">Tax</th>
+          <th class="pq-col-taxamt">Tax Amt</th>
           <th class="pq-col-amt">Amount</th>
         </tr>
       </thead>
       <tbody>
         ${itemRows}
         <tr class="pq-total-row">
-          <td colspan="2">Total</td>
-          <td class="pq-col-qty">${totalQty} ${items.length > 0 ? escapeHtml(items[0]?.stock_uom || items[0]?.uom || 'Nos') : 'Nos'}</td>
+          <td colspan="2" style="text-align:right;">TOTAL</td>
+          <td class="pq-col-hsn"></td>
+          <td class="pq-col-qty">${totalQty}</td>
+          <td class="pq-col-uom">${items.length > 0 ? escapeHtml(items[0]?.stock_uom || items[0]?.uom || 'Nos') : 'Nos'}</td>
           <td class="pq-col-rate"></td>
-          <td class="pq-col-amt">${grandTotal.toFixed(2)}</td>
+          <td class="pq-col-tax"></td>
+          <td class="pq-col-taxamt">${totalTax.toFixed(2)}</td>
+          <td class="pq-col-amt">${subTotal.toFixed(2)}</td>
         </tr>
       </tbody>
     </table>
 
+    <!-- SUMMARY -->
+    <div class="pq-summary">
+      <div class="pq-summary-left">
+        ${deliveryDetailsHtml}
+        ${!hasDeliveryDetails ? '<div style="color:#999;font-size:11px;">No delivery details available</div>' : ''}
+      </div>
+      <div class="pq-summary-right">
+        <div class="pq-summary-row">
+          <span>Total Items</span>
+          <span>${items.length}</span>
+        </div>
+        <div class="pq-summary-row">
+          <span>Total Quantity</span>
+          <span>${totalQty}</span>
+        </div>
+        <div class="pq-summary-row">
+          <span>Sub Total</span>
+          <span>₹${subTotal.toFixed(2)}</span>
+        </div>
+        <div class="pq-summary-row">
+          <span>Total Tax</span>
+          <span>₹${totalTax.toFixed(2)}</span>
+        </div>
+        <div class="pq-summary-row">
+          <span>Round Off</span>
+          <span>₹${roundOff.toFixed(2)}</span>
+        </div>
+        <div class="pq-summary-row total">
+          <span>Grand Total</span>
+          <span>₹${grandTotal.toFixed(2)}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- AMOUNT IN WORDS -->
     <div class="pq-words">
       <div>
         <div class="pq-words-label">Amount Chargeable (in words)</div>
-        <div><strong>INR ${numberToIndianWords(grandTotal)} Only</strong></div>
+        <div class="pq-words-amount">INR ${numberToIndianWords(grandTotal)} Only</div>
       </div>
-      <div class="pq-eoe">E.&amp;O.E</div>
+      <div class="pq-eoe">E. &amp; O. E</div>
     </div>
 
+    <!-- DECLARATION & SIGNATORY -->
     <div class="pq-bottom">
       <div class="pq-decl-box">
         <strong>Declaration</strong>
         <div style="margin-top:4px;">We declare that the goods described above are as per the delivery challan and all particulars are true and correct.</div>
-        ${companyDetails.panNo ? `<div style="margin-top:8px;">Company's PAN : ${escapeHtml(companyDetails.panNo)}</div>` : ''}
+        ${companyDetails.panNo ? `<div style="margin-top:6px;">Company's PAN: ${escapeHtml(companyDetails.panNo)}</div>` : ''}
+        ${companyDetails.bankName ? `<div style="margin-top:4px;">🏦 Bank: ${escapeHtml(companyDetails.bankName)}</div>` : ''}
+        ${companyDetails.bankAccountNo ? `<div>A/C: ${escapeHtml(companyDetails.bankAccountNo)}</div>` : ''}
+        ${companyDetails.bankBranchIfsc ? `<div>IFSC: ${escapeHtml(companyDetails.bankBranchIfsc)}</div>` : ''}
       </div>
       <div class="pq-sign-box">
         <div>
-          <div><strong>Delivery Details</strong></div>
-          ${challan.transporter ? `<div>Transporter: ${escapeHtml(challan.transporter)}</div>` : ''}
-          ${challan.vehicle_no ? `<div>Vehicle No: ${escapeHtml(challan.vehicle_no)}</div>` : ''}
-          ${challan.driver_name ? `<div>Driver: ${escapeHtml(challan.driver_name)}</div>` : ''}
+          <div><strong>Delivery Receipt</strong></div>
+          <div style="margin-top:4px;line-height:1.8;">
+            Received the above goods in good condition.<br />
+            <span class="pq-receiver-signature">Receiver's Signature</span>
+          </div>
         </div>
         <div class="pq-signatory">
-          for ${escapeHtml(companyDetails.name)}<br /><br /><br />
-          Authorised Signatory
+          for ${escapeHtml(companyDetails.name)}<br />
+          <div class="signature-line">Authorised Signatory</div>
         </div>
       </div>
     </div>
 
+    <!-- FOOTER -->
     <div class="pq-footer">
-      ${companyDetails.jurisdiction ? `<div>SUBJECT TO ${escapeHtml(companyDetails.jurisdiction)} JURISDICTION</div>` : ''}
-      <div>This is a computer generated delivery challan. ${challan.status === 'Submitted' ? '✓ Submitted' : ''}</div>
+      ${companyDetails.jurisdiction ? `<div class="pq-jurisdiction">SUBJECT TO ${escapeHtml(companyDetails.jurisdiction)} JURISDICTION</div>` : ''}
+      <div class="pq-footer-text">This is a computer generated delivery challan. ${challan.status === 'Submitted' ? '✓ Submitted' : ''}</div>
     </div>
+
   </div>
 
   <script>
-    window.onload = function () { window.print(); };
+    (function() {
+      window.onload = function() {
+        setTimeout(function() {
+          window.print();
+        }, 600);
+      };
+    })();
   </script>
 </body>
 </html>`;
-  };
-
-  // ===== GENERATE PROPER EXCEL FOR DC =====
-  const generateDCExcelData = (challan: DeliveryChallan) => {
-    const items = challan.items || [];
-    const totalQty = items.reduce((sum, item) => sum + (item.qty || 0), 0);
-    const grandTotal = challan.grand_total || 0;
-    const customer = challan.customer_details;
-    
-    const data: any[][] = [];
-    
-    // Row 0: DELIVERY CHALLAN (merged across)
-    data.push(['DELIVERY CHALLAN']);
-    
-    // Row 1: Status
-    data.push([`Status: ${challan.status || 'Draft'}`]);
-    
-    // Row 2: Empty
-    data.push([]);
-    
-    // Row 3: Company Name (using companyDetails from API)
-    data.push([companyDetails.name]);
-    
-    // Row 4: Address
-    data.push([companyDetails.address]);
-    
-    // Row 5: Phone
-    data.push([`Phone: ${companyDetails.contact}`]);
-    
-    // Row 6: Email
-    data.push([`Email: ${companyDetails.email}`]);
-    
-    // Row 7: GSTIN
-    data.push([`GSTIN: ${companyDetails.gstin || ''}`]);
-    
-    // Row 8: State
-    data.push([`State Name: ${companyDetails.stateName}, Code: ${companyDetails.stateCode}`]);
-    
-    // Row 9: Empty
-    data.push([]);
-    
-    // Row 10: DC No and Date
-    data.push(['DC No.', challan.displayDcNumber || challan.name || '', 'Date', formatDisplayDate(challan.posting_date)]);
-    
-    // Row 11: Warehouse and Transporter
-    data.push(['Warehouse', challan.set_warehouse || '', 'Transporter', challan.transporter || challan.driver_name || '']);
-    
-    // Row 12: Vehicle No and Sales Order
-    data.push(['Vehicle No.', challan.vehicle_no || '', 'Sales Order', challan.sales_order_id ? `#${challan.sales_order_id}` : 'N/A']);
-    
-    // Row 13: Empty
-    data.push([]);
-    
-    // Row 14: Consignee
-    data.push(['Consignee (Ship to)']);
-    
-    // Row 15: Customer Name
-    data.push([challan.customer_name || '']);
-    
-    // Row 16: Address
-    data.push([customer?.primary_address || '']);
-    
-    // Row 17: Phone
-    data.push([`Phone: ${customer?.mobile_no || ''}`]);
-    
-    // Row 18: Email
-    data.push([`Email: ${customer?.email_id || ''}`]);
-    
-    // Row 19: GSTIN
-    data.push([`GSTIN/UIN: ${customer?.gstin || ''}`]);
-    
-    // Row 20: State
-    data.push([`State: ${customer?.state || ''}${customer?.state_code ? ` (${customer.state_code})` : ''}`]);
-    
-    // Row 21: Empty
-    data.push([]);
-    
-    // Row 22: Items Header
-    data.push(['#', 'Description of Goods', 'Quantity', 'Rate', 'Amount']);
-    
-    // Row 23+: Items
-    items.forEach((item, idx) => {
-      data.push([
-        idx + 1,
-        item.item_name || item.item_code || '',
-        `${item.qty || 0} ${item.stock_uom || item.uom || 'Nos'}`,
-        (item.rate || 0).toFixed(2),
-        (item.amount || 0).toFixed(2)
-      ]);
-    });
-    
-    // Total row
-    const uom = items.length > 0 ? (items[0]?.stock_uom || items[0]?.uom || 'Nos') : 'Nos';
-    data.push(['Total', '', `${totalQty} ${uom}`, '', grandTotal.toFixed(2)]);
-    
-    // Empty row
-    data.push([]);
-    
-    // Amount in words
-    data.push(['Amount Chargeable (in words)']);
-    data.push([`INR ${numberToIndianWords(grandTotal)} Only`]);
-    
-    // Empty row
-    data.push([]);
-    
-    // Bank Details
-    data.push(['Bank Details']);
-    if (companyDetails.bankName) data.push([`Bank Name: ${companyDetails.bankName}`]);
-    if (companyDetails.bankAccountNo) data.push([`Account No: ${companyDetails.bankAccountNo}`]);
-    if (companyDetails.bankBranchIfsc) data.push([`IFSC Code: ${companyDetails.bankBranchIfsc}`]);
-    data.push([]);
-    
-    // Declaration
-    data.push(['Declaration']);
-    data.push(['We declare that the goods described above are as per the delivery challan and all particulars are true and correct.']);
-    data.push([]);
-    
-    // Delivery Details
-    data.push(['Delivery Details']);
-    if (challan.transporter) data.push([`Transporter: ${challan.transporter}`]);
-    if (challan.vehicle_no) data.push([`Vehicle No: ${challan.vehicle_no}`]);
-    if (challan.driver_name) data.push([`Driver: ${challan.driver_name}`]);
-    data.push([]);
-    
-    // Signatory
-    data.push([`for ${companyDetails.name}`]);
-    data.push([]);
-    data.push([]);
-    data.push([]);
-    data.push(['Authorised Signatory']);
-    data.push([]);
-    
-    // Footer
-    data.push([`SUBJECT TO ${companyDetails.jurisdiction} JURISDICTION`]);
-    data.push(['This is a computer generated delivery challan.']);
-    
-    return data;
   };
 
   // ===== EXCEL DOWNLOAD HANDLER =====
   const handleExcelDownload = async () => {
     setDownloadLoading(true);
     try {
-      const challansToDownload = paginatedData.length > 0 ? paginatedData : challans;
+      const challansToDownload = challans.length > 0 ? challans : [];
       
       if (challansToDownload.length === 0) {
         toast.error('No delivery challans to download');
@@ -987,7 +1381,6 @@ const DeliveryChallans: React.FC = () => {
         return;
       }
 
-      // Fetch full details for all challans
       const fullChallans = await Promise.all(
         challansToDownload.map(async (ch) => {
           if (ch.items && ch.items.length > 0) return ch;
@@ -996,85 +1389,51 @@ const DeliveryChallans: React.FC = () => {
         })
       );
 
-      // Create a new workbook
       const wb = XLSX.utils.book_new();
       
-      // Generate data for each challan and add as separate sheets
       fullChallans.forEach((challan, index) => {
         const challanData = generateDCExcelData(challan);
         const ws = XLSX.utils.aoa_to_sheet(challanData);
         
-        // Set column widths
         ws['!cols'] = [
           { wch: 8 },   // # 
-          { wch: 35 },  // Description
-          { wch: 20 },  // Quantity
-          { wch: 15 },  // Rate
-          { wch: 20 },  // Amount
+          { wch: 30 },  // Description
+          { wch: 12 },  // HSN
+          { wch: 8 },   // Qty
+          { wch: 8 },   // UOM
+          { wch: 12 },  // Rate
+          { wch: 10 },  // Tax
+          { wch: 12 },  // Tax Amt
+          { wch: 15 },  // Amount
         ];
         
-        // Merge cells for title
         ws['!merges'] = [
-          { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }, // DELIVERY CHALLAN
-          { s: { r: 3, c: 0 }, e: { r: 3, c: 4 } }, // Company Name
-          { s: { r: 4, c: 0 }, e: { r: 4, c: 4 } }, // Address
-          { s: { r: 5, c: 0 }, e: { r: 5, c: 4 } }, // Phone
-          { s: { r: 6, c: 0 }, e: { r: 6, c: 4 } }, // Email
-          { s: { r: 7, c: 0 }, e: { r: 7, c: 4 } }, // GSTIN
-          { s: { r: 8, c: 0 }, e: { r: 8, c: 4 } }, // State
-          { s: { r: 14, c: 0 }, e: { r: 14, c: 4 } }, // Consignee
-          { s: { r: 15, c: 0 }, e: { r: 15, c: 4 } }, // Customer Name
-          { s: { r: 16, c: 0 }, e: { r: 16, c: 4 } }, // Address
-          { s: { r: 17, c: 0 }, e: { r: 17, c: 4 } }, // Phone
-          { s: { r: 18, c: 0 }, e: { r: 18, c: 4 } }, // Email
-          { s: { r: 19, c: 0 }, e: { r: 19, c: 4 } }, // GSTIN
-          { s: { r: 20, c: 0 }, e: { r: 20, c: 4 } }, // State
+          { s: { r: 0, c: 0 }, e: { r: 0, c: 8 } },
+          { s: { r: 3, c: 0 }, e: { r: 3, c: 8 } },
+          { s: { r: 4, c: 0 }, e: { r: 4, c: 8 } },
+          { s: { r: 5, c: 0 }, e: { r: 5, c: 8 } },
+          { s: { r: 6, c: 0 }, e: { r: 6, c: 8 } },
+          { s: { r: 7, c: 0 }, e: { r: 7, c: 8 } },
+          { s: { r: 8, c: 0 }, e: { r: 8, c: 8 } },
+          { s: { r: 14, c: 0 }, e: { r: 14, c: 8 } },
+          { s: { r: 15, c: 0 }, e: { r: 15, c: 8 } },
+          { s: { r: 16, c: 0 }, e: { r: 16, c: 8 } },
+          { s: { r: 17, c: 0 }, e: { r: 17, c: 8 } },
+          { s: { r: 18, c: 0 }, e: { r: 18, c: 8 } },
+          { s: { r: 19, c: 0 }, e: { r: 19, c: 8 } },
+          { s: { r: 20, c: 0 }, e: { r: 20, c: 8 } },
         ];
         
-        // Find rows for merging amount in words
         const wordsRow = challanData.findIndex(row => row && row[0] === 'Amount Chargeable (in words)');
         if (wordsRow !== -1) {
-          ws['!merges'].push({ s: { r: wordsRow, c: 0 }, e: { r: wordsRow, c: 4 } });
-          ws['!merges'].push({ s: { r: wordsRow + 1, c: 0 }, e: { r: wordsRow + 1, c: 4 } });
-        }
-        
-        // Bank Details merge
-        const bankRow = challanData.findIndex(row => row && row[0] === 'Bank Details');
-        if (bankRow !== -1) {
-          ws['!merges'].push({ s: { r: bankRow, c: 0 }, e: { r: bankRow, c: 4 } });
-        }
-        
-        // Find rows for declaration
-        const declRow = challanData.findIndex(row => row && row[0] === 'Declaration');
-        if (declRow !== -1) {
-          ws['!merges'].push({ s: { r: declRow, c: 0 }, e: { r: declRow, c: 4 } });
-          ws['!merges'].push({ s: { r: declRow + 1, c: 0 }, e: { r: declRow + 1, c: 4 } });
-        }
-        
-        // Find rows for delivery details
-        const delRow = challanData.findIndex(row => row && row[0] === 'Delivery Details');
-        if (delRow !== -1) {
-          ws['!merges'].push({ s: { r: delRow, c: 0 }, e: { r: delRow, c: 4 } });
-        }
-        
-        // Find rows for footer
-        const footerRow = challanData.findIndex(row => row && row[0] === `SUBJECT TO ${companyDetails.jurisdiction} JURISDICTION`);
-        if (footerRow !== -1) {
-          ws['!merges'].push({ s: { r: footerRow, c: 0 }, e: { r: footerRow, c: 4 } });
-          ws['!merges'].push({ s: { r: footerRow + 1, c: 0 }, e: { r: footerRow + 1, c: 4 } });
-        }
-        
-        // Find signatory row
-        const signRow = challanData.findIndex(row => row && row[0] === 'Authorised Signatory');
-        if (signRow !== -1) {
-          ws['!merges'].push({ s: { r: signRow, c: 0 }, e: { r: signRow, c: 4 } });
+          ws['!merges'].push({ s: { r: wordsRow, c: 0 }, e: { r: wordsRow, c: 8 } });
+          ws['!merges'].push({ s: { r: wordsRow + 1, c: 0 }, e: { r: wordsRow + 1, c: 8 } });
         }
         
         const sheetName = challan.displayDcNumber || challan.name || `DC_${index + 1}`;
         XLSX.utils.book_append_sheet(wb, ws, sheetName.substring(0, 31));
       });
       
-      // Generate Excel file
       const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
       const blob = new Blob([wbout], { type: 'application/octet-stream' });
       const url = URL.createObjectURL(blob);
@@ -1099,7 +1458,7 @@ const DeliveryChallans: React.FC = () => {
   const handlePDFDownload = async () => {
     setDownloadLoading(true);
     try {
-      const challansToDownload = paginatedData.length > 0 ? paginatedData : challans;
+      const challansToDownload = challans.length > 0 ? challans : [];
       
       if (challansToDownload.length === 0) {
         toast.error('No delivery challans to download');
@@ -1117,18 +1476,32 @@ const DeliveryChallans: React.FC = () => {
 
       const allHtmlContent = fullChallans.map(ch => buildDeliveryChallanPrintHtml(ch)).join('<div style="page-break-after: always;"></div>');
       
-      const printWindow = window.open('', '_blank', 'width=900,height=1000');
+      // ✅ FIX: Properly handle the print window with a unique name
+      const printWindowName = `pdf_download_${Date.now()}`;
+      const printWindow = window.open('', printWindowName, 'width=1000,height=900');
       if (!printWindow) {
         toast.error('Please allow pop-ups to download PDF');
         setDownloadLoading(false);
         return;
       }
+      
+      // ✅ FIX: Clear the window content and write HTML
+      printWindow.document.open();
       printWindow.document.write(allHtmlContent);
       printWindow.document.close();
       printWindow.focus();
+      
+      // ✅ FIX: Add a small delay before printing to ensure content is loaded
       setTimeout(() => {
         printWindow.print();
-      }, 500);
+      }, 1000);
+      
+      // ✅ FIX: Clean up the window reference after printing
+      setTimeout(() => {
+        if (printWindow && !printWindow.closed) {
+          printWindow.close();
+        }
+      }, 5000);
       
     } catch (err) {
       console.error('PDF download error:', err);
@@ -1148,7 +1521,16 @@ const DeliveryChallans: React.FC = () => {
   };
 
   const handlePrint = (challan: DeliveryChallan) => {
-    const printWindow = window.open('', '_blank', 'width=900,height=1000');
+    // ✅ FIX: Check if print window is already open and close it
+    if (printWindowRef.current && !printWindowRef.current.closed) {
+      printWindowRef.current.close();
+      printWindowRef.current = null;
+    }
+    
+    const printWindowName = `dc_print_${challan.id}_${Date.now()}`;
+    const printWindow = window.open('', printWindowName, 'width=1000,height=900');
+    printWindowRef.current = printWindow;
+    
     if (!printWindow) {
       toast.error('Please allow pop-ups to print this delivery challan');
       return;
@@ -1169,13 +1551,30 @@ const DeliveryChallans: React.FC = () => {
         printWindow.document.open();
         printWindow.document.write(buildDeliveryChallanPrintHtml(printData));
         printWindow.document.close();
+        printWindow.focus();
+        
+        // ✅ FIX: Add delay before printing
+        setTimeout(() => {
+          printWindow.print();
+        }, 800);
       } catch (err) {
         console.error('Error printing delivery challan:', err);
         printWindow.document.open();
         printWindow.document.write(buildDeliveryChallanPrintHtml(challan));
         printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => {
+          printWindow.print();
+        }, 800);
       } finally {
         setPrintLoadingId(null);
+        // ✅ FIX: Clear reference after print is done
+        setTimeout(() => {
+          if (printWindowRef.current && !printWindowRef.current.closed) {
+            printWindowRef.current.close();
+            printWindowRef.current = null;
+          }
+        }, 5000);
       }
     };
     
@@ -1222,7 +1621,6 @@ const DeliveryChallans: React.FC = () => {
     setShowDatePicker(false);
   };
 
-  // Date picker handlers
   const openDatePicker = () => {
     setTempStartDate(startDate);
     setTempEndDate(endDate);
@@ -1247,7 +1645,6 @@ const DeliveryChallans: React.FC = () => {
     setShowDatePicker(false);
   };
 
-  // Calendar functions
   const getDaysInMonth = (year: number, month: number): number => {
     return new Date(year, month + 1, 0).getDate();
   };
@@ -1345,13 +1742,13 @@ const DeliveryChallans: React.FC = () => {
 
   // ===== RENDER =====
   return (
-    <div className={`quotation-page ${theme}`}>
+    <div className="quotation-page">
       <style>{`
         .quotation-page {
           display: flex;
           flex-direction: column;
           height: 100%;
-          background: var(--layout-bg, #f5f7fb);
+          background: #f5f7fb;
           border-radius: 8px;
           padding: 20px;
           gap: 16px;
@@ -1363,18 +1760,17 @@ const DeliveryChallans: React.FC = () => {
           width: 6px;
         }
         .quotation-page::-webkit-scrollbar-track {
-          background: var(--layout-bg, #f9fafb);
+          background: #f9fafb;
           border-radius: 3px;
         }
         .quotation-page::-webkit-scrollbar-thumb {
-          background: var(--border-color, #e5e7eb);
+          background: #e5e7eb;
           border-radius: 3px;
         }
         .quotation-page::-webkit-scrollbar-thumb:hover {
-          background: var(--primary-color, #6366f1);
+          background: #6366f1;
         }
 
-        /* ── Filter Bar ── */
         .qt-filter-bar {
           display: flex;
           align-items: center;
@@ -1403,30 +1799,30 @@ const DeliveryChallans: React.FC = () => {
           left: 12px;
           top: 50%;
           transform: translateY(-50%);
-          color: var(--text-secondary, #9ca3af);
+          color: #9ca3af;
           font-size: 14px;
         }
 
         .qt-search-input {
           width: 100%;
           padding: 8px 36px 8px 36px;
-          border: 1px solid var(--border-color, #e5e7eb);
+          border: 1px solid #e5e7eb;
           border-radius: 8px;
           font-size: 13px;
-          background: var(--input-bg, white);
-          color: var(--text-primary, #374151);
+          background: #ffffff;
+          color: #374151;
           outline: none;
           transition: border-color 0.2s;
           height: 38px;
         }
 
         .qt-search-input:focus {
-          border-color: var(--primary-color, #2563eb);
+          border-color: #2563eb;
           box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
         }
 
         .qt-search-input::placeholder {
-          color: var(--text-secondary, #9ca3af);
+          color: #9ca3af;
         }
 
         .qt-search-clear {
@@ -1437,7 +1833,7 @@ const DeliveryChallans: React.FC = () => {
           background: none;
           border: none;
           cursor: pointer;
-          color: var(--text-secondary, #9ca3af);
+          color: #9ca3af;
           padding: 4px;
           display: flex;
           align-items: center;
@@ -1452,18 +1848,18 @@ const DeliveryChallans: React.FC = () => {
 
         .qt-filter-select {
           padding: 7px 12px;
-          border: 1px solid var(--border-color, #e5e7eb);
+          border: 1px solid #e5e7eb;
           border-radius: 8px;
           font-size: 13px;
-          background: var(--card-bg, white);
-          color: var(--text-primary, #374151);
+          background: #ffffff;
+          color: #374151;
           cursor: pointer;
           outline: none;
           height: 38px;
         }
 
         .qt-filter-select:focus {
-          border-color: var(--primary-color, #2563eb);
+          border-color: #2563eb;
           box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
         }
 
@@ -1475,7 +1871,7 @@ const DeliveryChallans: React.FC = () => {
           padding: 0 16px;
           border: none;
           border-radius: 8px;
-          background: var(--primary-color, #6366f1);
+          background: #6366f1;
           color: white;
           font-size: 13px;
           font-weight: 500;
@@ -1485,7 +1881,7 @@ const DeliveryChallans: React.FC = () => {
         }
 
         .qt-btn-new:hover {
-          background: var(--primary-hover, #4f46e5);
+          background: #4f46e5;
           transform: translateY(-1px);
           box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
         }
@@ -1496,80 +1892,20 @@ const DeliveryChallans: React.FC = () => {
           gap: 6px;
           height: 38px;
           padding: 0 14px;
-          border: 1px solid var(--border-color, #e5e7eb);
+          border: 1px solid #e5e7eb;
           border-radius: 8px;
-          background: var(--card-bg, white);
+          background: #ffffff;
           font-size: 13px;
-          color: var(--text-primary, #374151);
+          color: #374151;
           cursor: pointer;
           transition: all 0.15s;
           white-space: nowrap;
         }
 
         .qt-btn-secondary:hover {
-          background: var(--nav-hover, #f9fafb);
+          background: #f9fafb;
         }
 
-        /* ── Download Buttons ── */
-        .qt-btn-download-excel {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          height: 38px;
-          padding: 0 16px;
-          border: none;
-          border-radius: 8px;
-          background: #10b981;
-          color: white;
-          font-size: 13px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.15s;
-          white-space: nowrap;
-        }
-
-        .qt-btn-download-excel:hover {
-          background: #059669;
-          transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
-        }
-
-        .qt-btn-download-excel:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-          transform: none;
-        }
-
-        .qt-btn-download-pdf {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          height: 38px;
-          padding: 0 16px;
-          border: none;
-          border-radius: 8px;
-          background: #dc2626;
-          color: white;
-          font-size: 13px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.15s;
-          white-space: nowrap;
-        }
-
-        .qt-btn-download-pdf:hover {
-          background: #b91c1c;
-          transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
-        }
-
-        .qt-btn-download-pdf:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-          transform: none;
-        }
-
-        /* ── Date Range Picker Styles ── */
         .qt-date-picker-container {
           position: relative;
           display: inline-block;
@@ -1579,29 +1915,29 @@ const DeliveryChallans: React.FC = () => {
           display: flex;
           align-items: center;
           gap: 8px;
-          background: var(--card-bg, #fff);
-          border: 1px solid var(--border-color, #e5e7eb);
+          background: #ffffff;
+          border: 1px solid #e5e7eb;
           border-radius: 8px;
           padding: 8px 14px;
           cursor: pointer;
           transition: all 0.2s;
-          color: var(--text-primary, #1e293b);
+          color: #1e293b;
           font-size: 13px;
           min-height: 38px;
         }
 
         .qt-date-picker-trigger:hover {
-          border-color: var(--primary-color, #2563eb);
-          background: var(--hover-bg, #f8fafc);
+          border-color: #2563eb;
+          background: #f8fafc;
         }
 
         .qt-date-picker-trigger.active {
-          border-color: var(--primary-color, #2563eb);
+          border-color: #2563eb;
           box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
         }
 
         .qt-date-picker-trigger .qt-calendar-icon {
-          color: var(--primary-color, #2563eb);
+          color: #2563eb;
           font-size: 16px;
         }
 
@@ -1610,12 +1946,12 @@ const DeliveryChallans: React.FC = () => {
         }
 
         .qt-date-picker-trigger .qt-date-label.placeholder {
-          color: var(--text-secondary, #6b7280);
+          color: #6b7280;
           font-weight: 400;
         }
 
         .qt-date-picker-trigger .qt-date-range-display {
-          color: var(--primary-color, #2563eb);
+          color: #2563eb;
           font-weight: 500;
         }
 
@@ -1623,10 +1959,10 @@ const DeliveryChallans: React.FC = () => {
           position: absolute;
           top: calc(100% + 8px);
           right: 0;
-          background: var(--card-bg, #fff);
-          border: 1px solid var(--border-color, #e5e7eb);
+          background: #ffffff;
+          border: 1px solid #e5e7eb;
           border-radius: 12px;
-          box-shadow: 0 10px 40px var(--shadow-color, rgba(0,0,0,0.15));
+          box-shadow: 0 10px 40px rgba(0,0,0,0.15);
           padding: 20px;
           z-index: 1000;
           min-width: 340px;
@@ -1643,20 +1979,20 @@ const DeliveryChallans: React.FC = () => {
         .qt-date-picker-popup .qt-popup-header .qt-popup-title {
           font-size: 14px;
           font-weight: 600;
-          color: var(--text-primary, #1e293b);
+          color: #1e293b;
         }
 
         .qt-date-picker-popup .qt-popup-header .qt-popup-close {
           background: none;
           border: none;
-          color: var(--text-secondary, #6b7280);
+          color: #6b7280;
           cursor: pointer;
           font-size: 16px;
           padding: 4px;
         }
 
         .qt-date-picker-popup .qt-popup-header .qt-popup-close:hover {
-          color: var(--text-primary, #1e293b);
+          color: #1e293b;
         }
 
         .qt-date-picker-popup .qt-quick-filters {
@@ -1665,28 +2001,28 @@ const DeliveryChallans: React.FC = () => {
           gap: 6px;
           margin-bottom: 16px;
           padding-bottom: 12px;
-          border-bottom: 1px solid var(--border-color, #e5e7eb);
+          border-bottom: 1px solid #e5e7eb;
         }
 
         .qt-date-picker-popup .qt-quick-filter-btn {
           padding: 4px 14px;
-          border: 1px solid var(--border-color, #e5e7eb);
+          border: 1px solid #e5e7eb;
           border-radius: 16px;
-          background: var(--card-bg, #fff);
-          color: var(--text-secondary, #6b7280);
+          background: #ffffff;
+          color: #6b7280;
           font-size: 12px;
           cursor: pointer;
           transition: all 0.2s;
         }
 
         .qt-date-picker-popup .qt-quick-filter-btn:hover {
-          border-color: var(--primary-color, #2563eb);
-          color: var(--primary-color, #2563eb);
+          border-color: #2563eb;
+          color: #2563eb;
         }
 
         .qt-date-picker-popup .qt-quick-filter-btn.active {
-          background: var(--primary-color, #2563eb);
-          border-color: var(--primary-color, #2563eb);
+          background: #2563eb;
+          border-color: #2563eb;
           color: #fff;
         }
 
@@ -1700,13 +2036,13 @@ const DeliveryChallans: React.FC = () => {
         .qt-date-picker-popup .qt-calendar-header .qt-month-year {
           font-size: 14px;
           font-weight: 600;
-          color: var(--text-primary, #1e293b);
+          color: #1e293b;
         }
 
         .qt-date-picker-popup .qt-calendar-header .qt-nav-btn {
           background: none;
           border: none;
-          color: var(--text-secondary, #6b7280);
+          color: #6b7280;
           cursor: pointer;
           padding: 4px 8px;
           font-size: 14px;
@@ -1715,7 +2051,7 @@ const DeliveryChallans: React.FC = () => {
         }
 
         .qt-date-picker-popup .qt-calendar-header .qt-nav-btn:hover {
-          background: var(--hover-bg, #f3f4f6);
+          background: #f3f4f6;
         }
 
         .qt-date-picker-popup .qt-calendar-grid {
@@ -1729,7 +2065,7 @@ const DeliveryChallans: React.FC = () => {
           text-align: center;
           font-size: 11px;
           font-weight: 600;
-          color: var(--text-secondary, #6b7280);
+          color: #6b7280;
           padding: 4px 0;
         }
 
@@ -1740,7 +2076,7 @@ const DeliveryChallans: React.FC = () => {
           border-radius: 6px;
           cursor: pointer;
           transition: all 0.2s;
-          color: var(--text-primary, #1e293b);
+          color: #1e293b;
           position: relative;
         }
 
@@ -1749,7 +2085,7 @@ const DeliveryChallans: React.FC = () => {
         }
 
         .qt-date-picker-popup .qt-calendar-grid .qt-day-cell:hover:not(.empty):not(.in-range) {
-          background: var(--hover-bg, #f3f4f6);
+          background: #f3f4f6;
         }
 
         .qt-date-picker-popup .qt-calendar-grid .qt-day-cell.in-range {
@@ -1757,20 +2093,20 @@ const DeliveryChallans: React.FC = () => {
         }
 
         .qt-date-picker-popup .qt-calendar-grid .qt-day-cell.selected {
-          background: var(--primary-color, #2563eb);
+          background: #2563eb;
           color: #fff;
           font-weight: 600;
         }
 
         .qt-date-picker-popup .qt-calendar-grid .qt-day-cell.selected-start {
-          background: var(--primary-color, #2563eb);
+          background: #2563eb;
           color: #fff;
           font-weight: 600;
           border-radius: 6px 0 0 6px;
         }
 
         .qt-date-picker-popup .qt-calendar-grid .qt-day-cell.selected-end {
-          background: var(--primary-color, #2563eb);
+          background: #2563eb;
           color: #fff;
           font-weight: 600;
           border-radius: 0 6px 6px 0;
@@ -1781,7 +2117,7 @@ const DeliveryChallans: React.FC = () => {
         }
 
         .qt-date-picker-popup .qt-calendar-grid .qt-day-cell.today {
-          border: 1px solid var(--primary-color, #2563eb);
+          border: 1px solid #2563eb;
         }
 
         .qt-date-picker-popup .qt-popup-actions {
@@ -1789,7 +2125,7 @@ const DeliveryChallans: React.FC = () => {
           gap: 8px;
           justify-content: flex-end;
           padding-top: 12px;
-          border-top: 1px solid var(--border-color, #e5e7eb);
+          border-top: 1px solid #e5e7eb;
         }
 
         .qt-date-picker-popup .qt-popup-actions button {
@@ -1803,75 +2139,73 @@ const DeliveryChallans: React.FC = () => {
         }
 
         .qt-date-picker-popup .qt-popup-actions .qt-btn-apply {
-          background: var(--primary-color, #2563eb);
+          background: #2563eb;
           color: #fff;
         }
 
         .qt-date-picker-popup .qt-popup-actions .qt-btn-apply:hover {
-          background: var(--primary-hover, #1d4ed8);
+          background: #1d4ed8;
         }
 
         .qt-date-picker-popup .qt-popup-actions .qt-btn-clear {
           background: transparent;
-          color: var(--text-secondary, #6b7280);
+          color: #6b7280;
         }
 
         .qt-date-picker-popup .qt-popup-actions .qt-btn-clear:hover {
-          background: var(--hover-bg, #f3f4f6);
+          background: #f3f4f6;
         }
 
         .qt-date-picker-popup .qt-popup-actions .qt-btn-cancel {
           background: transparent;
-          color: var(--text-secondary, #6b7280);
+          color: #6b7280;
         }
 
         .qt-date-picker-popup .qt-popup-actions .qt-btn-cancel:hover {
-          background: var(--hover-bg, #f3f4f6);
+          background: #f3f4f6;
         }
 
-        /* ── Active Filters ── */
         .qt-active-filters {
           display: flex;
           align-items: center;
           gap: 12px;
           padding: 8px 16px;
-          background: color-mix(in srgb, var(--primary-color) 8%, transparent);
+          background: rgba(99, 102, 241, 0.08);
           border-radius: 8px;
           font-size: 12px;
           flex-wrap: wrap;
-          border: 1px solid var(--border-color, #e5e7eb);
+          border: 1px solid #e5e7eb;
           flex-shrink: 0;
         }
 
         .qt-active-filters span {
-          color: var(--text-primary, #111827);
+          color: #111827;
         }
 
         .qt-clear-filters {
           margin-left: auto;
           padding: 4px 12px;
-          background: var(--card-bg, white);
-          border: 1px solid var(--border-color, #e5e7eb);
+          background: #ffffff;
+          border: 1px solid #e5e7eb;
           border-radius: 6px;
           cursor: pointer;
           font-size: 11px;
           display: flex;
           align-items: center;
           gap: 4px;
-          color: var(--text-secondary, #6b7280);
+          color: #6b7280;
           transition: all 0.15s;
         }
 
         .qt-clear-filters:hover {
-          background: var(--nav-hover, #f3f4f6);
+          background: #f3f4f6;
         }
 
-        /* ── Table ── */
         .qt-table-wrap {
-          background: var(--card-bg, #fff);
+          background: #ffffff;
           border-radius: 12px;
-          box-shadow: 0 1px 3px var(--shadow-color, rgba(0,0,0,0.05));
-          border: 1px solid var(--border-color, #e5e7eb);
+          box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+          border: 1px solid #e5e7eb;
           overflow-x: auto;
           overflow-y: visible;
           flex: 0 0 auto;
@@ -1882,15 +2216,15 @@ const DeliveryChallans: React.FC = () => {
           height: 6px;
         }
         .qt-table-wrap::-webkit-scrollbar-track {
-          background: var(--layout-bg, #f9fafb);
+          background: #f9fafb;
           border-radius: 3px;
         }
         .qt-table-wrap::-webkit-scrollbar-thumb {
-          background: var(--border-color, #e5e7eb);
+          background: #e5e7eb;
           border-radius: 3px;
         }
         .qt-table-wrap::-webkit-scrollbar-thumb:hover {
-          background: var(--primary-color, #6366f1);
+          background: #6366f1;
         }
 
         .qt-table {
@@ -1905,9 +2239,9 @@ const DeliveryChallans: React.FC = () => {
           text-align: left;
           font-size: 12px;
           font-weight: 600;
-          color: var(--text-secondary, #6b7280);
-          background: var(--layout-bg, #f9fafb);
-          border-bottom: 1px solid var(--border-color, #e5e7eb);
+          color: #6b7280;
+          background: #f9fafb;
+          border-bottom: 1px solid #e5e7eb;
           white-space: nowrap;
           text-transform: uppercase;
           letter-spacing: 0.3px;
@@ -1919,29 +2253,29 @@ const DeliveryChallans: React.FC = () => {
         }
 
         .qt-tr:hover {
-          background: var(--nav-hover, #f9fafb);
+          background: #f9fafb;
         }
 
         .qt-tr+.qt-tr td {
-          border-top: 1px solid var(--border-color, #f3f4f6);
+          border-top: 1px solid #f3f4f6;
         }
 
         .qt-td {
           padding: 12px 16px;
-          color: var(--text-primary, #374151);
+          color: #374151;
           vertical-align: middle;
           text-align: left;
         }
 
         .qt-td-dcno {
           font-weight: 600;
-          color: var(--text-primary, #111827);
+          color: #111827;
           font-family: monospace;
         }
 
         .qt-td-customer {
           font-weight: 500;
-          color: var(--primary-color, #6366f1);
+          color: #6366f1;
           cursor: pointer;
         }
 
@@ -1952,10 +2286,9 @@ const DeliveryChallans: React.FC = () => {
         .qt-td-amount {
           font-weight: 600;
           font-size: 14px;
-          color: var(--text-primary, #1f2433);
+          color: #1f2433;
         }
 
-        /* ── Status Badge ── */
         .qt-status-badge {
           display: inline-flex;
           align-items: center;
@@ -1974,7 +2307,6 @@ const DeliveryChallans: React.FC = () => {
           display: inline-block;
         }
 
-        /* ── Action Buttons ── */
         .qt-action-buttons {
           display: flex;
           align-items: center;
@@ -1992,11 +2324,11 @@ const DeliveryChallans: React.FC = () => {
           justify-content: center;
           transition: all 0.2s;
           background: transparent;
-          color: var(--text-secondary, #6b7280);
+          color: #6b7280;
         }
 
         .qt-action-btn:hover {
-          background: var(--nav-hover, #f3f4f6);
+          background: #f3f4f6;
         }
           .qt-action-print {
   color: #0d9488;
@@ -2007,14 +2339,13 @@ const DeliveryChallans: React.FC = () => {
 }
 
         .qt-action-more {
-          color: var(--text-secondary, #6b7280);
+          color: #6b7280;
         }
 
         .qt-action-more:hover {
-          background: var(--nav-hover, #f3f4f6);
+          background: #f3f4f6;
         }
 
-        /* ── More Menu ── */
         .qt-more-menu-container {
           position: relative;
           display: inline-block;
@@ -2024,10 +2355,10 @@ const DeliveryChallans: React.FC = () => {
           position: absolute;
           right: 0;
           top: 100%;
-          background: var(--card-bg, #fff);
-          border: 1px solid var(--border-color, #e5e7eb);
+          background: #ffffff;
+          border: 1px solid #e5e7eb;
           border-radius: 8px;
-          box-shadow: 0 10px 40px var(--shadow-color, rgba(0,0,0,0.15));
+          box-shadow: 0 10px 40px rgba(0,0,0,0.15);
           min-width: 180px;
           z-index: 100;
           padding: 4px 0;
@@ -2042,7 +2373,7 @@ const DeliveryChallans: React.FC = () => {
           padding: 8px 16px;
           border: none;
           background: transparent;
-          color: var(--text-primary, #1e293b);
+          color: #1e293b;
           font-size: 13px;
           cursor: pointer;
           transition: all 0.2s;
@@ -2050,12 +2381,12 @@ const DeliveryChallans: React.FC = () => {
         }
 
         .qt-more-menu-dropdown button:hover {
-          background: var(--nav-hover, #f8fafc);
-          color: var(--primary-color, #2563eb);
+          background: #f8fafc;
+          color: #2563eb;
         }
 
         .qt-more-menu-dropdown button.danger {
-          color: var(--danger-color, #ef4444);
+          color: #ef4444;
         }
 
         .qt-more-menu-dropdown button.danger:hover {
@@ -2064,11 +2395,10 @@ const DeliveryChallans: React.FC = () => {
 
         .qt-more-menu-dropdown .menu-divider {
           height: 1px;
-          background: var(--border-color, #e5e7eb);
+          background: #e5e7eb;
           margin: 4px 0;
         }
 
-        /* ── Empty State ── */
         .qt-empty-state {
           padding: 60px 20px;
           text-align: center;
@@ -2086,26 +2416,25 @@ const DeliveryChallans: React.FC = () => {
         }
 
         .qt-empty-content svg {
-          color: var(--text-secondary, #9ca3af);
+          color: #9ca3af;
         }
 
         .qt-empty-content p {
           font-size: 18px;
           font-weight: 500;
-          color: var(--text-primary, #111827);
+          color: #111827;
           margin: 0;
         }
 
         .qt-empty-content span {
           font-size: 14px;
-          color: var(--text-secondary, #6b7280);
+          color: #6b7280;
         }
 
-        /* ── Loading ── */
         .qt-loading {
           padding: 40px;
           text-align: center;
-          color: var(--text-secondary, #6b7280);
+          color: #6b7280;
           display: flex;
           flex-direction: column;
           align-items: center;
@@ -2116,7 +2445,7 @@ const DeliveryChallans: React.FC = () => {
         .qt-error {
           padding: 40px;
           text-align: center;
-          color: var(--danger-color, #ef4444);
+          color: #ef4444;
           display: flex;
           flex-direction: column;
           align-items: center;
@@ -2127,14 +2456,13 @@ const DeliveryChallans: React.FC = () => {
         .qt-retry-btn {
           margin-top: 12px;
           padding: 8px 20px;
-          background: var(--primary-color, #6366f1);
+          background: #6366f1;
           color: white;
           border: none;
           border-radius: 6px;
           cursor: pointer;
         }
 
-        /* ── Pagination ── */
         .qt-pagination {
           display: flex;
           align-items: center;
@@ -2144,7 +2472,7 @@ const DeliveryChallans: React.FC = () => {
           gap: 12px;
           background: transparent;
           flex-shrink: 0;
-          border-top: 1px solid var(--border-color, #e5e7eb);
+          border-top: 1px solid #e5e7eb;
           margin-top: 4px;
         }
 
@@ -2163,22 +2491,22 @@ const DeliveryChallans: React.FC = () => {
 
         .qt-pagination-label {
           font-size: 13px;
-          color: var(--text-secondary, #6b7280);
+          color: #6b7280;
         }
 
         .qt-page-size-select {
           padding: 6px 10px;
-          border: 1px solid var(--border-color, #e5e7eb);
+          border: 1px solid #e5e7eb;
           border-radius: 6px;
           font-size: 13px;
-          background: var(--card-bg, white);
-          color: var(--text-primary, #374151);
+          background: #ffffff;
+          color: #374151;
           cursor: pointer;
           height: 34px;
         }
 
         .qt-page-size-select:focus {
-          border-color: var(--primary-color, #6366f1);
+          border-color: #6366f1;
           outline: none;
         }
 
@@ -2186,11 +2514,11 @@ const DeliveryChallans: React.FC = () => {
           height: 34px;
           min-width: 34px;
           padding: 0 10px;
-          border: 1px solid var(--border-color, #e5e7eb);
+          border: 1px solid #e5e7eb;
           border-radius: 6px;
-          background: var(--card-bg, white);
+          background: #ffffff;
           font-size: 13px;
-          color: var(--text-primary, #374151);
+          color: #374151;
           cursor: pointer;
           transition: all 0.15s;
           display: inline-flex;
@@ -2199,8 +2527,8 @@ const DeliveryChallans: React.FC = () => {
         }
 
         .qt-page-btn:hover:not(:disabled) {
-          background: var(--nav-hover, #f3f4f6);
-          border-color: var(--primary-color, #6366f1);
+          background: #f3f4f6;
+          border-color: #6366f1;
         }
 
         .qt-page-btn:disabled {
@@ -2209,21 +2537,20 @@ const DeliveryChallans: React.FC = () => {
         }
 
         .qt-page-btn-active {
-          background: var(--primary-color, #6366f1);
+          background: #6366f1;
           color: white;
-          border-color: var(--primary-color, #6366f1);
+          border-color: #6366f1;
         }
 
         .qt-page-btn-active:hover {
-          background: var(--primary-hover, #4f46e5);
+          background: #4f46e5;
         }
 
         .qt-pagination-info {
           font-size: 13px;
-          color: var(--text-secondary, #6b7280);
+          color: #6b7280;
         }
 
-        /* ── Spinner ── */
         .spinning {
           animation: spin 1s linear infinite;
         }
@@ -2232,177 +2559,6 @@ const DeliveryChallans: React.FC = () => {
           to { transform: rotate(360deg); }
         }
 
-        /* ── Dark Theme ── */
-        .dark-theme .quotation-page {
-          background: var(--layout-bg, #0f172a);
-        }
-
-        .dark-theme .qt-search-input {
-          background: var(--input-bg, #1e293b);
-          border-color: var(--border-color, #334155);
-          color: var(--text-primary, #f8fafc);
-        }
-
-        .dark-theme .qt-search-input::placeholder {
-          color: var(--text-secondary, #64748b);
-        }
-
-        .dark-theme .qt-filter-select {
-          background: var(--card-bg, #1e293b);
-          border-color: var(--border-color, #334155);
-          color: var(--text-primary, #f8fafc);
-        }
-
-        .dark-theme .qt-btn-secondary {
-          background: var(--card-bg, #1e293b);
-          border-color: var(--border-color, #334155);
-          color: var(--text-primary, #f8fafc);
-        }
-
-        .dark-theme .qt-btn-secondary:hover {
-          background: var(--nav-hover, rgba(255,255,255,0.05));
-        }
-
-        .dark-theme .qt-btn-new {
-          background: var(--primary-color, #3b82f6);
-        }
-
-        .dark-theme .qt-btn-new:hover {
-          background: var(--primary-hover, #2563eb);
-        }
-
-        .dark-theme .qt-btn-download-excel {
-          background: #10b981;
-        }
-
-        .dark-theme .qt-btn-download-excel:hover {
-          background: #059669;
-        }
-
-        .dark-theme .qt-btn-download-pdf {
-          background: #dc2626;
-        }
-
-        .dark-theme .qt-btn-download-pdf:hover {
-          background: #b91c1c;
-        }
-
-        .dark-theme .qt-table-wrap {
-          background: var(--card-bg, #1e293b);
-          border-color: var(--border-color, #334155);
-        }
-
-        .dark-theme .qt-th {
-          background: var(--layout-bg, #0f172a);
-          color: var(--text-secondary, #94a3b8);
-          border-bottom-color: var(--border-color, #334155);
-        }
-
-        .dark-theme .qt-td {
-          color: var(--text-primary, #f8fafc);
-          border-top-color: var(--border-color, #334155);
-        }
-
-        .dark-theme .qt-tr:hover {
-          background: var(--nav-hover, rgba(255,255,255,0.05));
-        }
-
-        .dark-theme .qt-td-amount {
-          color: var(--text-primary, #f8fafc);
-        }
-
-        .dark-theme .qt-empty-content p {
-          color: var(--text-primary, #f8fafc);
-        }
-
-        .dark-theme .qt-empty-content span {
-          color: var(--text-secondary, #94a3b8);
-        }
-
-        .dark-theme .qt-active-filters {
-          background: rgba(99, 102, 241, 0.08);
-          border-color: var(--border-color, #334155);
-        }
-
-        .dark-theme .qt-active-filters span {
-          color: var(--text-primary, #f8fafc);
-        }
-
-        .dark-theme .qt-clear-filters {
-          background: var(--card-bg, #1e293b);
-          border-color: var(--border-color, #334155);
-          color: var(--text-secondary, #94a3b8);
-        }
-
-        .dark-theme .qt-page-btn {
-          background: var(--card-bg, #1e293b);
-          border-color: var(--border-color, #334155);
-          color: var(--text-primary, #f8fafc);
-        }
-
-        .dark-theme .qt-page-btn:hover:not(:disabled) {
-          background: var(--nav-hover, rgba(255,255,255,0.05));
-        }
-
-        .dark-theme .qt-page-size-select {
-          background: var(--card-bg, #1e293b);
-          border-color: var(--border-color, #334155);
-          color: var(--text-primary, #f8fafc);
-        }
-
-        .dark-theme .qt-more-menu-dropdown {
-          background: var(--card-bg, #1e293b);
-          border-color: var(--border-color, #334155);
-        }
-
-        .dark-theme .qt-more-menu-dropdown button {
-          color: var(--text-primary, #f8fafc);
-        }
-
-        .dark-theme .qt-more-menu-dropdown button:hover {
-          background: var(--nav-hover, rgba(255,255,255,0.05));
-        }
-
-        .dark-theme .qt-date-picker-trigger {
-          background: var(--card-bg, #1e293b);
-          border-color: var(--border-color, #334155);
-          color: var(--text-primary, #f8fafc);
-        }
-
-        .dark-theme .qt-date-picker-popup {
-          background: var(--card-bg, #1e293b);
-          border-color: var(--border-color, #334155);
-        }
-
-        .dark-theme .qt-date-picker-popup .qt-popup-title {
-          color: var(--text-primary, #f8fafc);
-        }
-
-        .dark-theme .qt-date-picker-popup .qt-quick-filter-btn {
-          background: var(--card-bg, #1e293b);
-          border-color: var(--border-color, #334155);
-          color: var(--text-secondary, #94a3b8);
-        }
-
-        .dark-theme .qt-date-picker-popup .qt-quick-filter-btn:hover {
-          border-color: var(--primary-color, #3b82f6);
-          color: var(--primary-color, #3b82f6);
-        }
-
-        .dark-theme .qt-date-picker-popup .qt-quick-filter-btn.active {
-          background: var(--primary-color, #3b82f6);
-          color: #fff;
-        }
-
-        .dark-theme .qt-date-picker-popup .qt-day-cell {
-          color: var(--text-primary, #f8fafc);
-        }
-
-        .dark-theme .qt-date-picker-popup .qt-day-cell:hover:not(.empty):not(.in-range) {
-          background: var(--nav-hover, rgba(255,255,255,0.05));
-        }
-
-        /* ── Responsive ── */
         @media (max-width: 768px) {
           .quotation-page {
             padding: 12px;
@@ -2519,7 +2675,6 @@ const DeliveryChallans: React.FC = () => {
             <option value="Cancelled">Cancelled</option>
           </select>
           
-          {/* Date Range Picker - Before New DC Button */}
           <div className="qt-date-picker-container">
             <div 
               className={`qt-date-picker-trigger ${showDatePicker ? 'active' : ''}`}
@@ -2546,7 +2701,6 @@ const DeliveryChallans: React.FC = () => {
                   </button>
                 </div>
                 
-                {/* Quick Filters */}
                 <div className="qt-quick-filters">
                   <button 
                     className={`qt-quick-filter-btn ${selectedQuickFilter === 'today' ? 'active' : ''}`}
@@ -2574,7 +2728,6 @@ const DeliveryChallans: React.FC = () => {
                   </button>
                 </div>
                 
-                {/* Calendar */}
                 <div className="qt-calendar-header">
                   <button className="qt-nav-btn" onClick={() => changeMonth(-1)}>
                     <FaChevronLeft size={12} />
@@ -2652,7 +2805,7 @@ const DeliveryChallans: React.FC = () => {
       {/* ===== ACTIVE FILTERS ===== */}
       {(searchTerm || selectedStatus !== "All" || startDate || endDate) && (
         <div className="qt-active-filters">
-          <FaFilter size={12} style={{ color: "var(--primary-color)" }} />
+          <FaFilter size={12} style={{ color: "#6366f1" }} />
           <span>Active filters:</span>
           {searchTerm && (
             <span>
@@ -2690,7 +2843,7 @@ const DeliveryChallans: React.FC = () => {
               <FaSync size={12} style={{ marginRight: '6px' }} /> Retry
             </button>
           </div>
-        ) : paginatedData.length === 0 ? (
+        ) : challans.length === 0 ? (
           <div className="qt-empty-state">
             <div className="qt-empty-content">
               <FaTruck size={48} />
@@ -2714,7 +2867,7 @@ const DeliveryChallans: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {paginatedData.map((item) => (
+              {challans.map((item) => (
                 <tr key={item.id} className="qt-tr">
                   <td className="qt-td qt-td-dcno">
                     {item.displayDcNumber || item.name || '-'}
@@ -2724,7 +2877,7 @@ const DeliveryChallans: React.FC = () => {
                       {item.customer_name || '-'}
                     </span>
                   </td>
-                  <td className="qt-td">{formatDateDisplay(item.posting_date)}</td>
+                  <td className="qt-td">{formatDisplayDate(item.posting_date)}</td>
                   <td className="qt-td qt-td-amount">
                     ₹{item.grand_total?.toLocaleString() || '0'}
                   </td>
@@ -2808,24 +2961,30 @@ const DeliveryChallans: React.FC = () => {
               <option value={50}>50</option>
               <option value={100}>100</option>
             </select>
-            <span className="qt-pagination-label">entries</span>
+            <span className="qt-pagination-info">
+              {totalRecords > 0 ? (
+                `Showing ${getStartIndex()} to ${getEndIndex()} of ${totalRecords} entries`
+              ) : (
+                'No entries to show'
+              )}
+            </span>
           </div>
           <div className="qt-pagination-center">
             <button
               onClick={goToFirstPage}
-              disabled={currentPage === 1 || totalFilteredItems === 0}
+              disabled={currentPage === 1 || totalRecords === 0}
               className="qt-page-btn"
             >
               <FaAngleDoubleLeft size={12} />
             </button>
             <button
               onClick={goToPrevPage}
-              disabled={currentPage === 1 || totalFilteredItems === 0}
+              disabled={currentPage === 1 || totalRecords === 0}
               className="qt-page-btn"
             >
               <FaChevronLeft size={12} />
             </button>
-            {totalFilteredItems > 0 && getPageNumbers().map(page => (
+            {totalRecords > 0 && getPageNumbers().map(page => (
               <button
                 key={page}
                 onClick={() => goToPage(page)}
@@ -2836,14 +2995,14 @@ const DeliveryChallans: React.FC = () => {
             ))}
             <button
               onClick={goToNextPage}
-              disabled={currentPage === totalPages || totalFilteredItems === 0}
+              disabled={currentPage === totalPages || totalRecords === 0}
               className="qt-page-btn"
             >
               <FaChevronRight size={12} />
             </button>
             <button
               onClick={goToLastPage}
-              disabled={currentPage === totalPages || totalFilteredItems === 0}
+              disabled={currentPage === totalPages || totalRecords === 0}
               className="qt-page-btn"
             >
               <FaAngleDoubleRight size={12} />
@@ -2851,11 +3010,7 @@ const DeliveryChallans: React.FC = () => {
           </div>
           <div className="qt-pagination-right">
             <span className="qt-pagination-info">
-              {totalFilteredItems > 0 ? (
-                `Showing ${getStartIndex()} to ${getEndIndex()} of ${totalFilteredItems} entries`
-              ) : (
-                'No entries to show'
-              )}
+              Page {currentPage} of {totalPages}
             </span>
           </div>
         </div>

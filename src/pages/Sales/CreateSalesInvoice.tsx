@@ -4513,7 +4513,6 @@ if (isEditMode && id) {
   const totalQuantity = getTotalQty();
   const subTotal = getTotalAmount();
   const totalTax = getTotalTax();
-  const grandTotalWithRound = getGrandTotalWithRound();
 
   const pageTitle = isViewMode ? 'View Sales Bill' : isEditMode ? 'Edit Sales Bill' : 'Create Sales Bill';
   const displayBillNumber = isExistingRecord ? (existingInvoiceNumber || billNumber) : billNumber;

@@ -109,7 +109,6 @@ interface SalesOrderApiRecord {
   }>;
 }
 
-
 const companyDetails = {
   name: 'Sculptor Tech Pvt Ltd',
   address: 'c-1006, gc, Pune, Maharashtra 411028, India',
@@ -170,7 +169,18 @@ const numberToIndianWords = (value: number): string => {
   return out.trim();
 };
 
-// ✅ UPDATED: Format print date using context formatter
+const formatPrintDate = (date: string, formatFn?: (date: string) => string): string => {
+  if (!date) return '';
+  if (formatFn) {
+    return formatFn(date);
+  }
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return date;
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = d.toLocaleString('en-US', { month: 'short' });
+  const year = String(d.getFullYear()).slice(-2);
+  return `${day}-${month}-${year}`;
+};
 
 const escapeHtml = (val: unknown): string => {
   const s = val === null || val === undefined ? '' : String(val);
@@ -197,7 +207,6 @@ const readCachedSalesOrderLineData = (name: string): CachedSalesOrderLineData | 
   }
 };
 
-/** Normalizes a list-style API response: { success, data: { records, total } } or { success, data: [...] } */
 const extractRecords = (payload: any): any[] => {
   if (!payload) return [];
   const data = payload.success === 1 || payload.success === 0 ? payload.data : payload;
@@ -206,7 +215,6 @@ const extractRecords = (payload: any): any[] => {
   return [];
 };
 
-/** Maps a raw /sales-order API record's `items` child table into UI-shaped SalesOrderItem[]. */
 const mapApiItemsToSalesOrderItems = (record: SalesOrderApiRecord | null | undefined): SalesOrderItem[] => {
   if (!record || !Array.isArray(record.items)) return [];
   return record.items.map((it, idx) => {
@@ -227,7 +235,6 @@ const mapApiItemsToSalesOrderItems = (record: SalesOrderApiRecord | null | undef
   });
 };
 
-// ─── Debounce function ──────────────────────────────────────────────────
 const useDebounce = (value: string, delay: number) => {
   const [debouncedValue, setDebouncedValue] = useState(value);
 
@@ -248,8 +255,7 @@ export default function SalesOrder() {
   const navigate = useNavigate();
   const menuRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
-  // ✅ GET THE DATE FORMAT FUNCTION FROM CONTEXT
-  const { theme, formatDate } = useAdminTheme();
+  const { theme, formatDate, getApiDateFormat } = useAdminTheme();
 
   const [filterText, setFilterText] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('All');
@@ -260,7 +266,6 @@ export default function SalesOrder() {
   const [proformaLoadingId, setProformaLoadingId] = useState<string | null>(null);
   const [showMoreMenu, setShowMoreMenu] = useState<string | null>(null);
 
-  // Date range filter states
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
@@ -269,36 +274,32 @@ export default function SalesOrder() {
   const [selectedQuickFilter, setSelectedQuickFilter] = useState<string>('');
 
   const [salesOrders, setSalesOrders] = useState<SalesOrder[]>([]);
-  const [allSalesOrders, setAllSalesOrders] = useState<SalesOrder[]>([]);
 
-  // Pagination states
+  // Pagination states - SERVER SIDE
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [, setTotalRecords] = useState(0);
+  const [totalRecords, setTotalRecords] = useState(0);
 
-  // Modal states
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<SalesOrder | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pdfModalLoading] = useState(false);
 
-  // Calendar state
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
 
-  // Debounced search term
   const debouncedFilterText = useDebounce(filterText, 500);
 
-  // ✅ NEW: Format display date using context
   const formatDisplayDate = (dateString: string) => {
     if (!dateString) return '';
     return formatDate(dateString);
   };
 
-  // ✅ NEW: Format date for API (YYYY-MM-DD)
+  const toApiDateFormat = (date: Date) => {
+    return getApiDateFormat(date);
+  };
 
-  // ─── close more-menu on outside click ─────────────────────────────────
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (showMoreMenu === null) return;
@@ -317,7 +318,6 @@ export default function SalesOrder() {
     };
   }, [showMoreMenu]);
 
-  // ─── close date picker on outside click ──────────────────────────────
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
@@ -337,8 +337,6 @@ export default function SalesOrder() {
     setShowMoreMenu(showMoreMenu === id ? null : id);
   };
 
-  // ─── Date helper functions ─────────────────────────────────────────────
-  // ✅ UPDATED: Format date for display using context
   const formatDateForDisplay = (dateStr: string): string => {
     if (!dateStr) return '';
     return formatDate(dateStr);
@@ -365,7 +363,6 @@ export default function SalesOrder() {
     return date.toISOString().split('T')[0];
   };
 
-  // ─── Quick filter handlers ─────────────────────────────────────────────
   const applyQuickFilter = (filter: string) => {
     setSelectedQuickFilter(filter);
     let start = '';
@@ -393,14 +390,13 @@ export default function SalesOrder() {
     setTempEndDate(end);
   };
 
-  // ─── load from GET /sales-order with search ───────────────────────────
-
   const fetchSalesOrders = async () => {
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams();
       
+      // ✅ SERVER-SIDE PAGINATION PARAMS
       params.append('page', String(currentPage));
       params.append('limit', String(pageSize));
       
@@ -442,9 +438,10 @@ export default function SalesOrder() {
         all = [];
       }
 
-      setTotalRecords(all.length);
+      // ✅ Get total from API response
+      const total = raw?.total ?? raw?.records?.length ?? all.length;
+      setTotalRecords(total);
 
-      // ✅ TRANSFORM DATA WITH FORMATTED DATES
       const transformedData: SalesOrder[] = all.map((o, idx) => {
         const resolvedId =
           o.id !== undefined && o.id !== null && String(o.id).trim() !== ''
@@ -485,7 +482,6 @@ export default function SalesOrder() {
         };
       });
 
-      setAllSalesOrders(transformedData);
       setSalesOrders(transformedData);
     } catch (err: any) {
       console.error('Error fetching sales orders:', err);
@@ -495,59 +491,15 @@ export default function SalesOrder() {
     }
   };
 
-  // Fetch when filters change
+  // ✅ Fetch when any filter or pagination changes
   useEffect(() => {
     fetchSalesOrders();
   }, [debouncedFilterText, selectedStatus, selectedOrderType, startDate, endDate, currentPage, pageSize]);
 
-  // Reset to first page when filters change
+  // ✅ Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [filterText, selectedStatus, selectedOrderType, startDate, endDate]);
-
-  // Filter data for display (client-side filtering for additional fields)
-  useEffect(() => {
-    let filtered = allSalesOrders;
-    
-    if (filterText.trim()) {
-      const searchLower = filterText.toLowerCase();
-      filtered = filtered.filter(o =>
-        (o.salesOrderNumber || '').toLowerCase().includes(searchLower) ||
-        (o.customerName || '').toLowerCase().includes(searchLower) ||
-        (o.customer || '').toLowerCase().includes(searchLower)
-      );
-    }
-
-    if (selectedStatus !== 'All') {
-      filtered = filtered.filter(o => o.status === selectedStatus);
-    }
-
-    if (selectedOrderType !== 'All') {
-      filtered = filtered.filter(o => o.orderType === selectedOrderType);
-    }
-
-    if (startDate) {
-      const start = new Date(startDate);
-      start.setHours(0, 0, 0, 0);
-      filtered = filtered.filter(o => {
-        if (!o.date) return false;
-        const orderDate = new Date(o.date);
-        return orderDate >= start;
-      });
-    }
-    if (endDate) {
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
-      filtered = filtered.filter(o => {
-        if (!o.date) return false;
-        const orderDate = new Date(o.date);
-        return orderDate <= end;
-      });
-    }
-
-    setSalesOrders(filtered);
-    setTotalRecords(filtered.length);
-  }, [allSalesOrders, filterText, selectedStatus, selectedOrderType, startDate, endDate]);
 
   const fetchFullSalesOrderRecord = async (orderId: string): Promise<SalesOrderApiRecord | null> => {
     try {
@@ -664,12 +616,11 @@ export default function SalesOrder() {
     }
   };
 
-  // Pagination calculations
-  const totalFiltered = salesOrders.length;
-  const totalPages = Math.ceil(totalFiltered / pageSize);
-  const startIndex = (currentPage - 1) * pageSize;
-  const endIndex = Math.min(startIndex + pageSize, totalFiltered);
-  const currentPageData = salesOrders.slice(startIndex, endIndex);
+  // ✅ Pagination calculations - SERVER SIDE
+  const totalFiltered = totalRecords;
+  const totalPages = Math.ceil(totalFiltered / pageSize) || 1;
+  const startIndex = (currentPage - 1) * pageSize + 1;
+  const endIndex = Math.min(currentPage * pageSize, totalFiltered);
 
   const handlePageSizeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newSize = parseInt(e.target.value, 10);
@@ -763,7 +714,6 @@ export default function SalesOrder() {
     setShowDatePicker(false);
   };
 
-  // Date picker handlers
   const openDatePicker = () => {
     setTempStartDate(startDate);
     setTempEndDate(endDate);
@@ -788,7 +738,6 @@ export default function SalesOrder() {
     setShowDatePicker(false);
   };
 
-  // Calendar functions
   const getDaysInMonth = (year: number, month: number): number => {
     return new Date(year, month + 1, 0).getDate();
   };
@@ -872,8 +821,6 @@ export default function SalesOrder() {
     return new Date(currentYear, month).toLocaleString('en-US', { month: 'long' });
   };
 
-  /* ─────────────────────── Print (Tax-Invoice format) ─────────────────────── */
-
   const buildSalesOrderPrintHtml = (order: SalesOrder): string => {
     const validItems = order.items || [];
 
@@ -883,7 +830,6 @@ export default function SalesOrder() {
     const totalQty = validItems.reduce((sum, it) => sum + (it.quantity || 0), 0);
     const grandTotal = order.totalAmount || (baseTotal + cgstAmount + sgstAmount);
 
-    // ✅ Use formatDisplayDate for formatted dates in print
     const formatPrintDateLocal = (dateStr: string) => {
       if (!dateStr) return '';
       return formatDisplayDate(dateStr);
@@ -1237,8 +1183,6 @@ export default function SalesOrder() {
 </html>`;
   };
 
-  /* ─────────────────────── Proforma Invoice ─────────────────────── */
-
   const buildProformaInvoiceHtml = (order: SalesOrder): string => {
     const validItems = order.items || [];
 
@@ -1248,7 +1192,6 @@ export default function SalesOrder() {
     const totalQty = validItems.reduce((sum, it) => sum + (it.quantity || 0), 0);
     const grandTotal = order.totalAmount || (baseTotal + cgstAmount + sgstAmount);
 
-    // ✅ Use formatDisplayDate for formatted dates in proforma invoice
     const formatPrintDateLocal = (dateStr: string) => {
       if (!dateStr) return '';
       return formatDisplayDate(dateStr);
@@ -1725,7 +1668,7 @@ export default function SalesOrder() {
           margin-left: 8px;
         }
 
-        . {
+        .qt-date-picker-trigger {
           display: flex;
           align-items: center;
           gap: 8px;
@@ -1988,12 +1931,13 @@ export default function SalesOrder() {
           border-top: 1px solid var(--border-color, #e5e7eb);
           flex-wrap: wrap;
           gap: 8px;
+          background: var(--card-bg, #fff);
         }
 
         .qt-pagination-left {
           display: flex;
           align-items: center;
-          gap: 12px;
+          gap: 8px;
           font-size: 13px;
           color: var(--text-secondary, #6b7280);
         }
@@ -2006,6 +1950,11 @@ export default function SalesOrder() {
           color: var(--text-primary, #1e293b);
           font-size: 13px;
           cursor: pointer;
+        }
+
+        .qt-pagination-left select:focus {
+          outline: none;
+          border-color: var(--primary-color, #2563eb);
         }
 
         .qt-pagination-center {
@@ -2027,7 +1976,7 @@ export default function SalesOrder() {
           text-align: center;
         }
 
-        .qt-page-btn:hover:not(:disabled) {
+        .qt-page-btn:hover:not(:disabled):not(.active) {
           background: var(--nav-hover, #f8fafc);
           border-color: var(--primary-color, #2563eb);
         }
@@ -2048,6 +1997,9 @@ export default function SalesOrder() {
         }
 
         .qt-pagination-right {
+          display: flex;
+          align-items: center;
+          gap: 8px;
           font-size: 13px;
           color: var(--text-secondary, #6b7280);
         }
@@ -2493,7 +2445,7 @@ export default function SalesOrder() {
                   </tr>
                 </thead>
                 <tbody>
-                  {currentPageData.map((order, index) => (
+                  {salesOrders.map((order, index) => (
                     <tr key={order.id || `so-${index}`} className="qt-tr">
                       <td className="qt-td qt-td-id">{order.salesOrderNumber}</td>
                       <td className="qt-td">
@@ -2503,7 +2455,6 @@ export default function SalesOrder() {
                         </div>
                       </td>
                       <td className="qt-td">
-                        {/* ✅ USE FORMATTED DATE FOR DISPLAY */}
                         <div>{order.date ? formatDisplayDate(order.date) : '-'}</div>
                         <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
                           Delivery: {order.deliveryDate ? formatDisplayDate(order.deliveryDate) : '-'}
@@ -2583,7 +2534,7 @@ export default function SalesOrder() {
                     <option value={100}>100</option>
                   </select>
                   <span>
-                    Showing {startIndex + 1} to {endIndex} of {totalFiltered} entries
+                    Showing {startIndex} to {endIndex} of {totalRecords} entries
                   </span>
                 </div>
 
@@ -2616,7 +2567,7 @@ export default function SalesOrder() {
                 </div>
 
                 <div className="qt-pagination-right">
-                  <span>Page {currentPage} of {totalPages || 1}</span>
+                  <span>Page {currentPage} of {totalPages}</span>
                 </div>
               </div>
             </>
@@ -2628,7 +2579,7 @@ export default function SalesOrder() {
       <div className="qt-pagination">
         <div className="qt-pagination-left">
           <span className="qt-pagination-info">
-            {salesOrders.length} of {allSalesOrders.length} orders
+            {salesOrders.length} orders on page {currentPage}
           </span>
         </div>
         <div className="qt-pagination-right">
@@ -2704,7 +2655,6 @@ export default function SalesOrder() {
                   <div style={{ padding: '2px 0' }}><strong>State:</strong> {selectedOrder.customerState || 'N/A'}{selectedOrder.customerStateCode ? ` (Code: ${selectedOrder.customerStateCode})` : ''}</div>
                 </div>
                 <div style={{ fontSize: '13px', marginBottom: '16px' }}>
-                  {/* ✅ USE FORMATTED DATES FOR DISPLAY */}
                   <div style={{ padding: '2px 0' }}><strong>Date:</strong> {selectedOrder.date ? formatDisplayDate(selectedOrder.date) : 'N/A'}</div>
                   <div style={{ padding: '2px 0' }}><strong>Delivery Date:</strong> {selectedOrder.deliveryDate ? formatDisplayDate(selectedOrder.deliveryDate) : 'N/A'}</div>
                   <div style={{ padding: '2px 0' }}><strong>Order Type:</strong> {selectedOrder.orderType}</div>

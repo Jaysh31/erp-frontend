@@ -154,12 +154,16 @@ const getPageTitle = (path: string): string => {
   // Default fallback
   return "Dashboard";
 };
+interface HeaderProps {
+  isSidebarOpen?: boolean;
+  onToggleSidebar?: () => void;
+}
 
-export default function Header() {
+export default function Header({ isSidebarOpen = false, onToggleSidebar }: HeaderProps) {
   const location = useLocation();
-  const navigate = useNavigate();
   const { theme } = useAdminTheme();
   const { currentModule } = useModule();
+  const navigate = useNavigate();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   
@@ -381,6 +385,22 @@ export default function Header() {
             </div>
           )}
         </div>
+
+        {/* 3 Dots Menu Button - Toggles Sidebar */}
+        <button 
+          type="button"
+          className={`header-icon-btn three-dots-btn ${isSidebarOpen ? 'active' : ''}`}
+          onClick={onToggleSidebar}
+          title={isSidebarOpen ? "Close sidebar menu" : "Open sidebar menu"}
+          aria-label={isSidebarOpen ? "Close sidebar menu" : "Open sidebar menu"}
+          aria-expanded={isSidebarOpen}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <circle cx="12" cy="5" r="1.5"/>
+            <circle cx="12" cy="12" r="1.5"/>
+            <circle cx="12" cy="19" r="1.5"/>
+          </svg>
+        </button>
       </div>
     </header>
   );

@@ -588,7 +588,6 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
           amount: `₹ ${(item.rate || item.standard_rate || item.valuation_rate || 0) * (item.qty || 0)}`,
           itemGroup: item.item_group || '',
           valuationRate: item.valuation_rate || 0,
-          standardRate: item.standard_rate || 0,
           isNew: false,
         }));
         setCompRows(comps);
@@ -1062,7 +1061,6 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
         base_raw_material_cost: totalComponentCost,
         total_cost: totalCost,
         base_total_cost: totalCost,
-        standard_rate: sellingPrice || 0,
       };
 
       if (editData && editData.bom && editData.bom.id) {
