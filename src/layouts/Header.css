@@ -5,8 +5,10 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: nowrap;
   padding: 0 20px;
   flex-shrink: 0;
+  box-sizing: border-box;
 }
 
 .header-breadcrumb {
@@ -68,13 +70,14 @@
 .header-right {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 0spx;
+  margin-left: auto;
 }
 
 .header-icon-btn {
   width: 32px;
   height: 32px;
-  border-radius: 8px;
+  border-radius: 0%;
   border: none;
   background: transparent;
   display: flex;
@@ -160,11 +163,11 @@
 }
 
 .header-user-avatar {
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
-  background: #2563eb;
-  color: #ffffff;
+  background: var(--primary-color, #4F46E5);
+  color: white;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -420,11 +423,11 @@
   }
 
   .breadcrumb-title {
-    font-size: 15px;
+    font-size: 9px;
   }
 
   .breadcrumb-module-link {
-    font-size: 11px;
+    font-size: 9px;
   }
 
   .breadcrumb-sep {
@@ -434,9 +437,9 @@
 
 
 /* Responsive */
-@media (max-width: 768px) {
+@media (max-width: 168px) {
     .header-right {
-    gap: 2px;
+    gap: 0;
   }
 
   .header-user-section {
@@ -455,8 +458,8 @@
   }
 
   .header-user-avatar {
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
     font-size: 13px;
   }
 

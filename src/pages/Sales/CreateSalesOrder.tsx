@@ -3433,9 +3433,9 @@ export default function CreateSalesOrder() {
             <FaArrowLeft size={13} /> Back
           </button>
           <div className="so-header-divider" />
-          <h1 className="so-header-title">
+          {/*<h1 className="so-header-title">
             {isEditMode ? 'Edit Sales Order' : 'Create Sales Order'}
-          </h1>
+          </h1>*/}
         </div>
         <div className="so-header-right">
           <label className="so-checkbox-label">
