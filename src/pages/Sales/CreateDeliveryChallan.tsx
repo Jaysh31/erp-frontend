@@ -1085,15 +1085,29 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
     fetchCustomers('');
   }, []);
 
+  // FIX: When presetCustomer changes, update selectedCustomer
   useEffect(() => {
-    if (!value) {
+    if (presetCustomer && presetCustomer.id && presetCustomer.name) {
+      setSelectedCustomer(presetCustomer);
+      // Force close dropdown if open
+      setIsOpen(false);
+    }
+  }, [presetCustomer]);
+
+  // When value prop changes externally, update selectedCustomer
+  useEffect(() => {
+    if (value && presetCustomer && presetCustomer.id === value) {
+      setSelectedCustomer(presetCustomer);
+    } else if (value && !presetCustomer) {
+      // Find customer from the list
+      const found = customers.find(c => c.id === value);
+      if (found) {
+        setSelectedCustomer(found);
+      }
+    } else if (!value) {
       setSelectedCustomer(null);
-      return;
     }
-    if (presetCustomer && presetCustomer.id === value) {
-      setSelectedCustomer(prev => (prev && prev.id === presetCustomer.id ? prev : presetCustomer));
-    }
-  }, [value, presetCustomer]);
+  }, [value, presetCustomer, customers]);
 
   useEffect(() => {
     if (!searchTerm.trim()) {
@@ -1212,7 +1226,7 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
 
   const getDisplayValue = () => {
     if (selectedCustomer) {
-      return `${selectedCustomer.name}`;
+      return selectedCustomer.name;
     }
     return '';
   };
@@ -4870,8 +4884,31 @@ const NewDeliveryChallan: React.FC = () => {
         onCreated={(customer) => {
           setCustomers(prev => [customer, ...prev.filter(c => c.id !== customer.id)]);
           setSelectedCustomer(customer.id);
-          loadCustomerData(customer.id, customer);
+          setCustomerData(customer);
+          setSelectedSalesOrder('');
+          setSelectedOrderData(null);
+          if (!isEditMode && !isViewMode) {
+            itemsRestoredRef.current = true;
+            setItems([{
+              id: '1',
+              itemCode: '',
+              itemName: '',
+              hsn: '',
+              description: '',
+              quantity: 1,
+              unit: 'pcs',
+              rate: 0,
+              amount: 0,
+              tax: 0,
+              tax_id: undefined,
+              taxAmount: 0,
+              totalAmount: 0,
+              type: isService ? 'service' : 'product',
+              inventoryId: undefined,
+            }]);
+          }
           setShowQuickAddModal(false);
+          toast.success(`Customer "${customer.name}" selected`);
         }}
         onOpenFullForm={() => {
           setShowQuickAddModal(false);
@@ -4886,9 +4923,6 @@ const NewDeliveryChallan: React.FC = () => {
             <FaArrowLeft size={13} /> Back
           </button>
           <div className="ndc-header-divider" />
-         {/*} <h1 className="ndc-header-title">
-            {isViewMode ? 'View Delivery Challan' : isEditMode ? 'Edit Delivery Challan' : 'Create Delivery Challan'}
-          </h1>*/}
           {isViewMode && (
             <span className="ndc-view-badge">View Only</span>
           )}

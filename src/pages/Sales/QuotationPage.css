@@ -1821,3 +1821,152 @@
   background: #f87171;
   color: #1e293b;
 }
+
+/* ─── Pagination Section (Separate from table) ─────────────────────────────── */
+
+.qt-pagination-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 0 8px 0;
+  border-top: 1px solid var(--border-color, #e5e7eb);
+  margin-top: 8px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.qt-pagination-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary, #6b7280);
+  font-size: 13px;
+}
+
+.qt-pagination-show-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.qt-pagination-label {
+  color: var(--text-secondary, #6b7280);
+  font-size: 13px;
+}
+
+.qt-page-size-select {
+  padding: 4px 8px;
+  border: 1px solid var(--border-color, #d1d5db);
+  border-radius: 4px;
+  background: var(--bg-color, white);
+  color: var(--text-primary, #1f2937);
+  font-size: 13px;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.qt-page-size-select:hover {
+  border-color: var(--primary-color, #3b82f6);
+}
+
+.qt-page-size-select:focus {
+  border-color: var(--primary-color, #3b82f6);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+.qt-pagination-center {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.qt-page-btn {
+  padding: 6px 10px;
+  min-width: 32px;
+  border: 1px solid var(--border-color, #d1d5db);
+  border-radius: 4px;
+  background: var(--bg-color, white);
+  color: var(--text-primary, #1f2937);
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.qt-page-btn:hover:not(:disabled) {
+  border-color: var(--primary-color, #3b82f6);
+  background: rgba(59, 130, 246, 0.05);
+}
+
+.qt-page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.qt-page-btn-active {
+  background: var(--primary-color, #3b82f6);
+  color: white;
+  border-color: var(--primary-color, #3b82f6);
+  font-weight: 600;
+}
+
+.qt-page-btn-active:hover:not(:disabled) {
+  background: var(--primary-color-hover, #2563eb);
+  border-color: var(--primary-color-hover, #2563eb);
+}
+
+.qt-pagination-right {
+  color: var(--text-secondary, #6b7280);
+  font-size: 13px;
+}
+
+.qt-pagination-info {
+  color: var(--text-secondary, #6b7280);
+  font-size: 13px;
+}
+
+/* ─── Responsive Pagination ─────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .qt-pagination-section {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .qt-pagination-left,
+  .qt-pagination-right {
+    justify-content: center;
+  }
+
+  .qt-pagination-center {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .qt-page-btn {
+    padding: 4px 8px;
+    min-width: 28px;
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .qt-pagination-show-wrapper {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .qt-page-btn {
+    padding: 4px 6px;
+    min-width: 24px;
+    font-size: 11px;
+  }
+
+  .qt-pagination-info {
+    font-size: 11px;
+  }
+}

@@ -6,7 +6,7 @@ import {
   FaFileAlt, FaExternalLinkAlt,
   FaChartLine, FaTimes, FaSpinner, FaBoxOpen, FaEnvelope,
   FaFileInvoice, FaBuilding, FaBan, FaCalendarAlt,
-  FaChevronLeft, FaChevronRight
+  FaChevronLeft, FaChevronRight, FaAngleDoubleLeft, FaAngleDoubleRight
 } from 'react-icons/fa';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
@@ -716,6 +716,9 @@ export default function ProformaInvoice() {
       setCurrentPage(page);
     }
   };
+
+  const goToFirstPage = () => goToPage(1);
+  const goToLastPage = () => goToPage(totalPages);
 
   const getPageNumbers = () => {
     const pages = [];
@@ -1797,16 +1800,16 @@ export default function ProformaInvoice() {
           color: var(--text-secondary, #6b7280);
         }
 
-        /* Pagination Bar Styles */
-        .pq-pagination-bar {
+        /* Pagination Bar Styles - SEPARATE FROM TABLE */
+        .pq-pagination-section {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 12px 16px;
+          padding: 16px 0 8px 0;
           border-top: 1px solid var(--border-color, #e5e7eb);
+          margin-top: 8px;
           flex-wrap: wrap;
-          gap: 8px;
-          background: var(--card-bg, #fff);
+          gap: 12px;
         }
 
         .pq-pagination-left {
@@ -1846,9 +1849,12 @@ export default function ProformaInvoice() {
           color: var(--text-primary, #1e293b);
           font-size: 13px;
           cursor: pointer;
-          transition: all 0.2s;
+          transition: all 0.2s ease;
           min-width: 32px;
           text-align: center;
+          display: flex;
+          align-items: center;
+          justify-content: center;
         }
 
         .pq-page-btn:hover:not(:disabled):not(.active) {
@@ -2066,7 +2072,7 @@ export default function ProformaInvoice() {
             align-items: center;
             gap: 8px;
           }
-          .pq-pagination-bar {
+          .pq-pagination-section {
             flex-direction: column;
             align-items: stretch;
             gap: 8px;
@@ -2230,9 +2236,6 @@ export default function ProformaInvoice() {
             )}
           </div>
 
-          <button className="pq-btn-new" onClick={() => navigate('/proforma-invoice/new')}>
-            <FaPlus size={12} /> New Proforma
-          </button>
         </div>
       </div>
 
@@ -2345,56 +2348,79 @@ export default function ProformaInvoice() {
                   ))}
                 </tbody>
               </table>
-
-              {/* Pagination Bar */}
-              <div className="pq-pagination-bar">
-                <div className="pq-pagination-left">
-                  <span>Show:</span>
-                  <select value={pageSize} onChange={handlePageSizeChange}>
-                    <option value={10}>10</option>
-                    <option value={25}>25</option>
-                    <option value={50}>50</option>
-                    <option value={100}>100</option>
-                  </select>
-                  <span>
-                    Showing {startIndex} to {endIndex} of {totalRecords} entries
-                  </span>
-                </div>
-
-                <div className="pq-pagination-center">
-                  <button
-                    className="pq-page-btn arrow"
-                    onClick={() => goToPage(currentPage - 1)}
-                    disabled={currentPage === 1}
-                  >
-                    <FaChevronLeft size={12} />
-                  </button>
-                  
-                  {getPageNumbers().map(page => (
-                    <button
-                      key={page}
-                      className={`pq-page-btn ${page === currentPage ? 'active' : ''}`}
-                      onClick={() => goToPage(page)}
-                    >
-                      {page}
-                    </button>
-                  ))}
-                  
-                  <button
-                    className="pq-page-btn arrow"
-                    onClick={() => goToPage(currentPage + 1)}
-                    disabled={currentPage === totalPages || totalPages === 0}
-                  >
-                    <FaChevronRight size={12} />
-                  </button>
-                </div>
-
-                <div className="pq-pagination-right">
-                  <span>Page {currentPage} of {totalPages}</span>
-                </div>
-              </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* ✅ Pagination Section - SEPARATE FROM TABLE */}
+      {!loading && !error && totalRecords > 0 && (
+        <div className="pq-pagination-section">
+          {/* Left: Show entries dropdown */}
+          <div className="pq-pagination-left">
+            <span>Show:</span>
+            <select value={pageSize} onChange={handlePageSizeChange}>
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+            <span>entries</span>
+          </div>
+
+          {/* Center: Page navigation */}
+          <div className="pq-pagination-center">
+            <button
+              className="pq-page-btn arrow"
+              onClick={goToFirstPage}
+              disabled={currentPage === 1 || totalPages === 0}
+              title="First Page"
+            >
+              <FaAngleDoubleLeft size={12} />
+            </button>
+            <button
+              className="pq-page-btn arrow"
+              onClick={() => goToPage(currentPage - 1)}
+              disabled={currentPage === 1 || totalPages === 0}
+              title="Previous Page"
+            >
+              <FaChevronLeft size={12} />
+            </button>
+            
+            {getPageNumbers().map(page => (
+              <button
+                key={page}
+                className={`pq-page-btn ${page === currentPage ? 'active' : ''}`}
+                onClick={() => goToPage(page)}
+              >
+                {page}
+              </button>
+            ))}
+            
+            <button
+              className="pq-page-btn arrow"
+              onClick={() => goToPage(currentPage + 1)}
+              disabled={currentPage === totalPages || totalPages === 0}
+              title="Next Page"
+            >
+              <FaChevronRight size={12} />
+            </button>
+            <button
+              className="pq-page-btn arrow"
+              onClick={goToLastPage}
+              disabled={currentPage === totalPages || totalPages === 0}
+              title="Last Page"
+            >
+              <FaAngleDoubleRight size={12} />
+            </button>
+          </div>
+
+          {/* Right: Entries info */}
+          <div className="pq-pagination-right">
+            <span>
+              Showing {startIndex} to {endIndex} of {totalRecords} entries
+            </span>
+          </div>
         </div>
       )}
 

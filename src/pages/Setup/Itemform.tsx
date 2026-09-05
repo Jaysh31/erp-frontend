@@ -15,6 +15,7 @@ import {
   FaPlus,
   FaExclamationTriangle,
   FaEdit,
+  FaEye,
 } from "react-icons/fa";
 import "./ItemForm.css";
 import { useAdminTheme } from "../../admin-theme/AdminThemeContext";
@@ -1046,19 +1047,195 @@ function AddUOMModal({
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// Loading Overlay Component for Save Action (Page Level)
+// Success Modal Component
 // ────────────────────────────────────────────────────────────────────────
-function PageSavingLoader() {
+interface SuccessModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onView: () => void;
+  itemName: string;
+  itemCode: string;
+  itemId?: number;
+  isUpdate?: boolean; // Added to differentiate between create and update
+}
+
+function SuccessModal({ isOpen, onClose, onView, itemName, itemCode, itemId, isUpdate = false }: SuccessModalProps) {
+  if (!isOpen) return null;
+
+  const overlayStyle: React.CSSProperties = {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: 'rgba(0, 0, 0, 0.5)',
+    backdropFilter: 'blur(4px)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 99999,
+    padding: '20px',
+  };
+
+  const modalStyle: React.CSSProperties = {
+    background: '#ffffff',
+    borderRadius: '16px',
+    width: '100%',
+    maxWidth: '440px',
+    overflow: 'hidden',
+    boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
+    animation: 'itf-modal-scale-in 0.3s ease',
+  };
+
+  const headerStyle: React.CSSProperties = {
+    padding: '24px 24px 16px 24px',
+    textAlign: 'center',
+  };
+
+  const iconWrapperStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '64px',
+    height: '64px',
+    borderRadius: '50%',
+    background: '#d1fae5',
+    margin: '0 auto 12px',
+    color: '#059669',
+  };
+
+  const titleStyle: React.CSSProperties = {
+    margin: 0,
+    fontSize: '20px',
+    fontWeight: 700,
+    color: '#065f46',
+  };
+
+  const subtitleStyle: React.CSSProperties = {
+    margin: '4px 0 0 0',
+    fontSize: '14px',
+    color: '#6b7280',
+  };
+
+  const bodyStyle: React.CSSProperties = {
+    padding: '0 24px 20px 24px',
+  };
+
+  const detailsStyle: React.CSSProperties = {
+    background: '#f8fafc',
+    borderRadius: '10px',
+    padding: '16px',
+    border: '1px solid #e5e7eb',
+  };
+
+  const rowStyle: React.CSSProperties = {
+    display: 'flex',
+    justifyContent: 'space-between',
+    padding: '6px 0',
+    borderBottom: '1px solid #f1f5f9',
+  };
+
+  const rowLastStyle: React.CSSProperties = {
+    display: 'flex',
+    justifyContent: 'space-between',
+    padding: '6px 0',
+    borderBottom: 'none',
+  };
+
+  const labelStyle = {
+    fontSize: '13px',
+    fontWeight: 500,
+    color: '#64748b',
+  };
+
+  const valueStyle = {
+    fontSize: '13px',
+    fontWeight: 600,
+    color: '#0f172a',
+  };
+
+  const actionsStyle: React.CSSProperties = {
+    display: 'flex',
+    gap: '10px',
+    justifyContent: 'center',
+    padding: '16px 24px 24px 24px',
+    borderTop: '1px solid #e5e7eb',
+  };
+
+  const closeBtnStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '6px',
+    padding: '10px 24px',
+    border: '1px solid #e5e7eb',
+    borderRadius: '8px',
+    background: '#ffffff',
+    color: '#1e293b',
+    fontSize: '14px',
+    fontWeight: 500,
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+    flex: 1,
+  };
+
+  const viewBtnStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '6px',
+    padding: '10px 24px',
+    border: 'none',
+    borderRadius: '8px',
+    background: '#2563eb',
+    color: '#ffffff',
+    fontSize: '14px',
+    fontWeight: 500,
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+    flex: 1,
+  };
+
   return (
-    <div className="itf-page-loader-overlay">
-      <div className="itf-page-loader-container">
-        <div className="itf-page-loader-spinner">
-          <FaSpinner className="itf-spin" size={48} />
+    <div style={overlayStyle} onClick={onClose}>
+      <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div style={headerStyle}>
+          <div style={iconWrapperStyle}>
+            <FaCheck size={32} />
+          </div>
+          <h3 style={titleStyle}>Success!</h3>
+          <p style={subtitleStyle}>{isUpdate ? 'Item updated successfully!' : 'Item created successfully!'}</p>
         </div>
-        <h3 className="itf-page-loader-title">Saving Item...</h3>
-        <p className="itf-page-loader-subtitle">Please wait while we save your changes.</p>
-        <div className="itf-page-loader-progress">
-          <div className="itf-page-loader-progress-bar"></div>
+
+        {/* Body */}
+        <div style={bodyStyle}>
+          <div style={detailsStyle}>
+            <div style={rowStyle}>
+              <span style={labelStyle}>Item Name</span>
+              <span style={valueStyle}>{itemName || '-'}</span>
+            </div>
+            <div style={rowStyle}>
+              <span style={labelStyle}>Item Code</span>
+              <span style={valueStyle}>{itemCode || '-'}</span>
+            </div>
+            {itemId && (
+              <div style={rowLastStyle}>
+                <span style={labelStyle}>ID</span>
+                <span style={valueStyle}>#{itemId}</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div style={actionsStyle}>
+          <button style={closeBtnStyle} onClick={onClose}>
+            Close
+          </button>
+          <button style={viewBtnStyle} onClick={onView}>
+            <FaEye size={14} /> View Item
+          </button>
         </div>
       </div>
     </div>
@@ -1323,6 +1500,10 @@ export default function ItemForm() {
   const [validationErrors, setValidationErrors] = useState<{ field: string; label: string; message: string }[]>([]);
   const [warehouseManuallyChanged, setWarehouseManuallyChanged] = useState(false);
   const [previousItemGroup, setPreviousItemGroup] = useState<string>("");
+
+  // ─── Success Modal State ────────────────────────────────────────────
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [savedItemData, setSavedItemData] = useState<{ id: number; name: string; code: string; isUpdate?: boolean } | null>(null);
 
   // ─── State for Add UOM Modal ────────────────────────────────────────
   const [showAddUOMModal, setShowAddUOMModal] = useState(false);
@@ -2080,6 +2261,26 @@ export default function ItemForm() {
     setImageFile(null);
   };
 
+  // ─── Navigate to listing page ──────────────────────────────────────
+  const navigateToList = () => {
+    navigate("/item-list");
+  };
+
+  // ─── Handle View Item ─────────────────────────────────────────────
+  const handleViewItem = () => {
+    if (savedItemData) {
+      setShowSuccessModal(false);
+      navigate(`/item/${savedItemData.id}`);
+    }
+  };
+
+  // ─── Handle Close Success Modal ────────────────────────────────────
+  const handleCloseSuccessModal = () => {
+    setShowSuccessModal(false);
+    setSavedItemData(null);
+    navigateToList();
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -2111,6 +2312,7 @@ export default function ItemForm() {
     }
 
     setSubmitting(true);
+
     try {
       const totalOpeningStock = openingStockEntries.reduce((sum, entry) => sum + entry.quantity, 0);
       const totalOpeningValue = openingStockEntries.reduce((sum, entry) => sum + entry.total, 0);
@@ -2207,6 +2409,7 @@ export default function ItemForm() {
         if (response.data?.message?.toLowerCase().includes("duplicate") || 
             response.data?.message?.toLowerCase().includes("already exists")) {
           toast.error("⚠️ Duplicate Item! This item already exists in the system.");
+          setSubmitting(false);
           return;
         }
         toast.error(response.data?.message || "Failed to save item");
@@ -2330,9 +2533,21 @@ export default function ItemForm() {
       }
 
       setIsDirty(false);
-      toast.success(isNew ? "Item created" : "Item updated");
+      toast.success(isNew ? "Item created successfully!" : "Item updated successfully!");
 
-      setTimeout(() => navigate("/item-list"), inventoryConfirmed ? 1200 : 0);
+      // ─── Hide loader ────────────────────────────────────────────────
+      setSubmitting(false);
+
+      // ─── Show Success Modal for BOTH create and update ─────────────
+      // Always show the success modal after successful save
+      setSavedItemData({
+        id: savedItemId,
+        name: form.itemName.trim(),
+        code: form.itemCode || form.itemName.toUpperCase().replace(/\s+/g, "-"),
+        isUpdate: !isNew, // Flag to indicate if this is an update
+      });
+      setShowSuccessModal(true);
+
       return;
 
     } catch (err: any) {
@@ -2344,7 +2559,6 @@ export default function ItemForm() {
       } else {
         toast.error(err.response?.data?.message || "Failed to save item");
       }
-    } finally {
       setSubmitting(false);
     }
   };
@@ -2365,8 +2579,18 @@ export default function ItemForm() {
 
   return (
     <div className="itf-page">
-      {/* ─── Page Saving Loader Overlay ───────────────────────────────── */}
-      {submitting && <PageSavingLoader />}
+      {/* ─── Success Modal ───────────────────────────────────────────── */}
+      {showSuccessModal && savedItemData && (
+        <SuccessModal
+          isOpen={showSuccessModal}
+          onClose={handleCloseSuccessModal}
+          onView={handleViewItem}
+          itemName={savedItemData.name}
+          itemCode={savedItemData.code}
+          itemId={savedItemData.id}
+          isUpdate={savedItemData.isUpdate || false}
+        />
+      )}
 
       {/* ─── Duplicate Warning Modal ──────────────────────────────────── */}
       <DuplicateWarningModal
@@ -2383,15 +2607,9 @@ export default function ItemForm() {
       {/* Top Bar */}
       <div className="itf-topbar">
         <div className="itf-breadcrumb">
-          <button onClick={() => navigate("/item-list")} className="itf-back-btn">
+          <button onClick={navigateToList} className="itf-back-btn">
             <FaArrowLeft size={11} /> Back
           </button>
-          {/*<span className="itf-bc-sep">/</span>
-          <span className="itf-bc-link" onClick={() => navigate("/item-list")}>Stock</span>
-          <span className="itf-bc-sep">/</span>
-          <span className="itf-bc-link" onClick={() => navigate("/item-list")}>Item</span>
-          <span className="itf-bc-sep">/</span>
-          <span className="itf-bc-current">{isNew ? "New item" : form.itemName || form.itemCode}</span>*/}
           {!isNew && (
             <span className={`itf-status-pill ${form.disabled ? "disabled" : "enabled"}`}>
               {form.disabled ? "Disabled" : "Enabled"}
@@ -2722,7 +2940,7 @@ export default function ItemForm() {
               <button 
                 type="button" 
                 className="itf-btn-cancel" 
-                onClick={() => navigate("/item-list")}
+                onClick={navigateToList}
                 disabled={submitting}
               >
                 Cancel
@@ -2733,7 +2951,7 @@ export default function ItemForm() {
                 disabled={submitting}
               >
                 {submitting ? <FaSpinner className="itf-spin" size={13} /> : <FaSave size={13} />}
-                {submitting ? "Saving…" : "Save Item"}
+                {submitting ? "Saving…" : isNew ? "Save Item" : "Update Item"}
               </button>
             </div>
           </div>

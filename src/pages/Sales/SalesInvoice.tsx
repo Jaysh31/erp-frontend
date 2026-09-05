@@ -684,8 +684,6 @@ const SalesInvoice: React.FC = () => {
       <tr>
         <td class="pq-col-sl">${idx + 1}</td>
         <td class="pq-col-desc">
-          ${escapeHtml(item.item_name || item.item_code || '')}
-          ${item.item_code ? `<div class="pq-item-sub">${escapeHtml(item.item_code)}</div>` : ''}
           ${item.description ? `<div class="pq-item-desc">${escapeHtml(item.description)}</div>` : ''}
         </td>
         <td class="pq-col-hsn">${escapeHtml(item.item_group || '')}</td>

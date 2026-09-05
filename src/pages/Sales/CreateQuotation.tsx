@@ -2546,9 +2546,6 @@ export default function CreateQuotation() {
             <FaArrowLeft size={13} /> Back
           </button>
           <div className="cq-header-divider" />
-          {/*<h1 className="cq-header-title">
-            {isEditMode ? 'Edit Quotation' : 'Create Quotation'}
-          </h1>*/}
           {isEditMode && id && (
             <span className="cq-header-id">#{id}</span>
           )}
@@ -2628,19 +2625,12 @@ export default function CreateQuotation() {
                 </div>
               </div>
 
-              {/* Quotation Details - 3 columns in one line */}
+              {/* Quotation Details - Date and Valid Till in one row - shifted left */}
               <div className="cq-section-header" style={{ marginTop: '12px' }}>
-                <FaFileAlt className="cq-section-icon" />
-                <span>Quotation Details</span>
               </div>
 
-              <div className="cq-grid-3">
-                <div className="cq-field">
-                  <label className="cq-label">Quotation Number</label>
-                  <div className="cq-dc-number-display">{generateQuotationName()}</div>
-                </div>
-
-                <div className="cq-field">
+              <div className="cq-date-row">
+                <div className="cq-field cq-field-date">
                   <label className="cq-label">
                     Date <span className="cq-required">*</span>
                   </label>
@@ -2666,7 +2656,7 @@ export default function CreateQuotation() {
                   {errors.date && <span className="cq-error-text">{errors.date}</span>}
                 </div>
 
-                <div className="cq-field">
+                <div className="cq-field cq-field-valid">
                   <label className="cq-label">
                     Valid Till <span className="cq-required">*</span>
                   </label>

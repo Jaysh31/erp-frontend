@@ -1745,3 +1745,11 @@ kbd {
     min-width: auto;
   }
 }
+.cq-date-row {
+  display: flex;
+  gap: 24px;
+  margin-top: 8px;
+}
+.cq-field-date, .cq-field-valid {
+  flex: 0 0 220px;
+}

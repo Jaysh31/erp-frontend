@@ -32,7 +32,6 @@ interface QuotationItem {
 export interface Quotation {
   id: string;
   quotationNumber: string;
-  customer: string;
   customerName: string;
   customerEmail: string;
   customerPhone: string;
@@ -95,7 +94,6 @@ interface PaymentSchedule {
 
 interface QuotationApiRecord {
   name: string;
-  party_name?: string;
   customer_name?: string;
   transaction_date?: string;
   valid_till?: string;
@@ -512,7 +510,6 @@ export default function QuotationPage() {
       const transformedData: Quotation[] = records.map((q) => ({
         id: q.name,
         quotationNumber: q.name,
-        customer: q.party_name || '',
         customerName: q.customer_name || '',
         customerEmail: q.contact_email || '',
         customerPhone: q.contact_mobile || '',
@@ -1056,14 +1053,16 @@ export default function QuotationPage() {
 
     <div class="pq-parties">
       <div class="pq-party-box">
-        <div class="pq-party-label">Consignee (Ship to)</div>
+        <div class="pq-party-label">Buyer (Bill to)</div>
         <div><strong>${escapeHtml(quote.customerName)}</strong></div>
         ${quote.customerAddress ? `<div>${escapeHtml(quote.customerAddress)}</div>` : ''}
         ${quote.customerGstin ? `<div>GSTIN/UIN : ${escapeHtml(quote.customerGstin)}</div>` : ''}
         ${quote.customerState ? `<div>State Name : ${escapeHtml(quote.customerState)}${quote.customerStateCode ? `, Code : ${escapeHtml(quote.customerStateCode)}` : ''}</div>` : ''}
+        ${quote.customerEmail ? `<div>Email : ${escapeHtml(quote.customerEmail)}</div>` : ''}
+        ${quote.customerPhone ? `<div>Phone : ${escapeHtml(quote.customerPhone)}</div>` : ''}
       </div>
-      <div class="pq-party-box">
-        <div class="pq-party-label">Buyer (Bill to)</div>
+      <div class="pq-party-box" style="border-right:none;">
+        <div class="pq-party-label">Buyer (Ship to)</div>
         <div><strong>${escapeHtml(quote.customerName)}</strong></div>
         ${quote.customerAddress ? `<div>${escapeHtml(quote.customerAddress)}</div>` : ''}
         ${quote.customerGstin ? `<div>GSTIN/UIN : ${escapeHtml(quote.customerGstin)}</div>` : ''}
@@ -1201,7 +1200,7 @@ export default function QuotationPage() {
             <FaSearch className="qt-search-icon" />
             <input
               type="text"
-              placeholder="Search by Quote #, Customer Name, or Customer Code..."
+              placeholder="Search by Quote #, Customer Name..."
               value={filterText}
               onChange={(e) => setFilterText(e.target.value)}
               className="qt-search-input"
@@ -1517,10 +1516,10 @@ export default function QuotationPage() {
             </div>
           ) : (
             <>
+              {/* Table */}
               <table className="qt-table">
                 <thead>
                   <tr>
-                    <th className="qt-th">Quote #</th>
                     <th className="qt-th">Customer</th>
                     <th className="qt-th">Date</th>
                     <th className="qt-th">Status</th>
@@ -1531,11 +1530,9 @@ export default function QuotationPage() {
                 <tbody>
                   {quotations.map((quote) => (
                     <tr key={quote.id} className="qt-tr">
-                      <td className="qt-td qt-td-id">{quote.quotationNumber}</td>
                       <td className="qt-td">
                         <div>
                           <div className="qt-td-link">{quote.customerName}</div>
-                          <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{quote.customer}</div>
                         </div>
                       </td>
                       <td className="qt-td">
@@ -1579,170 +1576,81 @@ export default function QuotationPage() {
                   ))}
                 </tbody>
               </table>
-
-              {/* ─── Pagination ────────────────────────────── */}
-              {totalRecords > 0 && (
-                <div className="qt-pagination" style={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between', 
-                  alignItems: 'center',
-                  padding: '12px 0',
-                  borderTop: '1px solid var(--border-color, #e5e7eb)',
-                  marginTop: '8px'
-                }}>
-                  <div className="qt-pagination-left" style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    gap: '8px',
-                    color: 'var(--text-secondary, #6b7280)',
-                    fontSize: '13px'
-                  }}>
-                    <span className="qt-pagination-label">Show:</span>
-                    <select
-                      value={itemsPerPage}
-                      onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-                      className="qt-page-size-select"
-                      style={{
-                        padding: '4px 8px',
-                        border: '1px solid var(--border-color, #d1d5db)',
-                        borderRadius: '4px',
-                        background: 'var(--bg-color, white)',
-                        color: 'var(--text-primary, #1f2937)',
-                        fontSize: '13px',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <option value={10}>10</option>
-                      <option value={25}>25</option>
-                      <option value={50}>50</option>
-                      <option value={100}>100</option>
-                    </select>
-                    <span className="qt-pagination-label">entries</span>
-                  </div>
-
-                  <div className="qt-pagination-center" style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    gap: '4px'
-                  }}>
-                    <button 
-                      onClick={goToFirstPage} 
-                      className="qt-page-btn" 
-                      disabled={currentPage === 1 || totalPages === 0}
-                      style={{
-                        padding: '4px 8px',
-                        border: '1px solid var(--border-color, #d1d5db)',
-                        borderRadius: '4px',
-                        background: 'var(--bg-color, white)',
-                        color: 'var(--text-primary, #1f2937)',
-                        cursor: currentPage === 1 || totalPages === 0 ? 'not-allowed' : 'pointer',
-                        opacity: currentPage === 1 || totalPages === 0 ? 0.5 : 1,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '12px'
-                      }}
-                    >
-                      <FaAngleDoubleLeft size={12} />
-                    </button>
-                    <button 
-                      onClick={goToPrevPage} 
-                      className="qt-page-btn" 
-                      disabled={currentPage === 1 || totalPages === 0}
-                      style={{
-                        padding: '4px 8px',
-                        border: '1px solid var(--border-color, #d1d5db)',
-                        borderRadius: '4px',
-                        background: 'var(--bg-color, white)',
-                        color: 'var(--text-primary, #1f2937)',
-                        cursor: currentPage === 1 || totalPages === 0 ? 'not-allowed' : 'pointer',
-                        opacity: currentPage === 1 || totalPages === 0 ? 0.5 : 1,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '12px'
-                      }}
-                    >
-                      <FaChevronLeft size={12} />
-                    </button>
-                    
-                    {totalPages > 0 && getPageNumbers().map((page) => (
-                      <button
-                        key={page}
-                        onClick={() => goToPage(page)}
-                        className={`qt-page-btn ${currentPage === page ? 'qt-page-btn-active' : ''}`}
-                        style={{
-                          padding: '4px 10px',
-                          border: currentPage === page ? '1px solid var(--primary-color, #3b82f6)' : '1px solid var(--border-color, #d1d5db)',
-                          borderRadius: '4px',
-                          background: currentPage === page ? 'var(--primary-color, #3b82f6)' : 'var(--bg-color, white)',
-                          color: currentPage === page ? 'white' : 'var(--text-primary, #1f2937)',
-                          cursor: 'pointer',
-                          fontSize: '13px',
-                          fontWeight: currentPage === page ? '600' : '400',
-                          minWidth: '32px'
-                        }}
-                      >
-                        {page}
-                      </button>
-                    ))}
-                    
-                    <button 
-                      onClick={goToNextPage} 
-                      className="qt-page-btn" 
-                      disabled={currentPage === totalPages || totalPages === 0}
-                      style={{
-                        padding: '4px 8px',
-                        border: '1px solid var(--border-color, #d1d5db)',
-                        borderRadius: '4px',
-                        background: 'var(--bg-color, white)',
-                        color: 'var(--text-primary, #1f2937)',
-                        cursor: currentPage === totalPages || totalPages === 0 ? 'not-allowed' : 'pointer',
-                        opacity: currentPage === totalPages || totalPages === 0 ? 0.5 : 1,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '12px'
-                      }}
-                    >
-                      <FaChevronRight size={12} />
-                    </button>
-                    <button 
-                      onClick={goToLastPage} 
-                      className="qt-page-btn" 
-                      disabled={currentPage === totalPages || totalPages === 0}
-                      style={{
-                        padding: '4px 8px',
-                        border: '1px solid var(--border-color, #d1d5db)',
-                        borderRadius: '4px',
-                        background: 'var(--bg-color, white)',
-                        color: 'var(--text-primary, #1f2937)',
-                        cursor: currentPage === totalPages || totalPages === 0 ? 'not-allowed' : 'pointer',
-                        opacity: currentPage === totalPages || totalPages === 0 ? 0.5 : 1,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '12px'
-                      }}
-                    >
-                      <FaAngleDoubleRight size={12} />
-                    </button>
-                  </div>
-
-                  <div className="qt-pagination-right" style={{ 
-                    color: 'var(--text-secondary, #6b7280)',
-                    fontSize: '13px'
-                  }}>
-                    <span className="qt-pagination-info">
-                      {totalRecords > 0
-                        ? `Showing ${getStartIndexDisplay()} to ${getEndIndexDisplay()} of ${totalRecords} entries`
-                        : 'No entries to show'}
-                    </span>
-                  </div>
-                </div>
-              )}
             </>
           )}
+        </div>
+      )}
+
+      {/* ─── Pagination Section (Separate from table) ────────────────────────────── */}
+      {!loading && !error && totalRecords > 0 && (
+        <div className="qt-pagination-section">
+          {/* Show entries dropdown - Left side */}
+          <div className="qt-pagination-left">
+            <div className="qt-pagination-show-wrapper">
+              <span className="qt-pagination-label">Show:</span>
+              <select
+                value={itemsPerPage}
+                onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                className="qt-page-size-select"
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+              <span className="qt-pagination-label">entries</span>
+            </div>
+          </div>
+
+          {/* Page navigation - Center */}
+          <div className="qt-pagination-center">
+            <button 
+              onClick={goToFirstPage} 
+              className="qt-page-btn" 
+              disabled={currentPage === 1 || totalPages === 0}
+            >
+              <FaAngleDoubleLeft size={12} />
+            </button>
+            <button 
+              onClick={goToPrevPage} 
+              className="qt-page-btn" 
+              disabled={currentPage === 1 || totalPages === 0}
+            >
+              <FaChevronLeft size={12} />
+            </button>
+            
+            {totalPages > 0 && getPageNumbers().map((page) => (
+              <button
+                key={page}
+                onClick={() => goToPage(page)}
+                className={`qt-page-btn ${currentPage === page ? 'qt-page-btn-active' : ''}`}
+              >
+                {page}
+              </button>
+            ))}
+            
+            <button 
+              onClick={goToNextPage} 
+              className="qt-page-btn" 
+              disabled={currentPage === totalPages || totalPages === 0}
+            >
+              <FaChevronRight size={12} />
+            </button>
+            <button 
+              onClick={goToLastPage} 
+              className="qt-page-btn" 
+              disabled={currentPage === totalPages || totalPages === 0}
+            >
+              <FaAngleDoubleRight size={12} />
+            </button>
+          </div>
+
+          {/* Entries info - Right side */}
+          <div className="qt-pagination-right">
+            <span className="qt-pagination-info">
+              Showing {getStartIndexDisplay()} to {getEndIndexDisplay()} of {totalRecords} entries
+            </span>
+          </div>
         </div>
       )}
 
@@ -1824,7 +1732,6 @@ export default function QuotationPage() {
                 <div style={{ fontSize: '13px', marginBottom: '16px' }}>
                   <div style={{ fontSize: '14px', fontWeight: 600, color: '#1f2433', margin: '16px 0 8px 0', borderBottom: '1px solid #e5e7eb', paddingBottom: '4px' }}>Customer Details</div>
                   <div style={{ padding: '2px 0' }}><strong>Name:</strong> {selectedQuote.customerName}</div>
-                  <div style={{ padding: '2px 0' }}><strong>Code:</strong> {selectedQuote.customer}</div>
                   <div style={{ padding: '2px 0' }}><strong>Email:</strong> {selectedQuote.customerEmail || 'N/A'}</div>
                   <div style={{ padding: '2px 0' }}><strong>Phone:</strong> {selectedQuote.customerPhone || 'N/A'}</div>
                   <div style={{ padding: '2px 0' }}><strong>Address:</strong> {selectedQuote.customerAddress || 'N/A'}</div>

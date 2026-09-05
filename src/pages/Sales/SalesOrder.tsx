@@ -5,7 +5,8 @@ import {
   FaFilter, FaCheckCircle, FaClock, FaTimesCircle,
   FaFileAlt, FaExternalLinkAlt,
   FaChartLine, FaTimes, FaSpinner, FaBoxOpen, FaEnvelope, FaEllipsisV,
-  FaChevronLeft, FaChevronRight, FaCalendarAlt
+  FaChevronLeft, FaChevronRight, FaCalendarAlt,
+  FaAngleDoubleLeft, FaAngleDoubleRight
 } from 'react-icons/fa';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
@@ -632,6 +633,9 @@ export default function SalesOrder() {
       setCurrentPage(page);
     }
   };
+
+  const goToFirstPage = () => goToPage(1);
+  const goToLastPage = () => goToPage(totalPages);
 
   const getPageNumbers = () => {
     const pages = [];
@@ -1909,16 +1913,16 @@ export default function SalesOrder() {
           background: var(--hover-bg, #f3f4f6);
         }
 
-        /* Pagination Styles */
-        .qt-pagination-bar {
+        /* Pagination Styles - Separated from table */
+        .qt-pagination-section {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 12px 16px;
+          padding: 16px 0 8px 0;
           border-top: 1px solid var(--border-color, #e5e7eb);
+          margin-top: 8px;
           flex-wrap: wrap;
-          gap: 8px;
-          background: var(--card-bg, #fff);
+          gap: 12px;
         }
 
         .qt-pagination-left {
@@ -1958,9 +1962,12 @@ export default function SalesOrder() {
           color: var(--text-primary, #1e293b);
           font-size: 13px;
           cursor: pointer;
-          transition: all 0.2s;
+          transition: all 0.2s ease;
           min-width: 32px;
           text-align: center;
+          display: flex;
+          align-items: center;
+          justify-content: center;
         }
 
         .qt-page-btn:hover:not(:disabled):not(.active) {
@@ -2138,6 +2145,299 @@ export default function SalesOrder() {
           background: var(--danger-hover, #dc2626);
         }
 
+        .qt-pagination {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 8px 0;
+          margin-top: 4px;
+        }
+
+        .qt-pagination-info {
+          color: var(--text-secondary, #6b7280);
+          font-size: 13px;
+        }
+
+        /* Table styles */
+        .qt-table-wrap {
+          overflow-x: auto;
+          padding: 0 16px;
+        }
+
+        .qt-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 13px;
+        }
+
+        .qt-table th {
+          text-align: left;
+          padding: 10px 12px;
+          border-bottom: 1px solid var(--border-color, #e5e7eb);
+          color: var(--text-secondary, #6b7280);
+          font-weight: 600;
+          font-size: 12px;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+
+        .qt-table td {
+          padding: 10px 12px;
+          border-bottom: 1px solid var(--border-color, #e5e7eb);
+          color: var(--text-primary, #1e293b);
+        }
+
+        .qt-table .qt-text-right {
+          text-align: right;
+        }
+
+        .qt-table .qt-amount-cell {
+          font-weight: 600;
+        }
+
+        .qt-table .qt-currency {
+          font-weight: 400;
+          color: var(--text-secondary, #6b7280);
+          margin-right: 4px;
+        }
+
+        .qt-status-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          padding: 4px 10px;
+          border-radius: 12px;
+          font-size: 11px;
+          font-weight: 500;
+        }
+
+        .status-draft { background: #f3f4f6; color: #6b7280; }
+        .status-sent { background: #dbeafe; color: #2563eb; }
+        .status-accepted { background: #d1fae5; color: #059669; }
+        .status-rejected { background: #fee2e2; color: #dc2626; }
+        .status-expired { background: #fef3c7; color: #d97706; }
+        .status-converted { background: #e0e7ff; color: #4f46e5; }
+
+        .qt-action-buttons {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+
+        .qt-action-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 30px;
+          height: 30px;
+          border: none;
+          border-radius: 6px;
+          background: transparent;
+          color: var(--text-secondary, #6b7280);
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .qt-action-btn:hover {
+          background: var(--hover-bg, #f3f4f6);
+          color: var(--text-primary, #1e293b);
+        }
+
+        .qt-action-btn:disabled {
+          opacity: 0.4;
+          cursor: not-allowed;
+        }
+
+        .qt-action-proforma {
+          color: #8b5cf6;
+        }
+
+        .qt-action-proforma:hover:not(:disabled) {
+          background: #f5f3ff;
+          color: #7c3aed;
+        }
+
+        .spinning {
+          animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+
+        /* Loading, Error, Empty states */
+        .qt-loading, .qt-error, .qt-empty-state {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 60px 20px;
+          text-align: center;
+        }
+
+        .qt-loading p, .qt-error p, .qt-empty-state p {
+          color: var(--text-secondary, #6b7280);
+          font-size: 14px;
+          margin-top: 12px;
+        }
+
+        .qt-retry-btn {
+          padding: 8px 20px;
+          background: var(--primary-color, #2563eb);
+          color: #fff;
+          border: none;
+          border-radius: 6px;
+          cursor: pointer;
+          margin-top: 12px;
+        }
+
+        .qt-retry-btn:hover {
+          background: var(--primary-hover, #1d4ed8);
+        }
+
+        .qt-empty-content {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 8px;
+          color: var(--text-secondary, #6b7280);
+        }
+
+        .qt-modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.5);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1000;
+        }
+
+        .qt-modal {
+          background: var(--card-bg, #fff);
+          border-radius: 12px;
+          max-width: 500px;
+          width: 90%;
+          max-height: 90vh;
+          overflow: auto;
+          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+        }
+
+        .qt-modal-lg {
+          max-width: 800px;
+        }
+
+        .qt-modal-delete {
+          max-width: 420px;
+        }
+
+        .qt-modal-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 16px 20px;
+          border-bottom: 1px solid var(--border-color, #e5e7eb);
+        }
+
+        .qt-modal-title {
+          font-size: 16px;
+          font-weight: 600;
+          color: var(--text-primary, #1e293b);
+        }
+
+        .qt-modal-close {
+          background: none;
+          border: none;
+          color: var(--text-secondary, #6b7280);
+          cursor: pointer;
+          padding: 4px;
+          border-radius: 4px;
+        }
+
+        .qt-modal-close:hover {
+          background: var(--hover-bg, #f3f4f6);
+        }
+
+        .qt-modal-body {
+          padding: 20px;
+        }
+
+        .qt-modal-footer {
+          display: flex;
+          justify-content: flex-end;
+          gap: 8px;
+          padding: 16px 20px;
+          border-top: 1px solid var(--border-color, #e5e7eb);
+        }
+
+        .qt-modal-item-name {
+          margin: 8px 0;
+          color: var(--text-primary, #1e293b);
+        }
+
+        .qt-modal-warning {
+          color: var(--danger-color, #ef4444);
+          font-size: 13px;
+          margin-top: 8px;
+        }
+
+        .qt-btn-cancel {
+          padding: 8px 16px;
+          border: 1px solid var(--border-color, #e5e7eb);
+          border-radius: 6px;
+          background: transparent;
+          color: var(--text-secondary, #6b7280);
+          cursor: pointer;
+          font-size: 13px;
+        }
+
+        .qt-btn-cancel:hover {
+          background: var(--hover-bg, #f3f4f6);
+        }
+
+        .qt-btn-delete {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 8px 16px;
+          border: none;
+          border-radius: 6px;
+          background: var(--danger-color, #ef4444);
+          color: #fff;
+          cursor: pointer;
+          font-size: 13px;
+        }
+
+        .qt-btn-delete:hover:not(:disabled) {
+          background: var(--danger-hover, #dc2626);
+        }
+
+        .qt-btn-delete:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+
+        .qt-btn-primary {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 8px 16px;
+          border: none;
+          border-radius: 6px;
+          background: var(--primary-color, #2563eb);
+          color: #fff;
+          cursor: pointer;
+          font-size: 13px;
+        }
+
+        .qt-btn-primary:hover {
+          background: var(--primary-hover, #1d4ed8);
+        }
+
         @media (max-width: 768px) {
           .qt-filter-bar {
             flex-direction: column;
@@ -2169,7 +2469,7 @@ export default function SalesOrder() {
             min-width: 100%;
             width: 100%;
           }
-          .qt-pagination-bar {
+          .qt-pagination-section {
             flex-direction: column;
             align-items: stretch;
             gap: 8px;
@@ -2183,6 +2483,28 @@ export default function SalesOrder() {
             left: -50px;
             min-width: 280px;
             width: 280px;
+          }
+          .qt-table-wrap {
+            padding: 0 8px;
+          }
+          .qt-table th,
+          .qt-table td {
+            padding: 6px 8px;
+            font-size: 12px;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .qt-pagination-section {
+            gap: 6px;
+          }
+          .qt-page-btn {
+            padding: 4px 8px;
+            min-width: 28px;
+            font-size: 12px;
+          }
+          .qt-pagination-info {
+            font-size: 11px;
           }
         }
       `}</style>
@@ -2209,16 +2531,6 @@ export default function SalesOrder() {
         
         <div className="qt-filter-right">
           <select
-            value={selectedOrderType}
-            onChange={(e) => setSelectedOrderType(e.target.value)}
-            className="qt-filter-select"
-          >
-            <option value="All">All Types</option>
-            <option value="Sales">Sales</option>
-            <option value="Return">Return</option>
-            <option value="Credit Note">Credit Note</option>
-          </select>
-          <select
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
             className="qt-filter-select"
@@ -2231,8 +2543,18 @@ export default function SalesOrder() {
             <option value="Cancelled">Cancelled</option>
             <option value="Closed">Closed</option>
           </select>
-          
-          {/* Date Range Picker - Before Add Button */}
+
+          <select
+            value={selectedOrderType}
+            onChange={(e) => setSelectedOrderType(e.target.value)}
+            className="qt-filter-select"
+          >
+            <option value="All">All Types</option>
+            <option value="Sales">Sales</option>
+            <option value="Subcontracted">Subcontracted</option>
+          </select>
+
+          {/* Date Range Picker */}
           <div className="qt-date-picker-container">
             <div 
               className={`qt-date-picker-trigger ${showDatePicker ? 'active' : ''}`}
@@ -2259,7 +2581,6 @@ export default function SalesOrder() {
                   </button>
                 </div>
                 
-                {/* Quick Filters */}
                 <div className="qt-quick-filters">
                   <button 
                     className={`qt-quick-filter-btn ${selectedQuickFilter === 'today' ? 'active' : ''}`}
@@ -2287,7 +2608,6 @@ export default function SalesOrder() {
                   </button>
                 </div>
                 
-                {/* Calendar */}
                 <div className="qt-calendar-header">
                   <button className="qt-nav-btn" onClick={() => changeMonth(-1)}>
                     <FaChevronLeft size={12} />
@@ -2509,60 +2829,83 @@ export default function SalesOrder() {
                   ))}
                 </tbody>
               </table>
-
-              {/* Pagination Bar */}
-              <div className="qt-pagination-bar">
-                <div className="qt-pagination-left">
-                  <span>Show:</span>
-                  <select value={pageSize} onChange={handlePageSizeChange}>
-                    <option value={10}>10</option>
-                    <option value={25}>25</option>
-                    <option value={50}>50</option>
-                    <option value={100}>100</option>
-                  </select>
-                  <span>
-                    Showing {startIndex} to {endIndex} of {totalRecords} entries
-                  </span>
-                </div>
-
-                <div className="qt-pagination-center">
-                  <button
-                    className="qt-page-btn arrow"
-                    onClick={() => goToPage(currentPage - 1)}
-                    disabled={currentPage === 1}
-                  >
-                    <FaChevronLeft size={12} />
-                  </button>
-                  
-                  {getPageNumbers().map(page => (
-                    <button
-                      key={page}
-                      className={`qt-page-btn ${page === currentPage ? 'active' : ''}`}
-                      onClick={() => goToPage(page)}
-                    >
-                      {page}
-                    </button>
-                  ))}
-                  
-                  <button
-                    className="qt-page-btn arrow"
-                    onClick={() => goToPage(currentPage + 1)}
-                    disabled={currentPage === totalPages || totalPages === 0}
-                  >
-                    <FaChevronRight size={12} />
-                  </button>
-                </div>
-
-                <div className="qt-pagination-right">
-                  <span>Page {currentPage} of {totalPages}</span>
-                </div>
-              </div>
             </>
           )}
         </div>
       )}
 
-      {/* Footer */}
+      {/* ✅ Pagination Section - SEPARATE FROM TABLE */}
+      {!loading && !error && totalRecords > 0 && (
+        <div className="qt-pagination-section">
+          {/* Left: Show entries dropdown */}
+          <div className="qt-pagination-left">
+            <span>Show:</span>
+            <select value={pageSize} onChange={handlePageSizeChange}>
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+            <span>entries</span>
+          </div>
+
+          {/* Center: Page navigation */}
+          <div className="qt-pagination-center">
+            <button
+              className="qt-page-btn arrow"
+              onClick={goToFirstPage}
+              disabled={currentPage === 1 || totalPages === 0}
+              title="First Page"
+            >
+              <FaAngleDoubleLeft size={12} />
+            </button>
+            <button
+              className="qt-page-btn arrow"
+              onClick={() => goToPage(currentPage - 1)}
+              disabled={currentPage === 1 || totalPages === 0}
+              title="Previous Page"
+            >
+              <FaChevronLeft size={12} />
+            </button>
+            
+            {getPageNumbers().map(page => (
+              <button
+                key={page}
+                className={`qt-page-btn ${page === currentPage ? 'active' : ''}`}
+                onClick={() => goToPage(page)}
+              >
+                {page}
+              </button>
+            ))}
+            
+            <button
+              className="qt-page-btn arrow"
+              onClick={() => goToPage(currentPage + 1)}
+              disabled={currentPage === totalPages || totalPages === 0}
+              title="Next Page"
+            >
+              <FaChevronRight size={12} />
+            </button>
+            <button
+              className="qt-page-btn arrow"
+              onClick={goToLastPage}
+              disabled={currentPage === totalPages || totalPages === 0}
+              title="Last Page"
+            >
+              <FaAngleDoubleRight size={12} />
+            </button>
+          </div>
+
+          {/* Right: Entries info */}
+          <div className="qt-pagination-right">
+            <span>
+              Showing {startIndex} to {endIndex} of {totalRecords} entries
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Footer Stats */}
       <div className="qt-pagination">
         <div className="qt-pagination-left">
           <span className="qt-pagination-info">
