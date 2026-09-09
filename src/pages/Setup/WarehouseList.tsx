@@ -22,6 +22,7 @@ import {
   FaBuilding,
 } from 'react-icons/fa';
 import "./WarehouseList.css";
+import '../Sales/SalesMobileTable.css';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
@@ -62,7 +63,7 @@ interface ApiResponse {
 export default function WarehouseList() {
   const navigate = useNavigate();
   const { theme } = useAdminTheme();
-  
+
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,7 +75,7 @@ export default function WarehouseList() {
   const [totalItems, setTotalItems] = useState(0);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedWarehouse, setSelectedWarehouse] = useState<Warehouse | null>(null);
-  
+
   // ─── View Modal States ──────────────────────────────────────────────────
   const [showViewModal, setShowViewModal] = useState(false);
   const [viewingWarehouse, setViewingWarehouse] = useState<Warehouse | null>(null);
@@ -206,7 +207,7 @@ export default function WarehouseList() {
       const params = new URLSearchParams();
       params.append('page', currentPage.toString());
       params.append('limit', itemsPerPage.toString());
-      
+
       if (searchTerm) {
         params.append('search', searchTerm);
       }
@@ -219,7 +220,7 @@ export default function WarehouseList() {
       }
 
       const response = await api.get<ApiResponse>(`/warehouse?${params.toString()}`);
-      
+
       if (response.data.success === 1) {
         setWarehouses(response.data.data.records);
         setTotalItems(response.data.data.total);
@@ -232,6 +233,19 @@ export default function WarehouseList() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // ─── Mobile expanded rows state ──────────────────────────────────
+  const [expandedRows, setExpandedRows] = useState<Set<string | number>>(new Set());
+
+  const toggleRowExpand = (id: string | number, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   };
 
   // Fetch warehouse contacts
@@ -264,20 +278,20 @@ export default function WarehouseList() {
 
   // Filter data based on status
   const filteredData = warehouses.filter(item => {
-    const matchesStatus = statusFilter === 'all' || 
-                         (statusFilter === 'enabled' && item.disabled === 0) ||
-                         (statusFilter === 'disabled' && item.disabled === 1);
+    const matchesStatus = statusFilter === 'all' ||
+      (statusFilter === 'enabled' && item.disabled === 0) ||
+      (statusFilter === 'disabled' && item.disabled === 1);
     return matchesStatus;
   });
 
   const totalPages = Math.ceil(totalItems / itemsPerPage);
-  
+
   // Ensure current page is valid when data changes
   const validCurrentPage = Math.min(currentPage, totalPages || 1);
   if (validCurrentPage !== currentPage && totalPages > 0) {
     setCurrentPage(validCurrentPage);
   }
-  
+
   const paginatedData = filteredData.slice(
     (validCurrentPage - 1) * itemsPerPage,
     validCurrentPage * itemsPerPage
@@ -380,17 +394,17 @@ export default function WarehouseList() {
     }
   };
 
-    // ─── Loading Screen ─────────────────────────────────────────────────────
-    if (loading) {
-      return (
-        <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
-          <PageLoader 
-            message="Loading Setup & Warehouse List..." 
-            //subtitle="Calculating bill of materials, operations rates, and component structures"
-          />
-        </div>
-      );
-    }
+  // ─── Loading Screen ─────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
+        <PageLoader
+          message="Loading Setup & Warehouse List..."
+        //subtitle="Calculating bill of materials, operations rates, and component structures"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className={`wl-page ${theme}`}>
@@ -414,8 +428,8 @@ export default function WarehouseList() {
           </div>
         </div>
         <div className="wl-filter-right">
-          <select 
-            value={statusFilter} 
+          <select
+            value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
             className="wl-filter-select"
           >
@@ -423,7 +437,7 @@ export default function WarehouseList() {
             <option value="enabled">Enabled</option>
             <option value="disabled">Disabled</option>
           </select>
-         
+
 
           {/* ─── From - To Date Filter Button + Calendar Popup ─────────── */}
           <div ref={datePickerRef} style={{ position: 'relative', display: 'inline-block' }}>
@@ -591,8 +605,8 @@ export default function WarehouseList() {
                           background: isEndpoint
                             ? 'var(--primary-color, #2563eb)'
                             : inRange
-                            ? 'var(--primary-color-light, #dbeafe)'
-                            : 'transparent',
+                              ? 'var(--primary-color-light, #dbeafe)'
+                              : 'transparent',
                           color: isEndpoint ? '#ffffff' : 'var(--text-primary, #1f2937)',
                           fontWeight: isEndpoint ? 600 : 400,
                         }}
@@ -652,7 +666,7 @@ export default function WarehouseList() {
             )}
           </div>
 
-         
+
           <button className="wl-btn-primary" onClick={handleAddWarehouse}>
             <FaPlus size={12} />
             Add Warehouse
@@ -680,7 +694,7 @@ export default function WarehouseList() {
               <strong>Date:</strong> {formatDateShort(dateFrom)} – {formatDateShort(dateTo)}
             </span>
           )}
-          <button 
+          <button
             onClick={clearFilters}
             className="wl-clear-filters"
           >
@@ -708,7 +722,7 @@ export default function WarehouseList() {
       {/* Table */}
       {!loading && !error && (
         <>
-          <div className="wl-table-wrap">
+          <div className="wl-table-wrap  sales-desktop-table-wrap">
             <table className="wl-table">
               <thead>
                 <tr>
@@ -720,12 +734,12 @@ export default function WarehouseList() {
                   <th className="wl-th">Type</th>
                   <th className="wl-th wl-th-meta">
                     <span className="wl-count-label">
-                     {totalItems> 0
+                      {totalItems > 0
                         ? `${getStartIndex()}–${getEndIndex()}`
                         : '0'} of {totalItems}
                     </span>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary, #9ca3af)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
                     </svg>
                   </th>
                 </tr>
@@ -736,7 +750,7 @@ export default function WarehouseList() {
                     <td colSpan={7} className="wl-empty-state">
                       <div className="wl-empty-content">
                         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                         </svg>
                         <p>No Warehouses found</p>
                         <span>Try adjusting your search criteria</span>
@@ -763,22 +777,22 @@ export default function WarehouseList() {
                       <td className="wl-td">{row.warehouse_type || '-'}</td>
                       <td className="wl-td wl-td-meta">
                         <div className="wl-action-buttons">
-                          <button 
-                            className="wl-action-btn wl-action-view" 
+                          <button
+                            className="wl-action-btn wl-action-view"
                             onClick={(e) => { e.stopPropagation(); handleViewWarehouse(row); }}
                             title="View"
                           >
                             <FaEye size={12} />
                           </button>
-                          <button 
-                            className="wl-action-btn wl-action-edit" 
+                          <button
+                            className="wl-action-btn wl-action-edit"
                             onClick={(e) => { e.stopPropagation(); handleEditWarehouse(row); }}
                             title="Edit"
                           >
                             <FaEdit size={12} />
                           </button>
-                          <button 
-                            className="wl-action-btn wl-action-delete" 
+                          <button
+                            className="wl-action-btn wl-action-delete"
                             onClick={(e) => { e.stopPropagation(); handleDelete(row); }}
                             title="Delete"
                           >
@@ -793,73 +807,214 @@ export default function WarehouseList() {
             </table>
           </div>
 
-          {/* Pagination */}
-          <div className="wl-pagination">
-            <div className="wl-pagination-left">
-              <span className="wl-pagination-label">Show:</span>
-              <select 
-                value={itemsPerPage} 
-                onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-                className="wl-page-size-select"
-              >
-                <option value={10}>10</option>
-                <option value={25}>25</option>
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-              </select>
-              <span className="wl-pagination-label">entries</span>
+
+          {/* Mobile Table Section (Customer, Status + Dropdown Button -> Date, Amount, Actions) */}
+          <div className="sales-mobile-list-wrap">
+            <div className="sales-mobile-list-header">
+              <div className="sales-mobile-th-primary">
+                <span className="sales-mobile-th-cell">ID	</span>
+                <span className="sales-mobile-th-sep">•</span>
+                <span className="sales-mobile-th-cell">Warehouse Name</span>
+              </div>
+              <div className="sales-mobile-th-right">
+                <span className="sales-count-label">
+                  {totalItems > 0
+                    ? `${getStartIndex()}–${getEndIndex()}`
+                    : '0'} of {totalItems}
+                </span>
+              </div>
             </div>
-            <div className="wl-pagination-center">
-              <button 
-                onClick={goToFirstPage} 
-                disabled={currentPage === 1 || totalItems === 0} 
-                className="wl-page-btn"
-              >
-                <FaAngleDoubleLeft size={12} />
-              </button>
-              <button 
-                onClick={goToPrevPage} 
-                disabled={currentPage === 1 || totalItems === 0} 
-                className="wl-page-btn"
-              >
-                <FaChevronLeft size={12} />
-              </button>
-              {totalItems > 0 && getPageNumbers().map(page => (
-                <button
-                  key={page}
-                  onClick={() => goToPage(page)}
-                  className={`wl-page-btn ${currentPage === page ? 'wl-page-btn-active' : ''}`}
-                >
-                  {page}
-                </button>
-              ))}
-              <button 
-                onClick={goToNextPage} 
-                disabled={currentPage === totalPages || totalItems === 0} 
-                className="wl-page-btn"
-              >
-                <FaChevronRight size={12} />
-              </button>
-              <button 
-                onClick={goToLastPage} 
-                disabled={currentPage === totalPages || totalItems === 0} 
-                className="wl-page-btn"
-              >
-                <FaAngleDoubleRight size={12} />
-              </button>
-            </div>
-            <div className="wl-pagination-right">
-              <span className="wl-pagination-info">
-                {totalItems > 0 ? (
-                  `Showing ${getStartIndex()} to ${getEndIndex()} of ${totalItems} entries`
-                ) : (
-                  'No entries to show'
-                )}
-              </span>
-            </div>
+
+            {paginatedData.length === 0 ? (
+              <div className="qt-empty-state">
+                <div className="qt-empty-content">
+                  <p>No warehouses found</p>
+                  <span>Try adjusting your search criteria</span>
+                </div>
+              </div>
+            ) : (
+              <div className="sales-mobile-cards">
+                {paginatedData.map((row, idx) => {
+                  const isExpanded = expandedRows.has(row.id);
+                  const rowNumber = getStartIndex() + idx;
+                  return (
+                    <div
+                      key={row.id}
+                      className={`sales-mobile-card ${isExpanded ? "sales-mobile-card-expanded" : ""}`}
+                    >
+                      {/* Card Header: Customer, Status and Dropdown Button */}
+                      <div
+                        className="sales-mobile-card-header"
+                        onClick={() => toggleRowExpand(row.id)}
+                      >
+                        <div className="sales-mobile-card-primary">
+                          <div className="sales-mobile-card-primary-row">
+                            <span
+                              className="sales-mobile-item-name">
+                              {row.id}
+                            </span>
+                            <span className="sales-mobile-header-badge">
+                              <span className="wl-td wl-td-name">
+                                {row.warehouse_name}
+                              </span>
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Dropdown Button */}
+                        <button
+                          type="button"
+                          className={`sales-mobile-dropdown-btn ${isExpanded ? "expanded" : ""}`}
+                          onClick={(e) => toggleRowExpand(row.id, e)}
+                          aria-label={isExpanded ? "Collapse quotation details" : "Expand quotation details"}
+                          title={isExpanded ? "Collapse" : "Expand"}
+                        >
+                          <FaChevronDown size={13} className="sales-mobile-chevron" />
+                        </button>
+                      </div>
+
+                      {/* Dropdown Section: Date, Amount, Actions */}
+                      {isExpanded && (
+                        <div className="sales-mobile-card-details">
+                          <div className="sales-mobile-detail-row">
+                            <span className="sales-mobile-detail-label">Status</span>
+                            <span className="sales-mobile-detail-value">
+                              <span className={`wl-status-badge wl-status-${row.disabled === 0 ? 'enabled' : 'disabled'}`}>
+                                {row.disabled === 0 ? 'Enabled' : 'Disabled'}
+                              </span>
+                            </span>
+                          </div>
+
+                          <div className="sales-mobile-detail-row">
+                            <span className="sales-mobile-detail-label">Company	</span>
+                            <span className="sales-mobile-detail-value sales-amount-highlight">
+                              {row.company || '-'}
+                            </span>
+                          </div>
+
+                          <div className="sales-mobile-detail-row">
+                            <span className="sales-mobile-detail-label">Parent Warehouse</span>
+                            <span className="sales-mobile-detail-value">
+                              {row.parent_warehouse || '-'}
+                            </span>
+                          </div>
+
+                          <div className="sales-mobile-detail-row">
+                            <span className="sales-mobile-detail-label">Type</span>
+                            <span className="sales-mobile-detail-value">
+                              {row.warehouse_type || '-'}
+                            </span>
+                          </div>
+
+                          <div className="sales-mobile-detail-footer">
+                            <span className="sales-mobile-card-meta-text">
+                              {/*rowNumber} of {totalRecords*/}
+                            </span>
+                            <div className="sales-mobile-action-buttons">
+                              <button
+                                className="wl-action-btn wl-action-view"
+                                onClick={(e) => { e.stopPropagation(); handleViewWarehouse(row); }}
+                                title="View"
+                              >
+                                <FaEye size={12} />
+                              </button>
+                              <button
+                                className="wl-action-btn wl-action-edit"
+                                onClick={(e) => { e.stopPropagation(); handleEditWarehouse(row); }}
+                                title="Edit"
+                              >
+
+
+                                <FaEdit size={12} />
+                              </button>
+                              <button
+                                className="wl-action-btn wl-action-delete"
+                                onClick={(e) => { e.stopPropagation(); handleDelete(row); }}
+                                title="Delete"
+                              >
+                                <FaTrash size={12} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </>
       )}
+
+
+
+      {/* Pagination */}
+      <div className="wl-pagination">
+        <div className="wl-pagination-left">
+          <span className="wl-pagination-label">Show:</span>
+          <select
+            value={itemsPerPage}
+            onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+            className="wl-page-size-select"
+          >
+            <option value={10}>10</option>
+            <option value={25}>25</option>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
+          </select>
+          <span className="wl-pagination-label">entries</span>
+        </div>
+        <div className="wl-pagination-center">
+          <button
+            onClick={goToFirstPage}
+            disabled={currentPage === 1 || totalItems === 0}
+            className="wl-page-btn"
+          >
+            <FaAngleDoubleLeft size={12} />
+          </button>
+          <button
+            onClick={goToPrevPage}
+            disabled={currentPage === 1 || totalItems === 0}
+            className="wl-page-btn"
+          >
+            <FaChevronLeft size={12} />
+          </button>
+          {totalItems > 0 && getPageNumbers().map(page => (
+            <button
+              key={page}
+              onClick={() => goToPage(page)}
+              className={`wl-page-btn ${currentPage === page ? 'wl-page-btn-active' : ''}`}
+            >
+              {page}
+            </button>
+          ))}
+          <button
+            onClick={goToNextPage}
+            disabled={currentPage === totalPages || totalItems === 0}
+            className="wl-page-btn"
+          >
+            <FaChevronRight size={12} />
+          </button>
+          <button
+            onClick={goToLastPage}
+            disabled={currentPage === totalPages || totalItems === 0}
+            className="wl-page-btn"
+          >
+            <FaAngleDoubleRight size={12} />
+          </button>
+        </div>
+        <div className="wl-pagination-right">
+          <span className="wl-pagination-info">
+            {totalItems > 0 ? (
+              `Showing ${getStartIndex()} to ${getEndIndex()} of ${totalItems} entries`
+            ) : (
+              'No entries to show'
+            )}
+          </span>
+        </div>
+      </div>
+
 
       {/* ─── View Modal ────────────────────────────────────────────────── */}
       {showViewModal && viewingWarehouse && (
@@ -976,14 +1131,14 @@ export default function WarehouseList() {
               </div>
             </div>
             <div className="wl-modal-footer">
-              <button 
-                className="wl-btn-cancel" 
+              <button
+                className="wl-btn-cancel"
                 onClick={() => setShowViewModal(false)}
               >
                 Close
               </button>
-              <button 
-                className="wl-btn-edit" 
+              <button
+                className="wl-btn-edit"
                 onClick={() => {
                   setShowViewModal(false);
                   handleEditWarehouse(viewingWarehouse);

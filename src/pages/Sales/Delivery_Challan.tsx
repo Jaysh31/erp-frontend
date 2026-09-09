@@ -20,9 +20,7 @@ import {
   FaSpinner,
   FaSync,
   FaTimes,
-  FaCalendarAlt,
-  FaChevronUp,
-  FaChevronDown
+  FaCalendarAlt
 } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
@@ -30,6 +28,7 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 import * as XLSX from 'xlsx';
 import { PageLoader } from '../components/PageLoader';
+import './SalesMobileTable.css';
 
 // ===== INTERFACES =====
 
@@ -274,6 +273,22 @@ const DeliveryChallans: React.FC = () => {
   const [printLoadingId, setPrintLoadingId] = useState<string | null>(null);
   const [, setDownloadLoading] = useState(false);
   const [, setCompanyData] = useState<Company | null>(null);
+
+  // ===== MOBILE EXPANDED ROWS =====
+  const [expandedRows, setExpandedRows] = useState<Set<string | number>>(new Set());
+
+  const toggleRowExpand = (id: string | number, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
   // Debounced search term
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
@@ -2960,7 +2975,7 @@ const DeliveryChallans: React.FC = () => {
       )}
 
       {/* ===== TABLE ===== */}
-      <div className="qt-table-wrap">
+      <div className="qt-table-wrap sales-desktop-table-wrap">
         {loading && challans.length === 0 ? (
           <div className="qt-loading">
             <FaSpinner className="spinning" size={30} style={{ display: 'block', margin: '0 auto 12px' }} />
@@ -3074,148 +3089,6 @@ const DeliveryChallans: React.FC = () => {
               ))}
             </tbody>
           </table>
-        )}
-      </div>
-
-      {/* ===== MOBILE CARDS ===== */}
-      <div className="qt-mobile-cards-wrap">
-        {loading && challans.length === 0 ? (
-          <div className="qt-loading">
-            <FaSpinner className="spinning" size={30} style={{ display: 'block', margin: '0 auto 12px' }} />
-            <p>Loading delivery challans...</p>
-          </div>
-        ) : error ? (
-          <div className="qt-error">
-            <FaExclamationTriangle size={30} style={{ display: 'block', margin: '0 auto 12px' }} />
-            <p>{error}</p>
-            <button onClick={handleRefresh} className="qt-retry-btn">
-              <FaSync size={12} style={{ marginRight: '6px' }} /> Retry
-            </button>
-          </div>
-        ) : challans.length === 0 ? (
-          <div className="qt-empty-state">
-            <div className="qt-empty-content">
-              <FaTruck size={48} />
-              <p>No delivery challans found</p>
-              <span>Try adjusting your search criteria</span>
-            </div>
-          </div>
-        ) : (
-          challans.map((item) => {
-            const cardKey = String(item.id);
-            const isExpanded = expandedMobileCard === cardKey;
-            return (
-              <div
-                key={cardKey}
-                className={`qt-mobile-card ${isExpanded ? 'expanded' : ''}`}
-              >
-                <div
-                  className="qt-mobile-card-header"
-                  onClick={() => toggleMobileCard(cardKey)}
-                >
-                  <span className="qt-mobile-card-number">
-                    {item.displayDcNumber || item.name || '-'}
-                  </span>
-                  <div className="qt-mobile-card-badge-wrap">
-                    <span className="qt-mobile-card-customer">
-                      {item.customer_name || '-'}
-                    </span>
-                    <span className="qt-mobile-card-amount">
-                      ₹{item.grand_total?.toLocaleString() || '0'}
-                    </span>
-                  </div>
-                  <div className="qt-mobile-card-status">
-                    <StatusBadge status={item.status || 'Draft'} />
-                  </div>
-                  <button
-                    className="qt-mobile-chevron-btn"
-                    onClick={(e) => { e.stopPropagation(); toggleMobileCard(cardKey); }}
-                    aria-label={isExpanded ? 'Collapse' : 'Expand'}
-                  >
-                    {isExpanded ? <FaChevronUp size={12} /> : <FaChevronDown size={12} />}
-                  </button>
-                </div>
-
-                {isExpanded && (
-                  <div className="qt-mobile-card-body">
-                    <div className="qt-mobile-detail-row">
-                      <span className="qt-mobile-detail-label">DC No</span>
-                      <span className="qt-mobile-detail-value">{item.displayDcNumber || item.name || '-'}</span>
-                    </div>
-                    <div className="qt-mobile-detail-row">
-                      <span className="qt-mobile-detail-label">Customer</span>
-                      <span className="qt-mobile-detail-value">{item.customer_name || '-'}</span>
-                    </div>
-                    <div className="qt-mobile-detail-row">
-                      <span className="qt-mobile-detail-label">Date</span>
-                      <span className="qt-mobile-detail-value">{formatDisplayDate(item.posting_date)}</span>
-                    </div>
-                    <div className="qt-mobile-detail-row">
-                      <span className="qt-mobile-detail-label">Amount</span>
-                      <span className="qt-mobile-detail-value">₹{item.grand_total?.toLocaleString() || '0'}</span>
-                    </div>
-                    <div className="qt-mobile-detail-row">
-                      <span className="qt-mobile-detail-label">Status</span>
-                      <span className="qt-mobile-detail-value">
-                        <StatusBadge status={item.status || 'Draft'} />
-                      </span>
-                    </div>
-                    {item.set_warehouse && (
-                      <div className="qt-mobile-detail-row">
-                        <span className="qt-mobile-detail-label">Warehouse</span>
-                        <span className="qt-mobile-detail-value">{item.set_warehouse}</span>
-                      </div>
-                    )}
-                    {item.transporter && (
-                      <div className="qt-mobile-detail-row">
-                        <span className="qt-mobile-detail-label">Transporter</span>
-                        <span className="qt-mobile-detail-value">{item.transporter}</span>
-                      </div>
-                    )}
-                    {item.vehicle_no && (
-                      <div className="qt-mobile-detail-row">
-                        <span className="qt-mobile-detail-label">Vehicle No</span>
-                        <span className="qt-mobile-detail-value">{item.vehicle_no}</span>
-                      </div>
-                    )}
-
-                    <div className="qt-mobile-card-footer">
-                      <span className="qt-mobile-items-count">
-                        {item.items?.length || 0} item{item.items?.length !== 1 ? 's' : ''}
-                      </span>
-                      <div className="qt-mobile-actions">
-                        <button
-                          className="qt-action-btn qt-action-view"
-                          onClick={() => handleView(item.id)}
-                          title="View"
-                        >
-                          <FaEye size={14} />
-                        </button>
-                        {item.status === 'Draft' && (
-                          <button
-                            className="qt-action-btn"
-                            onClick={() => handleEdit(item.id)}
-                            title="Edit"
-                            style={{ color: '#2563eb' }}
-                          >
-                            <FaEdit size={14} />
-                          </button>
-                        )}
-                        <button
-                          className="qt-action-btn qt-action-print"
-                          onClick={() => handlePrint(item)}
-                          title="Print"
-                          disabled={printLoadingId === String(item.id)}
-                        >
-                          {printLoadingId === String(item.id) ? <FaSpinner className="spinning" size={14} /> : <FaPrintIcon size={14} />}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })
         )}
       </div>
 

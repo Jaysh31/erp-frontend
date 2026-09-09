@@ -19,6 +19,7 @@ import {
 
 } from 'react-icons/fa';
 import "./Workstation.css";
+import '../pages/Sales/SalesMobileTable.css';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import api from '../services/api';
 import NewWorkstation from './NewWorkstation';
@@ -92,6 +93,18 @@ export default function WorkstationList() {
 
   // ─── Format date ──────────────────────────────────────────────────────────
 
+   // ─── Mobile expanded rows state ──────────────────────────────────
+  const [expandedRows, setExpandedRows] = useState<Set<string | number>>(new Set());
+
+  const toggleRowExpand = (id: string | number, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   // ─── Date Range Filter Helpers ─────────────────────────────────────────
   const toISODate = (d: Date) => {
@@ -763,7 +776,7 @@ export default function WorkstationList() {
           {/* Table Grid View */}
           {!loading && !error && (
             <>
-              <div className="wo-table-container">
+              <div className="wo-table-container sales-desktop-table-wrap">
                 {paginatedData.length === 0 ? (
                   <div className="wo-empty-state">
                     <div className="wo-empty-content">
@@ -851,6 +864,165 @@ export default function WorkstationList() {
                 )}
               </div>
 
+
+              {/* Mobile Table Section (Customer, Status + Dropdown Button -> Date, Amount, Actions) */}
+          <div className="sales-mobile-list-wrap">
+            <div className="sales-mobile-list-header">
+              <div className="sales-mobile-th-primary">
+                <span className="sales-mobile-th-cell">Name	</span>
+                <span className="sales-mobile-th-sep">•</span>
+                <span className="sales-mobile-th-cell">Type</span>
+              </div>
+              <div className="sales-mobile-th-right">
+                <span className="sales-count-label">
+                  {totalFilteredItems > 0
+                    ? `${paginatedData.length} of ${totalFilteredItems}`
+                    : '0'} of {totalFilteredItems}
+                </span>
+              </div>
+            </div>
+
+            {paginatedData.length === 0 ?  (
+              <div className="qt-empty-state">
+                <div className="qt-empty-content">
+                  <p>No workstations found</p>
+                  <span>Try adjusting your search criteria</span>
+                </div>
+              </div>
+            ) : (
+              <div className="sales-mobile-cards">
+                {paginatedData.map((ws, idx) => {
+                  const isExpanded = expandedRows.has(ws.id);
+                  const rowNumber = getStartIndex() + idx;
+                  return (
+                    <div
+                      key={ws.id}
+                      className={`sales-mobile-card ${isExpanded ? "sales-mobile-card-expanded" : ""}`}
+                    >
+                      {/* Card Header: Customer, Status and Dropdown Button */}
+                      <div
+                        className="sales-mobile-card-header"
+                        onClick={() => toggleRowExpand(ws.id)}
+                      >
+                        <div className="sales-mobile-card-primary">
+                          <div className="sales-mobile-card-primary-row">
+                            
+                                <span className="wo-td-type">
+                              {ws.workstation_name}
+                            </span>
+                            <span className="sales-mobile-header-badge">
+                              <span
+                              className="sales-mobile-item-name">
+                                {ws.workstation_type}
+                              </span>
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Dropdown Button */}
+                        <button
+                          type="button"
+                          className={`sales-mobile-dropdown-btn ${isExpanded ? "expanded" : ""}`}
+                          onClick={(e) => toggleRowExpand(ws.id, e)}
+                          aria-label={isExpanded ? "Collapse quotation details" : "Expand quotation details"}
+                          title={isExpanded ? "Collapse" : "Expand"}
+                        >
+                          <FaChevronDown size={13} className="sales-mobile-chevron" />
+                        </button>
+                      </div>
+
+                      {/* Dropdown Section: Date, Amount, Actions */}
+                      {isExpanded && (
+                        <div className="sales-mobile-card-details">
+                          <div className="sales-mobile-detail-row">
+                            <span className="sales-mobile-detail-label">Status	</span>
+                            <span className="sales-mobile-detail-value">
+                             {isWorkstationActive(ws) ? (
+                              <span 
+                                className="wo-status-badge"
+                                style={{
+                                  background: '#D1FAE5',
+                                  color: '#10B981',
+                                }}
+                              >
+                                Active
+                              </span>
+                            ) : (
+                              <span 
+                                className="wo-status-badge"
+                                style={{
+                                  background: '#FEE2E2',
+                                  color: '#EF4444',
+                                }}
+                              >
+                                Disabled
+                              </span>
+                            )}
+                            </span>
+                          </div>
+
+                          <div className="sales-mobile-detail-row">
+                            <span className="sales-mobile-detail-label">Plant Floor		</span>
+                            <span className="sales-mobile-detail-value sales-amount-highlight">
+                              {ws.plant_floor}
+                            </span>
+                          </div>
+
+                          <div className="sales-mobile-detail-row">
+                            <span className="sales-mobile-detail-label">Capacity	</span>
+                            <span className="sales-mobile-detail-value">
+                              {ws.production_capacity}
+                            </span>
+                          </div>
+
+                          <div className="sales-mobile-detail-row">
+                            <span className="sales-mobile-detail-label">Hour Rate </span>
+                            <span className="sales-mobile-detail-value">
+                              ₹{ws.hour_rate}
+                            </span>
+                          </div>
+
+                          <div className="sales-mobile-detail-footer">
+                            <span className="sales-mobile-card-meta-text">
+                              {/*rowNumber} of {totalRecords*/}
+                            </span>
+                            <div className="sales-mobile-action-buttons">
+                              <button
+                                className="wo-action-btn wo-action-view" 
+                                onClick={() => handleView(ws)}
+                                title="View"
+                              >
+                                <FaEye size={12} />
+                              </button>
+                              <button
+                                className="wo-action-btn wo-action-edit" 
+                                onClick={() => handleEdit(ws)}
+                                title="Edit"
+                              >
+                                <FaEdit size={12} />
+                              </button>
+                              <button
+                                className="wo-action-btn wo-action-delete" 
+                                onClick={() => handleDelete(ws)}
+                                title="Delete"
+                              >
+                                <FaTrash size={12} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+
+
               {/* Pagination - Show only if total items > 0 */}
               {totalFilteredItems > 0 && (
                 <div className="wo-pagination">
@@ -920,8 +1092,6 @@ export default function WorkstationList() {
                   </div>
                 </div>
               )}
-            </>
-          )}
 
           {/* Delete Confirmation Modal */}
           {showDeleteConfirm && deleteTarget && (

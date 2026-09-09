@@ -17,8 +17,10 @@ import {
   FaFolder,
   FaArrowLeft,
   FaCalendarAlt,
+  FaChevronDown
 } from 'react-icons/fa';
 import "./Itemgrouplist.css";
+import '../Sales/SalesMobileTable.css';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
 import { PageLoader } from "../components/PageLoader";
@@ -32,16 +34,19 @@ interface ItemGroup {
   image: string | null;
   creation: string;
   modified: string;
+  disabled?: number;
 }
 
 interface ItemGroupDisplay {
   id: string;
   itemGroupName: string;
   parentItemGroup: string;
+  creation: string;
   isGroup: boolean;
   isEditable: boolean;
   createdAgo: string;
   comments: number;
+  disabled: number;
 }
 
 interface ItemGroupDetail {
@@ -97,6 +102,21 @@ export default function ItemGroupList() {
   const [, setTotalItems] = useState(0);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedItem, setSelectedItem] = useState<ItemGroupDisplay | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+
+  const toggleRowExpand = (rowId: string, event?: { stopPropagation: () => void }) => {
+    event?.stopPropagation();
+    setExpandedRows((currentRows) => {
+      const nextRows = new Set(currentRows);
+      if (nextRows.has(rowId)) {
+        nextRows.delete(rowId);
+      } else {
+        nextRows.add(rowId);
+      }
+      return nextRows;
+    });
+  };
 
   // ---- Date filter (calendar) state ----
   const [fromDate, setFromDate] = useState('');
@@ -137,9 +157,9 @@ export default function ItemGroupList() {
   const formatDisplayDate = (dateString: string) => {
     if (!dateString) return 'N/A';
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'short', 
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
@@ -163,9 +183,9 @@ export default function ItemGroupList() {
   const formatDateForDisplay = (dateString: string) => {
     if (!dateString) return 'Select date';
     const date = new Date(dateString + 'T00:00:00');
-    return date.toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric', 
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
       year: 'numeric'
     });
   };
@@ -185,7 +205,7 @@ export default function ItemGroupList() {
     setDetailError(null);
     try {
       const response = await api.get<ApiDetailResponse>(`/item-group/${groupId}`);
-      
+
       if (response.data.success === 1) {
         setDetailData(response.data.data);
       } else {
@@ -204,7 +224,7 @@ export default function ItemGroupList() {
     setError(null);
     try {
       let url = `/item-group?page=${currentPage}&limit=${itemsPerPage}`;
-      
+
       if (searchTerm.trim()) {
         url += `&search=${encodeURIComponent(searchTerm.trim())}`;
       }
@@ -223,10 +243,12 @@ export default function ItemGroupList() {
           id: item.id.toString(),
           itemGroupName: item.item_group_name,
           parentItemGroup: item.parent_item_group || 'N/A',
+          creation: item.creation,
           isGroup: item.is_group === 1,
           isEditable: item.is_editable !== 0,
           createdAgo: formatDate(item.creation),
           comments: 0,
+          disabled: item.disabled ?? 0,
         }));
 
         setItemGroups(transformedData);
@@ -268,8 +290,8 @@ export default function ItemGroupList() {
   const setDateRange = (range: string) => {
     const today = new Date();
     let from = new Date();
-    
-    switch(range) {
+
+    switch (range) {
       case 'today':
         from = new Date(today);
         break;
@@ -287,7 +309,7 @@ export default function ItemGroupList() {
       default:
         return;
     }
-    
+
     const fromStr = toLocalDateStr(from);
     const toStr = toLocalDateStr(today);
     setFromDate(fromStr);
@@ -398,17 +420,17 @@ export default function ItemGroupList() {
 
   const filteredData = itemGroups.filter(item => {
     const matchesSearch = item.itemGroupName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          item.id.toLowerCase().includes(searchTerm.toLowerCase());
+      item.id.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' ||
-                         (statusFilter === 'group' && item.isGroup) ||
-                         (statusFilter === 'item' && !item.isGroup);
+      (statusFilter === 'group' && item.isGroup) ||
+      (statusFilter === 'item' && !item.isGroup);
     return matchesSearch && matchesStatus;
   });
 
   const totalFilteredItems = filteredData.length;
   const totalPages = Math.ceil(totalFilteredItems / itemsPerPage);
   const validCurrentPage = Math.min(currentPage, totalPages || 1);
-  
+
   if (validCurrentPage !== currentPage && !isDetailView) {
     setCurrentPage(validCurrentPage);
   }
@@ -459,6 +481,7 @@ export default function ItemGroupList() {
 
   const confirmDelete = async () => {
     if (selectedItem) {
+      setDeletingId(selectedItem.id);
       try {
         const response = await api.delete(`/item-group/${selectedItem.id}`);
         if (response.data.success === 1) {
@@ -469,6 +492,8 @@ export default function ItemGroupList() {
       } catch (err) {
         console.error('Error deleting item group:', err);
         alert('Failed to delete item group');
+      } finally {
+        setDeletingId(null);
       }
     }
   };
@@ -710,8 +735,8 @@ export default function ItemGroupList() {
 
             {detailData.is_editable !== 0 && (
               <div className="igl-detail-actions">
-                <button 
-                  className="igl-btn-save" 
+                <button
+                  className="igl-btn-save"
                   onClick={() => {
                     navigate('/item-group');
                     setTimeout(() => {
@@ -730,17 +755,17 @@ export default function ItemGroupList() {
     );
   }
 
-      // ─── Loading Screen ─────────────────────────────────────────────────────
-      if (loading) {
-        return (
-          <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
-            <PageLoader 
-              message="Loading Setup & Item Group List..." 
-              //subtitle="Calculating bill of materials, operations rates, and component structures"
-            />
-          </div>
-        );
-      }
+  // ─── Loading Screen ─────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
+        <PageLoader
+          message="Loading Setup & Item Group List..."
+        //subtitle="Calculating bill of materials, operations rates, and component structures"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className={`igl-page ${theme}`}>
@@ -1943,17 +1968,17 @@ export default function ItemGroupList() {
             <option value="group">Parent Groups</option>
             <option value="item">Sub Items</option>
           </select>
-          
+
           {/* Date Filter Button with Calendar Icon */}
           <div className="igl-date-filter-wrapper" ref={datePickerRef}>
-            <button 
+            <button
               className={`igl-date-filter-btn ${dateFilterActive ? 'igl-date-filter-active' : ''}`}
               onClick={() => setShowDatePicker(!showDatePicker)}
             >
               <FaCalendarAlt size={14} />
               <span>{formatButtonRangeLabel()}</span>
             </button>
-            
+
             {/* Date Picker Dropdown */}
             {showDatePicker && (
               <div className="igl-date-picker-dropdown">
@@ -1963,7 +1988,7 @@ export default function ItemGroupList() {
                     <FaTimes size={14} />
                   </button>
                 </div>
-                
+
                 <div className="igl-date-picker-body">
                   {/* Date Range Display - Like Screenshot */}
                   <div className="igl-date-range-display">
@@ -2049,7 +2074,7 @@ export default function ItemGroupList() {
                     </div>
                   </div>
                 </div>
-                
+
                 {/* Footer with Clear and Apply */}
                 <div className="igl-date-picker-footer">
                   <button onClick={clearDateFilter} className="igl-date-clear-btn">
@@ -2111,7 +2136,7 @@ export default function ItemGroupList() {
       {/* Table */}
       {!loading && !error && (
         <>
-          <div className="igl-table-wrap">
+          <div className="igl-table-wrap sales-desktop-table-wrap">
             <table className="igl-table">
               <thead>
                 <tr>
@@ -2126,7 +2151,7 @@ export default function ItemGroupList() {
                         : '0'} of {totalFilteredItems}
                     </span>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary, #9ca3af)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
                     </svg>
                   </th>
                 </tr>
@@ -2137,7 +2162,7 @@ export default function ItemGroupList() {
                     <td colSpan={5} className="igl-empty-state">
                       <div className="igl-empty-content">
                         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                         </svg>
                         <p>No item groups found</p>
                         <span>Try adjusting your search criteria</span>
@@ -2157,7 +2182,7 @@ export default function ItemGroupList() {
                       </td>
                       <td className="igl-td igl-td-meta">
                         <div className="igl-action-buttons">
-                          <button className="igl-action-btn igl-action-view" onClick={(e) => { e.stopPropagation(); handleView(row); }} title="View">
+                          <button className="wl-action-btn wl-action-view" onClick={(e) => { e.stopPropagation(); handleView(row); }} title="View">
                             <FaEye size={12} />
                           </button>
                           {row.isEditable && (
@@ -2177,6 +2202,139 @@ export default function ItemGroupList() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile Table Section (Customer, Status + Dropdown Button -> Date, Amount, Actions) */}
+          <div className="sales-mobile-list-wrap">
+            <div className="sales-mobile-list-header">
+              <div className="sales-mobile-th-primary">
+                <span className="sales-mobile-th-cell">Item Group Name</span>
+                <span className="sales-mobile-th-sep">•</span>
+                <span className="sales-mobile-th-cell">Type</span>
+              </div>
+              <div className="sales-mobile-th-right">
+                <span className="sales-count-label">
+                  {totalFilteredItems > 0
+                    ? `${getStartIndex()}–${getEndIndex()}`
+                    : '0'} of {totalFilteredItems}
+                </span>
+              </div>
+            </div>
+
+            {paginatedData.length === 0 ? (
+              <div className="igl-empty-state">
+                <div className="igl-empty-content">
+                  <p>No Item Groups found</p>
+                  <span>Try adjusting your search criteria</span>
+                </div>
+              </div>
+            ) : (
+              <div className="sales-mobile-cards">
+                {paginatedData.map((row, idx) => {
+                  const isExpanded = expandedRows.has(row.id);
+                  const rowNumber = getStartIndex() + idx;
+
+                  function formatDisplayDateWithContext(value: unknown): string {
+                    if (value === null || value === undefined || value === '') {
+                      return '—';
+                    }
+
+                    const date = value instanceof Date ? value : new Date(String(value));
+
+                    if (Number.isNaN(date.getTime())) {
+                      return String(value);
+                    }
+
+                    return date.toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: '2-digit',
+                      year: 'numeric',
+                    });
+                  }
+
+                  function handleView(item: ItemGroupDisplay) {
+                    navigate(`/item/${item.id}`, {
+                      state: { itemData: item }
+                    });
+                  }
+
+                  function getStatusIcon(status: string): string {
+                    const normalizedStatus = String(status ?? '').trim().toLowerCase();
+
+
+                    return '•';
+                  }
+
+                  return (
+                    <div
+                      key={row.id}
+                      className={`sales-mobile-card ${isExpanded ? "sales-mobile-card-expanded" : ""}`}
+                    >
+                      <div
+                        className="sales-mobile-card-header"
+                        onClick={() => toggleRowExpand(row.id)}
+                      >
+                        <div className="sales-mobile-card-primary">
+                          <div className="sales-mobile-card-primary-row">
+                            <span
+                              className="sales-mobile-item-name"
+                            >
+                              {row.itemGroupName || "—"}
+                            </span>
+                            <span className="sales-mobile-header-badge">
+                              <span className={`igl-status-badge ${row.isGroup ? 'igl-status-group' : 'igl-status-item'}`}>
+                                {row.isGroup ? 'Parent Group' : 'Sub Item'}
+
+                              </span>
+                            </span>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          className={`sales-mobile-dropdown-btn ${isExpanded ? "expanded" : ""}`}
+                          onClick={(e) => toggleRowExpand(row.id, e)}
+                          aria-label={isExpanded ? "Collapse item details" : "Expand item details"}
+                          title={isExpanded ? "Collapse" : "Expand"}
+                        >
+                          <FaChevronDown size={13} className="sales-mobile-chevron" />
+                        </button>
+                      </div>
+
+                      {isExpanded && (
+                        <div className="sales-mobile-card-details">
+
+
+                          <div className="sales-mobile-detail-row">
+                            <span className="sales-mobile-detail-label">Parent Item Group</span>
+                            <span className="sales-mobile-detail-value">
+                              {row.parentItemGroup}
+                            </span>
+                          </div>
+
+                          <div className="sales-mobile-detail-footer">
+                            <span className="sales-mobile-card-meta-text">
+                              {/*rowNumber} of {totalFilteredItems*/}
+                            </span>
+                            <div className="sales-mobile-action-buttons">
+                              <button
+                                className="wl-action-btn wl-action-view"
+                                onClick={(e) => { e.stopPropagation(); handleView(row); }}
+
+                                title="View "
+                              >
+                                <FaEye size={12} />
+                              </button>
+
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* ✅ Pagination - Single line layout */}

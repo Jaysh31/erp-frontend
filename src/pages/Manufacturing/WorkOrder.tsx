@@ -1125,10 +1125,10 @@ export default function WorkOrderList() {
                             <div className="wo-mobile-detail-footer">
                               <div className="wo-mobile-detail-meta">
                                 <span className="wo-count-label">
-                                  {displayTotalItems > 0
+                                  {/*displayTotalItems > 0
                                     ? `${getStartIndex()}–${getEndIndex()}`
                                     : '0'}{' '}
-                                  of {displayTotalItems}
+                                  of {displayTotalItems*/}
                                 </span>
                               </div>
 

@@ -380,7 +380,6 @@ export default function QuotationPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pdfModalLoading] = useState(false);
 
-  
   // ─── Mobile expanded rows state ──────────────────────────────────
   const [expandedRows, setExpandedRows] = useState<Set<string | number>>(new Set());
 
@@ -1892,7 +1891,7 @@ export default function QuotationPage() {
 
                           <div className="sales-mobile-detail-footer">
                             <span className="sales-mobile-card-meta-text">
-                              #{rowNumber} of {totalRecords}
+                              {/*rowNumber} of {totalRecords*/}
                             </span>
                             <div className="sales-mobile-action-buttons">
                               <button
@@ -1952,7 +1951,6 @@ export default function QuotationPage() {
           </div>
         </>
       )}
-
 
       {/* ─── Pagination Section (Separate from table) ────────────────────────────── */}
       {!loading && !error && totalRecords > 0 && (

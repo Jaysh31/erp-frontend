@@ -1148,9 +1148,9 @@ const BOMPage: React.FC = () => {
                           <div className="bom-mobile-detail-footer">
                             <div className="bom-mobile-detail-meta">
                               <span className="bom-count-label">
-                                {totalRecords > 0
+                                {/*totalRecords > 0
                                   ? `${(validCurrentPage - 1) * itemsPerPage + 1}–${Math.min(validCurrentPage * itemsPerPage, totalRecords)}`
-                                  : '0'} of {totalRecords}
+                                  : '0'} of {totalRecords*/}
                               </span>
                             </div>
 

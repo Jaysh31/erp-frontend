@@ -13,8 +13,10 @@ import {
   FaTrash,
   FaCalendarAlt,
   FaFileExcel,
+  FaChevronDown
 } from 'react-icons/fa';
 import "./ItemList.css";
+import '../Sales/SalesMobileTable.css';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
 import { PageLoader } from "../components/PageLoader";
@@ -41,13 +43,13 @@ interface Item {
 interface ApiResponse {
   success: number;
   data:
-    | Item[]
-    | {
-        total: number;
-        page: number;
-        limit: number;
-        records: Item[];
-      };
+  | Item[]
+  | {
+    total: number;
+    page: number;
+    limit: number;
+    records: Item[];
+  };
 }
 
 export default function ItemList() {
@@ -65,6 +67,20 @@ export default function ItemList() {
   const [totalItems, setTotalItems] = useState(0);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [allItems, setAllItems] = useState<Item[]>([]);
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+
+  const toggleRowExpand = (id: number, event?: React.MouseEvent) => {
+    event?.stopPropagation();
+    setExpandedRows((previous) => {
+      const next = new Set(previous);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
   // ===== DATE FILTER STATES =====
   const [fromDate, setFromDate] = useState<string>('');
@@ -163,7 +179,7 @@ export default function ItemList() {
     if (!tempFromDate && !tempToDate) return false;
     const date = new Date(currentYear, currentMonth, day);
     const dateStr = date.toISOString().split('T')[0];
-    
+
     if (tempFromDate && tempToDate) {
       return dateStr >= tempFromDate && dateStr <= tempToDate;
     }
@@ -185,7 +201,7 @@ export default function ItemList() {
   const handleDateClick = (day: number) => {
     const date = new Date(currentYear, currentMonth, day);
     const dateStr = date.toISOString().split('T')[0];
-    
+
     if (!tempFromDate || (tempFromDate && tempToDate)) {
       setTempFromDate(dateStr);
       setTempToDate('');
@@ -458,13 +474,13 @@ export default function ItemList() {
   const handleBulkUpload = () => {
     navigate("/item-bulk-upload");
   };
-   // ─── Loading Screen ─────────────────────────────────────────────────────
+  // ─── Loading Screen ─────────────────────────────────────────────────────
   if (loading) {
     return (
       <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
-        <PageLoader 
-          message="Loading Setup & Item List..." 
-          //subtitle="Calculating bill of materials, operations rates, and component structures"
+        <PageLoader
+          message="Loading Setup & Item List..."
+        //subtitle="Calculating bill of materials, operations rates, and component structures"
         />
       </div>
     );
@@ -1484,7 +1500,7 @@ export default function ItemList() {
 
           {/* ===== DATE RANGE PICKER ===== */}
           <div className="itl-date-picker-container">
-            <div 
+            <div
               className={`itl-date-picker-trigger ${showDatePicker ? 'active' : ''}`}
               onClick={openDatePicker}
             >
@@ -1499,7 +1515,7 @@ export default function ItemList() {
                 )}
               </span>
             </div>
-            
+
             {showDatePicker && (
               <div className="itl-date-picker-popup">
                 <div className="itl-popup-header">
@@ -1508,35 +1524,35 @@ export default function ItemList() {
                     <FaTimes size={14} />
                   </button>
                 </div>
-                
+
                 {/* Quick Filters */}
                 <div className="itl-quick-filters">
-                  <button 
+                  <button
                     className={`itl-quick-filter-btn ${selectedQuickFilter === 'today' ? 'active' : ''}`}
                     onClick={() => applyQuickFilter('today')}
                   >
                     Today
                   </button>
-                  <button 
+                  <button
                     className={`itl-quick-filter-btn ${selectedQuickFilter === 'last7' ? 'active' : ''}`}
                     onClick={() => applyQuickFilter('last7')}
                   >
                     Last 7 Days
                   </button>
-                  <button 
+                  <button
                     className={`itl-quick-filter-btn ${selectedQuickFilter === 'last30' ? 'active' : ''}`}
                     onClick={() => applyQuickFilter('last30')}
                   >
                     Last 30 Days
                   </button>
-                  <button 
+                  <button
                     className={`itl-quick-filter-btn ${selectedQuickFilter === 'thisMonth' ? 'active' : ''}`}
                     onClick={() => applyQuickFilter('thisMonth')}
                   >
                     This Month
                   </button>
                 </div>
-                
+
                 {/* Calendar */}
                 <div className="itl-calendar-header">
                   <button className="itl-nav-btn" onClick={() => changeMonth(-1)}>
@@ -1549,7 +1565,7 @@ export default function ItemList() {
                     <FaChevronRight size={12} />
                   </button>
                 </div>
-                
+
                 <div className="itl-calendar-grid">
                   {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
                     <div key={day} className="itl-day-header">{day}</div>
@@ -1558,7 +1574,7 @@ export default function ItemList() {
                     if (day === null) {
                       return <div key={`empty-${index}`} className="itl-day-cell empty"></div>;
                     }
-                    
+
                     const dateObj = new Date(currentYear, currentMonth, day);
                     const dateStr = dateObj.toISOString().split('T')[0];
                     const isToday = dateStr === getTodayDate();
@@ -1566,7 +1582,7 @@ export default function ItemList() {
                     const isSelected = isDateSelected(day);
                     const isStart = dateStr === tempFromDate;
                     const isEnd = dateStr === tempToDate;
-                    
+
                     let className = 'itl-day-cell';
                     if (isToday) className += ' today';
                     if (isInRange && !isSelected) className += ' in-range';
@@ -1574,10 +1590,10 @@ export default function ItemList() {
                     if (isStart && tempToDate) className += ' selected-start';
                     if (isEnd && tempFromDate) className += ' selected-end';
                     if (isInRange && !isSelected && !isStart && !isEnd) className += ' range-middle';
-                    
+
                     return (
-                      <div 
-                        key={day} 
+                      <div
+                        key={day}
                         className={className}
                         onClick={() => handleDateClick(day)}
                       >
@@ -1586,7 +1602,7 @@ export default function ItemList() {
                     );
                   })}
                 </div>
-                
+
                 <div className="itl-popup-actions">
                   <button className="itl-btn-clear" onClick={clearDateFilters}>
                     Clear
@@ -1602,13 +1618,16 @@ export default function ItemList() {
             )}
           </div>
 
+
+
+
           <button className="itl-btn-secondary" onClick={handleBulkUpload}>
             <FaFileExcel size={13} />
             Bulk Upload
           </button>
           <button className="itl-btn-primary" onClick={handleAddItem}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+              <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
             </svg>
             Add Item
           </button>
@@ -1668,12 +1687,12 @@ export default function ItemList() {
       {/* Table */}
       {!loading && !error && (
         <>
-          <div className="itl-table-wrap">
+          <div className="itl-table-wrap sales-desktop-table-wrap">
             <table className="itl-table">
               <thead>
                 <tr>
                   <th className="itl-th">Item Code</th>
-                  <th className="itl-th">Item Name</th>
+                  {/* <th className="itl-th">Item Name</th> */}
                   <th className="itl-th">Status</th>
                   <th className="itl-th">Item Group</th>
                   <th className="itl-th">UOM</th>
@@ -1684,9 +1703,9 @@ export default function ItemList() {
                         ? `${getStartIndex()}–${getEndIndex()}`
                         : '0'} of {totalItems}
                     </span>
-                    
+
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary, #9ca3af)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
                     </svg>
                   </th>
                 </tr>
@@ -1697,7 +1716,7 @@ export default function ItemList() {
                     <td colSpan={7} className="itl-empty-state">
                       <div className="itl-empty-content">
                         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                         </svg>
                         <p>No items found</p>
                         <span>Try adjusting your search criteria</span>
@@ -1712,7 +1731,7 @@ export default function ItemList() {
                       onClick={() => handleRowClick(row)}
                     >
                       <td className="itl-td itl-td-code">{row.item_code}</td>
-                      <td className="itl-td itl-td-name">{row.item_name}</td>
+                      {/* <td className="itl-td itl-td-name">{row.item_name}</td> */}
                       <td className="itl-td">
                         <span className={`itl-status-badge itl-status-${row.disabled === 0 ? 'enabled' : 'disabled'}`}>
                           {row.disabled === 0 ? 'Enabled' : 'Disabled'}
@@ -1751,6 +1770,164 @@ export default function ItemList() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile Table Section (Customer, Status + Dropdown Button -> Date, Amount, Actions) */}
+          <div className="sales-mobile-list-wrap">
+            <div className="sales-mobile-list-header">
+              <div className="sales-mobile-th-primary">
+                <span className="sales-mobile-th-cell">Customer</span>
+                <span className="sales-mobile-th-sep">•</span>
+                <span className="sales-mobile-th-cell">Status</span>
+              </div>
+              <div className="sales-mobile-th-right">
+                <span className="sales-count-label">
+                  {totalItems > 0
+                    ? `${getStartIndex()}–${getEndIndex()}`
+                    : '0'} of {totalItems}
+                </span>
+              </div>
+            </div>
+
+            {items.length === 0 ? (
+              <div className="itl-empty-state">
+                <div className="itl-empty-content">
+                  <p>No Items found</p>
+                  <span>Try adjusting your search criteria</span>
+                </div>
+              </div>
+            ) : (
+              <div className="sales-mobile-cards">
+                {items.map((row, idx) => {
+                  const isExpanded = expandedRows.has(row.id);
+                  const rowNumber = getStartIndex() + idx;
+
+                  function formatDisplayDateWithContext(value: unknown): string {
+                    if (value === null || value === undefined || value === '') {
+                      return '—';
+                    }
+
+                    const date = value instanceof Date ? value : new Date(String(value));
+
+                    if (Number.isNaN(date.getTime())) {
+                      return String(value);
+                    }
+
+                    return date.toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: '2-digit',
+                      year: 'numeric',
+                    });
+                  }
+
+                  function handleView(item: Item) {
+                    navigate(`/item/${item.id}`, {
+                      state: { itemData: item }
+                    });
+                  }
+
+                  function getStatusIcon(status: string): string {
+                    const normalizedStatus = String(status ?? '').trim().toLowerCase();
+
+                    return '•';
+                  }
+
+                  return (
+                    <div
+                      key={row.id}
+                      className={`sales-mobile-card ${isExpanded ? "sales-mobile-card-expanded" : ""}`}
+                    >
+                      <div
+                        className="sales-mobile-card-header"
+                        onClick={() => toggleRowExpand(row.id)}
+                      >
+                        <div className="sales-mobile-card-primary">
+                          <div className="sales-mobile-card-primary-row">
+                            <span
+                              className="sales-mobile-item-name"
+                            >
+                              {row.item_code}
+                            </span>
+                            <span className="sales-mobile-header-badge">
+                              <span className="itl-td">
+                                {row.item_group}
+                              </span>
+                            </span>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          className={`sales-mobile-dropdown-btn ${isExpanded ? "expanded" : ""}`}
+                          onClick={(e) => toggleRowExpand(row.id, e)}
+                          aria-label={isExpanded ? "Collapse item details" : "Expand item details"}
+                          title={isExpanded ? "Collapse" : "Expand"}
+                        >
+                          <FaChevronDown size={13} className="sales-mobile-chevron" />
+                        </button>
+                      </div>
+
+                      {isExpanded && (
+                        <div className="sales-mobile-card-details">
+                          <div className="sales-mobile-detail-row">
+                            <span className="sales-mobile-detail-label">Status</span>
+                            <span className={`itl-status-badge itl-status-${row.disabled === 0 ? 'enabled' : 'disabled'}`}>
+                              {row.disabled === 0 ? 'Enabled' : 'Disabled'}
+                            </span>
+                          </div>
+
+
+                          <div className="sales-mobile-detail-row">
+                            <span className="sales-mobile-detail-label">UOM</span>
+                            <span className="sales-mobile-detail-value">{row.stock_uom}</span>
+                          </div>
+
+
+                          <div className="sales-mobile-detail-row">
+                            <span className="sales-mobile-detail-label">Type</span>
+                            <span className="sales-mobile-detail-value"> {row.is_stock_item === 1 ? 'Stock' : 'Non-Stock'}</span>
+                          </div>
+
+                          <div className="sales-mobile-detail-footer">
+                            <span className="sales-mobile-card-meta-text">
+                              {/*rowNumber} of {totalItems*/}
+                            </span>
+                            <div className="sales-mobile-action-buttons">
+
+                              <button
+                                className="qt-action-btn qt-action-edit"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEditItem(row, e);
+                                }}
+                                title="Edit"
+                              >
+                                <FaEdit size={12} />
+                              </button>
+                              <button
+                                className="qt-action-btn qt-action-delete"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteItem(row.id, e);
+                                }}
+                                title="Delete"
+                                disabled={deletingId === row.id}
+                              >
+                                {deletingId === row.id ? (
+                                  <FaSpinner className="spinning" size={12} />
+                                ) : (
+                                  <FaTrash size={12} />
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* ✅ Pagination Section - Single line layout */}
