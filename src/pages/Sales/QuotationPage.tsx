@@ -523,14 +523,9 @@ export default function QuotationPage() {
       params.append('page', String(currentPage));
       params.append('limit', String(itemsPerPage));
 
-      if (debouncedFilterText.trim()) {
-        params.append('search', debouncedFilterText.trim());
-        params.append('search_by', 'all');
-      }
+      
 
-      if (selectedStatus !== 'All') {
-        params.append('status', selectedStatus);
-      }
+     
 
       if (selectedCurrency !== 'All') {
         params.append('currency', selectedCurrency);

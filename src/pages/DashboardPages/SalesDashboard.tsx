@@ -254,7 +254,7 @@ export default function SalesDashboard() {
     setLoading(true);
     setError(null);
     try {
-      // ─── Fetch all data in parallel ───
+      // ─── Fetch all data with limit=100 (max allowed by API) ───
       const [
         leadsRes,
         quotationsRes,
@@ -262,35 +262,42 @@ export default function SalesDashboard() {
         deliveryNotesRes,
         invoicesRes
       ] = await Promise.all([
-        api.get<ApiLeadResponse>('/lead'),
+        api.get<ApiLeadResponse>('/lead?page=1&limit=100'),
         api.get<ApiQuotationResponse>('/quotation?page=1&limit=100'),
-        api.get<ApiSalesOrderResponse>('/sales-order'),
-        api.get<ApiDeliveryNoteResponse>('/delivery-note?&limit=1000'),
-        api.get<ApiSalesInvoiceResponse>('/sales-invoice?page=1&limit=1000')
+        api.get<ApiSalesOrderResponse>('/sales-order?page=1&limit=100'),
+        api.get<ApiDeliveryNoteResponse>('/delivery-note?page=1&limit=100'),
+        api.get<ApiSalesInvoiceResponse>('/sales-invoice?page=1&limit=100')
       ]);
 
+      // ─── Get TOTAL counts from API response metadata ────────────
+      const totalLeads = leadsRes.data?.data?.total || 0;
+      const totalQuotations = quotationsRes.data?.data?.total || 0;
+      const totalOrdersCount = ordersRes.data?.data?.total || 0;
+      const totalDeliveryNotesCount = deliveryNotesRes.data?.data?.total || 0;
+      const totalInvoicesCount = invoicesRes.data?.data?.total || 0;
+
+      // ─── Get actual records for processing (first 100) ──────────
       const leads = getLeadsData(leadsRes.data);
       const quotations = getQuotationsData(quotationsRes.data);
       const orders = getSalesOrdersData(ordersRes.data);
       const deliveryNotes = getDeliveryNotesData(deliveryNotesRes.data);
       const invoices = getSalesInvoicesData(invoicesRes.data);
 
-      // ─── Process Leads ──────────────────────────────────────
+      // ─── Process Leads ──────────────────────────────────────────
       const leadsByStatus: Record<string, number> = {};
       leads.forEach(lead => {
         const status = lead.status || 'Unknown';
         leadsByStatus[status] = (leadsByStatus[status] || 0) + 1;
       });
 
-      // ─── Process Quotations ─────────────────────────────────
+      // ─── Process Quotations ─────────────────────────────────────
       const quotationsByStatus: Record<string, number> = {};
       quotations.forEach(quotation => {
         const status = quotation.status || 'Unknown';
         quotationsByStatus[status] = (quotationsByStatus[status] || 0) + 1;
       });
 
-      // ─── Process Sales Orders ──────────────────────────────
-      const totalOrders = orders.length;
+      // ─── Process Sales Orders (only first 100 for calculations) ─
       const totalRevenue = orders.reduce((sum, o) => sum + (o.grand_total || 0), 0);
       const openOrders = orders.filter(o => o.status === 'Submitted' || o.status === 'On Hold').length;
       const completedOrders = orders.filter(o => o.status === 'Completed').length;
@@ -298,24 +305,21 @@ export default function SalesDashboard() {
       const draftOrders = orders.filter(o => o.status === 'Draft').length;
       const onHoldOrders = orders.filter(o => o.status === 'On Hold').length;
 
-      // ─── Process Invoices ────────────────────────────────────
-      const totalInvoices = invoices.length;
-
-      // ─── Set Stats ────────────────────────────────────────────
+      // ─── Set Stats (using TOTAL from API response) ──────────────
       setStats({
-        totalLeads: leads.length,
-        totalQuotations: quotations.length,
-        totalOrders,
+        totalLeads,
+        totalQuotations,
+        totalOrders: totalOrdersCount,
         totalRevenue: totalRevenue,
-        totalDeliveryNotes: deliveryNotes.length,
-        totalInvoices,
+        totalDeliveryNotes: totalDeliveryNotesCount,
+        totalInvoices: totalInvoicesCount,
         openOrders,
         completedOrders,
         cancelledOrders,
         draftOrders,
         onHoldOrders,
-        averageOrderValue: totalOrders > 0 ? totalRevenue / totalOrders : 0,
-        conversionRate: totalOrders > 0 ? Math.round((completedOrders / totalOrders) * 100) : 0,
+        averageOrderValue: totalOrdersCount > 0 ? totalRevenue / totalOrdersCount : 0,
+        conversionRate: totalOrdersCount > 0 ? Math.round((completedOrders / totalOrdersCount) * 100) : 0,
         leadsByStatus,
         quotationsByStatus
       });

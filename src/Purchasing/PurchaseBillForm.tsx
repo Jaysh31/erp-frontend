@@ -1,4 +1,6 @@
 // PurchaseBillForm.tsx - Modified with is_create_from_grn and grn_ids
+// UPDATED: Added VIEW MODE support via URL parameter ?mode=view
+
 import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   FaSave, FaSpinner, FaArrowLeft,
@@ -9,9 +11,9 @@ import {
   FaPrint, FaPlus, FaTrash, FaTruck,
   FaUser, FaUsers, FaWarehouse, FaPhone, FaEnvelope, FaGlobeAsia,
   FaStickyNote,
-  FaSearch,
+  FaSearch, FaEye,
 } from 'react-icons/fa';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
 import api from '../services/api';
@@ -176,6 +178,9 @@ const parseTaxRateFromTemplate = (template: string | null | undefined): number =
 export default function PurchaseInvoiceForm() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
+  const mode = searchParams.get('mode');
+  const isViewMode = mode === 'view';
   const isEdit = Boolean(id);
   useAdminTheme();
 
@@ -283,8 +288,33 @@ export default function PurchaseInvoiceForm() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [, setSavedInvoiceNumber] = useState<string>('');
 
+  // ─── View Mode Badge ─────────────────────────────────────────────────────────
+  const renderViewModeBadge = () => {
+    if (!isViewMode) return null;
+    
+    return (
+      <span className="pif-view-mode-badge" style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '6px',
+        background: '#6366f1',
+        color: '#ffffff',
+        padding: '4px 12px',
+        borderRadius: '20px',
+        fontSize: '12px',
+        fontWeight: 500,
+        marginLeft: '12px',
+      }}>
+        <FaEye size={12} />
+        View Mode
+      </span>
+    );
+  };
+
   // ─── Handle Add New Supplier ──────────────────────────────────────────────
   const handleAddNewSupplier = async () => {
+    if (isViewMode) return;
+    
     if (!newSupplier.supplier_name.trim()) {
       toast.error('Supplier name is required');
       return;
@@ -453,6 +483,7 @@ export default function PurchaseInvoiceForm() {
 
   // ─── Fetch PO list ──────────────────────────────────────────────────────────
   const fetchPOList = async () => {
+    if (isViewMode) return;
     setLoadingPOList(true);
     try {
       const res = await api.get('/purchase-order?limit=200');
@@ -469,6 +500,7 @@ export default function PurchaseInvoiceForm() {
 
   // ─── Fetch Suppliers ────────────────────────────────────────────────────────
   const fetchSuppliers = async () => {
+    if (isViewMode) return;
     setLoadingSuppliers(true);
     try {
       const res = await api.get('/supplier?limit=200');
@@ -485,6 +517,7 @@ export default function PurchaseInvoiceForm() {
 
   // ─── Fetch Items ────────────────────────────────────────────────────────────
   const fetchItems = async () => {
+    if (isViewMode) return;
     setLoadingItems(true);
     try {
       const res = await api.get('/item?limit=200');
@@ -502,6 +535,7 @@ export default function PurchaseInvoiceForm() {
 
   // ─── Fetch Taxes ────────────────────────────────────────────────────────────
   const fetchTaxes = async () => {
+    if (isViewMode) return;
     try {
       const res = await api.get('/item/get-tax');
       if (res.data?.success === 1) {
@@ -514,6 +548,7 @@ export default function PurchaseInvoiceForm() {
 
   // ─── Fetch Warehouses ───────────────────────────────────────────────────────
   const fetchWarehouses = async () => {
+    if (isViewMode) return;
     setLoadingWarehouses(true);
     try {
       const res = await api.get('/warehouse?limit=200');
@@ -533,6 +568,7 @@ export default function PurchaseInvoiceForm() {
 
   // ─── Fetch all GRNs ─────────────────────────────────────────────────────────
   const fetchGRNList = async () => {
+    if (isViewMode) return;
     setLoadingGRNList(true);
     try {
       const res = await api.get('/grn?page=1&limit=200&is_completed=0');
@@ -551,6 +587,7 @@ export default function PurchaseInvoiceForm() {
 
   // ─── Fetch GRNs linked to a specific PO ────────────────────────────────────
   const fetchGRNsForPurchaseOrder = async (poId: number): Promise<GRNSummary[]> => {
+    if (isViewMode) return [];
     try {
       const res = await api.get(`/grn/get-grn-by-purchase-order/${poId}`);
       if (res.data?.success === 1) {
@@ -565,6 +602,7 @@ export default function PurchaseInvoiceForm() {
 
   // ─── Fetch full detail for a single GRN ─────────────────────────────────────
   const fetchGRNDetail = async (grnId: number): Promise<GRNRecord | null> => {
+    if (isViewMode) return null;
     try {
       const res = await api.get(`/grn/${grnId}`);
       if (res.data?.success === 1) {
@@ -579,6 +617,7 @@ export default function PurchaseInvoiceForm() {
 
   // ─── Fetch full PO detail ───────────────────────────────────────────────────
   const fetchPODetail = async (poId: number): Promise<PODetail | null> => {
+    if (isViewMode) return null;
     try {
       const res = await api.get(`/purchase-order/${poId}`);
       if (res.data?.success === 1) {
@@ -593,6 +632,7 @@ export default function PurchaseInvoiceForm() {
 
   // ─── Reset all downstream selections ───────────────────────────────────────
   const resetSelections = () => {
+    if (isViewMode) return;
     setSelectedPO(null);
     setLinkedGRNsForPO([]);
     setSelectedGRNIds(new Set());
@@ -610,6 +650,7 @@ export default function PurchaseInvoiceForm() {
 
   // ─── When supplier is selected ─────────────────────────────────────────────
   const handleSelectSupplier = (supplier: Supplier) => {
+    if (isViewMode) return;
     setSelectedSupplier(supplier);
     setSupplierSearch(supplier.supplier_name || '');
     setShowSupplierDropdown(false);
@@ -622,6 +663,7 @@ export default function PurchaseInvoiceForm() {
 
   // ─── When bill source changes ──────────────────────────────────────────────
   const handleBillSourceChange = (source: BillSource) => {
+    if (isViewMode) return;
     setFormData(p => ({ ...p, billSource: source }));
     resetSelections();
     if (selectedSupplier && allGRNs.length === 0) {
@@ -631,6 +673,7 @@ export default function PurchaseInvoiceForm() {
 
   // ─── Toggle a GRN's inclusion ──────────────────────────────────────────────
   const toggleGRNSelection = (grnId: number) => {
+    if (isViewMode) return;
     setSelectedGRNIds(prev => {
       const next = new Set(prev);
       if (next.has(grnId)) next.delete(grnId); else next.add(grnId);
@@ -660,6 +703,7 @@ export default function PurchaseInvoiceForm() {
 
   // ─── When a PO is selected (GRN mode) ──────────────────────────────────────
   const handleSelectPO = async (po: { id: number; name: string; supplier_name: string }) => {
+    if (isViewMode) return;
     setPoSearch(po.name || '');
     setShowPoDropdown(false);
     setLoadingPODetail(true);
@@ -695,6 +739,7 @@ export default function PurchaseInvoiceForm() {
 
   // ─── When a PO with NO GRN is selected (Without GRN mode) ─────────────────
   const handleSelectPOWithoutGRN = async (po: { id: number; name: string; supplier_name: string }) => {
+    if (isViewMode) return;
     setPoSearch(po.name || '');
     setShowPoDropdown(false);
     setLoadingPODetail(true);
@@ -719,6 +764,7 @@ export default function PurchaseInvoiceForm() {
 
   // ─── When a GRN is picked from the search dropdown ─────────────────────────
   const handleSelectGRN = async (grn: GRNSummary) => {
+    if (isViewMode) return;
     const wasSelected = selectedGRNIds.has(grn.id);
     toggleGRNSelection(grn.id);
     setShowGrnDropdown(false);
@@ -870,6 +916,7 @@ export default function PurchaseInvoiceForm() {
 
   // ─── Manual entry functions ────────────────────────────────────────────────
   const handleAddManualItem = () => {
+    if (isViewMode) return;
     const newItem: InvoiceItem = {
       id: makeRowId(),
       item_code: '',
@@ -897,10 +944,12 @@ export default function PurchaseInvoiceForm() {
   };
 
   const handleRemoveManualItem = (rowId: string) => {
+    if (isViewMode) return;
     setItems(prev => prev.filter(item => item.id !== rowId));
   };
 
   const handleItemFieldChange = (rowId: string, field: keyof InvoiceItem, value: any) => {
+    if (isViewMode) return;
     setItems(prev => prev.map(item => {
       if (item.id !== rowId) return item;
       const updated = { ...item, [field]: value };
@@ -912,6 +961,7 @@ export default function PurchaseInvoiceForm() {
   };
 
   const handleSelectItem = (item: Item, rowId: string) => {
+    if (isViewMode) return;
     const tax = (taxes || []).find(t => t.tax_id === item.tax_id);
     const taxRate = tax ? parseInt((tax.tax_type || '').replace('GST', '')) : 0;
 
@@ -937,6 +987,7 @@ export default function PurchaseInvoiceForm() {
   };
 
   const handleBillQtyChange = (rowId: string, val: number) => {
+    if (isViewMode) return;
     setItems(prev => prev.map(row => {
       if (row.id !== rowId) return row;
       const safeQty = Math.min(Math.max(0, val), row.unbilled_qty || 0);
@@ -956,7 +1007,6 @@ export default function PurchaseInvoiceForm() {
       if (res.data?.success === 1) {
         const inv = res.data.data;
 
-
         // ── NEW: Read is_create_from_grn and grn_ids from API ──
         const isCreateFromGrn = inv.is_create_from_grn || 0;
         const grnIds = inv.grn_ids || [];
@@ -965,7 +1015,6 @@ export default function PurchaseInvoiceForm() {
         const resolvedBillSource: BillSource = isCreateFromGrn === 1 ? 'GRN' : 'Without GRN';
 
         const itemsFromApi: any[] = Array.isArray(inv.items) ? inv.items : [];
-
 
         setFormData(prev => ({
           ...prev,
@@ -981,32 +1030,31 @@ export default function PurchaseInvoiceForm() {
           grnIds: grnIds,
         }));
 
+        // Restore selected GRN IDs
+        if (grnIds.length > 0) {
+          setSelectedGRNIds(new Set(grnIds));
 
-       // Restore selected GRN IDs
-if (grnIds.length > 0) {
-  setSelectedGRNIds(new Set(grnIds));
+          // Load GRN details for these IDs
+          const missingIds = grnIds.filter(
+            (gid: string | number) => !grnDetailCache[Number(gid)]
+          );
 
-  // Load GRN details for these IDs
-  const missingIds = grnIds.filter(
-    (gid: string | number) => !grnDetailCache[Number(gid)]
-  );
+          if (missingIds.length && !isViewMode) {
+            const fetched = await Promise.all(
+              missingIds.map((gid: string | number) =>
+                fetchGRNDetail(Number(gid))
+              )
+            );
 
-  if (missingIds.length) {
-    const fetched = await Promise.all(
-      missingIds.map((gid: string | number) =>
-        fetchGRNDetail(Number(gid))
-      )
-    );
+            const nextCache = { ...grnDetailCache };
 
-    const nextCache = { ...grnDetailCache };
+            fetched.forEach((g) => {
+              if (g) nextCache[g.id] = g;
+            });
 
-    fetched.forEach((g) => {
-      if (g) nextCache[g.id] = g;
-    });
-
-    setGrnDetailCache(nextCache);
-  }
-}
+            setGrnDetailCache(nextCache);
+          }
+        }
 
         // Supplier: resolved once the supplier list itself has loaded
         if (inv.supplier != null) {
@@ -1045,7 +1093,6 @@ if (grnIds.length > 0) {
             };
           });
           setItems(rows);
-
 
           const firstWarehouse = itemsFromApi.find((it: any) => it.warehouse)?.warehouse;
           if (firstWarehouse != null) {
@@ -1126,6 +1173,8 @@ if (grnIds.length > 0) {
 
   // ─── Validation ────────────────────────────────────────────────────────────
   const validate = (): ValidationError[] => {
+    if (isViewMode) return [];
+    
     const errs: ValidationError[] = [];
 
     if (!selectedSupplier && !isEdit) {
@@ -1223,6 +1272,7 @@ if (grnIds.length > 0) {
 
   // ─── Sync manual / Without-GRN inventory ───────────────────────────────────
   const syncManualInventory = async (billableItems: InvoiceItem[]) => {
+    if (isViewMode) return;
     const warehouseId = selectedWarehouseId === '' ? 0 : selectedWarehouseId;
     await Promise.all((billableItems || []).map(async (item) => {
       const catalogMatch = itemsList.find(i => i.id === item.item_id);
@@ -1266,6 +1316,7 @@ if (grnIds.length > 0) {
   // ─── Mark included GRNs as completed once the invoice is saved ────────────
   const role = getUserRole();
   const markGRNsCompleted = async (grnIds: number[]) => {
+    if (isViewMode) return;
     await Promise.all((grnIds || []).map(async (grnId) => {
       try {
         await api.put(`/grn/grn-status`, {
@@ -1669,12 +1720,15 @@ if (grnIds.length > 0) {
                 onClick={() => handleSelectSupplier(supplier)}
                 style={{
                   padding: '8px 12px',
-                  cursor: 'pointer',
+                  cursor: isViewMode ? 'default' : 'pointer',
                   borderBottom: '1px solid #f3f4f6',
                   transition: 'background 0.15s',
+                  opacity: isViewMode ? 0.7 : 1,
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = '#f9fafb';
+                  if (!isViewMode) {
+                    e.currentTarget.style.background = '#f9fafb';
+                  }
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.background = 'transparent';
@@ -1700,59 +1754,66 @@ if (grnIds.length > 0) {
         </div>
 
         {/* ─── "+ Add New Supplier" footer ─── */}
-        <div 
-          className="pif-supplier-dropdown-footer" 
-          style={{
-            padding: '8px 12px',
-            borderTop: '1px solid #f3f4f6',
-            display: 'flex',
-            justifyContent: 'center',
-            background: '#fafafa',
-            flexShrink: 0,
-          }}
-        >
-          <button
-            type="button"
-            className="pif-add-new-dropdown-btn"
-            onClick={() => {
-              setShowSupplierDropdown(false);
-              setShowAddSupplierPopup(true);
-            }}
+        {!isViewMode && (
+          <div 
+            className="pif-supplier-dropdown-footer" 
             style={{
+              padding: '8px 12px',
+              borderTop: '1px solid #f3f4f6',
               display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              background: 'transparent',
-              border: `1.5px dashed ${primaryColor}`,
-              borderRadius: '6px',
-              color: primaryColor,
-              cursor: 'pointer',
-              fontSize: '12px',
-              fontWeight: 500,
-              padding: '6px 16px',
-              transition: 'all 0.15s',
-              width: '100%',
               justifyContent: 'center',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = `${primaryColor}15`;
-              e.currentTarget.style.borderStyle = 'solid';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'transparent';
-              e.currentTarget.style.borderStyle = 'dashed';
+              background: '#fafafa',
+              flexShrink: 0,
             }}
           >
-            <FaPlus size={12} style={{ color: primaryColor }} />
-            Add New Supplier
-          </button>
-        </div>
+            <button
+              type="button"
+              className="pif-add-new-dropdown-btn"
+              onClick={() => {
+                setShowSupplierDropdown(false);
+                setShowAddSupplierPopup(true);
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: 'transparent',
+                border: `1.5px dashed ${primaryColor}`,
+                borderRadius: '6px',
+                color: primaryColor,
+                cursor: 'pointer',
+                fontSize: '12px',
+                fontWeight: 500,
+                padding: '6px 16px',
+                transition: 'all 0.15s',
+                width: '100%',
+                justifyContent: 'center',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = `${primaryColor}15`;
+                e.currentTarget.style.borderStyle = 'solid';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.borderStyle = 'dashed';
+              }}
+            >
+              <FaPlus size={12} style={{ color: primaryColor }} />
+              Add New Supplier
+            </button>
+          </div>
+        )}
       </div>
     );
   };
 
   // ─── Submit ─────────────────────────────────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
+    if (isViewMode) {
+      navigate('/purchase-invoice');
+      return;
+    }
+    
     e.preventDefault();
     setApiError(null);
 
@@ -1818,9 +1879,6 @@ if (grnIds.length > 0) {
       // ── NEW: Use is_create_from_grn and grn_ids instead of bill_source ──
       is_create_from_grn: formData.isCreateFromGrn,
       grn_ids: formData.isCreateFromGrn === 1 ? formData.grnIds : [],
-
-      // ── PO linkage at header level, where available ──
-      // purchase_order: selectedPO?.id || undefined,
 
       items: billableItems.map((r, idx) => ({
         ...(isEdit && r.db_item_id ? { id: r.db_item_id } : {}),
@@ -1893,7 +1951,7 @@ if (grnIds.length > 0) {
     );
   }
 
-  const hasErrors = validate().length > 0;
+  const hasErrors = !isViewMode && validate().length > 0;
 
   return (
     <div className="pif-page">
@@ -1967,7 +2025,10 @@ if (grnIds.length > 0) {
             <FaArrowLeft size={9} /> Back
           </button>
           <div className="header-title">
-            <h1>{isEdit ? `${formData.invoiceNumber || 'Edit Purchase Bill'}` : 'New Purchase Bill'}</h1>
+            <h1>
+              {isViewMode ? 'View Purchase Bill' : isEdit ? `${formData.invoiceNumber || 'Edit Purchase Bill'}` : 'New Purchase Bill'}
+            </h1>
+            {renderViewModeBadge()}
           </div>
           <button type="button" onClick={handlePrint} className="print-btn" disabled={items.length === 0}>
             <FaPrint size={12} /> Print
@@ -2081,7 +2142,7 @@ if (grnIds.length > 0) {
                       value={source}
                       checked={formData.billSource === source}
                       onChange={() => handleBillSourceChange(source)}
-                      disabled={isEdit}
+                      disabled={isEdit || isViewMode}
                     />
                     {source === 'GRN' ? 'GRN' : source}
                   </label>
@@ -2128,19 +2189,20 @@ if (grnIds.length > 0) {
                             validationErrors.some(e => e.field === "supplier")
                               ? "field-error"
                               : ""
-                          }`}
+                          } ${isViewMode ? 'field-disabled' : ''}`}
                           value={supplierSearch}
                           onChange={(e) => {
+                            if (isViewMode) return;
                             setSupplierSearch(e.target.value);
                             setShowSupplierDropdown(true);
                           }}
-                          onFocus={() => setShowSupplierDropdown(true)}
+                          onFocus={() => { if (!isViewMode) setShowSupplierDropdown(true); }}
                           placeholder={
                             loadingSuppliers
                               ? "Loading…"
                               : "Search supplier by name or mobile…"
                           }
-                          disabled={loadingSuppliers || isEdit}
+                          disabled={loadingSuppliers || isEdit || isViewMode}
                         />
 
                         {selectedSupplier && (
@@ -2174,7 +2236,7 @@ if (grnIds.length > 0) {
                 </div>
 
                 {/* ── PO Selection Section (Without GRN mode ── */}
-                {selectedSupplier && isManual && !isEdit && (
+                {selectedSupplier && isManual && !isEdit && !isViewMode && (
                   <>
                     <div className="pif-grn-po-section">
                       <div className="pif-field" ref={poSearchRef} style={{ position: 'relative', maxWidth: 500 }}>
@@ -2191,7 +2253,7 @@ if (grnIds.length > 0) {
                             onChange={e => { setPoSearch(e.target.value); setShowPoDropdown(true); }}
                             onFocus={() => setShowPoDropdown(true)}
                             placeholder={loadingPOList ? 'Loading…' : 'Search Purchase Order without a GRN…'}
-                            disabled={loadingPOList}
+                            disabled={loadingPOList || isViewMode}
                           />
                           {selectedPO && (
                             <FaCheckCircle style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: '#22c55e', fontSize: 14 }} />
@@ -2240,8 +2302,12 @@ if (grnIds.length > 0) {
                     <input
                       type="date"
                       value={formData.date}
-                      onChange={e => setFormData(p => ({ ...p, date: e.target.value }))}
-                      className={`form-field ${validationErrors.some(e => e.field === 'date') ? 'field-error' : ''}`}
+                      onChange={e => {
+                        if (isViewMode) return;
+                        setFormData(p => ({ ...p, date: e.target.value }));
+                      }}
+                      className={`form-field ${validationErrors.some(e => e.field === 'date') ? 'field-error' : ''} ${isViewMode ? 'field-disabled' : ''}`}
+                      disabled={isViewMode}
                     />
                   </div>
 
@@ -2253,8 +2319,12 @@ if (grnIds.length > 0) {
                     <input
                       type="date"
                       value={formData.deliveryDate}
-                      onChange={e => setFormData(p => ({ ...p, deliveryDate: e.target.value }))}
-                      className="form-field"
+                      onChange={e => {
+                        if (isViewMode) return;
+                        setFormData(p => ({ ...p, deliveryDate: e.target.value }));
+                      }}
+                      className={`form-field ${isViewMode ? 'field-disabled' : ''}`}
+                      disabled={isViewMode}
                     />
                   </div>
                 </div>
@@ -2265,9 +2335,13 @@ if (grnIds.length > 0) {
                     <input
                       type="text"
                       value={formData.billNo}
-                      onChange={e => setFormData(p => ({ ...p, billNo: e.target.value }))}
-                      className="form-field"
+                      onChange={e => {
+                        if (isViewMode) return;
+                        setFormData(p => ({ ...p, billNo: e.target.value }));
+                      }}
+                      className={`form-field ${isViewMode ? 'field-disabled' : ''}`}
                       placeholder="e.g., INV-1001"
+                      disabled={isViewMode}
                     />
                   </div>
                   <div className="pif-field">
@@ -2275,9 +2349,13 @@ if (grnIds.length > 0) {
                     <input
                       type="text"
                       value={formData.buyerOrderNumber}
-                      onChange={e => setFormData(p => ({ ...p, buyerOrderNumber: e.target.value }))}
-                      className="form-field"
+                      onChange={e => {
+                        if (isViewMode) return;
+                        setFormData(p => ({ ...p, buyerOrderNumber: e.target.value }));
+                      }}
+                      className={`form-field ${isViewMode ? 'field-disabled' : ''}`}
                       placeholder="Enter buyer order number"
+                      disabled={isViewMode}
                     />
                   </div>
                 </div>
@@ -2288,9 +2366,13 @@ if (grnIds.length > 0) {
                     <input
                       type="text"
                       value={formData.paymentTerms}
-                      onChange={e => setFormData(p => ({ ...p, paymentTerms: e.target.value }))}
-                      className="form-field"
+                      onChange={e => {
+                        if (isViewMode) return;
+                        setFormData(p => ({ ...p, paymentTerms: e.target.value }));
+                      }}
+                      className={`form-field ${isViewMode ? 'field-disabled' : ''}`}
                       placeholder="e.g., Net 30, COD, etc."
+                      disabled={isViewMode}
                     />
                   </div>
                   <div className="pif-field">
@@ -2298,15 +2380,19 @@ if (grnIds.length > 0) {
                     <input
                       type="text"
                       value={formData.vehicleNumber}
-                      onChange={e => setFormData(p => ({ ...p, vehicleNumber: e.target.value }))}
-                      className="form-field"
+                      onChange={e => {
+                        if (isViewMode) return;
+                        setFormData(p => ({ ...p, vehicleNumber: e.target.value }));
+                      }}
+                      className={`form-field ${isViewMode ? 'field-disabled' : ''}`}
                       placeholder="Optional"
+                      disabled={isViewMode}
                     />
                   </div>
                 </div>
 
                 {/* ── PO + GRN Selection Section (GRN mode) ─────────────────── */}
-                {selectedSupplier && isGRNMode && !isEdit && (
+                {selectedSupplier && isGRNMode && !isEdit && !isViewMode && (
                   <>
                     <div className="pif-grn-po-section">
                       <div className="pif-fields-row">
@@ -2325,7 +2411,7 @@ if (grnIds.length > 0) {
                               onChange={e => { setPoSearch(e.target.value); setShowPoDropdown(true); }}
                               onFocus={() => setShowPoDropdown(true)}
                               placeholder={loadingPOList ? 'Loading…' : 'Search Purchase Order…'}
-                              disabled={loadingPOList}
+                              disabled={loadingPOList || isViewMode}
                             />
                             {selectedPO && (
                               <FaCheckCircle style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: '#22c55e', fontSize: 14 }} />
@@ -2373,7 +2459,7 @@ if (grnIds.length > 0) {
                               onChange={e => { setGrnSearch(e.target.value); setShowGrnDropdown(true); }}
                               onFocus={() => setShowGrnDropdown(true)}
                               placeholder={loadingGRNList ? 'Loading…' : `Search GRN by number or PO… (${selectedGRNIds.size} selected)`}
-                              disabled={loadingGRNList}
+                              disabled={loadingGRNList || isViewMode}
                             />
                           </div>
                           {showGrnDropdown && (
@@ -2413,9 +2499,11 @@ if (grnIds.length > 0) {
                             <span key={g.id} className={`pif-grn-chip pif-grn-chip--${(g.status || 'draft').toLowerCase()}`}>
                               {g.grn_number || ''}
                               <span className="pif-grn-badge-qty"> · {getGRNReceivedQty(g)} rcvd</span>
-                              <button type="button" onClick={() => toggleGRNSelection(g.id)} title="Remove">
-                                <FaTimesCircle size={11} />
-                              </button>
+                              {!isViewMode && (
+                                <button type="button" onClick={() => toggleGRNSelection(g.id)} title="Remove">
+                                  <FaTimesCircle size={11} />
+                                </button>
+                              )}
                             </span>
                           ))}
                         </div>
@@ -2432,12 +2520,13 @@ if (grnIds.length > 0) {
                               <label
                                 key={g.id}
                                 className={`pif-grn-badge pif-grn-badge--${(g.status || 'draft').toLowerCase()}`}
-                                style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                                style={{ cursor: isViewMode ? 'default' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
                               >
                                 <input
                                   type="checkbox"
                                   checked={selectedGRNIds.has(g.id)}
                                   onChange={() => toggleGRNSelection(g.id)}
+                                  disabled={isViewMode}
                                 />
                                 {g.grn_number || ''}
                                 <span className="pif-grn-badge-qty"> · {getGRNReceivedQty(g)} rcvd</span>
@@ -2453,7 +2542,7 @@ if (grnIds.length > 0) {
 
                 {/* ── Warehouse picker (Manual / Without-GRN mode, incl. edit) ── */}
                 {selectedSupplier || isEdit ? (
-                  isManual && (
+                  isManual && !isViewMode && (
                     <>
                       <div className="pif-divider" />
                       <div className="pif-field" style={{ maxWidth: '500px' }}>
@@ -2464,8 +2553,8 @@ if (grnIds.length > 0) {
                         <select
                           value={selectedWarehouseId}
                           onChange={e => setSelectedWarehouseId(e.target.value ? Number(e.target.value) : '')}
-                          className={`form-field ${validationErrors.some(e => e.field === 'warehouse') ? 'field-error' : ''}`}
-                          disabled={loadingWarehouses}
+                          className={`form-field ${validationErrors.some(e => e.field === 'warehouse') ? 'field-error' : ''} ${isViewMode ? 'field-disabled' : ''}`}
+                          disabled={loadingWarehouses || isViewMode}
                         >
                           <option value="">{loadingWarehouses ? 'Loading…' : 'Select warehouse'}</option>
                           {(warehouses || []).map(w => (
@@ -2552,9 +2641,10 @@ if (grnIds.length > 0) {
                           flex: 1, textAlign: 'center', border: '1px solid var(--border-color)', borderRadius: 8,
                           background: formData.deliveryTerms === 'Free' ? '#7c3aed' : 'var(--card-bg)',
                           color: formData.deliveryTerms === 'Free' ? '#fff' : 'var(--text-secondary)',
-                          padding: '6px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                          padding: '6px 10px', fontSize: 11, fontWeight: 600, cursor: isViewMode ? 'default' : 'pointer',
+                          opacity: isViewMode ? 0.7 : 1,
                         }}
-                        onClick={() => setFormData(p => ({ ...p, deliveryTerms: 'Free', deliveryCharges: 0 }))}
+                        onClick={() => { if (!isViewMode) setFormData(p => ({ ...p, deliveryTerms: 'Free', deliveryCharges: 0 })); }}
                       >
                         Free
                       </button>
@@ -2564,9 +2654,10 @@ if (grnIds.length > 0) {
                           flex: 1, textAlign: 'center', border: '1px solid var(--border-color)', borderRadius: 8,
                           background: formData.deliveryTerms === 'Paid' ? '#7c3aed' : 'var(--card-bg)',
                           color: formData.deliveryTerms === 'Paid' ? '#fff' : 'var(--text-secondary)',
-                          padding: '6px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                          padding: '6px 10px', fontSize: 11, fontWeight: 600, cursor: isViewMode ? 'default' : 'pointer',
+                          opacity: isViewMode ? 0.7 : 1,
                         }}
-                        onClick={() => setFormData(p => ({ ...p, deliveryTerms: 'Paid' }))}
+                        onClick={() => { if (!isViewMode) setFormData(p => ({ ...p, deliveryTerms: 'Paid' })); }}
                       >
                         Paid
                       </button>
@@ -2579,10 +2670,14 @@ if (grnIds.length > 0) {
                         <input
                           type="number"
                           value={formData.deliveryCharges}
-                          onChange={e => setFormData(p => ({ ...p, deliveryCharges: parseFloat(e.target.value) || 0 }))}
-                          className="form-field"
+                          onChange={e => {
+                            if (isViewMode) return;
+                            setFormData(p => ({ ...p, deliveryCharges: parseFloat(e.target.value) || 0 }));
+                          }}
+                          className={`form-field ${isViewMode ? 'field-disabled' : ''}`}
                           min="0"
                           step="0.01"
+                          disabled={isViewMode}
                         />
                       </div>
                     )}
@@ -2598,8 +2693,12 @@ if (grnIds.length > 0) {
                   <div className="pif-party-card-content">
                     <select
                       value={formData.status}
-                      onChange={e => setFormData(p => ({ ...p, status: e.target.value as any }))}
-                      className="form-field"
+                      onChange={e => {
+                        if (isViewMode) return;
+                        setFormData(p => ({ ...p, status: e.target.value as any }));
+                      }}
+                      className={`form-field ${isViewMode ? 'field-disabled' : ''}`}
+                      disabled={isViewMode}
                     >
                       {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
@@ -2637,7 +2736,7 @@ if (grnIds.length > 0) {
               <span className="pif-section-title" style={{ margin: 0, border: 'none', paddingBottom: 0 }}>
                 <FaBoxes className="pif-section-icon" /> Items
               </span>
-              {isManual && (
+              {isManual && !isViewMode && (
                 <button type="button" onClick={handleAddManualItem} className="pif-add-item-btn">
                   <FaPlus /> Add Item
                 </button>
@@ -2669,7 +2768,7 @@ if (grnIds.length > 0) {
                         <th className="pif-ith pif-ith-num">Amount</th>
                         <th className="pif-ith pif-ith-num">Tax%</th>
                         <th className="pif-ith pif-ith-note">Note</th>
-                        {isManual && <th className="pif-ith">Action</th>}
+                        {isManual && !isViewMode && <th className="pif-ith">Action</th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -2683,12 +2782,14 @@ if (grnIds.length > 0) {
                                   type="text"
                                   value={row.item_code || ''}
                                   onChange={e => {
+                                    if (isViewMode) return;
                                     setItemSearch(e.target.value);
                                     setSelectedItemRowId(row.id);
                                     setShowItemDropdown(true);
                                     handleItemFieldChange(row.id, 'item_code', e.target.value);
                                   }}
                                   onFocus={() => {
+                                    if (isViewMode) return;
                                     setSelectedItemRowId(row.id);
                                     setShowItemDropdown(true);
                                     setItemSearch(row.item_code || '');
@@ -2698,11 +2799,12 @@ if (grnIds.length > 0) {
                                       setShowItemDropdown(false);
                                     }, 200);
                                   }}
-                                  className="pif-cell-input"
+                                  className={`pif-cell-input ${isViewMode ? 'field-disabled' : ''}`}
                                   placeholder="Search item..."
                                   autoComplete="off"
+                                  disabled={isViewMode}
                                 />
-                                {showItemDropdown && selectedItemRowId === row.id && (
+                                {!isViewMode && showItemDropdown && selectedItemRowId === row.id && (
                                   <div className="pif-dropdown-wrapper">
                                     <div className="pif-dropdown-down">
                                       {filteredItems.length > 0 ? (
@@ -2741,9 +2843,13 @@ if (grnIds.length > 0) {
                               <input
                                 type="text"
                                 value={row.item_code || ''}
-                                onChange={e => handleItemFieldChange(row.id, 'item_code', e.target.value)}
-                                className="pif-cell-input"
+                                onChange={e => {
+                                  if (isViewMode) return;
+                                  handleItemFieldChange(row.id, 'item_code', e.target.value);
+                                }}
+                                className={`pif-cell-input ${isViewMode ? 'field-disabled' : ''}`}
                                 placeholder="Item code"
+                                disabled={isViewMode}
                               />
                             )}
                           </td>
@@ -2751,18 +2857,26 @@ if (grnIds.length > 0) {
                             <input
                               type="text"
                               value={row.item_name || ''}
-                              onChange={e => handleItemFieldChange(row.id, 'item_name', e.target.value)}
-                              className="pif-cell-input"
+                              onChange={e => {
+                                if (isViewMode) return;
+                                handleItemFieldChange(row.id, 'item_name', e.target.value);
+                              }}
+                              className={`pif-cell-input ${isViewMode ? 'field-disabled' : ''}`}
                               placeholder="Item name"
+                              disabled={isViewMode}
                             />
                           </td>
                           <td className="pif-itd">
                             <input
                               type="text"
                               value={row.HSN || ''}
-                              onChange={e => handleItemFieldChange(row.id, 'HSN', e.target.value)}
-                              className="pif-cell-input"
+                              onChange={e => {
+                                if (isViewMode) return;
+                                handleItemFieldChange(row.id, 'HSN', e.target.value);
+                              }}
+                              className={`pif-cell-input ${isViewMode ? 'field-disabled' : ''}`}
                               placeholder="HSN"
+                              disabled={isViewMode}
                             />
                           </td>
                           <td className="pif-itd pif-itd-num">
@@ -2776,21 +2890,28 @@ if (grnIds.length > 0) {
                               <input
                                 type="number"
                                 value={row.bill_qty || 0}
-                                onChange={e => handleItemFieldChange(row.id, 'bill_qty', parseFloat(e.target.value) || 0)}
-                                className="pif-cell-input pif-cell-number"
+                                onChange={e => {
+                                  if (isViewMode) return;
+                                  handleItemFieldChange(row.id, 'bill_qty', parseFloat(e.target.value) || 0);
+                                }}
+                                className={`pif-cell-input pif-cell-number ${isViewMode ? 'field-disabled' : ''}`}
                                 min="0"
                                 step="any"
+                                disabled={isViewMode}
                               />
                             ) : (
                               <input
                                 type="number"
-                                className="pif-cell-input pif-cell-number"
+                                className={`pif-cell-input pif-cell-number ${isViewMode ? 'field-disabled' : ''}`}
                                 value={row.bill_qty || 0}
                                 min={0}
                                 max={row.unbilled_qty || 0}
                                 step="any"
-                                onChange={e => handleBillQtyChange(row.id, Number(e.target.value))}
-                                disabled={(row.unbilled_qty || 0) === 0}
+                                onChange={e => {
+                                  if (isViewMode) return;
+                                  handleBillQtyChange(row.id, Number(e.target.value));
+                                }}
+                                disabled={isViewMode || (row.unbilled_qty || 0) === 0}
                                 title={(row.unbilled_qty || 0) === 0 ? 'Already fully billed' : `Max: ${row.unbilled_qty || 0}`}
                               />
                             )}
@@ -2798,8 +2919,12 @@ if (grnIds.length > 0) {
                           <td className="pif-itd">
                             <select
                               value={row.uom || 'Nos'}
-                              onChange={e => handleItemFieldChange(row.id, 'uom', e.target.value)}
-                              className="pif-cell-input"
+                              onChange={e => {
+                                if (isViewMode) return;
+                                handleItemFieldChange(row.id, 'uom', e.target.value);
+                              }}
+                              className={`pif-cell-input ${isViewMode ? 'field-disabled' : ''}`}
+                              disabled={isViewMode}
                             >
                               <option value="Nos">Nos</option>
                               <option value="Kg">Kg</option>
@@ -2819,10 +2944,14 @@ if (grnIds.length > 0) {
                             <input
                               type="number"
                               value={row.rate || 0}
-                              onChange={e => handleItemFieldChange(row.id, 'rate', parseFloat(e.target.value) || 0)}
-                              className="pif-cell-input pif-cell-number"
+                              onChange={e => {
+                                if (isViewMode) return;
+                                handleItemFieldChange(row.id, 'rate', parseFloat(e.target.value) || 0);
+                              }}
+                              className={`pif-cell-input pif-cell-number ${isViewMode ? 'field-disabled' : ''}`}
                               min="0"
                               step="0.01"
+                              disabled={isViewMode}
                             />
                           </td>
                           <td className="pif-itd pif-itd-num pif-amount">
@@ -2831,8 +2960,12 @@ if (grnIds.length > 0) {
                           <td className="pif-itd pif-itd-num">
                             <select
                               value={row.tax_rate || 0}
-                              onChange={e => handleItemFieldChange(row.id, 'tax_rate', parseFloat(e.target.value) || 0)}
-                              className="pif-cell-input"
+                              onChange={e => {
+                                if (isViewMode) return;
+                                handleItemFieldChange(row.id, 'tax_rate', parseFloat(e.target.value) || 0);
+                              }}
+                              className={`pif-cell-input ${isViewMode ? 'field-disabled' : ''}`}
+                              disabled={isViewMode}
                             >
                               {(taxes || []).map(tax => {
                                 const parsed = parseInt((tax.tax_type || '').replace('GST', ''));
@@ -2849,12 +2982,16 @@ if (grnIds.length > 0) {
                             <button
                               type="button"
                               className={`pif-note-btn ${row.note ? 'pif-note-btn--filled' : ''}`}
-                              onClick={() => setNotePopoverRowId(notePopoverRowId === row.id ? null : row.id)}
+                              onClick={() => {
+                                if (isViewMode) return;
+                                setNotePopoverRowId(notePopoverRowId === row.id ? null : row.id);
+                              }}
                               title={row.note || 'Add note'}
+                              disabled={isViewMode}
                             >
                               <FaStickyNote size={12} />
                             </button>
-                            {notePopoverRowId === row.id && (
+                            {!isViewMode && notePopoverRowId === row.id && (
                               <div className="pif-note-popover">
                                 <textarea
                                   className="pif-note-textarea"
@@ -2868,7 +3005,7 @@ if (grnIds.length > 0) {
                               </div>
                             )}
                           </td>
-                          {isManual && (
+                          {isManual && !isViewMode && (
                             <td className="pif-itd">
                               <button
                                 type="button"
@@ -2946,10 +3083,14 @@ if (grnIds.length > 0) {
               <label className="pif-label"><FaFileAlt className="pif-label-icon" />Notes</label>
               <textarea
                 value={formData.notes || ''}
-                onChange={e => setFormData(p => ({ ...p, notes: e.target.value }))}
-                className="form-field pif-textarea"
+                onChange={e => {
+                  if (isViewMode) return;
+                  setFormData(p => ({ ...p, notes: e.target.value }));
+                }}
+                className={`form-field pif-textarea ${isViewMode ? 'field-disabled' : ''}`}
                 placeholder="Additional notes…"
                 rows={3}
+                disabled={isViewMode}
               />
             </div>
           </div>
@@ -2957,16 +3098,18 @@ if (grnIds.length > 0) {
           {/* Footer */}
           <div className="pif-footer">
             <button type="button" onClick={() => navigate('/purchase-invoice')} className="cancel-btn" disabled={loading}>
-              Cancel
+              {isViewMode ? 'Back to List' : 'Cancel'}
             </button>
             <button type="button" onClick={handlePrint} className="print-btn" disabled={items.length === 0}>
               <FaPrint /> Print
             </button>
-            <button type="submit" disabled={loading} className="submit-btn">
-              {loading && <FaSpinner className="spinning" />}
-              <FaSave size={12} />
-              {isEdit ? 'Update' : 'Create Invoice'}
-            </button>
+            {!isViewMode && (
+              <button type="submit" disabled={loading} className="submit-btn">
+                {loading && <FaSpinner className="spinning" />}
+                <FaSave size={12} />
+                {isEdit ? 'Update' : 'Create Invoice'}
+              </button>
+            )}
           </div>
         </form>
       </div>

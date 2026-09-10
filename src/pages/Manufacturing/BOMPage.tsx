@@ -251,7 +251,7 @@ const BOMPage: React.FC = () => {
         params.append('search', searchTerm.trim());
         // Also add a separate parameter for supplier name search
         // The backend should handle searching across multiple fields
-        params.append('search_by', 'all'); // This tells backend to search across all fields
+         // This tells backend to search across all fields
       }
 
       if (statusFilter !== 'all') {
@@ -898,14 +898,14 @@ const BOMPage: React.FC = () => {
                     <th className="bom-th">UOM</th>
                     <th className="bom-th">Total Cost</th>
                     <th className="bom-th bom-th-meta">
-                      <span className="bom-count-label">{/*totalRecords} total</span>*/}
-                      {totalRecords > 0
-                    ? `${(validCurrentPage - 1) * itemsPerPage + 1}–${Math.min(validCurrentPage * itemsPerPage, totalRecords)}`
-                    : '0'} of {totalRecords}
-                </span>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary, #9ca3af)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                </svg>
+                      <span className="bom-count-label">
+                        {totalRecords > 0
+                          ? `${(validCurrentPage - 1) * itemsPerPage + 1}–${Math.min(validCurrentPage * itemsPerPage, totalRecords)}`
+                          : '0'} of {totalRecords}
+                      </span>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary, #9ca3af)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                      </svg>
                     </th>
                   </tr>
                 </thead>
@@ -961,7 +961,6 @@ const BOMPage: React.FC = () => {
                         <td className="bom-td">{row.uom}</td>
                         <td className="bom-td bom-cost">{row.totalCost}</td>
                         <td className="bom-td bom-td-meta">
-                         
                           <div className="bom-action-buttons">
                             <button 
                               className="bom-action-btn bom-action-view" 
@@ -1009,7 +1008,9 @@ const BOMPage: React.FC = () => {
                   <option value={50}>50</option>
                   <option value={100}>100</option>
                 </select>
-                <span className="bom-pagination-label">entries</span>
+                <span className="bom-pagination-info">
+                  Showing {getStartIndex()} to {getEndIndex()} of {totalRecords} entries
+                </span>
               </div>
               <div className="bom-pagination-center">
                 <button 
@@ -1061,8 +1062,8 @@ const BOMPage: React.FC = () => {
                 </button>
               </div>
               <div className="bom-pagination-right">
-                <span className="bom-pagination-info">
-                  Showing {getStartIndex()} to {getEndIndex()} of {totalRecords} entries
+                <span className="bom-pagination-page">
+                  Page {validCurrentPage} of {totalPages}
                 </span>
               </div>
             </div>

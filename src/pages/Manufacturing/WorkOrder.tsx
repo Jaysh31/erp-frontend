@@ -260,7 +260,6 @@ export default function WorkOrderList() {
       
       if (searchTerm.trim()) {
         params.append('search', searchTerm.trim());
-        params.append('search_by', 'all');
       }
       
       if (statusFilter !== 'all') {
@@ -787,16 +786,14 @@ export default function WorkOrderList() {
                   <th className="wo-th">Status</th>
                   <th className="wo-th">Planned Dates</th>
                   <th className="wo-th wo-th-meta">
-                    {/*<span className="wo-count-label">{displayTotalItems} total</span>*/}
                     <span className="itl-count-label">
-                      {displayTotalItems> 0
+                      {displayTotalItems > 0
                         ? `${getStartIndex()}–${getEndIndex()}`
                         : '0'} of {displayTotalItems}
                     </span>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary, #9ca3af)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
                     </svg>
-                    {/*<FaTasks size={14} style={{ color: 'var(--text-secondary, #9ca3af)' }} />*/}
                   </th>
                 </tr>
               </thead>
@@ -940,68 +937,72 @@ export default function WorkOrderList() {
             </table>
           </div>
 
-          {/* Pagination */}
-          <div className="wo-pagination">
-            <div className="wo-pagination-left">
-              <span className="wo-pagination-label">Show:</span>
-              <select
-                value={itemsPerPage}
-                onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-                className="wo-page-size-select"
-              >
-                {pageSizeOptions.map(size => (
-                  <option key={size} value={size}>{size}</option>
-                ))}
-              </select>
-              <span className="wo-pagination-label">entries</span>
-            </div>
-            <div className="wo-pagination-center">
-              <button
-                onClick={goToFirstPage}
-                disabled={currentPage === 1 || displayTotalPages === 0}
-                className="wo-page-btn"
-              >
-                <FaAngleDoubleLeft size={12} />
-              </button>
-              <button
-                onClick={goToPrevPage}
-                disabled={currentPage === 1 || displayTotalPages === 0}
-                className="wo-page-btn"
-              >
-                <FaChevronLeft size={12} />
-              </button>
-              {getPageNumbers().map(page => (
-                <button
-                  key={page}
-                  onClick={() => setCurrentPage(page)}
-                  className={`wo-page-btn ${currentPage === page ? 'wo-page-btn-active' : ''}`}
+          {/* ── Pagination ─────────────────────────────────────────────────── */}
+          {!loading && displayTotalItems > 0 && (
+            <div className="wo-pagination">
+              <div className="wo-pagination-left">
+                <span className="wo-pagination-label">Show:</span>
+                <select
+                  value={itemsPerPage}
+                  onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                  className="wo-page-size-select"
                 >
-                  {page}
+                  {pageSizeOptions.map(size => (
+                    <option key={size} value={size}>{size}</option>
+                  ))}
+                </select>
+                <span className="wo-pagination-info">
+                  {displayTotalItems > 0
+                    ? `Showing ${getStartIndex()} to ${getEndIndex()} of ${displayTotalItems} entries`
+                    : 'No entries to show'}
+                </span>
+              </div>
+              <div className="wo-pagination-center">
+                <button
+                  onClick={goToFirstPage}
+                  disabled={currentPage === 1 || displayTotalPages === 0}
+                  className="wo-page-btn"
+                >
+                  <FaAngleDoubleLeft size={12} />
                 </button>
-              ))}
-              <button
-                onClick={goToNextPage}
-                disabled={currentPage >= displayTotalPages || displayTotalPages === 0}
-                className="wo-page-btn"
-              >
-                <FaChevronRight size={12} />
-              </button>
-              <button
-                onClick={goToLastPage}
-                disabled={currentPage >= displayTotalPages || displayTotalPages === 0}
-                className="wo-page-btn"
-              >
-                <FaAngleDoubleRight size={12} />
-              </button>
+                <button
+                  onClick={goToPrevPage}
+                  disabled={currentPage === 1 || displayTotalPages === 0}
+                  className="wo-page-btn"
+                >
+                  <FaChevronLeft size={12} />
+                </button>
+                {getPageNumbers().map(page => (
+                  <button
+                    key={page}
+                    onClick={() => setCurrentPage(page)}
+                    className={`wo-page-btn ${currentPage === page ? 'wo-page-btn-active' : ''}`}
+                  >
+                    {page}
+                  </button>
+                ))}
+                <button
+                  onClick={goToNextPage}
+                  disabled={currentPage >= displayTotalPages || displayTotalPages === 0}
+                  className="wo-page-btn"
+                >
+                  <FaChevronRight size={12} />
+                </button>
+                <button
+                  onClick={goToLastPage}
+                  disabled={currentPage >= displayTotalPages || displayTotalPages === 0}
+                  className="wo-page-btn"
+                >
+                  <FaAngleDoubleRight size={12} />
+                </button>
+              </div>
+              <div className="wo-pagination-right">
+                <span className="wo-pagination-page">
+                  Page {currentPage} of {displayTotalPages}
+                </span>
+              </div>
             </div>
-            <div className="wo-pagination-right">
-              <span className="wo-pagination-info">
-                {displayTotalItems > 0
-                  ? `Showing ${getStartIndex()} to ${getEndIndex()} of ${displayTotalItems} entries`
-                  : 'No entries to show'}
-              </span>
-            </div>
-          </div>
+          )}
         </>
       )}
 

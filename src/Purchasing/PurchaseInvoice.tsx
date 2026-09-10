@@ -220,7 +220,6 @@ export default function PurchaseInvoice() {
   const [calMonth, setCalMonth] = useState<Date>(new Date());
   const dateFilterRef = useRef<HTMLDivElement>(null);
   
-  const [showViewModal, setShowViewModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<PurchaseInvoice | null>(null);
   const [loading, setLoading] = useState(false);
@@ -308,7 +307,6 @@ export default function PurchaseInvoice() {
     try {
       const params = new URLSearchParams();
       
-      // ✅ SERVER-SIDE PAGINATION PARAMS
       params.append('page', String(currentPage));
       params.append('limit', String(itemsPerPage));
 
@@ -316,11 +314,9 @@ export default function PurchaseInvoice() {
         params.append('search', filterText.trim());
       }
 
-      // ✅ Pass status filter to API if not 'All'
       if (selectedStatus !== 'All') {
         params.append('status', selectedStatus);
       }
-
 
       if (dateFrom) {
         params.append('date_from', dateFrom);
@@ -333,10 +329,8 @@ export default function PurchaseInvoice() {
       
       if (response.data.success === 1) {
         const records = response.data.data.records || [];
-        // ✅ Set total records from API response
         setTotalRecords(response.data.data.total || 0);
         
-        // Transform API data to component format
         const transformedInvoices: PurchaseInvoice[] = records.map((item: ApiPurchaseInvoice) => ({
           id: String(item.id),
           invoiceNumber: `PINV-${String(item.id).padStart(5, '0')}`,
@@ -358,7 +352,6 @@ export default function PurchaseInvoice() {
         
         setInvoices(transformedInvoices);
         
-        // Update suppliers list from current page data
         const uniqueSuppliers = [...new Set(transformedInvoices.map(inv => inv.supplier))];
         setSuppliersList(uniqueSuppliers);
       } else {
@@ -372,23 +365,19 @@ export default function PurchaseInvoice() {
     }
   };
 
-  // ✅ Fetch when dependencies change (including pagination and status)
   useEffect(() => {
     fetchPurchaseInvoices();
   }, [currentPage, itemsPerPage, dateFrom, dateTo, filterText, selectedStatus]);
 
-  // ✅ Reset page when filters change (except selectedStatus which is handled above)
   useEffect(() => {
     setCurrentPage(1);
   }, [filterText, selectedSupplier, dateFrom, dateTo]);
 
-  // ✅ Filter supplier only (client-side filtering for supplier since API doesn't support it)
   const filteredInvoices = invoices.filter(inv => {
     const matchesSupplier = selectedSupplier === 'All' || inv.supplier === selectedSupplier;
     return matchesSupplier;
   });
 
-  // ✅ Pagination calculations - SERVER SIDE
   const totalFilteredItems = totalRecords;
   const totalPages = Math.ceil(totalFilteredItems / itemsPerPage) || 1;
   const validCurrentPage = Math.min(currentPage, totalPages || 1);
@@ -461,18 +450,20 @@ export default function PurchaseInvoice() {
     navigate('/purchase-invoice/new');
   };
 
+  // ✅ UPDATED: Edit button - opens in EDIT mode (editable)
   const handleEdit = (invoice: PurchaseInvoice) => {
-    navigate(`/purchase-invoice/edit/${invoice.id}`);
+    navigate(`/purchase-invoice/edit/${invoice.id}?mode=edit`);
   };
 
+  // ✅ UPDATED: Row click - opens in VIEW mode (read-only)
   const handleRowClick = (invoice: PurchaseInvoice) => {
-    navigate(`/purchase-invoice/edit/${invoice.id}`);
+    navigate(`/purchase-invoice/edit/${invoice.id}?mode=view`);
   };
 
+  // ✅ UPDATED: View button - opens in VIEW mode (read-only)
   const handleView = (invoice: PurchaseInvoice, e: React.MouseEvent) => {
     e.stopPropagation();
-    setSelectedInvoice(invoice);
-    setShowViewModal(true);
+    navigate(`/purchase-invoice/edit/${invoice.id}?mode=view`);
   };
 
   const handleDelete = (invoice: PurchaseInvoice, e: React.MouseEvent) => {
@@ -528,15 +519,6 @@ export default function PurchaseInvoice() {
 
   return (
     <div className={`inv-page ${theme}-theme`}>
-      {/* Header */}
-      {/*<div className="inv-header">
-        <div className="inv-header-left">
-          <h1 className="inv-title">Purchase Bill</h1>
-          <span className="inv-badge">{totalRecords}</span>
-        </div>
-       
-      </div>
-
       {/* Search and Filter Bar */}
       <div className="inv-filter-bar">
         <div className="inv-filter-left">
@@ -820,7 +802,6 @@ export default function PurchaseInvoice() {
                   <td className="inv-td inv-td-id">
                     <div>
                       <div style={{ fontWeight: 600 }}>{inv.invoiceNumber}</div>
-                      {/*<div style={{ fontSize: '11px', opacity: 0.6 }}>PINV-{inv.id}</div>*/}
                     </div>
                   </td>
                   <td className="inv-td">{inv.supplier}</td>
@@ -836,9 +817,8 @@ export default function PurchaseInvoice() {
                     </span>
                   </td>
                   <td className="inv-td inv-td-meta">
-                   {/* <span className="inv-ago">{new Date(inv.createdAt).toLocaleDateString()}</span>*/}
-                    {/*<span className="inv-dot">·</span>*/}
                     <div className="inv-action-buttons">
+                      {/* ✅ View button - opens in VIEW mode with ?mode=view */}
                       <button 
                         className="inv-action-btn grn-action-view" 
                         onClick={(e) => handleView(inv, e)}
@@ -846,6 +826,7 @@ export default function PurchaseInvoice() {
                       >
                         <FaEye size={12} />
                       </button>
+                      {/* ✅ Edit button - opens in EDIT mode with ?mode=edit */}
                       <button 
                         className="inv-action-btn grn-action-edit" 
                         onClick={(e) => { e.stopPropagation(); handleEdit(inv); }}
@@ -853,7 +834,6 @@ export default function PurchaseInvoice() {
                       >
                         <FaEdit size={12} />
                       </button>
-                    
                       <button 
                         className="inv-action-btn grn-action-delete" 
                         onClick={(e) => handleDelete(inv, e)}
@@ -861,7 +841,6 @@ export default function PurchaseInvoice() {
                       >
                         <FaTrash size={12} />
                       </button>
-                      
                     </div>
                   </td>
                 </tr>
@@ -938,49 +917,6 @@ export default function PurchaseInvoice() {
           </span>
         </div>
       </div>
-
-      {/* ====== VIEW MODAL ====== */}
-      {showViewModal && selectedInvoice && (
-        <div className="inv-modal-overlay" onClick={() => setShowViewModal(false)}>
-          <div className="inv-modal inv-modal-view" onClick={(e) => e.stopPropagation()}>
-            <div className="inv-modal-header">
-              <span className="inv-modal-title">{selectedInvoice.invoiceNumber}</span>
-              <button className="inv-modal-close" onClick={() => setShowViewModal(false)}>
-                <FaTimes size={16} />
-              </button>
-            </div>
-            <div className="inv-modal-body">
-              <div className="inv-view-grid">
-                <div className="inv-view-section">
-                  <h4>Invoice Details</h4>
-                  <div className="inv-view-row"><label>Number:</label><span>{selectedInvoice.invoiceNumber}</span></div>
-                  <div className="inv-view-row"><label>Status:</label><span className={`inv-status-badge ${getStatusColor(selectedInvoice.status)}`}>{selectedInvoice.status}</span></div>
-                  <div className="inv-view-row"><label>Date:</label><span>{new Date(selectedInvoice.date).toLocaleDateString()}</span></div>
-                  <div className="inv-view-row"><label>Due Date:</label><span>{new Date(selectedInvoice.dueDate).toLocaleDateString()}</span></div>
-                </div>
-                <div className="inv-view-section">
-                  <h4>Supplier Details</h4>
-                  <div className="inv-view-row"><label>Supplier:</label><span>{selectedInvoice.supplier}</span></div>
-                  <div className="inv-view-row"><label>Code:</label><span>{selectedInvoice.supplierCode}</span></div>
-                </div>
-                <div className="inv-view-section full-width">
-                  <h4>Financial Summary</h4>
-                  <div className="inv-view-row"><label>Total Amount:</label><span className="inv-amount-cell">{selectedInvoice.currency} {selectedInvoice.totalAmount.toLocaleString()}</span></div>
-                  <div className="inv-view-row"><label>Paid Amount:</label><span className="inv-paid-cell">{selectedInvoice.currency} {selectedInvoice.paidAmount.toLocaleString()}</span></div>
-                  <div className="inv-view-row"><label>Balance Amount:</label><span className="inv-balance-cell">{selectedInvoice.currency} {selectedInvoice.balanceAmount.toLocaleString()}</span></div>
-                  <div className="inv-view-row"><label>Items:</label><span>{selectedInvoice.itemsCount} items</span></div>
-                </div>
-              </div>
-            </div>
-            <div className="inv-modal-footer">
-              <button className="inv-btn-cancel" onClick={() => setShowViewModal(false)}>Close</button>
-              <button className="inv-btn-primary" onClick={() => handleEdit(selectedInvoice)}>
-                <FaEdit size={12} /> Edit
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ====== DELETE MODAL ====== */}
       {showDeleteModal && selectedInvoice && (

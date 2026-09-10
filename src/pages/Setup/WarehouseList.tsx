@@ -65,7 +65,6 @@ export default function WarehouseList() {
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
@@ -73,12 +72,6 @@ export default function WarehouseList() {
   const [totalItems, setTotalItems] = useState(0);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedWarehouse, setSelectedWarehouse] = useState<Warehouse | null>(null);
-  
-  // ─── View Modal States ──────────────────────────────────────────────────
-  const [showViewModal, setShowViewModal] = useState(false);
-  const [viewingWarehouse, setViewingWarehouse] = useState<Warehouse | null>(null);
-  const [warehouseContacts, setWarehouseContacts] = useState<Contact[]>([]);
-  const [loadingContacts, setLoadingContacts] = useState(false);
 
   // ─── Date Range Filter State (From - To, same UI as Purchase Order) ───
   const [dateFrom, setDateFrom] = useState<Date | null>(null);
@@ -217,6 +210,11 @@ export default function WarehouseList() {
         params.append('to', toISODate(dateTo));
       }
 
+      // Add status filter to API call
+      if (statusFilter !== 'all') {
+        params.append('status', statusFilter === 'enabled' ? '0' : '1');
+      }
+
       const response = await api.get<ApiResponse>(`/warehouse?${params.toString()}`);
       
       if (response.data.success === 1) {
@@ -233,41 +231,24 @@ export default function WarehouseList() {
     }
   };
 
-  // Fetch warehouse contacts
-  const fetchWarehouseContacts = async (warehouseId: number) => {
-    setLoadingContacts(true);
-    try {
-      const response = await api.get(`/warehouse/${warehouseId}/contacts`);
-      if (response.data && response.data.success === 1) {
-        setWarehouseContacts(response.data.data || []);
-      } else {
-        setWarehouseContacts([]);
-      }
-    } catch (err) {
-      console.error('Error fetching warehouse contacts:', err);
-      setWarehouseContacts([]);
-    } finally {
-      setLoadingContacts(false);
-    }
-  };
-
   // Fetch when dependencies change
   useEffect(() => {
     fetchWarehouses();
-  }, [currentPage, itemsPerPage, searchTerm, dateFrom, dateTo]);
+  }, [currentPage, itemsPerPage, searchTerm, dateFrom, dateTo, statusFilter]);
 
-  // Reset page when filters change
+  // Reset page when filters change (except currentPage changes)
   useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, itemsPerPage, dateFrom, dateTo]);
+    if (searchTerm || itemsPerPage || dateFrom || dateTo || statusFilter) {
+      // Only reset if it's not the initial load
+      if (currentPage !== 1) {
+        setCurrentPage(1);
+      }
+    }
+  }, [searchTerm, itemsPerPage, dateFrom, dateTo, statusFilter]);
 
-  // Filter data based on status
-  const filteredData = warehouses.filter(item => {
-    const matchesStatus = statusFilter === 'all' || 
-                         (statusFilter === 'enabled' && item.disabled === 0) ||
-                         (statusFilter === 'disabled' && item.disabled === 1);
-    return matchesStatus;
-  });
+  // Filter data based on status (client-side filtering if API doesn't support it)
+  // But we're now using API filtering for status
+  const filteredData = warehouses;
 
   const totalPages = Math.ceil(totalItems / itemsPerPage);
   
@@ -277,10 +258,8 @@ export default function WarehouseList() {
     setCurrentPage(validCurrentPage);
   }
   
-  const paginatedData = filteredData.slice(
-    (validCurrentPage - 1) * itemsPerPage,
-    validCurrentPage * itemsPerPage
-  );
+  // No need to slice data anymore since API handles pagination
+  const paginatedData = filteredData;
 
   const goToPage = (page: number) => {
     if (page >= 1 && page <= totalPages) {
@@ -319,11 +298,11 @@ export default function WarehouseList() {
     navigate(`/warehouse/${warehouse.id}`);
   };
 
-  // Navigate to warehouse form for viewing - using ID
-  const handleViewWarehouse = async (warehouse: Warehouse) => {
-    setViewingWarehouse(warehouse);
-    setShowViewModal(true);
-    await fetchWarehouseContacts(warehouse.id);
+  // ✅ Navigate to warehouse form for viewing - using ID with mode=view parameter
+  const handleViewWarehouse = (warehouse: Warehouse) => {
+    console.log('Navigating to view warehouse with ID:', warehouse.id);
+    // Navigate to the same edit page but with view mode parameter
+    navigate(`/warehouse/${warehouse.id}?mode=view`);
   };
 
   const handleDelete = (item: Warehouse) => {
@@ -354,14 +333,15 @@ export default function WarehouseList() {
     setSearchTerm('');
     setStatusFilter('all');
     clearDateFilterOnly();
+    setCurrentPage(1);
   };
 
   const getStartIndex = () => {
-    return (validCurrentPage - 1) * itemsPerPage + 1;
+    return totalItems > 0 ? (validCurrentPage - 1) * itemsPerPage + 1 : 0;
   };
 
   const getEndIndex = () => {
-    return Math.min(validCurrentPage * itemsPerPage, totalItems);
+    return totalItems > 0 ? Math.min(validCurrentPage * itemsPerPage, totalItems) : 0;
   };
 
   const handleRowClick = (warehouse: Warehouse) => {
@@ -707,7 +687,7 @@ export default function WarehouseList() {
                   <th className="wl-th">Type</th>
                   <th className="wl-th wl-th-meta">
                     <span className="wl-count-label">
-                     {totalItems> 0
+                     {totalItems > 0
                         ? `${getStartIndex()}–${getEndIndex()}`
                         : '0'} of {totalItems}
                     </span>
@@ -846,141 +826,6 @@ export default function WarehouseList() {
             </div>
           </div>
         </>
-      )}
-
-      {/* ─── View Modal ────────────────────────────────────────────────── */}
-      {showViewModal && viewingWarehouse && (
-        <div className="wl-modal-overlay" onClick={() => setShowViewModal(false)}>
-          <div className="wl-modal wl-modal-view">
-            <div className="wl-modal-header">
-              <span className="wl-modal-title">
-                <FaBuilding size={16} style={{ marginRight: '8px' }} />
-                Warehouse Details: {viewingWarehouse.warehouse_name}
-              </span>
-              <button className="wl-modal-close" onClick={() => setShowViewModal(false)}>
-                <FaTimes size={16} />
-              </button>
-            </div>
-            <div className="wl-modal-body">
-              {/* Warehouse Info */}
-              <div className="wl-view-section">
-                <h4>Warehouse Information</h4>
-                <div className="wl-view-grid">
-                  <div className="wl-view-item">
-                    <label>ID</label>
-                    <span>{viewingWarehouse.id}</span>
-                  </div>
-                  <div className="wl-view-item">
-                    <label>Name</label>
-                    <span>{viewingWarehouse.warehouse_name}</span>
-                  </div>
-                  <div className="wl-view-item">
-                    <label>Company</label>
-                    <span>{viewingWarehouse.company || 'N/A'}</span>
-                  </div>
-                  <div className="wl-view-item">
-                    <label>Parent Warehouse</label>
-                    <span>{viewingWarehouse.parent_warehouse || 'N/A'}</span>
-                  </div>
-                  <div className="wl-view-item">
-                    <label>Type</label>
-                    <span>{viewingWarehouse.warehouse_type || 'N/A'}</span>
-                  </div>
-                  <div className="wl-view-item">
-                    <label>City</label>
-                    <span>{viewingWarehouse.city || 'N/A'}</span>
-                  </div>
-                  <div className="wl-view-item">
-                    <label>State</label>
-                    <span>{viewingWarehouse.state || 'N/A'}</span>
-                  </div>
-                  <div className="wl-view-item">
-                    <label>Status</label>
-                    <span className={`wl-status-badge wl-status-${viewingWarehouse.disabled === 0 ? 'enabled' : 'disabled'}`}>
-                      {viewingWarehouse.disabled === 0 ? 'Enabled' : 'Disabled'}
-                    </span>
-                  </div>
-                  <div className="wl-view-item">
-                    <label>Phone</label>
-                    <span>{viewingWarehouse.phone_no || 'N/A'}</span>
-                  </div>
-                  <div className="wl-view-item">
-                    <label>Email</label>
-                    <span>{viewingWarehouse.email_id || 'N/A'}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Contacts Section */}
-              <div className="wl-view-section">
-                <h4>
-                  <FaUsers size={14} style={{ marginRight: '6px' }} />
-                  Contacts ({warehouseContacts.length})
-                </h4>
-                {loadingContacts ? (
-                  <div className="wl-loading-contacts">
-                    <FaSpinner className="spinning" size={20} />
-                    <p>Loading contacts...</p>
-                  </div>
-                ) : warehouseContacts.length > 0 ? (
-                  <div className="wl-contacts-grid">
-                    {warehouseContacts.map((contact) => (
-                      <div key={contact.id} className="wl-contact-card">
-                        <div className="wl-contact-header">
-                          <FaUser className="wl-contact-icon" />
-                          <span className="wl-contact-name">{contact.fullName}</span>
-                          <span className={`wl-contact-status ${getStatusColor(contact.status)}`}>
-                            {contact.status}
-                          </span>
-                        </div>
-                        <div className="wl-contact-details">
-                          {contact.email && (
-                            <div className="wl-contact-detail">
-                              <FaEnvelope size={12} />
-                              <span>{contact.email}</span>
-                            </div>
-                          )}
-                          {contact.mobile && (
-                            <div className="wl-contact-detail">
-                              <FaMobileAlt size={12} />
-                              <span>{contact.mobile}</span>
-                            </div>
-                          )}
-                          {contact.contactCode && (
-                            <div className="wl-contact-detail">
-                              <span className="wl-contact-code">{contact.contactCode}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="wl-empty-contacts">
-                    <p>No contacts found for this warehouse.</p>
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="wl-modal-footer">
-              <button 
-                className="wl-btn-cancel" 
-                onClick={() => setShowViewModal(false)}
-              >
-                Close
-              </button>
-              <button 
-                className="wl-btn-edit" 
-                onClick={() => {
-                  setShowViewModal(false);
-                  handleEditWarehouse(viewingWarehouse);
-                }}
-              >
-                <FaEdit size={12} /> Edit Warehouse
-              </button>
-            </div>
-          </div>
-        </div>
       )}
 
       {/* Delete Confirmation Modal */}

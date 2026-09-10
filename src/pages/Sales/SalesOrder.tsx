@@ -432,7 +432,6 @@ export default function SalesOrder() {
       
       if (debouncedFilterText.trim()) {
         params.append('search', debouncedFilterText.trim());
-        params.append('search_by', 'all');
       }
 
       if (selectedStatus !== 'All') {

@@ -566,7 +566,6 @@ const SalesInvoice: React.FC = () => {
       
       if (searchTerm.trim()) {
         params.append('search', searchTerm.trim());
-        params.append('search_by', 'all');
       }
       if (selectedStatus !== 'All') {
         params.append('status', selectedStatus);

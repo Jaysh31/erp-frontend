@@ -506,12 +506,20 @@ export default function PurchaseOrder() {
   // ─── Action Handlers ──────────────────────────────────────
 
   const handleCreate = () => navigate('/purchase-order/new');
-  const handleRowClick = (po: PurchaseOrder) => navigate(`/purchase-order/edit/${po.id}`);
+  
+  // ✅ Row click navigates to edit page in VIEW mode (read-only)
+  const handleRowClick = (po: PurchaseOrder) => navigate(`/purchase-order/edit/${po.id}?mode=view`);
 
+  // ✅ View button navigates to edit page in VIEW mode (read-only)
   const handleView = (po: PurchaseOrder, e: React.MouseEvent) => {
     e.stopPropagation();
-    setSelectedPO(po);
-    setShowViewModal(true);
+    navigate(`/purchase-order/edit/${po.id}?mode=view`);
+  };
+
+  // ✅ Edit button navigates to edit page in EDIT mode
+  const handleEdit = (po: PurchaseOrder, e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigate(`/purchase-order/edit/${po.id}?mode=edit`);
   };
 
   const handleDelete = (po: PurchaseOrder, e: React.MouseEvent) => {
@@ -848,10 +856,12 @@ export default function PurchaseOrder() {
                   </td>
                   <td className="po-td po-td-meta">
                     <div className="po-action-buttons">
+                      {/* View button - opens in VIEW mode */}
                       <button className="po-action-btn po-action-view" onClick={(e) => handleView(po, e)} title="View">
                         <FaEye size={12} />
                       </button>
-                      <button className="po-action-btn po-action-edit" onClick={(e) => { e.stopPropagation(); handleRowClick(po); }} title="Edit">
+                      {/* Edit button - opens in EDIT mode */}
+                      <button className="po-action-btn po-action-edit" onClick={(e) => handleEdit(po, e)} title="Edit">
                         <FaEdit size={12} />
                       </button>
                       <button className="po-action-btn po-action-delete" onClick={(e) => handleDelete(po, e)} title="Delete">
@@ -914,62 +924,6 @@ export default function PurchaseOrder() {
           </span>
         </div>
       </div>
-
-      {/* ─── View Modal ────────────────────────────────────── */}
-      {showViewModal && selectedPO && (
-        <div className="po-modal-overlay" onClick={() => setShowViewModal(false)}>
-          <div className="po-modal po-modal-view" onClick={(e) => e.stopPropagation()}>
-            <div className="po-modal-header">
-              <span className="po-modal-title">{selectedPO.poNumber} - {selectedPO.title}</span>
-              <button className="po-modal-close" onClick={() => setShowViewModal(false)}>
-                <FaTimes size={16} />
-              </button>
-            </div>
-            <div className="po-modal-body">
-              <div className="po-view-grid">
-                <div className="po-view-section">
-                  <h4>Order Information</h4>
-                  <div className="po-view-row"><label>PO Number:</label><span>{selectedPO.poNumber}</span></div>
-                  <div className="po-view-row"><label>Title:</label><span>{selectedPO.title}</span></div>
-                  <div className="po-view-row"><label>Status:</label><span className={`po-status-badge ${getStatusColor(selectedPO.status)}`}>{selectedPO.status}</span></div>
-                  <div className="po-view-row"><label>Currency:</label><span>{selectedPO.currency}</span></div>
-                </div>
-                <div className="po-view-section">
-                  <h4>Supplier Details</h4>
-                  <div className="po-view-row"><label>Supplier:</label><span>{selectedPO.supplier}</span></div>
-                  <div className="po-view-row"><label>Supplier Code:</label><span>{selectedPO.supplierCode}</span></div>
-                  <div className="po-view-row"><label>Payment Terms:</label><span>{selectedPO.paymentTerms}</span></div>
-                </div>
-                <div className="po-view-section">
-                  <h4>Dates</h4>
-                  {/* ✅ USE FORMATTED DATES FOR DISPLAY */}
-                  <div className="po-view-row"><label>Order Date:</label><span>{selectedPO.displayOrderDate || selectedPO.orderDate}</span></div>
-                  <div className="po-view-row"><label>Delivery Date:</label><span>{selectedPO.displayDeliveryDate || selectedPO.deliveryDate}</span></div>
-                  <div className="po-view-row"><label>Created By:</label><span>{selectedPO.createdBy}</span></div>
-                </div>
-                <div className="po-view-section">
-                  <h4>Financial Summary</h4>
-                  <div className="po-view-row"><label>Total Amount:</label><span>{selectedPO.currency} {selectedPO.totalAmount.toLocaleString()}</span></div>
-                  <div className="po-view-row"><label>Received:</label><span className="po-received-cell">{selectedPO.currency} {selectedPO.receivedAmount.toLocaleString()}</span></div>
-                  <div className="po-view-row"><label>Balance:</label><span className="po-balance-cell">{selectedPO.currency} {selectedPO.balanceAmount.toLocaleString()}</span></div>
-                </div>
-                {selectedPO.notes && (
-                  <div className="po-view-section full-width">
-                    <h4>Notes</h4>
-                    <div className="po-view-row"><span>{selectedPO.notes}</span></div>
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="po-modal-footer">
-              <button className="po-btn-cancel" onClick={() => setShowViewModal(false)}>Close</button>
-              <button className="po-btn-primary" onClick={() => handleRowClick(selectedPO)}>
-                <FaEdit size={12} /> Edit
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ─── Delete Modal ──────────────────────────────────── */}
       {showDeleteModal && selectedPO && (

@@ -488,6 +488,25 @@ export default function UOMList() {
 
   const weekdayLabels = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
+  // ─── Navigation Helpers ─────────────────────────────────────────────
+  const navigateToEdit = (uomName: string) => {
+    navigate(`/uom/${encodeURIComponent(uomName)}`, { 
+      state: { viewMode: false } 
+    });
+  };
+
+  const navigateToView = (uomName: string) => {
+    navigate(`/uom/${encodeURIComponent(uomName)}`, { 
+      state: { viewMode: true } 
+    });
+  };
+
+  const navigateToRow = (uomName: string) => {
+    navigate(`/uom/${encodeURIComponent(uomName)}`, { 
+      state: { viewMode: false } 
+    });
+  };
+
   return (
     <div className={`uoml-page ${theme}`}>
       {/* Search and Filter Bar */}
@@ -703,8 +722,8 @@ export default function UOMList() {
                   <th className="uoml-th">Status</th>
                   <th className="uoml-th">Category</th>
                   <th className="uoml-th uoml-th-meta">
-                    <span className="uoml-count-label">{/*totalItems} total</span>*/}
-                     {totalItems> 0
+                    <span className="uoml-count-label">
+                     {totalItems > 0
                         ? `${getStartIndex()}–${getEndIndex()}`
                         : '0'} of {totalItems}
                     </span>
@@ -733,7 +752,7 @@ export default function UOMList() {
                     <tr
                       key={row.id}
                       className="uoml-tr"
-                      onClick={() => navigate(`/uom/${encodeURIComponent(row.uom_name)}`)}
+                      onClick={() => navigateToRow(row.uom_name)}
                       style={{ cursor: 'pointer' }}
                     >
                       <td className="uoml-td">{row.id}</td>
@@ -750,21 +769,30 @@ export default function UOMList() {
                         <div className="uoml-action-buttons">
                           <button 
                             className="uoml-action-btn uoml-action-view" 
-                            onClick={(e) => { e.stopPropagation(); navigate(`/uom/${encodeURIComponent(row.uom_name)}`); }}
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              navigateToView(row.uom_name);
+                            }}
                             title="View"
                           >
                             <FaEye size={12} />
                           </button>
                           <button 
                             className="uoml-action-btn uoml-action-edit" 
-                            onClick={(e) => { e.stopPropagation(); navigate(`/uom/${encodeURIComponent(row.uom_name)}`); }}
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              navigateToEdit(row.uom_name);
+                            }}
                             title="Edit"
                           >
                             <FaEdit size={12} />
                           </button>
                           <button 
                             className="uoml-action-btn uoml-action-delete" 
-                            onClick={(e) => { e.stopPropagation(); handleDelete(row); }}
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              handleDelete(row); 
+                            }}
                             title="Delete"
                           >
                             <FaTrash size={12} />

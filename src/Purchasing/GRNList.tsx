@@ -536,8 +536,20 @@ export default function GRNList() {
     }
   };
 
-  const handleEdit = (item: GRNDisplay) => navigate(`/grn/${encodeURIComponent(item.id)}`);
-  const handleView = (item: GRNDisplay) => navigate(`/grn/${encodeURIComponent(item.id)}`);
+  // ✅ UPDATED: View button - opens in VIEW mode (read-only)
+  const handleView = (item: GRNDisplay) => {
+    navigate(`/grn/${encodeURIComponent(item.id)}?mode=view`);
+  };
+
+  // ✅ UPDATED: Edit button - opens in EDIT mode (editable)
+  const handleEdit = (item: GRNDisplay) => {
+    navigate(`/grn/${encodeURIComponent(item.id)}?mode=edit`);
+  };
+
+  // ✅ UPDATED: Row click - opens in VIEW mode (read-only)
+  const handleRowClick = (item: GRNDisplay) => {
+    navigate(`/grn/${encodeURIComponent(item.id)}?mode=view`);
+  };
 
   const clearFilters = () => {
     setSearchTerm('');
@@ -790,8 +802,8 @@ export default function GRNList() {
               <th className="grn-th">Status</th>
               <th className="grn-th">Qty</th>
               <th className="grn-th grn-th-meta">
-                <span className="grn-count-label">{/*{totalFiltered} records</span>*/}
-                {totalFiltered > 0
+                <span className="grn-count-label">
+                  {totalFiltered > 0
                     ? `${(validCurrentPage - 1) * itemsPerPage + 1}–${Math.min(validCurrentPage * itemsPerPage, totalFiltered)}`
                     : '0'} of {totalFiltered}
                 </span>
@@ -817,7 +829,7 @@ export default function GRNList() {
                 <tr
                   key={row.id}
                   className="grn-tr"
-                  onClick={() => handleView(row)}
+                  onClick={() => handleRowClick(row)}
                   style={{ cursor: 'pointer' }}
                 >
                   <td className="grn-td grn-td-id">
@@ -841,7 +853,6 @@ export default function GRNList() {
                   <td className="grn-td">
                     <span className="grn-date">
                       <FaCalendarAlt size={10} style={{ marginRight: 4 }} />
-                      {/* ✅ USE FORMATTED DATE FOR DISPLAY */}
                       {row.displayDate || row.date}
                     </span>
                   </td>
@@ -855,6 +866,7 @@ export default function GRNList() {
                   </td>
                   <td className="grn-td grn-td-meta">
                     <div className="grn-action-buttons">
+                      {/* ✅ View button - opens in VIEW mode with ?mode=view */}
                       <button
                         className="grn-action-btn grn-action-view"
                         onClick={(e) => { e.stopPropagation(); handleView(row); }}
@@ -862,6 +874,7 @@ export default function GRNList() {
                       >
                         <FaEye size={12} />
                       </button>
+                      {/* ✅ Edit button - opens in EDIT mode with ?mode=edit */}
                       <button
                         className="grn-action-btn grn-action-edit"
                         onClick={(e) => { e.stopPropagation(); handleEdit(row); }}

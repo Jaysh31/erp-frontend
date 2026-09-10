@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   FaSearch, 
@@ -21,6 +21,7 @@ import {
   FaChevronRight as FaChevronRightIcon,
   FaUser,
   FaStar,
+  FaCalendarAlt,
 } from 'react-icons/fa';
 import './Customer.css';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
@@ -99,6 +100,14 @@ const STATUS_OPTIONS = [
   { value: 'disabled', label: 'Disabled' },
 ];
 
+// Quick date filter options
+const QUICK_DATE_OPTIONS = [
+  { label: 'Today', value: 'today' },
+  { label: 'Last 7 Days', value: 'last7' },
+  { label: 'Last 30 Days', value: 'last30' },
+  { label: 'This Month', value: 'thisMonth' },
+];
+
 const Customer: React.FC = () => {
   const navigate = useNavigate();
   const { theme } = useAdminTheme();
@@ -116,7 +125,20 @@ const Customer: React.FC = () => {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
-  // Fetch customers from API with status filter
+  // Date filter states
+  const [dateFrom, setDateFrom] = useState<string>('');
+  const [dateTo, setDateTo] = useState<string>('');
+  const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
+  const [tempDateFrom, setTempDateFrom] = useState<string>('');
+  const [tempDateTo, setTempDateTo] = useState<string>('');
+  const [selectedQuickDate, setSelectedQuickDate] = useState<string>('');
+  const datePickerRef = useRef<HTMLDivElement>(null);
+
+  // Current month for calendar
+  const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
+  const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
+
+  // Fetch customers from API with status filter and date filter
   const fetchCustomers = async () => {
     try {
       setLoading(true);
@@ -127,7 +149,6 @@ const Customer: React.FC = () => {
       
       // Add status filter if not 'all'
       if (statusFilter !== 'all') {
-        // Convert status to match API expected format (capitalized)
         const statusMap: Record<string, string> = {
           'active': 'Active',
           'frozen': 'Frozen',
@@ -135,6 +156,14 @@ const Customer: React.FC = () => {
         };
         const apiStatus = statusMap[statusFilter] || statusFilter;
         url += `&status=${encodeURIComponent(apiStatus)}`;
+      }
+      
+      // Add date filters if present
+      if (dateFrom) {
+        url += `&date_from=${encodeURIComponent(dateFrom)}`;
+      }
+      if (dateTo) {
+        url += `&date_to=${encodeURIComponent(dateTo)}`;
       }
       
       // Add search term if present
@@ -173,7 +202,7 @@ const Customer: React.FC = () => {
   // Fetch when dependencies change
   useEffect(() => {
     fetchCustomers();
-  }, [currentPage, itemsPerPage, statusFilter]);
+  }, [currentPage, itemsPerPage, statusFilter, dateFrom, dateTo]);
 
   // Debounced search
   useEffect(() => {
@@ -188,10 +217,173 @@ const Customer: React.FC = () => {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  // Reset page when status filter changes
+  // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [statusFilter]);
+  }, [statusFilter, dateFrom, dateTo]);
+
+  // Click outside handler for date picker
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (datePickerRef.current && !datePickerRef.current.contains(event.target as Node)) {
+        setShowDatePicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Generate calendar days
+  const generateCalendarDays = (month: Date) => {
+    const year = month.getFullYear();
+    const monthIndex = month.getMonth();
+    const firstDay = new Date(year, monthIndex, 1);
+    const lastDay = new Date(year, monthIndex + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDay = firstDay.getDay(); // 0 = Sunday
+
+    const days = [];
+    // Empty slots for days before the first day of the month
+    for (let i = 0; i < startingDay; i++) {
+      days.push(null);
+    }
+    // Days of the month
+    for (let i = 1; i <= daysInMonth; i++) {
+      days.push(new Date(year, monthIndex, i));
+    }
+    return days;
+  };
+
+  const formatDateDisplay = (date: Date): string => {
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric', 
+      year: 'numeric' 
+    });
+  };
+
+  const formatDateForAPI = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const isDateInRange = (date: Date): boolean => {
+    if (!tempDateFrom && !tempDateTo) return false;
+    const dateStr = formatDateForAPI(date);
+    if (tempDateFrom && tempDateTo) {
+      return dateStr >= tempDateFrom && dateStr <= tempDateTo;
+    }
+    if (tempDateFrom) {
+      return dateStr >= tempDateFrom;
+    }
+    if (tempDateTo) {
+      return dateStr <= tempDateTo;
+    }
+    return false;
+  };
+
+  const handleDateSelect = (date: Date) => {
+    const dateStr = formatDateForAPI(date);
+    if (!tempDateFrom || (tempDateFrom && tempDateTo)) {
+      setTempDateFrom(dateStr);
+      setTempDateTo('');
+    } else if (tempDateFrom && !tempDateTo) {
+      if (dateStr < tempDateFrom) {
+        setTempDateTo(tempDateFrom);
+        setTempDateFrom(dateStr);
+      } else {
+        setTempDateTo(dateStr);
+      }
+    }
+  };
+
+  const handleQuickDateSelect = (option: string) => {
+    setSelectedQuickDate(option);
+    const today = new Date();
+    let from = new Date();
+    let to = new Date();
+
+    switch (option) {
+      case 'today':
+        from = new Date(today);
+        to = new Date(today);
+        break;
+      case 'last7':
+        from = new Date(today);
+        from.setDate(today.getDate() - 7);
+        to = new Date(today);
+        break;
+      case 'last30':
+        from = new Date(today);
+        from.setDate(today.getDate() - 30);
+        to = new Date(today);
+        break;
+      case 'thisMonth':
+        from = new Date(today.getFullYear(), today.getMonth(), 1);
+        to = new Date(today);
+        break;
+      default:
+        return;
+    }
+
+    setTempDateFrom(formatDateForAPI(from));
+    setTempDateTo(formatDateForAPI(to));
+  };
+
+  const handleApplyFilters = () => {
+    setDateFrom(tempDateFrom);
+    setDateTo(tempDateTo);
+    setShowDatePicker(false);
+    setCurrentPage(1);
+    // Clear quick date selection
+    setSelectedQuickDate('');
+  };
+
+  const handleClearFilters = () => {
+    setTempDateFrom('');
+    setTempDateTo('');
+    setDateFrom('');
+    setDateTo('');
+    setSelectedQuickDate('');
+    setShowDatePicker(false);
+    setCurrentPage(1);
+  };
+
+  const isFilterActive = () => {
+    return !!(dateFrom || dateTo || searchTerm || statusFilter !== 'all');
+  };
+
+  // Get button text based on selected dates
+  const getDateButtonText = () => {
+    if (dateFrom && dateTo) {
+      const fromDate = new Date(dateFrom);
+      const toDate = new Date(dateTo);
+      // Format: "Jan 1, 2026 - Jan 31, 2026"
+      return `${formatDateDisplay(fromDate)} - ${formatDateDisplay(toDate)}`;
+    }
+    if (dateFrom) {
+      const fromDate = new Date(dateFrom);
+      return `From: ${formatDateDisplay(fromDate)}`;
+    }
+    if (dateTo) {
+      const toDate = new Date(dateTo);
+      return `To: ${formatDateDisplay(toDate)}`;
+    }
+    return 'Filter by Date';
+  };
+
+  const clearAllFilters = () => {
+    setSearchTerm('');
+    setStatusFilter('all');
+    setDateFrom('');
+    setDateTo('');
+    setTempDateFrom('');
+    setTempDateTo('');
+    setSelectedQuickDate('');
+    setCurrentPage(1);
+  };
 
   // Filter data locally for display
   const filteredData = customers.filter(customer => {
@@ -211,7 +403,7 @@ const Customer: React.FC = () => {
 
   const totalFilteredItems = filteredData.length;
   
-  const hasFilters = searchTerm !== '' || statusFilter !== 'all';
+  const hasFilters = searchTerm !== '' || statusFilter !== 'all' || dateFrom !== '' || dateTo !== '';
   const totalPages = hasFilters 
     ? Math.ceil(totalFilteredItems / itemsPerPage) 
     : Math.ceil(totalItems / itemsPerPage);
@@ -397,6 +589,132 @@ const Customer: React.FC = () => {
           </div>
         </div>
         <div className="igl-filter-right">
+          {/* Date Range Picker Button - Updated to match image UI */}
+          <div className="igl-date-picker-wrapper" ref={datePickerRef}>
+            <button 
+              className={`igl-date-btn ${dateFrom || dateTo ? 'igl-date-btn-active' : ''}`}
+              onClick={() => setShowDatePicker(!showDatePicker)}
+            >
+              <FaCalendarAlt size={14} />
+              <span className="igl-date-btn-text">{getDateButtonText()}</span>
+              <FaChevronDown size={12} />
+            </button>
+
+            {showDatePicker && (
+              <div className="igl-date-picker-dropdown">
+                <div className="igl-date-picker-header">
+                  <span className="igl-date-picker-title">Select Date Range</span>
+                  <button 
+                    className="igl-date-picker-close"
+                    onClick={() => setShowDatePicker(false)}
+                  >
+                    <FaTimes size={12} />
+                  </button>
+                </div>
+
+                {/* Quick Date Options */}
+                <div className="igl-quick-date-options">
+                  {QUICK_DATE_OPTIONS.map((option) => (
+                    <button
+                      key={option.value}
+                      className={`igl-quick-date-btn ${selectedQuickDate === option.value ? 'igl-quick-date-btn-active' : ''}`}
+                      onClick={() => handleQuickDateSelect(option.value)}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Calendar */}
+                <div className="igl-calendar">
+                  <div className="igl-calendar-header">
+                    <button 
+                      className="igl-calendar-nav"
+                      onClick={() => {
+                        const newMonth = new Date(currentMonth);
+                        newMonth.setMonth(newMonth.getMonth() - 1);
+                        setCurrentMonth(newMonth);
+                      }}
+                    >
+                      <FaChevronLeft size={12} />
+                    </button>
+                    <span className="igl-calendar-month">
+                      {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                    </span>
+                    <button 
+                      className="igl-calendar-nav"
+                      onClick={() => {
+                        const newMonth = new Date(currentMonth);
+                        newMonth.setMonth(newMonth.getMonth() + 1);
+                        setCurrentMonth(newMonth);
+                      }}
+                    >
+                      <FaChevronRight size={12} />
+                    </button>
+                  </div>
+                  <div className="igl-calendar-weekdays">
+                    {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => (
+                      <span key={day} className="igl-calendar-weekday">{day}</span>
+                    ))}
+                  </div>
+                  <div className="igl-calendar-days">
+                    {generateCalendarDays(currentMonth).map((day, index) => {
+                      if (!day) {
+                        return <div key={`empty-${index}`} className="igl-calendar-day-empty"></div>;
+                      }
+                      const dateStr = formatDateForAPI(day);
+                      const isSelected = dateStr === tempDateFrom || dateStr === tempDateTo;
+                      const isInRange = isDateInRange(day);
+                      const isToday = formatDateForAPI(day) === formatDateForAPI(new Date());
+
+                      return (
+                        <button
+                          key={dateStr}
+                          className={`igl-calendar-day ${isSelected ? 'igl-calendar-day-selected' : ''} ${isInRange ? 'igl-calendar-day-in-range' : ''} ${isToday ? 'igl-calendar-day-today' : ''}`}
+                          onClick={() => handleDateSelect(day)}
+                        >
+                          {day.getDate()}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Selected Range Display */}
+                <div className="igl-date-range-display">
+                  <div className="igl-date-range-item">
+                    <span className="igl-date-range-label">From:</span>
+                    <span className="igl-date-range-value">
+                      {tempDateFrom ? formatDateDisplay(new Date(tempDateFrom)) : 'Select date'}
+                    </span>
+                  </div>
+                  <div className="igl-date-range-item">
+                    <span className="igl-date-range-label">To:</span>
+                    <span className="igl-date-range-value">
+                      {tempDateTo ? formatDateDisplay(new Date(tempDateTo)) : 'Select date'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="igl-date-picker-actions">
+                  <button 
+                    className="igl-date-picker-clear"
+                    onClick={handleClearFilters}
+                  >
+                    Clear
+                  </button>
+                  <button 
+                    className="igl-date-picker-apply"
+                    onClick={handleApplyFilters}
+                  >
+                    Apply Filters
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
           <select
             value={statusFilter}
             onChange={(e) => handleStatusFilterChange(e.target.value)}
@@ -427,10 +745,25 @@ const Customer: React.FC = () => {
       </div>
 
       {/* Active filters indicator */}
-      {(searchTerm || statusFilter !== 'all') && (
+      {isFilterActive() && (
         <div className="igl-active-filters">
           <FaFilter size={12} style={{ color: 'var(--primary-color)' }} />
           <span style={{ color: 'var(--text-primary)' }}>Active filters:</span>
+          {dateFrom && dateTo && (
+            <span style={{ color: 'var(--text-primary)' }}>
+              <strong>From:</strong> {formatDateDisplay(new Date(dateFrom))} <strong>To:</strong> {formatDateDisplay(new Date(dateTo))}
+            </span>
+          )}
+          {dateFrom && !dateTo && (
+            <span style={{ color: 'var(--text-primary)' }}>
+              <strong>From:</strong> {formatDateDisplay(new Date(dateFrom))}
+            </span>
+          )}
+          {!dateFrom && dateTo && (
+            <span style={{ color: 'var(--text-primary)' }}>
+              <strong>To:</strong> {formatDateDisplay(new Date(dateTo))}
+            </span>
+          )}
           {searchTerm && (
             <span style={{ color: 'var(--text-primary)' }}>
               <strong>Search:</strong> "{searchTerm}"
@@ -442,7 +775,7 @@ const Customer: React.FC = () => {
             </span>
           )}
           <button
-            onClick={clearFilters}
+            onClick={clearAllFilters}
             className="igl-clear-filters"
           >
             <FaTimes size={10} /> Clear All
@@ -483,8 +816,8 @@ const Customer: React.FC = () => {
                   <th className="igl-th">Mobile</th>
                   <th className="igl-th">Status</th>
                   <th className="igl-th igl-th-meta">
-                    <span className="igl-count-label">{/*displayTotal} total</span>*/}
-                    {totalItems> 0
+                    <span className="igl-count-label">
+                      {totalItems > 0
                         ? `${getStartIndex()}–${getEndIndex()}`
                         : '0'} of {totalItems}
                     </span>

@@ -1,4 +1,4 @@
-// Workstation.tsx - Fixed with Proper Server-Side Pagination
+// Workstation.tsx - Fixed with Client-Side Pagination Fallback
 
 import { useState, useEffect, useRef } from "react";
 import {
@@ -68,8 +68,9 @@ export default function WorkstationList() {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedWorkstation, setSelectedWorkstation] = useState<Workstation | null>(null);
   const [editData, setEditData] = useState<Workstation | null>(null);
+  const [isViewMode, setIsViewMode] = useState(false);
   
-  const [workstations, setWorkstations] = useState<Workstation[]>([]);
+  const [allWorkstations, setAllWorkstations] = useState<Workstation[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -200,21 +201,15 @@ export default function WorkstationList() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showDatePicker]);
 
-  // ─── Fetch workstations with SERVER-SIDE PAGINATION ─────────────────────
-
+  // ─── Fetch ALL workstations (without pagination) and handle pagination client-side ─────
   const fetchWorkstations = async () => {
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams();
       
-      // ✅ SERVER-SIDE PAGINATION PARAMS
-      params.append('page', String(currentPage));
-      params.append('limit', String(itemsPerPage));
-      params.append('sort_order', 'asc');
-      params.append('sort_by', 'id');
-      
-      // Add search parameter if searchTerm exists
+      // ✅ Don't send page and limit - fetch ALL records
+      // Only send search and filter parameters
       if (searchTerm.trim()) {
         params.append('search', searchTerm.trim());
       }
@@ -228,93 +223,81 @@ export default function WorkstationList() {
       }
 
       const url = `/workstation?${params.toString()}`;
-      console.log('API URL:', url);
+      console.log('API URL (fetching all):', url);
 
       const response = await api.get<ApiResponse>(url);
       
       if (response.data.success === 1) {
         const data = response.data.data;
         
-        let records: Workstation[] = [];
-        let total = 0;
+        // ✅ Get all records
+        let allRecords: Workstation[] = [];
         
         if (Array.isArray(data)) {
-          records = data;
-          total = data.length;
-        } else if (data && 'records' in data) {
-          records = data.records || [];
-          // ✅ Use the total from API response
-          total = data.total || records.length;
-        } else {
-          records = data.records || [];
-          total = records.length;
+          allRecords = data;
+        } else if (data && typeof data === 'object') {
+          allRecords = (data as any).records || [];
+          // If the API returns paginated data, we need to fetch all pages
+          // For now, we'll use what's returned
         }
         
-        // ✅ Filter out deleted records if statusFilter is 'all' - use the actual data length
-        // The API should handle filtering, but we also filter client-side for safety
-        let filteredRecords = records;
-        if (statusFilter === 'all') {
-          // When 'all' is selected, show all records (both active and disabled)
-          filteredRecords = records;
-          // Use the total from API response
-          setTotalItems(total);
-        } else if (statusFilter === 'active') {
-          filteredRecords = records.filter(ws => ws.is_deleted === 0);
-          setTotalItems(filteredRecords.length);
+        // Filter by status if needed
+        let filteredRecords = allRecords;
+        if (statusFilter === 'active') {
+          filteredRecords = allRecords.filter(ws => ws.is_deleted === 0);
         } else if (statusFilter === 'disabled') {
-          filteredRecords = records.filter(ws => ws.is_deleted === 1);
-          setTotalItems(filteredRecords.length);
+          filteredRecords = allRecords.filter(ws => ws.is_deleted === 1);
         }
         
+        // Sort by ID
         filteredRecords.sort((a, b) => a.id - b.id);
         
-        setWorkstations(filteredRecords);
+        // ✅ Store ALL filtered records
+        setAllWorkstations(filteredRecords);
+        setTotalItems(filteredRecords.length);
         
-        // ✅ If statusFilter is 'all', use API total, otherwise use filtered count
-        if (statusFilter === 'all') {
-          setTotalItems(total);
-        }
-        
-        console.log(`Total records: ${total}, Filtered: ${filteredRecords.length}, Current page: ${currentPage}, Limit: ${itemsPerPage}`);
+        console.log(`Total records fetched: ${filteredRecords.length}`);
       } else {
         setError('Failed to fetch workstations');
-        setWorkstations([]);
+        setAllWorkstations([]);
         setTotalItems(0);
       }
     } catch (err) {
       console.error('Error fetching workstations:', err);
       setError('An error occurred while fetching workstations');
-      setWorkstations([]);
+      setAllWorkstations([]);
       setTotalItems(0);
     } finally {
       setLoading(false);
     }
   };
 
-  // ✅ Fetch when dependencies change (including pagination)
+  // ✅ Fetch when dependencies change (excluding pagination)
   useEffect(() => {
     fetchWorkstations();
-  }, [currentPage, itemsPerPage, dateFrom, dateTo, searchTerm, statusFilter]);
+  }, [searchTerm, statusFilter, dateFrom, dateTo]);
 
   // ✅ Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, statusFilter, dateFrom, dateTo]);
 
-  // ─── Filter data (client-side for any remaining filters) ─────────────────
-  // Since we're now using server-side filtering, we only need to filter what's already fetched
-  const filteredData = workstations;
-
-  const totalFilteredItems = filteredData.length;
+  // ─── Calculate pagination values (CLIENT-SIDE) ────────────────────────
+  
+  // Get the current page data from all records
+  const totalFilteredItems = totalItems;
   const totalPages = Math.ceil(totalFilteredItems / itemsPerPage) || 1;
   const validCurrentPage = Math.min(currentPage, totalPages);
   
+  // If current page is invalid, update it
   if (validCurrentPage !== currentPage && currentPage > 1) {
     setCurrentPage(validCurrentPage);
   }
   
-  // Use the filtered data directly (already paginated from server)
-  const paginatedData = filteredData;
+  // ✅ Client-side pagination - slice the data
+  const startIndex = (validCurrentPage - 1) * itemsPerPage;
+  const endIndex = Math.min(startIndex + itemsPerPage, totalFilteredItems);
+  const paginatedData = allWorkstations.slice(startIndex, endIndex);
 
   // ─── Pagination ───────────────────────────────────────────────────────────
 
@@ -344,12 +327,12 @@ export default function WorkstationList() {
     return pages;
   };
 
-  const getStartIndex = () => {
+  const getStartIndexDisplay = () => {
     if (totalFilteredItems === 0) return 0;
     return (validCurrentPage - 1) * itemsPerPage + 1;
   };
   
-  const getEndIndex = () => {
+  const getEndIndexDisplay = () => {
     if (totalFilteredItems === 0) return 0;
     return Math.min(validCurrentPage * itemsPerPage, totalFilteredItems);
   };
@@ -358,11 +341,15 @@ export default function WorkstationList() {
 
   const handleView = (ws: Workstation) => {
     setSelectedWorkstation(ws);
-    setShowDetailModal(true);
+    setIsViewMode(true);
+    setEditData(ws);
+    setShowNewWorkstation(true);
+    setShowDetailModal(false);
   };
 
   const handleEdit = (ws: Workstation) => {
     setEditData(ws);
+    setIsViewMode(false);
     setShowNewWorkstation(true);
   };
 
@@ -421,6 +408,7 @@ export default function WorkstationList() {
           onBack={() => {
             setShowNewWorkstation(false);
             setEditData(null);
+            setIsViewMode(false);
             fetchWorkstations();
           }}
           editData={editData ? {
@@ -429,6 +417,7 @@ export default function WorkstationList() {
             _assign: editData._assign ?? '',
             _liked_by: editData._liked_by ?? '',
           } : null}
+          isViewMode={isViewMode}
         />
       )}
 
@@ -698,6 +687,7 @@ export default function WorkstationList() {
                 className="wo-btn-primary" 
                 onClick={() => {
                   setEditData(null);
+                  setIsViewMode(false);
                   setShowNewWorkstation(true);
                 }}
               >
@@ -855,7 +845,7 @@ export default function WorkstationList() {
                     </select>
                     <span className="wo-pagination-info">
                       {totalFilteredItems > 0 ? (
-                        `Showing ${getStartIndex()} to ${getEndIndex()} of ${totalFilteredItems} entries`
+                        `Showing ${getStartIndexDisplay()} to ${getEndIndexDisplay()} of ${totalFilteredItems} entries`
                       ) : (
                         'No entries to show'
                       )}

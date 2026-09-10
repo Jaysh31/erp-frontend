@@ -5,7 +5,6 @@ import {
   FaBoxes, FaTags, FaBuilding, FaWarehouse,
   FaPlus,
   FaRuler, FaIndustry,
-  
   FaDownload, FaSpinner, FaExclamationTriangle
 } from "react-icons/fa";
 import { BsTools } from "react-icons/bs";
@@ -43,6 +42,11 @@ interface ApiItemsResponse {
   data: ApiItem[];
 }
 
+interface ApiItemGroupResponse {
+  success: number;
+  data: ApiItemGroup[];
+}
+
 interface ApiWarehouseResponse {
   success: number;
   data: {
@@ -73,6 +77,16 @@ interface ApiOperationResponse {
   data: ApiOperation[];
 }
 
+interface ApiQualityInspectionResponse {
+  success: number;
+  data: {
+    records: ApiQualityInspection[];
+    total: number;
+    page: number;
+    limit: number;
+  };
+}
+
 interface ApiItem {
   id: number;
   item_code: string;
@@ -85,6 +99,13 @@ interface ApiItem {
   disabled: number;
   creation: string;
   valuation_rate: number;
+}
+
+interface ApiItemGroup {
+  id: number;
+  group_name: string;
+  parent_group: string | null;
+  disabled?: number;
 }
 
 interface ApiWarehouse {
@@ -125,9 +146,20 @@ interface ApiUOM {
   category: string;
 }
 
+interface ApiQualityInspection {
+  id: number;
+  name: string;
+  status: string;
+  type: string;
+}
+
 // ─── Helper functions ──────────────────────────────────────────────────
 
 function getItemsData(response: ApiItemsResponse): ApiItem[] {
+  return response.data || [];
+}
+
+function getItemGroupsData(response: ApiItemGroupResponse): ApiItemGroup[] {
   return response.data || [];
 }
 
@@ -144,6 +176,10 @@ function getOperationsData(response: ApiOperationResponse): ApiOperation[] {
 }
 
 function getUOMsData(response: ApiUOMResponse): ApiUOM[] {
+  return response.data?.records || [];
+}
+
+function getQualityInspectionsData(response: ApiQualityInspectionResponse): ApiQualityInspection[] {
   return response.data?.records || [];
 }
 
@@ -177,33 +213,44 @@ export default function SetupDashboard() {
     setLoading(true);
     setError(null);
     try {
+      // Fetch all data in parallel
       const [
         itemsRes,
+        itemGroupsRes,
         warehousesRes,
         workstationsRes,
         operationsRes,
-        uomsRes
+        uomsRes,
+        qualityInspectionsRes
       ] = await Promise.all([
         api.get<ApiItemsResponse>('/item?page=1&limit=100000'),
-        api.get<ApiWarehouseResponse>('/warehouse?page=1&limit=10'),
-        api.get<ApiWorkstationResponse>('/workstation?page=1&limit=10&sort_order=asc&sort_by=id'),
+        api.get<ApiItemGroupResponse>('/item-group?page=1&limit=100000'),
+        api.get<ApiWarehouseResponse>('/warehouse?page=1&limit=100000'),
+        api.get<ApiWorkstationResponse>('/workstation?page=1&limit=100000&sort_order=asc&sort_by=id'),
         api.get<ApiOperationResponse>('/operation'),
-        api.get<ApiUOMResponse>('/uom?page=1&limit=10')
+        api.get<ApiUOMResponse>('/uom?page=1&limit=100000'),
+        api.get<ApiQualityInspectionResponse>('/quality-inspection?page=1&limit=100000')
       ]);
 
       const itemsData = getItemsData(itemsRes.data);
       setItems(itemsData);
       
+      const itemGroups = getItemGroupsData(itemGroupsRes.data);
       const warehouses = getWarehousesData(warehousesRes.data);
       const workstations = getWorkstationsData(workstationsRes.data);
       const operations = getOperationsData(operationsRes.data);
       const uoms = getUOMsData(uomsRes.data);
+      const qualityInspections = getQualityInspectionsData(qualityInspectionsRes.data);
 
       // ─── Process Items ──────────────────────────────────────
       const activeItems = itemsData.filter(item => item.disabled === 0);
       const inactiveItems = itemsData.filter(item => item.disabled === 1);
-      const groups = [...new Set(itemsData.map(item => item.item_group).filter(Boolean))];
+      
+      // Count unique brands from items
       const brandList = [...new Set(itemsData.map(item => item.brand).filter(Boolean))];
+      
+      // Count active item groups (disabled !== 1)
+      const activeItemGroups = itemGroups.filter(group => group.disabled !== 1);
 
       // ─── Process Warehouses ──────────────────────────────────
       const activeWarehouses = warehouses.filter(w => w.disabled === 0);
@@ -216,13 +263,16 @@ export default function SetupDashboard() {
       // ─── Process Operations ──────────────────────────────────
       const activeOperations = operations.filter(op => op.is_deleted !== 1);
 
+      // ─── Process UOMs ────────────────────────────────────────
+      const activeUOMs = uoms.filter(uom => uom.category && uom.category !== 'inactive');
+
       // ─── Set Stats ────────────────────────────────────────────
       setStats({
         totalItems: itemsData.length,
-        totalItemGroups: groups.length,
+        totalItemGroups: activeItemGroups.length,
         totalBrands: brandList.length,
         totalWarehouses: activeWarehouses.length,
-        totalUOMs: uoms.length,
+        totalUOMs: activeUOMs.length || uoms.length,
         totalWorkstations: activeWorkstations.length,
         totalOperations: activeOperations.length,
         totalActiveItems: activeItems.length,
@@ -245,6 +295,36 @@ export default function SetupDashboard() {
           timestamp: item.creation,
           status: item.disabled === 0 ? "Active" : "Inactive"
         });
+      });
+
+      // Add recent item groups
+      const sortedGroups = [...itemGroups].sort((a, b) => (b.id || 0) - (a.id || 0));
+      sortedGroups.slice(0, 2).forEach(group => {
+        if (group.group_name) {
+          recent.push({
+            id: group.id,
+            type: "Item Group",
+            name: group.group_name,
+            action: "Created",
+            timestamp: new Date().toISOString(),
+            status: group.disabled !== 1 ? "Active" : "Inactive"
+          });
+        }
+      });
+
+      // Add recent warehouses
+      const sortedWarehouses = [...warehouses].sort((a, b) => (b.id || 0) - (a.id || 0));
+      sortedWarehouses.slice(0, 2).forEach(warehouse => {
+        if (warehouse.warehouse_name) {
+          recent.push({
+            id: warehouse.id,
+            type: "Warehouse",
+            name: warehouse.warehouse_name,
+            action: "Created",
+            timestamp: new Date().toISOString(),
+            status: warehouse.disabled === 0 ? "Active" : "Inactive"
+          });
+        }
       });
 
       setRecentActivities(recent.slice(0, 5));
@@ -272,7 +352,7 @@ export default function SetupDashboard() {
     }
   };
 
-  // ─── Stat Cards - Only working routes ──────────────────────────────
+  // ─── Stat Cards - All working routes ──────────────────────────────
   const statCards = [
     {
       id: "items",
@@ -502,10 +582,12 @@ export default function SetupDashboard() {
                       key={idx} 
                       className="category-item"
                       onClick={() => handleNavigate(item.path)}
-                      style={{ cursor: 'pointer' }}
+                      style={{ cursor: item.path ? 'pointer' : 'default' }}
                     >
                       <span className="item-dot"></span>
-                      <span className="item-name">{item.name}</span>
+                      <span className="item-name" style={{ opacity: item.path ? 1 : 0.5 }}>
+                        {item.name}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -551,39 +633,6 @@ export default function SetupDashboard() {
             )}
           </div>
         </div>
-
-        {/* Quick Access
-        <div className="card quick-access">
-          <div className="card-header">
-            <h3>Quick Access</h3>
-            <span className="badge">Recently Used</span>
-          </div>
-          <div className="access-list">
-            {quickAccessItems.length === 0 ? (
-              <div className="access-item">No items available</div>
-            ) : (
-              quickAccessItems.map((item) => (
-                <div 
-                  key={item.id} 
-                  className="access-item" 
-                  onClick={() => handleNavigate(`/inventory/detail/${item.id}`)}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <div className="access-icon">
-                    <FaBoxes />
-                  </div>
-                  <div className="access-info">
-                    <div className="access-name">{item.name}</div>
-                    <div className="access-type">{item.type}</div>
-                  </div>
-                  <div className="access-status">
-                    <span className="status-dot" style={{ backgroundColor: getStatusColor(item.status) }}></span>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div> */}
       </div>
 
       <style>{`

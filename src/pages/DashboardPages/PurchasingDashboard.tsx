@@ -176,7 +176,9 @@ export default function PurchasingDashboard() {
   };
 
   const handleNavigate = (path: string) => {
-    navigate(path);
+    if (path) {
+      navigate(path);
+    }
   };
 
   // Status color mapping
@@ -189,7 +191,7 @@ export default function PurchasingDashboard() {
     'Cancelled': '#ef4444'
   };
 
-  // Stat cards configuration with real data
+  // Stat cards configuration with navigation paths
   const statCards = [
     {
       id: "total-invoices",
@@ -197,7 +199,8 @@ export default function PurchasingDashboard() {
       value: stats.totalInvoices,
       icon: <FaFileInvoice />,
       color: "primary",
-      trend: "all invoices"
+      trend: "all invoices",
+      path: "/purchase-invoice"
     },
     {
       id: "total-spend",
@@ -205,7 +208,8 @@ export default function PurchasingDashboard() {
       value: `₹${stats.totalSpend.toLocaleString()}`,
       icon: <FaMoneyBillWave />,
       color: "success",
-      trend: "total value"
+      trend: "total value",
+      path: ""
     },
     {
       id: "open-invoices",
@@ -213,7 +217,8 @@ export default function PurchasingDashboard() {
       value: stats.openInvoices,
       icon: <FaClock />,
       color: "warning",
-      trend: `(${stats.draftInvoices} Draft, ${stats.submittedInvoices} Submitted)`
+      trend: `(${stats.draftInvoices} Draft, ${stats.submittedInvoices} Submitted)`,
+      path: ""
     },
     {
       id: "completed",
@@ -221,7 +226,8 @@ export default function PurchasingDashboard() {
       value: stats.completedInvoices,
       icon: <FaCheckCircle />,
       color: "info",
-      trend: "paid & completed"
+      trend: "paid & completed",
+      path: ""
     },
     {
       id: "avg-order",
@@ -229,7 +235,8 @@ export default function PurchasingDashboard() {
       value: `₹${Math.round(stats.averageOrderValue).toLocaleString()}`,
       icon: <FaDollarSign />,
       color: "primary",
-      trend: "per invoice"
+      trend: "per invoice",
+      path: ""
     },
     {
       id: "suppliers",
@@ -237,7 +244,8 @@ export default function PurchasingDashboard() {
       value: stats.supplierCount,
       icon: <FaUsers />,
       color: "info",
-      trend: "active suppliers"
+      trend: "active suppliers",
+      path: "/supplier"
     },
     {
       id: "grn-total",
@@ -245,7 +253,8 @@ export default function PurchasingDashboard() {
       value: stats.totalGRNs,
       icon: <FaBoxes />,
       color: "primary",
-      trend: `Received: ${stats.totalReceivedQty} units`
+      trend: `Received: ${stats.totalReceivedQty} units`,
+      path: "/grn"
     },
     {
       id: "po-total",
@@ -253,7 +262,8 @@ export default function PurchasingDashboard() {
       value: stats.totalPOs,
       icon: <FaShoppingCart />,
       color: "success",
-      trend: "active POs"
+      trend: "active POs",
+      path: "/purchase-order"
     }
   ];
 
@@ -284,7 +294,12 @@ export default function PurchasingDashboard() {
       {/* Stats Grid */}
       <div className="stats-grid">
         {statCards.map((stat) => (
-          <div key={stat.id} className={`stat-card stat-${stat.color}`}>
+          <div 
+            key={stat.id} 
+            className={`stat-card stat-${stat.color} ${!stat.path ? 'stat-disabled' : ''}`}
+            onClick={() => stat.path && handleNavigate(stat.path)}
+            style={{ cursor: stat.path ? 'pointer' : 'default' }}
+          >
             <div className="stat-icon">{stat.icon}</div>
             <div className="stat-content">
               <div className="stat-title">{stat.title}</div>
@@ -391,6 +406,17 @@ export default function PurchasingDashboard() {
           </div>
         </div>
       </div>
+
+      <style>{`
+        .stat-disabled {
+          opacity: 0.6;
+          cursor: default !important;
+        }
+        .stat-disabled:hover {
+          transform: none !important;
+          box-shadow: none !important;
+        }
+      `}</style>
     </div>
   );
 }
