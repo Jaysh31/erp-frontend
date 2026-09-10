@@ -10,7 +10,10 @@ import {
   FaAngleDoubleRight,
   FaChevronLeft,
   FaChevronRight,
-  FaChevronDown
+  FaHome,
+  FaChevronDown,
+  FaChevronUp,
+  FaEllipsisV
 
 } from 'react-icons/fa';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
@@ -300,6 +303,45 @@ function buildCalendarGrid(year: number, month: number): (Date | null)[] {
   return cells;
 }
 
+/* ─────────────────────── Logged-in user helper ───────────────────────
+   This component doesn't receive an auth/user context today, so this
+   reads a handful of common localStorage keys your login flow might
+   already be writing to, and falls back to a generic placeholder if
+   none are found. If your app has a real AuthContext/useAuth() hook,
+   swap this out for that and delete this helper — the topbar UI below
+   will keep working unchanged, it just needs { name, role }.
+------------------------------------------------------------------------ */
+interface CurrentUser {
+  name: string;
+  role: string;
+}
+
+const getCurrentUser = (): CurrentUser => {
+  const candidateKeys = ['user', 'currentUser', 'authUser', 'admin_user', 'loggedInUser'];
+  try {
+    for (const key of candidateKeys) {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw);
+      const name = parsed?.name || parsed?.full_name || parsed?.fullName || parsed?.username || parsed?.email;
+      if (name) {
+        const role = parsed?.role || parsed?.designation || parsed?.user_role || 'Admin';
+        return { name: String(name), role: String(role) };
+      }
+    }
+  } catch {
+    // ignore malformed localStorage data and fall through to default
+  }
+  return { name: 'Admin User', role: 'Admin' };
+};
+
+const getInitials = (name: string): string => {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+};
+
 export default function QuotationPage() {
   const navigate = useNavigate();
 
@@ -312,6 +354,7 @@ export default function QuotationPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [printLoadingId, setPrintLoadingId] = useState<string | null>(null);
+  const [expandedMobileCard, setExpandedMobileCard] = useState<string | null>(null);
 
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   
@@ -368,6 +411,10 @@ export default function QuotationPage() {
   };
 
   const debouncedFilterText = useDebounce(filterText, 500);
+
+  // Logged-in user shown in the top bar (see getCurrentUser() above)
+  const currentUser = getCurrentUser();
+  const userInitials = getInitials(currentUser.name);
 
   const formatDisplayDateWithContext = (dateString: string) => {
     if (!dateString) return '';
@@ -828,6 +875,10 @@ export default function QuotationPage() {
     setCurrentPage(1);
   };
 
+  const toggleMobileCard = (id: string) => {
+    setExpandedMobileCard(expandedMobileCard === id ? null : id);
+  };
+
   /* ─────────────────────── Print (Tax-Invoice format) ─────────────────────── */
 
   const buildQuotationPrintHtml = (quote: Quotation): string => {
@@ -1221,6 +1272,143 @@ export default function QuotationPage() {
 
   return (
     <div className={`quotation-page ${theme}`}>
+      <style>{`
+        /* ============================================================
+           MOBILE ACCORDION CARD LIST (renders only below 768px)
+           Desktop table logic/markup is untouched — this is an
+           additional, separate render path shown only on mobile.
+        ============================================================ */
+        .qt-mobile-cards-wrap {
+          display: none;
+        }
+
+        @media (max-width: 768px) {
+          .qt-table-wrap {
+            display: none;
+          }
+          .qt-mobile-cards-wrap {
+            display: block;
+            padding: 12px;
+          }
+        }
+
+        .qt-mobile-card {
+          background: var(--card-bg, #fff);
+          border: 1px solid var(--border-color, #e5e7eb);
+          border-radius: 14px;
+          margin-bottom: 10px;
+          overflow: visible;
+          transition: box-shadow 0.2s, border-color 0.2s;
+        }
+
+        .qt-mobile-card.expanded {
+          border-color: var(--primary-color, #2563eb);
+          box-shadow: 0 4px 16px var(--shadow-color, rgba(37, 99, 235, 0.12));
+        }
+
+        .qt-mobile-card-header {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 14px 14px;
+          cursor: pointer;
+        }
+
+        .qt-mobile-card-number {
+          font-size: 14px;
+          font-weight: 600;
+          color: var(--text-primary, #1e293b);
+          min-width: 34px;
+        }
+
+        .qt-mobile-card-badge-wrap {
+          flex: 1;
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+        }
+
+        .qt-mobile-card-customer {
+          font-size: 12px;
+          color: var(--text-secondary, #6b7280);
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .qt-mobile-badge {
+          align-self: flex-start;
+        }
+
+        .qt-mobile-chevron-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 34px;
+          height: 34px;
+          border: none;
+          border-radius: 10px;
+          background: var(--hover-bg, #f3f4f6);
+          color: var(--text-secondary, #6b7280);
+          cursor: pointer;
+          flex-shrink: 0;
+          transition: all 0.2s;
+        }
+
+        .qt-mobile-card.expanded .qt-mobile-chevron-btn {
+          background: rgba(37, 99, 235, 0.12);
+          color: var(--primary-color, #2563eb);
+        }
+
+        .qt-mobile-card-body {
+          padding: 0 14px 14px 14px;
+          border-top: 1px solid var(--border-color, #e5e7eb);
+        }
+
+        .qt-mobile-detail-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 10px 0;
+          border-bottom: 1px solid var(--border-color, #f3f4f6);
+          font-size: 13px;
+        }
+
+        .qt-mobile-detail-row:last-of-type {
+          border-bottom: none;
+        }
+
+        .qt-mobile-detail-label {
+          color: var(--text-secondary, #6b7280);
+        }
+
+        .qt-mobile-detail-value {
+          color: var(--text-primary, #1e293b);
+          font-weight: 500;
+          text-align: right;
+        }
+
+        .qt-mobile-card-footer {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding-top: 10px;
+          margin-top: 4px;
+        }
+
+        .qt-mobile-items-count {
+          font-size: 12px;
+          color: var(--text-secondary, #6b7280);
+        }
+
+        .qt-mobile-actions {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+      `}</style>
+
       {/* Search and Filter Bar */}
       <div className="qt-filter-bar">
         <div className="qt-filter-left">
@@ -1531,7 +1719,7 @@ export default function QuotationPage() {
         </div>
       )}
 
-      {/* Table */}
+      {/* Table (desktop) + Mobile accordion cards — same data, same handlers */}
       {!loading && !error && (
         <>
           <div className="qt-table-wrap sales-desktop-table-wrap">
@@ -1766,43 +1954,46 @@ export default function QuotationPage() {
 
       {/* ─── Pagination Section (Separate from table) ────────────────────────────── */}
       {!loading && !error && totalRecords > 0 && (
-        <div className="qt-pagination-section">
-          {/* Show entries dropdown - Left side */}
+        <div className="qt-pagination">
+          {/* Left: Show entries + entries info */}
           <div className="qt-pagination-left">
-            <div className="qt-pagination-show-wrapper">
-              <span className="qt-pagination-label">Show:</span>
-              <select
-                value={itemsPerPage}
-                onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-                className="qt-page-size-select"
-              >
-                <option value={10}>10</option>
-                <option value={25}>25</option>
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-              </select>
-              <span className="qt-pagination-label">entries</span>
-            </div>
+            <span className="qt-pagination-label">Show:</span>
+            <select
+              value={itemsPerPage}
+              onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+              className="qt-page-size-select"
+            >
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+            <span className="qt-pagination-info">
+              {totalRecords > 0 ? (
+                `Showing ${getStartIndexDisplay()} to ${getEndIndexDisplay()} of ${totalRecords} entries`
+              ) : (
+                'No entries to show'
+              )}
+            </span>
           </div>
 
-          {/* Page navigation - Center */}
+          {/* Center: Page navigation buttons */}
           <div className="qt-pagination-center">
-            <button 
-              onClick={goToFirstPage} 
-              className="qt-page-btn" 
-              disabled={currentPage === 1 || totalPages === 0}
+            <button
+              onClick={goToFirstPage}
+              disabled={currentPage === 1 || totalRecords === 0}
+              className="qt-page-btn"
             >
               <FaAngleDoubleLeft size={12} />
             </button>
-            <button 
-              onClick={goToPrevPage} 
-              className="qt-page-btn" 
-              disabled={currentPage === 1 || totalPages === 0}
+            <button
+              onClick={goToPrevPage}
+              disabled={currentPage === 1 || totalRecords === 0}
+              className="qt-page-btn"
             >
               <FaChevronLeft size={12} />
             </button>
-            
-            {totalPages > 0 && getPageNumbers().map((page) => (
+            {totalRecords > 0 && getPageNumbers().map(page => (
               <button
                 key={page}
                 onClick={() => goToPage(page)}
@@ -1811,27 +2002,26 @@ export default function QuotationPage() {
                 {page}
               </button>
             ))}
-            
-            <button 
-              onClick={goToNextPage} 
-              className="qt-page-btn" 
-              disabled={currentPage === totalPages || totalPages === 0}
+            <button
+              onClick={goToNextPage}
+              disabled={currentPage === totalPages || totalRecords === 0}
+              className="qt-page-btn"
             >
               <FaChevronRight size={12} />
             </button>
-            <button 
-              onClick={goToLastPage} 
-              className="qt-page-btn" 
-              disabled={currentPage === totalPages || totalPages === 0}
+            <button
+              onClick={goToLastPage}
+              disabled={currentPage === totalPages || totalRecords === 0}
+              className="qt-page-btn"
             >
               <FaAngleDoubleRight size={12} />
             </button>
           </div>
 
-          {/* Entries info - Right side */}
+          {/* Right: Page info */}
           <div className="qt-pagination-right">
             <span className="qt-pagination-info">
-              Showing {getStartIndexDisplay()} to {getEndIndexDisplay()} of {totalRecords} entries
+              Page {currentPage} of {totalPages}
             </span>
           </div>
         </div>
@@ -1846,15 +2036,10 @@ export default function QuotationPage() {
         marginTop: '4px'
       }}>
         <div className="qt-pagination-left">
-          <span className="qt-pagination-info" style={{ color: 'var(--text-secondary, #6b7280)', fontSize: '13px' }}>
-            {totalRecords} total quotes
-          </span>
+         
         </div>
         <div className="qt-pagination-right">
-          <span className="qt-pagination-info" style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary, #6b7280)', fontSize: '13px' }}>
-            <FaChartLine size={14} style={{ color: 'var(--primary-color)' }} />
-            {conversionRate}% conversion rate
-          </span>
+          
         </div>
       </div>
 

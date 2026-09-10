@@ -795,11 +795,653 @@ export default function ItemList() {
           color: var(--text-secondary, #94a3b8);
         }
 
+        /* ── Active Filters ── */
+        .itl-active-filters {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 8px 16px;
+          background: color-mix(in srgb, var(--primary-color) 8%, transparent);
+          border-radius: 8px;
+          font-size: 12px;
+          flex-wrap: wrap;
+          border: 1px solid var(--border-color, #e5e7eb);
+          flex-shrink: 0;
+        }
+
+        .itl-active-filters span {
+          color: var(--text-primary, #111827);
+        }
+
+        .itl-clear-filters {
+          margin-left: auto;
+          padding: 4px 12px;
+          background: var(--card-bg, white);
+          border: 1px solid var(--border-color, #e5e7eb);
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 11px;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          color: var(--text-secondary, #6b7280);
+          transition: all 0.15s;
+        }
+
+        .itl-clear-filters:hover {
+          background: var(--nav-hover, #f3f4f6);
+        }
+
+        /* ── Filter Bar ── */
+        .itl-filter-bar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          flex-wrap: wrap;
+          flex-shrink: 0;
+          padding: 12px 0;
+        }
+
+        .itl-filter-left {
+          display: flex;
+          align-items: center;
+          flex: 1;
+          min-width: 200px;
+        }
+
+        .itl-search-wrapper {
+          position: relative;
+          flex: 1;
+          max-width: 400px;
+        }
+
+        .itl-search-icon {
+          position: absolute;
+          left: 12px;
+          top: 50%;
+          transform: translateY(-50%);
+          color: var(--text-secondary, #9ca3af);
+          font-size: 14px;
+        }
+
+        .itl-search-input {
+          width: 100%;
+          padding: 8px 36px 8px 36px;
+          border: 1px solid var(--border-color, #e5e7eb);
+          border-radius: 8px;
+          font-size: 13px;
+          background: var(--input-bg, white);
+          color: var(--text-primary, #374151);
+          outline: none;
+          transition: border-color 0.2s;
+          height: 38px;
+        }
+
+        .itl-search-input:focus {
+          border-color: var(--primary-color, #2563eb);
+          box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .itl-search-input::placeholder {
+          color: var(--text-secondary, #9ca3af);
+        }
+
+        .itl-search-clear {
+          position: absolute;
+          right: 10px;
+          top: 50%;
+          transform: translateY(-50%);
+          background: none;
+          border: none;
+          cursor: pointer;
+          color: var(--text-secondary, #9ca3af);
+          padding: 4px;
+          display: flex;
+          align-items: center;
+        }
+
+        .itl-filter-select {
+          padding: 7px 12px;
+          border: 1px solid var(--border-color, #e5e7eb);
+          border-radius: 8px;
+          font-size: 13px;
+          background: var(--card-bg, white);
+          color: var(--text-primary, #374151);
+          cursor: pointer;
+          outline: none;
+          height: 38px;
+        }
+
+        .itl-filter-select:focus {
+          border-color: var(--primary-color, #2563eb);
+          box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .itl-btn-secondary {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          height: 38px;
+          padding: 0 14px;
+          border: 1px solid var(--border-color, #e5e7eb);
+          border-radius: 8px;
+          background: var(--card-bg, white);
+          font-size: 13px;
+          color: var(--text-primary, #374151);
+          cursor: pointer;
+          transition: all 0.15s;
+          white-space: nowrap;
+        }
+
+        .itl-btn-secondary:hover {
+          background: var(--nav-hover, #f9fafb);
+        }
+
+        .itl-btn-primary {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          height: 38px;
+          padding: 0 16px;
+          border: none;
+          border-radius: 8px;
+          background: var(--primary-color, #6366f1);
+          color: white;
+          font-size: 13px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.15s;
+          white-space: nowrap;
+        }
+
+        .itl-btn-primary:hover {
+          background: var(--primary-hover, #4f46e5);
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        }
+
+        /* ── Table ── */
+        .itl-table-wrap {
+          background: var(--card-bg, #fff);
+          border-radius: 12px;
+          box-shadow: 0 1px 3px var(--shadow-color, rgba(0,0,0,0.05));
+          border: 1px solid var(--border-color, #e5e7eb);
+          overflow-x: auto;
+          overflow-y: visible;
+          flex: 0 0 auto;
+        }
+
+        .itl-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 13px;
+          min-width: 700px;
+        }
+
+        .itl-th {
+          padding: 12px 16px;
+          text-align: left;
+          font-size: 12px;
+          font-weight: 600;
+          color: var(--text-secondary, #6b7280);
+          background: var(--layout-bg, #f9fafb);
+          border-bottom: 1px solid var(--border-color, #e5e7eb);
+          white-space: nowrap;
+          text-transform: uppercase;
+          letter-spacing: 0.3px;
+        }
+
+        .itl-th-meta {
+          text-align: right;
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          gap: 8px;
+        }
+
+        .itl-count-label {
+          font-size: 11px;
+          font-weight: 400;
+          color: var(--text-secondary, #9ca3af);
+          text-transform: none;
+        }
+
+        .itl-tr {
+          cursor: pointer;
+          transition: background 0.15s;
+        }
+
+        .itl-tr:hover {
+          background: var(--nav-hover, #f9fafb);
+        }
+
+        .itl-td {
+          padding: 12px 16px;
+          color: var(--text-primary, #374151);
+          vertical-align: middle;
+          text-align: left;
+          border-bottom: 1px solid var(--border-color, #f3f4f6);
+        }
+
+        .itl-td-code {
+          font-weight: 500;
+          font-family: monospace;
+          color: var(--primary-color, #6366f1);
+        }
+
+        .itl-td-name {
+          font-weight: 500;
+        }
+
+        .itl-td-meta {
+          text-align: right;
+        }
+
+        /* ── Status Badge ── */
+        .itl-status-badge {
+          display: inline-flex;
+          align-items: center;
+          height: 24px;
+          padding: 0 12px;
+          border-radius: 99px;
+          font-size: 12px;
+          font-weight: 600;
+          gap: 4px;
+        }
+
+        .itl-status-enabled {
+          background: #d1fae5;
+          color: #059669;
+        }
+
+        .itl-status-disabled {
+          background: #fee2e2;
+          color: #dc2626;
+        }
+
+        /* ── Action Buttons ── */
+        .itl-action-buttons {
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          gap: 4px;
+        }
+
+        .itl-action-btn {
+          width: 32px;
+          height: 32px;
+          border: none;
+          border-radius: 6px;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.2s;
+          background: transparent;
+          color: var(--text-secondary, #6b7280);
+        }
+
+        .itl-action-btn:hover:not(:disabled) {
+          background: var(--nav-hover, #f3f4f6);
+        }
+
+        .itl-edit-btn:hover:not(:disabled) {
+          color: var(--primary-color, #2563eb);
+        }
+
+        .itl-delete-btn:hover:not(:disabled) {
+          color: var(--danger-color, #ef4444);
+        }
+
+        .itl-action-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        /* ── Loading, Error, Empty ── */
+        .itl-loading, .itl-error, .itl-empty-state {
+          padding: 60px 20px;
+          text-align: center;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          height: 100%;
+        }
+
+        .itl-loading p, .itl-error p, .itl-empty-state p {
+          color: var(--text-secondary, #6b7280);
+          font-size: 14px;
+          margin-top: 12px;
+        }
+
+        .itl-empty-content {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 8px;
+          color: var(--text-secondary, #6b7280);
+        }
+
+        .itl-empty-content p {
+          font-size: 16px;
+          font-weight: 500;
+          color: var(--text-primary, #1e293b);
+          margin: 0;
+        }
+
+        .itl-empty-content span {
+          font-size: 13px;
+          color: var(--text-secondary, #6b7280);
+        }
+
+        .itl-retry-btn {
+          margin-top: 12px;
+          padding: 8px 20px;
+          background: var(--primary-color, #2563eb);
+          color: #fff;
+          border: none;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 13px;
+        }
+
+        .itl-retry-btn:hover {
+          background: var(--primary-hover, #1d4ed8);
+        }
+
+        .spinning {
+          animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+
+        /* ── Pagination Styles - Single line layout ── */
+        .itl-pagination {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 12px 0 8px 0;
+          border-top: 1px solid var(--border-color, #e5e7eb);
+          margin-top: 8px;
+          flex-wrap: wrap;
+          gap: 12px;
+        }
+
+        .itl-pagination-left {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 13px;
+          color: var(--text-secondary, #6b7280);
+        }
+
+        .itl-pagination-left select {
+          padding: 4px 8px;
+          border: 1px solid var(--border-color, #e5e7eb);
+          border-radius: 4px;
+          background: var(--card-bg, #fff);
+          color: var(--text-primary, #1e293b);
+          font-size: 13px;
+          cursor: pointer;
+        }
+
+        .itl-pagination-left select:focus {
+          outline: none;
+          border-color: var(--primary-color, #2563eb);
+        }
+
+        .itl-pagination-center {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+
+        .itl-page-btn {
+          padding: 6px 12px;
+          border: 1px solid var(--border-color, #e5e7eb);
+          border-radius: 4px;
+          background: var(--card-bg, #fff);
+          color: var(--text-primary, #1e293b);
+          font-size: 13px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          min-width: 32px;
+          text-align: center;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .itl-page-btn:hover:not(:disabled):not(.itl-page-btn-active) {
+          background: var(--nav-hover, #f8fafc);
+          border-color: var(--primary-color, #2563eb);
+        }
+
+        .itl-page-btn-active {
+          background: var(--primary-color, #2563eb);
+          border-color: var(--primary-color, #2563eb);
+          color: #fff;
+        }
+
+        .itl-page-btn:disabled {
+          opacity: 0.4;
+          cursor: not-allowed;
+        }
+
+        .itl-pagination-right {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 13px;
+          color: var(--text-secondary, #6b7280);
+        }
+
+        .itl-pagination-label {
+          font-size: 13px;
+          color: var(--text-secondary, #6b7280);
+        }
+
+        .itl-pagination-info {
+          font-size: 13px;
+          color: var(--text-secondary, #6b7280);
+        }
+
+        /* ── Dark Theme ── */
+        .dark-theme .itl-page {
+          background: var(--layout-bg, #0f172a);
+        }
+
+        .dark-theme .itl-search-input {
+          background: var(--input-bg, #1e293b);
+          border-color: var(--border-color, #334155);
+          color: var(--text-primary, #f8fafc);
+        }
+
+        .dark-theme .itl-search-input::placeholder {
+          color: var(--text-secondary, #64748b);
+        }
+
+        .dark-theme .itl-filter-select {
+          background: var(--card-bg, #1e293b);
+          border-color: var(--border-color, #334155);
+          color: var(--text-primary, #f8fafc);
+        }
+
+        .dark-theme .itl-btn-secondary {
+          background: var(--card-bg, #1e293b);
+          border-color: var(--border-color, #334155);
+          color: var(--text-primary, #f8fafc);
+        }
+
+        .dark-theme .itl-btn-secondary:hover {
+          background: var(--nav-hover, rgba(255,255,255,0.05));
+        }
+
+        .dark-theme .itl-btn-primary {
+          background: var(--primary-color, #3b82f6);
+        }
+
+        .dark-theme .itl-btn-primary:hover {
+          background: var(--primary-hover, #2563eb);
+        }
+
+        .dark-theme .itl-table-wrap {
+          background: var(--card-bg, #1e293b);
+          border-color: var(--border-color, #334155);
+        }
+
+        .dark-theme .itl-th {
+          background: var(--layout-bg, #0f172a);
+          color: var(--text-secondary, #94a3b8);
+          border-bottom-color: var(--border-color, #334155);
+        }
+
+        .dark-theme .itl-td {
+          color: var(--text-primary, #f8fafc);
+          border-bottom-color: var(--border-color, #334155);
+        }
+
+        .dark-theme .itl-tr:hover {
+          background: var(--nav-hover, rgba(255,255,255,0.05));
+        }
+
+        .dark-theme .itl-count-label {
+          color: var(--text-secondary, #94a3b8);
+        }
+
+        .dark-theme .itl-active-filters {
+          background: rgba(99, 102, 241, 0.08);
+          border-color: var(--border-color, #334155);
+        }
+
+        .dark-theme .itl-active-filters span {
+          color: var(--text-primary, #f8fafc);
+        }
+
+        .dark-theme .itl-clear-filters {
+          background: var(--card-bg, #1e293b);
+          border-color: var(--border-color, #334155);
+          color: var(--text-secondary, #94a3b8);
+        }
+
+        .dark-theme .itl-page-btn {
+          background: var(--card-bg, #1e293b);
+          border-color: var(--border-color, #334155);
+          color: var(--text-primary, #f8fafc);
+        }
+
+        .dark-theme .itl-page-btn:hover:not(:disabled):not(.itl-page-btn-active) {
+          background: var(--nav-hover, rgba(255,255,255,0.05));
+        }
+
+        .dark-theme .itl-page-size-select {
+          background: var(--card-bg, #1e293b);
+          border-color: var(--border-color, #334155);
+          color: var(--text-primary, #f8fafc);
+        }
+
+        .dark-theme .itl-empty-content p {
+          color: var(--text-primary, #f8fafc);
+        }
+
+        .dark-theme .itl-empty-content span {
+          color: var(--text-secondary, #94a3b8);
+        }
+
+        .dark-theme .itl-status-enabled {
+          background: rgba(16, 185, 129, 0.2);
+          color: #34d399;
+        }
+
+        .dark-theme .itl-status-disabled {
+          background: rgba(239, 68, 68, 0.2);
+          color: #f87171;
+        }
+
+        /* ── Responsive ── */
         @media (max-width: 768px) {
+          .itl-filter-bar {
+            flex-direction: column;
+            align-items: stretch;
+          }
+
+          .itl-filter-left {
+            width: 100%;
+          }
+
+          .itl-search-wrapper {
+            max-width: 100%;
+          }
+
+          .itl-filter-right {
+            justify-content: flex-start;
+            flex-wrap: wrap;
+          }
+
+          .itl-table {
+            min-width: 600px;
+          }
+
+          .itl-pagination {
+            flex-direction: column;
+            align-items: center;
+          }
+
+          .itl-pagination-center {
+            order: 2;
+          }
+
+          .itl-pagination-left,
+          .itl-pagination-right {
+            order: 1;
+          }
+
+          .itl-td {
+            padding: 10px 12px;
+            font-size: 12px;
+          }
+
+          .itl-th {
+            padding: 10px 12px;
+            font-size: 11px;
+          }
+
           .itl-date-picker-popup {
             left: 0;
             min-width: 100%;
             width: 100%;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .itl-filter-right {
+            flex-direction: column;
+            width: 100%;
+          }
+
+          .itl-filter-right > * {
+            width: 100%;
+          }
+
+          .itl-btn-primary {
+            justify-content: center;
+          }
+
+          .itl-btn-secondary {
+            justify-content: center;
+          }
+
+          .itl-pagination {
+            padding: 8px 0 0 0;
+          }
+
+          .itl-pagination-center {
+            flex-wrap: wrap;
+            justify-content: center;
           }
         }
       `}</style>
@@ -1289,6 +1931,7 @@ export default function ItemList() {
           {/* Pagination */}
           {(totalItems > 0 || items.length > 0) && (
             <div className="itl-pagination">
+              {/* Left: Show dropdown + Showing entries info */}
               <div className="itl-pagination-left">
                 <span className="itl-pagination-label">Show:</span>
                 <select
@@ -1301,8 +1944,14 @@ export default function ItemList() {
                   <option value={50}>50</option>
                   <option value={100}>100</option>
                 </select>
-                <span className="itl-pagination-label">entries</span>
+                <span className="itl-pagination-info">
+                  {totalItems > 0
+                    ? `Showing ${getStartIndex()} to ${getEndIndex()} of ${totalItems} entries`
+                    : 'No entries to show'}
+                </span>
               </div>
+
+              {/* Center: Page navigation buttons */}
               <div className="itl-pagination-center">
                 <button
                   onClick={goToFirstPage}
@@ -1342,11 +1991,11 @@ export default function ItemList() {
                   <FaAngleDoubleRight size={12} />
                 </button>
               </div>
+
+              {/* Right: Page info */}
               <div className="itl-pagination-right">
                 <span className="itl-pagination-info">
-                  {totalItems > 0
-                    ? `Showing ${getStartIndex()} to ${getEndIndex()} of ${totalItems} entries`
-                    : 'No entries to show'}
+                  Page {validCurrentPage} of {totalPages}
                 </span>
               </div>
             </div>

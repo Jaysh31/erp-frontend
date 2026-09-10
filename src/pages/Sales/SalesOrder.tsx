@@ -6,8 +6,7 @@ import {
   FaFileAlt, FaExternalLinkAlt,
   FaChartLine, FaTimes, FaSpinner, FaBoxOpen, FaEnvelope, FaEllipsisV,
   FaChevronLeft, FaChevronRight, FaCalendarAlt,
-  FaAngleDoubleLeft, FaAngleDoubleRight,
-  FaChevronDown
+  FaAngleDoubleLeft, FaAngleDoubleRight, FaChevronDown, FaChevronUp
 } from 'react-icons/fa';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
@@ -245,6 +244,7 @@ const useDebounce = (value: string, delay: number) => {
 export default function SalesOrder() {
   const navigate = useNavigate();
   const menuRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
+  const mobileMenuRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
   const { theme, formatDate, } = useAdminTheme();
 
@@ -256,6 +256,8 @@ export default function SalesOrder() {
   const [printLoadingId, setPrintLoadingId] = useState<string | null>(null);
   const [proformaLoadingId, setProformaLoadingId] = useState<string | null>(null);
   const [showMoreMenu, setShowMoreMenu] = useState<string | null>(null);
+  const [showMobileMoreMenu, setShowMobileMoreMenu] = useState<string | null>(null);
+  const [expandedMobileCard, setExpandedMobileCard] = useState<string | null>(null);
 
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
@@ -322,6 +324,24 @@ export default function SalesOrder() {
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      if (showMobileMoreMenu === null) return;
+
+      const target = event.target as Node;
+      const menuContainer = mobileMenuRefs.current[showMobileMoreMenu];
+
+      if (menuContainer && !menuContainer.contains(target)) {
+        setShowMobileMoreMenu(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showMobileMoreMenu]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
       const datePickerContainer = document.querySelector('.qt-date-picker-container');
       if (datePickerContainer && !datePickerContainer.contains(target)) {
@@ -337,6 +357,15 @@ export default function SalesOrder() {
 
   const toggleMenu = (id: string) => {
     setShowMoreMenu(showMoreMenu === id ? null : id);
+  };
+
+  const toggleMobileMenu = (id: string) => {
+    setShowMobileMoreMenu(showMobileMoreMenu === id ? null : id);
+  };
+
+  const toggleMobileCard = (id: string) => {
+    setExpandedMobileCard(expandedMobileCard === id ? null : id);
+    setShowMobileMoreMenu(null);
   };
 
   const formatDateForDisplay = (dateStr: string): string => {
@@ -1927,12 +1956,12 @@ export default function SalesOrder() {
           background: var(--hover-bg, #f3f4f6);
         }
 
-        /* Pagination Styles - Separated from table */
+        /* ✅ Updated Pagination Styles - Single line layout */
         .qt-pagination-section {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 16px 0 8px 0;
+          padding: 12px 0 8px 0;
           border-top: 1px solid var(--border-color, #e5e7eb);
           margin-top: 8px;
           flex-wrap: wrap;
@@ -2010,6 +2039,11 @@ export default function SalesOrder() {
           gap: 8px;
           font-size: 13px;
           color: var(--text-secondary, #6b7280);
+        }
+
+        .qt-pagination-info {
+          color: var(--text-secondary, #6b7280);
+          font-size: 13px;
         }
 
         /* Filter bar responsive */
@@ -2165,11 +2199,6 @@ export default function SalesOrder() {
           align-items: center;
           padding: 8px 0;
           margin-top: 4px;
-        }
-
-        .qt-pagination-info {
-          color: var(--text-secondary, #6b7280);
-          font-size: 13px;
         }
 
         /* Table styles */
@@ -2450,6 +2479,141 @@ export default function SalesOrder() {
 
         .qt-btn-primary:hover {
           background: var(--primary-hover, #1d4ed8);
+        }
+
+        /* ============================================================
+           MOBILE ACCORDION CARD LIST (renders only below 768px)
+           Desktop table logic/markup is untouched — this is an
+           additional, separate render path shown only on mobile.
+        ============================================================ */
+        .qt-mobile-cards-wrap {
+          display: none;
+        }
+
+        @media (max-width: 768px) {
+          .qt-table-wrap {
+            display: none;
+          }
+          .qt-mobile-cards-wrap {
+            display: block;
+            padding: 12px;
+          }
+        }
+
+        .qt-mobile-card {
+          background: var(--card-bg, #fff);
+          border: 1px solid var(--border-color, #e5e7eb);
+          border-radius: 14px;
+          margin-bottom: 10px;
+          overflow: visible;
+          transition: box-shadow 0.2s, border-color 0.2s;
+        }
+
+        .qt-mobile-card.expanded {
+          border-color: var(--primary-color, #2563eb);
+          box-shadow: 0 4px 16px var(--shadow-color, rgba(37, 99, 235, 0.12));
+        }
+
+        .qt-mobile-card-header {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 14px 14px;
+          cursor: pointer;
+        }
+
+        .qt-mobile-card-number {
+          font-size: 14px;
+          font-weight: 600;
+          color: var(--text-primary, #1e293b);
+          min-width: 34px;
+        }
+
+        .qt-mobile-card-badge-wrap {
+          flex: 1;
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+        }
+
+        .qt-mobile-card-customer {
+          font-size: 12px;
+          color: var(--text-secondary, #6b7280);
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .qt-mobile-badge {
+          align-self: flex-start;
+        }
+
+        .qt-mobile-chevron-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 34px;
+          height: 34px;
+          border: none;
+          border-radius: 10px;
+          background: var(--hover-bg, #f3f4f6);
+          color: var(--text-secondary, #6b7280);
+          cursor: pointer;
+          flex-shrink: 0;
+          transition: all 0.2s;
+        }
+
+        .qt-mobile-card.expanded .qt-mobile-chevron-btn {
+          background: rgba(37, 99, 235, 0.12);
+          color: var(--primary-color, #2563eb);
+        }
+
+        .qt-mobile-card-body {
+          padding: 0 14px 14px 14px;
+          border-top: 1px solid var(--border-color, #e5e7eb);
+        }
+
+        .qt-mobile-detail-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 10px 0;
+          border-bottom: 1px solid var(--border-color, #f3f4f6);
+          font-size: 13px;
+        }
+
+        .qt-mobile-detail-row:last-of-type {
+          border-bottom: none;
+        }
+
+        .qt-mobile-detail-label {
+          color: var(--text-secondary, #6b7280);
+        }
+
+        .qt-mobile-detail-value {
+          color: var(--text-primary, #1e293b);
+          font-weight: 500;
+          text-align: right;
+        }
+
+        .qt-mobile-card-footer {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding-top: 10px;
+          margin-top: 4px;
+        }
+
+        .qt-mobile-items-count {
+          font-size: 12px;
+          color: var(--text-secondary, #6b7280);
+        }
+
+        .qt-mobile-actions {
+          display: flex;
+          align-items: center;
+          gap: 4px;
         }
 
         @media (max-width: 768px) {
@@ -3038,10 +3202,10 @@ export default function SalesOrder() {
         </>
       )}
 
-      {/* ✅ Pagination Section - SEPARATE FROM TABLE */}
+      {/* ✅ Pagination Section - Single line layout with Showing X to Y on left and Page X of Y on right */}
       {!loading && !error && totalRecords > 0 && (
         <div className="qt-pagination-section">
-          {/* Left: Show entries dropdown */}
+          {/* Left: Show dropdown + Showing entries info */}
           <div className="qt-pagination-left">
             <span>Show:</span>
             <select value={pageSize} onChange={handlePageSizeChange}>
@@ -3050,10 +3214,12 @@ export default function SalesOrder() {
               <option value={50}>50</option>
               <option value={100}>100</option>
             </select>
-            <span>entries</span>
+            <span className="qt-pagination-info">
+              Showing {startIndex} to {endIndex} of {totalRecords} entries
+            </span>
           </div>
 
-          {/* Center: Page navigation */}
+          {/* Center: Page navigation buttons */}
           <div className="qt-pagination-center">
             <button
               className="qt-page-btn arrow"
@@ -3100,29 +3266,14 @@ export default function SalesOrder() {
             </button>
           </div>
 
-          {/* Right: Entries info */}
+          {/* Right: Page info */}
           <div className="qt-pagination-right">
-            <span>
-              Showing {startIndex} to {endIndex} of {totalRecords} entries
+            <span className="qt-pagination-info">
+              Page {currentPage} of {totalPages}
             </span>
           </div>
         </div>
       )}
-
-      {/* Footer Stats */}
-      <div className="qt-pagination">
-        <div className="qt-pagination-left">
-          <span className="qt-pagination-info">
-            {salesOrders.length} orders on page {currentPage}
-          </span>
-        </div>
-        <div className="qt-pagination-right">
-          <span className="qt-pagination-info" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <FaChartLine size={14} style={{ color: 'var(--primary-color)' }} />
-            {fulfillmentRate}% fulfillment rate
-          </span>
-        </div>
-      </div>
 
       {/* ====== DELETE MODAL ====== */}
       {showDeleteModal && selectedOrder && (

@@ -22,6 +22,7 @@ import {
   FaTimes,
   FaCalendarAlt,
   FaTrash,
+  FaChevronUp,
   FaChevronDown
 } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
@@ -255,6 +256,7 @@ const DeliveryChallans: React.FC = () => {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [showMoreMenu, setShowMoreMenu] = useState<string | null>(null);
   const [totalRecords, setTotalRecords] = useState(0);
+  const [expandedMobileCard, setExpandedMobileCard] = useState<string | null>(null);
   
   // Date range filter states
   const [startDate, setStartDate] = useState<string>('');
@@ -674,7 +676,6 @@ const DeliveryChallans: React.FC = () => {
     const items = challan.items || [];
     const totalQty = items.reduce((sum, item) => sum + (item.qty || 0), 0);
     const grandTotal = challan.grand_total || 0;
-    // ✅ FIX: Properly type the customer object with a fallback to empty object
     const customer: CustomerDetails = challan.customer_details || {} as CustomerDetails;
 
     const formatPrintDateLocal = (dateStr: string) => {
@@ -682,12 +683,10 @@ const DeliveryChallans: React.FC = () => {
       return formatDisplayDate(dateStr);
     };
 
-    // Calculate financial details
     const subTotal = items.reduce((sum, item) => sum + (item.amount || 0), 0);
     const totalTax = items.reduce((sum, item) => sum + ((item.amount || 0) * 0.18), 0);
     const roundOff = Math.round((subTotal + totalTax) - grandTotal);
 
-    // ✅ FIX: SAFE DATA EXTRACTION - with proper fallbacks using the typed customer object
     const customerName = challan.customer_name || customer?.customer_name || '';
     const customerPhone = customer?.mobile_no || customer?.phone_no || '';
     const customerEmail = customer?.email_id || customer?.email || '';
@@ -696,14 +695,12 @@ const DeliveryChallans: React.FC = () => {
     const customerState = customer?.state || '';
     const customerStateCode = customer?.state_code || '';
 
-    // Transporter details - with fallbacks - Only show if data exists
     const transporter = challan.transporter || '';
     const vehicleNo = challan.vehicle_no || '';
     const driverName = challan.driver_name || '';
     const warehouse = challan.set_warehouse || 'Finished Goods';
     const instructions = challan.instructions || '';
 
-    // Check if we have any delivery details to show
     const hasDeliveryDetails = transporter || vehicleNo || driverName || instructions;
 
     const itemRows = items.map((item, idx) => `
@@ -724,7 +721,6 @@ const DeliveryChallans: React.FC = () => {
       </tr>
     `).join('');
 
-    // Build delivery details HTML only if there are details
     const deliveryDetailsHtml = hasDeliveryDetails ? `
       <div style="font-weight:700;font-size:13px;margin-bottom:4px;color:#000000;">Delivery Details</div>
       ${transporter ? `<div>🚚 Transporter: ${escapeHtml(transporter)}</div>` : ''}
@@ -1492,7 +1488,6 @@ const DeliveryChallans: React.FC = () => {
 
       const allHtmlContent = fullChallans.map(ch => buildDeliveryChallanPrintHtml(ch)).join('<div style="page-break-after: always;"></div>');
       
-      // ✅ FIX: Properly handle the print window with a unique name
       const printWindowName = `pdf_download_${Date.now()}`;
       const printWindow = window.open('', printWindowName, 'width=1000,height=900');
       if (!printWindow) {
@@ -1501,18 +1496,15 @@ const DeliveryChallans: React.FC = () => {
         return;
       }
       
-      // ✅ FIX: Clear the window content and write HTML
       printWindow.document.open();
       printWindow.document.write(allHtmlContent);
       printWindow.document.close();
       printWindow.focus();
       
-      // ✅ FIX: Add a small delay before printing to ensure content is loaded
       setTimeout(() => {
         printWindow.print();
       }, 1000);
       
-      // ✅ FIX: Clean up the window reference after printing
       setTimeout(() => {
         if (printWindow && !printWindow.closed) {
           printWindow.close();
@@ -1537,7 +1529,6 @@ const DeliveryChallans: React.FC = () => {
   };
 
   const handlePrint = (challan: DeliveryChallan) => {
-    // ✅ FIX: Check if print window is already open and close it
     if (printWindowRef.current && !printWindowRef.current.closed) {
       printWindowRef.current.close();
       printWindowRef.current = null;
@@ -1569,7 +1560,6 @@ const DeliveryChallans: React.FC = () => {
         printWindow.document.close();
         printWindow.focus();
         
-        // ✅ FIX: Add delay before printing
         setTimeout(() => {
           printWindow.print();
         }, 800);
@@ -1584,7 +1574,6 @@ const DeliveryChallans: React.FC = () => {
         }, 800);
       } finally {
         setPrintLoadingId(null);
-        // ✅ FIX: Clear reference after print is done
         setTimeout(() => {
           if (printWindowRef.current && !printWindowRef.current.closed) {
             printWindowRef.current.close();
@@ -1623,6 +1612,10 @@ const DeliveryChallans: React.FC = () => {
 
   const toggleMenu = (id: string | number) => {
     setShowMoreMenu(showMoreMenu === String(id) ? null : String(id));
+  };
+
+  const toggleMobileCard = (id: string) => {
+    setExpandedMobileCard(expandedMobileCard === id ? null : id);
   };
 
   const clearFilters = () => {
@@ -2217,6 +2210,7 @@ const DeliveryChallans: React.FC = () => {
           background: #f3f4f6;
         }
 
+        /* ===== TABLE WRAPPER ===== */
         .qt-table-wrap {
           background: #ffffff;
           border-radius: 12px;
@@ -2346,13 +2340,13 @@ const DeliveryChallans: React.FC = () => {
         .qt-action-btn:hover {
           background: #f3f4f6;
         }
-          .qt-action-print {
-  color: #0d9488;
-}
+        .qt-action-print {
+          color: #0d9488;
+        }
 
-.qt-action-print:hover {
-  background: rgba(13, 148, 136, 0.1);
-}
+        .qt-action-print:hover {
+          background: rgba(13, 148, 136, 0.1);
+        }
 
         .qt-action-more {
           color: #6b7280;
@@ -2575,7 +2569,22 @@ const DeliveryChallans: React.FC = () => {
           to { transform: rotate(360deg); }
         }
 
+        /* ============================================================
+           MOBILE ACCORDION CARDS (renders only below 768px)
+        ============================================================ */
+        .qt-mobile-cards-wrap {
+          display: none;
+        }
+
         @media (max-width: 768px) {
+          .qt-table-wrap {
+            display: none;
+          }
+          .qt-mobile-cards-wrap {
+            display: block;
+            padding: 4px 0;
+          }
+          
           .quotation-page {
             padding: 12px;
             gap: 12px;
@@ -2606,10 +2615,6 @@ const DeliveryChallans: React.FC = () => {
             width: 280px;
           }
 
-          .qt-table {
-            min-width: 600px;
-          }
-
           .qt-pagination {
             flex-direction: column;
             align-items: center;
@@ -2622,16 +2627,6 @@ const DeliveryChallans: React.FC = () => {
           .qt-pagination-left,
           .qt-pagination-right {
             order: 1;
-          }
-
-          .qt-td {
-            padding: 10px 12px;
-            font-size: 12px;
-          }
-
-          .qt-th {
-            padding: 10px 12px;
-            font-size: 11px;
           }
         }
 
@@ -2657,6 +2652,144 @@ const DeliveryChallans: React.FC = () => {
             flex-wrap: wrap;
             justify-content: center;
           }
+        }
+
+        /* ===== MOBILE CARD STYLES ===== */
+        .qt-mobile-card {
+          background: #ffffff;
+          border: 1px solid #e5e7eb;
+          border-radius: 12px;
+          margin-bottom: 10px;
+          overflow: hidden;
+          transition: box-shadow 0.2s, border-color 0.2s;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        }
+
+        .qt-mobile-card.expanded {
+          border-color: #6366f1;
+          box-shadow: 0 4px 16px rgba(99, 102, 241, 0.12);
+        }
+
+        .qt-mobile-card-header {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 12px 14px;
+          cursor: pointer;
+        }
+
+        .qt-mobile-card-number {
+          font-size: 13px;
+          font-weight: 600;
+          color: #111827;
+          min-width: 50px;
+          font-family: monospace;
+          background: #f3f4f6;
+          padding: 2px 8px;
+          border-radius: 4px;
+        }
+
+        .qt-mobile-card-badge-wrap {
+          flex: 1;
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 3px;
+        }
+
+        .qt-mobile-card-customer {
+          font-size: 14px;
+          font-weight: 500;
+          color: #1e293b;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .qt-mobile-card-amount {
+          font-size: 13px;
+          font-weight: 600;
+          color: #0d9488;
+        }
+
+        .qt-mobile-card-status {
+          align-self: flex-start;
+        }
+
+        .qt-mobile-chevron-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 32px;
+          height: 32px;
+          border: none;
+          border-radius: 8px;
+          background: #f3f4f6;
+          color: #6b7280;
+          cursor: pointer;
+          flex-shrink: 0;
+          transition: all 0.2s;
+        }
+
+        .qt-mobile-card.expanded .qt-mobile-chevron-btn {
+          background: rgba(99, 102, 241, 0.1);
+          color: #6366f1;
+        }
+
+        .qt-mobile-card-body {
+          padding: 0 14px 14px 14px;
+          border-top: 1px solid #f3f4f6;
+        }
+
+        .qt-mobile-detail-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 10px 0;
+          border-bottom: 1px solid #f3f4f6;
+          font-size: 13px;
+        }
+
+        .qt-mobile-detail-row:last-of-type {
+          border-bottom: none;
+        }
+
+        .qt-mobile-detail-label {
+          color: #6b7280;
+          font-size: 12px;
+        }
+
+        .qt-mobile-detail-value {
+          color: #1e293b;
+          font-weight: 500;
+          text-align: right;
+          font-size: 13px;
+        }
+
+        .qt-mobile-card-footer {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding-top: 10px;
+          margin-top: 4px;
+          border-top: 1px solid #f3f4f6;
+        }
+
+        .qt-mobile-items-count {
+          font-size: 12px;
+          color: #6b7280;
+        }
+
+        .qt-mobile-actions {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+
+        .qt-mobile-actions .qt-action-btn {
+          width: 36px;
+          height: 36px;
+          border-radius: 8px;
         }
       `}</style>
 
