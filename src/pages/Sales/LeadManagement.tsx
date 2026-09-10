@@ -962,7 +962,7 @@ export default function LeadManagement() {
 
                           <div className="sales-mobile-detail-footer">
                             <span className="sales-mobile-card-meta-text">
-                              #{rowNumber} of {totalItems}
+                              {/*rowNumber} of {totalItems*/}
                             </span>
                             <div className="sales-mobile-action-buttons">
                               <button

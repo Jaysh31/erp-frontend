@@ -1017,7 +1017,7 @@ export default function PurchaseOrder() {
 
                         <div className="po-mobile-detail-footer">
                           <span className="po-mobile-card-meta-text">
-                            #{rowNumber} of {totalRecords}
+                            {/*rowNumber} of {totalRecords*/}
                           </span>
                           <div className="po-action-buttons">
                             <button

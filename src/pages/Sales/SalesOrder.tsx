@@ -3126,7 +3126,7 @@ export default function SalesOrder() {
 
                           <div className="sales-mobile-detail-footer">
                             <span className="sales-mobile-card-meta-text">
-                              #{rowNumber} of {totalRecords}
+                              {/*rowNumber} of {totalRecords*/}
                             </span>
                             <div className="sales-mobile-action-buttons">
                               <button

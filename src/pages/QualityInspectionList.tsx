@@ -11,6 +11,7 @@ import {
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
 import './QualityInspectionList.css';
+import '../pages/Sales/SalesMobileTable.css';
 import api from '../../src/services/api';
 import { PageLoader } from '../components/PageLoader';
 
@@ -94,6 +95,19 @@ export default function QualityInspectionList() {
   // ✅ NEW: Format date for API (YYYY-MM-DD)
   const toApiDateFormat = (date: Date) => {
     return getApiDateFormat(date);
+  };
+
+  // ─── Mobile expanded rows state ──────────────────────────────────
+  const [expandedRows, setExpandedRows] = useState<Set<string | number>>(new Set());
+
+  const toggleRowExpand = (id: string | number, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   };
 
   // ─── Format date for display using the context formatter ──────────
@@ -611,7 +625,8 @@ export default function QualityInspectionList() {
 
       {/* Table */}
       {!loading && !error && (
-        <div className="qi-table-wrap">
+        <>
+        <div className="qi-table-wrap sales-desktop-table-wrap">
           {filteredReports.length === 0 ? (
             <div className="qi-empty-state">
               <div className="qi-empty-content">
@@ -665,16 +680,25 @@ export default function QualityInspectionList() {
                     </td>
                     <td className="qi-td qi-td-meta">
                       <div className="qi-action-buttons">
-                        <button className="qi-action-btn qi-action-view" onClick={() => handleView(report)} title="View / Edit">
+                        <button className="qi-action-btn qi-action-view" 
+                        onClick={() => handleView(report)} title="View / Edit">
                           <FaEye size={12} />
                         </button>
-                        <button className="qi-action-btn qi-action-print" onClick={() => handlePrint(report)} title="Print">
+                        <button className="qi-action-btn qi-action-print" 
+                        onClick={() => handlePrint(report)} title="Print">
                           <FaPrint size={12} />
                         </button>
-                        <button className="qi-action-btn qi-action-edit" onClick={() => handleEdit(report)} title="Edit">
-                          <FaEdit size={12} />
-                        </button>
-                        <button className="qi-action-btn qi-action-delete" onClick={() => handleDeleteClick(report)} title="Delete">
+                        
+                        <button
+                                className="qi-action-btn qi-action-edit" 
+                        onClick={() => handleEdit(report)} 
+                        title="Edit"
+                              >
+                                <FaEdit size={12} />
+                              </button>
+                          
+                        <button className="qi-action-btn qi-action-delete" 
+                        onClick={() => handleDeleteClick(report)} title="Delete">
                           <FaTrash size={12} />
                         </button>
                       </div>
@@ -685,7 +709,176 @@ export default function QualityInspectionList() {
             </table>
           )}
         </div>
+      
+
+
+      {/* Mobile Table Section (Customer, Status + Dropdown Button -> Date, Amount, Actions) */}
+          <div className="sales-mobile-list-wrap">
+            <div className="sales-mobile-list-header">
+              <div className="sales-mobile-th-primary">
+                <span className="sales-mobile-th-cell">Inspection #	</span>
+                <span className="sales-mobile-th-sep">•</span>
+                <span className="sales-mobile-th-cell">Type </span>
+              </div>
+              <div className="sales-mobile-th-right">
+                <span className="sales-count-label">
+                  {totalRecords > 0
+                    ? `${getStartIndex()}–${getEndIndex()}`
+                    : '0'} of {totalRecords}
+                </span>
+              </div>
+            </div>
+
+            {filteredReports.length === 0 ? (
+              <div className="qt-empty-state">
+                <div className="qt-empty-content">
+                  <p>No warehouses found</p>
+                  <span>Try adjusting your search criteria</span>
+                </div>
+              </div>
+            ) : (
+              <div className="sales-mobile-cards">
+                {filteredReports.map((report, idx) => {
+                  const isExpanded = expandedRows.has(report.id);
+                  const rowNumber = getStartIndex() + idx;
+                  return (
+                    <div
+                      key={report.id}
+                      className={`sales-mobile-card ${isExpanded ? "sales-mobile-card-expanded" : ""}`}
+                    >
+                      {/* Card Header: Customer, Status and Dropdown Button */}
+                      <div
+                        className="sales-mobile-card-header"
+                        onClick={() => toggleRowExpand(report.id)}
+                      >
+                        <div className="sales-mobile-card-primary">
+                          <div className="sales-mobile-card-primary-row">
+                            <span
+                              className="sales-mobile-item-name">
+                              {report.reportNo}
+                            </span>
+                            <span className="sales-mobile-header-badge">
+                              <span className="wl-td wl-td-name">
+                                {report.docNo || '-'}
+                              </span>
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Dropdown Button */}
+                        <button
+                          type="button"
+                          className={`sales-mobile-dropdown-btn ${isExpanded ? "expanded" : ""}`}
+                          onClick={(e) => toggleRowExpand(report.id, e)}
+                          aria-label={isExpanded ? "Collapse quotation details" : "Expand quotation details"}
+                          title={isExpanded ? "Collapse" : "Expand"}
+                        >
+                          <FaChevronDown size={13} className="sales-mobile-chevron" />
+                        </button>
+                      </div>
+
+                      {/* Dropdown Section: Date, Amount, Actions */}
+                      {isExpanded && (
+                        <div className="sales-mobile-card-details">
+                          <div className="sales-mobile-detail-row">
+                            <span className="sales-mobile-detail-label">Reference</span>
+                            <span className="sales-mobile-detail-value">
+                              {report.partProductName || '-'}
+                            </span>
+                          </div>
+
+                          <div className="sales-mobile-detail-row">
+                            <span className="sales-mobile-detail-label">Date</span>
+                            <span className="sales-mobile-detail-value sales-amount-highlight">
+                              {report.displayDate || '-'}
+                            </span>
+                          </div>
+
+                          <div className="sales-mobile-detail-row">
+                            <span className="sales-mobile-detail-label">Samples</span>
+                            <span className="sales-mobile-detail-value">
+                              {report.sampleCount}
+                            </span>
+                          </div>
+
+                          <div className="sales-mobile-detail-row">
+                            <span className="sales-mobile-detail-label">Status</span>
+                            <span className="sales-mobile-detail-value">
+                              <span className={`qi-status-badge qi-status-${report.status?.toLowerCase().replace(' ', '-') || 'unknown'}`}>
+                        {report.status || 'Unknown'}
+                      </span>
+                            </span>
+                          </div>
+
+                          <div className="sales-mobile-detail-row">
+                            <span className="sales-mobile-detail-label">Result</span>
+                            <span className="sales-mobile-detail-value">
+                              {report.overallResult?.toLowerCase() === 'pass' ? (
+                        <span className="qi-status-badge qi-status-pass">
+                          <FaCheckCircle size={10} /> Pass
+                        </span>
+                      ) : report.overallResult?.toLowerCase() === 'fail' ? (
+                        <span className="qi-status-badge qi-status-fail">
+                          <FaTimesCircle size={10} /> Fail ({report.outOfSpecCount} rejected)
+                        </span>
+                      ) : (
+                        <span className="qi-status-badge qi-status-unknown">
+                          {report.overallResult || 'Unknown'}
+                        </span>
+                      )}
+                            </span>
+                          </div>
+
+                          <div className="sales-mobile-detail-footer">
+                            <span className="sales-mobile-card-meta-text">
+                              {/*rowNumber} of {totalRecords*/}
+                            </span>
+                            <div className="sales-mobile-action-buttons">
+                              <button
+                                className="qi-action-btn qi-action-view" 
+                                onClick={() => handleView(report)}
+                                title="View"
+                              >
+                                <FaEye size={12} />
+                              </button>
+
+                              <button 
+                              className="qi-action-btn qi-action-print" 
+                        onClick={() => handlePrint(report)} 
+                        title="Print">
+                          <FaPrint size={12} />
+                        </button>
+
+                              <button
+                                className="qi-action-btn qi-action-edit" 
+                        onClick={() => handleEdit(report)} 
+                        title="Edit"
+                              >
+                                <FaEdit size={12} />
+                              </button>
+
+                              <button
+                                className="qi-action-btn qi-action-delete" 
+                        onClick={() => handleDeleteClick(report)} 
+                        title="Delete"
+                              >
+                                <FaTrash size={12} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </>
       )}
+
+
+
 
       {/* Pagination */}
       {!loading && !error && (

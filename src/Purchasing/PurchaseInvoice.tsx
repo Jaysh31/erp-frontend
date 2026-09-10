@@ -1010,9 +1010,10 @@ export default function PurchaseInvoice() {
 
                         <div className="inv-mobile-detail-footer">
                           <span className="inv-mobile-card-meta-text">
-                            {totalRecords > 0
+                            {/*totalRecords > 0
                               ? `${getStartIndex()}–${getEndIndex()} of ${totalRecords}`
                               : '0'} (#{rowNumber})
+                            */}
                           </span>
                           <div className="inv-action-buttons">
                             <button

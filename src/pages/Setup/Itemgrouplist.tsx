@@ -17,8 +17,10 @@ import {
   FaFolder,
   FaArrowLeft,
   FaCalendarAlt,
+  FaChevronDown
 } from 'react-icons/fa';
 import "./Itemgrouplist.css";
+import '../Sales/SalesMobileTable.css';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
 import { PageLoader } from "../components/PageLoader";
@@ -32,16 +34,19 @@ interface ItemGroup {
   image: string | null;
   creation: string;
   modified: string;
+  disabled?: number;
 }
 
 interface ItemGroupDisplay {
   id: string;
   itemGroupName: string;
   parentItemGroup: string;
+  creation: string;
   isGroup: boolean;
   isEditable: boolean;
   createdAgo: string;
   comments: number;
+  disabled: number;
 }
 
 interface ItemGroupDetail {
@@ -97,6 +102,21 @@ export default function ItemGroupList() {
   const [, setTotalItems] = useState(0);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedItem, setSelectedItem] = useState<ItemGroupDisplay | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+
+  const toggleRowExpand = (rowId: string, event?: { stopPropagation: () => void }) => {
+    event?.stopPropagation();
+    setExpandedRows((currentRows) => {
+      const nextRows = new Set(currentRows);
+      if (nextRows.has(rowId)) {
+        nextRows.delete(rowId);
+      } else {
+        nextRows.add(rowId);
+      }
+      return nextRows;
+    });
+  };
 
   // ---- Date filter (calendar) state ----
   const [fromDate, setFromDate] = useState('');
@@ -223,10 +243,12 @@ export default function ItemGroupList() {
           id: item.id.toString(),
           itemGroupName: item.item_group_name,
           parentItemGroup: item.parent_item_group || 'N/A',
+          creation: item.creation,
           isGroup: item.is_group === 1,
           isEditable: item.is_editable !== 0,
           createdAgo: formatDate(item.creation),
           comments: 0,
+          disabled: item.disabled ?? 0,
         }));
 
         setItemGroups(transformedData);
@@ -459,6 +481,7 @@ export default function ItemGroupList() {
 
   const confirmDelete = async () => {
     if (selectedItem) {
+      setDeletingId(selectedItem.id);
       try {
         const response = await api.delete(`/item-group/${selectedItem.id}`);
         if (response.data.success === 1) {
@@ -469,6 +492,8 @@ export default function ItemGroupList() {
       } catch (err) {
         console.error('Error deleting item group:', err);
         alert('Failed to delete item group');
+      } finally {
+        setDeletingId(null);
       }
     }
   };
@@ -2111,7 +2136,7 @@ export default function ItemGroupList() {
       {/* Table */}
       {!loading && !error && (
         <>
-          <div className="igl-table-wrap">
+          <div className="igl-table-wrap sales-desktop-table-wrap">
             <table className="igl-table">
               <thead>
                 <tr>
@@ -2179,7 +2204,140 @@ export default function ItemGroupList() {
             </table>
           </div>
 
-          {/* ✅ Pagination - Single line layout */}
+          {/* Mobile Table Section (Customer, Status + Dropdown Button -> Date, Amount, Actions) */}
+                              <div className="sales-mobile-list-wrap">
+                                <div className="sales-mobile-list-header">
+                                  <div className="sales-mobile-th-primary">
+                                    <span className="sales-mobile-th-cell">Item Group Name</span>
+                                    <span className="sales-mobile-th-sep">•</span>
+                                    <span className="sales-mobile-th-cell">Type</span>
+                                  </div>
+                                  <div className="sales-mobile-th-right">
+                                    <span className="sales-count-label">
+                                      {totalFilteredItems> 0
+                        ? `${getStartIndex()}–${getEndIndex()}`
+                        : '0'} of {totalFilteredItems}
+                                    </span>
+                                  </div>
+                                </div>
+                    
+                                {paginatedData.length === 0 ? (
+                                  <div className="igl-empty-state">
+                                    <div className="igl-empty-content">
+                                      <p>No Item Groups found</p>
+                                      <span>Try adjusting your search criteria</span>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="sales-mobile-cards">
+                                    {paginatedData.map((row, idx) => {
+                                      const isExpanded = expandedRows.has(row.id);
+                                      const rowNumber = getStartIndex() + idx;
+          
+                                      function formatDisplayDateWithContext(value: unknown): string {
+                                        if (value === null || value === undefined || value === '') {
+                                          return '—';
+                                        }
+          
+                                        const date = value instanceof Date ? value : new Date(String(value));
+          
+                                        if (Number.isNaN(date.getTime())) {
+                                          return String(value);
+                                        }
+          
+                                        return date.toLocaleDateString('en-US', {
+                                          month: 'short',
+                                          day: '2-digit',
+                                          year: 'numeric',
+                                        });
+                                      }
+          
+                                      function handleView(item: ItemGroupDisplay) {
+                                        navigate(`/item/${item.id}`, {
+                                          state: { itemData: item }
+                                        });
+                                      }
+          
+                                      function getStatusIcon(status: string): string {
+                                        const normalizedStatus = String(status ?? '').trim().toLowerCase();
+        
+          
+                                        return '•';
+                                      }
+          
+                                      return (
+                                        <div
+                                          key={row.id}
+                                          className={`sales-mobile-card ${isExpanded ? "sales-mobile-card-expanded" : ""}`}
+                                        >
+                                          <div
+                                            className="sales-mobile-card-header"
+                                            onClick={() => toggleRowExpand(row.id)}
+                                          >
+                                            <div className="sales-mobile-card-primary">
+                                              <div className="sales-mobile-card-primary-row">
+                                                <span
+                                                  className="sales-mobile-item-name"
+                                                >
+                                                  {row.itemGroupName || "—"}
+                                                </span>
+                                                <span className="sales-mobile-header-badge">
+                                                  <span className={`igl-status-badge ${row.isGroup ? 'igl-status-group' : 'igl-status-item'}`}>
+                          {row.isGroup ? 'Parent Group' : 'Sub Item'}
+                                                    
+                                                  </span>
+                                                </span>
+                                              </div>
+                                            </div>
+          
+                                            <button
+                                              type="button"
+                                              className={`sales-mobile-dropdown-btn ${isExpanded ? "expanded" : ""}`}
+                                              onClick={(e) => toggleRowExpand(row.id, e)}
+                                              aria-label={isExpanded ? "Collapse item details" : "Expand item details"}
+                                              title={isExpanded ? "Collapse" : "Expand"}
+                                            >
+                                              <FaChevronDown size={13} className="sales-mobile-chevron" />
+                                            </button>
+                                          </div>
+          
+                                          {isExpanded && (
+                                            <div className="sales-mobile-card-details">
+
+
+                                              <div className="sales-mobile-detail-row">
+                                                <span className="sales-mobile-detail-label">Parent Item Group</span>
+                                                <span className="sales-mobile-detail-value">
+                                              {row.parentItemGroup}
+                                                    </span>
+                                              </div>
+          
+                                              <div className="sales-mobile-detail-footer">
+                                                <span className="sales-mobile-card-meta-text">
+                                                  {/*rowNumber} of {totalFilteredItems*/}
+                                                </span>
+                                                <div className="sales-mobile-action-buttons">
+                                                  <button
+                                                    className="igl-action-btn igl-action-view"
+                                                    onClick={(e) => { e.stopPropagation(); handleView(row); }} 
+            
+                                                    title="View "
+                                                  >
+                                                    <FaEye size={12} />
+                                                  </button>
+                                                 
+                                                </div>
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+
+          {/* Pagination */}
           <div className="igl-pagination">
             {/* Left: Show dropdown + Showing entries info */}
             <div className="igl-pagination-left">

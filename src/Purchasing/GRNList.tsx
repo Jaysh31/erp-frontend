@@ -1023,9 +1023,9 @@ export default function GRNList() {
 
                         <div className="grn-mobile-detail-footer">
                           <span className="grn-mobile-card-meta-text">
-                            {totalFiltered > 0
+                            {/*totalFiltered > 0
                               ? `${(validCurrentPage - 1) * itemsPerPage + 1}–${Math.min(validCurrentPage * itemsPerPage, totalFiltered)} of ${totalFiltered}`
-                              : '0'} (#{rowNumber})
+                              : '0'} (#{rowNumber})*/}
                           </span>
                           <div className="grn-action-buttons">
                             <button

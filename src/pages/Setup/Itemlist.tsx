@@ -13,8 +13,10 @@ import {
   FaTrash,
   FaCalendarAlt,
   FaFileExcel,
+  FaChevronDown
 } from 'react-icons/fa';
 import "./ItemList.css";
+import '../Sales/SalesMobileTable.css';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
 import { PageLoader } from "../components/PageLoader";
@@ -65,6 +67,20 @@ export default function ItemList() {
   const [totalItems, setTotalItems] = useState(0);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [allItems, setAllItems] = useState<Item[]>([]);
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+
+  const toggleRowExpand = (id: number, event?: React.MouseEvent) => {
+    event?.stopPropagation();
+    setExpandedRows((previous) => {
+      const next = new Set(previous);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
   // ===== DATE FILTER STATES =====
   const [fromDate, setFromDate] = useState<string>('');
@@ -1602,6 +1618,7 @@ export default function ItemList() {
             )}
           </div>
 
+          
           <button className="itl-btn-secondary" onClick={handleBulkUpload}>
             <FaFileExcel size={13} />
             Bulk Upload
@@ -1668,12 +1685,12 @@ export default function ItemList() {
       {/* Table */}
       {!loading && !error && (
         <>
-          <div className="itl-table-wrap">
+          <div className="itl-table-wrap sales-desktop-table-wrap">
             <table className="itl-table">
               <thead>
                 <tr>
                   <th className="itl-th">Item Code</th>
-                  <th className="itl-th">Item Name</th>
+                  {/* <th className="itl-th">Item Name</th> */}
                   <th className="itl-th">Status</th>
                   <th className="itl-th">Item Group</th>
                   <th className="itl-th">UOM</th>
@@ -1712,7 +1729,7 @@ export default function ItemList() {
                       onClick={() => handleRowClick(row)}
                     >
                       <td className="itl-td itl-td-code">{row.item_code}</td>
-                      <td className="itl-td itl-td-name">{row.item_name}</td>
+                      {/* <td className="itl-td itl-td-name">{row.item_name}</td> */}
                       <td className="itl-td">
                         <span className={`itl-status-badge itl-status-${row.disabled === 0 ? 'enabled' : 'disabled'}`}>
                           {row.disabled === 0 ? 'Enabled' : 'Disabled'}
@@ -1753,7 +1770,165 @@ export default function ItemList() {
             </table>
           </div>
 
-          {/* ✅ Pagination Section - Single line layout */}
+          {/* Mobile Table Section (Customer, Status + Dropdown Button -> Date, Amount, Actions) */}
+                    <div className="sales-mobile-list-wrap">
+                      <div className="sales-mobile-list-header">
+                        <div className="sales-mobile-th-primary">
+                          <span className="sales-mobile-th-cell">Customer</span>
+                          <span className="sales-mobile-th-sep">•</span>
+                          <span className="sales-mobile-th-cell">Status</span>
+                        </div>
+                        <div className="sales-mobile-th-right">
+                          <span className="sales-count-label">
+                            {totalItems > 0
+                        ? `${getStartIndex()}–${getEndIndex()}`
+                        : '0'} of {totalItems}
+                          </span>
+                        </div>
+                      </div>
+          
+                      {items.length === 0 ? (
+                        <div className="itl-empty-state">
+                          <div className="itl-empty-content">
+                            <p>No Items found</p>
+                            <span>Try adjusting your search criteria</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="sales-mobile-cards">
+                          {items.map((row, idx) => {
+                            const isExpanded = expandedRows.has(row.id);
+                            const rowNumber = getStartIndex() + idx;
+
+                            function formatDisplayDateWithContext(value: unknown): string {
+                              if (value === null || value === undefined || value === '') {
+                                return '—';
+                              }
+
+                              const date = value instanceof Date ? value : new Date(String(value));
+
+                              if (Number.isNaN(date.getTime())) {
+                                return String(value);
+                              }
+
+                              return date.toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: '2-digit',
+                                year: 'numeric',
+                              });
+                            }
+
+                            function handleView(item: Item) {
+                              navigate(`/item/${item.id}`, {
+                                state: { itemData: item }
+                              });
+                            }
+
+                            function getStatusIcon(status: string): string {
+                              const normalizedStatus = String(status ?? '').trim().toLowerCase();
+
+                              return '•';
+                            }
+
+                            return (
+                              <div
+                                key={row.id}
+                                className={`sales-mobile-card ${isExpanded ? "sales-mobile-card-expanded" : ""}`}
+                              >
+                                <div
+                                  className="sales-mobile-card-header"
+                                  onClick={() => toggleRowExpand(row.id)}
+                                >
+                                  <div className="sales-mobile-card-primary">
+                                    <div className="sales-mobile-card-primary-row">
+                                      <span
+                                        className="sales-mobile-item-name"
+                                      >
+                                        {row.item_code}
+                                      </span>
+                                      <span className="sales-mobile-header-badge">
+                                        <span className="itl-td">
+                                          {row.item_group}
+                                        </span>
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    className={`sales-mobile-dropdown-btn ${isExpanded ? "expanded" : ""}`}
+                                    onClick={(e) => toggleRowExpand(row.id, e)}
+                                    aria-label={isExpanded ? "Collapse item details" : "Expand item details"}
+                                    title={isExpanded ? "Collapse" : "Expand"}
+                                  >
+                                    <FaChevronDown size={13} className="sales-mobile-chevron" />
+                                  </button>
+                                </div>
+
+                                {isExpanded && (
+                                  <div className="sales-mobile-card-details">
+                                    <div className="sales-mobile-detail-row">
+                                       <span className="sales-mobile-detail-label">Status</span>
+                                      <span className={`itl-status-badge itl-status-${row.disabled === 0 ? 'enabled' : 'disabled'}`}>
+                          {row.disabled === 0 ? 'Enabled' : 'Disabled'}
+                        </span>
+                        </div>
+
+
+                                    <div className="sales-mobile-detail-row">
+                                      <span className="sales-mobile-detail-label">UOM</span>
+                                      <span className="sales-mobile-detail-value">{row.stock_uom}</span>
+                                    </div>
+
+                                    
+                                    <div className="sales-mobile-detail-row">
+                                      <span className="sales-mobile-detail-label">Type</span>
+                                      <span className="sales-mobile-detail-value"> {row.is_stock_item === 1 ? 'Stock' : 'Non-Stock'}</span>
+                                    </div>
+
+                                    <div className="sales-mobile-detail-footer">
+                                      <span className="sales-mobile-card-meta-text">
+                                        {/*rowNumber} of {totalItems*/}
+                                      </span>
+                                      <div className="sales-mobile-action-buttons">
+                                        
+                                        <button
+                                          className="qt-action-btn qt-action-edit"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleEditItem(row, e);
+                                          }}
+                                          title="Edit"
+                                        >
+                                          <FaEdit size={12} />
+                                        </button>
+                                        <button
+                                          className="qt-action-btn qt-action-delete"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDeleteItem(row.id, e);
+                                          }}
+                                          title="Delete"
+                                          disabled={deletingId === row.id}
+                                        >
+                                          {deletingId === row.id ? (
+                                            <FaSpinner className="spinning" size={12} />
+                                          ) : (
+                                            <FaTrash size={12} />
+                                          )}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+          {/* Pagination */}
           {(totalItems > 0 || items.length > 0) && (
             <div className="itl-pagination">
               {/* Left: Show dropdown + Showing entries info */}

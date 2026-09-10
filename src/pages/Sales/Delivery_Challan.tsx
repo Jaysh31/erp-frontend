@@ -21,6 +21,7 @@ import {
   FaSync,
   FaTimes,
   FaCalendarAlt,
+  FaTrash,
   FaChevronUp,
   FaChevronDown
 } from 'react-icons/fa';
@@ -30,6 +31,7 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 import * as XLSX from 'xlsx';
 import { PageLoader } from '../components/PageLoader';
+import './SalesMobileTable.css';
 
 // ===== INTERFACES =====
 
@@ -274,6 +276,22 @@ const DeliveryChallans: React.FC = () => {
   const [printLoadingId, setPrintLoadingId] = useState<string | null>(null);
   const [, setDownloadLoading] = useState(false);
   const [, setCompanyData] = useState<Company | null>(null);
+
+  // ===== MOBILE EXPANDED ROWS =====
+  const [expandedRows, setExpandedRows] = useState<Set<string | number>>(new Set());
+
+  const toggleRowExpand = (id: string | number, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
   // Debounced search term
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
@@ -2960,7 +2978,7 @@ const DeliveryChallans: React.FC = () => {
       )}
 
       {/* ===== TABLE ===== */}
-      <div className="qt-table-wrap">
+      <div className="qt-table-wrap sales-desktop-table-wrap">
         {loading && challans.length === 0 ? (
           <div className="qt-loading">
             <FaSpinner className="spinning" size={30} style={{ display: 'block', margin: '0 auto 12px' }} />
@@ -3077,145 +3095,199 @@ const DeliveryChallans: React.FC = () => {
         )}
       </div>
 
-      {/* ===== MOBILE CARDS ===== */}
-      <div className="qt-mobile-cards-wrap">
+      {/* Mobile Table Section (Customer, Status + Dropdown Button -> Date, Amount, Actions) */}
+      <div className="sales-mobile-list-wrap">
+        <div className="sales-mobile-list-header">
+          <div className="sales-mobile-th-primary">
+            <span className="sales-mobile-th-cell">Invoice No</span>
+            <span className="sales-mobile-th-sep">•</span>
+            <span className="sales-mobile-th-cell">Customer</span>
+          </div>
+          <div className="sales-mobile-th-right">
+            <span className="sales-count-label">
+              {totalRecords > 0
+                ? `${getStartIndex()}–${getEndIndex()} of ${totalRecords}`
+                : `0 of ${totalRecords}`}
+            </span>
+          </div>
+        </div>
+
         {loading && challans.length === 0 ? (
-          <div className="qt-loading">
-            <FaSpinner className="spinning" size={30} style={{ display: 'block', margin: '0 auto 12px' }} />
-            <p>Loading delivery challans...</p>
+          <div className="qt-empty-state">
+            <div className="qt-empty-content">
+              <p>Loading delivery challans...</p>
+            </div>
           </div>
         ) : error ? (
           <div className="qt-error">
-            <FaExclamationTriangle size={30} style={{ display: 'block', margin: '0 auto 12px' }} />
             <p>{error}</p>
             <button onClick={handleRefresh} className="qt-retry-btn">
-              <FaSync size={12} style={{ marginRight: '6px' }} /> Retry
+              Retry
             </button>
           </div>
         ) : challans.length === 0 ? (
           <div className="qt-empty-state">
             <div className="qt-empty-content">
-              <FaTruck size={48} />
+              <FaTruck size={40} />
               <p>No delivery challans found</p>
               <span>Try adjusting your search criteria</span>
             </div>
           </div>
         ) : (
-          challans.map((item) => {
-            const cardKey = String(item.id);
-            const isExpanded = expandedMobileCard === cardKey;
-            return (
-              <div
-                key={cardKey}
-                className={`qt-mobile-card ${isExpanded ? 'expanded' : ''}`}
-              >
+          <div className="sales-mobile-cards">
+            {challans.map((challan, idx) => {
+              const isExpanded = expandedRows.has(challan.id);
+              const rowNumber = getStartIndex() + idx;
+
+              return (
                 <div
-                  className="qt-mobile-card-header"
-                  onClick={() => toggleMobileCard(cardKey)}
+                  key={challan.id}
+                  className={`sales-mobile-card ${
+                    isExpanded ? 'sales-mobile-card-expanded' : ''
+                  }`}
                 >
-                  <span className="qt-mobile-card-number">
-                    {item.displayDcNumber || item.name || '-'}
-                  </span>
-                  <div className="qt-mobile-card-badge-wrap">
-                    <span className="qt-mobile-card-customer">
-                      {item.customer_name || '-'}
-                    </span>
-                    <span className="qt-mobile-card-amount">
-                      ₹{item.grand_total?.toLocaleString() || '0'}
-                    </span>
-                  </div>
-                  <div className="qt-mobile-card-status">
-                    <StatusBadge status={item.status || 'Draft'} />
-                  </div>
-                  <button
-                    className="qt-mobile-chevron-btn"
-                    onClick={(e) => { e.stopPropagation(); toggleMobileCard(cardKey); }}
-                    aria-label={isExpanded ? 'Collapse' : 'Expand'}
+                  {/* Card Header: Customer, Status and Dropdown Button */}
+                  <div
+                    className="sales-mobile-card-header"
+                    onClick={() => toggleRowExpand(challan.id)}
                   >
-                    {isExpanded ? <FaChevronUp size={12} /> : <FaChevronDown size={12} />}
-                  </button>
-                </div>
-
-                {isExpanded && (
-                  <div className="qt-mobile-card-body">
-                    <div className="qt-mobile-detail-row">
-                      <span className="qt-mobile-detail-label">DC No</span>
-                      <span className="qt-mobile-detail-value">{item.displayDcNumber || item.name || '-'}</span>
-                    </div>
-                    <div className="qt-mobile-detail-row">
-                      <span className="qt-mobile-detail-label">Customer</span>
-                      <span className="qt-mobile-detail-value">{item.customer_name || '-'}</span>
-                    </div>
-                    <div className="qt-mobile-detail-row">
-                      <span className="qt-mobile-detail-label">Date</span>
-                      <span className="qt-mobile-detail-value">{formatDisplayDate(item.posting_date)}</span>
-                    </div>
-                    <div className="qt-mobile-detail-row">
-                      <span className="qt-mobile-detail-label">Amount</span>
-                      <span className="qt-mobile-detail-value">₹{item.grand_total?.toLocaleString() || '0'}</span>
-                    </div>
-                    <div className="qt-mobile-detail-row">
-                      <span className="qt-mobile-detail-label">Status</span>
-                      <span className="qt-mobile-detail-value">
-                        <StatusBadge status={item.status || 'Draft'} />
-                      </span>
-                    </div>
-                    {item.set_warehouse && (
-                      <div className="qt-mobile-detail-row">
-                        <span className="qt-mobile-detail-label">Warehouse</span>
-                        <span className="qt-mobile-detail-value">{item.set_warehouse}</span>
-                      </div>
-                    )}
-                    {item.transporter && (
-                      <div className="qt-mobile-detail-row">
-                        <span className="qt-mobile-detail-label">Transporter</span>
-                        <span className="qt-mobile-detail-value">{item.transporter}</span>
-                      </div>
-                    )}
-                    {item.vehicle_no && (
-                      <div className="qt-mobile-detail-row">
-                        <span className="qt-mobile-detail-label">Vehicle No</span>
-                        <span className="qt-mobile-detail-value">{item.vehicle_no}</span>
-                      </div>
-                    )}
-
-                    <div className="qt-mobile-card-footer">
-                      <span className="qt-mobile-items-count">
-                        {item.items?.length || 0} item{item.items?.length !== 1 ? 's' : ''}
-                      </span>
-                      <div className="qt-mobile-actions">
-                        <button
-                          className="qt-action-btn qt-action-view"
-                          onClick={() => handleView(item.id)}
-                          title="View"
+                    <div className="sales-mobile-card-primary">
+                      <div className="sales-mobile-card-primary-row">
+                        <span
+                          className="sales-mobile-item-name"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleView(challan.id);
+                          }}
+                          title={challan.customer_name || '—'}
                         >
-                          <FaEye size={14} />
-                        </button>
-                        {item.status === 'Draft' && (
-                          <button
-                            className="qt-action-btn"
-                            onClick={() => handleEdit(item.id)}
-                            title="Edit"
-                            style={{ color: '#2563eb' }}
-                          >
-                            <FaEdit size={14} />
-                          </button>
-                        )}
-                        <button
-                          className="qt-action-btn qt-action-print"
-                          onClick={() => handlePrint(item)}
-                          title="Print"
-                          disabled={printLoadingId === String(item.id)}
-                        >
-                          {printLoadingId === String(item.id) ? <FaSpinner className="spinning" size={14} /> : <FaPrintIcon size={14} />}
-                        </button>
+                          {challan.customer_name || '—'}
+                        </span>
+
+                        <span className="sales-mobile-header-badge">
+                          <StatusBadge status={challan.status || 'Draft'} />
+                        </span>
                       </div>
                     </div>
+
+                    {/* Dropdown Button */}
+                    <button
+                      type="button"
+                      className={`sales-mobile-dropdown-btn ${
+                        isExpanded ? 'expanded' : ''
+                      }`}
+                      onClick={(e) => toggleRowExpand(challan.id, e)}
+                      aria-label={
+                        isExpanded
+                          ? 'Collapse delivery challan details'
+                          : 'Expand delivery challan details'
+                      }
+                      title={isExpanded ? 'Collapse' : 'Expand'}
+                    >
+                      <FaChevronDown
+                        size={13}
+                        className="sales-mobile-chevron"
+                      />
+                    </button>
                   </div>
-                )}
-              </div>
-            );
-          })
+
+                  {/* Dropdown Section: Date, Amount, Actions */}
+                  {isExpanded && (
+                    <div className="sales-mobile-card-details">
+                      <div className="sales-mobile-detail-row">
+                        <span className="sales-mobile-detail-label">DC No</span>
+                        <span className="sales-mobile-detail-value">
+                          {challan.displayDcNumber || challan.name || '—'}
+                        </span>
+                      </div>
+
+                      <div className="sales-mobile-detail-row">
+                        <span className="sales-mobile-detail-label">Date</span>
+                        <span className="sales-mobile-detail-value">
+                          {challan.posting_date
+                            ? formatDisplayDate(challan.posting_date)
+                            : '—'}
+                        </span>
+                      </div>
+
+                      <div className="sales-mobile-detail-row">
+                        <span className="sales-mobile-detail-label">Amount</span>
+                        <span className="sales-mobile-detail-value sales-amount-highlight">
+                          {challan.currency || 'INR'}{' '}
+                          {(challan.grand_total || 0).toLocaleString('en-IN')}
+                        </span>
+                      </div>
+
+                      <div className="sales-mobile-detail-footer">
+                        <span className="sales-mobile-card-meta-text">
+                          {/*rowNumber} of {totalRecords*/}
+                        </span>
+
+                        <div className="sales-mobile-action-buttons">
+                          <button
+                            type="button"
+                            className="qt-action-btn qt-action-view"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleView(challan.id);
+                            }}
+                            title="View"
+                          >
+                            <FaEye size={12} />
+                          </button>
+
+                          <button
+                            type="button"
+                            className="qt-action-btn qt-action-print"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handlePrint(challan);
+                            }}
+                            title="Print"
+                            disabled={printLoadingId === String(challan.id)}
+                          >
+                            {printLoadingId === String(challan.id) ? (
+                              <FaSpinner className="spinning" size={12} />
+                            ) : (
+                              <FaPrintIcon size={12} />
+                            )}
+                          </button>
+
+                          <button
+                            type="button"
+                            className="qt-action-btn qt-action-edit"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEdit(challan.id);
+                            }}
+                            title="Edit"
+                          >
+                            <FaEdit size={12} />
+                          </button>
+
+                          <button
+                            type="button"
+                            className="qt-action-btn qt-action-delete"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCancel(challan.id);
+                            }}
+                            title="Cancel"
+                            disabled={
+                              challan.status === 'Cancelled' ||
+                              challan.status === 'Submitted'
+                            }
+                          >
+                            <FaTrash size={12} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
 

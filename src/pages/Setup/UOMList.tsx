@@ -20,6 +20,7 @@ import {
   FaCalendarAlt,
 } from 'react-icons/fa';
 import "./UOMList.css";
+import '../Sales/SalesMobileTable.css';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
 import { PageLoader } from "../components/PageLoader";
@@ -125,6 +126,20 @@ export default function UOMList() {
       console.error('Error fetching categories:', err);
     }
   };
+
+  // ─── Mobile expanded rows state ──────────────────────────────────
+    const [expandedRows, setExpandedRows] = useState<Set<string | number>>(new Set());
+  
+    const toggleRowExpand = (id: string | number, e?: React.MouseEvent) => {
+      e?.stopPropagation();
+      setExpandedRows((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+      });
+    };
+  
 
   // ─── Date Range Filter Helpers ─────────────────────────────────────────
   const toISODate = (d: Date) => {
@@ -706,7 +721,7 @@ export default function UOMList() {
       {/* Table */}
       {!loading && !error && (
         <>
-          <div className="uoml-table-wrap">
+          <div className="uoml-table-wrap sales-desktop-table-wrap">
             <table className="uoml-table">
               <thead>
                 <tr>
@@ -791,6 +806,144 @@ export default function UOMList() {
             </table>
           </div>
 
+
+          {/* Mobile Table Section (Customer, Status + Dropdown Button -> Date, Amount, Actions) */}
+                    <div className="sales-mobile-list-wrap">
+                      <div className="sales-mobile-list-header">
+                        <div className="sales-mobile-th-primary">
+                          <span className="sales-mobile-th-cell">ID	</span>
+                          <span className="sales-mobile-th-sep">•</span>
+                          <span className="sales-mobile-th-cell">UOM Name</span>
+                        </div>
+                        <div className="sales-mobile-th-right">
+                          <span className="sales-count-label">
+                            {totalItems > 0
+                              ? `${getStartIndex()}–${getEndIndex()}`
+                              : '0'} of {totalItems}
+                          </span>
+                        </div>
+                      </div>
+          
+                      {uoms.length === 0 ? (
+                        <div className="qt-empty-state">
+                          <div className="qt-empty-content">
+                            <p>No UOMs found</p>
+                            <span>Try adjusting your search criteria</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="sales-mobile-cards">
+                          {uoms.map((row, idx) => {
+                            const isExpanded = expandedRows.has(row.id);
+                            const rowNumber = getStartIndex() + idx;
+                            return (
+                              <div
+                                key={row.id}
+                                className={`sales-mobile-card ${isExpanded ? "sales-mobile-card-expanded" : ""}`}
+                              >
+                                {/* Card Header: Customer, Status and Dropdown Button */}
+                                <div
+                                  className="sales-mobile-card-header"
+                                  onClick={() => toggleRowExpand(row.id)}
+                                >
+                                  <div className="sales-mobile-card-primary">
+                                    <div className="sales-mobile-card-primary-row">
+                                      <span
+                                        className="sales-mobile-item-name">
+                                        {row.id}
+                                      </span>
+                                      <span className="sales-mobile-header-badge">
+                                        <span className="wl-td wl-td-name">
+                                          {row.uom_name}
+                                        </span>
+                                      </span>
+                                    </div>
+                                  </div>
+          
+                                  {/* Dropdown Button */}
+                                  <button
+                                    type="button"
+                                    className={`sales-mobile-dropdown-btn ${isExpanded ? "expanded" : ""}`}
+                                    onClick={(e) => toggleRowExpand(row.id, e)}
+                                    aria-label={isExpanded ? "Collapse quotation details" : "Expand quotation details"}
+                                    title={isExpanded ? "Collapse" : "Expand"}
+                                  >
+                                    <FaChevronDown size={13} className="sales-mobile-chevron" />
+                                  </button>
+                                </div>
+          
+                                {/* Dropdown Section: Date, Amount, Actions */}
+                                {isExpanded && (
+                                  <div className="sales-mobile-card-details">
+                                    <div className="sales-mobile-detail-row">
+                                      <span className="sales-mobile-detail-label">Symbol	</span>
+                                      <span className="sales-mobile-detail-value">
+                                        {row.symbol || '-'}
+                                      </span>
+                                    </div>
+          
+                                    <div className="sales-mobile-detail-row">
+                                      <span className="sales-mobile-detail-label">Status	</span>
+                                      <span className="sales-mobile-detail-value sales-amount-highlight">
+                                        <span className={`uoml-status-badge uoml-status-${row.enabled === 1 ? 'enabled' : 'disabled'}`}>
+                          {row.enabled === 1 ? 'Enabled' : 'Disabled'}
+                        </span>
+                                      </span>
+                                    </div>
+          
+                                    <div className="sales-mobile-detail-row">
+                                      <span className="sales-mobile-detail-label">Category</span>
+                                      <span className="sales-mobile-detail-value">
+                                        {row.category}
+                                      </span>
+                                    </div>
+          
+                                    
+          
+                                    <div className="sales-mobile-detail-footer">
+                                      <span className="sales-mobile-card-meta-text">
+                                        {/*rowNumber} of {totalRecords*/}
+                                      </span>
+                                      <div className="sales-mobile-action-buttons">
+                                        <button
+                                          className="uoml-action-btn uoml-action-view" 
+                            onClick={(e) => { e.stopPropagation(); navigate(`/uom/${encodeURIComponent(row.uom_name)}`); }}
+                            title="View"
+                                        >
+                                          <FaEye size={12} />
+                                        </button>
+                                        <button
+                                          className="uoml-action-btn uoml-action-edit" 
+                            onClick={(e) => { e.stopPropagation(); navigate(`/uom/${encodeURIComponent(row.uom_name)}`); }}
+                            title="Edit"
+                                        >
+          
+          
+                                          <FaEdit size={12} />
+                                        </button>
+                                        <button
+                                          className="uoml-action-btn uoml-action-delete" 
+                            onClick={(e) => { e.stopPropagation(); handleDelete(row); }}
+                            title="Delete"
+                                        >
+                                          <FaTrash size={12} />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+          
+
+
+
           {/* Pagination */}
           <div className="uoml-pagination">
             <div className="uoml-pagination-left">
@@ -856,8 +1009,7 @@ export default function UOMList() {
               </span>
             </div>
           </div>
-        </>
-      )}
+      
 
       {/* New UOM Modal */}
       {showModal && (

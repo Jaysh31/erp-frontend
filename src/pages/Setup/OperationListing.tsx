@@ -9,16 +9,17 @@ import {
   FaAngleDoubleLeft,
   FaAngleDoubleRight,
   FaBoxes,
-  
+  FaChevronDown,
   FaSpinner,
   FaEdit,
   FaTrash,
   FaEye,
   FaPlus,
- 
+
   FaCalendarAlt,
 } from 'react-icons/fa';
 import "./OperationListing.css";
+import '../Sales/SalesMobileTable.css';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
 import { PageLoader } from "../components/PageLoader";
@@ -42,6 +43,7 @@ interface Operation {
   _user_tags: string;
   _comments: string | null;
   _assign: string | null;
+  workstation_name: string;
   _liked_by: string | null;
 }
 
@@ -62,7 +64,7 @@ export default function OperationList() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [, setTotalItems] = useState(0);
+  const [totalItems, setTotalItems] = useState(0);
   const [sortField] = useState<string>('creation');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -76,6 +78,18 @@ export default function OperationList() {
 
   // ─── Format date ──────────────────────────────────────────────────────────
 
+  // ─── Mobile expanded rows state ──────────────────────────────────
+  const [expandedRows, setExpandedRows] = useState<Set<string | number>>(new Set());
+
+  const toggleRowExpand = (id: string | number, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   // Local (non-UTC) YYYY-MM-DD formatter, avoids the timezone-shift bug
   // that toISOString() causes when converting local dates to API params.
@@ -308,13 +322,13 @@ export default function OperationList() {
       const search = searchTerm.toLowerCase();
 
       const matchesSearch = name.includes(search) ||
-                           description.includes(search) ||
-                           workstation.includes(search);
+        description.includes(search) ||
+        workstation.includes(search);
 
       const matchesStatus = statusFilter === 'all' ||
-                           (statusFilter === 'active' && op.docstatus === 0) ||
-                           (statusFilter === 'submitted' && op.docstatus === 1) ||
-                           (statusFilter === 'cancelled' && op.docstatus === 2);
+        (statusFilter === 'active' && op.docstatus === 0) ||
+        (statusFilter === 'submitted' && op.docstatus === 1) ||
+        (statusFilter === 'cancelled' && op.docstatus === 2);
 
       return matchesSearch && matchesStatus;
     })
@@ -341,10 +355,10 @@ export default function OperationList() {
 
   // Calculate total filtered items and pages
   const totalFilteredItems = filteredAndSortedOperations.length;
-  
+
   // Calculate total pages - if itemsPerPage is greater than total items, totalPages should be 1
   const totalPages = Math.max(1, Math.ceil(totalFilteredItems / itemsPerPage));
-  
+
   // Ensure current page is valid
   let validCurrentPage = currentPage;
   if (currentPage > totalPages) {
@@ -367,7 +381,7 @@ export default function OperationList() {
 
   // ─── Stats ────────────────────────────────────────────────────────────────
 
- 
+
 
   // ─── Pagination ───────────────────────────────────────────────────────────
 
@@ -401,7 +415,7 @@ export default function OperationList() {
     if (totalFilteredItems === 0) return 0;
     return startIndex + 1;
   };
-  
+
   const getEndIndex = () => {
     return endIndex;
   };
@@ -475,24 +489,24 @@ export default function OperationList() {
     return operation.is_corrective_operation === 1 ? 'Corrective' : 'Standard';
   };
 
-    // ─── Loading Screen ─────────────────────────────────────────────────────
-    if (loading) {
-      return (
-        <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
-          <PageLoader
-            message="Loading Setup & Operation List..." 
-            //subtitle="Calculating bill of materials, operations rates, and component structures"
-          />
-        </div>
-      );
-    }
+  // ─── Loading Screen ─────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
+        <PageLoader
+          message="Loading Setup & Operation List..."
+        //subtitle="Calculating bill of materials, operations rates, and component structures"
+        />
+      </div>
+    );
+  }
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
     <div className={`op-page ${theme}`}>
       {/* Stats Cards */}
-      
+
 
       {/* Search and Filter Bar */}
       <div className="op-filter-bar">
@@ -654,7 +668,7 @@ export default function OperationList() {
             setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
           }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="9" y2="18"/>
+              <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="15" y2="12" /><line x1="3" y1="18" x2="9" y2="18" />
             </svg>
             Sort {sortDirection === 'asc' ? '↑' : '↓'}
           </button>
@@ -712,7 +726,7 @@ export default function OperationList() {
       {/* Table */}
       {!loading && !error && (
         <>
-          <div className="op-table-container">
+          <div className="op-table-container sales-desktop-table-wrap">
             {paginatedData.length === 0 ? (
               <div className="op-empty-state">
                 <div className="op-empty-content">
@@ -741,14 +755,14 @@ export default function OperationList() {
                       onClick={() => handleRowClick(row)}
                     >
                       <td className="op-td-name">{row.name}</td>
-                      <td>{row.workstation}</td>
+                      <td>{row.workstation_name}</td>
                       <td>
                         {getStatusBadge(row.docstatus)}
                       </td>
                       <td>{getOperationType(row)}</td>
                       <td>{row.total_operation_time}</td>
                       <td className="op-td-meta">
-                        
+
                         <div className="op-action-buttons">
                           <button
                             className="op-action-btn op-action-view"
@@ -781,77 +795,211 @@ export default function OperationList() {
             )}
           </div>
 
-          {/* Pagination - Always show when there are items */}
-          {totalFilteredItems > 0 && (
-            <div className="op-pagination">
-              <div className="op-pagination-left">
-                <span className="op-pagination-label">Show:</span>
-                <select
-                  value={itemsPerPage}
-                  onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-                  className="op-page-size-select"
-                >
-                  <option value={10}>10</option>
-                  <option value={25}>25</option>
-                  <option value={50}>50</option>
-                  <option value={100}>100</option>
-                </select>
-                <span className="op-pagination-label">entries</span>
+
+          {/* Mobile Table Section (Customer, Status + Dropdown Button -> Date, Amount, Actions) */}
+          <div className="sales-mobile-list-wrap">
+            <div className="sales-mobile-list-header">
+              <div className="sales-mobile-th-primary">
+                <span className="sales-mobile-th-cell">Name	</span>
+                <span className="sales-mobile-th-sep">•</span>
+                <span className="sales-mobile-th-cell">Warehouse Name</span>
               </div>
-              
-              {/* Pagination controls */}
-              <div className="op-pagination-center">
-                <button
-                  onClick={goToFirstPage}
-                  disabled={validCurrentPage === 1 || totalPages <= 1}
-                  className="op-page-btn"
-                >
-                  <FaAngleDoubleLeft size={12} />
-                </button>
-                <button
-                  onClick={goToPrevPage}
-                  disabled={validCurrentPage === 1 || totalPages <= 1}
-                  className="op-page-btn"
-                >
-                  <FaChevronLeft size={12} />
-                </button>
-                
-                {/* Show page numbers */}
-                {getPageNumbers().map(page => (
-                  <button
-                    key={page}
-                    onClick={() => goToPage(page)}
-                    className={`op-page-btn ${validCurrentPage === page ? 'op-page-btn-active' : ''}`}
-                  >
-                    {page}
-                  </button>
-                ))}
-                
-                <button
-                  onClick={goToNextPage}
-                  disabled={validCurrentPage === totalPages || totalPages <= 1}
-                  className="op-page-btn"
-                >
-                  <FaChevronRight size={12} />
-                </button>
-                <button
-                  onClick={goToLastPage}
-                  disabled={validCurrentPage === totalPages || totalPages <= 1}
-                  className="op-page-btn"
-                >
-                  <FaAngleDoubleRight size={12} />
-                </button>
-              </div>
-              
-              <div className="op-pagination-right">
-                <span className="op-pagination-info">
-                  Showing {getStartIndex()} to {getEndIndex()} of {totalFilteredItems} entries
+              <div className="sales-mobile-th-right">
+                <span className="sales-count-label">
+                  {totalItems > 0
+                    ? `${getStartIndex()}–${getEndIndex()}`
+                    : '0'} of {totalItems}
                 </span>
               </div>
             </div>
-          )}
+
+            {paginatedData.length === 0 ? (
+              <div className="qt-empty-state">
+                <div className="qt-empty-content">
+                  <p>No warehouses found</p>
+                  <span>Try adjusting your search criteria</span>
+                </div>
+              </div>
+            ) : (
+              <div className="sales-mobile-cards">
+                {paginatedData.map((row, idx) => {
+                  const isExpanded = expandedRows.has(row.id);
+                  const rowNumber = getStartIndex() + idx;
+                  return (
+                    <div
+                      key={row.id}
+                      className={`sales-mobile-card ${isExpanded ? "sales-mobile-card-expanded" : ""}`}
+                    >
+                      {/* Card Header: Customer, Status and Dropdown Button */}
+                      <div
+                        className="sales-mobile-card-header"
+                        onClick={() => toggleRowExpand(row.id)}
+                      >
+                        <div className="sales-mobile-card-primary">
+                          <div className="sales-mobile-card-primary-row">
+                            <span
+                              className="sales-mobile-item-name">
+                              {row.name}
+                            </span>
+                            <span className="sales-mobile-header-badge">
+                              <span className="wl-td wl-td-name">
+                                {row.workstation_name}
+                              </span>
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Dropdown Button */}
+                        <button
+                          type="button"
+                          className={`sales-mobile-dropdown-btn ${isExpanded ? "expanded" : ""}`}
+                          onClick={(e) => toggleRowExpand(row.id, e)}
+                          aria-label={isExpanded ? "Collapse quotation details" : "Expand quotation details"}
+                          title={isExpanded ? "Collapse" : "Expand"}
+                        >
+                          <FaChevronDown size={13} className="sales-mobile-chevron" />
+                        </button>
+                      </div>
+
+                      {/* Dropdown Section: Date, Amount, Actions */}
+                      {isExpanded && (
+                        <div className="sales-mobile-card-details">
+                          <div className="sales-mobile-detail-row">
+                            <span className="sales-mobile-detail-label">Status	</span>
+                            <span className="sales-mobile-detail-value">
+                              {getStatusBadge(row.docstatus)}
+                            </span>
+                          </div>
+
+                          <div className="sales-mobile-detail-row">
+                            <span className="sales-mobile-detail-label">Type	</span>
+                            <span className="sales-mobile-detail-value sales-amount-highlight">
+                              {getOperationType(row)}
+                            </span>
+                          </div>
+
+                          <div className="sales-mobile-detail-row">
+                            <span className="sales-mobile-detail-label">Time (min)</span>
+                            <span className="sales-mobile-detail-value">
+                              {row.total_operation_time}
+                            </span>
+                          </div>
+
+                          <div className="sales-mobile-detail-footer">
+                            <span className="sales-mobile-card-meta-text">
+                              {/*rowNumber} of {totalRecords*/}
+                            </span>
+                            <div className="sales-mobile-action-buttons">
+                              <button
+                                className="op-action-btn op-action-view"
+                                onClick={(e) => { e.stopPropagation(); handleViewOperation(row); }}
+                                title="View"
+                              >
+                                <FaEye size={12} />
+                              </button>
+                              <button
+                                className="op-action-btn op-action-edit"
+                                onClick={(e) => { e.stopPropagation(); handleEditOperation(row); }}
+                                title="Edit"
+                              >
+
+
+                                <FaEdit size={12} />
+                              </button>
+                              <button
+                                className="op-action-btn op-action-delete"
+                                onClick={(e) => { e.stopPropagation(); handleDeleteOperation(row); }}
+                                disabled={deletingId === row.id}
+                                title="Delete"
+                              >
+                                {deletingId === row.id ? <FaSpinner className="spinning" size={12} /> : <FaTrash size={12} />}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </>
       )}
+
+
+
+
+      {/* Pagination - Always show when there are items */}
+      {totalFilteredItems > 0 && (
+        <div className="op-pagination">
+          <div className="op-pagination-left">
+            <span className="op-pagination-label">Show:</span>
+            <select
+              value={itemsPerPage}
+              onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+              className="op-page-size-select"
+            >
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+            <span className="op-pagination-label">entries</span>
+          </div>
+
+          {/* Pagination controls */}
+          <div className="op-pagination-center">
+            <button
+              onClick={goToFirstPage}
+              disabled={validCurrentPage === 1 || totalPages <= 1}
+              className="op-page-btn"
+            >
+              <FaAngleDoubleLeft size={12} />
+            </button>
+            <button
+              onClick={goToPrevPage}
+              disabled={validCurrentPage === 1 || totalPages <= 1}
+              className="op-page-btn"
+            >
+              <FaChevronLeft size={12} />
+            </button>
+
+            {/* Show page numbers */}
+            {getPageNumbers().map(page => (
+              <button
+                key={page}
+                onClick={() => goToPage(page)}
+                className={`op-page-btn ${validCurrentPage === page ? 'op-page-btn-active' : ''}`}
+              >
+                {page}
+              </button>
+            ))}
+
+            <button
+              onClick={goToNextPage}
+              disabled={validCurrentPage === totalPages || totalPages <= 1}
+              className="op-page-btn"
+            >
+              <FaChevronRight size={12} />
+            </button>
+            <button
+              onClick={goToLastPage}
+              disabled={validCurrentPage === totalPages || totalPages <= 1}
+              className="op-page-btn"
+            >
+              <FaAngleDoubleRight size={12} />
+            </button>
+          </div>
+
+          <div className="op-pagination-right">
+            <span className="op-pagination-info">
+              Showing {getStartIndex()} to {getEndIndex()} of {totalFilteredItems} entries
+            </span>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
