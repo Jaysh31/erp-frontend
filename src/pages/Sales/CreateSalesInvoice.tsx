@@ -35,7 +35,11 @@ import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import './CreateSalesInvoice.css';
 
 // ===== INTERFACES =====
-
+interface DeliveryNoteQCInfo {
+  deliveryNoteId: number;
+  quality_inspection_id: number | null;
+  naming_series?: string;
+}
 interface Customer {
   id: string;
   name: string;
@@ -2466,6 +2470,9 @@ const CreateSalesBill: React.FC = () => {
   const [inventoryMap, setInventoryMap] = useState<{ [itemCode: string]: InventoryApiRecord[] }>({});
   const [, setLoadingInventory] = useState(false);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+// ✅ Delivery Note QC lookup state (belongs here, inside CreateSalesBill)
+const [deliveryNoteQCMap, setDeliveryNoteQCMap] = useState<Record<string, DeliveryNoteQCInfo>>({});
+const [loadingQCMap, setLoadingQCMap] = useState<boolean>(false);
 
   // ─── Edit / View mode state ─────────────────────────────────────
   const [loadingInvoice, setLoadingInvoice] = useState<boolean>(false);
@@ -3056,7 +3063,13 @@ const CreateSalesBill: React.FC = () => {
     setPendingWarehouseName('');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [warehouses, pendingWarehouseName]);
-
+  useEffect(() => {
+    if (selectedCustomer) {
+      fetchDeliveryNoteQCStatus(selectedCustomer);
+    } else {
+      setDeliveryNoteQCMap({});
+    }
+  }, [selectedCustomer]);
   // Update stock status when inventory changes
   useEffect(() => {
     if (Object.keys(inventoryMap).length === 0) return;
@@ -3120,7 +3133,40 @@ const CreateSalesBill: React.FC = () => {
       }))
     );
   }, [items, roundOff]);
+// ✅ Fetch QC status for all delivery notes belonging to a customer
+const fetchDeliveryNoteQCStatus = async (customerId: string) => {
+  if (!customerId) {
+    setDeliveryNoteQCMap({});
+    return;
+  }
 
+  setLoadingQCMap(true);
+  try {
+    const response = await api.get('/delivery-note', {
+      params: { page: 1, limit: 100, customer: customerId }
+    });
+
+    if (response.data?.success === 1 && response.data?.data?.records) {
+      const map: Record<string, DeliveryNoteQCInfo> = {};
+      response.data.data.records.forEach((rec: any) => {
+        map[String(rec.id)] = {
+          deliveryNoteId: rec.id,
+          quality_inspection_id:
+            rec.quality_inspection_id !== undefined ? rec.quality_inspection_id : null,
+          naming_series: rec.naming_series
+        };
+      });
+      setDeliveryNoteQCMap(map);
+    } else {
+      setDeliveryNoteQCMap({});
+    }
+  } catch (error) {
+    console.error('Error fetching delivery note QC status:', error);
+    setDeliveryNoteQCMap({});
+  } finally {
+    setLoadingQCMap(false);
+  }
+};
   const fetchCustomers = async () => {
     setIsLoading(true);
     try {
@@ -3563,7 +3609,15 @@ const CreateSalesBill: React.FC = () => {
     setQuickAddPrefillName(prefillName || '');
     setShowQuickAddModal(true);
   };
-
+  const handleViewQCForDeliveryNote = (dnId: string) => {
+    const info = deliveryNoteQCMap[dnId];
+    if (!info?.quality_inspection_id) return;
+    navigate(`/quality-inspection/${info.quality_inspection_id}?view=1`);
+  };
+  
+  const handleCreateQCForDeliveryNote = (dnId: string) => {
+    navigate(`/quality-inspection/new?sourceType=delivery_challan&sourceId=${dnId}`);
+  };
   const navigateToFullCustomerForm = (prefillName: string) => {
     try {
       const draftPayload: SalesBillDraftPayload = {
@@ -4738,12 +4792,48 @@ if (isEditMode && id) {
                       error={!!errors.deliveryChallan}
                       customerFilter={selectedCustomer || undefined}
                     />
-                    {errors.deliveryChallan && <span className="nsb-error-text">{errors.deliveryChallan}</span>}
-                    {selectedDeliveryChallans.length > 0 && (
-                      <span className="nsb-field-hint">
-                        ✓ {selectedDeliveryChallans.length} Delivery Challans selected. Items, customer & payment terms will be auto-filled.
-                      </span>
-                    )}
+                   {errors.deliveryChallan && <span className="nsb-error-text">{errors.deliveryChallan}</span>}
+{selectedDeliveryChallans.length > 0 && (
+  <span className="nsb-field-hint">
+    ✓ {selectedDeliveryChallans.length} Delivery Challans selected. Items, customer & payment terms will be auto-filled.
+  </span>
+)}
+
+{/* ✅ QC status per selected Delivery Challan */}
+{selectedDeliveryChallans.length > 0 && (
+  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
+    {selectedDeliveryChallans.map((dc) => {
+      const qc = deliveryNoteQCMap[dc.id];
+      return (
+        <div key={dc.id} className="nsb-qc-chip">
+          <span className="nsb-qc-chip-label">{dc.id}</span>
+
+          {loadingQCMap ? (
+            <FaSpinner className="nsb-spinning" size={10} />
+          ) : qc?.quality_inspection_id ? (
+            <button
+              type="button"
+              className="nsb-qc-view-btn"
+              onClick={() => handleViewQCForDeliveryNote(dc.id)}
+              title={`Quality Inspection #${qc.quality_inspection_id} exists`}
+            >
+              <FaClipboardList size={10} /> View QC
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="nsb-qc-create-btn"
+              onClick={() => handleCreateQCForDeliveryNote(dc.id)}
+              title="No quality inspection linked yet"
+            >
+              <FaPlus size={10} /> Create QC
+            </button>
+          )}
+        </div>
+      );
+    })}
+  </div>
+)}
                   </div>
                 </div>
               )}

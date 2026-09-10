@@ -140,7 +140,7 @@ const ENTRY_TYPES: EntryType[] = [
 export default function Stockentry() {
   const navigate = useNavigate();
   
-  const { theme, formatDate } = useAdminTheme();
+  const { theme,  } = useAdminTheme();
 
 
   const [stockEntries, setStockEntries] = useState<StockEntryDisplay[]>([]);

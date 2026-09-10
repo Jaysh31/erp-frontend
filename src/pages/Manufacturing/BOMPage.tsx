@@ -4,9 +4,9 @@ import {
   Plus,
   Filter as FilterIcon,
   X,
-  ArrowUpDown,
+  
   FileStack,
-  Check,
+
   Search,
   Eye,
   Edit,
@@ -28,7 +28,6 @@ import api from '../../services/api';
 import { PageLoader } from "../components/PageLoader.tsx";
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const SORT_FIELDS = ["Created On", "Last Updated On", "ID", "Item to Manufacture"];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -111,9 +110,10 @@ const BOMPage: React.FC = () => {
   const [totalRecords, setTotalRecords] = useState(0);
 
   // Sort
-  const [sortOpen, setSortOpen] = useState(false);
-  const [sortField, setSortField] = useState("Created On");
+  const [, setSortOpen] = useState(false);
+  const [sortField, ] = useState("Created On");
 
+  
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -421,13 +421,7 @@ const BOMPage: React.FC = () => {
     setShowDatePicker(false);
   };
 
-  const toggle = (
-    setter: React.Dispatch<React.SetStateAction<boolean>>,
-    current: boolean
-  ) => {
-    closeAll();
-    setter(!current);
-  };
+  
 
   const clearFilters = () => {
     setSearchTerm("");

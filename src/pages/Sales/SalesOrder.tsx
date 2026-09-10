@@ -4,9 +4,9 @@ import {
   FaSearch, FaPlus, FaEye, FaEdit, FaTrash, FaFilePdf, FaPrint,
   FaFilter, FaCheckCircle, FaClock, FaTimesCircle,
   FaFileAlt, FaExternalLinkAlt,
-  FaChartLine, FaTimes, FaSpinner, FaBoxOpen, FaEnvelope, FaEllipsisV,
+   FaTimes, FaSpinner, FaBoxOpen, FaEnvelope, FaEllipsisV,
   FaChevronLeft, FaChevronRight, FaCalendarAlt,
-  FaAngleDoubleLeft, FaAngleDoubleRight, FaChevronDown, FaChevronUp
+  FaAngleDoubleLeft, FaAngleDoubleRight, FaChevronDown, 
 } from 'react-icons/fa';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
@@ -257,7 +257,7 @@ export default function SalesOrder() {
   const [proformaLoadingId, setProformaLoadingId] = useState<string | null>(null);
   const [showMoreMenu, setShowMoreMenu] = useState<string | null>(null);
   const [showMobileMoreMenu, setShowMobileMoreMenu] = useState<string | null>(null);
-  const [expandedMobileCard, setExpandedMobileCard] = useState<string | null>(null);
+  const [, ] = useState<string | null>(null);
 
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
@@ -359,14 +359,6 @@ export default function SalesOrder() {
     setShowMoreMenu(showMoreMenu === id ? null : id);
   };
 
-  const toggleMobileMenu = (id: string) => {
-    setShowMobileMoreMenu(showMobileMoreMenu === id ? null : id);
-  };
-
-  const toggleMobileCard = (id: string) => {
-    setExpandedMobileCard(expandedMobileCard === id ? null : id);
-    setShowMobileMoreMenu(null);
-  };
 
   const formatDateForDisplay = (dateStr: string): string => {
     if (!dateStr) return '';
@@ -683,10 +675,6 @@ export default function SalesOrder() {
     }
     return pages;
   };
-
-  const totalAmount = salesOrders.reduce((sum, o) => sum + o.totalAmount, 0);
-  const completedAmount = salesOrders.filter(o => o.status === 'Completed').reduce((sum, o) => sum + o.totalAmount, 0);
-  const fulfillmentRate = totalAmount > 0 ? Math.round((completedAmount / totalAmount) * 100) : 0;
 
   const handleView = (order: SalesOrder) => {
     if (!order.id) {

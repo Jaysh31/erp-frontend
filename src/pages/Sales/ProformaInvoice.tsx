@@ -3,11 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import {
   FaSearch,  FaEye, FaTrash, FaFilePdf, FaPrint,
   FaFilter, 
-  FaChartLine, FaTimes, FaSpinner, FaBoxOpen, FaEnvelope,
+   FaTimes, FaSpinner, FaBoxOpen, FaEnvelope,
 
-  FaFileInvoice, FaBuilding, FaBan, FaCalendarAlt,
+   FaCalendarAlt,
   FaChevronLeft, FaChevronRight, FaAngleDoubleLeft, FaAngleDoubleRight,
-  FaHome, FaChevronDown, FaChevronUp, FaEllipsisV
+   FaChevronDown, 
 } from 'react-icons/fa';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
@@ -276,36 +276,9 @@ const useDebounce = (value: string, delay: number) => {
    swap this out for that and delete this helper — the topbar UI below
    will keep working unchanged, it just needs { name, role }.
 ------------------------------------------------------------------------ */
-interface CurrentUser {
-  name: string;
-  role: string;
-}
 
-const getCurrentUser = (): CurrentUser => {
-  const candidateKeys = ['user', 'currentUser', 'authUser', 'admin_user', 'loggedInUser'];
-  try {
-    for (const key of candidateKeys) {
-      const raw = localStorage.getItem(key);
-      if (!raw) continue;
-      const parsed = JSON.parse(raw);
-      const name = parsed?.name || parsed?.full_name || parsed?.fullName || parsed?.username || parsed?.email;
-      if (name) {
-        const role = parsed?.role || parsed?.designation || parsed?.user_role || 'Admin';
-        return { name: String(name), role: String(role) };
-      }
-    }
-  } catch {
-    // ignore malformed localStorage data and fall through to default
-  }
-  return { name: 'Admin User', role: 'Admin' };
-};
 
-const getInitials = (name: string): string => {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '?';
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-};
+
 
 export default function ProformaInvoice() {
   const navigate = useNavigate();
@@ -317,7 +290,7 @@ export default function ProformaInvoice() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [printLoadingId, setPrintLoadingId] = useState<string | null>(null);
-  const [expandedMobileCard, setExpandedMobileCard] = useState<string | null>(null);
+  const [, ] = useState<string | null>(null);
 
   // Date range filter states
   const [fromDate, setFromDate] = useState<string>('');
@@ -365,8 +338,6 @@ export default function ProformaInvoice() {
   const debouncedFilterText = useDebounce(filterText, 500);
 
   // Logged-in user shown in the top bar (see getCurrentUser() above)
-  const currentUser = getCurrentUser();
-  const userInitials = getInitials(currentUser.name);
 
   const formatDisplayDate = (dateString: string) => {
     if (!dateString) return '';
@@ -672,9 +643,6 @@ export default function ProformaInvoice() {
     };
   };
 
-  const totalAmount = salesOrders.reduce((sum, o) => sum + o.totalAmount, 0);
-  const completedAmount = salesOrders.filter(o => o.status === 'Completed').reduce((sum, o) => sum + o.totalAmount, 0);
-  const fulfillmentRate = totalAmount > 0 ? Math.round((completedAmount / totalAmount) * 100) : 0;
 
   const handleView = (order: SalesOrder) => {
     if (!order.id) {
@@ -871,18 +839,7 @@ export default function ProformaInvoice() {
   // Badge color for the mobile card's order-type pill (mirrors the
   // status-pill pattern used elsewhere in the app, since this table
   // doesn't surface a separate status column).
-  const getOrderTypeBadgeClass = (type: string): string => {
-    switch (type) {
-      case 'Sales': return 'pq-badge-sales';
-      case 'Return': return 'pq-badge-return';
-      case 'Credit Note': return 'pq-badge-creditnote';
-      default: return 'pq-badge-default';
-    }
-  };
 
-  const toggleMobileCard = (id: string) => {
-    setExpandedMobileCard(expandedMobileCard === id ? null : id);
-  };
 
   const buildProformaInvoiceHtml = (order: SalesOrder, company?: Company, bank?: BankDetail): string => {
     const validItems = order.items || [];
