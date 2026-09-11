@@ -3417,15 +3417,15 @@ export default function PurchaseOrderForm() {
                   <thead>
                     <tr>
                       <th className="pof-ith">#</th>
-                      <th className="pof-itd">Item Code <span className="pof-required">*</span></th>
-                      <th className="pof-itd">Item Name <span className="pof-required">*</span></th>
-                      <th className="pof-itd">HSN</th>
-                      <th className="pof-itd">Qty <span className="pof-required">*</span></th>
-                      <th className="pof-itd">UOM</th>
-                      <th className="pof-itd">Rate <span className="pof-required">*</span></th>
-                      <th className="pof-itd">Tax</th>
-                      <th className="pof-itd">Amount</th>
-                      <th className="pof-itd pof-ith-action"></th>
+                      <th className="pof-ith pof-itd">Item Code <span className="pof-required">*</span></th>
+                      <th className="pof-ith pof-itd">Item Name <span className="pof-required">*</span></th>
+                      <th className="pof-ith pof-itd">HSN</th>
+                      <th className="pof-ith pof-itd">Qty <span className="pof-required">*</span></th>
+                      <th className="pof-ith pof-itd">UOM</th>
+                      <th className="pof-ith pof-itd">Rate <span className="pof-required">*</span></th>
+                      <th className="pof-ith pof-itd">Tax</th>
+                      <th className="pof-ith pof-itd">Amount</th>
+                      <th className="pof-ith pof-ith-action"></th>
                     </tr>
                   </thead>
                   <tbody>
