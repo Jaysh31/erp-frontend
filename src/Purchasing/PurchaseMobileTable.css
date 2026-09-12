@@ -1,0 +1,530 @@
+/* ==========================================================================
+   PURCHASE SECTION - UNIFIED MOBILE 2-COLUMN TABLE & CARD LAYOUT
+   All Pages Table Section Mobile UI in One Place:
+   - Purchase Order Form: pof-items-section, pof-table-block, pof-inline-table
+   - GRN Form: grnf-items-table, pof-inline-table, grnf-items-section
+   - Purchase Bill Form: pif-table-block, pof-table-block, pif-inline-table
+   ========================================================================== */
+
+/* ─── Desktop Defaults for Row Number & Badges ───────────────────────────── */
+.pof-mobile-row-badge {
+  display: none;
+}
+
+.pof-desktop-row-num {
+  display: inline;
+}
+
+.pof-remove-row-text {
+  display: none;
+}
+
+/* ─── Unified Mobile 2-Column Card Grid (max-width: 768px) ──────────────── */
+@media (max-width: 768px) {
+
+  /* ─── 1. Items Section & Header Controls ───────────────────────────── */
+  .pof-items-section,
+  .grnf-items-section,
+  .pif-items-section {
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .pof-items-header,
+  .grnf-items-header,
+  .pif-table-header-row {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    flex-wrap: wrap !important;
+    gap: 10px !important;
+    margin-bottom: 12px !important;
+  }
+
+  .pof-add-item-btn,
+  .grnf-add-item-btn,
+  .pif-add-item-btn {
+    min-height: 38px !important;
+    padding: 0 16px !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    border-radius: 8px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    touch-action: manipulation;
+  }
+
+  .pof-item-filter {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    padding: 8px 10px !important;
+    margin-bottom: 12px !important;
+  }
+
+  .pof-filter-select {
+    flex: 1 1 180px !important;
+    min-width: 140px !important;
+  }
+
+  /* ─── 2. Table Block Container ─────────────────────────────────────── */
+  .pof-table-block,
+  .pif-table-block,
+  .grnf-table-block {
+    width: 100% !important;
+    overflow: visible !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin-bottom: 16px !important;
+  }
+
+  /* ─── 3. Table Element & Hide Desktop Thead ────────────────────────── */
+  .pof-inline-table,
+  .grnf-items-table,
+  .pif-inline-table {
+    width: 100% !important;
+    min-width: 0 !important;
+    display: block !important;
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+    background: transparent !important;
+    border: none !important;
+  }
+
+  .pof-inline-table thead,
+  .grnf-items-table thead,
+  .pif-inline-table thead {
+    display: none !important;
+  }
+
+  /* ─── 4. Table Body ────────────────────────────────────────────────── */
+  .pof-inline-table tbody,
+  .grnf-items-table tbody,
+  .pif-inline-table tbody {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 14px !important;
+    width: 100% !important;
+  }
+
+  /* ─── 5. Row Card: 2-Column Responsive Grid ────────────────────────── */
+  .pof-inline-table tbody tr.pof-itr,
+  .pof-inline-table tbody tr.pif-itr,
+  .grnf-items-table tbody tr.pof-itr,
+  .grnf-items-table tbody tr.pif-itr,
+  .pif-inline-table tbody tr.pof-itr,
+  .pif-inline-table tbody tr.pif-itr {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px 12px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    padding: 14px !important;
+    background: var(--bg-primary, var(--card-bg, #ffffff)) !important;
+    border: 1px solid var(--border-color, #e2e8f0) !important;
+    border-radius: 12px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+    position: relative !important;
+    transition: box-shadow 0.2s ease, border-color 0.2s ease !important;
+  }
+
+  /* ─── 6. Cell Base & Labels ────────────────────────────────────────── */
+  .pof-inline-table tbody td.pof-itd,
+  .pof-inline-table tbody td.pif-itd,
+  .grnf-items-table tbody td.pof-itd,
+  .grnf-items-table tbody td.pif-itd,
+  .pif-inline-table tbody td.pof-itd,
+  .pif-inline-table tbody td.pif-itd {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    justify-content: flex-start !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-sizing: border-box !important;
+    position: static;
+  }
+
+  /* Field label generated from data-label */
+  .pof-inline-table tbody td.pof-itd::before,
+  .pof-inline-table tbody td.pif-itd::before,
+  .grnf-items-table tbody td.pof-itd::before,
+  .grnf-items-table tbody td.pif-itd::before,
+  .pif-inline-table tbody td.pof-itd::before,
+  .pif-inline-table tbody td.pif-itd::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 5px;
+    font-size: 11px;
+    line-height: 14px;
+    font-weight: 600;
+    color: var(--text-secondary, #64748b);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* ─── 7. Full-Width Elements in the 2-Column Grid ──────────────────── */
+
+  /* Row Number / Index Header */
+  .pof-inline-table tbody td.pof-itd-no,
+  .pof-inline-table tbody td.pif-itd-no,
+  .grnf-items-table tbody td.pof-itd-no,
+  .grnf-items-table tbody td.pif-itd-no,
+  .pif-inline-table tbody td.pof-itd-no,
+  .pif-inline-table tbody td.pif-itd-no {
+    grid-column: 1 / -1 !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding-bottom: 8px !important;
+    margin-bottom: 2px !important;
+    border-bottom: 1px dashed var(--border-color, #e2e8f0) !important;
+    min-height: 24px !important;
+  }
+
+  .pof-inline-table tbody td.pof-itd-no::before,
+  .pof-inline-table tbody td.pif-itd-no::before,
+  .grnf-items-table tbody td.pof-itd-no::before,
+  .grnf-items-table tbody td.pif-itd-no::before,
+  .pif-inline-table tbody td.pof-itd-no::before,
+  .pif-inline-table tbody td.pif-itd-no::before {
+    display: none !important;
+  }
+
+  .pof-mobile-row-badge {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    color: var(--primary-color, #2563eb) !important;
+    background: color-mix(in srgb, var(--primary-color, #2563eb) 8%, transparent) !important;
+    padding: 3px 8px !important;
+    border-radius: 6px !important;
+    letter-spacing: 0.3px !important;
+  }
+
+  .pof-desktop-row-num {
+    display: none !important;
+  }
+
+  /* Item Code & Item Name Full Width */
+  .pof-itd-code,
+  .pif-itd-code,
+  .pof-itd-name,
+  .pif-itd-name,
+  .pof-inline-table tbody td[data-label*="Code"],
+  .pof-inline-table tbody td[data-label*="Name"],
+  .grnf-items-table tbody td[data-label*="Code"],
+  .grnf-items-table tbody td[data-label*="Name"],
+  .pif-inline-table tbody td[data-label*="Code"],
+  .pif-inline-table tbody td[data-label*="Name"] {
+    grid-column: 1 / -1 !important;
+    position: relative !important;
+  }
+
+  /* Row Action / Delete Button Full Width at Bottom */
+  .pof-itd-action,
+  .pif-itd-action,
+  .pof-inline-table tbody td.pof-itd-action,
+  .grnf-items-table tbody td.pif-itd-action,
+  .pif-inline-table tbody td.pif-itd-action {
+    grid-column: 1 / -1 !important;
+    flex-direction: row !important;
+    justify-content: flex-end !important;
+    align-items: center !important;
+    padding-top: 10px !important;
+    margin-top: 4px !important;
+    border-top: 1px solid var(--border-color, #e2e8f0) !important;
+  }
+
+  .pof-itd-action::before,
+  .pif-itd-action::before {
+    display: none !important;
+  }
+
+  .pof-remove-row,
+  .pif-remove-item-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    min-height: 34px !important;
+    padding: 0 12px !important;
+    background: #fee2e2 !important;
+    color: #ef4444 !important;
+    border: 1px solid #fca5a5 !important;
+    border-radius: 6px !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    touch-action: manipulation;
+    transition: background 0.15s ease;
+  }
+
+  .pof-remove-row:hover,
+  .pif-remove-item-btn:hover {
+    background: #fecaca !important;
+    color: #dc2626 !important;
+  }
+
+  .pof-remove-row-text {
+    display: inline !important;
+  }
+
+  /* Note Cell */
+  .pif-itd-note,
+  .pof-itd-note {
+    position: relative !important;
+  }
+
+  .pif-note-btn {
+    width: 100% !important;
+    min-height: 36px !important;
+    border-radius: 6px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+  }
+
+  .pif-note-popover {
+    position: absolute !important;
+    right: 0 !important;
+    bottom: 100% !important;
+    width: min(290px, 85vw) !important;
+    z-index: 100 !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18) !important;
+  }
+
+  /* ─── 8. Form Controls Inside Cells ────────────────────────────────── */
+  .pof-cell-input,
+  .pif-cell-input,
+  .pof-cell-select,
+  .pif-cell-select,
+  .pof-digit-input,
+  .pif-cell-number,
+  .pof-tax-select {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 38px !important;
+    font-size: 13px !important;
+    padding: 0 10px !important;
+    border-radius: 6px !important;
+    border: 1px solid var(--border-color, #d1d5db) !important;
+    background: var(--card-bg, #ffffff) !important;
+    color: var(--text-primary, #1e293b) !important;
+    box-sizing: border-box !important;
+    outline: none !important;
+  }
+
+  .pof-cell-input:focus,
+  .pif-cell-input:focus,
+  .pof-cell-select:focus,
+  .pif-cell-select:focus,
+  .pof-digit-input:focus,
+  .pif-cell-number:focus,
+  .pof-tax-select:focus {
+    border-color: var(--primary-color, #2563eb) !important;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color, #2563eb) 18%, transparent) !important;
+  }
+
+  /* Readonly values & UOM badge */
+  .pif-cell-readonly,
+  .pof-uom-display {
+    display: flex !important;
+    align-items: center !important;
+    height: 38px !important;
+    width: 100% !important;
+    padding: 0 10px !important;
+    box-sizing: border-box !important;
+    border: 1px solid var(--border-color, #e2e8f0) !important;
+    border-radius: 6px !important;
+    background: var(--bg-secondary, #f8fafc) !important;
+    font-size: 13px !important;
+    color: var(--text-primary, #334155) !important;
+    font-weight: 500 !important;
+  }
+
+  /* Amount Highlight Display */
+  .pof-itd-amount,
+  .pif-itd-amount,
+  .pif-amount {
+    height: 38px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    padding: 0 10px !important;
+    background: color-mix(in srgb, var(--primary-color, #2563eb) 6%, var(--bg-secondary, #f8fafc)) !important;
+    border: 1px solid color-mix(in srgb, var(--primary-color, #2563eb) 20%, var(--border-color, #e2e8f0)) !important;
+    border-radius: 6px !important;
+    font-size: 13.5px !important;
+    font-weight: 700 !important;
+    color: var(--primary-color, #1e40af) !important;
+    box-sizing: border-box !important;
+  }
+
+  /* ─── 9. Autocomplete / Search Dropdowns ────────────────────────────── */
+  .pof-item-search-wrapper,
+  .pif-itd > div {
+    position: relative !important;
+    width: 100% !important;
+  }
+
+  .pof-suggestions-dropdown-portal,
+  .pif-dropdown-wrapper {
+    position: absolute !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: 100% !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    z-index: 1000 !important;
+  }
+
+  .pif-dropdown-down {
+    max-height: 220px !important;
+    overflow-y: auto !important;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15) !important;
+    border-radius: 8px !important;
+    background: var(--card-bg, #ffffff) !important;
+    border: 1px solid var(--border-color, #d1d5db) !important;
+  }
+
+  /* ─── 10. Table Footer / Grand Totals Block ─────────────────────────── */
+  .pof-inline-table tfoot,
+  .pif-inline-table tfoot {
+    display: block !important;
+    width: 100% !important;
+    margin-top: 14px !important;
+  }
+
+  .pof-inline-table tfoot tr,
+  .pif-inline-table tfoot tr {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    padding: 8px 12px !important;
+    background: var(--bg-primary, #ffffff) !important;
+    border: 1px solid var(--border-color, #e2e8f0) !important;
+    margin-bottom: 6px !important;
+    border-radius: 8px !important;
+  }
+
+  .pof-inline-table tfoot td,
+  .pif-inline-table tfoot td {
+    border: none !important;
+    padding: 0 !important;
+    font-size: 13px !important;
+  }
+
+  /* ─── 11. Dark Theme Overrides ─────────────────────────────────────── */
+  .dark-theme .pof-inline-table tbody tr.pof-itr,
+  .dark-theme .pof-inline-table tbody tr.pif-itr,
+  .dark-theme .grnf-items-table tbody tr.pof-itr,
+  .dark-theme .grnf-items-table tbody tr.pif-itr,
+  .dark-theme .pif-inline-table tbody tr.pof-itr,
+  .dark-theme .pif-inline-table tbody tr.pif-itr {
+    background: #1e293b !important;
+    border-color: #334155 !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+  }
+
+  .dark-theme .pof-inline-table tbody td.pof-itd::before,
+  .dark-theme .pof-inline-table tbody td.pif-itd::before,
+  .dark-theme .grnf-items-table tbody td.pof-itd::before,
+  .dark-theme .grnf-items-table tbody td.pif-itd::before,
+  .dark-theme .pif-inline-table tbody td.pof-itd::before,
+  .dark-theme .pif-inline-table tbody td.pif-itd::before {
+    color: #94a3b8 !important;
+  }
+
+  .dark-theme .pof-inline-table tbody td.pof-itd-no,
+  .dark-theme .pof-inline-table tbody td.pif-itd-no,
+  .dark-theme .grnf-items-table tbody td.pof-itd-no,
+  .dark-theme .grnf-items-table tbody td.pif-itd-no,
+  .dark-theme .pif-inline-table tbody td.pof-itd-no,
+  .dark-theme .pif-inline-table tbody td.pif-itd-no {
+    border-color: #334155 !important;
+  }
+
+  .dark-theme .pof-mobile-row-badge {
+    color: #60a5fa !important;
+    background: rgba(59, 130, 246, 0.15) !important;
+  }
+
+  .dark-theme .pof-cell-input,
+  .dark-theme .pif-cell-input,
+  .dark-theme .pof-cell-select,
+  .dark-theme .pif-cell-select,
+  .dark-theme .pof-digit-input,
+  .dark-theme .pif-cell-number,
+  .dark-theme .pof-tax-select {
+    background: #0f172a !important;
+    border-color: #334155 !important;
+    color: #f8fafc !important;
+  }
+
+  .dark-theme .pif-cell-readonly,
+  .dark-theme .pof-uom-display {
+    background: #0f172a !important;
+    border-color: #334155 !important;
+    color: #e2e8f0 !important;
+  }
+
+  .dark-theme .pof-itd-amount,
+  .dark-theme .pif-itd-amount,
+  .dark-theme .pif-amount {
+    background: #1e293b !important;
+    border-color: #3b82f6 !important;
+    color: #93c5fd !important;
+  }
+
+  .dark-theme .pif-dropdown-down {
+    background: #0f172a !important;
+    border-color: #334155 !important;
+  }
+
+  .dark-theme .pof-inline-table tfoot tr,
+  .dark-theme .pif-inline-table tfoot tr {
+    background: #1e293b !important;
+    border-color: #334155 !important;
+  }
+}
+
+/* ─── Extra Small Devices (max-width: 480px) ────────────────────────── */
+@media (max-width: 480px) {
+  .pof-inline-table tbody tr.pof-itr,
+  .pof-inline-table tbody tr.pif-itr,
+  .grnf-items-table tbody tr.pof-itr,
+  .grnf-items-table tbody tr.pif-itr,
+  .pif-inline-table tbody tr.pof-itr,
+  .pif-inline-table tbody tr.pif-itr {
+    padding: 12px 10px !important;
+    gap: 8px 10px !important;
+  }
+
+  .pof-cell-input,
+  .pif-cell-input,
+  .pof-cell-select,
+  .pif-cell-select,
+  .pof-digit-input,
+  .pif-cell-number,
+  .pof-tax-select,
+  .pif-cell-readonly,
+  .pof-uom-display,
+  .pof-itd-amount,
+  .pif-itd-amount {
+    height: 36px !important;
+    font-size: 12.5px !important;
+  }
+}

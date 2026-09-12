@@ -19,6 +19,7 @@ import {
   FaWarehouse, 
   FaFileInvoice, 
   FaBox, 
+ FaBoxes,
   FaPhone, 
   FaEnvelope, 
   FaMapMarkerAlt, 
@@ -31,8 +32,10 @@ import {
   FaMoneyBillWave, 
   FaGlobeAsia, 
   FaBuilding, 
+ FaStickyNote
 } from 'react-icons/fa'; 
 import "./GRNForm.css"; 
+import './PurchaseMobileTable.css';
 import { PageLoader } from '../components/PageLoader';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext'; 
 import api from '../services/api'; 
@@ -1612,24 +1615,15 @@ export default function GRNForm() {
   const handleSupplierSelect = (supplier: Supplier) => { 
     setFormData(prev => ({ 
       ...prev, 
-      supplier: supplier.supplier_name, 
-      supplierId: supplier.id, 
-      purchaseOrder: '', 
-      purchaseOrderId: undefined, 
-    })); 
-    setSupplierSearchTerm(supplier.supplier_name); 
-    setShowSupplierDropdown(false); 
-    setPOSearchTerm(''); 
-    setPOCurrentPage(1); 
-    setIsDirty(true); 
-    if (formData.entryMode === 'supplier') { 
-      fetchPurchaseOrders(supplier.id); 
-    } 
-  }; 
- 
-  const handlePOSelect = (po: PurchaseOrder) => { 
-    const poName = getPODisplayName(po); 
-    setPOSearchTerm(poName); 
+      warehouse: warehouse.warehouse_name,
+      warehouseId: warehouse.id
+    }));
+    setWarehouseSearchTerm(warehouse.warehouse_name);
+    setShowWarehouseDropdown(false);
+    setIsDirty(true);
+  };
+
+  const handleEmployeeSelect = (employee: Employee) => {
     setFormData(prev => ({ 
       ...prev, 
       purchaseOrder: poName, 
@@ -2683,35 +2677,214 @@ export default function GRNForm() {
     const currentSearch = searchTerms[index] || '';
     const sourceItems = allItems.length > 0 ? allItems : itemsMaster;
 
-    const filtered = sourceItems.filter(item => {
-      if (item.disabled) return false;
+    const partyRows = formData.isService
+      ? `
+        <tr><td class="label">Customer</td><td>${escapeHtml(formData.customer || '-')}</td></tr>
+        <tr><td class="label">Mobile</td><td>${escapeHtml(selectedCustomer?.mobile_no || '-')}</td></tr>
+        <tr><td class="label">Email</td><td>${escapeHtml(selectedCustomer?.email_id || '-')}</td></tr>
+        <tr><td class="label">Warehouse</td><td>${escapeHtml(formData.warehouse || '-')}</td></tr>
+      `
+      : `
+        <tr><td class="label">Supplier</td><td>${escapeHtml(formData.supplier || '-')}</td></tr>
+        <tr><td class="label">Mobile</td><td>${escapeHtml(selectedSupplier?.mobile_no || '-')}</td></tr>
+        <tr><td class="label">Email</td><td>${escapeHtml(selectedSupplier?.email_id || '-')}</td></tr>
+        <tr><td class="label">Country</td><td>${escapeHtml(selectedSupplier?.country || '-')}</td></tr>
+        <tr><td class="label">Purchase Order</td><td>${escapeHtml(formData.entryMode === 'supplier' ? (formData.purchaseOrder || '-') : 'Manual Entry')}</td></tr>
+        <tr><td class="label">Warehouse</td><td>${escapeHtml(formData.warehouse || '-')}</td></tr>
+      `;
 
-      if (itemGroupFilter !== 'all' && item.item_group !== itemGroupFilter) {
-        return false;
+    const itemRows = formData.items.map((item, idx) => {
+      const { sgst, cgst, total, gstPercent } = computeItemAmounts(item);
+      return `
+        <tr>
+          <td>${idx + 1}</td>
+          <td>${escapeHtml(item.itemCode)}</td>
+          <td>${escapeHtml(item.itemName)}</td>
+          <td>${escapeHtml(item.hsn || '-')}</td>
+          <td class="num">${item.receivedQty}</td>
+          <td>${escapeHtml(item.uom)}</td>
+          <td class="num">${item.rate.toFixed(2)}</td>
+          <td class="num">${gstPercent}%</td>
+          <td class="num">${sgst.toFixed(2)}</td>
+          <td class="num">${cgst.toFixed(2)}</td>
+          <td class="num">${total.toFixed(2)}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>${escapeHtml(formData.grn_number || 'GRN')}</title>
+        <style>
+          * { box-sizing: border-box; }
+          body { font-family: Arial, Helvetica, sans-serif; color: #111827; padding: 32px; }
+          h1 { font-size: 20px; margin: 0 0 4px; }
+          .subtitle { color: #6b7280; font-size: 12px; margin-bottom: 20px; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 18px; }
+          .meta-table td { padding: 4px 8px; font-size: 12.5px; border: none; }
+          .meta-table td.label { color: #6b7280; width: 140px; }
+          .items-table th, .items-table td { border: 1px solid #d1d5db; padding: 6px 8px; font-size: 12px; }
+          .items-table th { background: #f3f4f6; text-align: left; }
+          .items-table td.num, .items-table th.num { text-align: right; }
+          .totals { width: 320px; margin-left: auto; }
+          .totals td { padding: 4px 8px; font-size: 12.5px; }
+          .totals td:last-child { text-align: right; }
+          .totals .grand td { font-weight: 700; font-size: 14px; border-top: 1px solid #111827; padding-top: 8px; }
+          .note { margin-top: 20px; font-size: 11.5px; color: #6b7280; }
+          @media print {
+            .no-print { display: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <h1>${formData.isService ? 'Service Bill' : 'Goods Receipt Note'}</h1>
+        <div class="subtitle">GRN Number: ${escapeHtml(formData.grn_number || '(will be generated on save)')} &nbsp;|&nbsp; Date: ${escapeHtml(formData.grnDate)} &nbsp;|&nbsp; Received By: ${escapeHtml(formData.receivedBy || '-')}</div>
+
+        <table class="meta-table">${partyRows}</table>
+
+        <table class="items-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Code</th>
+              <th>Item</th>
+              <th>HSN</th>
+              <th class="num">Qty</th>
+              <th>UOM</th>
+              <th class="num">Rate</th>
+              <th class="num">GST</th>
+              <th class="num">SGST</th>
+              <th class="num">CGST</th>
+              <th class="num">Amount</th>
+            </tr>
+          </thead>
+          <tbody>${itemRows || '<tr><td colspan="11">No items</td></tr>'}</tbody>
+        </table>
+
+        <table class="totals">
+          <tr><td>Subtotal</td><td>${billTotals.subtotal.toFixed(2)}</td></tr>
+          <tr><td>Total SGST</td><td>${billTotals.sgst.toFixed(2)}</td></tr>
+          <tr><td>Total CGST</td><td>${billTotals.cgst.toFixed(2)}</td></tr>
+          <tr><td>Delivery Charges${formData.freeDelivery ? ' (Free)' : ''}</td><td>${deliveryChargeAmount.toFixed(2)}</td></tr>
+          <tr class="grand"><td>Grand Total</td><td>${grandTotal.toFixed(2)}</td></tr>
+        </table>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+    }, 300);
+  };
+
+  // ─── Save Handler ──────────────────────────────────────────────────
+  const handleSave = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setApiError(null);
+
+    const validationErrorsList = getAllValidationErrors();
+    if (validationErrorsList.length > 0) {
+      setValidationErrors(validationErrorsList);
+      setShowValidationSummary(true);
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      let grnType = 'Internal';
+      if (formData.isService) {
+        grnType = 'External';
+      } else if (formData.entryMode === 'supplier') {
+        grnType = 'Internal';
+      } else {
+        grnType = 'Internal';
       }
 
-      const search = currentSearch.toLowerCase().trim();
-      if (!search) return true;
+      const payload: any = {
+        grn_number: formData.grn_number || `GRN-${Date.now()}`,
+        grn_date: formData.grnDate,
+        is_service: formData.isService ? 1 : 0,
+        entry_mode: formData.entryMode,
+        type: grnType,
+        status: 'submitted',
+        received_by: formData.receivedBy,
+        received_by_id: formData.receivedById,
+        warehouse_id: formData.warehouseId,
+        warehouse_name: formData.warehouse,
+        vehicle_number: formData.vehicleNo || null,
+        delivery_challan_no: formData.deliveryChallanNo || '',
+        invoice_number: formData.invoiceNo || null,
+        is_free_delivery: formData.freeDelivery ? 1 : 0,
+        delivery_charge: deliveryChargeAmount,
+        items: formData.items.map(item => {
+          const { amount, sgst, cgst, total } = computeItemAmounts(item);
+          return {
+            item_code: item.itemCode,
+            item_name: item.itemName,
+            ordered_qty: item.orderedQty || 0,
+            received_qty: item.receivedQty || 0,
+            rejected_qty: item.rejectedQty || 0,
+            uom: item.uom || '',
+            rate: item.rate || 0,
+            purchase_rate: item.rate,
+            remarks: item.remarks || null,
+            item_id: resolveItemMasterId(item),
+            tax_id: item.taxId,
+            tax_type: item.taxType,
+            item_tax_template: item.taxType || item.taxRate ? `${item.taxType || 'GST'} ${item.taxRate || 0}%` : '',
+            hsn: item.hsn || '',
+            amount: amount,
+            sgst_amount: sgst,
+            cgst_amount: cgst,
+            item_total: total,
+          };
+        }),
+        subtotal: billTotals.subtotal,
+        total_sgst: billTotals.sgst,
+        total_cgst: billTotals.cgst,
+        grand_total: grandTotal,
+      };
 
-      const code = (item.item_code || '').toLowerCase();
-      const name = (item.item_name || '').toLowerCase();
-      const group = (item.item_group || '').toLowerCase();
-      const description = (item.description || '').toLowerCase();
+      if (formData.isService) {
+        payload.customer_id = formData.customerId;
+        payload.customer_name = formData.customer;
+      } else {
+        payload.supplier_id = formData.supplierId;
+        payload.supplier_name = formData.supplier;
+        payload.purchase_order_id = formData.entryMode === 'supplier' ? formData.purchaseOrderId : undefined;
+      }
 
-      return (
-        code.includes(search) ||
-        name.includes(search) ||
-        group.includes(search) ||
-        description.includes(search)
-      );
-    });
+      let response;
+      let isUpdate = false;
+      
+      const editId = id && id !== 'new' && id !== 'view' ? parseInt(id) : null;
 
-    const showDropdown = showSuggestions[index] === true;
+      if (editId && !isNaN(editId) && isEditMode) {
+        payload.id = editId;
+        console.log('🔄 Updating GRN with ID:', editId);
+        response = await api.put(`/grn`, payload);
+        isUpdate = true;
+      } else {
+        console.log('✨ Creating new GRN');
+        response = await api.post('/grn', payload);
+        isUpdate = false;
+      }
 
-    if (!showDropdown) return null;
+      if (response.data && response.data.success === 1) {
+        console.log('GRN saved successfully:', response.data);
+        setIsDirty(false);
+        const generatedNumber = response.data?.data?.grn_number || payload.grn_number;
+        setSavedGrnNumber(generatedNumber);
+        setIsUpdateMode(isUpdate);
 
-    const position = dropdownPositions[index];
-    if (!position) return null;
+        await postInventoryForItems(formData.items);
 
     const selectItem = (item: ItemMaster) => {
       handleSelectItem(index, item);
@@ -2721,40 +2894,110 @@ export default function GRNForm() {
       }));
     };
 
-    return createPortal(
-      <div
-        ref={(el) => { suggestionRefs.current[index] = el; }}
-        className="pof-suggestions-dropdown-portal"
+      if (err.response) {
+        if (err.response.status === 409) {
+          setApiError('A GRN with this number already exists');
+        } else if (err.response.status === 400) {
+          setApiError(err.response.data?.message || 'Invalid data provided');
+        } else {
+          setApiError(err.response.data?.message || 'Failed to save GRN');
+        }
+      } else if (err.request) {
+        setApiError('Network error. Please check your connection.');
+      } else {
+        setApiError('An unexpected error occurred. Please try again.');
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSuccessModalOk = () => {
+    setShowSuccessModal(false);
+    navigate('/grn');
+  };
+
+  const hasErrors = getAllValidationErrors().length > 0;
+
+  const getPOStatusBadgeClass = (status: string) => {
+    const safeStatus = (status || '').toLowerCase();
+    switch (safeStatus) {
+      case 'draft': return 'grn-status-draft';
+      case 'submitted': return 'grn-status-submitted';
+      case 'partially received': return 'grn-status-partial';
+      case 'fully received': return 'grn-status-completed';
+      case 'cancelled': return 'grn-status-rejected';
+      case 'closed': return 'grn-status-closed';
+      default: return 'grn-status-draft';
+    }
+  };
+
+  // ─── Render Add Item Popup ─────────────────────────────────────────
+  const renderAddItemPopup = () => {
+    if (!showAddItemPopup) return null;
+
+    return (
+      <div 
+        className="pof-modal-overlay" 
+        onClick={() => {
+          setShowAddItemPopup(false);
+          resetNewItemForm();
+          setPendingItemSearch('');
+          setActiveRowIndex(null);
+        }}
         style={{
           position: 'fixed',
-          top: position.top,
-          left: position.left,
-          width: position.width,
-          maxHeight: '280px',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.5)',
           display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          zIndex: 9999,
-          background: theme === 'dark-theme' ? '#1e1e2f' : '#ffffff',
-          borderRadius: '8px',
-          boxShadow: '0 10px 40px rgba(0,0,0,0.2)',
-          border: `1px solid ${theme === 'dark-theme' ? '#3a3a4a' : '#e5e7eb'}`,
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000,
+          padding: '20px',
         }}
       >
-        <div
+        <div 
+          className="pof-modal-content" 
+          onClick={(e) => e.stopPropagation()}
           style={{
-            overflowY: 'auto',
-            flex: '1 1 auto',
-            maxHeight: '220px',
+            background: String(theme) === 'dark' ? '#1e1e2f' : '#ffffff',
+            borderRadius: '12px',
+            width: '100%',
+            maxWidth: '650px',
+            maxHeight: '90vh',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+            overflow: 'hidden',
           }}
         >
-          {loadingItemsMaster ? (
-            <div
-              className="pof-suggestions-loading"
+          <div className="pof-modal-header" style={{
+            padding: '16px 20px',
+            borderBottom: `1px solid ${String(theme) === 'dark' ? '#2a2a3a' : '#e5e7eb'}`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}>
+            <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: String(theme) === 'dark' ? '#e5e7eb' : '#111827' }}>
+              Add New Item
+            </h3>
+            <button 
+              className="pof-modal-close-btn"
+              onClick={() => {
+                setShowAddItemPopup(false);
+                resetNewItemForm();
+                setPendingItemSearch('');
+                setActiveRowIndex(null);
+              }}
               style={{
-                padding: '12px',
-                textAlign: 'center',
-                color: '#6b7280',
+                background: 'transparent',
+                border: 'none',
+                fontSize: '20px',
+                cursor: 'pointer',
+                color: String(theme) === 'dark' ? '#9ca3af' : '#6b7280',
               }}
             >
               <FaSpinner className="pof-spinning" size={14} /> Loading items...
@@ -2772,120 +3015,404 @@ export default function GRNForm() {
                     e.preventDefault();
                     selectItem(item);
                   }}
+                />
+                <span style={{ fontSize: '11px', color: '#6b7280' }}>Alphabets, digits, and hyphens are allowed. Auto-generated from name if empty.</span>
+              </div>
+
+              {/* Item Group - Required */}
+              <div className="pof-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: String(theme) === 'dark' ? '#e5e7eb' : '#374151'
+                }}>
+                  Item Group <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newItem.item_group}
+                  onChange={(e) => setNewItem(prev => ({ ...prev, item_group: e.target.value }))}
+                  placeholder="e.g. Raw Material, Finished Goods"
+                  className="pof-form-field"
                   style={{
+                    width: '100%',
                     padding: '8px 12px',
-                    cursor: 'pointer',
-                    borderBottom: `1px solid ${theme === 'dark-theme' ? '#2a2a3a' : '#f3f4f6'}`,
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    transition: 'background 0.15s',
+                    border: `1px solid ${String(theme) === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: String(theme) === 'dark' ? '#2a2a3a' : '#ffffff',
+                    color: String(theme) === 'dark' ? '#e5e7eb' : '#111827',
                   }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background =
-                      theme === 'dark-theme' ? '#2a2a3a' : '#f3f4f6';
+                />
+                <span style={{ fontSize: '11px', color: '#6b7280' }}>Only alphabets and spaces are allowed</span>
+              </div>
+
+              {/* Default UOM - Required */}
+              <div className="pof-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: String(theme) === 'dark' ? '#e5e7eb' : '#374151'
+                }}>
+                  Default UOM <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newItem.stock_uom}
+                  onChange={(e) => setNewItem(prev => ({ ...prev, stock_uom: e.target.value }))}
+                  placeholder="e.g. NOS, Kg, Meter"
+                  className="pof-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${String(theme) === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: String(theme) === 'dark' ? '#2a2a3a' : '#ffffff',
+                    color: String(theme) === 'dark' ? '#e5e7eb' : '#111827',
                   }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
+                />
+                <span style={{ fontSize: '11px', color: '#6b7280' }}>Alphabets, digits, and spaces are allowed</span>
+              </div>
+
+              {/* Tax - Optional */}
+              <div className="pof-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: String(theme) === 'dark' ? '#e5e7eb' : '#374151'
+                }}>
+                  Tax
+                </label>
+                <select
+                  value={newItem.tax_id}
+                  onChange={(e) => setNewItem(prev => ({ ...prev, tax_id: e.target.value }))}
+                  className="pof-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${String(theme) === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: String(theme) === 'dark' ? '#2a2a3a' : '#ffffff',
+                    color: String(theme) === 'dark' ? '#e5e7eb' : '#111827',
                   }}
                 >
-                  <div>
-                    <div
-                      className="pof-suggestion-code"
-                      style={{
-                        fontWeight: 500,
-                        fontSize: '13px',
-                        color: theme === 'dark-theme' ? '#e5e7eb' : '#111827',
-                      }}
-                    >
-                      {item.item_code || ''}
-                    </div>
+                  <option value="">Default Tax</option>
+                  {taxTypes.map(tax => {
+                    const { rate, category } = extractTaxInfo(tax.tax_type);
+                    return (
+                      <option key={tax.tax_id} value={String(tax.tax_id)}>
+                        {category} {rate}%
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
 
-                    <div
-                      className="pof-suggestion-name"
-                      style={{
-                        fontSize: '12px',
-                        color: '#6b7280',
-                      }}
-                    >
-                      {item.item_name || ''}
-                    </div>
+              {/* Quantity */}
+              <div className="pof-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: String(theme) === 'dark' ? '#e5e7eb' : '#374151'
+                }}>
+                  Quantity <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  pattern="[0-9]*[.]?[0-9]*"
+                  value={newItem.quantity}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/[^0-9.]/g, "");
+                    setNewItem(prev => ({ ...prev, quantity: val }));
+                  }}
+                  placeholder="1"
+                  className="pof-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${String(theme) === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: String(theme) === 'dark' ? '#2a2a3a' : '#ffffff',
+                    color: String(theme) === 'dark' ? '#e5e7eb' : '#111827',
+                  }}
+                />
+                <span style={{ fontSize: '11px', color: '#6b7280' }}>Quantity for this GRN line item</span>
+              </div>
 
-                    {item.HSN && (
-                      <div
-                        className="pof-suggestion-hsn"
-                        style={{
-                          fontSize: '10px',
-                          color: '#9ca3af',
-                        }}
-                      >
-                        HSN: {item.HSN}
-                      </div>
-                    )}
-                  </div>
+              {/* Pricing - Two columns */}
+              <div className="pof-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: String(theme) === 'dark' ? '#e5e7eb' : '#374151'
+                }}>
+                  Purchase Rate (base price)
+                </label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  pattern="[0-9]*[.]?[0-9]*"
+                  value={newItem.standard_rate}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/[^0-9.]/g, "");
+                    setNewItem(prev => ({ ...prev, standard_rate: val }));
+                  }}
+                  placeholder="0.00"
+                  className="pof-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${String(theme) === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: String(theme) === 'dark' ? '#2a2a3a' : '#ffffff',
+                    color: String(theme) === 'dark' ? '#e5e7eb' : '#111827',
+                  }}
+                />
+                <span style={{ fontSize: '11px', color: '#6b7280' }}>The cost at which you purchase this item.</span>
+              </div>
 
-                  <div style={{ textAlign: 'right' }}>
-                    <div
-                      className="pof-suggestion-rate"
-                      style={{
-                        fontSize: '13px',
-                        fontWeight: 500,
-                        color: '#6366f1',
-                      }}
-                    >
-                      INR {(item.standard_rate || item.valuation_rate || 0).toFixed(2)}
-                    </div>
+              <div className="pof-popup-field" style={{ marginBottom: '0' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: String(theme) === 'dark' ? '#e5e7eb' : '#374151'
+                }}>
+                  Valuation Rate
+                </label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  pattern="[0-9]*[.]?[0-9]*"
+                  value={newItem.valuation_rate}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/[^0-9.]/g, "");
+                    setNewItem(prev => ({ ...prev, valuation_rate: val }));
+                  }}
+                  placeholder="0.00"
+                  className="pof-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${String(theme) === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: String(theme) === 'dark' ? '#2a2a3a' : '#ffffff',
+                    color: String(theme) === 'dark' ? '#e5e7eb' : '#111827',
+                  }}
+                />
+                <span style={{ fontSize: '11px', color: '#6b7280' }}>The rate at which this item is valued. Used as Price Before Tax.</span>
+              </div>
 
-                    <div
-                      className="pof-suggestion-uom"
-                      style={{
-                        fontSize: '10px',
-                        color: '#9ca3af',
-                      }}
-                    >
-                      UOM: {item.stock_uom || 'NOS'}
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div
-              className="pof-dropdown-empty"
+              {/* Description - Optional */}
+              <div className="pof-popup-field" style={{ marginBottom: '0', gridColumn: '1 / -1' }}>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  marginBottom: '4px',
+                  color: String(theme) === 'dark' ? '#e5e7eb' : '#374151'
+                }}>
+                  Description
+                </label>
+                <input
+                  type="text"
+                  value={newItem.description}
+                  onChange={(e) => setNewItem(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Item description"
+                  className="pof-form-field"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: `1px solid ${String(theme) === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    background: String(theme) === 'dark' ? '#2a2a3a' : '#ffffff',
+                    color: String(theme) === 'dark' ? '#e5e7eb' : '#111827',
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+          <div className="pof-modal-footer" style={{
+            padding: '16px 20px',
+            borderTop: `1px solid ${String(theme) === 'dark' ? '#2a2a3a' : '#e5e7eb'}`,
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: '12px',
+          }}>
+            <button
+              type="button"
+              className="pof-btn-cancel"
+              onClick={() => {
+                setShowAddItemPopup(false);
+                resetNewItemForm();
+                setPendingItemSearch('');
+                setActiveRowIndex(null);
+              }}
               style={{
-                padding: '12px',
-                textAlign: 'center',
-                color: '#6b7280',
-                fontSize: '13px',
+                padding: '8px 16px',
+                borderRadius: '6px',
+                border: `1px solid ${String(theme) === 'dark' ? '#3a3a4a' : '#d1d5db'}`,
+                background: 'transparent',
+                color: String(theme) === 'dark' ? '#e5e7eb' : '#374151',
+                cursor: 'pointer',
+                fontWeight: 500,
               }}
             >
-              {currentSearch ? 'No items found' : 'Type to search items...'}
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="pof-btn-submit"
+              onClick={() => handleCreateNewItem()}
+              disabled={addingItem}
+              style={{
+                padding: '8px 20px',
+                borderRadius: '6px',
+                border: 'none',
+                background: '#6366f1',
+                color: '#ffffff',
+                cursor: 'pointer',
+                fontWeight: 500,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              {addingItem && <FaSpinner className="pof-spinning" size={12} />}
+              Create Item
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ─── Render item search suggestions with "+ Add New Item" ──────────────
+  const renderItemSearchSuggestions = (index: number) => {
+    const items = filteredItems[index] || (allItems.length > 0 ? allItems : itemsMaster);
+    const searchTerm = searchTerms[index] || '';
+    const trimmedSearch = searchTerm.trim();
+    
+    const showDropdown = showSuggestions[index] || trimmedSearch.length > 0;
+    if (!showDropdown) return null;
+
+    const position = dropdownPositions[index];
+    if (!position) return null;
+
+    const dropdownContent = (
+      <div 
+        className="pof-suggestions-dropdown-portal"
+        ref={(el) => { suggestionRefs.current[index] = el; }}
+        style={{
+          position: 'fixed',
+          top: position.top,
+          left: position.left,
+          width: position.width,
+          maxHeight: '280px',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          zIndex: 9999,
+          background: String(theme) === 'dark' ? '#1e1e2f' : '#ffffff',
+          borderRadius: '8px',
+          boxShadow: '0 10px 40px rgba(0,0,0,0.2)',
+          border: `1px solid ${String(theme) === 'dark' ? '#3a3a4a' : '#e5e7eb'}`,
+        }}
+      >
+        {/* Scrollable items list */}
+        <div style={{ 
+          overflowY: 'auto', 
+          flex: '1 1 auto',
+          maxHeight: '200px',
+        }}>
+          {loadingItemsMaster ? (
+            <div className="pof-suggestions-loading" style={{ padding: '12px', textAlign: 'center', color: '#6b7280' }}>
+              <FaSpinner className="pof-spinning" size={14} /> Loading items...
             </div>
+          ) : items.length === 0 ? (
+            <div style={{ padding: '12px', textAlign: 'center', color: '#6b7280', fontSize: '13px' }}>
+              No items found
+            </div>
+          ) : (
+            items.map((suggestion) => (
+              <div
+                key={suggestion.id}
+                className="pof-suggestion-item"
+                onClick={() => handleSelectItem(index, suggestion)}
+                style={{
+                  padding: '8px 12px',
+                  cursor: 'pointer',
+                  borderBottom: `1px solid ${String(theme) === 'dark' ? '#2a2a3a' : '#f3f4f6'}`,
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  transition: 'background 0.15s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = String(theme) === 'dark' ? '#2a2a3a' : '#f3f4f6';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                }}
+              >
+                <div>
+                  <div className="pof-suggestion-code" style={{ fontWeight: 500, fontSize: '13px', color: String(theme) === 'dark' ? '#e5e7eb' : '#111827' }}>
+                    {suggestion.item_code}
+                  </div>
+                  <div className="pof-suggestion-name" style={{ fontSize: '12px', color: '#6b7280' }}>
+                    {suggestion.item_name}
+                  </div>
+                  {suggestion.HSN && (
+                    <div className="pof-suggestion-hsn" style={{ fontSize: '10px', color: '#9ca3af' }}>HSN: {suggestion.HSN}</div>
+                  )}
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div className="pof-suggestion-rate" style={{ fontSize: '13px', fontWeight: 500, color: '#6366f1' }}>
+                    INR {(suggestion.standard_rate || suggestion.valuation_rate || 0).toFixed(2)}
+                  </div>
+                  <div className="pof-suggestion-uom" style={{ fontSize: '10px', color: '#9ca3af' }}>
+                    UOM: {suggestion.stock_uom || 'NOS'}
+                  </div>
+                </div>
+              </div>
+            ))
           )}
         </div>
 
+        {/* ─── Sticky "Add New" button at the bottom ─── */}
         {!loadingItemsMaster && (
-          <div
+          <div 
             className="pof-suggestion-item pof-add-new-suggestion"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              const searchVal = currentSearch.trim() || 'New Item';
+            onClick={() => {
+              const searchVal = trimmedSearch || 'New Item';
               setPendingItemSearch(searchVal);
               setActiveRowIndex(index);
-              setNewItem(prev => ({
-                ...prev,
-                item_name: searchVal,
-              }));
+              setNewItem(prev => ({ ...prev, item_name: searchVal }));
               setShowAddItemPopup(true);
-              setShowSuggestions(prev => ({
-                ...prev,
-                [index]: false,
-              }));
+              setShowSuggestions(prev => ({ ...prev, [index]: false }));
             }}
             style={{
               flexShrink: 0,
-              borderTop: `1px solid ${theme === 'dark-theme' ? '#3a3a4a' : '#e5e7eb'}`,
-              background: theme === 'dark-theme' ? '#1e1e2f' : '#f8fafc',
+              borderTop: `1px solid ${String(theme) === 'dark' ? '#3a3a4a' : '#e5e7eb'}`,
+              background: String(theme) === 'dark' ? '#1e1e2f' : '#f8fafc',
               cursor: 'pointer',
               padding: '10px 12px',
               display: 'flex',
@@ -2894,17 +3421,37 @@ export default function GRNForm() {
               color: '#6366f1',
               fontWeight: 500,
               fontSize: '13px',
+              transition: 'background 0.15s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = String(theme) === 'dark' ? '#2a2a3a' : '#eef2ff';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = String(theme) === 'dark' ? '#1e1e2f' : '#f8fafc';
             }}
           >
-            <FaPlus size={10} />
-            {currentSearch.trim()
-              ? `Add "${currentSearch.trim()}" as New Item`
-              : 'Add New Item'}
+            <span
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '22px',
+                height: '22px',
+                borderRadius: '50%',
+                background: '#6366f1',
+                color: '#fff',
+                flexShrink: 0,
+              }}
+            >
+              <FaPlus size={10} />
+            </span>
+            {trimmedSearch ? `Add "${trimmedSearch}" as New Item` : 'Add New Item'}
           </div>
         )}
-      </div>,
-      document.body
+      </div>
     );
+
+    return createPortal(dropdownContent, document.body);
   };
 
   if (loading) {

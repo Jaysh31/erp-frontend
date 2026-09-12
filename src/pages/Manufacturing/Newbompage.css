@@ -128,7 +128,7 @@
 
 /* Fix for table overflow */
 .nbom-table-wrap {
-  overflow: visible !important;
+  overflow: hidden !important;
 }
 
 /* Alternative: If you need horizontal scroll, use this instead */

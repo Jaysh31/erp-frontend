@@ -3413,7 +3413,7 @@ const handleCompleteWorkOrder = async () => {
 
                   <div className="wof-divider" />
                   <div className="wof-table-header">
-                    <span className="wof-section-title wof-section-title-flush">Operations <span className="wof-required">*</span></span>
+                    <span className="wof-section-title wof-section-title-flush">Operations <span className="wof-required"></span></span>
                     <button type="button" className="wof-row-add-btn" onClick={() => setWo(p => ({ ...p, operations: [...p.operations, emptyOp()] }))}>
                       <FaPlus size={10} /> Add Row
                     </button>
@@ -3428,8 +3428,8 @@ const handleCompleteWorkOrder = async () => {
                       <thead>
                         <tr>
                           <th className="wof-col-no">#</th>
-                          <th>Operation <span className="wof-required">*</span></th>
-                          <th>Workstation <span className="wof-required">*</span></th>
+                          <th>Operation <span className="wof-required"></span></th>
+                          <th>Workstation <span className="wof-required"></span></th>
                           <th>Time (mins)</th>
                           <th>Hour Rate</th>
                           <th>Operating Cost</th>
