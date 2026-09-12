@@ -102,7 +102,7 @@ export default function ItemGroupList() {
   const [, setTotalItems] = useState(0);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedItem, setSelectedItem] = useState<ItemGroupDisplay | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [, setDeletingId] = useState<string | null>(null);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
   const toggleRowExpand = (rowId: string, event?: { stopPropagation: () => void }) => {
@@ -1069,27 +1069,9 @@ export default function ItemGroupList() {
                                   </div>
                                 ) : (
                                   <div className="sales-mobile-cards">
-                                    {paginatedData.map((row, idx) => {
+                                    {paginatedData.map((row) => {
                                       const isExpanded = expandedRows.has(row.id);
-                                      const rowNumber = getStartIndex() + idx;
           
-                                      function formatDisplayDateWithContext(value: unknown): string {
-                                        if (value === null || value === undefined || value === '') {
-                                          return '—';
-                                        }
-          
-                                        const date = value instanceof Date ? value : new Date(String(value));
-          
-                                        if (Number.isNaN(date.getTime())) {
-                                          return String(value);
-                                        }
-          
-                                        return date.toLocaleDateString('en-US', {
-                                          month: 'short',
-                                          day: '2-digit',
-                                          year: 'numeric',
-                                        });
-                                      }
           
                                       function handleView(item: ItemGroupDisplay) {
                                         navigate(`/item/${item.id}`, {
@@ -1097,12 +1079,7 @@ export default function ItemGroupList() {
                                         });
                                       }
           
-                                      function getStatusIcon(status: string): string {
-                                        const normalizedStatus = String(status ?? '').trim().toLowerCase();
-        
-          
-                                        return '•';
-                                      }
+                                     
           
                                       return (
                                         <div

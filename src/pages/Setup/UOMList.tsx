@@ -833,9 +833,8 @@ export default function UOMList() {
                         </div>
                       ) : (
                         <div className="sales-mobile-cards">
-                          {uoms.map((row, idx) => {
+                          {uoms.map((row) => {
                             const isExpanded = expandedRows.has(row.id);
-                            const rowNumber = getStartIndex() + idx;
                             return (
                               <div
                                 key={row.id}

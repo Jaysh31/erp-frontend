@@ -891,9 +891,8 @@ export default function WorkstationList() {
               </div>
             ) : (
               <div className="sales-mobile-cards">
-                {paginatedData.map((ws, idx) => {
+                {paginatedData.map((ws) => {
                   const isExpanded = expandedRows.has(ws.id);
-                  const rowNumber = getStartIndex() + idx;
                   return (
                     <div
                       key={ws.id}

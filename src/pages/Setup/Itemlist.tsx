@@ -20,6 +20,7 @@ import '../Sales/SalesMobileTable.css';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
 import { PageLoader } from "../components/PageLoader";
+import { span } from "framer-motion/client";
 
 
 interface Item {
@@ -1795,39 +1796,11 @@ export default function ItemList() {
                         </div>
                       ) : (
                         <div className="sales-mobile-cards">
-                          {items.map((row, idx) => {
+                          {items.map((row) => {
                             const isExpanded = expandedRows.has(row.id);
-                            const rowNumber = getStartIndex() + idx;
 
-                            function formatDisplayDateWithContext(value: unknown): string {
-                              if (value === null || value === undefined || value === '') {
-                                return '—';
-                              }
 
-                              const date = value instanceof Date ? value : new Date(String(value));
 
-                              if (Number.isNaN(date.getTime())) {
-                                return String(value);
-                              }
-
-                              return date.toLocaleDateString('en-US', {
-                                month: 'short',
-                                day: '2-digit',
-                                year: 'numeric',
-                              });
-                            }
-
-                            function handleView(item: Item) {
-                              navigate(`/item/${item.id}`, {
-                                state: { itemData: item }
-                              });
-                            }
-
-                            function getStatusIcon(status: string): string {
-                              const normalizedStatus = String(status ?? '').trim().toLowerCase();
-
-                              return '•';
-                            }
 
                             return (
                               <div

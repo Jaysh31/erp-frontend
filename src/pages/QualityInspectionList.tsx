@@ -738,9 +738,8 @@ export default function QualityInspectionList() {
               </div>
             ) : (
               <div className="sales-mobile-cards">
-                {filteredReports.map((report, idx) => {
+                {filteredReports.map((report) => {
                   const isExpanded = expandedRows.has(report.id);
-                  const rowNumber = getStartIndex() + idx;
                   return (
                     <div
                       key={report.id}

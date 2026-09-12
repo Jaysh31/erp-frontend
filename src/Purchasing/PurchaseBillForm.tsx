@@ -17,12 +17,10 @@ import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
 import api from '../services/api';
 import './PurchaseBillForm.css';
-import './PurchaseMobileTable.css';
 import { getUserRole } from '../utils/storage';
 import { PageLoader } from '../components/PageLoader';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
 
 interface POItem {
   id: number;
@@ -36,6 +34,7 @@ interface POItem {
   received_qty: number;
   billed_amt: number;
   item_tax_rate?: string;
+  item_tax_id?: number;
 }
 
 interface PODetail {
@@ -66,6 +65,7 @@ interface GRNItem {
   uom: string;
   rate: number;
   amount: number;
+  tax_id?: number;
 }
 
 interface GRNRecord {
@@ -117,8 +117,8 @@ interface InvoiceItem {
   amount: number;
   grn_refs: string[];
   tax_rate: number;
-  HSN?: string;
   tax_id?: number;
+  HSN?: string;
   note?: string;
 }
 
@@ -161,7 +161,6 @@ const statusOptions = ['Draft', 'Submitted', 'Partially Paid', 'Fully Paid', 'Ov
 const billSourceOptions = ['GRN', 'Without GRN'] as const;
 type BillSource = typeof billSourceOptions[number];
 
-
 const makeRowId = () => `row-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
 const getItemTaxTemplate = (taxRate: number): string => {
@@ -173,6 +172,23 @@ const parseTaxRateFromTemplate = (template: string | null | undefined): number =
   if (!template) return 0;
   const match = template.match(/(\d+(?:\.\d+)?)\s*%/);
   return match ? parseFloat(match[1]) : 0;
+};
+
+// Helper function to get tax rate from tax_type string (e.g., "GST18" → 18)
+const getTaxRateFromType = (taxType: string): number => {
+  if (!taxType) return 0;
+  const match = taxType.match(/(\d+(?:\.\d+)?)/);
+  return match ? parseFloat(match[1]) : 0;
+};
+
+// Helper function to find tax by tax_id
+const findTaxById = (taxes: Tax[], taxId: number): Tax | undefined => {
+  return taxes.find(t => t.tax_id === taxId);
+};
+
+// Helper function to find tax by rate
+const findTaxByRate = (taxes: Tax[], rate: number): Tax | undefined => {
+  return taxes.find(t => getTaxRateFromType(t.tax_type) === rate);
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -202,8 +218,7 @@ export default function PurchaseInvoiceForm() {
     sgst: 0,
     gstTotal: 0,
     grandTotal: 0,
-    // NEW: GRN related fields
-    isCreateFromGrn: 0, // 0 or 1
+    isCreateFromGrn: 0,
     grnIds: [] as number[],
   });
 
@@ -278,7 +293,7 @@ export default function PurchaseInvoiceForm() {
 
   // ── UI state ────────────────────────────────────────────────────────────────
   const [loading, setLoading] = useState(false);
-  const [pageLoading, setPageLoading] = useState(false);
+  const [, setPageLoading] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [showValidationSummary, setShowValidationSummary] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
@@ -321,7 +336,6 @@ export default function PurchaseInvoiceForm() {
         await fetchSuppliers();
         setShowAddSupplierPopup(false);
         resetNewSupplierForm();
-        // Auto-select the newly created supplier
         const newSupplierData = response.data.data;
         if (newSupplierData) {
           const supplierName = newSupplierData.supplier_name || newSupplier.supplier_name.trim();
@@ -353,41 +367,41 @@ export default function PurchaseInvoiceForm() {
   };
 
   // ─── Fetch data on mount ──────────────────────────────────────────────────
-// ─── Fetch data on mount ──────────────────────────────────────────────────
-useEffect(() => {
-  fetchPOList();
-  fetchSuppliers();
-  fetchItems();
-  fetchWarehouses();
+  useEffect(() => {
+    fetchPOList();
+    fetchSuppliers();
+    fetchItems();
+    fetchWarehouses();
 
-  // Taxes must be loaded BEFORE we hydrate an existing invoice's items,
-  // otherwise each item's tax_id -> tax_rate lookup runs against an empty
-  // taxes[] (stale closure) and silently zeroes out GST until the user
-  // manually touches a tax dropdown.
-  (async () => {
-    const taxesData = await fetchTaxes();
-    if (isEdit && id) {
-      await loadExistingInvoice(id, taxesData);
-    }
-  })();
+    // Taxes must be loaded BEFORE we hydrate an existing invoice's items,
+    // otherwise each item's tax_id -> tax_rate lookup runs against an empty
+    // taxes[] (stale closure) and silently zeroes out GST until the user
+    // manually touches a tax dropdown.
+    (async () => {
+      const taxesData = await fetchTaxes();
+      if (isEdit && id) {
+        await loadExistingInvoice(id, taxesData);
+      }
+    })();
 
-  const handleOutsideClick = (e: MouseEvent) => {
-    if (supplierSearchRef.current && !supplierSearchRef.current.contains(e.target as Node)) {
-      setShowSupplierDropdown(false);
-    }
-    if (itemSearchRef.current && !itemSearchRef.current.contains(e.target as Node)) {
-      setShowItemDropdown(false);
-    }
-    if (grnSearchRef.current && !grnSearchRef.current.contains(e.target as Node)) {
-      setShowGrnDropdown(false);
-    }
-    if (poSearchRef.current && !poSearchRef.current.contains(e.target as Node)) {
-      setShowPoDropdown(false);
-    }
-  };
-  document.addEventListener('mousedown', handleOutsideClick);
-  return () => document.removeEventListener('mousedown', handleOutsideClick);
-}, []);
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (supplierSearchRef.current && !supplierSearchRef.current.contains(e.target as Node)) {
+        setShowSupplierDropdown(false);
+      }
+      if (itemSearchRef.current && !itemSearchRef.current.contains(e.target as Node)) {
+        setShowItemDropdown(false);
+      }
+      if (grnSearchRef.current && !grnSearchRef.current.contains(e.target as Node)) {
+        setShowGrnDropdown(false);
+      }
+      if (poSearchRef.current && !poSearchRef.current.contains(e.target as Node)) {
+        setShowPoDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
+
   // ─── EDIT-MODE BINDING FIX ──────────────────────────────────────────────
   useEffect(() => {
     if (pendingSupplierId != null && suppliers.length > 0) {
@@ -400,7 +414,6 @@ useEffect(() => {
     }
   }, [pendingSupplierId, suppliers]);
 
-  // ─── Same fix for warehouse ──────────────────────────────────────────────
   useEffect(() => {
     if (pendingWarehouseId != null && warehouses.length > 0) {
       const wh = warehouses.find(w => w.id === pendingWarehouseId);
@@ -409,17 +422,17 @@ useEffect(() => {
     }
   }, [pendingWarehouseId, warehouses]);
 
-  // ─── Calculate GST ──────────────────────────────────────────────────────────
+  // ─── Calculate GST - AUTOMATICALLY recalculates when items change ──────────
   useEffect(() => {
-    calculateGST();
-  }, [items, formData.deliveryCharges]);
-
-  const calculateGST = () => {
     const subTotal = items.reduce((s, r) => s + (r.amount || 0), 0);
-    const taxTotal = items.reduce((s, r) => s + ((r.amount || 0) * (r.tax_rate || 0)) / 100, 0);
+    const taxTotal = items.reduce((s, r) => {
+      const amount = r.amount || 0;
+      const rate = r.tax_rate || 0;
+      return s + (amount * rate) / 100;
+    }, 0);
     const cgstAmount = taxTotal / 2;
     const sgstAmount = taxTotal / 2;
-    const grandTotal = subTotal + taxTotal + formData.deliveryCharges;
+    const grandTotal = subTotal + taxTotal + (formData.deliveryCharges || 0);
 
     setFormData(prev => ({
       ...prev,
@@ -428,7 +441,7 @@ useEffect(() => {
       gstTotal: taxTotal,
       grandTotal,
     }));
-  };
+  }, [items, formData.deliveryCharges]);
 
   // ─── Rebuild items whenever the PO / selected-GRN set changes (GRN mode) ───
   useEffect(() => {
@@ -513,54 +526,34 @@ useEffect(() => {
   };
 
   // ─── Fetch Taxes ────────────────────────────────────────────────────────────
-// ─── Fetch Taxes ────────────────────────────────────────────────────────────
-const fetchTaxes = async (): Promise<Tax[]> => {
-  try {
-    const res = await api.get('/item/get-tax');
-    if (res.data?.success === 1) {
-      const taxData: Tax[] = res.data.data || [];
-      setTaxes(taxData);
-      return taxData;
+  const fetchTaxes = async (): Promise<Tax[]> => {
+    try {
+      const res = await api.get('/item/get-tax');
+      if (res.data?.success === 1) {
+        const taxData: Tax[] = res.data.data || [];
+        setTaxes(taxData);
+        return taxData;
+      }
+    } catch (err) {
+      console.error('Error fetching taxes:', err);
     }
-  } catch (err) {
-    console.error('Error fetching taxes:', err);
-  }
-  return [];
-};
+    return [];
+  };
 
   // ─── Fetch Warehouses ───────────────────────────────────────────────────────
   const fetchWarehouses = async () => {
     setLoadingWarehouses(true);
     try {
       const res = await api.get('/warehouse?limit=200');
-      const records = res.data?.success === 1 ? (res.data.data?.records || res.data.data || []) : [];
-      if (records.length) {
+      if (res.data?.success === 1) {
+        const records = res.data.data?.records || res.data.data || [];
         setWarehouses(records);
-        if (selectedWarehouseId === '' && !isEdit) {
+        if (records.length && selectedWarehouseId === '' && !isEdit) {
           setSelectedWarehouseId(records[0].id);
-        }
-      } else {
-        const fallbacks = [
-          { id: 1, warehouse_name: "Raw Material Store" },
-          { id: 2, warehouse_name: "Work in Progress" },
-          { id: 3, warehouse_name: "Finished Goods" },
-        ] as any;
-        setWarehouses(fallbacks);
-        if (selectedWarehouseId === '' && !isEdit) {
-          setSelectedWarehouseId(1);
         }
       }
     } catch (err) {
-      console.warn('Notice: Using default warehouses in purchase bill form:', err);
-      const fallbacks = [
-        { id: 1, warehouse_name: "Raw Material Store" },
-        { id: 2, warehouse_name: "Work in Progress" },
-        { id: 3, warehouse_name: "Finished Goods" },
-      ] as any;
-      setWarehouses(fallbacks);
-      if (selectedWarehouseId === '' && !isEdit) {
-        setSelectedWarehouseId(1);
-      }
+      console.error('Error fetching warehouses:', err);
     } finally {
       setLoadingWarehouses(false);
     }
@@ -635,7 +628,6 @@ const fetchTaxes = async (): Promise<Tax[]> => {
     setItems([]);
     setGrnSearch('');
     setPoSearch('');
-    // Reset GRN fields in formData
     setFormData(prev => ({
       ...prev,
       isCreateFromGrn: 0,
@@ -672,10 +664,8 @@ const fetchTaxes = async (): Promise<Tax[]> => {
       return next;
     });
     
-    // Update formData.grnIds to match selectedGRNIds
     const updatedGrnIds = Array.from(selectedGRNIds);
     if (selectedGRNIds.has(grnId)) {
-      // Removed - filter it out
       const newGrnIds = updatedGrnIds.filter(id => id !== grnId);
       setFormData(prev => ({
         ...prev,
@@ -683,7 +673,6 @@ const fetchTaxes = async (): Promise<Tax[]> => {
         isCreateFromGrn: newGrnIds.length > 0 ? 1 : 0,
       }));
     } else {
-      // Added - include it
       const newGrnIds = [...updatedGrnIds, grnId];
       setFormData(prev => ({
         ...prev,
@@ -710,10 +699,8 @@ const fetchTaxes = async (): Promise<Tax[]> => {
       }
       setLinkedGRNsForPO(grnSummaries || []);
 
-      // auto-include every GRN linked to this PO; user can uncheck any of them
       const grnIds = (grnSummaries || []).map(g => g.id);
       setSelectedGRNIds(new Set(grnIds));
-      // Update formData with GRN ids
       setFormData(prev => ({
         ...prev,
         grnIds: grnIds,
@@ -738,7 +725,6 @@ const fetchTaxes = async (): Promise<Tax[]> => {
       if (poDetail) {
         setSelectedPO(poDetail);
         buildInvoiceItemsFromPOOnly(poDetail);
-        // No GRNs selected in this mode
         setFormData(prev => ({
           ...prev,
           isCreateFromGrn: 0,
@@ -803,10 +789,7 @@ const fetchTaxes = async (): Promise<Tax[]> => {
         const unbilledQty = Math.max(0, totalReceived - alreadyBilledQty);
         const taxRate = parseFloat(pi.item_tax_rate || '0') || 0;
 
-        const tax = (taxes || []).find(t => {
-          const rate = parseInt((t.tax_type || '').replace('GST', ''));
-          return rate === taxRate;
-        });
+        const tax = findTaxByRate(taxes, taxRate);
 
         return {
           id: makeRowId(),
@@ -840,7 +823,7 @@ const fetchTaxes = async (): Promise<Tax[]> => {
         const billableQty = gi.accepted_qty || gi.received_qty || 0;
         const key = gi.item_code || `item-${gi.item_id}`;
         if (!merged[key]) {
-          const tax = (taxes || []).find(t => t.tax_id === 1);
+          const tax = findTaxById(taxes, gi.tax_id || 1);
           merged[key] = {
             id: makeRowId(),
             grn_item_id: gi.id,
@@ -856,7 +839,7 @@ const fetchTaxes = async (): Promise<Tax[]> => {
             bill_qty: billableQty,
             amount: Math.round(billableQty * (gi.rate || 0) * 100) / 100,
             grn_refs: grn.grn_number ? [grn.grn_number] : [],
-            tax_rate: 0,
+            tax_rate: tax ? getTaxRateFromType(tax.tax_type) : 0,
             tax_id: tax?.tax_id || 1,
             note: '',
           };
@@ -879,7 +862,7 @@ const fetchTaxes = async (): Promise<Tax[]> => {
   const buildInvoiceItemsFromPOOnly = (poDetail: PODetail) => {
     const invoiceRows: InvoiceItem[] = (poDetail.items || []).map(pi => {
       const taxRate = parseFloat(pi.item_tax_rate || '0') || 0;
-      const tax = (taxes || []).find(t => parseInt((t.tax_type || '').replace('GST', '')) === taxRate);
+      const tax = findTaxByRate(taxes, taxRate);
       return {
         id: makeRowId(),
         po_item_id: pi.id,
@@ -919,7 +902,7 @@ const fetchTaxes = async (): Promise<Tax[]> => {
       amount: 0,
       grn_refs: [],
       tax_rate: 0,
-      tax_id: 1,
+      tax_id: 4, // Default to GST0
       note: '',
     };
     setItems([...items, newItem]);
@@ -946,9 +929,24 @@ const fetchTaxes = async (): Promise<Tax[]> => {
     }));
   };
 
+  // ─── Handle tax change for an item ────────────────────────────────────────
+  const handleTaxChange = (rowId: string, taxId: number) => {
+    const tax = findTaxById(taxes, taxId);
+    const taxRate = tax ? getTaxRateFromType(tax.tax_type) : 0;
+    
+    setItems(prev => prev.map(item => {
+      if (item.id !== rowId) return item;
+      return {
+        ...item,
+        tax_id: taxId,
+        tax_rate: taxRate,
+      };
+    }));
+  };
+
   const handleSelectItem = (item: Item, rowId: string) => {
-    const tax = (taxes || []).find(t => t.tax_id === item.tax_id);
-    const taxRate = tax ? parseInt((tax.tax_type || '').replace('GST', '')) : 0;
+    const tax = findTaxById(taxes, item.tax_id);
+    const taxRate = tax ? getTaxRateFromType(tax.tax_type) : 0;
 
     setItems(prev => prev.map(row => {
       if (row.id !== rowId) return row;
@@ -983,24 +981,26 @@ const fetchTaxes = async (): Promise<Tax[]> => {
     }));
   };
 
-// ─── Load existing invoice ──────────────────────────────────────────────────
-const loadExistingInvoice = async (invoiceId: string, taxesData: Tax[] = []) => {
-  setPageLoading(true);
-  try {
-    const res = await api.get(`/purchase-invoice/${invoiceId}`);
-    if (res.data?.success === 1) {
-      const inv = res.data.data;
+  // ─── Load existing invoice ──────────────────────────────────────────────────
+  // ─── FIX: read `item_tax_id` from the Purchase Invoice API ─────────────────
+  // The API returns `item_tax_id` on each item (see /purchase-invoice/{id}
+  // sample: `"item_tax_id": 1`). We must look that up against the taxes list
+  // to bind the correct GST option into the <select>. Previously the code
+  // looked at `it.tax_id` (undefined) and silently fell back to tax id 1,
+  // which happened to work only when every item was GST18.
+  const loadExistingInvoice = async (invoiceId: string, taxesData: Tax[] = []) => {
+    setPageLoading(true);
+    try {
+      const res = await api.get(`/purchase-invoice/${invoiceId}`);
+      if (res.data?.success === 1) {
+        const inv = res.data.data;
 
-
-        // ── NEW: Read is_create_from_grn and grn_ids from API ──
         const isCreateFromGrn = inv.is_create_from_grn || 0;
         const grnIds = inv.grn_ids || [];
 
-        // ── BILL SOURCE FIX: determine bill source from is_create_from_grn ──
         const resolvedBillSource: BillSource = isCreateFromGrn === 1 ? 'GRN' : 'Without GRN';
 
-      const itemsFromApi: any[] = Array.isArray(inv.items) ? inv.items : [];
-
+        const itemsFromApi: any[] = Array.isArray(inv.items) ? inv.items : [];
 
         setFormData(prev => ({
           ...prev,
@@ -1011,39 +1011,34 @@ const loadExistingInvoice = async (invoiceId: string, taxesData: Tax[] = []) => 
           billDate: inv.bill_date ? inv.bill_date.split('T')[0] : '',
           notes: inv.remarks || '',
           billSource: resolvedBillSource,
-          // NEW: Set GRN fields
           isCreateFromGrn: isCreateFromGrn,
           grnIds: grnIds,
         }));
 
+        if (grnIds.length > 0) {
+          setSelectedGRNIds(new Set(grnIds));
 
-       // Restore selected GRN IDs
-if (grnIds.length > 0) {
-  setSelectedGRNIds(new Set(grnIds));
+          const missingIds = grnIds.filter(
+            (gid: string | number) => !grnDetailCache[Number(gid)]
+          );
 
-  // Load GRN details for these IDs
-  const missingIds = grnIds.filter(
-    (gid: string | number) => !grnDetailCache[Number(gid)]
-  );
+          if (missingIds.length) {
+            const fetched = await Promise.all(
+              missingIds.map((gid: string | number) =>
+                fetchGRNDetail(Number(gid))
+              )
+            );
 
-  if (missingIds.length) {
-    const fetched = await Promise.all(
-      missingIds.map((gid: string | number) =>
-        fetchGRNDetail(Number(gid))
-      )
-    );
+            const nextCache = { ...grnDetailCache };
 
-    const nextCache = { ...grnDetailCache };
+            fetched.forEach((g) => {
+              if (g) nextCache[g.id] = g;
+            });
 
-    fetched.forEach((g) => {
-      if (g) nextCache[g.id] = g;
-    });
+            setGrnDetailCache(nextCache);
+          }
+        }
 
-    setGrnDetailCache(nextCache);
-  }
-}
-
-        // Supplier: resolved once the supplier list itself has loaded
         if (inv.supplier != null) {
           setPendingSupplierId(Number(inv.supplier));
         } else if (inv.supplier_name) {
@@ -1052,9 +1047,51 @@ if (grnIds.length > 0) {
 
         if (itemsFromApi.length) {
           const rows: InvoiceItem[] = itemsFromApi.map((it: any) => {
-            const resolvedTaxRate = it.item_tax_rate
-              ? parseFloat(it.item_tax_rate)
-              : (it.tax_rate ?? parseTaxRateFromTemplate(it.item_tax_template));
+            // ─── FIX: Priority order for the tax id ───────────────────────
+            //   1. it.item_tax_id  ← what /purchase-invoice/{id} actually returns
+            //   2. it.tax_id       ← kept as a fallback for older/newer shapes
+            //   3. rate-based lookup from item_tax_template / item_tax_rate
+            let resolvedTaxId: number | undefined = undefined;
+            let resolvedTaxRate = 0;
+
+            const rawItemTaxId = it.item_tax_id ?? it.tax_id;
+
+            if (rawItemTaxId != null) {
+              const numericTaxId =
+                typeof rawItemTaxId === 'string'
+                  ? parseInt(rawItemTaxId, 10)
+                  : Number(rawItemTaxId);
+
+              const matchedTax = findTaxById(taxesData, numericTaxId);
+              if (matchedTax) {
+                resolvedTaxId = matchedTax.tax_id;
+                resolvedTaxRate = getTaxRateFromType(matchedTax.tax_type);
+              } else {
+                // Tax id present but not in the fetched list — keep the id
+                // so the <select> still binds it once taxes load.
+                resolvedTaxId = numericTaxId;
+              }
+            }
+
+            // Fallback: resolve by rate from item_tax_template / item_tax_rate
+            if (resolvedTaxId === undefined) {
+              const rateFromTemplate = it.item_tax_template
+                ? parseTaxRateFromTemplate(it.item_tax_template)
+                : 0;
+              const rateFromItem = it.item_tax_rate
+                ? parseFloat(it.item_tax_rate)
+                : 0;
+              const fallbackRate =
+                rateFromTemplate || rateFromItem || it.tax_rate || 0;
+
+              const matchedByRate = findTaxByRate(taxesData, fallbackRate);
+              if (matchedByRate) {
+                resolvedTaxId = matchedByRate.tax_id;
+                resolvedTaxRate = getTaxRateFromType(matchedByRate.tax_type);
+              } else {
+                resolvedTaxRate = fallbackRate;
+              }
+            }
 
             return {
               id: makeRowId(),
@@ -1073,14 +1110,13 @@ if (grnIds.length > 0) {
               bill_qty: it.qty || 0,
               amount: it.amount || 0,
               grn_refs: it.grn_refs || [],
-              tax_rate: resolvedTaxRate || 0,
-              tax_id: it.tax_id || 1,
+              tax_rate: resolvedTaxRate,
+              tax_id: resolvedTaxId,
               HSN: it.hsn_code || it.HSN || '',
               note: it.note || '',
             };
           });
           setItems(rows);
-
 
           const firstWarehouse = itemsFromApi.find((it: any) => it.warehouse)?.warehouse;
           if (firstWarehouse != null) {
@@ -1088,18 +1124,21 @@ if (grnIds.length > 0) {
           }
         }
       }
+    } catch (err) {
+      console.error('Error loading invoice:', err);
+      toast.error('Failed to load invoice');
+    } finally {
+      setPageLoading(false);
     }
-  } catch (err) {
-    console.error('Error loading invoice:', err);
-    toast.error('Failed to load invoice');
-  } finally {
-    setPageLoading(false);
-  }
-};
+  };
 
   // ─── Computed totals ────────────────────────────────────────────────────────
   const subTotal = items.reduce((s, r) => s + (r.amount || 0), 0);
-  const totalTax = items.reduce((s, r) => s + ((r.amount || 0) * (r.tax_rate || 0)) / 100, 0);
+  const totalTax = items.reduce((s, r) => {
+    const amount = r.amount || 0;
+    const rate = r.tax_rate || 0;
+    return s + (amount * rate) / 100;
+  }, 0);
   const cgstAmount = totalTax / 2;
   const sgstAmount = totalTax / 2;
   const grandTotal = subTotal + totalTax + formData.deliveryCharges;
@@ -1688,7 +1727,6 @@ if (grnIds.length > 0) {
           overflow: 'hidden',
         }}
       >
-        {/* ─── Scrollable supplier list ─── */}
         <div
           className="pif-supplier-dropdown-list"
           style={{
@@ -1735,7 +1773,6 @@ if (grnIds.length > 0) {
           )}
         </div>
 
-        {/* ─── "+ Add New Supplier" footer ─── */}
         <div 
           className="pif-supplier-dropdown-footer" 
           style={{
@@ -1792,7 +1829,6 @@ if (grnIds.length > 0) {
     e.preventDefault();
     setApiError(null);
 
-    // FIX: Ensure supplier is selected before submitting
     if (!selectedSupplier && !isEdit) {
       toast.error('Please select a supplier');
       return;
@@ -1815,7 +1851,6 @@ if (grnIds.length > 0) {
     const now = new Date();
     const postingTime = now.toTimeString().slice(0, 8);
     
-    // FIX: Ensure supplier ID is properly set - use selectedSupplier.id
     const supplierId = selectedSupplier?.id;
     if (!supplierId && !isEdit) {
       setApiError('Supplier is required');
@@ -1850,34 +1885,41 @@ if (grnIds.length > 0) {
       outstanding_amount: grandTotal,
       status: formData.status,
       remarks: formData.notes || '',
-
-      // ── NEW: Use is_create_from_grn and grn_ids instead of bill_source ──
       is_create_from_grn: formData.isCreateFromGrn,
       grn_ids: formData.isCreateFromGrn === 1 ? formData.grnIds : [],
-
-      // ── PO linkage at header level, where available ──
-      // purchase_order: selectedPO?.id || undefined,
-
-      items: billableItems.map((r, idx) => ({
-        ...(isEdit && r.db_item_id ? { id: r.db_item_id } : {}),
-        name: `item-${idx + 1}`,
-        item_id: r.item_id ?? undefined,
-        po_detail: r.po_item_id ?? undefined,
-        pr_detail: r.grn_item_id ?? undefined,
-        item_code: r.item_code || '',
-        item_name: r.item_name || '',
-        warehouse: resolvedWarehouseId,
-        qty: r.bill_qty || 0,
-        uom: r.uom || 'Nos',
-        rate: r.rate || 0,
-        ordered_rate: r.ordered_rate || 0,
-        amount: r.amount || 0,
-        item_tax_rate: String(r.tax_rate || 0),
-        item_tax_template: getItemTaxTemplate(r.tax_rate || 0),
-        tax_id: r.tax_id || undefined,
-        hsn_code: r.HSN || undefined,
-        note: r.note || undefined,
-      })),
+      
+      items: billableItems.map((r, idx) => {
+        // ─── FIX: prefer the user's selected tax_id from the row ────────────
+        // `r.tax_id` reflects the row's current dropdown value. Only if it's
+        // missing do we fall back to the catalog item's default tax_id, and
+        // finally to tax id 1. Previously this read `catalogItem?.tax_id`
+        // first, so a user who changed the dropdown had their choice silently
+        // overwritten with the item master's default tax on save.
+        const catalogItem = itemsList.find(item => item.id === r.item_id);
+        const itemTaxId = r.tax_id ?? catalogItem?.tax_id ?? 1;
+        
+        return {
+          ...(isEdit && r.db_item_id ? { id: r.db_item_id } : {}),
+          name: `item-${idx + 1}`,
+          item_id: r.item_id ?? undefined,
+          po_detail: r.po_item_id ?? undefined,
+          pr_detail: r.grn_item_id ?? undefined,
+          item_code: r.item_code || '',
+          item_name: r.item_name || '',
+          warehouse: resolvedWarehouseId,
+          qty: r.bill_qty || 0,
+          uom: r.uom || 'Nos',
+          rate: r.rate || 0,
+          ordered_rate: r.ordered_rate || 0,
+          amount: r.amount || 0,
+          item_tax_rate: String(r.tax_rate || 0),
+          item_tax_template: getItemTaxTemplate(r.tax_rate || 0),
+          tax_id: r.tax_id || undefined,
+          item_tax_id: itemTaxId,
+          hsn_code: r.HSN || undefined,
+          note: r.note || undefined,
+        };
+      }),
     };
 
     try {
@@ -1917,16 +1959,13 @@ if (grnIds.length > 0) {
     navigate('/purchase-invoice');
   };
 
-  // ─── Render ────────────────────────────────────────────────────────────────
-  if (pageLoading) {
+  // ─── Loading Screen ─────────────────────────────────────────────────────
+  if (loading) {
     return (
-      <div className="pif-page">
-        <div className="pif-inner">
-          <PageLoader 
-            message="Loading Purchase Bill..." 
-            subtitle="Fetching invoice records, line item disbursements, and tax schedules"
-          />
-        </div>
+      <div className="p-6 max-w-7xl mx-auto">
+        <PageLoader 
+          message="Loading Purchasing & Purchase Bill..." 
+        />
       </div>
     );
   }
@@ -2005,7 +2044,6 @@ if (grnIds.length > 0) {
             <FaArrowLeft size={9} /> Back
           </button>
           <div className="header-title">
-            <h1>{isEdit ? `${formData.invoiceNumber || 'Edit Purchase Bill'}` : 'New Purchase Bill'}</h1>
           </div>
           <button type="button" onClick={handlePrint} className="print-btn" disabled={items.length === 0}>
             <FaPrint size={12} /> Print
@@ -2061,31 +2099,33 @@ if (grnIds.length > 0) {
                 <th>Received Qty</th>
                 <th>Bill Qty</th>
                 <th>UOM</th>
-                <th>Ordered Rate</th>
                 <th>Rate</th>
-                <th>Amount</th>
-                <th>Tax%</th>
+                <th style={{ minWidth: '90px' }}>Amount</th>
+                <th>Tax</th>
                 <th>Note</th>
               </tr>
             </thead>
             <tbody>
-              {items.map((item, i) => (
-                <tr key={item.id}>
-                  <td>{i + 1}</td>
-                  <td>{item.item_code || ''}</td>
-                  <td>{item.item_name || ''}</td>
-                  <td>{item.HSN || '-'}</td>
-                  <td className="text-right">{item.ordered_qty || 0}</td>
-                  <td className="text-right">{item.total_received_qty || 0}</td>
-                  <td className="text-right">{item.bill_qty || 0}</td>
-                  <td>{item.uom || ''}</td>
-                  <td className="text-right">{item.ordered_rate ? item.ordered_rate.toFixed(2) : '-'}</td>
-                  <td className="text-right">{item.rate ? item.rate.toFixed(2) : '0.00'}</td>
-                  <td className="text-right">{item.amount ? item.amount.toFixed(2) : '0.00'}</td>
-                  <td className="text-right">{item.tax_rate || 0}%</td>
-                  <td>{item.note || '-'}</td>
-                </tr>
-              ))}
+              {items.map((item, i) => {
+                const tax = findTaxById(taxes, item.tax_id || 1);
+                const taxDisplay = tax ? tax.tax_type : `${item.tax_rate || 0}%`;
+                return (
+                  <tr key={item.id}>
+                    <td>{i + 1}</td>
+                    <td>{item.item_code || ''}</td>
+                    <td>{item.item_name || ''}</td>
+                    <td>{item.HSN || '-'}</td>
+                    <td className="text-right">{item.ordered_qty || 0}</td>
+                    <td className="text-right">{item.total_received_qty || 0}</td>
+                    <td className="text-right">{item.bill_qty || 0}</td>
+                    <td>{item.uom || ''}</td>
+                    <td className="text-right">{item.rate ? item.rate.toFixed(2) : '0.00'}</td>
+                    <td className="text-right">{item.amount ? item.amount.toFixed(2) : '0.00'}</td>
+                    <td className="text-right">{taxDisplay}</td>
+                    <td>{item.note || '-'}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
           <div className="totals">
@@ -2671,54 +2711,50 @@ if (grnIds.length > 0) {
             <div className="pif-divider" />
 
             {/* ── Items ────────────────────────────────────────────────── */}
-            <div className="pif-items-section pof-items-section">
-              <div className="pif-table-header-row pof-items-header">
-                <span className="pif-section-title" style={{ margin: 0, border: 'none', paddingBottom: 0 }}>
-                  <FaBoxes className="pif-section-icon" /> Items
-                </span>
-                {isManual && (
-                  <button type="button" onClick={handleAddManualItem} className="pif-add-item-btn pof-add-item-btn">
-                    <FaPlus /> Add Item
-                  </button>
-                )}
-              </div>
-
-              {(loadingPODetail || loadingGRNs) && (
-                <div className="pif-loading-msg" style={{ padding: '12px 0' }}>
-                  <FaSpinner className="spinning" size={14} /> Building invoice from GRN/PO data…
-                </div>
+            <div className="pif-table-header-row">
+              <span className="pif-section-title" style={{ margin: 0, border: 'none', paddingBottom: 0 }}>
+                <FaBoxes className="pif-section-icon" /> Items
+              </span>
+              {isManual && (
+                <button type="button" onClick={handleAddManualItem} className="pif-add-item-btn">
+                  <FaPlus /> Add Item
+                </button>
               )}
+            </div>
 
-              {!loadingPODetail && !loadingGRNs && items.length > 0 && (
-                <>
-                  <div className="pif-table-block pof-table-block">
-                    <table className="pif-inline-table pof-inline-table grnf-items-table">
-                      <thead>
-                        <tr>
-                          <th className="pif-ith pif-ith-no">#</th>
-                          <th className="pif-ith">Item Code</th>
-                          <th className="pif-ith">Item Name</th>
-                          <th className="pif-ith">HSN</th>
-                          <th className="pif-ith pif-ith-num">Ordered Qty</th>
-                          <th className="pif-ith pif-ith-num">Received Qty</th>
-                          <th className="pif-ith pif-ith-num">Bill Qty</th>
-                          <th className="pif-ith">UOM</th>
-                          <th className="pif-ith pif-ith-num">Ordered Rate</th>
-                          <th className="pif-ith pif-ith-num">Rate</th>
-                          <th className="pif-ith pif-ith-num">Amount</th>
-                          <th className="pif-ith pif-ith-num">Tax%</th>
-                          <th className="pif-ith pif-ith-note">Note</th>
-                          {isManual && <th className="pif-ith">Action</th>}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {items.map((row, i) => (
-                          <tr key={row.id} className={`pif-itr pof-itr ${(row.unbilled_qty || 0) === 0 ? 'pif-itr--zero' : ''}`}>
-                            <td className="pif-itd pof-itd pif-itd-no pof-itd-no" data-label="#">
-                              <span className="pof-mobile-row-badge">Item #{i + 1}</span>
-                              <span className="pof-desktop-row-num">{i + 1}</span>
-                            </td>
-                            <td className="pif-itd pof-itd pof-itd-code pif-itd-code" data-label="Item Code" style={{ position: 'relative', overflow: 'visible' }}>
+            {(loadingPODetail || loadingGRNs) && (
+              <div className="pif-loading-msg" style={{ padding: '12px 0' }}>
+                <FaSpinner className="spinning" size={14} /> Building invoice from GRN/PO data…
+              </div>
+            )}
+
+            {!loadingPODetail && !loadingGRNs && items.length > 0 && (
+              <>
+                <div className="pif-table-block">
+                  <table className="pif-inline-table">
+                    <thead>
+                      <tr>
+                        <th className="pif-ith pif-ith-no">#</th>
+                        <th className="pif-ith">Item Code</th>
+                        <th className="pif-ith">Item Name</th>
+                        <th className="pif-ith">HSN</th>
+                        <th className="pif-ith pif-ith-num">Ordered Qty</th>
+                        <th className="pif-ith pif-ith-num">Received Qty</th>
+                        <th className="pif-ith pif-ith-num">Bill Qty</th>
+                        <th className="pif-ith">UOM</th>
+                        <th className="pif-ith pif-ith-num">Rate</th>
+                        <th className="pif-ith pif-ith-num pif-ith-amount-wide">Amount</th>
+                        <th className="pif-ith pif-ith-num">Tax</th>
+                        <th className="pif-ith pif-ith-note">Note</th>
+                        {isManual && <th className="pif-ith">Action</th>}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {items.map((row, i) => {
+                        return (
+                          <tr key={row.id} className={`pif-itr ${(row.unbilled_qty || 0) === 0 ? 'pif-itr--zero' : ''}`}>
+                            <td className="pif-itd pif-itd-no">{i + 1}</td>
+                            <td className="pif-itd" style={{ position: 'relative', overflow: 'visible' }}>
                               {isManual ? (
                                 <div style={{ position: 'relative', width: '100%' }}>
                                   <input
@@ -2740,7 +2776,7 @@ if (grnIds.length > 0) {
                                         setShowItemDropdown(false);
                                       }, 200);
                                     }}
-                                    className="pif-cell-input pof-cell-input"
+                                    className="pif-cell-input"
                                     placeholder="Search item..."
                                     autoComplete="off"
                                   />
@@ -2749,26 +2785,30 @@ if (grnIds.length > 0) {
                                       <div className="pif-dropdown-down">
                                         {filteredItems.length > 0 ? (
                                           <ul className="pif-dropdown-list">
-                                            {filteredItems.map(item => (
-                                              <li
-                                                key={item.id}
-                                                className="pif-dropdown-item"
-                                                onMouseDown={(e) => {
-                                                  e.preventDefault();
-                                                  handleSelectItem(item, row.id);
-                                                }}
-                                              >
-                                                <div className="pif-dropdown-item-code">
-                                                  <span className="pif-item-code-highlight">{item.item_code || ''}</span>
-                                                </div>
-                                                <div className="pif-dropdown-item-name">{item.item_name || ''}</div>
-                                                <div className="pif-dropdown-item-details">
-                                                  <span className="pif-item-rate">₹{item.standard_rate || 0}</span>
-                                                  <span className="pif-item-uom">{item.stock_uom || ''}</span>
-                                                  <span className="pif-item-group">{item.item_group || ''}</span>
-                                                </div>
-                                              </li>
-                                            ))}
+                                            {filteredItems.map(item => {
+                                              const itemTax = findTaxById(taxes, item.tax_id);
+                                              return (
+                                                <li
+                                                  key={item.id}
+                                                  className="pif-dropdown-item"
+                                                  onMouseDown={(e) => {
+                                                    e.preventDefault();
+                                                    handleSelectItem(item, row.id);
+                                                  }}
+                                                >
+                                                  <div className="pif-dropdown-item-code">
+                                                    <span className="pif-item-code-highlight">{item.item_code || ''}</span>
+                                                  </div>
+                                                  <div className="pif-dropdown-item-name">{item.item_name || ''}</div>
+                                                  <div className="pif-dropdown-item-details">
+                                                    <span className="pif-item-rate">₹{item.standard_rate || 0}</span>
+                                                    <span className="pif-item-uom">{item.stock_uom || ''}</span>
+                                                    <span className="pif-item-group">{item.item_group || ''}</span>
+                                                    {itemTax && <span className="pif-item-tax">{itemTax.tax_type}</span>}
+                                                  </div>
+                                                </li>
+                                              );
+                                            })}
                                           </ul>
                                         ) : (
                                           <div className="pif-dropdown-empty">
@@ -2784,49 +2824,49 @@ if (grnIds.length > 0) {
                                   type="text"
                                   value={row.item_code || ''}
                                   onChange={e => handleItemFieldChange(row.id, 'item_code', e.target.value)}
-                                  className="pif-cell-input pof-cell-input"
+                                  className="pif-cell-input"
                                   placeholder="Item code"
                                 />
                               )}
                             </td>
-                            <td className="pif-itd pof-itd pof-itd-name pif-itd-name" data-label="Item Name">
+                            <td className="pif-itd">
                               <input
                                 type="text"
                                 value={row.item_name || ''}
                                 onChange={e => handleItemFieldChange(row.id, 'item_name', e.target.value)}
-                                className="pif-cell-input pof-cell-input"
+                                className="pif-cell-input"
                                 placeholder="Item name"
                               />
                             </td>
-                            <td className="pif-itd pof-itd" data-label="HSN">
+                            <td className="pif-itd">
                               <input
                                 type="text"
                                 value={row.HSN || ''}
                                 onChange={e => handleItemFieldChange(row.id, 'HSN', e.target.value)}
-                                className="pif-cell-input pof-cell-input"
+                                className="pif-cell-input"
                                 placeholder="HSN"
                               />
                             </td>
-                            <td className="pif-itd pof-itd pif-itd-num" data-label="Ordered Qty">
-                              <span className="pif-cell-readonly pof-uom-display">{row.ordered_qty || 0}</span>
+                            <td className="pif-itd pif-itd-num">
+                              <span className="pif-cell-readonly">{row.ordered_qty || 0}</span>
                             </td>
-                            <td className="pif-itd pof-itd pif-itd-num" data-label="Received Qty">
-                              <span className="pif-cell-readonly pof-uom-display">{row.total_received_qty || 0}</span>
+                            <td className="pif-itd pif-itd-num">
+                              <span className="pif-cell-readonly">{row.total_received_qty || 0}</span>
                             </td>
-                            <td className="pif-itd pof-itd pif-itd-num" data-label="Bill Qty">
+                            <td className="pif-itd pif-itd-num">
                               {isManual ? (
                                 <input
                                   type="number"
                                   value={row.bill_qty || 0}
                                   onChange={e => handleItemFieldChange(row.id, 'bill_qty', parseFloat(e.target.value) || 0)}
-                                  className="pif-cell-input pof-cell-input pif-cell-number"
+                                  className="pif-cell-input pif-cell-number"
                                   min="0"
                                   step="any"
                                 />
                               ) : (
                                 <input
                                   type="number"
-                                  className="pif-cell-input pof-cell-input pif-cell-number"
+                                  className="pif-cell-input pif-cell-number"
                                   value={row.bill_qty || 0}
                                   min={0}
                                   max={row.unbilled_qty || 0}
@@ -2837,11 +2877,11 @@ if (grnIds.length > 0) {
                                 />
                               )}
                             </td>
-                            <td className="pif-itd pof-itd" data-label="UOM">
+                            <td className="pif-itd">
                               <select
                                 value={row.uom || 'Nos'}
                                 onChange={e => handleItemFieldChange(row.id, 'uom', e.target.value)}
-                                className="pif-cell-input pof-cell-select"
+                                className="pif-cell-input"
                               >
                                 <option value="Nos">Nos</option>
                                 <option value="Kg">Kg</option>
@@ -2852,42 +2892,37 @@ if (grnIds.length > 0) {
                                 <option value="Gram">Gram</option>
                               </select>
                             </td>
-                            <td className="pif-itd pof-itd pif-itd-num" data-label="Ordered Rate">
-                              <span className="pif-cell-readonly pof-uom-display">
-                                {row.ordered_rate ? row.ordered_rate.toFixed(2) : '-'}
-                              </span>
-                            </td>
-                            <td className="pif-itd pof-itd pif-itd-num" data-label="Rate">
+                            <td className="pif-itd pif-itd-num">
                               <input
                                 type="number"
                                 value={row.rate || 0}
                                 onChange={e => handleItemFieldChange(row.id, 'rate', parseFloat(e.target.value) || 0)}
-                                className="pif-cell-input pof-cell-input pif-cell-number"
+                                className="pif-cell-input pif-cell-number"
                                 min="0"
                                 step="0.01"
                               />
                             </td>
-                            <td className="pif-itd pof-itd pif-itd-num pif-amount pof-itd-amount pif-itd-amount" data-label="Amount">
+                            <td className="pif-itd pif-itd-num pif-amount pif-itd-amount-wide">
                               ₹ {(row.amount || 0).toFixed(2)}
                             </td>
-                            <td className="pif-itd pof-itd pif-itd-num" data-label="Tax %">
+                            <td className="pif-itd pif-itd-num">
                               <select
-                                value={row.tax_rate || 0}
-                                onChange={e => handleItemFieldChange(row.id, 'tax_rate', parseFloat(e.target.value) || 0)}
-                                className="pif-cell-input pof-cell-select pof-tax-select"
+                                value={row.tax_id ?? ''}
+                                onChange={(e) => {
+                                  const taxId = parseInt(e.target.value);
+                                  handleTaxChange(row.id, taxId);
+                                }}
+                                className="pif-cell-input"
                               >
-                                {(taxes || []).map(tax => {
-                                  const parsed = parseInt((tax.tax_type || '').replace('GST', ''));
-                                  const rate = isNaN(parsed) ? 0 : parsed;
-                                  return (
-                                    <option key={tax.tax_id} value={rate}>
-                                      {tax.tax_type || ''}
-                                    </option>
-                                  );
-                                })}
+                                <option value="" disabled>Select GST</option>
+                                {(taxes || []).map(tax => (
+                                  <option key={tax.tax_id} value={tax.tax_id}>
+                                    {tax.tax_type || `GST${getTaxRateFromType(tax.tax_type)}%`}
+                                  </option>
+                                ))}
                               </select>
                             </td>
-                            <td className="pif-itd pof-itd pif-itd-note pof-itd-note" data-label="Note" style={{ position: 'relative' }}>
+                            <td className="pif-itd pif-itd-note" style={{ position: 'relative' }}>
                               <button
                                 type="button"
                                 className={`pif-note-btn ${row.note ? 'pif-note-btn--filled' : ''}`}
@@ -2911,80 +2946,78 @@ if (grnIds.length > 0) {
                               )}
                             </td>
                             {isManual && (
-                              <td className="pif-itd pof-itd pif-itd-action pof-itd-action">
+                              <td className="pif-itd">
                                 <button
                                   type="button"
                                   onClick={() => handleRemoveManualItem(row.id)}
-                                  className="pif-remove-item-btn pof-remove-row"
-                                  title="Remove item"
+                                  className="pif-remove-item-btn"
                                 >
-                                  <FaTrash size={12} />
-                                  <span className="pof-remove-row-text">Remove</span>
+                                  <FaTrash />
                                 </button>
                               </td>
                             )}
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
 
-                  {/* Totals summary */}
-                  <div className="pif-totals-block">
-                    <div className="pif-totals-row">
-                      <span>Sub Total</span>
-                      <span>₹ {subTotal.toFixed(2)}</span>
-                    </div>
-                    {totalTax > 0 && (
-                      <>
-                        <div className="pif-totals-row">
-                          <span>CGST</span>
-                          <span>₹ {cgstAmount.toFixed(2)}</span>
-                        </div>
-                        <div className="pif-totals-row">
-                          <span>SGST</span>
-                          <span>₹ {sgstAmount.toFixed(2)}</span>
-                        </div>
-                        <div className="pif-totals-row">
-                          <span>Total GST</span>
-                          <span>₹ {totalTax.toFixed(2)}</span>
-                        </div>
-                      </>
-                    )}
-                    {formData.deliveryCharges > 0 && (
+                {/* Totals summary */}
+                <div className="pif-totals-block">
+                  <div className="pif-totals-row">
+                    <span>Sub Total</span>
+                    <span>₹ {subTotal.toFixed(2)}</span>
+                  </div>
+                  {totalTax > 0 && (
+                    <>
                       <div className="pif-totals-row">
-                        <span>Delivery Charges</span>
-                        <span>₹ {formData.deliveryCharges.toFixed(2)}</span>
+                        <span>CGST</span>
+                        <span>₹ {cgstAmount.toFixed(2)}</span>
                       </div>
-                    )}
-                    <div className="pif-totals-row pif-totals-grand">
-                      <span>Grand Total</span>
-                      <span>₹ {grandTotal.toFixed(2)}</span>
+                      <div className="pif-totals-row">
+                        <span>SGST</span>
+                        <span>₹ {sgstAmount.toFixed(2)}</span>
+                      </div>
+                      <div className="pif-totals-row">
+                        <span>Total GST</span>
+                        <span>₹ {totalTax.toFixed(2)}</span>
+                      </div>
+                    </>
+                  )}
+                  {formData.deliveryCharges > 0 && (
+                    <div className="pif-totals-row">
+                      <span>Delivery Charges</span>
+                      <span>₹ {formData.deliveryCharges.toFixed(2)}</span>
                     </div>
+                  )}
+                  <div className="pif-totals-row pif-totals-grand">
+                    <span>Grand Total</span>
+                    <span>₹ {grandTotal.toFixed(2)}</span>
                   </div>
-                </>
-              )}
-
-              {isGRNMode && !loadingGRNs && !loadingPODetail && !selectedPO && selectedGRNIds.size === 0 && items.length === 0 && (
-                <div className="pif-empty-items">
-                  <FaClipboardList size={32} style={{ opacity: 0.3 }} />
-                  <p>{selectedSupplier ? 'Select a Purchase Order or GRN above to load items.' : 'Select a supplier to see their POs and GRNs.'}</p>
                 </div>
-              )}
+              </>
+            )}
 
-              {isManual && items.length === 0 && (
-                <div className="pif-empty-items">
-                  <FaBoxes size={32} style={{ opacity: 0.3 }} />
-                  <p>Select a PO above, or click "Add Item" and search the item catalog.</p>
-                </div>
-              )}
+            {isGRNMode && !loadingGRNs && !loadingPODetail && !selectedPO && selectedGRNIds.size === 0 && items.length === 0 && (
+              <div className="pif-empty-items">
+                <FaClipboardList size={32} style={{ opacity: 0.3 }} />
+                <p>{selectedSupplier ? 'Select a Purchase Order or GRN above to load items.' : 'Select a supplier to see their POs and GRNs.'}</p>
+              </div>
+            )}
 
-              {validationErrors.some(e => e.field === 'items') && (
-                <div className="pif-error-msg" style={{ marginTop: 8 }}>
-                  <FaExclamationCircle size={10} /> At least one item must have quantity &gt; 0
-                </div>
-              )}
-            </div>
+            {isManual && items.length === 0 && (
+              <div className="pif-empty-items">
+                <FaBoxes size={32} style={{ opacity: 0.3 }} />
+                <p>Select a PO above, or click "Add Item" and search the item catalog.</p>
+              </div>
+            )}
+
+            {validationErrors.some(e => e.field === 'items') && (
+              <div className="pif-error-msg" style={{ marginTop: 8 }}>
+                <FaExclamationCircle size={10} /> At least one item must have quantity &gt; 0
+              </div>
+            )}
 
             {/* Notes */}
             <div className="pif-field" style={{ marginTop: 4 }}>

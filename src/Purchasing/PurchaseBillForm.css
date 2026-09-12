@@ -20,7 +20,11 @@
   padding-top: 4px;
   padding-bottom: 18px;
 }
-
+.pif-ith-amount-wide,
+.pif-itd-amount-wide {
+  width: 140px;
+  min-width: 140px;
+}
 .back-btn {
   display: flex;
   align-items: center;

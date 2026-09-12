@@ -881,9 +881,8 @@ export default function LeadManagement() {
               </div>
             ) : (
               <div className="sales-mobile-cards">
-                {leads.map((row, idx) => {
+                {leads.map((row) => {
                   const isExpanded = expandedRows.has(row.id);
-                  const rowNumber = getStartIndex() + idx;
                   return (
                     <div
                       key={row.id}

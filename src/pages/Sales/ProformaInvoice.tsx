@@ -2560,7 +2560,6 @@ export default function ProformaInvoice() {
                 {salesOrders.map((order, idx) => {
                   const orderId = order.id || `so-${idx}`;
                   const isExpanded = expandedRows.has(orderId);
-                  const rowNumber = (currentPage - 1) * pageSize + idx + 1;
                   return (
                     <div
                       key={orderId}

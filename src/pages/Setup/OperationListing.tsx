@@ -822,9 +822,8 @@ export default function OperationList() {
               </div>
             ) : (
               <div className="sales-mobile-cards">
-                {paginatedData.map((row, idx) => {
+                {paginatedData.map((row) => {
                   const isExpanded = expandedRows.has(row.id);
-                  const rowNumber = getStartIndex() + idx;
                   return (
                     <div
                       key={row.id}
