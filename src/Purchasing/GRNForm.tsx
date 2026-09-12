@@ -19,7 +19,6 @@ import {
   FaWarehouse, 
   FaFileInvoice, 
   FaBox, 
- 
   FaPhone, 
   FaEnvelope, 
   FaMapMarkerAlt, 
@@ -32,7 +31,6 @@ import {
   FaMoneyBillWave, 
   FaGlobeAsia, 
   FaBuilding, 
- 
 } from 'react-icons/fa'; 
 import "./GRNForm.css"; 
 import { PageLoader } from '../components/PageLoader';
@@ -379,7 +377,6 @@ interface ItemMaster {
   HSN?: string; 
 } 
  
- 
 interface TaxType { 
   tax_id: number; 
   tax_type: string; 
@@ -636,7 +633,7 @@ export default function GRNForm() {
   const fetchWarehouses = async () => { 
     setLoadingWarehouses(true); 
     try { 
-      const response = await api.get<WarehouseApiResponse>('/warehouse'); 
+      const response = await api.get<WarehouseApiResponse>('/warehouse?limit=200'); 
       if (response.data.success === 1) { 
         const records = response.data.data.records || []; 
         setWarehouses(records); 
@@ -646,7 +643,7 @@ export default function GRNForm() {
     } finally { 
       setLoadingWarehouses(false); 
     } 
-  }; 
+  };
  
   // ─── Fetch Employees ──────────────────────────────────────────────── 
   const fetchEmployees = async () => { 
@@ -743,17 +740,7 @@ export default function GRNForm() {
     } 
   }; 
  
-  // ─── Fetch Item Code Options (Purchase Order style API) ───────────── 
- 
-  // ─── Fetch All Items (alias matching PurchaseOrderForm) ───────────── 
- 
   // ─── Fetch Tax Types ──────────────────────────────────────────────── 
-  // FIX: same pattern as fetchItemsMaster — return the fetched array 
-  // directly instead of only writing it to state. This is the root fix 
-  // for the "Select GST" not binding on load: the mount effect awaits 
-  // this call and then immediately calls fetchGRNData(), but `taxTypes` 
-  // state wouldn't be updated yet inside that same closure — only the 
-  // returned value is guaranteed fresh at that point. 
   const fetchTaxTypes = async (): Promise<TaxType[]> => { 
     setLoadingTaxTypes(true); 
     try { 
@@ -820,14 +807,9 @@ export default function GRNForm() {
   }; 
  
   // ─── Resolve tax info from various sources ────────────────────────── 
-  // FIX: accepts an optional `taxTypesOverride` so callers that just 
-  // fetched a fresh tax list (before React has committed it to state) 
-  // can pass it in directly, instead of this function silently reading 
-  // the stale closed-over `taxTypes` state variable. 
   const resolveTaxInfo = (item: any, taxTypesOverride?: TaxType[]): { taxId?: number; taxType?: string; taxRate?: number } => { 
     const taxList = taxTypesOverride ?? taxTypes; 
  
-    // First check if we have tax_id directly 
     if (item.tax_id) { 
       const tax = taxList.find(t => t.tax_id === item.tax_id); 
       if (tax) { 
@@ -836,20 +818,16 @@ export default function GRNForm() {
       } 
     } 
  
-    // Check for item_tax_template 
     if (item.item_tax_template) { 
       const { rate } = extractTaxInfo(undefined, item.item_tax_template); 
  
-      // Try multiple matching strategies 
       let matchingTax: TaxType | undefined = undefined; 
  
-      // Strategy 1: Find by exact rate 
       matchingTax = taxList.find(t => { 
         const { rate: tRate } = extractTaxInfo(t.tax_type); 
         return tRate === rate; 
       }); 
  
-      // Strategy 2: Find by string matching 
       if (!matchingTax) { 
         const templateClean = item.item_tax_template.replace(/\s/g, '').toLowerCase(); 
         matchingTax = taxList.find(t => { 
@@ -868,7 +846,6 @@ export default function GRNForm() {
       return { taxType: item.item_tax_template, taxRate: rate }; 
     } 
  
-    // Check for tax_type 
     if (item.tax_type) { 
       const { rate } = extractTaxInfo(item.tax_type); 
       const matchingTax = taxList.find(t => { 
@@ -928,13 +905,45 @@ export default function GRNForm() {
       }; 
     }); 
  
-    let warehouseId: number | undefined; 
-    if (poDetail.set_warehouse) { 
-      const found = warehouses.find(w => w.warehouse_name === poDetail.set_warehouse); 
-      if (found) { 
-        warehouseId = found.id; 
-      } 
-    } 
+    // FIX: Robust warehouse resolution.
+    // PO's `set_warehouse` is a NAME string, but we must resolve it to an ID.
+    // Previously, if there was no exact name match, warehouseId stayed
+    // undefined → validation failed with "Warehouse is required" even
+    // though the UI displayed the name. Now we try:
+    //   1. Exact case-insensitive match
+    //   2. Partial (includes) match — handles "Raw Material Store" vs "Raw Material"
+    //   3. Fall back to the default "Raw Material" warehouse
+    let warehouseId: number | undefined;
+    let resolvedWarehouseName = poDetail.set_warehouse || '';
+    if (poDetail.set_warehouse) {
+      const normalizedPoWarehouse = (poDetail.set_warehouse || '').trim().toLowerCase();
+      const exactMatch = warehouses.find(
+        w => (w.warehouse_name || '').trim().toLowerCase() === normalizedPoWarehouse
+      );
+      if (exactMatch) {
+        warehouseId = exactMatch.id;
+        resolvedWarehouseName = exactMatch.warehouse_name;
+      } else {
+        const partialMatch = warehouses.find(w =>
+          (w.warehouse_name || '').trim().toLowerCase().includes(normalizedPoWarehouse) ||
+          normalizedPoWarehouse.includes((w.warehouse_name || '').trim().toLowerCase())
+        );
+        if (partialMatch) {
+          warehouseId = partialMatch.id;
+          resolvedWarehouseName = partialMatch.warehouse_name;
+        }
+      }
+    }
+    // If still unresolved, fall back to the default "Raw Material" warehouse
+    if (!warehouseId) {
+      const defaultWh = warehouses.find(w =>
+        (w.warehouse_name || '').trim().toLowerCase().includes('raw material')
+      );
+      if (defaultWh) {
+        warehouseId = defaultWh.id;
+        resolvedWarehouseName = defaultWh.warehouse_name;
+      }
+    }
  
     let supplierId: number | undefined = poDetail.supplier_id; 
     if (!supplierId && poDetail.supplier) { 
@@ -952,8 +961,8 @@ export default function GRNForm() {
       supplierId: supplierId, 
       purchaseOrder: poName, 
       purchaseOrderId: poDetail.id, 
-      warehouse: poDetail.set_warehouse || '', 
-      warehouseId: warehouseId, 
+      warehouse: resolvedWarehouseName,   // FIX: use resolved name (matches warehouse record)
+      warehouseId: warehouseId,           // FIX: now correctly set when possible
       items: items, 
     })); 
  
@@ -961,8 +970,8 @@ export default function GRNForm() {
     if (poDetail.supplier_name) { 
       setSupplierSearchTerm(poDetail.supplier_name); 
     } 
-    if (poDetail.set_warehouse) { 
-      setWarehouseSearchTerm(poDetail.set_warehouse); 
+    if (resolvedWarehouseName) { 
+      setWarehouseSearchTerm(resolvedWarehouseName);   // FIX: use resolved name
     } 
     if (poDetail.company) { 
       setCompany(poDetail.company); 
@@ -1052,8 +1061,6 @@ export default function GRNForm() {
     return matchesSearch && matchesSupplier; 
   }); 
  
- 
- 
   // ─── Update Dropdown Position for Portal ─────────────────────────── 
   const updateDropdownPosition = (index: number) => { 
     const inputEl = inputRefs.current[index]; 
@@ -1120,7 +1127,6 @@ export default function GRNForm() {
         setActiveItemSearchIndex(null); 
       } 
  
-      // Close portal item suggestions if clicking outside both input and suggestion portal 
       formData.items.forEach((_, idx) => { 
         const inputEl = inputRefs.current[idx]; 
         const suggestionEl = suggestionRefs.current[idx]; 
@@ -1153,13 +1159,8 @@ export default function GRNForm() {
   }, [formData.items, showSuggestions]); 
  
   // ─── Fetch data on mount ──────────────────────────────────────────── 
-  // FIX: Promise.all's resolved values are captured directly here and 
-  // passed straight into fetchGRNData, instead of letting fetchGRNData 
-  // read `taxTypes` / `itemsMaster` state (which is not guaranteed to be 
-  // updated yet at this point in the same render/closure). 
   useEffect(() => { 
     const loadData = async () => { 
-      // Load all master data first 
       const [, , , , fetchedItemsMaster, fetchedTaxTypes] = await Promise.all([ 
         fetchWarehouses(), 
         fetchEmployees(), 
@@ -1169,9 +1170,6 @@ export default function GRNForm() {
         fetchTaxTypes(), 
       ]); 
  
-      // Then load GRN data if in edit mode — pass the freshly-fetched 
-      // arrays directly so tax/item lookups inside fetchGRNData don't 
-      // race the state update. 
       if (isEditMode && id) { 
         await fetchGRNData(id, fetchedTaxTypes, fetchedItemsMaster); 
       } 
@@ -1189,13 +1187,38 @@ export default function GRNForm() {
     loadData(); 
   }, [id, isEditMode, location.state]); 
  
+  // ─── Default warehouse on new GRN ─────────────────────────────────── 
+  // FIX: Also skip if a warehouse NAME is already set (e.g. from a PO
+  // or a user pick that hasn't yet resolved to an ID). Previously this
+  // effect would overwrite a PO-set warehouse with "Raw Material Store"
+  // because it only checked warehouseId.
+  useEffect(() => { 
+    if (isEditMode) return; 
+    if (formData.warehouseId) return; 
+    if (formData.warehouse && formData.warehouse.trim() !== '') return;  // FIX
+    if (warehouses.length === 0) return; 
+
+    const rawMaterialWarehouse = warehouses.find(w => 
+      (w.warehouse_name || '').trim().toLowerCase().includes('raw material') 
+    ); 
+
+    if (rawMaterialWarehouse) { 
+      setFormData(prev => ({ 
+        ...prev, 
+        warehouse: rawMaterialWarehouse.warehouse_name, 
+        warehouseId: rawMaterialWarehouse.id, 
+      })); 
+      setWarehouseSearchTerm(rawMaterialWarehouse.warehouse_name); 
+    } 
+  }, [warehouses, isEditMode, formData.warehouse, formData.warehouseId]); 
+ 
   useEffect(() => { 
     if (showPODropdown) { 
       fetchPurchaseOrders(); 
     } 
   }, [showPODropdown, poCurrentPage, formData.supplierId]); 
  
-  // ─── Once Item Master finishes loading, backfill itemId on any items ── 
+  // ─── Backfill itemId when Item Master loads ────────────────────────── 
   useEffect(() => { 
     if (itemsMaster.length === 0) return; 
     setFormData(prev => { 
@@ -1217,16 +1240,39 @@ export default function GRNForm() {
     }); 
   }, [itemsMaster]); 
  
-  // ─── Helper to find tax by rate ────────────────────────────────────── 
+  // ─── FIX: Backfill warehouseId when warehouses list loads ───────────
+  // Same pattern as the itemId backfill above. Handles the race where a
+  // PO (or edit-mode GRN) sets `warehouse` (name string) BEFORE the
+  // warehouses array has finished loading. Once warehouses arrive, we
+  // resolve the name → id so validation passes.
+  useEffect(() => {
+    if (warehouses.length === 0) return;
+    if (formData.warehouseId) return;
+    if (!formData.warehouse) return;
+
+    const normalized = formData.warehouse.trim().toLowerCase();
+    const match = warehouses.find(
+      w => (w.warehouse_name || '').trim().toLowerCase() === normalized
+    );
+    if (match) {
+      setFormData(prev => ({ ...prev, warehouseId: match.id }));
+      return;
+    }
+    // Fallback: partial match
+    const partial = warehouses.find(w =>
+      (w.warehouse_name || '').trim().toLowerCase().includes(normalized) ||
+      normalized.includes((w.warehouse_name || '').trim().toLowerCase())
+    );
+    if (partial) {
+      setFormData(prev => ({
+        ...prev,
+        warehouse: partial.warehouse_name,
+        warehouseId: partial.id,
+      }));
+    }
+  }, [warehouses, formData.warehouse, formData.warehouseId]);
  
   // ─── Fetch GRN Data for Edit ────────────────────────────────────── 
-  // FIX: accepts optional `taxTypesOverride` / `itemsMasterOverride` so the 
-  // mount effect can hand this function the arrays it JUST fetched, rather 
-  // than this function reading the `taxTypes` / `itemsMaster` state 
-  // variables — which, at mount time, are still their initial empty arrays 
-  // inside this closure even though the fetches have already resolved. 
-  // This is what was causing "Select GST" to never bind on load, since 
-  // every taxTypes.find(...) below was searching an empty list. 
   const fetchGRNData = async ( 
     grnId: string, 
     taxTypesOverride?: TaxType[], 
@@ -1253,29 +1299,23 @@ export default function GRNForm() {
         } 
          
         const items: GRNItem[] = (data.items || []).map((item, index) => { 
-          // Try to find tax from item_tax_template first 
           let taxId: number | undefined = item.tax_id || undefined; 
           let taxType: string | undefined = item.tax_type || undefined; 
           let taxRate: number = 0; 
            
-          // Check if we have item_tax_template (e.g., "GST18 18%") 
           if (item.item_tax_template) { 
-            // Extract the rate from the template 
             const rateMatch = item.item_tax_template.match(/(\d+(\.\d+)?)/); 
             const rate = rateMatch ? parseFloat(rateMatch[1]) : 0; 
             taxRate = rate; 
              
-            // Try to find matching tax in taxList (freshly-fetched, not stale state) 
             let matchingTax: TaxType | undefined = undefined; 
              
-            // Strategy 1: Find by exact rate match 
             matchingTax = taxList.find(t => { 
               const tRateMatch = t.tax_type.match(/(\d+(\.\d+)?)/); 
               const tRate = tRateMatch ? parseFloat(tRateMatch[1]) : 0; 
               return tRate === rate; 
             }); 
              
-            // Strategy 2: If no match, try to find by string matching (remove spaces) 
             if (!matchingTax) { 
               const templateClean = item.item_tax_template.replace(/\s/g, '').toLowerCase(); 
               matchingTax = taxList.find(t => { 
@@ -1284,7 +1324,6 @@ export default function GRNForm() {
               }); 
             } 
              
-            // Strategy 3: Try to find by tax_type that contains the rate 
             if (!matchingTax && rate > 0) { 
               matchingTax = taxList.find(t => { 
                 const taxLower = t.tax_type.toLowerCase(); 
@@ -1292,7 +1331,6 @@ export default function GRNForm() {
               }); 
             } 
              
-            // Strategy 4: Try to find by exact rate with any GST variant 
             if (!matchingTax && rate > 0) { 
               matchingTax = taxList.find(t => { 
                 const tRateMatch = t.tax_type.match(/(\d+(\.\d+)?)/); 
@@ -1305,10 +1343,7 @@ export default function GRNForm() {
               taxId = matchingTax.tax_id; 
               taxType = matchingTax.tax_type; 
             } else { 
-              // If no matching tax found, store the template as taxType 
               taxType = item.item_tax_template; 
-              // Try to find by creating a new tax entry in the dropdown options 
-              // by searching for any tax with the same rate 
               const taxByRate = taxList.find(t => { 
                 const tRateMatch = t.tax_type.match(/(\d+(\.\d+)?)/); 
                 const tRate = tRateMatch ? parseFloat(tRateMatch[1]) : 0; 
@@ -1321,8 +1356,6 @@ export default function GRNForm() {
             } 
           } 
            
-          // If no tax found from item_tax_template, use resolveTaxInfo 
-          // (passing taxList through so it doesn't fall back to stale state) 
           if (!taxId && !taxType) { 
             const resolved = resolveTaxInfo(item, taxList); 
             taxId = resolved.taxId; 
@@ -1437,7 +1470,10 @@ export default function GRNForm() {
       } 
     } 
  
-    if (!formData.warehouseId) { 
+    // FIX: Accept warehouse if EITHER the ID is set OR a non-empty name is set.
+    // The backfill effect will resolve the ID, but validation shouldn't fail
+    // during the brief window between setting the name and resolving the ID.
+    if (!formData.warehouseId && !(formData.warehouse || '').trim()) { 
       allErrors.push({ field: 'warehouse', label: 'Warehouse', message: 'Warehouse is required' }); 
     } 
  
@@ -1617,12 +1653,10 @@ export default function GRNForm() {
   const filterItems = (index: number, searchTerm: string) => { 
     let filtered = allItems.length > 0 ? allItems : itemsMaster; 
      
-    // Apply group filter first 
     if (itemGroupFilter !== 'all') { 
       filtered = filtered.filter(item => item.item_group === itemGroupFilter); 
     } 
      
-    // Apply search filter - search in multiple fields 
     if (searchTerm && searchTerm.length >= 1) { 
       const term = searchTerm.toLowerCase().trim(); 
       filtered = filtered.filter(item =>  
@@ -1701,8 +1735,6 @@ export default function GRNForm() {
      
     filterItems(index, value); 
   }; 
- 
-  // ─── Filtered Items for in-table dropdown search (PurchaseBillForm style) ─── 
  
   // ─── Handle item selection from suggestions ────────────────────── 
   const handleSelectItem = (index: number, item: ItemMaster) => { 
@@ -1842,7 +1874,6 @@ export default function GRNForm() {
       setAddingItem(false); 
     } 
   }; 
- 
  
   const handleItemTaxChange = (index: number, taxId: number) => { 
     const tax = taxTypes.find(t => t.tax_id === taxId); 
@@ -2364,8 +2395,8 @@ export default function GRNForm() {
               {/* Item Group - Required */} 
               <div className="pof-popup-field" style={{ marginBottom: '0' }}> 
                 <label style={{  
-                  display: 'block',  
-                  fontSize: '13px',  
+                  display: 'block', 
+                  fontSize: '13px', 
                   fontWeight: 500, 
                   marginBottom: '4px', 
                   color: theme === 'dark-theme' ? '#e5e7eb' : '#374151' 
@@ -2394,8 +2425,8 @@ export default function GRNForm() {
               {/* Default UOM - Required */} 
               <div className="pof-popup-field" style={{ marginBottom: '0' }}> 
                 <label style={{  
-                  display: 'block',  
-                  fontSize: '13px',  
+                  display: 'block', 
+                  fontSize: '13px', 
                   fontWeight: 500, 
                   marginBottom: '4px', 
                   color: theme === 'dark-theme' ? '#e5e7eb' : '#374151' 
@@ -2424,8 +2455,8 @@ export default function GRNForm() {
               {/* Tax - Optional */} 
               <div className="pof-popup-field" style={{ marginBottom: '0' }}> 
                 <label style={{  
-                  display: 'block',  
-                  fontSize: '13px',  
+                  display: 'block', 
+                  fontSize: '13px', 
                   fontWeight: 500, 
                   marginBottom: '4px', 
                   color: theme === 'dark-theme' ? '#e5e7eb' : '#374151' 
@@ -2461,8 +2492,8 @@ export default function GRNForm() {
               {/* Quantity */} 
               <div className="pof-popup-field" style={{ marginBottom: '0' }}> 
                 <label style={{  
-                  display: 'block',  
-                  fontSize: '13px',  
+                  display: 'block', 
+                  fontSize: '13px', 
                   fontWeight: 500, 
                   marginBottom: '4px', 
                   color: theme === 'dark-theme' ? '#e5e7eb' : '#374151' 
@@ -2496,8 +2527,8 @@ export default function GRNForm() {
               {/* Pricing - Two columns */} 
               <div className="pof-popup-field" style={{ marginBottom: '0' }}> 
                 <label style={{  
-                  display: 'block',  
-                  fontSize: '13px',  
+                  display: 'block', 
+                  fontSize: '13px', 
                   fontWeight: 500, 
                   marginBottom: '4px', 
                   color: theme === 'dark-theme' ? '#e5e7eb' : '#374151' 
@@ -2530,8 +2561,8 @@ export default function GRNForm() {
  
               <div className="pof-popup-field" style={{ marginBottom: '0' }}> 
                 <label style={{  
-                  display: 'block',  
-                  fontSize: '13px',  
+                  display: 'block', 
+                  fontSize: '13px', 
                   fontWeight: 500, 
                   marginBottom: '4px', 
                   color: theme === 'dark-theme' ? '#e5e7eb' : '#374151' 
@@ -2565,8 +2596,8 @@ export default function GRNForm() {
               {/* Description - Optional */} 
               <div className="pof-popup-field" style={{ marginBottom: '0', gridColumn: '1 / -1' }}> 
                 <label style={{  
-                  display: 'block',  
-                  fontSize: '13px',  
+                  display: 'block', 
+                  fontSize: '13px', 
                   fontWeight: 500, 
                   marginBottom: '4px', 
                   color: theme === 'dark-theme' ? '#e5e7eb' : '#374151' 
@@ -2647,7 +2678,7 @@ export default function GRNForm() {
     ); 
   }; 
  
-  // ─── PurchaseBillForm-style Item Code dropdown ─────────────────────
+  // ─── Item Search Suggestions with "+ Add New Item" ─────────────────────
   const renderItemSearchSuggestions = (index: number) => {
     const currentSearch = searchTerms[index] || '';
     const sourceItems = allItems.length > 0 ? allItems : itemsMaster;
@@ -2675,8 +2706,6 @@ export default function GRNForm() {
       );
     });
 
-    // Exactly like PurchaseBillForm: dropdown visibility is controlled by state,
-    // not by the presence of text in the selected Item Code.
     const showDropdown = showSuggestions[index] === true;
 
     if (!showDropdown) return null;
@@ -2686,7 +2715,6 @@ export default function GRNForm() {
 
     const selectItem = (item: ItemMaster) => {
       handleSelectItem(index, item);
-      // Make sure this row's dropdown closes immediately after selection.
       setShowSuggestions(prev => ({
         ...prev,
         [index]: false,
@@ -2741,8 +2769,6 @@ export default function GRNForm() {
                   key={item.id}
                   className="pof-suggestion-item"
                   onMouseDown={(e) => {
-                    // Same important behavior as PurchaseBillForm:
-                    // selection happens before the input blur.
                     e.preventDefault();
                     selectItem(item);
                   }}
@@ -2887,7 +2913,6 @@ export default function GRNForm() {
         <div className="grnf-inner">
           <PageLoader 
             message="Loading GRN From..." 
-            //subtitle="Synchronizing warehouse receipt entries, line item counts, and supplier records"
           />
         </div>
       </div>
@@ -2898,10 +2923,8 @@ export default function GRNForm() {
     <div className={`grnf-page ${theme}`}> 
       <div className="grnf-inner"> 
  
-        {/* ─── Add Item Popup Modal ────────────────────────────────────── */} 
         {renderAddItemPopup()} 
  
-        {/* ─── Success Modal ──────────────────────────────────────────── */} 
         {showSuccessModal && ( 
           <div className="grnf-modal-overlay" onClick={() => setShowSuccessModal(false)}> 
             <div className="grnf-success-modal" onClick={(e) => e.stopPropagation()}> 
@@ -2936,7 +2959,6 @@ export default function GRNForm() {
           </div> 
         )} 
  
-        {/* ─── Service Toggle Confirmation Dialog ────────────────────── */} 
         {showServiceToggleConfirm && ( 
           <div className="grnf-modal-overlay" onClick={() => setShowServiceToggleConfirm(false)}> 
             <div className="grnf-confirm-modal" onClick={(e) => e.stopPropagation()}> 
@@ -2967,7 +2989,6 @@ export default function GRNForm() {
           </div> 
         )} 
  
-        {/* ─── Validation Summary Modal ────────────────────────────── */} 
         {showValidationSummary && validationErrors.length > 0 && ( 
           <div className="grnf-modal-overlay" onClick={() => setShowValidationSummary(false)}> 
             <div className="grnf-validation-modal" onClick={(e) => e.stopPropagation()}> 
@@ -3006,7 +3027,6 @@ export default function GRNForm() {
           </div> 
         )} 
  
-        {/* ─── API Error Display ────────────────────────────────────── */} 
         {apiError && ( 
           <div className="grnf-api-error"> 
             <FaExclamationCircle className="grnf-error-icon" /> 
@@ -3015,7 +3035,6 @@ export default function GRNForm() {
           </div> 
         )} 
  
-        {/* ─── Header ────────────────────────────────────────────────── */} 
         <div className="grnf-header"> 
           <button onClick={() => navigate('/grn')} className="grnf-back-btn"> 
             <FaArrowLeft size={9} /> Back 
@@ -3036,10 +3055,8 @@ export default function GRNForm() {
  
         <form onSubmit={handleSave}> 
  
-          {/* ─── Main Form Card ────────────────────────────────────────── */} 
           <div className="grnf-card"> 
  
-            {/* ─── Service Toggle ─────────────────────────────────────── */} 
             <div className="grnf-service-toggle-row"> 
               <label className="grnf-checkbox-label"> 
                 <input 
@@ -3076,12 +3093,9 @@ export default function GRNForm() {
               </div> 
             )} 
  
-            {/* ─── Compact Two-Column Layout ──────────────────────────── */} 
             <div className="grnf-compact-layout"> 
                
-              {/* Left Column - Receipt Information & Delivery Details */} 
               <div className="grnf-left-column"> 
-                {/* Party Selection (Customer/Supplier) */} 
                 <div className="grnf-info-section"> 
                   <div className="grnf-section-label"> 
                     {formData.isService ? 'Customer Details' : 'Supplier & Order Details'} 
@@ -3156,8 +3170,11 @@ export default function GRNForm() {
                                 <div 
                                   key={warehouse.id} 
                                   className="grnf-warehouse-item" 
-                                  onClick={() => handleWarehouseSelect(warehouse)} 
-                                > 
+                                  onMouseDown={(e) => { 
+                                    e.preventDefault(); 
+                                    handleWarehouseSelect(warehouse); 
+                                  }} 
+                                >
                                   <div className="grnf-warehouse-item-name"> 
                                     <FaWarehouse className="grnf-warehouse-item-icon" size={12} /> 
                                     {warehouse.warehouse_name} 
@@ -3368,7 +3385,6 @@ export default function GRNForm() {
                   )} 
                 </div> 
  
-                {/* Receipt Information Section */} 
                 <div className="grnf-info-section"> 
                   <div className="grnf-section-label">Receipt Information</div> 
                   <div className="grnf-info-row"> 
@@ -3427,7 +3443,6 @@ export default function GRNForm() {
                   </div> 
                 </div> 
  
-                {/* Delivery Details Section */} 
                 <div className="grnf-info-section"> 
                   <div className="grnf-section-label">Delivery Details</div> 
                   <div className="grnf-info-row"> 
@@ -3471,7 +3486,6 @@ export default function GRNForm() {
                 </div> 
               </div> 
  
-              {/* Right Column - Customer/Supplier Details Card */} 
               <div className="grnf-right-column"> 
                 {formData.isService && selectedCustomer ? ( 
                   <div className="grnf-party-detail-card"> 
@@ -3585,7 +3599,6 @@ export default function GRNForm() {
                   </div> 
                 )} 
  
-                {/* Delivery Charge Section */} 
                 <div className="grnf-party-detail-card"> 
                   <div className="grnf-party-card-header"> 
                     <FaMoneyBillWave size={16} /> 
@@ -3625,19 +3638,12 @@ export default function GRNForm() {
                   </div> 
                 </div> 
  
-                {/* ─── STATUS SECTION REMOVED ─────────────────────────── */} 
-                {/* The status dropdown has been removed from the UI */} 
- 
               </div> 
             </div> 
  
-            {/* ─── Items Section ────────────────────────────────────────── */} 
             <div className="grnf-items-section pof-items-section"> 
               <div className="grnf-items-header pof-items-header"> 
                 <span className="grnf-section-title" style={{ marginBottom: 0, borderBottom: 'none' }}>Items</span> 
- 
-                {/* ─── Item Group Filter ─── */} 
-                
  
                 <div className="grnf-items-actions pof-items-actions"> 
                   <button type="button" className="grnf-add-item-btn pof-add-item-btn" onClick={addItem} disabled={submitting}> 
@@ -3725,7 +3731,6 @@ export default function GRNForm() {
                                   <FaSearch className="pof-search-icon" size={14} /> 
                                 )} 
                                  
-                                {/* ─── Item Search Suggestions with "+ Add New Item" ─── */} 
                                 {renderItemSearchSuggestions(index)} 
                               </div> 
                             </td> 
@@ -3854,7 +3859,6 @@ export default function GRNForm() {
                     </tbody> 
                   </table> 
  
-                  {/* ─── Draft Items Section ───────────────────────────── */} 
                   {draftItems.length > 0 && ( 
                     <div className="grnf-draft-items-section"> 
                       <div className="grnf-draft-items-header"> 
@@ -3893,7 +3897,6 @@ export default function GRNForm() {
                     </div> 
                   )} 
  
-                  {/* ─── Bill Summary ─────────────────────────────────── */} 
                   <div className="grnf-bill-summary"> 
                     <div className="grnf-bill-summary-title"> 
                       <FaReceipt size={14} /> Bill Summary 
@@ -3925,7 +3928,6 @@ export default function GRNForm() {
  
           </div> 
  
-          {/* ─── Footer ────────────────────────────────────────────────── */} 
           <div className="grnf-footer"> 
             <button 
               type="button" 
@@ -3957,4 +3959,4 @@ export default function GRNForm() {
       </div> 
     </div> 
   ); 
-} 
+}

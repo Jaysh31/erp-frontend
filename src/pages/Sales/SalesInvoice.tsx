@@ -25,10 +25,10 @@ import {
   FaClock,
   FaTimesCircle,
   FaCalendarAlt,
-  FaChevronDown,
+  
   FaPrint,
   FaTrash
-  FaChevronUp,
+  ,
   FaChevronDown,
 } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
@@ -39,6 +39,7 @@ import toast from 'react-hot-toast';
 
 import * as XLSX from 'xlsx';
 import { PageLoader } from '../components/PageLoader';
+import { FaChevronUp } from 'react-icons/fa6';
 
 // ===== INTERFACES =====
 
@@ -1325,9 +1326,6 @@ const SalesInvoice: React.FC = () => {
       );
     }
 
-  function getStartIndexDisplay() {
-    throw new Error('Function not implemented.');
-  }
 
   // ===== RENDER =====
   return (
@@ -2864,9 +2862,8 @@ const SalesInvoice: React.FC = () => {
               </div>
             ) : (
               <div className="sales-mobile-cards">
-                {invoices.map((invoice, idx) => {
+                {invoices.map((invoice) => {
                   const isExpanded = expandedRows.has(invoice.id);
-                  const rowNumber = getStartIndex() + idx;
                   function handlePrintQuotation(invoice: SalesInvoice) {
                     handlePrint(invoice);
                   }

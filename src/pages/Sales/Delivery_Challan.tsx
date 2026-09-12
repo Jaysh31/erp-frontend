@@ -22,7 +22,7 @@ import {
   FaTimes,
   FaCalendarAlt,
   FaTrash,
-  FaChevronUp,
+  
   FaChevronDown
 } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
@@ -256,7 +256,7 @@ const DeliveryChallans: React.FC = () => {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [showMoreMenu, setShowMoreMenu] = useState<string | null>(null);
   const [totalRecords, setTotalRecords] = useState(0);
-  const [expandedMobileCard, setExpandedMobileCard] = useState<string | null>(null);
+  const [] = useState<string | null>(null);
   
   // Date range filter states
   const [startDate, setStartDate] = useState<string>('');
@@ -1614,9 +1614,6 @@ const DeliveryChallans: React.FC = () => {
     setShowMoreMenu(showMoreMenu === String(id) ? null : String(id));
   };
 
-  const toggleMobileCard = (id: string) => {
-    setExpandedMobileCard(expandedMobileCard === id ? null : id);
-  };
 
   const clearFilters = () => {
     setSearchTerm('');
@@ -3135,9 +3132,8 @@ const DeliveryChallans: React.FC = () => {
           </div>
         ) : (
           <div className="sales-mobile-cards">
-            {challans.map((challan, idx) => {
+            {challans.map((challan) => {
               const isExpanded = expandedRows.has(challan.id);
-              const rowNumber = getStartIndex() + idx;
 
               return (
                 <div

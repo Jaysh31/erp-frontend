@@ -927,9 +927,8 @@ export default function PurchaseOrder() {
 
             {/* Mobile Cards / Rows */}
             <div className="po-mobile-cards">
-              {filteredOrders.map((po, index) => {
+              {filteredOrders.map((po) => {
                 const isExpanded = expandedRows.has(po.id);
-                const rowNumber = (validCurrentPage - 1) * itemsPerPage + index + 1;
                 return (
                   <div
                     key={po.id}

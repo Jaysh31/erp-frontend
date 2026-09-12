@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   ArrowLeft,
-
   ChevronRight,
   X,
   Trash2,
@@ -476,9 +475,9 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
   const [deleting, setDeleting] = useState(false);
 
   // Data
-  const [items, setItems] = useState<Item[]>([]);
+  const [items, setItems] = useState<Item[]>([]);          // Item to Manufacture list
   const [itemsLoading, setItemsLoading] = useState(false);
-  const [rawItems, setRawItems] = useState<Item[]>([]);
+  const [rawItems, setRawItems] = useState<Item[]>([]);    // Components list (raw materials)
   const [rawItemsLoading, setRawItemsLoading] = useState(false);
   const [operations, setOperations] = useState<Operation[]>([]);
   const [operationsLoading, setOperationsLoading] = useState(false);
@@ -614,31 +613,59 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
     }
   }, [editData]);
 
-  // ─── Fetch data ──────────────────────────────────────────────────────────────
+  // ─── Fetch static data once ─────────────────────────────────────────────────
 
   useEffect(() => {
-    fetchItems();
-    fetchRawItems();
     fetchOperations();
     fetchWorkstations();
     fetchWarehouses();
   }, []);
 
-  const fetchItems = async () => {
+  // ─── Fetch "Item to Manufacture" list based on BOM Type ─────────────────────
+  //  - Product (Internal) → group=Product
+  //  - Service (External) → group=External Raw Material
+  useEffect(() => {
+    if (bomType === "External") {
+      fetchManufactureItems('External Raw Material');
+    } else {
+      fetchManufactureItems('Product');
+    }
+  }, [bomType]);
+
+  // ─── Fetch Components list (only relevant for Internal) ─────────────────────
+  useEffect(() => {
+    if (bomType === "Internal") {
+      fetchRawItems();
+    }
+  }, [bomType]);
+
+  /**
+   * Fetch "Item to Manufacture" options by item group.
+   *  - Internal/Product  → group=Product
+   *  - External/Service  → group=External Raw Material
+   */
+  const fetchManufactureItems = async (group: string) => {
     try {
       setItemsLoading(true);
-      const response = await api.get('/item?type=product');
+      const url = `/item?page=1&limit=100&group=${encodeURIComponent(group)}`;
+      const response = await api.get(url);
       if (response.data.success === 1) {
-        setItems(response.data.data);
+        // Defensive: also filter client-side by exact item_group match
+        const data: Item[] = response.data.data || [];
+        const filtered = data.filter(item => item.item_group === group);
+        setItems(filtered);
       }
     } catch (err: any) {
-      console.error('Error fetching items:', err);
+      console.error('Error fetching manufacture items:', err);
       addToast('error', 'Error', 'Failed to fetch items');
     } finally {
       setItemsLoading(false);
     }
   };
 
+  /**
+   * Fetch raw materials for the Components table (Internal BOM only).
+   */
   const fetchRawItems = async () => {
     try {
       setRawItemsLoading(true);
@@ -1248,32 +1275,10 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
         <nav className="nbom-breadcrumb" aria-label="Breadcrumb">
           <ol className="nbom-breadcrumb__list">
             <li className="nbom-breadcrumb__item nbom-breadcrumb__item--home">
-              {/*<button className="nbom-breadcrumb__home-btn" title="Home" onClick={onBack}>
-                <Home size={13} />
-              </button>*/}
               <button className="nbom-breadcrumb__home-btn" title="Home" onClick={onBack}>
-                          <ArrowLeft size={12} /> Back
-                        </button>
-            </li>
-            {/*<li className="nbom-breadcrumb__sep" aria-hidden><ChevronRight size={12} /></li>
-            <li className="nbom-breadcrumb__item">
-              <button className="nbom-breadcrumb__link" onClick={onBack}>
-                Manufacturing
+                <ArrowLeft size={12} /> Back
               </button>
             </li>
-            <li className="nbom-breadcrumb__sep" aria-hidden><ChevronRight size={12} /></li>
-            <li className="nbom-breadcrumb__item">
-              <button className="nbom-breadcrumb__link" onClick={onBack}>
-                Bill of Materials
-              </button>
-            </li>
-            <li className="nbom-breadcrumb__sep" aria-hidden><ChevronRight size={12} /></li>
-            <li className="nbom-breadcrumb__item nbom-breadcrumb__item--active" aria-current="page">
-              <span className="nbom-breadcrumb__current">
-                <span className="nbom-breadcrumb__current-dot" />
-                {editData ? 'Edit' : 'New'} BOM
-              </span>
-            </li>*/}
           </ol>
         </nav>
         <div className="nbom-topbar__right">
@@ -1333,7 +1338,13 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                   options={items}
                   value={itemToManufacture}
                   onChange={handleItemSelect}
-                  placeholder={itemsLoading ? 'Loading items...' : 'Search item code or name...'}
+                  placeholder={
+                    itemsLoading
+                      ? 'Loading items...'
+                      : bomType === "External"
+                        ? 'Search external product...'
+                        : 'Search product...'
+                  }
                   disabled={itemsLoading}
                   loading={itemsLoading}
                   getOptionLabel={(item) => `${item.item_code} - ${item.item_name} (${item.item_group})`}

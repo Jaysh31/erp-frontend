@@ -1784,9 +1784,8 @@ export default function QuotationPage() {
               </div>
             ) : (
               <div className="sales-mobile-cards">
-                {quotations.map((quote, idx) => {
+                {quotations.map((quote) => {
                   const isExpanded = expandedRows.has(quote.id);
-                  const rowNumber = getStartIndexDisplay() + idx;
                   return (
                     <div
                       key={quote.id}

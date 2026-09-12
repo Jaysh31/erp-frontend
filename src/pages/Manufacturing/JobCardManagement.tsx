@@ -838,9 +838,7 @@ export default function JobCardManagement() {
                         )}
                       </div>
                       <div className="jc-group-header-right">
-                        <span className="jc-group-stats">
-                          {group.completedQty + group.lossQty} of {group.totalQty} qty done
-                        </span>
+                     
                         <div className="jc-group-progress">
                           <div className="jc-group-progress-bar">
                             <div

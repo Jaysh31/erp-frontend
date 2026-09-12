@@ -873,16 +873,27 @@ export default function PurchaseOrderForm() {
         const data = response.data.data;
         
         const items = data.items?.map((item: any, index: number) => {
-          const itemTaxRate = item.item_tax_rate ? parseFloat(item.item_tax_rate) : 0;
-          
+          // ─── Resolve this item's tax, preferring the reliable ID match ───
+          // (same key used by handleItemTaxChange) over the fragile
+          // rate/template string parsing, which silently fails whenever the
+          // backend doesn't echo item_tax_rate / item_tax_template back in
+          // exactly the shape this regex expects.
           let matchedTax = null;
-          if (taxOptions.length > 0 && itemTaxRate > 0) {
+        
+          const savedTaxId = item.item_tax_id ?? item.tax_id;
+          if (savedTaxId != null && taxOptions.length > 0) {
+            matchedTax = taxOptions.find(t => String(t.tax_id) === String(savedTaxId));
+          }
+        
+          const itemTaxRate = item.item_tax_rate ? parseFloat(item.item_tax_rate) : 0;
+        
+          if (!matchedTax && taxOptions.length > 0 && itemTaxRate > 0) {
             matchedTax = taxOptions.find(t => {
               const { rate } = extractTaxInfo(t.tax_type);
               return rate === itemTaxRate;
             });
           }
-          
+        
           if (!matchedTax && item.item_tax_template && taxOptions.length > 0) {
             const templateMatch = item.item_tax_template.match(/(\d+)/);
             if (templateMatch) {
@@ -893,7 +904,11 @@ export default function PurchaseOrderForm() {
               });
             }
           }
-          
+        
+          const resolvedRate = matchedTax
+            ? extractTaxInfo(matchedTax.tax_type).rate
+            : itemTaxRate;
+        
           return {
             id: String(index + 1),
             itemId: item.item_id || 0,
@@ -910,7 +925,7 @@ export default function PurchaseOrderForm() {
             brand: item.brand || '',
             description: item.description || '',
             taxId: matchedTax ? String(matchedTax.tax_id) : '',
-            taxRate: matchedTax ? itemTaxRate : 0,
+            taxRate: matchedTax ? resolvedRate : 0,
             hsn: item.hsn || '',
           };
         }) || [{ 
@@ -1102,17 +1117,18 @@ export default function PurchaseOrderForm() {
 
   // ─── Handle per-row tax selection ──────────────────────────────────
   const handleItemTaxChange = (index: number, taxId: string) => {
-    const updatedItems = [...formData.items];
-    if (!taxId) {
-      updatedItems[index] = { ...updatedItems[index], taxId: '', taxRate: 0 };
-    } else {
-      const selectedTax = taxOptions.find(t => t.tax_id.toString() === taxId);
-      const { rate } = selectedTax ? extractTaxInfo(selectedTax.tax_type) : { rate: 0 };
-      updatedItems[index] = { ...updatedItems[index], taxId, taxRate: rate };
-    }
-    setFormData(prev => ({ ...prev, items: updatedItems }));
+    setFormData(prev => {
+      const updatedItems = [...prev.items];
+      if (!taxId) {
+        updatedItems[index] = { ...updatedItems[index], taxId: '', taxRate: 0 };
+      } else {
+        const selectedTax = taxOptions.find(t => t.tax_id.toString() === taxId);
+        const { rate } = selectedTax ? extractTaxInfo(selectedTax.tax_type) : { rate: 0 };
+        updatedItems[index] = { ...updatedItems[index], taxId, taxRate: Number(rate) || 0 };
+      }
+      return { ...prev, items: updatedItems };
+    });
   };
-
   // ─── Handle item search ─────────────────────────────────────────────
   const handleItemSearch = (index: number, value: string) => {
     setSearchTerms(prev => ({ ...prev, [index]: value }));
@@ -1167,52 +1183,52 @@ export default function PurchaseOrderForm() {
 
   // ─── Handle item selection from suggestions ──────────────────────
   const handleSelectItem = (index: number, item: ItemSuggestion) => {
-    const updatedItems = [...formData.items];
-    const rate = item.standard_rate || item.valuation_rate || 0;
-    const quantity = updatedItems[index].quantity || 1;
-
-    let rowTaxId = formData.taxId;
-    let rowTaxRate = formData.taxRate;
-    if (item.tax_id) {
-      const matchedTax = taxOptions.find(t => t.tax_id === item.tax_id);
-      if (matchedTax) {
-        rowTaxId = String(matchedTax.tax_id);
-        rowTaxRate = extractTaxInfo(matchedTax.tax_type).rate;
+    setFormData(prev => {
+      const updatedItems = [...prev.items];
+      const rate = item.standard_rate || item.valuation_rate || 0;
+      const quantity = updatedItems[index].quantity || 1;
+  
+      let rowTaxId = prev.taxId;
+      let rowTaxRate = prev.taxRate;
+      if (item.tax_id) {
+        const matchedTax = taxOptions.find(t => t.tax_id === item.tax_id);
+        if (matchedTax) {
+          rowTaxId = String(matchedTax.tax_id);
+          rowTaxRate = extractTaxInfo(matchedTax.tax_type).rate;
+        }
       }
-    }
-
-    updatedItems[index] = {
-      ...updatedItems[index],
-      itemId: item.id,
-      itemCode: item.item_code,
-      itemName: item.item_name,
-      uom: item.stock_uom || 'NOS',
-      rate: rate,
-      orderRate: rate,
-      amount: rate * quantity,
-      balanceQty: quantity - updatedItems[index].receivedQty,
-      itemGroup: item.item_group || '',
-      brand: item.brand || '',
-      description: item.description || '',
-      taxId: rowTaxId,
-      taxRate: rowTaxRate,
-      hsn: item.hsn || '',
-    };
-    
-    setFormData(prev => ({ ...prev, items: updatedItems }));
+  
+      updatedItems[index] = {
+        ...updatedItems[index],
+        itemId: item.id,
+        itemCode: item.item_code,
+        itemName: item.item_name,
+        uom: item.stock_uom || 'NOS',
+        rate: rate,
+        orderRate: rate,
+        amount: rate * quantity,
+        balanceQty: quantity - updatedItems[index].receivedQty,
+        itemGroup: item.item_group || '',
+        brand: item.brand || '',
+        description: item.description || '',
+        taxId: rowTaxId,
+        taxRate: Number(rowTaxRate) || 0,
+        hsn: item.hsn || '',
+      };
+  
+      return { ...prev, items: updatedItems };
+    });
+  
     setShowSuggestions(prev => ({ ...prev, [index]: false }));
     setSearchTerms(prev => ({ ...prev, [index]: item.item_code }));
-    
-    // Update digit values
+  
+    const rate = item.standard_rate || item.valuation_rate || 0;
+    const quantity = formData.items[index].quantity || 1;
     setDigitValues(prev => ({
       ...prev,
-      [index]: {
-        quantity: String(quantity),
-        rate: String(rate)
-      }
+      [index]: { quantity: String(quantity), rate: String(rate) }
     }));
-    
-    // Update filtered items to show all items again (for next time)
+  
     let filtered = allItems;
     if (itemGroupFilter !== 'all') {
       filtered = filtered.filter(i => i.item_group === itemGroupFilter);
@@ -1222,32 +1238,33 @@ export default function PurchaseOrderForm() {
 
   // ─── Handle clear item ──────────────────────────────────────────────
   const handleClearItem = (index: number) => {
-    const updatedItems = [...formData.items];
-    updatedItems[index] = {
-      ...updatedItems[index],
-      itemId: 0,
-      itemCode: '',
-      itemName: '',
-      uom: 'NOS',
-      rate: 0,
-      orderRate: 0,
-      amount: 0,
-      balanceQty: updatedItems[index].quantity,
-      itemGroup: '',
-      brand: '',
-      description: '',
-      hsn: '',
-      taxId: '',
-      taxRate: 0,
-    };
-    setFormData(prev => ({ ...prev, items: updatedItems }));
+    setFormData(prev => {
+      const updatedItems = [...prev.items];
+      updatedItems[index] = {
+        ...updatedItems[index],
+        itemId: 0,
+        itemCode: '',
+        itemName: '',
+        uom: 'NOS',
+        rate: 0,
+        orderRate: 0,
+        amount: 0,
+        balanceQty: updatedItems[index].quantity,
+        itemGroup: '',
+        brand: '',
+        description: '',
+        hsn: '',
+        taxId: '',
+        taxRate: 0,
+      };
+      return { ...prev, items: updatedItems };
+    });
     setSearchTerms(prev => ({ ...prev, [index]: '' }));
     setShowSuggestions(prev => ({ ...prev, [index]: false }));
     setDigitValues(prev => ({
       ...prev,
       [index]: { quantity: prev[index]?.quantity || '1', rate: '0' }
     }));
-    // Reset filtered items to show all
     let filtered = allItems;
     if (itemGroupFilter !== 'all') {
       filtered = filtered.filter(item => item.item_group === itemGroupFilter);
@@ -1391,19 +1408,22 @@ export default function PurchaseOrderForm() {
 
   // ─── Calculate totals ─────────────────────────────────────────────
   const calculateTotals = () => {
-    const totalAmount = formData.items.reduce((sum, item) => sum + (item.orderRate || item.rate || 0) * item.quantity, 0);
+    const totalAmount = formData.items.reduce(
+      (sum, item) => sum + (Number(item.orderRate) || Number(item.rate) || 0) * Number(item.quantity),
+      0
+    );
     const taxAmount = formData.items.reduce((sum, item) => {
-      const lineAmount = (item.orderRate || item.rate || 0) * item.quantity;
-      const rate = (item.taxRate || 0) / 100;
+      const lineAmount = (Number(item.orderRate) || Number(item.rate) || 0) * Number(item.quantity);
+      const rate = (Number(item.taxRate) || 0) / 100;
       return sum + lineAmount * rate;
     }, 0);
-    
-    const adjustmentValue = grandTotalAdjustmentSign === 'positive' 
+  
+    const adjustmentValue = grandTotalAdjustmentSign === 'positive'
       ? parseFloat(grandTotalAdjustmentValue) || 0
       : -(parseFloat(grandTotalAdjustmentValue) || 0);
-    
+  
     const calculatedGrandTotal = totalAmount + taxAmount + adjustmentValue;
-    
+  
     return { totalAmount, taxAmount, grandTotal: calculatedGrandTotal, adjustmentValue };
   };
 
@@ -1411,60 +1431,58 @@ export default function PurchaseOrderForm() {
 
   // ─── Handlers ──────────────────────────────────────────────────────
   const handleItemChange = (index: number, field: keyof PurchaseOrderItem, value: string | number) => {
-    const updatedItems = [...formData.items];
-    const previousItem = formData.items[index];
-    updatedItems[index] = { ...updatedItems[index], [field]: value };
-
-    if (field === 'itemCode') {
-      const stringValue = (value as string) || '';
-      // Don't call handleItemSearch here - it will be called from the input's onChange
-      // Just update the item code in the form data
-      updatedItems[index].itemCode = stringValue;
-      
-      // If the box is cleared, wipe the stale item details
-      if (!stringValue.trim()) {
-        updatedItems[index] = {
-          ...updatedItems[index],
-          itemId: 0,
-          itemName: '',
-          uom: 'NOS',
-          rate: 0,
-          orderRate: 0,
-          amount: 0,
-          itemGroup: '',
-          brand: '',
-          description: '',
-          hsn: '',
-          taxId: '',
-          taxRate: 0,
-          balanceQty: 0 - previousItem.receivedQty,
-        };
-        setDigitValues(prev => ({
-          ...prev,
-          [index]: { quantity: prev[index]?.quantity || String(previousItem.quantity), rate: '0' }
-        }));
+    setFormData(prev => {
+      const updatedItems = [...prev.items];
+      const previousItem = prev.items[index];
+      updatedItems[index] = { ...updatedItems[index], [field]: value };
+  
+      if (field === 'itemCode') {
+        const stringValue = (value as string) || '';
+        updatedItems[index].itemCode = stringValue;
+  
+        if (!stringValue.trim()) {
+          updatedItems[index] = {
+            ...updatedItems[index],
+            itemId: 0,
+            itemName: '',
+            uom: 'NOS',
+            rate: 0,
+            orderRate: 0,
+            amount: 0,
+            itemGroup: '',
+            brand: '',
+            description: '',
+            hsn: '',
+            taxId: '',
+            taxRate: 0,
+            balanceQty: 0 - previousItem.receivedQty,
+          };
+          setDigitValues(dv => ({
+            ...dv,
+            [index]: { quantity: dv[index]?.quantity || String(previousItem.quantity), rate: '0' }
+          }));
+        }
       }
-    }
-
-    if (field === 'quantity' || field === 'orderRate' || field === 'rate') {
-      const quantity = field === 'quantity' ? Number(value) : updatedItems[index].quantity;
-      const rate = field === 'orderRate' ? Number(value) :
-                   field === 'rate' ? Number(value) : updatedItems[index].orderRate;
-      updatedItems[index].amount = quantity * rate;
-      updatedItems[index].balanceQty = quantity - updatedItems[index].receivedQty;
-
-      if (field === 'rate') {
-        updatedItems[index].orderRate = Number(value);
+  
+      if (field === 'quantity' || field === 'orderRate' || field === 'rate') {
+        const quantity = field === 'quantity' ? Number(value) : updatedItems[index].quantity;
+        const rate = field === 'orderRate' ? Number(value) :
+                     field === 'rate' ? Number(value) : updatedItems[index].orderRate;
+        updatedItems[index].amount = quantity * rate;
+        updatedItems[index].balanceQty = quantity - updatedItems[index].receivedQty;
+  
+        if (field === 'rate') {
+          updatedItems[index].orderRate = Number(value);
+        }
       }
-    }
-
-    if (field === 'receivedQty') {
-      updatedItems[index].balanceQty = updatedItems[index].quantity - Number(value);
-    }
-
-    setFormData(prev => ({ ...prev, items: updatedItems }));
+  
+      if (field === 'receivedQty') {
+        updatedItems[index].balanceQty = updatedItems[index].quantity - Number(value);
+      }
+  
+      return { ...prev, items: updatedItems };
+    });
   };
-
   // ✅ FIXED: Handle Digit Input for Quantity - Now supports decimals
   const handleDigitQuantityChange = (index: number, value: string) => {
     setDigitValues(prev => ({
@@ -2878,16 +2896,17 @@ export default function PurchaseOrderForm() {
     const searchTerm = searchTerms[index] || '';
     const trimmedSearch = searchTerm.trim();
     
-    // Check if search term matches any item exactly
-    
-    // Show dropdown if there are items OR there's a search term (for "Add New" button)
-    const showDropdown = showSuggestions[index] || trimmedSearch.length > 0;
+    // ✅ FIXED: Only rely on showSuggestions state, not on whether text is
+    // present. Previously this OR'd in `trimmedSearch.length > 0`, which
+    // meant that once an item was selected (leaving a non-empty item code
+    // in the search box) the dropdown would immediately reopen even though
+    // handleSelectItem explicitly set showSuggestions[index] to false.
+    const showDropdown = showSuggestions[index];
     
     if (!showDropdown) return null;
 
     const position = dropdownPositions[index];
     if (!position) return null;
-
     const dropdownContent = (
       <div 
         className="pof-suggestions-dropdown-portal"

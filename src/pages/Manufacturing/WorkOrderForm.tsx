@@ -1985,85 +1985,184 @@ export default function WorkOrderForm() {
   // ─── Manual step: post the completed job card's output into a Stock
   // Entry (WIP → Finished Goods). Only runs when the user explicitly
   // clicks "Add to Stock Entry" in the completion modal. ───
-  const handlePostStockEntry = async () => {
-    if (!wo.id || !completionSummary || completionSummary.totalCompletedQty === undefined || !completionSummary.jobCardId) return;
+  // ─── Single action: post Stock Entry (WIP → FG), post Finished Goods
+// inventory, and mark the Work Order Completed — all in one click. ───
+const handleCompleteWorkOrder = async () => {
+  if (!wo.id || !completionSummary || completionSummary.totalCompletedQty === undefined || !completionSummary.jobCardId) return;
 
-    setCompletionSummary(prev => (prev ? { ...prev, stockEntryPosting: true, stockEntryError: null } : prev));
+  const totalCompletedQty = completionSummary.totalCompletedQty;
+  const processLossQty = completionSummary.processLossQty ?? 0;
 
-    try {
-      const totalCompletedQty = completionSummary.totalCompletedQty;
-      const processLossQty = completionSummary.processLossQty ?? 0;
+  setCompletionSummary(prev => (prev
+    ? { ...prev, stockEntryPosting: true, stockEntryError: null, inventoryError: null }
+    : prev));
 
-      await api.post("/stock-entry", {
-        name: "",
-        company: wo.company || "SculptorTech",
-        naming_series: "STE-.YYYY.-",
-        stock_entry_type: "Manufacture",
-        purpose: "Manufacture",
-        set_posting_time: 1,
-        posting_date: new Date().toISOString().split("T")[0],
-        posting_time: new Date().toTimeString().split(" ")[0],
-        add_to_transit: 0,
-        apply_putaway_rule: 1,
-        inspection_required: 0,
-        work_order: String(wo.id),
-        subcontracting_order: "",
-        outgoing_stock_entry: "",
-        source_stock_entry: "",
-        from_bom: 1,
-        use_multi_level_bom: 1,
-        bom_no: wo.bom_no,
-        fg_completed_qty: totalCompletedQty,
-        process_loss_percentage:
-          wo.qty_to_manufacture > 0
-            ? Math.round((processLossQty / wo.qty_to_manufacture) * 10000) / 100
-            : 0,
-        process_loss_qty: processLossQty,
-        from_warehouse: wo.wip_warehouse || "",
-        source_warehouse_address: "",
-        source_address_display: "",
-        to_warehouse: completionSummary.fgWarehouseName || wo.target_warehouse || "Finished Goods",
-        target_warehouse_address: "",
-        target_address_display: "",
-        scan_barcode: "",
-        total_outgoing_value: 0,
-        total_incoming_value: 0,
-        value_difference: 0,
-        total_additional_costs: 0,
-        supplier: "",
-        supplier_name: "",
-        supplier_address: "",
-        address_display: "",
-        project: "",
-        cost_center: "",
-        select_print_heading: "Stock Entry",
-        letter_head: "",
-        delivery_note_no: "",
-        sales_invoice_no: "",
-        job_card: String(completionSummary.jobCardId),
-        pick_list: "",
-        asset_repair: "",
-        purchase_receipt_no: "",
-        purchase_order: "",
-        subcontracting_inward_order: "",
-        is_additional_transfer_entry: 0,
-        is_opening: "No",
-        remarks: `Posted on completion of Work Order #${wo.id}`,
-        per_transferred: 100,
-        total_amount: 0,
-        amended_from: "",
-        credit_note: "",
-        is_return: 0,
-      });
+  // Step 1: Stock Entry (WIP → Finished Goods)
+  try {
+    await api.post("/stock-entry", {
+      name: "",
+      company: wo.company || "SculptorTech",
+      naming_series: "STE-.YYYY.-",
+      stock_entry_type: "Manufacture",
+      purpose: "Manufacture",
+      set_posting_time: 1,
+      posting_date: new Date().toISOString().split("T")[0],
+      posting_time: new Date().toTimeString().split(" ")[0],
+      add_to_transit: 0,
+      apply_putaway_rule: 1,
+      inspection_required: 0,
+      work_order: String(wo.id),
+      subcontracting_order: "",
+      outgoing_stock_entry: "",
+      source_stock_entry: "",
+      from_bom: 1,
+      use_multi_level_bom: 1,
+      bom_no: wo.bom_no,
+      fg_completed_qty: totalCompletedQty,
+      process_loss_percentage:
+        wo.qty_to_manufacture > 0
+          ? Math.round((processLossQty / wo.qty_to_manufacture) * 10000) / 100
+          : 0,
+      process_loss_qty: processLossQty,
+      from_warehouse: wo.wip_warehouse || "",
+      source_warehouse_address: "",
+      source_address_display: "",
+      to_warehouse: completionSummary.fgWarehouseName || wo.target_warehouse || "Finished Goods",
+      target_warehouse_address: "",
+      target_address_display: "",
+      scan_barcode: "",
+      total_outgoing_value: 0,
+      total_incoming_value: 0,
+      value_difference: 0,
+      total_additional_costs: 0,
+      supplier: "",
+      supplier_name: "",
+      supplier_address: "",
+      address_display: "",
+      project: "",
+      cost_center: "",
+      select_print_heading: "Stock Entry",
+      letter_head: "",
+      delivery_note_no: "",
+      sales_invoice_no: "",
+      job_card: String(completionSummary.jobCardId),
+      pick_list: "",
+      asset_repair: "",
+      purchase_receipt_no: "",
+      purchase_order: "",
+      subcontracting_inward_order: "",
+      is_additional_transfer_entry: 0,
+      is_opening: "No",
+      remarks: `Posted on completion of Work Order #${wo.id}`,
+      per_transferred: 100,
+      total_amount: 0,
+      amended_from: "",
+      credit_note: "",
+      is_return: 0,
+    });
 
-      setCompletionSummary(prev => (prev ? { ...prev, stockEntryPosting: false, stockEntryPosted: true } : prev));
-    } catch (err: any) {
-      console.error("Error posting stock entry:", err);
+    setCompletionSummary(prev => (prev ? { ...prev, stockEntryPosting: false, stockEntryPosted: true } : prev));
+  } catch (err: any) {
+    console.error("Error posting stock entry:", err);
+    setCompletionSummary(prev => (prev
+      ? { ...prev, stockEntryPosting: false, stockEntryError: err.response?.data?.message || "Failed to post stock entry." }
+      : prev));
+    return; // don't continue to inventory if stock entry failed
+  }
+
+  // Step 2: Post finished product to Inventory + mark WO Completed
+  setCompletionSummary(prev => (prev ? { ...prev, inventoryPosting: true, inventoryError: null } : prev));
+
+  try {
+    let fgWarehouseId = completionSummary.fgWarehouseId;
+    let fgWarehouseName = completionSummary.fgWarehouseName;
+
+    if (!fgWarehouseId) {
+      const whRes = await api.get<WarehouseResponse>("/warehouse");
+      const warehouses: Warehouse[] = whRes.data?.data?.records || [];
+      const fgWarehouse = warehouses.find(w => w.warehouse_name === wo.target_warehouse);
+      fgWarehouseId = fgWarehouse?.id;
+      fgWarehouseName = fgWarehouse?.warehouse_name;
+      setCompletionSummary(prev => (prev ? { ...prev, fgWarehouseId, fgWarehouseName } : prev));
+    }
+
+    if (!fgWarehouseId) {
       setCompletionSummary(prev => (prev
-        ? { ...prev, stockEntryPosting: false, stockEntryError: err.response?.data?.message || "Failed to post stock entry." }
+        ? { ...prev, inventoryPosting: false, inventoryError: "Finished Goods warehouse not found." }
+        : prev));
+      return;
+    }
+
+    // item_Id for the finished product comes from the BOM detail, not the
+    // job card — job cards only carry the item CODE, not its numeric id.
+    let productItemId = bomDetail?.bom.item_Id ?? 0;
+    if (!productItemId && wo.bom_no) {
+      try {
+        const br = await api.get<BomDetailResponse>(`/bom/${wo.bom_no}`);
+        if (br.data.success === 1) {
+          productItemId = br.data.data.bom.item_Id ?? 0;
+        }
+      } catch (e) {
+        console.error("Failed to resolve product item_Id from BOM:", e);
+      }
+    }
+
+    if (!productItemId) {
+      setCompletionSummary(prev => (prev
+        ? { ...prev, inventoryPosting: false, inventoryError: "Could not resolve finished product's item ID from BOM." }
+        : prev));
+      return;
+    }
+
+    const inventoryPayload = {
+      name: `INV-${wo.item_to_manufacture}-${Date.now()}`,
+      item_Id: productItemId,
+      item_code: wo.item_to_manufacture,
+      warehouse_Id: fgWarehouseId,
+      actual_qty: totalCompletedQty,
+      planned_qty: 0,
+      indented_qty: 0,
+      ordered_qty: 0,
+      reserved_qty: 0,
+      reserved_qty_for_production: 0,
+      reserved_qty_for_sub_contract: 0,
+      reserved_qty_for_production_plan: 0,
+      reserved_stock: 0,
+      stock_uom: wo.stock_uom || "Nos",
+      company: wo.company || "SculptorTech",
+      valuation_rate: 0,
+      modified_by: "Administrator",
+      type: wo.type === "internal" ? "Internal" : "External",
+    };
+
+    await api.post("/inventory", inventoryPayload);
+    console.log(`✅ Inventory posted for finished product ${wo.item_to_manufacture} (${totalCompletedQty} ${wo.stock_uom}) to ${fgWarehouseName || fgWarehouseId}`);
+
+    setCompletionSummary(prev => (prev ? { ...prev, inventoryPosting: false, inventoryPosted: true } : prev));
+
+    // Step 3: mark Work Order as Completed
+    try {
+      // Workaround: backend's SQL builder doesn't JSON.stringify
+      // operations/items before interpolating into the UPDATE query.
+      // Omit them here since this call only needs to change the status.
+      const { operations, items, ...updatePayload } = { ...buildPayload("Completed"), id: wo.id };
+      await api.put("/work-order", updatePayload);
+      setWo(prev => ({ ...prev, status: "Completed" }));
+      setCompletionSummary(prev => (prev ? { ...prev, woStatusUpdated: true } : prev));
+    } catch (statusErr: any) {
+      console.error("Error updating Work Order status to Completed:", statusErr);
+      setCompletionSummary(prev => (prev
+        ? { ...prev, inventoryError: "Inventory posted, but failed to mark Work Order as Completed." }
         : prev));
     }
-  };
+  } catch (invErr) {
+    console.error("Error posting finished product to inventory:", invErr);
+    setCompletionSummary(prev => (prev
+      ? { ...prev, inventoryPosting: false, inventoryError: "Failed to post finished product to inventory." }
+      : prev));
+  }
+};
+
 
   // ─── Read-only view: the Work Order is already Completed. Just re-fetch
   // the job card's qty/loss numbers and show them — no PUT to work-order,
@@ -2147,96 +2246,7 @@ export default function WorkOrderForm() {
     }
   };
 
-  // ─── Manual step: push the produced qty into Finished Goods inventory ──
-  // ─── THEN update Work Order status to "Completed" via PUT ───
-  const handlePostInventory = async () => {
-    if (!completionSummary || completionSummary.totalCompletedQty === undefined) return;
-    if (!completionSummary.fgWarehouseId) {
-      setCompletionSummary(prev => (prev ? { ...prev, inventoryError: "Finished Goods warehouse not found." } : prev));
-      return;
-    }
 
-    setCompletionSummary(prev => (prev ? { ...prev, inventoryPosting: true, inventoryError: null } : prev));
-    setCompletionSummary(prev => (prev ? { ...prev, inventoryPosting: true, inventoryError: null } : prev));
-
-    // ── Post the FINISHED PRODUCT (not raw materials) to the Finished
-    // Goods warehouse. Quantity comes from the completed job card total. ──
-    try {
-      const fgWarehouseId = completionSummary.fgWarehouseId;
-
-      if (!fgWarehouseId) {
-        console.warn("FG warehouse ID not found.");
-      } else {
-        // item_Id for the finished product comes from the BOM detail
-        // (bom.item_Id), not the job card — job cards only carry the
-        // item CODE (production_item), not its numeric id.
-        let productItemId = bomDetail?.bom.item_Id ?? 0;
-        if (!productItemId && wo.bom_no) {
-          try {
-            const br = await api.get<BomDetailResponse>(`/bom/${wo.bom_no}`);
-            if (br.data.success === 1) {
-              productItemId = br.data.data.bom.item_Id ?? 0;
-            }
-          } catch (e) {
-            console.error("Failed to resolve product item_Id from BOM:", e);
-          }
-        }
-
-        if (!productItemId) {
-          console.warn("Could not resolve item_Id for finished product; skipping inventory post.");
-          setCompletionSummary(prev => (prev ? { ...prev, inventoryPosting: false, inventoryError: "Could not resolve finished product's item ID from BOM." } : prev));
-          return;
-        }
-
-        const inventoryPayload = {
-          name: `INV-${wo.item_to_manufacture}-${Date.now()}`,
-          item_Id: productItemId,
-          item_code: wo.item_to_manufacture,
-          warehouse_Id: fgWarehouseId,
-          actual_qty: completionSummary.totalCompletedQty,
-          planned_qty: 0,
-          indented_qty: 0,
-          ordered_qty: 0,
-          reserved_qty: 0,
-          reserved_qty_for_production: 0,
-          reserved_qty_for_sub_contract: 0,
-          reserved_qty_for_production_plan: 0,
-          reserved_stock: 0,
-          stock_uom: wo.stock_uom || "Nos",
-          company: wo.company || "SculptorTech",
-          valuation_rate: 0,
-          modified_by: "Administrator",
-          type: wo.type === "internal" ? "Internal" : "External",
-        };
-
-        await api.post("/inventory", inventoryPayload);
-        console.log(`✅ Inventory posted for finished product ${wo.item_to_manufacture} (${completionSummary.totalCompletedQty} ${wo.stock_uom}) to ${completionSummary.fgWarehouseName || fgWarehouseId}`);
-
-        // Mark inventory step done, then update WO status to Completed.
-        setCompletionSummary(prev => (prev ? { ...prev, inventoryPosting: false, inventoryPosted: true } : prev));
-
-        if (wo.id) {
-          try {
-            // Workaround: the backend's SQL builder doesn't JSON.stringify
-            // `operations`/`items` before interpolating them into the UPDATE
-            // query, which throws a MySQL syntax error. Until that's fixed
-            // server-side, omit them here since this call only needs to
-            // change the status.
-            const { operations, items, ...updatePayload } = { ...buildPayload("Completed"), id: wo.id };
-            await api.put("/work-order", updatePayload);
-            setWo(prev => ({ ...prev, status: "Completed" }));
-            setCompletionSummary(prev => (prev ? { ...prev, woStatusUpdated: true } : prev));
-          } catch (statusErr: any) {
-            console.error("Error updating Work Order status to Completed:", statusErr);
-            setCompletionSummary(prev => (prev ? { ...prev, inventoryError: "Inventory posted, but failed to mark Work Order as Completed." } : prev));
-          }
-        }
-      }
-    } catch (invErr) {
-      console.error("Error posting finished product to inventory:", invErr);
-      setCompletionSummary(prev => (prev ? { ...prev, inventoryPosting: false, inventoryError: "Failed to post finished product to inventory." } : prev));
-    }
-  };
   // ─── Field helpers ────────────────────────────────────────────────────
   const set = <K extends keyof WorkOrderData>(k: K, v: WorkOrderData[K]) =>
     setWo(prev => ({ ...prev, [k]: v }));
@@ -2748,68 +2758,44 @@ export default function WorkOrderForm() {
                   </div>
 
                   {!completionSummary.readOnly ? (
-                    <>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 13, marginBottom: 16 }}>
-                        <div style={{ color: completionSummary.stockEntryPosted ? "#166534" : "#94a3b8" }}>
-                          <FaCheckCircle style={{ marginRight: 6 }} />
-                          Step 1: Stock entry posted (WIP → Finished Goods)
-                        </div>
-                        <div style={{ color: completionSummary.inventoryPosted ? "#166534" : "#94a3b8" }}>
-                          <FaCheckCircle style={{ marginRight: 6 }} />
-                          Step 2: Inventory updated
-                        </div>
-                        <div style={{ color: completionSummary.woStatusUpdated ? "#166534" : "#94a3b8" }}>
-                          <FaCheckCircle style={{ marginRight: 6 }} />
-                          Step 3: Work Order marked as Completed
-                        </div>
-                      </div>
-
-                      {completionSummary.stockEntryError && (
-                        <div style={{ color: "#b91c1c", fontSize: 13, marginBottom: 12 }}>
-                          {completionSummary.stockEntryError}
-                        </div>
-                      )}
-
-                      {!completionSummary.stockEntryPosted && (
-                        <button
-                          type="button"
-                          className="wof-btn-primary wof-btn-block"
-                          onClick={handlePostStockEntry}
-                          disabled={completionSummary.stockEntryPosting}
-                          style={{ marginBottom: 10 }}
-                        >
-                          {completionSummary.stockEntryPosting
-                            ? <><FaSpinner className="wof-spinning" /> Posting Stock Entry…</>
-                            : <>Step 1: Add to Stock Entry (WIP → Finished Goods)</>}
-                        </button>
-                      )}
-
-                      {completionSummary.inventoryError && (
-                        <div style={{ color: "#b91c1c", fontSize: 13, marginBottom: 12 }}>
-                          {completionSummary.inventoryError}
-                        </div>
-                      )}
-
-                      {completionSummary.stockEntryPosted && !completionSummary.inventoryPosted && (
-                        <button
-                          type="button"
-                          className="wof-btn-primary wof-btn-block"
-                          onClick={handlePostInventory}
-                          disabled={completionSummary.inventoryPosting}
-                        >
-                          {completionSummary.inventoryPosting
-                            ? <><FaSpinner className="wof-spinning" /> Posting to Inventory & Completing WO…</>
-                            : <>Step 2: Post {completionSummary.totalCompletedQty} {wo.stock_uom} to Inventory & Complete WO</>}
-                        </button>
-                      )}
-
-                      {completionSummary.inventoryPosted && completionSummary.woStatusUpdated && (
-                        <div style={{ color: "#166534", fontSize: 14, fontWeight: 600, textAlign: "center", padding: "12px", background: "#f0fdf4", borderRadius: 6, marginTop: 10 }}>
-                          <FaCheckCircle style={{ marginRight: 6 }} />
-                          Work Order #{wo.id} has been completed successfully!
-                        </div>
-                      )}
-                    </>
+                  <>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 13, marginBottom: 16 }}>
+                    <div style={{ color: (completionSummary.stockEntryPosted && completionSummary.inventoryPosted) ? "#166534" : "#94a3b8" }}>
+                      <FaCheckCircle style={{ marginRight: 6 }} />
+                      Stock &amp; inventory updated (WIP → Finished Goods)
+                    </div>
+                    <div style={{ color: completionSummary.woStatusUpdated ? "#166534" : "#94a3b8" }}>
+                      <FaCheckCircle style={{ marginRight: 6 }} />
+                      Work Order marked as Completed
+                    </div>
+                  </div>
+                
+                  {(completionSummary.stockEntryError || completionSummary.inventoryError) && (
+                    <div style={{ color: "#b91c1c", fontSize: 13, marginBottom: 12 }}>
+                      {completionSummary.stockEntryError || completionSummary.inventoryError}
+                    </div>
+                  )}
+                
+                  {!completionSummary.woStatusUpdated && (
+                    <button
+                      type="button"
+                      className="wof-btn-primary wof-btn-block"
+                      onClick={handleCompleteWorkOrder}
+                      disabled={completionSummary.stockEntryPosting || completionSummary.inventoryPosting}
+                    >
+                      {(completionSummary.stockEntryPosting || completionSummary.inventoryPosting)
+                        ? <><FaSpinner className="wof-spinning" /> Completing Work Order…</>
+                        : <>Complete Work Order ({completionSummary.totalCompletedQty} {wo.stock_uom})</>}
+                    </button>
+                  )}
+                
+                  {completionSummary.inventoryPosted && completionSummary.woStatusUpdated && (
+                    <div style={{ color: "#166534", fontSize: 14, fontWeight: 600, textAlign: "center", padding: "12px", background: "#f0fdf4", borderRadius: 6, marginTop: 10 }}>
+                      <FaCheckCircle style={{ marginRight: 6 }} />
+                      Work Order #{wo.id} has been completed successfully!
+                    </div>
+                  )}
+                </>
                   ) : (
                     <div style={{ fontSize: 13, color: "#64748b", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 6, padding: "10px 12px" }}>
                       This Work Order is already completed.
@@ -2843,25 +2829,29 @@ export default function WorkOrderForm() {
         </div>
       </div>
 
-      {/* Order Type Selector */}
-      <div className="wof-job-type-selector">
-        <button
-          type="button"
-          className={`wof-job-type-btn ${wo.type === "internal" ? "active" : ""}`}
-          onClick={() => set("type", "internal")}
-          disabled={disabled}
-        >
-          <FaBuilding /> Internal WO
-        </button>
-        <button
-          type="button"
-          className={`wof-job-type-btn ${wo.type === "external" ? "active" : ""}`}
-          onClick={() => set("type", "external")}
-          disabled={disabled}
-        >
-          <FaTruck /> External WO
-        </button>
-      </div>
+  {/* Order Type Selector */}
+<div className="wof-job-type-selector">
+  {(isNew || wo.type === "internal") && (
+    <button
+      type="button"
+      className={`wof-job-type-btn ${wo.type === "internal" ? "active" : ""}`}
+      onClick={() => set("type", "internal")}
+      disabled={disabled || !isNew}
+    >
+      <FaBuilding /> Internal WO
+    </button>
+  )}
+  {(isNew || wo.type === "external") && (
+    <button
+      type="button"
+      className={`wof-job-type-btn ${wo.type === "external" ? "active" : ""}`}
+      onClick={() => set("type", "external")}
+      disabled={disabled || !isNew}
+    >
+      <FaTruck /> External WO
+    </button>
+  )}
+</div>
 
       <div className="wof-container">
         <form onSubmit={handleSave}>
@@ -3385,15 +3375,15 @@ export default function WorkOrderForm() {
                           BOM base: {bomDetail.bom.quantity} {bomDetail.bom.uom} — rows scale automatically
                         </span>
                       )}
-                      {bomDetail && maxProducibleQty !== null && (
-                        <span
-                          className="wof-hint"
-                          style={{ display: "block", marginTop: 4, fontWeight: 600, color: materialConstraints.some(c => c.shortfall) ? "#b91c1c" : "#166534" }}
-                        >
-                          <FaBoxOpen style={{ marginRight: 4 }} />
-                          Can make up to {maxProducibleQty} {wo.stock_uom} from current stock
-                        </span>
-                      )}
+                    {isNew && bomDetail && maxProducibleQty !== null && (
+  <span
+    className="wof-hint"
+    style={{ display: "block", marginTop: 4, fontWeight: 600, color: materialConstraints.some(c => c.shortfall) ? "#b91c1c" : "#166534" }}
+  >
+    <FaBoxOpen style={{ marginRight: 4 }} />
+    Can make up to {maxProducibleQty} {wo.stock_uom} from current stock
+  </span>
+)}
                     </div>
                   </div>
 

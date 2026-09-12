@@ -2322,3 +2322,91 @@ select.nbom-input {
   font-size: 13px;
   text-align: center;
 }
+
+/* ================================================================
+   ─── DigitInput Double Border Fix ─────────────────────────────
+   The DigitInput component renders:
+     <div class="digit-input-wrapper nbom-digit-input">
+       <input class="digit-input" />
+     </div>
+   The wrapper provides the border, the inner input must NOT have one.
+   ================================================================ */
+
+/* Force inner input to have zero border/background/outline — highest specificity via !important */
+.digit-input-wrapper .digit-input,
+.digit-input-wrapper input.digit-input,
+.digit-input-wrapper.nbom-digit-input .digit-input,
+input.digit-input {
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  background: transparent !important;
+  width: 100%;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: var(--c-text, #1a1d29);
+  font-family: inherit;
+  border-radius: 0;
+}
+
+.digit-input-wrapper .digit-input::placeholder,
+.digit-input-wrapper.nbom-digit-input .digit-input::placeholder {
+  color: var(--c-text-hint, #9aa0ab);
+}
+
+/* Wrapper is the single source of the visible box */
+.digit-input-wrapper,
+.digit-input-wrapper.nbom-digit-input {
+  border: 1px solid var(--c-border, #e3e5ea);
+  border-radius: var(--c-radius-sm, 6px);
+  background: var(--c-bg, #ffffff);
+  min-height: 34px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* Focus ring on the wrapper only */
+.digit-input-wrapper:focus-within,
+.digit-input-wrapper.nbom-digit-input:focus-within {
+  border-color: var(--c-primary, #4f46e5);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+/* Error state on the wrapper */
+.digit-input-wrapper.digit-input--error,
+.digit-input-wrapper.nbom-digit-input.digit-input--error {
+  border-color: #dc2626 !important;
+  box-shadow: 0 0 0 1px #dc2626 !important;
+}
+
+/* Dark theme — wrapper owns the border, inner input stays transparent */
+.admin-theme.dark-theme .digit-input-wrapper,
+.admin-theme.dark-theme .digit-input-wrapper.nbom-digit-input {
+  background: var(--input-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+}
+
+.admin-theme.dark-theme .digit-input-wrapper .digit-input,
+.admin-theme.dark-theme .digit-input-wrapper.nbom-digit-input .digit-input,
+.admin-theme.dark-theme input.digit-input {
+  color: var(--text-primary, #f8fafc);
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.admin-theme.dark-theme .digit-input-wrapper:focus-within,
+.admin-theme.dark-theme .digit-input-wrapper.nbom-digit-input:focus-within {
+  border-color: var(--primary-color, #3b82f6);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.admin-theme.dark-theme .digit-input-wrapper.digit-input--error,
+.admin-theme.dark-theme .digit-input-wrapper.nbom-digit-input.digit-input--error {
+  border-color: #dc2626 !important;
+  box-shadow: 0 0 0 1px #dc2626 !important;
+}
+
+/* End of DigitInput fix */

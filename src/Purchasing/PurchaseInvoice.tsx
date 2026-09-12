@@ -240,6 +240,9 @@ export default function PurchaseInvoice() {
   // Mobile list row expansion state
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
+  const handleCreateJournalEntry = () => {
+    navigate('/accounts/entry');
+  };
   const toggleRowExpand = (id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     setExpandedRows((prev) => {
@@ -735,7 +738,11 @@ export default function PurchaseInvoice() {
             Filter
           </button>
         </div>
-         <div className="inv-header-actions">
+       
+        <div className="inv-header-actions">
+          <button className="inv-btn-secondary" onClick={handleCreateJournalEntry}>
+            <FaFileAlt size={12} /> New Journal Entry
+          </button>
           <button className="inv-btn-primary" onClick={handleCreate}>
             <FaPlus size={12} /> New Purchase Bill
           </button>
@@ -933,9 +940,8 @@ export default function PurchaseInvoice() {
 
             {/* Mobile Cards / Rows */}
             <div className="inv-mobile-cards">
-              {filteredInvoices.map((inv, index) => {
+              {filteredInvoices.map((inv) => {
                 const isExpanded = expandedRows.has(inv.id);
-                const rowNumber = getStartIndex() + index;
                 return (
                   <div
                     key={inv.id}

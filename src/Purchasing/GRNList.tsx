@@ -934,9 +934,8 @@ export default function GRNList() {
 
             {/* Mobile Cards / Rows */}
             <div className="grn-mobile-cards">
-              {paginatedGrns.map((row, index) => {
+              {paginatedGrns.map((row) => {
                 const isExpanded = expandedRows.has(row.id);
-                const rowNumber = (validCurrentPage - 1) * itemsPerPage + index + 1;
                 return (
                   <div
                     key={row.id}
