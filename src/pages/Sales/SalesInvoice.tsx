@@ -3,6 +3,7 @@ import {
   FaPlus, 
   FaSearch, 
   FaFilter, 
+  FaPrint,
   FaEye,
   FaEdit,
   FaPrint as FaPrintIcon,
@@ -24,24 +25,10 @@ import {
   FaCheckCircle,
   FaClock,
   FaTimesCircle,
-  FaCalendarAlt,
-  
-  FaPrint,
-  FaTrash
-  ,
-  FaChevronDown,
-  FaPrint,
-  FaTrash
 } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
-import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
-import './SalesMobileTable.css';
 import toast from 'react-hot-toast';
-
-import * as XLSX from 'xlsx';
-import { PageLoader } from '../components/PageLoader';
-import { FaChevronUp } from 'react-icons/fa6';
 
 // ===== INTERFACES =====
 
@@ -90,7 +77,6 @@ interface SalesInvoice {
   company: string;
   posting_date: string;
   due_date: string;
-  validTill?: string | null;
   currency: string;
   total_qty: number;
   total: number;
@@ -122,34 +108,8 @@ interface ApiResponse {
   };
 }
 
-// ===== COMPANY INTERFACE =====
-interface Company {
-  id: number;
-  company_name: string;
-  abbr: string;
-  default_currency: string;
-  country: string;
-  tax_id?: string;
-  email?: string;
-  phone_no?: string;
-  website?: string;
-  bank_details?: BankDetail[];
-}
-
-interface BankDetail {
-  id: number;
-  bank_name: string;
-  branch_name: string;
-  account_number: string;
-  ifsc_code: string;
-  account_holder_name: string;
-  account_type: string;
-  currency: string;
-  is_primary: number;
-}
-
-// ===== COMPANY DETAILS (will be updated from API) =====
-let companyDetails = {
+// ===== COMPANY DETAILS =====
+const companyDetails = {
   name: 'Sculptor Tech Pvt Ltd',
   address: 'c-1006, gc, Pune, Maharashtra 411028, India',
   website: 'sculptortechpvtltd@gmail.com',
@@ -207,7 +167,15 @@ const numberToIndianWords = (value: number): string => {
   return out.trim();
 };
 
-
+const formatPrintDate = (date: string): string => {
+  if (!date) return '';
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return date;
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = d.toLocaleString('en-US', { month: 'short' });
+  const year = String(d.getFullYear()).slice(-2);
+  return `${day}-${month}-${year}`;
+};
 
 const escapeHtml = (val: unknown): string => {
   const s = val === null || val === undefined ? '' : String(val);
@@ -230,7 +198,6 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
   };
   const config = configs[status] || configs['Draft'];
   
-  
   return (
     <span className="qt-status-badge" style={{ color: config.color, background: config.bg }}>
       {config.icon}
@@ -243,11 +210,6 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
 const SalesInvoice: React.FC = () => {
   const navigate = useNavigate();
   const menuRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
-  const printWindowRef = useRef<Window | null>(null); // ✅ Track print window
-  
- 
-  const { theme, formatDate } = useAdminTheme();
-
   
   // ===== STATE =====
   const [searchTerm, setSearchTerm] = useState('');
@@ -257,94 +219,9 @@ const SalesInvoice: React.FC = () => {
   const [showMoreMenu, setShowMoreMenu] = useState<string | null>(null);
   
   const [invoices, setInvoices] = useState<SalesInvoice[]>([]);
-  const [totalRecords, setTotalRecords] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [printLoadingId, setPrintLoadingId] = useState<string | null>(null);
-  const [, setDownloadLoading] = useState(false);
-  const [, setCompanyData] = useState<Company | null>(null);
-
-  // ===== DATE FILTER STATES =====
-  const [fromDate, setFromDate] = useState<string>('');
-  const [toDate, setToDate] = useState<string>('');
-  const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
-  const [tempFromDate, setTempFromDate] = useState<string>('');
-  const [tempToDate, setTempToDate] = useState<string>('');
-  const [selectedQuickFilter, setSelectedQuickFilter] = useState<string>('');
-
-  // ===== CALENDAR STATE =====
-  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
-  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
-
-  const formatDisplayDate = (dateString: string) => {
-    if (!dateString) return '';
-    return formatDate(dateString);
-  };
-
-
-  // ===== FETCH COMPANY DETAILS =====
-  const fetchCompanyDetails = async () => {
-    try {
-      const response = await api.get('/company');
-      console.log('Company API Response:', response.data);
-      
-      if (response.data.success === 1) {
-        const companies = response.data.data || [];
-        console.log('Companies:', companies);
-        
-        const chandratara = companies.find((c: Company) => 
-          c.company_name.includes('ChandraTara') || 
-          c.abbr === 'CT_IND' ||
-          c.company_name.toLowerCase().includes('chandratara')
-        );
-        
-        const selectedCompany = chandratara || (companies.length > 0 ? companies[0] : null);
-        
-        if (selectedCompany) {
-          setCompanyData(selectedCompany);
-          companyDetails = {
-            ...companyDetails,
-            name: selectedCompany.company_name || companyDetails.name,
-            address: selectedCompany.country || companyDetails.address,
-            contact: selectedCompany.phone_no || companyDetails.contact,
-            email: selectedCompany.email || companyDetails.email,
-            gstin: selectedCompany.tax_id || companyDetails.gstin,
-          };
-          
-          if (selectedCompany.bank_details && selectedCompany.bank_details.length > 0) {
-            const primaryBank = selectedCompany.bank_details.find((b: BankDetail) => b.is_primary === 1) || selectedCompany.bank_details[0];
-            if (primaryBank) {
-              companyDetails.bankName = primaryBank.bank_name || companyDetails.bankName;
-              companyDetails.bankAccountNo = primaryBank.account_number || companyDetails.bankAccountNo;
-              companyDetails.bankBranchIfsc = primaryBank.ifsc_code || companyDetails.bankBranchIfsc;
-            }
-          }
-          
-          console.log('Company loaded:', selectedCompany.company_name);
-        } else {
-          console.warn('No companies found, using default company details');
-        }
-      } else {
-        console.warn('API returned success !== 1');
-      }
-    } catch (err) {
-      console.error('Error fetching company details:', err);
-    }
-  };
-
-  
-  // ─── Mobile expanded rows state ──────────────────────────────────
-  const [expandedRows, setExpandedRows] = useState<Set<string | number>>(new Set());
-
-  const toggleRowExpand = (id: string | number, e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    setExpandedRows((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
 
   // ===== CLOSE MENU ON CLICK OUTSIDE =====
   useEffect(() => {
@@ -365,196 +242,6 @@ const SalesInvoice: React.FC = () => {
     };
   }, [showMoreMenu]);
 
-  // ===== CLOSE DATE PICKER ON OUTSIDE CLICK =====
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as HTMLElement;
-      const datePickerContainer = document.querySelector('.qt-date-picker-container');
-      if (datePickerContainer && !datePickerContainer.contains(target)) {
-        setShowDatePicker(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
-
-  // ===== CLEAN UP PRINT WINDOW ON UNMOUNT =====
-  useEffect(() => {
-    return () => {
-      if (printWindowRef.current && !printWindowRef.current.closed) {
-        printWindowRef.current.close();
-        printWindowRef.current = null;
-      }
-    };
-  }, []);
-
-  // ===== DATE HELPER FUNCTIONS =====
-  const formatDateForDisplay = (dateStr: string): string => {
-    if (!dateStr) return '';
-    return formatDate(dateStr);
-  };
-
-  const getTodayDate = (): string => {
-    const today = new Date();
-    return today.toISOString().split('T')[0];
-  };
-
-  const getDateDaysAgo = (days: number): string => {
-    const date = new Date();
-    date.setDate(date.getDate() - days);
-    return date.toISOString().split('T')[0];
-  };
-
-  const getFirstDayOfMonth = (): string => {
-    const date = new Date(currentYear, currentMonth, 1);
-    return date.toISOString().split('T')[0];
-  };
-
-  const getLastDayOfMonth = (): string => {
-    const date = new Date(currentYear, currentMonth + 1, 0);
-    return date.toISOString().split('T')[0];
-  };
-
-  // ===== QUICK FILTER HANDLERS =====
-  const applyQuickFilter = (filter: string) => {
-    setSelectedQuickFilter(filter);
-    let start = '';
-    let end = getTodayDate();
-
-    switch (filter) {
-      case 'today':
-        start = getTodayDate();
-        break;
-      case 'last7':
-        start = getDateDaysAgo(7);
-        break;
-      case 'last30':
-        start = getDateDaysAgo(30);
-        break;
-      case 'thisMonth':
-        start = getFirstDayOfMonth();
-        end = getLastDayOfMonth();
-        break;
-      default:
-        return;
-    }
-
-    setTempFromDate(start);
-    setTempToDate(end);
-  };
-
-  // ===== CALENDAR FUNCTIONS =====
-  const getDaysInMonth = (year: number, month: number): number => {
-    return new Date(year, month + 1, 0).getDate();
-  };
-
-  const getFirstDayOfMonthIndex = (year: number, month: number): number => {
-    return new Date(year, month, 1).getDay();
-  };
-
-  const generateCalendarDays = (): (number | null)[] => {
-    const daysInMonth = getDaysInMonth(currentYear, currentMonth);
-    const firstDayIndex = getFirstDayOfMonthIndex(currentYear, currentMonth);
-    const days: (number | null)[] = [];
-
-    for (let i = 0; i < firstDayIndex; i++) {
-      days.push(null);
-    }
-
-    for (let i = 1; i <= daysInMonth; i++) {
-      days.push(i);
-    }
-
-    return days;
-  };
-
-  const isDateInRange = (day: number): boolean => {
-    if (!tempFromDate && !tempToDate) return false;
-    const date = new Date(currentYear, currentMonth, day);
-    const dateStr = date.toISOString().split('T')[0];
-    
-    if (tempFromDate && tempToDate) {
-      return dateStr >= tempFromDate && dateStr <= tempToDate;
-    }
-    if (tempFromDate) {
-      return dateStr >= tempFromDate;
-    }
-    if (tempToDate) {
-      return dateStr <= tempToDate;
-    }
-    return false;
-  };
-
-  const isDateSelected = (day: number): boolean => {
-    const date = new Date(currentYear, currentMonth, day);
-    const dateStr = date.toISOString().split('T')[0];
-    return dateStr === tempFromDate || dateStr === tempToDate;
-  };
-
-  const handleDateClick = (day: number) => {
-    const date = new Date(currentYear, currentMonth, day);
-    const dateStr = date.toISOString().split('T')[0];
-    
-    if (!tempFromDate || (tempFromDate && tempToDate)) {
-      setTempFromDate(dateStr);
-      setTempToDate('');
-      setSelectedQuickFilter('');
-    } else if (tempFromDate && !tempToDate) {
-      if (dateStr < tempFromDate) {
-        setTempFromDate(dateStr);
-        setTempToDate('');
-      } else {
-        setTempToDate(dateStr);
-        setSelectedQuickFilter('');
-      }
-    }
-  };
-
-  const changeMonth = (delta: number) => {
-    const newMonth = currentMonth + delta;
-    if (newMonth < 0) {
-      setCurrentMonth(11);
-      setCurrentYear(currentYear - 1);
-    } else if (newMonth > 11) {
-      setCurrentMonth(0);
-      setCurrentYear(currentYear + 1);
-    } else {
-      setCurrentMonth(newMonth);
-    }
-  };
-
-  const getMonthName = (month: number): string => {
-    return new Date(currentYear, month).toLocaleString('en-US', { month: 'long' });
-  };
-
-  // ===== DATE PICKER HANDLERS =====
-  const openDatePicker = () => {
-    setTempFromDate(fromDate);
-    setTempToDate(toDate);
-    setShowDatePicker(true);
-  };
-
-  const applyDateFilter = () => {
-    setFromDate(tempFromDate);
-    setToDate(tempToDate);
-    setShowDatePicker(false);
-    if (tempFromDate || tempToDate) {
-      toast.success('Date range applied');
-    }
-  };
-
-  const clearDateFilters = () => {
-    setTempFromDate('');
-    setTempToDate('');
-    setSelectedQuickFilter('');
-    setFromDate('');
-    setToDate('');
-    setShowDatePicker(false);
-  };
-
   // ===== FETCH FULL INVOICE DETAILS =====
   const fetchFullSalesInvoice = async (id: string | number): Promise<SalesInvoice | null> => {
     try {
@@ -563,9 +250,6 @@ const SalesInvoice: React.FC = () => {
         const data = response.data.success === 1 ? response.data.data : response.data;
         const record = Array.isArray(data) ? data[0] : (data?.record ?? data);
         if (record && (record.id || record.name)) {
-          if (!record.items) {
-            record.items = [];
-          }
           return {
             ...record,
             displayInvoiceNumber: formatInvoiceNumber(record.id || record.name)
@@ -578,29 +262,16 @@ const SalesInvoice: React.FC = () => {
     return null;
   };
 
-  // ===== FETCH DATA WITH SERVER-SIDE PAGINATION =====
+  // ===== FETCH DATA =====
   const fetchInvoices = async () => {
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams();
-      
+      if (searchTerm) params.append('search', searchTerm);
+      if (selectedStatus !== 'All') params.append('status', selectedStatus);
       params.append('page', String(currentPage));
       params.append('limit', String(itemsPerPage));
-      
-      if (searchTerm.trim()) {
-        params.append('search', searchTerm.trim());
-        params.append('search_by', 'all');
-      }
-      if (selectedStatus !== 'All') {
-        params.append('status', selectedStatus);
-      }
-      if (fromDate) {
-        params.append('from_date', fromDate);
-      }
-      if (toDate) {
-        params.append('to_date', toDate);
-      }
       
       const query = params.toString() ? `?${params.toString()}` : '';
       const response = await api.get<ApiResponse>(`/sales-invoice${query}`);
@@ -611,10 +282,8 @@ const SalesInvoice: React.FC = () => {
           displayInvoiceNumber: formatInvoiceNumber(record.id)
         }));
         setInvoices(recordsWithDisplayNumber);
-        setTotalRecords(response.data.data.total || recordsWithDisplayNumber.length);
       } else {
         setInvoices([]);
-        setTotalRecords(0);
       }
     } catch (err: any) {
       console.error('Error:', err);
@@ -627,43 +296,51 @@ const SalesInvoice: React.FC = () => {
 
   // ===== EFFECTS =====
   useEffect(() => {
-    fetchCompanyDetails();
     fetchInvoices();
   }, []);
 
   useEffect(() => {
-    fetchInvoices();
-  }, [searchTerm, selectedStatus, currentPage, itemsPerPage, fromDate, toDate]);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, selectedStatus, fromDate, toDate]);
+    const timer = setTimeout(() => fetchInvoices(), 500);
+    return () => clearTimeout(timer);
+  }, [searchTerm, selectedStatus, currentPage, itemsPerPage]);
 
   // ===== HELPERS =====
-  const formatDateDisplay = (date: string) => {
+  const formatDate = (date: string) => {
     if (!date) return '-';
-    return formatDisplayDate(date);
+    return new Date(date).toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    });
   };
 
-  // ===== PAGINATION CALCULATIONS =====
-  const totalFilteredItems = totalRecords;
-  const totalPages = Math.ceil(totalFilteredItems / itemsPerPage) || 1;
+  // ===== FILTER DATA =====
+  const filteredData = invoices.filter(item => {
+    const search = searchTerm.toLowerCase();
+    const displayNumber = item.displayInvoiceNumber?.toLowerCase() || '';
+    const matchesSearch = 
+      displayNumber.includes(search) ||
+      (item.customer_name || '').toLowerCase().includes(search) ||
+      (item.customer || '').toLowerCase().includes(search);
+    const matchesStatus = selectedStatus === 'All' || item.status === selectedStatus;
+    return matchesSearch && matchesStatus;
+  });
+
+  // ===== PAGINATION =====
+  const totalFilteredItems = filteredData.length;
+  const totalPages = Math.ceil(totalFilteredItems / itemsPerPage);
   const validCurrentPage = Math.min(currentPage, totalPages || 1);
   
-  if (validCurrentPage !== currentPage && currentPage > 0) {
+  if (validCurrentPage !== currentPage) {
     setCurrentPage(validCurrentPage);
   }
 
-  const getStartIndex = () => {
-    if (totalFilteredItems === 0) return 0;
-    return (validCurrentPage - 1) * itemsPerPage + 1;
-  };
+  const paginatedData = filteredData.slice(
+    (validCurrentPage - 1) * itemsPerPage,
+    validCurrentPage * itemsPerPage
+  );
 
-  const getEndIndex = () => {
-    if (totalFilteredItems === 0) return 0;
-    return Math.min(validCurrentPage * itemsPerPage, totalFilteredItems);
-  };
-
+  // ===== PAGINATION HELPERS =====
   const goToPage = (page: number) => {
     if (page >= 1 && page <= totalPages) {
       setCurrentPage(page);
@@ -690,6 +367,14 @@ const SalesInvoice: React.FC = () => {
     return pages;
   };
 
+  const getStartIndex = () => {
+    return (validCurrentPage - 1) * itemsPerPage + 1;
+  };
+
+  const getEndIndex = () => {
+    return Math.min(validCurrentPage * itemsPerPage, totalFilteredItems);
+  };
+
   // ===== BUILD PRINT HTML =====
   const buildSalesInvoicePrintHtml = (invoice: SalesInvoice): string => {
     const items = invoice.items || [];
@@ -698,19 +383,17 @@ const SalesInvoice: React.FC = () => {
     const totalTax = invoice.total_taxes_and_charges || 0;
     const netTotal = invoice.net_total || invoice.total || 0;
 
+    // Calculate tax per item (simplified)
     const taxRate = totalTax > 0 && netTotal > 0 ? (totalTax / netTotal) * 100 : 0;
     const cgstRate = taxRate / 2;
     const sgstRate = taxRate / 2;
-
-    const formatPrintDateLocal = (dateStr: string) => {
-      if (!dateStr) return '';
-      return formatDisplayDate(dateStr);
-    };
 
     const itemRows = items.map((item, idx) => `
       <tr>
         <td class="pq-col-sl">${idx + 1}</td>
         <td class="pq-col-desc">
+          ${escapeHtml(item.item_name || item.item_code || '')}
+          ${item.item_code ? `<div class="pq-item-sub">${escapeHtml(item.item_code)}</div>` : ''}
           ${item.description ? `<div class="pq-item-desc">${escapeHtml(item.description)}</div>` : ''}
         </td>
         <td class="pq-col-hsn">${escapeHtml(item.item_group || '')}</td>
@@ -722,11 +405,12 @@ const SalesInvoice: React.FC = () => {
       </tr>
     `).join('');
 
+    // Payment schedule rows
     const paymentRows = (invoice.payment_schedule || []).map((ps, idx) => `
       <tr>
         <td>${idx + 1}</td>
         <td>${escapeHtml(ps.payment_term)}</td>
-        <td>${escapeHtml(formatPrintDateLocal(ps.due_date))}</td>
+        <td>${escapeHtml(formatPrintDate(ps.due_date))}</td>
         <td>${ps.due_days}</td>
         <td>${ps.invoice_portion}%</td>
         <td>₹${(ps.payment_amount || 0).toFixed(2)}</td>
@@ -832,13 +516,13 @@ const SalesInvoice: React.FC = () => {
           </div>
           <div class="pq-meta-cell" style="border-right:none;">
             <div class="pq-meta-label">Date</div>
-            <div class="pq-meta-value">${escapeHtml(formatPrintDateLocal(invoice.posting_date))}</div>
+            <div class="pq-meta-value">${escapeHtml(formatPrintDate(invoice.posting_date))}</div>
           </div>
         </div>
         <div class="pq-meta-row">
           <div class="pq-meta-cell">
             <div class="pq-meta-label">Due Date</div>
-            <div class="pq-meta-value">${escapeHtml(formatPrintDateLocal(invoice.due_date))}</div>
+            <div class="pq-meta-value">${escapeHtml(formatPrintDate(invoice.due_date))}</div>
           </div>
           <div class="pq-meta-cell" style="border-right:none;">
             <div class="pq-meta-label">Currency</div>
@@ -963,296 +647,17 @@ const SalesInvoice: React.FC = () => {
       <div>This is a computer generated sales invoice.</div>
     </div>
   </div>
+
+  <script>
+    window.onload = function () { window.print(); };
+  </script>
 </body>
 </html>`;
-  };
-
-  // ===== GENERATE EXCEL DATA =====
-  const generateExcelData = (invoices: SalesInvoice[]) => {
-    const rows: any[] = [];
-    
-    invoices.forEach((invoice, index) => {
-      rows.push(['TAX INVOICE']);
-      rows.push([`Status: ${invoice.status || 'Draft'}`]);
-      rows.push([]);
-      
-      rows.push([companyDetails.name]);
-      rows.push([companyDetails.address]);
-      rows.push([`Phone: ${companyDetails.contact}`]);
-      rows.push([`Email: ${companyDetails.email}`]);
-      rows.push([`GSTIN: ${companyDetails.gstin || ''}`]);
-      rows.push([`State Name: ${companyDetails.stateName}, Code: ${companyDetails.stateCode}`]);
-      rows.push([]);
-      
-      rows.push(['Invoice No.', invoice.displayInvoiceNumber || invoice.id || '']);
-      rows.push(['Date', formatDisplayDate(invoice.posting_date)]);
-      rows.push(['Due Date', formatDisplayDate(invoice.due_date)]);
-      rows.push(['Currency', invoice.currency || 'INR']);
-      rows.push(['Total Qty', invoice.total_qty || 0]);
-      rows.push(['Payment Status', invoice.status || 'Draft']);
-      rows.push([]);
-      
-      rows.push(['Bill To', invoice.customer_name || '']);
-      rows.push(['Customer Code', invoice.customer || '']);
-      rows.push(['Company', invoice.company || '']);
-      rows.push([]);
-      
-      rows.push(['#', 'Description', 'Group', 'Qty', 'Rate', 'CGST', 'SGST', 'Amount']);
-      
-      const items = invoice.items || [];
-      items.forEach((item, idx) => {
-        rows.push([
-          idx + 1,
-          item.item_name || item.item_code || '',
-          item.item_group || '',
-          `${item.qty || 0} ${item.uom || item.stock_uom || 'Nos'}`,
-          (item.rate || 0).toFixed(2),
-          '',
-          '',
-          (item.amount || 0).toFixed(2)
-        ]);
-      });
-      
-      const grandTotal = invoice.grand_total || invoice.total || 0;
-      const totalQty = items.reduce((sum, item) => sum + (item.qty || 0), 0);
-      rows.push(['Total', '', '', totalQty, '', '', '', grandTotal.toFixed(2)]);
-      rows.push([]);
-      
-      rows.push(['Amount Chargeable (in words)']);
-      rows.push([`${invoice.currency || 'INR'} ${numberToIndianWords(grandTotal)} Only`]);
-      rows.push([]);
-      
-      rows.push(['Bank Details']);
-      if (companyDetails.bankName) rows.push([`Bank Name: ${companyDetails.bankName}`]);
-      if (companyDetails.bankAccountNo) rows.push([`Account No: ${companyDetails.bankAccountNo}`]);
-      if (companyDetails.bankBranchIfsc) rows.push([`IFSC Code: ${companyDetails.bankBranchIfsc}`]);
-      rows.push([]);
-      
-      if (invoice.payment_schedule && invoice.payment_schedule.length > 0) {
-        rows.push(['Payment Schedule']);
-        rows.push(['#', 'Payment Term', 'Due Date', 'Days', 'Portion', 'Amount', 'Status']);
-        invoice.payment_schedule.forEach((ps, idx) => {
-          rows.push([
-            idx + 1,
-            ps.payment_term,
-            formatDisplayDate(ps.due_date),
-            ps.due_days,
-            `${ps.invoice_portion}%`,
-            ps.payment_amount.toFixed(2),
-            ps.payment_status || 'Pending'
-          ]);
-        });
-        rows.push([]);
-      }
-      
-      rows.push(['Declaration']);
-      rows.push(['We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.']);
-      rows.push([]);
-      
-      rows.push([`SUBJECT TO ${companyDetails.jurisdiction} JURISDICTION`]);
-      rows.push(['This is a computer generated sales invoice.']);
-      rows.push([]);
-      rows.push([]);
-      rows.push([]);
-      
-      if (index < invoices.length - 1) {
-        rows.push(['========================================']);
-        rows.push([]);
-      }
-    });
-    
-    return rows;
-  };
-
-  // ===== FIXED HANDLE PRINT =====
-  const handlePrint = (invoice: SalesInvoice) => {
-    // ✅ Close any existing print window first
-    if (printWindowRef.current && !printWindowRef.current.closed) {
-      printWindowRef.current.close();
-      printWindowRef.current = null;
-    }
-
-    const printWindow = window.open('', '_blank', 'width=900,height=1000');
-    printWindowRef.current = printWindow;
-    
-    if (!printWindow) {
-      toast.error('Please allow pop-ups to print this invoice');
-      return;
-    }
-    
-    printWindow.document.write('<p style="font-family:sans-serif;padding:24px;color:#374151;">Loading invoice…</p>');
-    setPrintLoadingId(String(invoice.id));
-
-    const loadAndPrint = async () => {
-      try {
-        let printData = invoice;
-        if (!invoice.items || invoice.items.length === 0) {
-          const fullData = await fetchFullSalesInvoice(invoice.id);
-          if (fullData) {
-            printData = fullData;
-          }
-        }
-        
-        printWindow.document.open();
-        printWindow.document.write(buildSalesInvoicePrintHtml(printData));
-        printWindow.document.close();
-        printWindow.focus();
-        
-        // ✅ Use afterprint event to clean up
-        printWindow.onafterprint = () => {
-          setTimeout(() => {
-            if (printWindowRef.current && !printWindowRef.current.closed) {
-              printWindowRef.current.close();
-              printWindowRef.current = null;
-            }
-          }, 500);
-        };
-        
-        // ✅ Print after a short delay
-        setTimeout(() => {
-          printWindow.print();
-        }, 800);
-        
-      } catch (err) {
-        console.error('Error printing invoice:', err);
-        toast.error('Print failed. Please try again.');
-        if (printWindowRef.current && !printWindowRef.current.closed) {
-          printWindowRef.current.close();
-          printWindowRef.current = null;
-        }
-      } finally {
-        setPrintLoadingId(null);
-      }
-    };
-    
-    loadAndPrint();
-  };
-
-  // ===== FIXED EXCEL DOWNLOAD =====
-  const handleExcelDownload = async () => {
-    setDownloadLoading(true);
-    try {
-      const invoicesToDownload = invoices.length > 0 ? invoices : [];
-      
-      if (invoicesToDownload.length === 0) {
-        toast.error('No invoices to download');
-        setDownloadLoading(false);
-        return;
-      }
-
-      const fullInvoices = await Promise.all(
-        invoicesToDownload.map(async (inv) => {
-          if (inv.items && inv.items.length > 0) return inv;
-          const fullData = await fetchFullSalesInvoice(inv.id);
-          return fullData || inv;
-        })
-      );
-
-      const excelData = generateExcelData(fullInvoices);
-      
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.aoa_to_sheet(excelData);
-      
-      ws['!cols'] = [
-        { wch: 20 },
-        { wch: 30 },
-        { wch: 15 },
-        { wch: 15 },
-        { wch: 15 },
-        { wch: 15 },
-        { wch: 15 },
-        { wch: 20 },
-      ];
-      
-      XLSX.utils.book_append_sheet(wb, ws, 'Invoices');
-      
-      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-      const blob = new Blob([wbout], { type: 'application/octet-stream' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `Sales_Invoices_${new Date().toISOString().split('T')[0]}.xlsx`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      toast.success('Excel file downloaded successfully');
-      
-    } catch (err) {
-      console.error('Download error:', err);
-      toast.error('Failed to download');
-    } finally {
-      setDownloadLoading(false);
-    }
-  };
-
-  // ===== FIXED PDF DOWNLOAD =====
-  const handleDirectPDFDownload = async () => {
-    setDownloadLoading(true);
-    try {
-      const invoicesToDownload = invoices.length > 0 ? invoices : [];
-      
-      if (invoicesToDownload.length === 0) {
-        toast.error('No invoices to download');
-        setDownloadLoading(false);
-        return;
-      }
-
-      const fullInvoices = await Promise.all(
-        invoicesToDownload.map(async (inv) => {
-          if (inv.items && inv.items.length > 0) return inv;
-          const fullData = await fetchFullSalesInvoice(inv.id);
-          return fullData || inv;
-        })
-      );
-
-      const allHtmlContent = fullInvoices.map(inv => buildSalesInvoicePrintHtml(inv)).join('<div style="page-break-after: always;"></div>');
-      
-      // ✅ Close any existing print window
-      if (printWindowRef.current && !printWindowRef.current.closed) {
-        printWindowRef.current.close();
-        printWindowRef.current = null;
-      }
-      
-      const printWindow = window.open('', '_blank', 'width=900,height=1000');
-      printWindowRef.current = printWindow;
-      
-      if (!printWindow) {
-        toast.error('Please allow pop-ups to download PDF');
-        setDownloadLoading(false);
-        return;
-      }
-      
-      printWindow.document.write(allHtmlContent);
-      printWindow.document.close();
-      printWindow.focus();
-      
-      // ✅ Use afterprint event to clean up
-      printWindow.onafterprint = () => {
-        setTimeout(() => {
-          if (printWindowRef.current && !printWindowRef.current.closed) {
-            printWindowRef.current.close();
-            printWindowRef.current = null;
-          }
-        }, 500);
-      };
-      
-      setTimeout(() => {
-        printWindow.print();
-      }, 500);
-      
-    } catch (err) {
-      console.error('PDF download error:', err);
-      toast.error('Failed to download PDF');
-    } finally {
-      setDownloadLoading(false);
-    }
   };
 
   // ===== ACTIONS =====
   const handleCreate = () => navigate('/sales-bill/new');
   const handleRefresh = () => fetchInvoices();
-  
   const handleView = (id: string | number) => {
     const invoiceId = String(id);
     setShowMoreMenu(null);
@@ -1268,10 +673,44 @@ const SalesInvoice: React.FC = () => {
       state: { invoiceId, mode: 'edit' }
     });
   };
-  
   const handleDuplicate = (id: string | number) => navigate(`/sales-bill/duplicate/${id}`);
 
-  const handleCancelInvoice = async (id: string | number) => {
+  const handlePrint = (invoice: SalesInvoice) => {
+    const printWindow = window.open('', '_blank', 'width=900,height=1000');
+    if (!printWindow) {
+      toast.error('Please allow pop-ups to print this invoice');
+      return;
+    }
+    printWindow.document.write('<p style="font-family:sans-serif;padding:24px;color:#374151;">Loading invoice…</p>');
+
+    setPrintLoadingId(String(invoice.id));
+    
+    const loadAndPrint = async () => {
+      try {
+        let printData = invoice;
+        if (!invoice.items || invoice.items.length === 0) {
+          const fullData = await fetchFullSalesInvoice(invoice.id);
+          if (fullData) {
+            printData = fullData;
+          }
+        }
+        printWindow.document.open();
+        printWindow.document.write(buildSalesInvoicePrintHtml(printData));
+        printWindow.document.close();
+      } catch (err) {
+        console.error('Error printing invoice:', err);
+        printWindow.document.open();
+        printWindow.document.write(buildSalesInvoicePrintHtml(invoice));
+        printWindow.document.close();
+      } finally {
+        setPrintLoadingId(null);
+      }
+    };
+    
+    loadAndPrint();
+  };
+
+  const handleCancel = async (id: string | number) => {
     if (!window.confirm('Are you sure you want to cancel this Sales Bill?')) return;
     try {
       await api.post(`/sales-invoice/${id}/cancel`, {});
@@ -1295,6 +734,11 @@ const SalesInvoice: React.FC = () => {
     setShowMoreMenu(null);
   };
 
+  const handleDownloadPDF = (_id: string | number) => {
+    toast.success('Downloading PDF...');
+    setShowMoreMenu(null);
+  };
+
   const toggleMenu = (id: string | number) => {
     setShowMoreMenu(showMoreMenu === String(id) ? null : String(id));
   };
@@ -1302,31 +746,12 @@ const SalesInvoice: React.FC = () => {
   const clearFilters = () => {
     setSearchTerm('');
     setSelectedStatus('All');
-    setFromDate('');
-    setToDate('');
-    setTempFromDate('');
-    setTempToDate('');
-    setSelectedQuickFilter('');
     setCurrentPage(1);
-    setShowDatePicker(false);
   };
-
-      // ─── Loading Screen ─────────────────────────────────────────────────────
-    if (loading) {
-      return (
-        <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
-          <PageLoader 
-            message="Loading Sales & Sales Bill List..." 
-            //subtitle="Calculating bill of materials, operations rates, and component structures"
-          />
-        </div>
-      );
-    }
-
 
   // ===== RENDER =====
   return (
-    <div className={`quotation-page ${theme}`}>
+    <div className="quotation-page">
       <style>{`
         .quotation-page {
           display: flex;
@@ -1336,8 +761,7 @@ const SalesInvoice: React.FC = () => {
           border-radius: 8px;
           padding: 20px;
           gap: 16px;
-          overflow-y: auto;
-          overflow-x: hidden;
+          overflow: hidden;
         }
 
         .quotation-page::-webkit-scrollbar {
@@ -1353,266 +777,6 @@ const SalesInvoice: React.FC = () => {
         }
         .quotation-page::-webkit-scrollbar-thumb:hover {
           background: var(--primary-color, #6366f1);
-        }
-
-        /* ── Date Range Picker Styles ── */
-        .qt-date-picker-container {
-          position: relative;
-          display: inline-block;
-        }
-
-        .qt-date-picker-trigger {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          background: var(--card-bg, #fff);
-          border: 1px solid var(--border-color, #e5e7eb);
-          border-radius: 8px;
-          padding: 7px 14px;
-          cursor: pointer;
-          transition: all 0.2s;
-          color: var(--text-primary, #1e293b);
-          font-size: 13px;
-          min-height: 38px;
-        }
-
-        .qt-date-picker-trigger:hover {
-          border-color: var(--primary-color, #2563eb);
-          background: var(--hover-bg, #f8fafc);
-        }
-
-        .qt-date-picker-trigger.active {
-          border-color: var(--primary-color, #2563eb);
-          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-        }
-
-        .qt-date-picker-trigger .qt-calendar-icon {
-          color: var(--primary-color, #2563eb);
-          font-size: 16px;
-        }
-
-        .qt-date-picker-trigger .qt-date-label {
-          font-weight: 500;
-        }
-
-        .qt-date-picker-trigger .qt-date-label.placeholder {
-          color: var(--text-secondary, #6b7280);
-          font-weight: 400;
-        }
-
-        .qt-date-picker-trigger .qt-date-range-display {
-          color: var(--primary-color, #2563eb);
-          font-weight: 500;
-        }
-
-        .qt-date-picker-popup {
-          position: absolute;
-          top: calc(100% + 8px);
-          right: 0;
-          background: var(--card-bg, #fff);
-          border: 1px solid var(--border-color, #e5e7eb);
-          border-radius: 12px;
-          box-shadow: 0 10px 40px var(--shadow-color, rgba(0,0,0,0.15));
-          padding: 20px;
-          z-index: 1000;
-          min-width: 340px;
-          width: 340px;
-        }
-
-        .qt-date-picker-popup .qt-popup-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 12px;
-        }
-
-        .qt-date-picker-popup .qt-popup-header .qt-popup-title {
-          font-size: 14px;
-          font-weight: 600;
-          color: var(--text-primary, #1e293b);
-        }
-
-        .qt-date-picker-popup .qt-popup-header .qt-popup-close {
-          background: none;
-          border: none;
-          color: var(--text-secondary, #6b7280);
-          cursor: pointer;
-          font-size: 16px;
-          padding: 4px;
-        }
-
-        .qt-date-picker-popup .qt-popup-header .qt-popup-close:hover {
-          color: var(--text-primary, #1e293b);
-        }
-
-        .qt-date-picker-popup .qt-quick-filters {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 6px;
-          margin-bottom: 16px;
-          padding-bottom: 12px;
-          border-bottom: 1px solid var(--border-color, #e5e7eb);
-        }
-
-        .qt-date-picker-popup .qt-quick-filter-btn {
-          padding: 4px 14px;
-          border: 1px solid var(--border-color, #e5e7eb);
-          border-radius: 16px;
-          background: var(--card-bg, #fff);
-          color: var(--text-secondary, #6b7280);
-          font-size: 12px;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .qt-date-picker-popup .qt-quick-filter-btn:hover {
-          border-color: var(--primary-color, #2563eb);
-          color: var(--primary-color, #2563eb);
-        }
-
-        .qt-date-picker-popup .qt-quick-filter-btn.active {
-          background: var(--primary-color, #2563eb);
-          border-color: var(--primary-color, #2563eb);
-          color: #fff;
-        }
-
-        .qt-date-picker-popup .qt-calendar-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 12px;
-        }
-
-        .qt-date-picker-popup .qt-calendar-header .qt-month-year {
-          font-size: 14px;
-          font-weight: 600;
-          color: var(--text-primary, #1e293b);
-        }
-
-        .qt-date-picker-popup .qt-calendar-header .qt-nav-btn {
-          background: none;
-          border: none;
-          color: var(--text-secondary, #6b7280);
-          cursor: pointer;
-          padding: 4px 8px;
-          font-size: 14px;
-          border-radius: 4px;
-          transition: all 0.2s;
-        }
-
-        .qt-date-picker-popup .qt-calendar-header .qt-nav-btn:hover {
-          background: var(--hover-bg, #f3f4f6);
-        }
-
-        .qt-date-picker-popup .qt-calendar-grid {
-          display: grid;
-          grid-template-columns: repeat(7, 1fr);
-          gap: 2px;
-          margin-bottom: 12px;
-        }
-
-        .qt-date-picker-popup .qt-calendar-grid .qt-day-header {
-          text-align: center;
-          font-size: 11px;
-          font-weight: 600;
-          color: var(--text-secondary, #6b7280);
-          padding: 4px 0;
-        }
-
-        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell {
-          text-align: center;
-          padding: 6px 4px;
-          font-size: 13px;
-          border-radius: 6px;
-          cursor: pointer;
-          transition: all 0.2s;
-          color: var(--text-primary, #1e293b);
-          position: relative;
-        }
-
-        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell.empty {
-          cursor: default;
-        }
-
-        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell:hover:not(.empty):not(.in-range) {
-          background: var(--hover-bg, #f3f4f6);
-        }
-
-        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell.in-range {
-          background: rgba(37, 99, 235, 0.1);
-        }
-
-        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell.selected {
-          background: var(--primary-color, #2563eb);
-          color: #fff;
-          font-weight: 600;
-        }
-
-        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell.selected-start {
-          background: var(--primary-color, #2563eb);
-          color: #fff;
-          font-weight: 600;
-          border-radius: 6px 0 0 6px;
-        }
-
-        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell.selected-end {
-          background: var(--primary-color, #2563eb);
-          color: #fff;
-          font-weight: 600;
-          border-radius: 0 6px 6px 0;
-        }
-
-        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell.range-middle {
-          background: rgba(37, 99, 235, 0.15);
-        }
-
-        .qt-date-picker-popup .qt-calendar-grid .qt-day-cell.today {
-          border: 1px solid var(--primary-color, #2563eb);
-        }
-
-        .qt-date-picker-popup .qt-popup-actions {
-          display: flex;
-          gap: 8px;
-          justify-content: flex-end;
-          padding-top: 12px;
-          border-top: 1px solid var(--border-color, #e5e7eb);
-        }
-
-        .qt-date-picker-popup .qt-popup-actions button {
-          padding: 6px 16px;
-          border: none;
-          border-radius: 6px;
-          font-size: 13px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .qt-date-picker-popup .qt-popup-actions .qt-btn-apply {
-          background: var(--primary-color, #2563eb);
-          color: #fff;
-        }
-
-        .qt-date-picker-popup .qt-popup-actions .qt-btn-apply:hover {
-          background: var(--primary-hover, #1d4ed8);
-        }
-
-        .qt-date-picker-popup .qt-popup-actions .qt-btn-clear {
-          background: transparent;
-          color: var(--text-secondary, #6b7280);
-        }
-
-        .qt-date-picker-popup .qt-popup-actions .qt-btn-clear:hover {
-          background: var(--hover-bg, #f3f4f6);
-        }
-
-        .qt-date-picker-popup .qt-popup-actions .qt-btn-cancel {
-          background: transparent;
-          color: var(--text-secondary, #6b7280);
-        }
-
-        .qt-date-picker-popup .qt-popup-actions .qt-btn-cancel:hover {
-          background: var(--hover-bg, #f3f4f6);
         }
 
         /* ── Filter Bar ── */
@@ -1750,64 +914,6 @@ const SalesInvoice: React.FC = () => {
           background: var(--nav-hover, #f9fafb);
         }
 
-        .qt-btn-download {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          height: 38px;
-          padding: 0 16px;
-          border: none;
-          border-radius: 8px;
-          background: #10b981;
-          color: white;
-          font-size: 13px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.15s;
-          white-space: nowrap;
-        }
-
-        .qt-btn-download:hover {
-          background: #059669;
-          transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
-        }
-
-        .qt-btn-download:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-          transform: none;
-        }
-
-        .qt-btn-download-pdf {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          height: 38px;
-          padding: 0 16px;
-          border: none;
-          border-radius: 8px;
-          background: #dc2626;
-          color: white;
-          font-size: 13px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.15s;
-          white-space: nowrap;
-        }
-
-        .qt-btn-download-pdf:hover {
-          background: #b91c1c;
-          transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
-        }
-
-        .qt-btn-download-pdf:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-          transform: none;
-        }
-
         /* ── Active Filters ── */
         .qt-active-filters {
           display: flex;
@@ -1852,8 +958,9 @@ const SalesInvoice: React.FC = () => {
           box-shadow: 0 1px 3px var(--shadow-color, rgba(0,0,0,0.05));
           border: 1px solid var(--border-color, #e5e7eb);
           overflow-x: auto;
-          overflow-y: visible;
+          overflow-y: auto;
           flex: 0 0 auto;
+          max-height: calc(100vh - 310px);
         }
 
         .qt-table-wrap::-webkit-scrollbar {
@@ -1890,6 +997,9 @@ const SalesInvoice: React.FC = () => {
           white-space: nowrap;
           text-transform: uppercase;
           letter-spacing: 0.3px;
+          position: sticky;
+          top: 0;
+          z-index: 10;
         }
 
         .qt-tr {
@@ -1993,11 +1103,11 @@ const SalesInvoice: React.FC = () => {
           background: var(--nav-hover, #f3f4f6);
         }
 
-        .qt-action-print {
+        .pq-action-print {
   color: #0d9488;
 }
 
-.qt-action-print:hover {
+.pq-action-print:hover {
   background: rgba(13, 148, 136, 0.1);
 }
 
@@ -2266,22 +1376,6 @@ const SalesInvoice: React.FC = () => {
           background: var(--primary-hover, #2563eb);
         }
 
-        .dark-theme .qt-btn-download {
-          background: #10b981;
-        }
-
-        .dark-theme .qt-btn-download:hover {
-          background: #059669;
-        }
-
-        .dark-theme .qt-btn-download-pdf {
-          background: #dc2626;
-        }
-
-        .dark-theme .qt-btn-download-pdf:hover {
-          background: #b91c1c;
-        }
-
         .dark-theme .qt-table-wrap {
           background: var(--card-bg, #1e293b);
           border-color: var(--border-color, #334155);
@@ -2358,44 +1452,6 @@ const SalesInvoice: React.FC = () => {
           background: var(--nav-hover, rgba(255,255,255,0.05));
         }
 
-        .dark-theme .qt-date-picker-trigger {
-          background: var(--card-bg, #1e293b);
-          border-color: var(--border-color, #334155);
-          color: var(--text-primary, #f8fafc);
-        }
-
-        .dark-theme .qt-date-picker-trigger:hover {
-          background: var(--nav-hover, rgba(255,255,255,0.05));
-        }
-
-        .dark-theme .qt-date-picker-popup {
-          background: var(--card-bg, #1e293b);
-          border-color: var(--border-color, #334155);
-        }
-
-        .dark-theme .qt-date-picker-popup .qt-popup-title {
-          color: var(--text-primary, #f8fafc);
-        }
-
-        .dark-theme .qt-date-picker-popup .qt-quick-filter-btn {
-          background: var(--card-bg, #1e293b);
-          border-color: var(--border-color, #334155);
-          color: var(--text-secondary, #94a3b8);
-        }
-
-        .dark-theme .qt-date-picker-popup .qt-quick-filter-btn.active {
-          background: var(--primary-color, #3b82f6);
-          color: #fff;
-        }
-
-        .dark-theme .qt-date-picker-popup .qt-calendar-grid .qt-day-cell {
-          color: var(--text-primary, #f8fafc);
-        }
-
-        .dark-theme .qt-date-picker-popup .qt-day-header {
-          color: var(--text-secondary, #94a3b8);
-        }
-
         /* ── Responsive ── */
         @media (max-width: 768px) {
           .quotation-page {
@@ -2448,12 +1504,6 @@ const SalesInvoice: React.FC = () => {
             padding: 10px 12px;
             font-size: 11px;
           }
-
-          .qt-date-picker-popup {
-            left: 0;
-            min-width: 100%;
-            width: 100%;
-          }
         }
 
         @media (max-width: 480px) {
@@ -2467,14 +1517,6 @@ const SalesInvoice: React.FC = () => {
           }
 
           .qt-btn-new {
-            justify-content: center;
-          }
-
-          .qt-btn-download {
-            justify-content: center;
-          }
-
-          .qt-btn-download-pdf {
             justify-content: center;
           }
 
@@ -2522,129 +1564,12 @@ const SalesInvoice: React.FC = () => {
             <option value="Cancelled">Cancelled</option>
             <option value="Overdue">Overdue</option>
           </select>
-
-          {/* ===== DATE RANGE PICKER ===== */}
-          <div className="qt-date-picker-container">
-            <div 
-              className={`qt-date-picker-trigger ${showDatePicker ? 'active' : ''}`}
-              onClick={openDatePicker}
-            >
-              <FaCalendarAlt className="qt-calendar-icon" />
-              <span className={`qt-date-label ${!fromDate && !toDate ? 'placeholder' : ''}`}>
-                {fromDate || toDate ? (
-                  <span className="qt-date-range-display">
-                    {fromDate ? formatDateForDisplay(fromDate) : 'Start'} – {toDate ? formatDateForDisplay(toDate) : 'End'}
-                  </span>
-                ) : (
-                  'Filter by Date'
-                )}
-              </span>
-            </div>
-            
-            {showDatePicker && (
-              <div className="qt-date-picker-popup">
-                <div className="qt-popup-header">
-                  <span className="qt-popup-title">Filter by Date</span>
-                  <button className="qt-popup-close" onClick={() => setShowDatePicker(false)}>
-                    <FaTimes size={14} />
-                  </button>
-                </div>
-                
-                <div className="qt-quick-filters">
-                  <button 
-                    className={`qt-quick-filter-btn ${selectedQuickFilter === 'today' ? 'active' : ''}`}
-                    onClick={() => applyQuickFilter('today')}
-                  >
-                    Today
-                  </button>
-                  <button 
-                    className={`qt-quick-filter-btn ${selectedQuickFilter === 'last7' ? 'active' : ''}`}
-                    onClick={() => applyQuickFilter('last7')}
-                  >
-                    Last 7 Days
-                  </button>
-                  <button 
-                    className={`qt-quick-filter-btn ${selectedQuickFilter === 'last30' ? 'active' : ''}`}
-                    onClick={() => applyQuickFilter('last30')}
-                  >
-                    Last 30 Days
-                  </button>
-                  <button 
-                    className={`qt-quick-filter-btn ${selectedQuickFilter === 'thisMonth' ? 'active' : ''}`}
-                    onClick={() => applyQuickFilter('thisMonth')}
-                  >
-                    This Month
-                  </button>
-                </div>
-                
-                <div className="qt-calendar-header">
-                  <button className="qt-nav-btn" onClick={() => changeMonth(-1)}>
-                    <FaChevronLeft size={12} />
-                  </button>
-                  <span className="qt-month-year">
-                    {getMonthName(currentMonth)} {currentYear}
-                  </span>
-                  <button className="qt-nav-btn" onClick={() => changeMonth(1)}>
-                    <FaChevronRight size={12} />
-                  </button>
-                </div>
-                
-                <div className="qt-calendar-grid">
-                  {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
-                    <div key={day} className="qt-day-header">{day}</div>
-                  ))}
-                  {generateCalendarDays().map((day, index) => {
-                    if (day === null) {
-                      return <div key={`empty-${index}`} className="qt-day-cell empty"></div>;
-                    }
-                    
-                    const dateObj = new Date(currentYear, currentMonth, day);
-                    const dateStr = dateObj.toISOString().split('T')[0];
-                    const isToday = dateStr === getTodayDate();
-                    const isInRange = isDateInRange(day);
-                    const isSelected = isDateSelected(day);
-                    const isStart = dateStr === tempFromDate;
-                    const isEnd = dateStr === tempToDate;
-                    
-                    let className = 'qt-day-cell';
-                    if (isToday) className += ' today';
-                    if (isInRange && !isSelected) className += ' in-range';
-                    if (isSelected) className += ' selected';
-                    if (isStart && tempToDate) className += ' selected-start';
-                    if (isEnd && tempFromDate) className += ' selected-end';
-                    if (isInRange && !isSelected && !isStart && !isEnd) className += ' range-middle';
-                    
-                    return (
-                      <div 
-                        key={day} 
-                        className={className}
-                        onClick={() => handleDateClick(day)}
-                      >
-                        {day}
-                      </div>
-                    );
-                  })}
-                </div>
-                
-                <div className="qt-popup-actions">
-                  <button className="qt-btn-clear" onClick={clearDateFilters}>
-                    Clear
-                  </button>
-                  <button className="qt-btn-cancel" onClick={() => setShowDatePicker(false)}>
-                    Cancel
-                  </button>
-                  <button className="qt-btn-apply" onClick={applyDateFilter}>
-                    Apply Filters
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-
           <button className="qt-btn-secondary" onClick={handleRefresh}>
             <FaSync size={12} /> Refresh
           </button>
-
+          <button className="qt-btn-secondary" onClick={() => window.print()}>
+            <FaPrint size={12} /> Print
+          </button>
           <button className="qt-btn-new" onClick={handleCreate}>
             <FaPlus size={12} /> New Sales Bill
           </button>
@@ -2652,7 +1577,7 @@ const SalesInvoice: React.FC = () => {
       </div>
 
       {/* ===== ACTIVE FILTERS ===== */}
-      {(searchTerm || selectedStatus !== "All" || fromDate || toDate) && (
+      {(searchTerm || selectedStatus !== "All") && (
         <div className="qt-active-filters">
           <FaFilter size={12} style={{ color: "var(--primary-color)" }} />
           <span>Active filters:</span>
@@ -2666,11 +1591,6 @@ const SalesInvoice: React.FC = () => {
               <strong>Status:</strong> {selectedStatus}
             </span>
           )}
-          {(fromDate || toDate) && (
-            <span>
-              <strong>Date:</strong> {fromDate ? formatDateForDisplay(fromDate) : 'Any'} – {toDate ? formatDateForDisplay(toDate) : 'Any'}
-            </span>
-          )}
           <button onClick={clearFilters} className="qt-clear-filters">
             <FaTimes size={10} /> Clear All
           </button>
@@ -2678,9 +1598,7 @@ const SalesInvoice: React.FC = () => {
       )}
 
       {/* ===== TABLE ===== */}
-      {!loading && !error && (
-        <>
-          <div className="qt-table-wrap sales-desktop-table-wrap">
+      <div className="qt-table-wrap">
         {loading && invoices.length === 0 ? (
           <div className="qt-loading">
             <FaSpinner className="spinning" size={30} style={{ display: 'block', margin: '0 auto 12px' }} />
@@ -2694,7 +1612,7 @@ const SalesInvoice: React.FC = () => {
               <FaSync size={12} style={{ marginRight: '6px' }} /> Retry
             </button>
           </div>
-        ) : invoices.length === 0 ? (
+        ) : paginatedData.length === 0 ? (
           <div className="qt-empty-state">
             <div className="qt-empty-content">
               <FaFileInvoice size={48} />
@@ -2719,7 +1637,7 @@ const SalesInvoice: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {invoices.map((item) => {
+              {paginatedData.map((item) => {
                 const isPaid = item.status === 'Paid';
                 const isPartial = item.status === 'Partially Paid';
                 const outstanding = item.outstanding_amount || item.grand_total || 0;
@@ -2739,7 +1657,7 @@ const SalesInvoice: React.FC = () => {
                         {item.customer_name || '-'}
                       </span>
                     </td>
-                    <td className="qt-td">{formatDateDisplay(item.posting_date)}</td>
+                    <td className="qt-td">{formatDate(item.posting_date)}</td>
                     <td className="qt-td qt-td-amount">
                       ₹{item.grand_total?.toLocaleString() || '0'}
                     </td>
@@ -2754,7 +1672,7 @@ const SalesInvoice: React.FC = () => {
                     <td className="qt-td">
                       <div className="qt-action-buttons">
                         <button 
-                          className="qt-action-btn qt-action-print" 
+                          className="qt-action-btn pq-action-print" 
                           onClick={() => handlePrint(item)} 
                           title="Print"
                           disabled={printLoadingId === String(item.id)}
@@ -2793,14 +1711,14 @@ const SalesInvoice: React.FC = () => {
                               <button onClick={() => handlePrint(item)} disabled={printLoadingId === String(item.id)}>
                                 <FaPrintIcon size={12} /> Print
                               </button>
-                              <button onClick={handleDirectPDFDownload}>
+                              <button onClick={() => handleDownloadPDF(item.id)}>
                                 <FaFilePdf size={12} /> Download PDF
                               </button>
-                              <button onClick={handleExcelDownload}>
+                              <button onClick={() => handleDownloadPDF(item.id)}>
                                 <FaFileExcel size={12} /> Download Excel
                               </button>
                               {item.status !== 'Cancelled' && item.status !== 'Paid' && (
-                                <button className="danger" onClick={() => handleCancelInvoice(item.id)}>
+                                <button className="danger" onClick={() => handleCancel(item.id)}>
                                   <FaBan size={12} /> Cancel
                                 </button>
                               )}
@@ -2816,466 +1734,6 @@ const SalesInvoice: React.FC = () => {
           </table>
         )}
       </div>
-{/* Mobile Table Section (Customer, Status + Dropdown Button -> Date, Amount, Actions) */}
-          <div className="sales-mobile-list-wrap">
-            <div className="sales-mobile-list-header">
-              <div className="sales-mobile-th-primary">
-                <span className="sales-mobile-th-cell">Invoice No</span>
-                <span className="sales-mobile-th-sep">•</span>
-                <span className="sales-mobile-th-cell">Customer</span>
-              </div>
-              <div className="sales-mobile-th-right">
-                <span className="sales-count-label">
-                  {totalRecords}
-                </span>
-              </div>
-            </div>
-
-            {loading && invoices.length === 0 ? (
-              <div className="qt-empty-state">
-                <div className="qt-empty-content">
-                  <p>No Sales Invoices found</p>
-                  <span>Try adjusting your search criteria</span>
-                </div>
-              </div>
-            ) : (
-              <div className="sales-mobile-cards">
-                {invoices.map((invoice) => {
-                  const isExpanded = expandedRows.has(invoice.id);
-                  function handlePrintQuotation(invoice: SalesInvoice) {
-                    handlePrint(invoice);
-                  }
-
-                  function getStatusColor(status: string) {
-                    switch (status.trim().toLowerCase()) {
-                      case 'paid':
-                        return 'qt-status-paid';
-                      case 'partially paid':
-                        return 'qt-status-partial';
-                      case 'submitted':
-                        return 'qt-status-submitted';
-                      case 'cancelled':
-                        return 'qt-status-cancelled';
-                      case 'overdue':
-                        return 'qt-status-overdue';
-                      case 'draft':
-                      default:
-                        return 'qt-status-draft';
-                    }
-                  }
-
-                    function getStatusIcon(status: string) {
-                      switch (status.trim().toLowerCase()) {
-                        case 'paid':
-                          return <FaCheckCircle size={10} />;
-                        case 'submitted':
-                          return <FaPaperPlane size={10} />;
-                        case 'cancelled':
-                          return <FaTimesCircle size={10} />;
-                        case 'overdue':
-                          return <FaExclamationTriangle size={10} />;
-                        case 'partially paid':
-                        case 'draft':
-                        default:
-                          return <FaClock size={10} />;
-                      }
-                    }
-
-                  function formatDisplayDateWithContext(date: any): React.ReactNode {
-                    if (date === null || date === undefined || date === '') {
-                      return '—';
-                    }
-
-                    const value = date instanceof Date
-                      ? date
-                      : typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)
-                        ? new Date(`${date}T00:00:00`)
-                        : new Date(date);
-
-                    if (Number.isNaN(value.getTime())) {
-                      return String(date);
-                    }
-
-                    return new Intl.DateTimeFormat(undefined, {
-                      day: '2-digit',
-                      month: 'short',
-                      year: 'numeric',
-                    }).format(value);
-                  }
-
-                  return (
-                    <div
-                      key={invoice.id}
-                      className={`sales-mobile-card ${isExpanded ? "sales-mobile-card-expanded" : ""}`}
-                    >
-                      {/* Card Header: Date	Amount	Paid	Status	Actions and Dropdown Button */}
-                      <div
-                        className="sales-mobile-card-header"
-                        onClick={() => toggleRowExpand(invoice.id)}
-                      >
-                        <div className="sales-mobile-card-primary">
-                          <div className="sales-mobile-card-primary-row">
-                            <span className="sales-mobile-header-badge">
-                              <span className="qt-td qt-td-id">
-                      {invoice.displayInvoiceNumber || invoice.id || '-'}
-                              </span>
-                              <span
-                              className="sales-mobile-item-name"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleView(invoice.id);
-                              }}
-                              title={invoice.customer_name}
-                            >
-                              {invoice.customer_name || "—"}
-                            </span>
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Dropdown Button */}
-                        <button
-                          type="button"
-                          className={`sales-mobile-dropdown-btn ${isExpanded ? "expanded" : ""}`}
-                          onClick={(e) => toggleRowExpand(invoice.id, e)}
-                          aria-label={isExpanded ? "Collapse quotation details" : "Expand quotation details"}
-                          title={isExpanded ? "Collapse" : "Expand"}
-                        >
-                          <FaChevronDown size={13} className="sales-mobile-chevron" />
-                        </button>
-                      </div>
-
-                      {/* Dropdown Section: Date, Amount, Actions */}
-                      {isExpanded && (
-                        <div className="sales-mobile-card-details">
-                          <div className="sales-mobile-detail-row">
-                            <span className="sales-mobile-detail-label">Date</span>
-                            <span className="sales-mobile-detail-value">
-                              {invoice.posting_date ? formatDisplayDateWithContext(invoice.posting_date) : "—"}
-                              {invoice.validTill && (
-                                <span style={{ fontSize: "11px", color: "var(--text-secondary)", marginLeft: 6 }}>
-                                  (Valid: {formatDisplayDateWithContext(invoice.validTill)})
-                                </span>
-                              )}
-                            </span>
-                          </div>
-
-                          <div className="sales-mobile-detail-row">
-                            <span className="sales-mobile-detail-label">Status</span>
-                            <span className="sales-mobile-detail-value">
-                              <span className={`qt-status-badge ${getStatusColor(invoice.status)}`}>
-                                {getStatusIcon(invoice.status)}
-                                {invoice.status}
-                              </span>
-                            </span>
-                          </div>
-
-                          <div className="sales-mobile-detail-row">
-                            <span className="sales-mobile-detail-label">Amount</span>
-                            <span className="sales-mobile-detail-value sales-amount-highlight">
-                              {invoice.currency} {invoice.grand_total.toLocaleString()}
-                            </span>
-                          </div>
-
-                          <div className="sales-mobile-detail-footer">
-                            <span className="sales-mobile-card-meta-text">
-                              {/*rowNumber} of {totalRecords*/}
-                            </span>
-                            <div className="sales-mobile-action-buttons">
-                              <button
-                                className="qt-action-btn qt-action-view"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleView(invoice.id);
-                                }}
-                                title="View / Edit"
-                              >
-                                <FaEye size={12} />
-                              </button>
-                              <button
-                                className="qt-action-btn qt-action-print"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handlePrintQuotation(invoice);
-                                }}
-                                title="Print"
-                                disabled={printLoadingId === invoice.id}
-                              >
-                                {printLoadingId === invoice.id ? (
-                                  <FaSpinner className="spinning" size={12} />
-                                ) : (
-                                  <FaPrint size={12} />
-                                )}
-                              </button>
-                              <button
-                                className="qt-action-btn qt-action-edit"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleEdit(invoice.id);
-                                }}
-                                title="Edit"
-                              >
-                                <FaEdit size={12} />
-                              </button>
-                              <button
-                                className="qt-action-btn qt-action-delete"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleCancelInvoice(invoice.id);
-                                }}
-                                title="Delete"
-                              >
-                                <FaTrash size={12} />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </>
-      )}
-      
-
-
-      {/* ===== MOBILE CARDS ===== */}
-      <div className="qt-mobile-cards-wrap">
-        {loading && invoices.length === 0 ? (
-          <div className="qt-loading">
-            <FaSpinner className="spinning" size={30} style={{ display: 'block', margin: '0 auto 12px' }} />
-            <p>Loading sales invoices...</p>
-          </div>
-        ) : error ? (
-          <div className="qt-error">
-            <FaExclamationTriangle size={30} style={{ display: 'block', margin: '0 auto 12px' }} />
-            <p>{error}</p>
-            <button onClick={handleRefresh} className="qt-retry-btn">
-              <FaSync size={12} style={{ marginRight: '6px' }} /> Retry
-            </button>
-          </div>
-        ) : invoices.length === 0 ? (
-          <div className="qt-empty-state">
-            <div className="qt-empty-content">
-              <FaFileInvoice size={48} />
-              <p>No sales invoices found</p>
-              <span>Try adjusting your search criteria</span>
-            </div>
-
-            {loading && invoices.length === 0 ? (
-              <div className="qt-empty-state">
-                <div className="qt-empty-content">
-                  <p>No Sales Invoices found</p>
-                  <span>Try adjusting your search criteria</span>
-                </div>
-              </div>
-            ) : (
-              <div className="sales-mobile-cards">
-                {invoices.map((invoice, idx) => {
-                  const isExpanded = expandedRows.has(invoice.id);
-                  const rowNumber = getStartIndex() + idx;
-                  function handlePrintQuotation(invoice: SalesInvoice) {
-                    handlePrint(invoice);
-                  }
-
-                  function getStatusColor(status: string) {
-                    switch (status.trim().toLowerCase()) {
-                      case 'paid':
-                        return 'qt-status-paid';
-                      case 'partially paid':
-                        return 'qt-status-partial';
-                      case 'submitted':
-                        return 'qt-status-submitted';
-                      case 'cancelled':
-                        return 'qt-status-cancelled';
-                      case 'overdue':
-                        return 'qt-status-overdue';
-                      case 'draft':
-                      default:
-                        return 'qt-status-draft';
-                    }
-                  }
-
-                    function getStatusIcon(status: string) {
-                      switch (status.trim().toLowerCase()) {
-                        case 'paid':
-                          return <FaCheckCircle size={10} />;
-                        case 'submitted':
-                          return <FaPaperPlane size={10} />;
-                        case 'cancelled':
-                          return <FaTimesCircle size={10} />;
-                        case 'overdue':
-                          return <FaExclamationTriangle size={10} />;
-                        case 'partially paid':
-                        case 'draft':
-                        default:
-                          return <FaClock size={10} />;
-                      }
-                    }
-
-                  function formatDisplayDateWithContext(date: any): React.ReactNode {
-                    if (date === null || date === undefined || date === '') {
-                      return '—';
-                    }
-
-                    const value = date instanceof Date
-                      ? date
-                      : typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)
-                        ? new Date(`${date}T00:00:00`)
-                        : new Date(date);
-
-                    if (Number.isNaN(value.getTime())) {
-                      return String(date);
-                    }
-
-                    return new Intl.DateTimeFormat(undefined, {
-                      day: '2-digit',
-                      month: 'short',
-                      year: 'numeric',
-                    }).format(value);
-                  }
-
-                  return (
-                    <div
-                      key={invoice.id}
-                      className={`sales-mobile-card ${isExpanded ? "sales-mobile-card-expanded" : ""}`}
-                    >
-                      {/* Card Header: Date	Amount	Paid	Status	Actions and Dropdown Button */}
-                      <div
-                        className="sales-mobile-card-header"
-                        onClick={() => toggleRowExpand(invoice.id)}
-                      >
-                        <div className="sales-mobile-card-primary">
-                          <div className="sales-mobile-card-primary-row">
-                            <span className="sales-mobile-header-badge">
-                              <span className="qt-td qt-td-id">
-                      {invoice.displayInvoiceNumber || invoice.id || '-'}
-                              </span>
-                              <span
-                              className="sales-mobile-item-name"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleView(invoice.id);
-                              }}
-                              title={invoice.customer_name}
-                            >
-                              {invoice.customer_name || "—"}
-                            </span>
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Dropdown Button */}
-                        <button
-                          type="button"
-                          className={`sales-mobile-dropdown-btn ${isExpanded ? "expanded" : ""}`}
-                          onClick={(e) => toggleRowExpand(invoice.id, e)}
-                          aria-label={isExpanded ? "Collapse quotation details" : "Expand quotation details"}
-                          title={isExpanded ? "Collapse" : "Expand"}
-                        >
-                          <FaChevronDown size={13} className="sales-mobile-chevron" />
-                        </button>
-                      </div>
-
-                      {/* Dropdown Section: Date, Amount, Actions */}
-                      {isExpanded && (
-                        <div className="sales-mobile-card-details">
-                          <div className="sales-mobile-detail-row">
-                            <span className="sales-mobile-detail-label">Date</span>
-                            <span className="sales-mobile-detail-value">
-                              {invoice.posting_date ? formatDisplayDateWithContext(invoice.posting_date) : "—"}
-                              {invoice.validTill && (
-                                <span style={{ fontSize: "11px", color: "var(--text-secondary)", marginLeft: 6 }}>
-                                  (Valid: {formatDisplayDateWithContext(invoice.validTill)})
-                                </span>
-                              )}
-                            </span>
-                          </div>
-
-                          <div className="sales-mobile-detail-row">
-                            <span className="sales-mobile-detail-label">Status</span>
-                            <span className="sales-mobile-detail-value">
-                              <span className={`qt-status-badge ${getStatusColor(invoice.status)}`}>
-                                {getStatusIcon(invoice.status)}
-                                {invoice.status}
-                              </span>
-                            </span>
-                          </div>
-
-                          <div className="sales-mobile-detail-row">
-                            <span className="sales-mobile-detail-label">Amount</span>
-                            <span className="sales-mobile-detail-value sales-amount-highlight">
-                              {invoice.currency} {invoice.grand_total.toLocaleString()}
-                            </span>
-                          </div>
-
-                          <div className="sales-mobile-detail-footer">
-                            <span className="sales-mobile-card-meta-text">
-                              {/*rowNumber} of {totalRecords*/}
-                            </span>
-                            <div className="sales-mobile-action-buttons">
-                              <button
-                                className="qt-action-btn qt-action-view"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleView(invoice.id);
-                                }}
-                                title="View / Edit"
-                              >
-                                <FaEye size={12} />
-                              </button>
-                              <button
-                                className="qt-action-btn qt-action-print"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handlePrintQuotation(invoice);
-                                }}
-                                title="Print"
-                                disabled={printLoadingId === invoice.id}
-                              >
-                                {printLoadingId === invoice.id ? (
-                                  <FaSpinner className="spinning" size={12} />
-                                ) : (
-                                  <FaPrint size={12} />
-                                )}
-                              </button>
-                              <button
-                                className="qt-action-btn qt-action-edit"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleEdit(invoice.id);
-                                }}
-                                title="Edit"
-                              >
-                                <FaEdit size={12} />
-                              </button>
-                              <button
-                                className="qt-action-btn qt-action-delete"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleCancelInvoice(invoice.id);
-                                }}
-                                title="Delete"
-                              >
-                                <FaTrash size={12} />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </>
-      )}
-      
-
 
       {/* ===== PAGINATION ===== */}
       {!loading && !error && (
@@ -3292,30 +1750,24 @@ const SalesInvoice: React.FC = () => {
               <option value={50}>50</option>
               <option value={100}>100</option>
             </select>
-            <span className="qt-pagination-info">
-              {totalRecords > 0 ? (
-                `Showing ${getStartIndex()} to ${getEndIndex()} of ${totalRecords} entries`
-              ) : (
-                'No entries to show'
-              )}
-            </span>
+            <span className="qt-pagination-label">entries</span>
           </div>
           <div className="qt-pagination-center">
             <button
               onClick={goToFirstPage}
-              disabled={currentPage === 1 || totalRecords === 0}
+              disabled={currentPage === 1 || totalFilteredItems === 0}
               className="qt-page-btn"
             >
               <FaAngleDoubleLeft size={12} />
             </button>
             <button
               onClick={goToPrevPage}
-              disabled={currentPage === 1 || totalRecords === 0}
+              disabled={currentPage === 1 || totalFilteredItems === 0}
               className="qt-page-btn"
             >
               <FaChevronLeft size={12} />
             </button>
-            {totalRecords > 0 && getPageNumbers().map(page => (
+            {totalFilteredItems > 0 && getPageNumbers().map(page => (
               <button
                 key={page}
                 onClick={() => goToPage(page)}
@@ -3326,14 +1778,14 @@ const SalesInvoice: React.FC = () => {
             ))}
             <button
               onClick={goToNextPage}
-              disabled={currentPage === totalPages || totalRecords === 0}
+              disabled={currentPage === totalPages || totalFilteredItems === 0}
               className="qt-page-btn"
             >
               <FaChevronRight size={12} />
             </button>
             <button
               onClick={goToLastPage}
-              disabled={currentPage === totalPages || totalRecords === 0}
+              disabled={currentPage === totalPages || totalFilteredItems === 0}
               className="qt-page-btn"
             >
               <FaAngleDoubleRight size={12} />
@@ -3341,7 +1793,11 @@ const SalesInvoice: React.FC = () => {
           </div>
           <div className="qt-pagination-right">
             <span className="qt-pagination-info">
-              Page {currentPage} of {totalPages}
+              {totalFilteredItems > 0 ? (
+                `Showing ${getStartIndex()} to ${getEndIndex()} of ${totalFilteredItems} entries`
+              ) : (
+                'No entries to show'
+              )}
             </span>
           </div>
         </div>
