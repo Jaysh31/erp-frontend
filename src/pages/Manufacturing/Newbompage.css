@@ -128,7 +128,7 @@
 
 /* Fix for table overflow */
 .nbom-table-wrap {
-  overflow: visible !important;
+  overflow: hidden !important;
 }
 
 /* Alternative: If you need horizontal scroll, use this instead */
@@ -2323,6 +2323,773 @@ select.nbom-input {
   text-align: center;
 }
 
+/* =========================================================
+   NBOM TABLE - MOBILE UI
+   2 COLUMNS / 5 ROW STRUCTURE
+   ========================================================= */
+
+@media (max-width: 768px) {
+
+  /* =========================================================
+     TABLE WRAPPER
+     ========================================================= */
+
+  .nbom-table-wrap {
+    width: 100% !important;
+    max-width: 100% !important;
+
+    overflow-x: hidden !important;
+    overflow-y: visible !important;
+
+    border: 1px solid var(--c-border) !important;
+    border-radius: 8px !important;
+
+    -webkit-overflow-scrolling: touch !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  /* =========================================================
+     TABLE
+     ========================================================= */
+
+  .nbom-table {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+
+    table-layout: fixed !important;
+    border-collapse: collapse !important;
+
+    font-size: 12px !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  /* =========================================================
+     HIDE DESKTOP HEADER
+     ========================================================= */
+
+  .nbom-table thead {
+    display: none !important;
+  }
+
+
+  /* =========================================================
+     TABLE BODY
+     ========================================================= */
+
+  .nbom-table tbody {
+    display: block !important;
+
+    width: 100% !important;
+    max-width: 100% !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  /* =========================================================
+     EACH COMPONENT = CARD
+     ========================================================= */
+
+  .nbom-table tbody tr {
+    display: grid !important;
+
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+
+    /*
+      Two equal columns
+    */
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+
+    border-bottom: 1px solid var(--c-border) !important;
+
+    background: var(--c-bg-card, #ffffff) !important;
+
+    box-sizing: border-box !important;
+
+    overflow: visible !important;
+  }
+
+
+  .nbom-table tbody tr:last-child {
+    border-bottom: none !important;
+  }
+
+
+  .nbom-table tbody tr:hover {
+    background: var(--c-bg-card, #ffffff) !important;
+  }
+
+
+  /* =========================================================
+     ALL TABLE CELLS
+     ========================================================= */
+
+  .nbom-table tbody td {
+    display: flex !important;
+
+    flex-direction: column !important;
+
+    align-items: stretch !important;
+    justify-content: center !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+
+    min-height: 62px !important;
+
+    padding: 8px 10px !important;
+
+    border: none !important;
+
+    box-sizing: border-box !important;
+
+    overflow: visible !important;
+  }
+
+
+  /* =========================================================
+     TITLE / LABEL
+     ========================================================= */
+
+  .nbom-table tbody td::before {
+    display: block !important;
+
+    margin-bottom: 5px !important;
+
+    color: var(--c-text-muted) !important;
+
+    font-size: 10px !important;
+
+    font-weight: 700 !important;
+
+    line-height: 1.2 !important;
+
+    text-transform: uppercase !important;
+
+    letter-spacing: 0.3px !important;
+  }
+
+
+  /* =========================================================
+     ROW 1
+     No. | Item Code
+     ========================================================= */
+
+  .nbom-table tbody td:nth-child(1) {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+
+    border-right: 1px solid var(--c-border) !important;
+    border-bottom: 1px solid var(--c-border) !important;
+  }
+
+  .nbom-table tbody td:nth-child(1)::before {
+    content: "No." !important;
+  }
+
+
+  .nbom-table tbody td:nth-child(2) {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+
+    border-bottom: 1px solid var(--c-border) !important;
+  }
+
+  .nbom-table tbody td:nth-child(2)::before {
+    content: "Item Code" !important;
+  }
+
+
+  /* =========================================================
+     ROW 2
+     Item Name | Item Group
+     ========================================================= */
+
+  .nbom-table tbody td:nth-child(3) {
+    grid-column: 1 !important;
+    grid-row: 2 !important;
+
+    border-right: 1px solid var(--c-border) !important;
+    border-bottom: 1px solid var(--c-border) !important;
+  }
+
+  .nbom-table tbody td:nth-child(3)::before {
+    content: "Item Name" !important;
+  }
+
+
+  .nbom-table tbody td:nth-child(4) {
+    grid-column: 2 !important;
+    grid-row: 2 !important;
+
+    border-bottom: 1px solid var(--c-border) !important;
+  }
+
+  .nbom-table tbody td:nth-child(4)::before {
+    content: "Item Group" !important;
+  }
+
+
+  /* =========================================================
+     ROW 3
+     Qty * | UOM *
+     ========================================================= */
+
+  .nbom-table tbody td:nth-child(5) {
+    grid-column: 1 !important;
+    grid-row: 3 !important;
+
+    border-right: 1px solid var(--c-border) !important;
+    border-bottom: 1px solid var(--c-border) !important;
+  }
+
+  .nbom-table tbody td:nth-child(5)::before {
+    content: "Qty *" !important;
+  }
+
+
+  .nbom-table tbody td:nth-child(6) {
+    grid-column: 2 !important;
+    grid-row: 3 !important;
+
+    border-bottom: 1px solid var(--c-border) !important;
+  }
+
+  .nbom-table tbody td:nth-child(6)::before {
+    content: "UOM *" !important;
+  }
+
+
+  /* =========================================================
+     ROW 4
+     Rate | Amount
+     ========================================================= */
+
+  .nbom-table tbody td:nth-child(7) {
+    grid-column: 1 !important;
+    grid-row: 4 !important;
+
+    border-right: 1px solid var(--c-border) !important;
+    border-bottom: 1px solid var(--c-border) !important;
+  }
+
+  .nbom-table tbody td:nth-child(7)::before {
+    content: "Rate" !important;
+  }
+
+
+  .nbom-table tbody td:nth-child(8) {
+    grid-column: 2 !important;
+    grid-row: 4 !important;
+
+    border-bottom: 1px solid var(--c-border) !important;
+  }
+
+  .nbom-table tbody td:nth-child(8)::before {
+    content: "Amount" !important;
+  }
+
+
+  /* =========================================================
+     ROW 5
+     DELETE BUTTON - FULL WIDTH
+     ========================================================= */
+
+  .nbom-table tbody td:nth-child(9) {
+    grid-column: 1 / -1 !important;
+    grid-row: 5 !important;
+
+    width: 100% !important;
+
+    min-height: auto !important;
+
+    padding: 10px !important;
+
+    border-bottom: none !important;
+
+    display: flex !important;
+
+    flex-direction: row !important;
+
+    align-items: center !important;
+
+    justify-content: center !important;
+  }
+
+
+  .nbom-table tbody td:nth-child(9)::before {
+    content: "Action" !important;
+
+    display: none !important;
+  }
+
+
+  /* =========================================================
+     DELETE BUTTON
+     ========================================================= */
+
+  .nbom-table tbody td:nth-child(9) button {
+    width: 100% !important;
+    max-width: 100% !important;
+
+    min-height: 38px !important;
+
+    padding: 8px 12px !important;
+
+    border: 1px solid #fecaca !important;
+
+    border-radius: 6px !important;
+
+    background: #fff1f2 !important;
+
+    color: #dc2626 !important;
+
+    font-size: 12px !important;
+
+    font-weight: 600 !important;
+
+    display: flex !important;
+
+    align-items: center !important;
+
+    justify-content: center !important;
+
+    gap: 6px !important;
+
+    box-sizing: border-box !important;
+
+    cursor: pointer !important;
+  }
+
+
+  .nbom-table tbody td:nth-child(9) button:hover {
+    background: #fee2e2 !important;
+
+    border-color: #fca5a5 !important;
+
+    color: #b91c1c !important;
+  }
+
+
+  /* =========================================================
+     TABLE VALUES
+     ========================================================= */
+
+  .nbom-table-val {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+
+    color: var(--c-text) !important;
+
+    font-size: 12px !important;
+
+    font-weight: 600 !important;
+
+    text-align: left !important;
+
+    white-space: normal !important;
+
+    word-break: break-word !important;
+
+    overflow-wrap: anywhere !important;
+  }
+
+
+  /* =========================================================
+     TABLE INPUTS
+     ========================================================= */
+
+  .nbom-table-input {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+
+    height: 36px !important;
+
+    padding: 7px 9px !important;
+
+    border: 1px solid var(--c-border) !important;
+
+    border-radius: 6px !important;
+
+    background: var(--c-bg, #ffffff) !important;
+
+    color: var(--c-text) !important;
+
+    font-size: 12px !important;
+
+    font-family: inherit !important;
+
+    outline: none !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  .nbom-table-input:hover {
+    border-color: var(--c-border) !important;
+
+    background: var(--c-bg, #ffffff) !important;
+  }
+
+
+  .nbom-table-input:focus {
+    border-color: var(--c-primary) !important;
+
+    background: var(--c-bg, #ffffff) !important;
+
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.08) !important;
+
+    outline: none !important;
+  }
+
+
+  /* =========================================================
+     SEARCHABLE DROPDOWN
+     Same functionality as desktop
+     Mobile-friendly dimensions
+     ========================================================= */
+
+  .nbom-searchable-dropdown {
+    position: absolute !important;
+
+    top: calc(100% + 4px) !important;
+
+    left: 0 !important;
+    right: auto !important;
+
+    width: 100% !important;
+
+    min-width: 160px !important;
+    max-width: 100% !important;
+
+    max-height: 180px !important;
+
+    padding: 2px 0 !important;
+
+    margin: 0 !important;
+
+    background: var(--c-bg-card, #ffffff) !important;
+
+    border: 1px solid var(--c-border, #e2e8f0) !important;
+
+    border-radius: 6px !important;
+
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+
+    z-index: 9999 !important;
+
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12) !important;
+
+    box-sizing: border-box !important;
+
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+
+  /* =========================================================
+     SEARCHABLE DROPDOWN ITEM
+     ========================================================= */
+
+  .nbom-searchable-item {
+    width: 100% !important;
+    max-width: 100% !important;
+
+    min-height: 36px !important;
+
+    padding: 8px 10px !important;
+
+    cursor: pointer !important;
+
+    font-size: 12px !important;
+
+    line-height: 1.35 !important;
+
+    font-weight: 400 !important;
+
+    color: var(--c-text) !important;
+
+    box-sizing: border-box !important;
+
+    white-space: normal !important;
+
+    word-break: break-word !important;
+
+    overflow-wrap: anywhere !important;
+
+    transition: background 0.15s ease !important;
+  }
+
+
+  .nbom-searchable-item:hover,
+  .nbom-searchable-item.highlighted {
+    background: var(--c-primary-light, #eff6ff) !important;
+  }
+
+
+  .nbom-searchable-item.selected {
+    background: var(--c-primary, #2563eb) !important;
+
+    color: #ffffff !important;
+  }
+
+
+  /* =========================================================
+     SEARCHABLE ITEM WRAPPER
+     ========================================================= */
+
+  .nbom-searchable-item-wrap,
+  .nbom-search-wrapper {
+    position: relative !important;
+
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  /* =========================================================
+     SEARCH INPUT
+     ========================================================= */
+
+  .nbom-table td .nbom-searchable-input,
+  .nbom-table td .nbom-search-input {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+
+    height: 36px !important;
+
+    padding: 7px 9px !important;
+
+    border: 1px solid var(--c-border) !important;
+
+    border-radius: 6px !important;
+
+    background: var(--c-bg, #ffffff) !important;
+
+    color: var(--c-text) !important;
+
+    font-size: 12px !important;
+
+    box-sizing: border-box !important;
+
+    outline: none !important;
+  }
+
+
+  /* =========================================================
+     DARK THEME
+     ========================================================= */
+
+  .dark-theme .nbom-table tbody tr {
+    background: var(--c-bg-card, #1e293b) !important;
+
+    border-bottom-color: var(--c-border) !important;
+  }
+
+
+  .dark-theme .nbom-table tbody tr:hover {
+    background: var(--c-bg-card, #1e293b) !important;
+  }
+
+
+  .dark-theme .nbom-table tbody td {
+    color: var(--c-text) !important;
+  }
+
+
+  .dark-theme .nbom-table tbody td:nth-child(odd) {
+    border-right-color: var(--c-border) !important;
+  }
+
+
+  .dark-theme .nbom-table tbody td::before {
+    color: var(--c-text-muted) !important;
+  }
+
+
+  .dark-theme .nbom-table-input,
+  .dark-theme .nbom-table td .nbom-searchable-input,
+  .dark-theme .nbom-table td .nbom-search-input {
+    background: var(--c-bg, #1e293b) !important;
+
+    border-color: var(--c-border) !important;
+
+    color: var(--c-text) !important;
+  }
+
+
+  .dark-theme .nbom-searchable-dropdown {
+    background: var(--c-bg-card, #1e293b) !important;
+
+    border-color: var(--c-border) !important;
+  }
+
+
+  .dark-theme .nbom-searchable-item {
+    color: var(--c-text) !important;
+  }
+
+
+  .dark-theme .nbom-searchable-item:hover,
+  .dark-theme .nbom-searchable-item.highlighted {
+    background: var(--c-primary-light, #1e3a8a) !important;
+  }
+
+
+  .dark-theme .nbom-table tbody td:nth-child(9) button {
+    background: #3f1d24 !important;
+
+    border-color: #7f1d1d !important;
+
+    color: #f87171 !important;
+  }
+
+
+  /* =========================================================
+     SMALL MOBILE
+     ========================================================= */
+
+  @media (max-width: 400px) {
+
+    .nbom-table tbody tr {
+      grid-template-columns:
+        minmax(0, 1fr)
+        minmax(0, 1fr) !important;
+    }
+
+
+    .nbom-table tbody td {
+      min-height: 58px !important;
+
+      padding: 7px 8px !important;
+    }
+
+
+    .nbom-table tbody td::before {
+      font-size: 9px !important;
+
+      margin-bottom: 4px !important;
+    }
+
+
+    .nbom-table-val {
+      font-size: 11px !important;
+    }
+
+
+    .nbom-table-input {
+      height: 34px !important;
+
+      padding: 6px 8px !important;
+
+      font-size: 11px !important;
+    }
+
+
+    .nbom-searchable-item {
+      min-height: 34px !important;
+
+      padding: 7px 8px !important;
+
+      font-size: 11px !important;
+    }
+
+
+    .nbom-table tbody td:nth-child(9) button {
+      min-height: 36px !important;
+
+      font-size: 11px !important;
+    }
+  }
+}
+
+/* ─── Table ───────────────────────────────────────────────────────────────── */
+
+.nbom-tables-wrap {
+  overflow-x: auto; border: 1px solid var(--c-border);
+  border-radius: 8px; -webkit-overflow-scrolling: touch;
+}
+
+.nbom-tables { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 1000px; }
+
+.nbom-tables thead tr { background: var(--c-bg-muted); border-bottom: 1px solid var(--c-border); }
+.nbom-tables thead th {
+  padding: 10px 12px; text-align: left; font-size: 11px; font-weight: 700;
+  color: var(--c-text-muted); letter-spacing: 0.4px; text-transform: uppercase; white-space: nowrap;
+}
+
+.nbom-tables tbody tr { transition: background var(--c-transition); border-bottom: 1px solid #f3f4f6; }
+.nbom-tables tbody tr:hover { background: #f8fafc; }
+.nbom-tables tbody tr:last-child td { border-bottom: none; }
+.nbom-tables tbody td { padding: 8px 12px; vertical-align: middle; }
+/* No. */
+.nbom-tables-no {
+  width: 35px;
+  text-align: center;
+}.nbom-tables-val { text-align: right; color: var(--c-text); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.nbom-tables {
+  width: 100%;
+  table-layout: auto;
+  border-collapse: collapse;
+}
+.nbom-tables-input {
+  border: 1px solid transparent; border-radius: 4px; padding: 6px 10px;
+  font-size: 12px; color: var(--c-text); background: transparent;
+  outline: none; width: 100%; box-sizing: border-box; font-family: inherit;
+  min-width: 60px; transition: border-color var(--c-transition), background var(--c-transition);
+}
+.nbom-tables-input:hover { border-color: var(--c-border); background: var(--c-bg); }
+.nbom-tables-input:focus { border-color: var(--c-primary); background: var(--c-bg); box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.08); }
+
+.nbom-tables-wrap {
+  overflow-x: auto; border: 1px solid var(--c-border);
+  border-radius: 8px; -webkit-overflow-scrolling: touch;
+}
+
+.nbom-tables { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 1000px; }
+
+.nbom-tables thead tr { background: var(--c-bg-muted); border-bottom: 1px solid var(--c-border); }
+.nbom-tables thead th {
+  padding: 10px 12px; text-align: left; font-size: 11px; font-weight: 700;
+  color: var(--c-text-muted); letter-spacing: 0.4px; text-transform: uppercase; white-space: nowrap;
+}
+
+.nbom-tables tbody tr { transition: background var(--c-transition); border-bottom: 1px solid #f3f4f6; }
+.nbom-tables tbody tr:hover { background: #f8fafc; }
+.nbom-tables tbody tr:last-child td { border-bottom: none; }
+.nbom-tables tbody td { padding: 8px 12px; vertical-align: middle; }
+/* No. */
+.nbom-tables-no {
+  width: 35px;
+  text-align: center;
+}.nbom-tables-val { text-align: right; color: var(--c-text); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.nbom-tables {
+  width: 100%;
+  table-layout: auto;
+  border-collapse: collapse;
+}
+.nbom-tables-input {
+  border: 1px solid transparent; border-radius: 4px; padding: 6px 10px;
+  font-size: 12px; color: var(--c-text); background: transparent;
+  outline: none; width: 100%; box-sizing: border-box; font-family: inherit;
+  min-width: 60px; transition: border-color var(--c-transition), background var(--c-transition);
+}
+.nbom-tables-input:hover { border-color: var(--c-border); background: var(--c-bg); }
+.nbom-tables-input:focus { border-color: var(--c-primary); background: var(--c-bg); box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.08); }
 /* ================================================================
    ─── DigitInput Double Border Fix ─────────────────────────────
    The DigitInput component renders:

@@ -13,7 +13,7 @@ import {
   FaTrash,
   FaBoxes,
   FaWarehouse,
-  FaClipboardList,
+  
   FaDollarSign,
   FaArrowUp,
   FaExclamationTriangle,
@@ -27,8 +27,10 @@ import {
   FaMapMarkerAlt,
   FaLock,
   FaLockOpen,
+  FaChevronDown
 } from "react-icons/fa";
 import "./InventoryList.css";
+import '../Sales/SalesMobileTable.css';
 import { useAdminTheme } from "../../admin-theme/AdminThemeContext";
 import api from "../../services/api";
 import { PageLoader } from "../components/PageLoader";
@@ -190,6 +192,20 @@ export default function InventoryList() {
     lowStockItems: 0,
     outOfStockItems: 0,
   });
+
+  // ─── Mobile expanded rows state ──────────────────────────────────
+  const [expandedRows, setExpandedRows] = useState<Set<string | number>>(new Set());
+
+  const toggleRowExpand = (id: string | number, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
 
   // ─── Fetch Warehouses ──────────────────────────────────────────────
   const fetchWarehouses = async () => {
@@ -554,9 +570,9 @@ export default function InventoryList() {
                 )}
               </div>
               <div className="inv-wh-tile-name">{wh.warehouse_name}</div>
-              <div className="inv-wh-tile-tag">{wh.visual.tag}</div>
+              <div className="inv-wh-tile-tag inv-desktop-only">{wh.visual.tag}</div>
               {wh.city && (
-                <div className="inv-wh-tile-location">
+                <div className="inv-wh-tile-location inv-desktop-only">
                   <FaMapMarkerAlt size={10} /> {wh.city}{wh.state ? `, ${wh.state}` : ""}
                 </div>
               )}
@@ -578,13 +594,13 @@ export default function InventoryList() {
                 </div>
               </div>
 
-              <div className="inv-wh-tile-split">
+              <div className="inv-wh-tile-split inv-desktop-only">
                 <span><FaIndustry size={10} /> {wh.internalCount} Internal</span>
                 <span><FaTruck size={10} /> {wh.externalCount} External</span>
               </div>
 
               {wh.overReserved > 0 && (
-                <div className="inv-wh-tile-warning">
+                <div className="inv-wh-tile-warning inv-desktop-only">
                   <FaExclamationTriangle size={10} /> {wh.overReserved} item{wh.overReserved > 1 ? "s" : ""} over-reserved
                 </div>
               )}
@@ -599,6 +615,27 @@ export default function InventoryList() {
 
   const renderWarehouseDetail = () => {
     if (!activeWarehouse) return null;
+    function getStartIndex() {
+      return (currentPage - 1) * itemsPerPage + 1;
+    }
+
+    function getEndIndex() {
+      return Math.min(currentPage * itemsPerPage, detailItems.length);
+    }
+
+    
+      // ─── Loading Screen ─────────────────────────────────────────────────────
+        if (loading) {
+          return (
+            <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
+              <PageLoader
+                message="Loading Organization & Company List..." 
+                //subtitle="Calculating bill of materials, operations rates, and component structures"
+              />
+            </div>
+          );
+        }
+
     return (
       <>
         <div className="inv-detail-header">
@@ -693,83 +730,229 @@ export default function InventoryList() {
         )}
 
         {/* ─── Table ─── */}
-        <div className="inv-table-wrap">
-          <table className="inv-table">
-            <thead>
-              <tr>
-                <th className="inv-th">Item Code</th>
-                <th className="inv-th">Item Name</th>
-                {activeTab === "all" && <th className="inv-th">Type</th>}
-                <th className="inv-th">Actual Qty</th>
-                <th className="inv-th">Status</th>
-                <th className="inv-th">Valuation Rate</th>
-                <th className="inv-th">Stock Value</th>
-                <th className="inv-th inv-th-meta">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedItems.length === 0 ? (
-                <tr>
-                  <td colSpan={activeTab === "all" ? 8 : 7} className="inv-empty-state">
-                    <div className="inv-empty-content">
-                      <FaBoxes size={40} />
-                      <p>No items found in {activeWarehouse.warehouse_name}</p>
-                      <span>Try switching tabs or adjusting your search</span>
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                paginatedItems.map((item) => {
-                  return (
-                    <tr key={item.id} className={`inv-tr ${item.isGrouped ? 'inv-tr-grouped' : ''}`}>
-                      <td className="inv-td inv-td-code">
-                        {item.isGrouped && (
-                          <span className="inv-group-badge" title={`${item.itemCount} items grouped`}>
-                            <FaBoxes size={10} /> {item.itemCount}x
-                          </span>
-                        )}
-                        {item.itemCode}
-                      </td>
-                      <td className="inv-td">{item.itemName}</td>
-
-                      {activeTab === "all" && (
-                        <td className="inv-td">
-                          <span className={`inv-type-badge ${item.type.toLowerCase()}`}>
-                            {item.type === "Internal" ? <FaIndustry size={10} /> : <FaTruck size={10} />}
-                            {item.type}
-                          </span>
-                        </td>
-                      )}
-                      <td className="inv-td inv-td-number">
-                        <span className="inv-qty">{item.actualQty}</span>
-                        <span className="inv-uom">{item.uom}</span>
-                      </td>
-                      <td className="inv-td">
-                        <span className={`inv-status-badge ${item.status.toLowerCase().replace(" ", "-")}`}>
-                          {getStatusIcon(item.status)} {item.status}
-                        </span>
-                      </td>
-                      <td className="inv-td inv-td-number">₹{item.valuationRate.toLocaleString()}</td>
-                      <td className="inv-td inv-td-amount">₹{item.stockValue.toLocaleString()}</td>
-                      <td className="inv-td inv-td-meta">
-                        <div className="inv-action-buttons">
-                        <button 
-  className="wo-action-btn wo-action-view" 
-  onClick={() => navigate(`/inventory/detail/${item.itemCode}?type=${item.type}`)} 
-  title="View Details"
->
-  <FaEye size={12} />
-</button>           
-
+        {!loading && !error && (
+          <>
+            <div className="inv-table-wrap sales-desktop-table-wrap">
+              <table className="inv-table">
+                <thead>
+                  <tr>
+                    <th className="inv-th">Item Code</th>
+                    <th className="inv-th">Item Name</th>
+                    {activeTab === "all" && <th className="inv-th">Type</th>}
+                    <th className="inv-th">Actual Qty</th>
+                    <th className="inv-th">Status</th>
+                    <th className="inv-th">Valuation Rate</th>
+                    <th className="inv-th">Stock Value</th>
+                    <th className="inv-th inv-th-meta">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedItems.length === 0 ? (
+                    <tr>
+                      <td colSpan={activeTab === "all" ? 8 : 7} className="inv-empty-state">
+                        <div className="inv-empty-content">
+                          <FaBoxes size={40} />
+                          <p>No items found in {activeWarehouse.warehouse_name}</p>
+                          <span>Try switching tabs or adjusting your search</span>
                         </div>
                       </td>
                     </tr>
-                  );
-                })
+                  ) : (
+                    paginatedItems.map((item) => {
+                      return (
+                        <tr key={item.id} className={`inv-tr ${item.isGrouped ? 'inv-tr-grouped' : ''}`}>
+                          <td className="inv-td inv-td-code">
+                            {item.isGrouped && (
+                              <span className="inv-group-badge" title={`${item.itemCount} items grouped`}>
+                                <FaBoxes size={10} /> {item.itemCount}x
+                              </span>
+                            )}
+                            {item.itemCode}
+                          </td>
+                          <td className="inv-td">{item.itemName}</td>
+
+                          {activeTab === "all" && (
+                            <td className="inv-td">
+                              <span className={`inv-type-badge ${item.type.toLowerCase()}`}>
+                                {item.type === "Internal" ? <FaIndustry size={10} /> : <FaTruck size={10} />}
+                                {item.type}
+                              </span>
+                            </td>
+                          )}
+                          <td className="inv-td inv-td-number">
+                            <span className="inv-qty">{item.actualQty}</span>
+                            <span className="inv-uom">{item.uom}</span>
+                          </td>
+                          <td className="inv-td">
+                            <span className={`inv-status-badge ${item.status.toLowerCase().replace(" ", "-")}`}>
+                              {getStatusIcon(item.status)} {item.status}
+                            </span>
+                          </td>
+                          <td className="inv-td inv-td-number">₹{item.valuationRate.toLocaleString()}</td>
+                          <td className="inv-td inv-td-amount">₹{item.stockValue.toLocaleString()}</td>
+                          <td className="inv-td inv-td-meta">
+                            <div className="inv-action-buttons">
+                              <button
+                                className="wo-action-btn wo-action-view"
+                                onClick={() => navigate(`/inventory/detail/${item.itemCode}?type=${item.type}`)}
+                                title="View Details"
+                              >
+                                <FaEye size={12} />
+                              </button>
+
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Table Section (Customer, Status + Dropdown Button -> Date, Amount, Actions) */}
+            <div className="sales-mobile-list-wrap">
+              <div className="sales-mobile-list-header">
+                <div className="sales-mobile-th-primary">
+                  <span className="sales-mobile-th-cell">Item Code	</span>
+                  <span className="sales-mobile-th-sep">•</span>
+                  <span className="sales-mobile-th-cell">Item Name </span>
+                </div>
+                <div className="sales-mobile-th-right">
+                  <span className="sales-count-label">
+                    {detailItems.length > 0
+                      ? `${getStartIndex()}–${getEndIndex()}`
+                      : '0'} of {detailItems.length}
+                  </span>
+                </div>
+              </div>
+
+              {paginatedItems.length === 0 ? (
+                <div className="qt-empty-state">
+                  <div className="qt-empty-content">
+                    <p>No warehouses found</p>
+                    <span>Try adjusting your search criteria</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="sales-mobile-cards">
+                  {paginatedItems.map((item, idx) => {
+                    const isExpanded = expandedRows.has(item.id);
+                    const rowNumber = getStartIndex() + idx;
+                    return (
+                      <div
+                        key={item.id}
+                        className={`sales-mobile-card ${isExpanded ? "sales-mobile-card-expanded" : ""}`}
+                      >
+                        {/* Card Header: Customer, Status and Dropdown Button */}
+                        <div
+                          className="sales-mobile-card-header"
+                          onClick={() => toggleRowExpand(item.id)}
+                        >
+                          <div className="sales-mobile-card-primary">
+                            <div className="sales-mobile-card-primary-row">
+                              <span
+                                className="sales-mobile-item-name">
+                                {item.isGrouped && (
+                                  <span className="inv-group-badge" title={`${item.itemCount} items grouped`}>
+                                    <FaBoxes size={10} /> {item.itemCount}x
+                                  </span>
+                                )}
+                                {item.itemCode}
+                              </span>
+                              <span className="sales-mobile-header-badge">
+
+                                {item.itemName}
+
+                                {activeTab === "all" && (
+                                  <span className="inv-td">
+                                    <span className={`inv-type-badge ${item.type.toLowerCase()}`}>
+                                      {item.type === "Internal" ? <FaIndustry size={10} /> : <FaTruck size={10} />}
+                                      {item.type}
+                                    </span>
+                                  </span>
+                              )}
+                                </span>
+                            </div>
+                          </div>
+
+                          {/* Dropdown Button */}
+                          <button
+                            type="button"
+                            className={`sales-mobile-dropdown-btn ${isExpanded ? "expanded" : ""}`}
+                            onClick={(e) => toggleRowExpand(item.id, e)}
+                            aria-label={isExpanded ? "Collapse quotation details" : "Expand quotation details"}
+                            title={isExpanded ? "Collapse" : "Expand"}
+                          >
+                            <FaChevronDown size={13} className="sales-mobile-chevron" />
+                          </button>
+                        </div>
+
+                        {/* Dropdown Section: Date, Amount, Actions */}
+                        {isExpanded && (
+                          <div className="sales-mobile-card-details">
+                            <div className="sales-mobile-detail-row">
+                              <span className="sales-mobile-detail-label">Actual Qty</span>
+                              <span className="sales-mobile-detail-value">
+                                {item.actualQty}
+                              </span>
+                            </div>
+
+                            <div className="sales-mobile-detail-row">
+                              <span className="sales-mobile-detail-label">Status</span>
+                              <span className="sales-mobile-detail-value sales-amount-highlight">
+
+                                <span className={`inv-status-badge ${item.status.toLowerCase().replace(" ", "-")}`}>
+                                  {getStatusIcon(item.status)} {item.status}
+                                </span>
+                              </span>
+                            </div>
+
+                            <div className="sales-mobile-detail-row">
+                              <span className="sales-mobile-detail-label">Valuation Rate</span>
+                              <span className="sales-mobile-detail-value">
+                                ₹{item.valuationRate.toLocaleString()}
+                              </span>
+                            </div>
+
+                            <div className="sales-mobile-detail-row">
+                              <span className="sales-mobile-detail-label">Stock Value</span>
+                              <span className="sales-mobile-detail-value">
+                                ₹{item.stockValue.toLocaleString()}
+                              </span>
+                            </div>
+
+
+
+                            <div className="sales-mobile-detail-footer">
+                              <span className="sales-mobile-card-meta-text">
+                                {/*rowNumber} of {totalRecords*/}
+                              </span>
+                              <div className="sales-mobile-action-buttons">
+                                <button
+                                  className="wo-action-btn wo-action-view"
+                                  onClick={() => navigate(`/inventory/detail/${item.itemCode}?type=${item.type}`)}
+                                  title="View Details"
+                                >
+                                  <FaEye size={12} />
+                                </button>
+
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               )}
-            </tbody>
-          </table>
-        </div>
+            </div>
+          </>
+        )}
+
+
+
+
 
         {detailItems.length > 0 && (
           <div className="inv-pagination">
@@ -825,188 +1008,176 @@ export default function InventoryList() {
             </div>
           </div>
         )}
-      </>
-    );
+
+
+
+        </>
+      );
   };
 
+        // ─── Helper: Reservation State ────────────────────────────────────
 
- // ─── Loading Screen ─────────────────────────────────────────────────────
-  if (loading) {
-    return (
-      <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
-        <PageLoader 
-          message="Loading Manufacturing & Inventory..." 
-          //subtitle="Calculating bill of materials, operations rates, and component structures"
-        />
-      </div>
-    );
-  }
-
-  // ─── Helper: Reservation State ────────────────────────────────────
-
-  // ─── Main Render ──────────────────────────────────────────────────
-
-  return (
-    <div className={`inv-page ${theme}`}>
-      <div className="inv-container">
-        {/* ─── Header ─── */}
-        <div className="inv-header">
-          <div className="inv-header-left">
-            <h1><FaClipboardList className="inv-header-icon" /> Inventory Management</h1>
+        return (
+        <div className={`inv-page ${theme}`}>
+          <div className="inv-container">
+            {/* ─── Header ─── */}
+             {/*<div className="inv-header">
+              <div className="inv-header-left">
+                <h1><FaClipboardList className="inv-header-icon" /> Inventory Management</h1>
             <span className="inv-subtitle">Track raw materials, work in progress, finished goods & scrap</span>
-          </div>
-        </div>
-
-        {/* ─── Loading State ─── */}
-        {loading && (
-          <div className="inv-loading">
-            <p>Loading inventory data...</p>
-          </div>
-        )}
-
-        {/* ─── Error State ─── */}
-        {error && (
-          <div className="inv-error">
-            <p>{error}</p>
-            <button onClick={fetchInventory} className="inv-retry-btn">Retry</button>
-          </div>
-        )}
-
-        {/* ─── Content ─── */}
-        {!loading && !error && (
-          <div className="inv-content">
-            {viewMode === "warehouses" ? renderWarehousePicker() : renderWarehouseDetail()}
-          </div>
-        )}
-
-        {/* ─── Item Details Modal ─── */}
-        {showItemDetails && selectedItem && (
-          <div className="inv-modal-overlay" onClick={() => setShowItemDetails(false)}>
-            <div className="inv-modal inv-item-detail" onClick={(e) => e.stopPropagation()}>
-              <div className="inv-modal-header">
-                <h2>
-                  <span className={`inv-type-badge ${selectedItem.type.toLowerCase()}`}>
-                    {selectedItem.type === "Internal" ? <FaIndustry size={12} /> : <FaTruck size={12} />}
-                    {selectedItem.type}
-                  </span>
-                  {selectedItem.itemCode}
-                  {selectedItem.isGrouped && (
-                    <span className="inv-group-badge" style={{ marginLeft: '10px' }}>
-                      <FaBoxes size={12} /> {selectedItem.itemCount} items grouped
-                    </span>
-                  )}
-                </h2>
-                <button className="inv-modal-close" onClick={() => setShowItemDetails(false)}>
-                  <FaTimes size={16} />
-                </button>
               </div>
-              <div className="inv-modal-body">
-                {selectedItem.isGrouped && selectedItem.groupItems && (
-                  <div className="inv-grouped-items-list">
-                    <h4>Grouped Items:</h4>
-                    <ul>
-                      {selectedItem.groupItems.map((subItem) => (
-                        <li key={subItem.id}>
-                          {subItem.itemCode} - {subItem.itemName} - Qty: {subItem.actualQty} {subItem.uom}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                <div className="inv-detail-grid">
-                  <div className="inv-detail-item">
-                    <label>Item Code</label>
-                    <span>{selectedItem.itemCode}</span>
-                  </div>
-                  <div className="inv-detail-item">
-                    <label>Item Name</label>
-                    <span>{selectedItem.itemName}</span>
-                  </div>
-                  <div className="inv-detail-item">
-                    <label>Type</label>
-                    <span className={`inv-type-badge ${selectedItem.type.toLowerCase()}`}>
-                      {selectedItem.type}
-                    </span>
-                  </div>
-                  <div className="inv-detail-item">
-                    <label>Warehouse</label>
-                    <span>{selectedItem.warehouse}</span>
-                  </div>
-                  <div className="inv-detail-item">
-                    <label>Status</label>
-                    <span className={`inv-status-badge ${selectedItem.status.toLowerCase().replace(" ", "-")}`}>
-                      {selectedItem.status}
-                    </span>
-                  </div>
-                  <div className="inv-detail-item">
-                    <label>Actual Quantity</label>
-                    <span>
-                      {selectedItem.actualQty} {selectedItem.uom}
-                      {selectedItem.isGrouped && selectedItem.groupItems && (
-                        <span className="inv-group-hint"> (total of {selectedItem.groupItems.length} items)</span>
+            </div>*/}
+
+            {/* ─── Loading State ─── */}
+            {loading && (
+              <div className="inv-loading">
+                <p>Loading inventory data...</p>
+              </div>
+            )}
+
+            {/* ─── Error State ─── */}
+            {error && (
+              <div className="inv-error">
+                <p>{error}</p>
+                <button onClick={fetchInventory} className="inv-retry-btn">Retry</button>
+              </div>
+            )}
+
+            {/* ─── Content ─── */}
+            {!loading && !error && (
+              <div className="inv-content">
+                {viewMode === "warehouses" ? renderWarehousePicker() : renderWarehouseDetail()}
+              </div>
+            )}
+
+            {/* ─── Item Details Modal ─── */}
+            {showItemDetails && selectedItem && (
+              <div className="inv-modal-overlay" onClick={() => setShowItemDetails(false)}>
+                <div className="inv-modal inv-item-detail" onClick={(e) => e.stopPropagation()}>
+                  <div className="inv-modal-header">
+                    <h2>
+                      <span className={`inv-type-badge ${selectedItem.type.toLowerCase()}`}>
+                        {selectedItem.type === "Internal" ? <FaIndustry size={12} /> : <FaTruck size={12} />}
+                        {selectedItem.type}
+                      </span>
+                      {selectedItem.itemCode}
+                      {selectedItem.isGrouped && (
+                        <span className="inv-group-badge" style={{ marginLeft: '10px' }}>
+                          <FaBoxes size={12} /> {selectedItem.itemCount} items grouped
+                        </span>
                       )}
-                    </span>
+                    </h2>
+                    <button className="inv-modal-close" onClick={() => setShowItemDetails(false)}>
+                      <FaTimes size={16} />
+                    </button>
                   </div>
-                  <div className="inv-detail-item">
-                    <label>Projected Quantity</label>
-                    <span>{selectedItem.projectedQty} {selectedItem.uom}</span>
+                  <div className="inv-modal-body">
+                    {selectedItem.isGrouped && selectedItem.groupItems && (
+                      <div className="inv-grouped-items-list">
+                        <h4>Grouped Items:</h4>
+                        <ul>
+                          {selectedItem.groupItems.map((subItem) => (
+                            <li key={subItem.id}>
+                              {subItem.itemCode} - {subItem.itemName} - Qty: {subItem.actualQty} {subItem.uom}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    <div className="inv-detail-grid">
+                      <div className="inv-detail-item">
+                        <label>Item Code</label>
+                        <span>{selectedItem.itemCode}</span>
+                      </div>
+                      <div className="inv-detail-item">
+                        <label>Item Name</label>
+                        <span>{selectedItem.itemName}</span>
+                      </div>
+                      <div className="inv-detail-item">
+                        <label>Type</label>
+                        <span className={`inv-type-badge ${selectedItem.type.toLowerCase()}`}>
+                          {selectedItem.type}
+                        </span>
+                      </div>
+                      <div className="inv-detail-item">
+                        <label>Warehouse</label>
+                        <span>{selectedItem.warehouse}</span>
+                      </div>
+                      <div className="inv-detail-item">
+                        <label>Status</label>
+                        <span className={`inv-status-badge ${selectedItem.status.toLowerCase().replace(" ", "-")}`}>
+                          {selectedItem.status}
+                        </span>
+                      </div>
+                      <div className="inv-detail-item">
+                        <label>Actual Quantity</label>
+                        <span>
+                          {selectedItem.actualQty} {selectedItem.uom}
+                          {selectedItem.isGrouped && selectedItem.groupItems && (
+                            <span className="inv-group-hint"> (total of {selectedItem.groupItems.length} items)</span>
+                          )}
+                        </span>
+                      </div>
+                      <div className="inv-detail-item">
+                        <label>Projected Quantity</label>
+                        <span>{selectedItem.projectedQty} {selectedItem.uom}</span>
+                      </div>
+                      <div className="inv-detail-item">
+                        <label>Valuation Rate</label>
+                        <span>₹{selectedItem.valuationRate.toFixed(2)}</span>
+                      </div>
+                      <div className="inv-detail-item">
+                        <label>Stock Value</label>
+                        <span>₹{selectedItem.stockValue.toLocaleString()}</span>
+                      </div>
+                      <div className="inv-detail-item">
+                        <label>Last Updated</label>
+                        <span>{formatDate(selectedItem.lastUpdated)}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="inv-detail-item">
-                    <label>Valuation Rate</label>
-                    <span>₹{selectedItem.valuationRate.toFixed(2)}</span>
-                  </div>
-                  <div className="inv-detail-item">
-                    <label>Stock Value</label>
-                    <span>₹{selectedItem.stockValue.toLocaleString()}</span>
-                  </div>
-                  <div className="inv-detail-item">
-                    <label>Last Updated</label>
-                    <span>{formatDate(selectedItem.lastUpdated)}</span>
+                  <div className="inv-modal-footer">
+                    <button className="inv-btn-secondary" onClick={() => setShowItemDetails(false)}>Close</button>
+                    <button className="inv-btn-primary" onClick={() => navigate(`/inventory/edit/${selectedItem.id}`)}>
+                      <FaEdit size={12} /> Edit
+                    </button>
                   </div>
                 </div>
               </div>
-              <div className="inv-modal-footer">
-                <button className="inv-btn-secondary" onClick={() => setShowItemDetails(false)}>Close</button>
-                <button className="inv-btn-primary" onClick={() => navigate(`/inventory/edit/${selectedItem.id}`)}>
-                  <FaEdit size={12} /> Edit
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+            )}
 
-        {/* ─── Delete Confirmation Modal ─── */}
-        {showDeleteConfirm && selectedItemForDelete && (
-          <div className="inv-modal-overlay" onClick={() => setShowDeleteConfirm(false)}>
-            <div className="inv-modal inv-modal-delete" onClick={(e) => e.stopPropagation()}>
-              <div className="inv-modal-header">
-                <span className="inv-modal-title">Confirm Delete</span>
-                <button className="inv-modal-close" onClick={() => setShowDeleteConfirm(false)}>
-                  <FaTimes size={16} />
-                </button>
+            {/* ─── Delete Confirmation Modal ─── */}
+            {showDeleteConfirm && selectedItemForDelete && (
+              <div className="inv-modal-overlay" onClick={() => setShowDeleteConfirm(false)}>
+                <div className="inv-modal inv-modal-delete" onClick={(e) => e.stopPropagation()}>
+                  <div className="inv-modal-header">
+                    <span className="inv-modal-title">Confirm Delete</span>
+                    <button className="inv-modal-close" onClick={() => setShowDeleteConfirm(false)}>
+                      <FaTimes size={16} />
+                    </button>
+                  </div>
+                  <div className="inv-modal-body">
+                    <p>Are you sure you want to delete this inventory item?</p>
+                    <p className="inv-modal-item-name">
+                      <strong>{selectedItemForDelete.itemCode}</strong> - {selectedItemForDelete.itemName} - {selectedItemForDelete.warehouse}
+                      {selectedItemForDelete.isGrouped && selectedItemForDelete.groupItems && (
+                        <span className="inv-group-hint"> ({selectedItemForDelete.groupItems.length} items will be deleted)</span>
+                      )}
+                    </p>
+                    <p className="inv-modal-warning">This action cannot be undone.</p>
+                  </div>
+                  <div className="inv-modal-footer">
+                    <button className="inv-btn-secondary" onClick={() => setShowDeleteConfirm(false)}>
+                      Cancel
+                    </button>
+                    <button className="inv-btn-danger" onClick={confirmDelete}>
+                      <FaTrash size={12} /> Delete
+                    </button>
+                  </div>
+                </div>
               </div>
-              <div className="inv-modal-body">
-                <p>Are you sure you want to delete this inventory item?</p>
-                <p className="inv-modal-item-name">
-                  <strong>{selectedItemForDelete.itemCode}</strong> - {selectedItemForDelete.itemName} - {selectedItemForDelete.warehouse}
-                  {selectedItemForDelete.isGrouped && selectedItemForDelete.groupItems && (
-                    <span className="inv-group-hint"> ({selectedItemForDelete.groupItems.length} items will be deleted)</span>
-                  )}
-                </p>
-                <p className="inv-modal-warning">This action cannot be undone.</p>
-              </div>
-              <div className="inv-modal-footer">
-                <button className="inv-btn-secondary" onClick={() => setShowDeleteConfirm(false)}>
-                  Cancel
-                </button>
-                <button className="inv-btn-danger" onClick={confirmDelete}>
-                  <FaTrash size={12} /> Delete
-                </button>
-              </div>
-            </div>
+            )}
           </div>
-        )}
-      </div>
-    </div>
-  );
+        </div>
+        );
 }

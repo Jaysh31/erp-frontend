@@ -30,6 +30,8 @@ import {
   FaTrash
   ,
   FaChevronDown,
+  FaPrint,
+  FaTrash
 } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
@@ -253,7 +255,6 @@ const SalesInvoice: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [showMoreMenu, setShowMoreMenu] = useState<string | null>(null);
-  const [expandedMobileCard, setExpandedMobileCard] = useState<string | null>(null);
   
   const [invoices, setInvoices] = useState<SalesInvoice[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
@@ -687,10 +688,6 @@ const SalesInvoice: React.FC = () => {
     if (endPage - startPage + 1 < maxVisible) startPage = Math.max(1, endPage - maxVisible + 1);
     for (let i = startPage; i <= endPage; i++) pages.push(i);
     return pages;
-  };
-
-  const toggleMobileCard = (id: string) => {
-    setExpandedMobileCard(expandedMobileCard === id ? null : id);
   };
 
   // ===== BUILD PRINT HTML =====
@@ -2230,22 +2227,177 @@ const SalesInvoice: React.FC = () => {
           to { transform: rotate(360deg); }
         }
 
-        /* ============================================================
-           MOBILE ACCORDION CARDS (renders only below 768px)
-        ============================================================ */
-        .qt-mobile-cards-wrap {
-          display: none;
+        /* ── Dark Theme ── */
+        .dark-theme .quotation-page {
+          background: var(--layout-bg, #0f172a);
         }
 
+        .dark-theme .qt-search-input {
+          background: var(--input-bg, #1e293b);
+          border-color: var(--border-color, #334155);
+          color: var(--text-primary, #f8fafc);
+        }
+
+        .dark-theme .qt-search-input::placeholder {
+          color: var(--text-secondary, #64748b);
+        }
+
+        .dark-theme .qt-filter-select {
+          background: var(--card-bg, #1e293b);
+          border-color: var(--border-color, #334155);
+          color: var(--text-primary, #f8fafc);
+        }
+
+        .dark-theme .qt-btn-secondary {
+          background: var(--card-bg, #1e293b);
+          border-color: var(--border-color, #334155);
+          color: var(--text-primary, #f8fafc);
+        }
+
+        .dark-theme .qt-btn-secondary:hover {
+          background: var(--nav-hover, rgba(255,255,255,0.05));
+        }
+
+        .dark-theme .qt-btn-new {
+          background: var(--primary-color, #3b82f6);
+        }
+
+        .dark-theme .qt-btn-new:hover {
+          background: var(--primary-hover, #2563eb);
+        }
+
+        .dark-theme .qt-btn-download {
+          background: #10b981;
+        }
+
+        .dark-theme .qt-btn-download:hover {
+          background: #059669;
+        }
+
+        .dark-theme .qt-btn-download-pdf {
+          background: #dc2626;
+        }
+
+        .dark-theme .qt-btn-download-pdf:hover {
+          background: #b91c1c;
+        }
+
+        .dark-theme .qt-table-wrap {
+          background: var(--card-bg, #1e293b);
+          border-color: var(--border-color, #334155);
+        }
+
+        .dark-theme .qt-th {
+          background: var(--layout-bg, #0f172a);
+          color: var(--text-secondary, #94a3b8);
+          border-bottom-color: var(--border-color, #334155);
+        }
+
+        .dark-theme .qt-td {
+          color: var(--text-primary, #f8fafc);
+          border-top-color: var(--border-color, #334155);
+        }
+
+        .dark-theme .qt-tr:hover {
+          background: var(--nav-hover, rgba(255,255,255,0.05));
+        }
+
+        .dark-theme .qt-td-amount {
+          color: var(--text-primary, #f8fafc);
+        }
+
+        .dark-theme .qt-empty-content p {
+          color: var(--text-primary, #f8fafc);
+        }
+
+        .dark-theme .qt-empty-content span {
+          color: var(--text-secondary, #94a3b8);
+        }
+
+        .dark-theme .qt-active-filters {
+          background: rgba(99, 102, 241, 0.08);
+          border-color: var(--border-color, #334155);
+        }
+
+        .dark-theme .qt-active-filters span {
+          color: var(--text-primary, #f8fafc);
+        }
+
+        .dark-theme .qt-clear-filters {
+          background: var(--card-bg, #1e293b);
+          border-color: var(--border-color, #334155);
+          color: var(--text-secondary, #94a3b8);
+        }
+
+        .dark-theme .qt-page-btn {
+          background: var(--card-bg, #1e293b);
+          border-color: var(--border-color, #334155);
+          color: var(--text-primary, #f8fafc);
+        }
+
+        .dark-theme .qt-page-btn:hover:not(:disabled) {
+          background: var(--nav-hover, rgba(255,255,255,0.05));
+        }
+
+        .dark-theme .qt-page-size-select {
+          background: var(--card-bg, #1e293b);
+          border-color: var(--border-color, #334155);
+          color: var(--text-primary, #f8fafc);
+        }
+
+        .dark-theme .qt-more-menu-dropdown {
+          background: var(--card-bg, #1e293b);
+          border-color: var(--border-color, #334155);
+        }
+
+        .dark-theme .qt-more-menu-dropdown button {
+          color: var(--text-primary, #f8fafc);
+        }
+
+        .dark-theme .qt-more-menu-dropdown button:hover {
+          background: var(--nav-hover, rgba(255,255,255,0.05));
+        }
+
+        .dark-theme .qt-date-picker-trigger {
+          background: var(--card-bg, #1e293b);
+          border-color: var(--border-color, #334155);
+          color: var(--text-primary, #f8fafc);
+        }
+
+        .dark-theme .qt-date-picker-trigger:hover {
+          background: var(--nav-hover, rgba(255,255,255,0.05));
+        }
+
+        .dark-theme .qt-date-picker-popup {
+          background: var(--card-bg, #1e293b);
+          border-color: var(--border-color, #334155);
+        }
+
+        .dark-theme .qt-date-picker-popup .qt-popup-title {
+          color: var(--text-primary, #f8fafc);
+        }
+
+        .dark-theme .qt-date-picker-popup .qt-quick-filter-btn {
+          background: var(--card-bg, #1e293b);
+          border-color: var(--border-color, #334155);
+          color: var(--text-secondary, #94a3b8);
+        }
+
+        .dark-theme .qt-date-picker-popup .qt-quick-filter-btn.active {
+          background: var(--primary-color, #3b82f6);
+          color: #fff;
+        }
+
+        .dark-theme .qt-date-picker-popup .qt-calendar-grid .qt-day-cell {
+          color: var(--text-primary, #f8fafc);
+        }
+
+        .dark-theme .qt-date-picker-popup .qt-day-header {
+          color: var(--text-secondary, #94a3b8);
+        }
+
+        /* ── Responsive ── */
         @media (max-width: 768px) {
-          .qt-table-wrap {
-            display: none;
-          }
-          .qt-mobile-cards-wrap {
-            display: block;
-            padding: 4px 0;
-          }
-          
           .quotation-page {
             padding: 12px;
             gap: 12px;
@@ -2269,10 +2421,8 @@ const SalesInvoice: React.FC = () => {
             flex-wrap: wrap;
           }
 
-          .qt-date-picker-popup {
-            left: 0;
-            min-width: 100%;
-            width: 100%;
+          .qt-table {
+            min-width: 600px;
           }
 
           .qt-pagination {
@@ -2297,6 +2447,12 @@ const SalesInvoice: React.FC = () => {
           .qt-th {
             padding: 10px 12px;
             font-size: 11px;
+          }
+
+          .qt-date-picker-popup {
+            left: 0;
+            min-width: 100%;
+            width: 100%;
           }
         }
 
@@ -2330,184 +2486,6 @@ const SalesInvoice: React.FC = () => {
             flex-wrap: wrap;
             justify-content: center;
           }
-        }
-
-        /* ── Mobile Card Styles ── */
-        .qt-mobile-card {
-          background: var(--card-bg, #ffffff);
-          border: 1px solid var(--border-color, #e5e7eb);
-          border-radius: 12px;
-          margin-bottom: 10px;
-          overflow: hidden;
-          transition: box-shadow 0.2s, border-color 0.2s;
-          box-shadow: 0 1px 3px var(--shadow-color, rgba(0,0,0,0.04));
-        }
-
-        .qt-mobile-card.expanded {
-          border-color: var(--primary-color, #6366f1);
-          box-shadow: 0 4px 16px var(--shadow-color, rgba(99, 102, 241, 0.12));
-        }
-
-        .qt-mobile-card-header {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          padding: 12px 14px;
-          cursor: pointer;
-        }
-
-        .qt-mobile-card-number {
-          font-size: 13px;
-          font-weight: 600;
-          color: var(--text-primary, #111827);
-          min-width: 70px;
-          font-family: monospace;
-          background: var(--layout-bg, #f3f4f6);
-          padding: 2px 8px;
-          border-radius: 4px;
-        }
-
-        .qt-mobile-card-badge-wrap {
-          flex: 1;
-          min-width: 0;
-          display: flex;
-          flex-direction: column;
-          gap: 3px;
-        }
-
-        .qt-mobile-card-customer {
-          font-size: 14px;
-          font-weight: 500;
-          color: var(--text-primary, #1e293b);
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
-
-        .qt-mobile-card-amount {
-          font-size: 13px;
-          font-weight: 600;
-          color: #0d9488;
-        }
-
-        .qt-mobile-card-status {
-          align-self: flex-start;
-        }
-
-        .qt-mobile-chevron-btn {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          width: 32px;
-          height: 32px;
-          border: none;
-          border-radius: 8px;
-          background: var(--nav-hover, #f3f4f6);
-          color: var(--text-secondary, #6b7280);
-          cursor: pointer;
-          flex-shrink: 0;
-          transition: all 0.2s;
-        }
-
-        .qt-mobile-card.expanded .qt-mobile-chevron-btn {
-          background: rgba(99, 102, 241, 0.1);
-          color: var(--primary-color, #6366f1);
-        }
-
-        .qt-mobile-card-body {
-          padding: 0 14px 14px 14px;
-          border-top: 1px solid var(--border-color, #f3f4f6);
-        }
-
-        .qt-mobile-detail-row {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 10px 0;
-          border-bottom: 1px solid var(--border-color, #f3f4f6);
-          font-size: 13px;
-        }
-
-        .qt-mobile-detail-row:last-of-type {
-          border-bottom: none;
-        }
-
-        .qt-mobile-detail-label {
-          color: var(--text-secondary, #6b7280);
-          font-size: 12px;
-        }
-
-        .qt-mobile-detail-value {
-          color: var(--text-primary, #1e293b);
-          font-weight: 500;
-          text-align: right;
-          font-size: 13px;
-        }
-
-        .qt-mobile-card-footer {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding-top: 10px;
-          margin-top: 4px;
-          border-top: 1px solid var(--border-color, #f3f4f6);
-        }
-
-        .qt-mobile-items-count {
-          font-size: 12px;
-          color: var(--text-secondary, #6b7280);
-        }
-
-        .qt-mobile-actions {
-          display: flex;
-          align-items: center;
-          gap: 4px;
-        }
-
-        .qt-mobile-actions .qt-action-btn {
-          width: 36px;
-          height: 36px;
-          border-radius: 8px;
-        }
-
-        /* Dark theme mobile card overrides */
-        .dark-theme .qt-mobile-card {
-          background: var(--card-bg, #1e293b);
-          border-color: var(--border-color, #334155);
-        }
-
-        .dark-theme .qt-mobile-card-number {
-          background: var(--layout-bg, #0f172a);
-          color: var(--text-primary, #f8fafc);
-        }
-
-        .dark-theme .qt-mobile-card-customer {
-          color: var(--text-primary, #f8fafc);
-        }
-
-        .dark-theme .qt-mobile-card-body {
-          border-top-color: var(--border-color, #334155);
-        }
-
-        .dark-theme .qt-mobile-detail-row {
-          border-bottom-color: var(--border-color, #334155);
-        }
-
-        .dark-theme .qt-mobile-detail-label {
-          color: var(--text-secondary, #94a3b8);
-        }
-
-        .dark-theme .qt-mobile-detail-value {
-          color: var(--text-primary, #f8fafc);
-        }
-
-        .dark-theme .qt-mobile-card-footer {
-          border-top-color: var(--border-color, #334155);
-        }
-
-        .dark-theme .qt-mobile-chevron-btn {
-          background: var(--layout-bg, #0f172a);
-          color: var(--text-secondary, #94a3b8);
         }
       `}</style>
 
@@ -3086,144 +3064,218 @@ const SalesInvoice: React.FC = () => {
               <p>No sales invoices found</p>
               <span>Try adjusting your search criteria</span>
             </div>
-          </div>
-        ) : (
-          invoices.map((item) => {
-            const cardKey = String(item.id);
-            const isExpanded = expandedMobileCard === cardKey;
-            const isPaid = item.status === 'Paid';
-            const isPartial = item.status === 'Partially Paid';
-            const outstanding = item.outstanding_amount || item.grand_total || 0;
-            
-            let outstandingClass = 'qt-td-outstanding';
-            if (isPaid) outstandingClass += ' paid';
-            else if (isPartial) outstandingClass += ' partial';
-            else if (outstanding > 0) outstandingClass += ' unpaid';
 
-            return (
-              <div
-                key={cardKey}
-                className={`qt-mobile-card ${isExpanded ? 'expanded' : ''}`}
-              >
-                <div
-                  className="qt-mobile-card-header"
-                  onClick={() => toggleMobileCard(cardKey)}
-                >
-                  <span className="qt-mobile-card-number">
-                    {item.displayInvoiceNumber || item.id || '-'}
-                  </span>
-                  <div className="qt-mobile-card-badge-wrap">
-                    <span className="qt-mobile-card-customer">
-                      {item.customer_name || '-'}
-                    </span>
-                    <span className="qt-mobile-card-amount">
-                      ₹{item.grand_total?.toLocaleString() || '0'}
-                    </span>
-                  </div>
-                  <div className="qt-mobile-card-status">
-                    <StatusBadge status={item.status || 'Draft'} />
-                  </div>
-                  <button
-                    className="qt-mobile-chevron-btn"
-                    onClick={(e) => { e.stopPropagation(); toggleMobileCard(cardKey); }}
-                    aria-label={isExpanded ? 'Collapse' : 'Expand'}
-                  >
-                    {isExpanded ? <FaChevronUp size={12} /> : <FaChevronDown size={12} />}
-                  </button>
+            {loading && invoices.length === 0 ? (
+              <div className="qt-empty-state">
+                <div className="qt-empty-content">
+                  <p>No Sales Invoices found</p>
+                  <span>Try adjusting your search criteria</span>
                 </div>
-
-                {isExpanded && (
-                  <div className="qt-mobile-card-body">
-                    <div className="qt-mobile-detail-row">
-                      <span className="qt-mobile-detail-label">Invoice No</span>
-                      <span className="qt-mobile-detail-value">{item.displayInvoiceNumber || item.id || '-'}</span>
-                    </div>
-                    <div className="qt-mobile-detail-row">
-                      <span className="qt-mobile-detail-label">Customer</span>
-                      <span className="qt-mobile-detail-value">{item.customer_name || '-'}</span>
-                    </div>
-                    <div className="qt-mobile-detail-row">
-                      <span className="qt-mobile-detail-label">Date</span>
-                      <span className="qt-mobile-detail-value">{formatDateDisplay(item.posting_date)}</span>
-                    </div>
-                    <div className="qt-mobile-detail-row">
-                      <span className="qt-mobile-detail-label">Due Date</span>
-                      <span className="qt-mobile-detail-value">{formatDateDisplay(item.due_date)}</span>
-                    </div>
-                    <div className="qt-mobile-detail-row">
-                      <span className="qt-mobile-detail-label">Total Amount</span>
-                      <span className="qt-mobile-detail-value">₹{item.grand_total?.toLocaleString() || '0'}</span>
-                    </div>
-                    <div className="qt-mobile-detail-row">
-                      <span className="qt-mobile-detail-label">Paid Amount</span>
-                      <span className={`qt-mobile-detail-value ${outstandingClass}`}>
-                        ₹{item.paid_amount?.toLocaleString() || '0'}
-                      </span>
-                    </div>
-                    <div className="qt-mobile-detail-row">
-                      <span className="qt-mobile-detail-label">Outstanding</span>
-                      <span className={`qt-mobile-detail-value ${outstandingClass}`}>
-                        ₹{outstanding.toLocaleString() || '0'}
-                      </span>
-                    </div>
-                    <div className="qt-mobile-detail-row">
-                      <span className="qt-mobile-detail-label">Status</span>
-                      <span className="qt-mobile-detail-value">
-                        <StatusBadge status={item.status || 'Draft'} />
-                      </span>
-                    </div>
-                    {item.remarks && (
-                      <div className="qt-mobile-detail-row">
-                        <span className="qt-mobile-detail-label">Remarks</span>
-                        <span className="qt-mobile-detail-value">{item.remarks}</span>
-                      </div>
-                    )}
-                    {item.company && (
-                      <div className="qt-mobile-detail-row">
-                        <span className="qt-mobile-detail-label">Company</span>
-                        <span className="qt-mobile-detail-value">{item.company}</span>
-                      </div>
-                    )}
-
-                    <div className="qt-mobile-card-footer">
-                      <span className="qt-mobile-items-count">
-                        {item.items?.length || 0} item{item.items?.length !== 1 ? 's' : ''}
-                      </span>
-                      <div className="qt-mobile-actions">
-                        <button
-                          className="qt-action-btn qt-action-view"
-                          onClick={() => handleView(item.id)}
-                          title="View"
-                        >
-                          <FaEye size={14} />
-                        </button>
-                        {item.status === 'Draft' && (
-                          <button
-                            className="qt-action-btn"
-                            onClick={() => handleEdit(item.id)}
-                            title="Edit"
-                            style={{ color: '#2563eb' }}
-                          >
-                            <FaEdit size={14} />
-                          </button>
-                        )}
-                        <button
-                          className="qt-action-btn qt-action-print"
-                          onClick={() => handlePrint(item)}
-                          title="Print"
-                          disabled={printLoadingId === String(item.id)}
-                        >
-                          {printLoadingId === String(item.id) ? <FaSpinner className="spinning" size={14} /> : <FaPrintIcon size={14} />}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
-            );
-          })
-        )}
-      </div>
+            ) : (
+              <div className="sales-mobile-cards">
+                {invoices.map((invoice, idx) => {
+                  const isExpanded = expandedRows.has(invoice.id);
+                  const rowNumber = getStartIndex() + idx;
+                  function handlePrintQuotation(invoice: SalesInvoice) {
+                    handlePrint(invoice);
+                  }
+
+                  function getStatusColor(status: string) {
+                    switch (status.trim().toLowerCase()) {
+                      case 'paid':
+                        return 'qt-status-paid';
+                      case 'partially paid':
+                        return 'qt-status-partial';
+                      case 'submitted':
+                        return 'qt-status-submitted';
+                      case 'cancelled':
+                        return 'qt-status-cancelled';
+                      case 'overdue':
+                        return 'qt-status-overdue';
+                      case 'draft':
+                      default:
+                        return 'qt-status-draft';
+                    }
+                  }
+
+                    function getStatusIcon(status: string) {
+                      switch (status.trim().toLowerCase()) {
+                        case 'paid':
+                          return <FaCheckCircle size={10} />;
+                        case 'submitted':
+                          return <FaPaperPlane size={10} />;
+                        case 'cancelled':
+                          return <FaTimesCircle size={10} />;
+                        case 'overdue':
+                          return <FaExclamationTriangle size={10} />;
+                        case 'partially paid':
+                        case 'draft':
+                        default:
+                          return <FaClock size={10} />;
+                      }
+                    }
+
+                  function formatDisplayDateWithContext(date: any): React.ReactNode {
+                    if (date === null || date === undefined || date === '') {
+                      return '—';
+                    }
+
+                    const value = date instanceof Date
+                      ? date
+                      : typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)
+                        ? new Date(`${date}T00:00:00`)
+                        : new Date(date);
+
+                    if (Number.isNaN(value.getTime())) {
+                      return String(date);
+                    }
+
+                    return new Intl.DateTimeFormat(undefined, {
+                      day: '2-digit',
+                      month: 'short',
+                      year: 'numeric',
+                    }).format(value);
+                  }
+
+                  return (
+                    <div
+                      key={invoice.id}
+                      className={`sales-mobile-card ${isExpanded ? "sales-mobile-card-expanded" : ""}`}
+                    >
+                      {/* Card Header: Date	Amount	Paid	Status	Actions and Dropdown Button */}
+                      <div
+                        className="sales-mobile-card-header"
+                        onClick={() => toggleRowExpand(invoice.id)}
+                      >
+                        <div className="sales-mobile-card-primary">
+                          <div className="sales-mobile-card-primary-row">
+                            <span className="sales-mobile-header-badge">
+                              <span className="qt-td qt-td-id">
+                      {invoice.displayInvoiceNumber || invoice.id || '-'}
+                              </span>
+                              <span
+                              className="sales-mobile-item-name"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleView(invoice.id);
+                              }}
+                              title={invoice.customer_name}
+                            >
+                              {invoice.customer_name || "—"}
+                            </span>
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Dropdown Button */}
+                        <button
+                          type="button"
+                          className={`sales-mobile-dropdown-btn ${isExpanded ? "expanded" : ""}`}
+                          onClick={(e) => toggleRowExpand(invoice.id, e)}
+                          aria-label={isExpanded ? "Collapse quotation details" : "Expand quotation details"}
+                          title={isExpanded ? "Collapse" : "Expand"}
+                        >
+                          <FaChevronDown size={13} className="sales-mobile-chevron" />
+                        </button>
+                      </div>
+
+                      {/* Dropdown Section: Date, Amount, Actions */}
+                      {isExpanded && (
+                        <div className="sales-mobile-card-details">
+                          <div className="sales-mobile-detail-row">
+                            <span className="sales-mobile-detail-label">Date</span>
+                            <span className="sales-mobile-detail-value">
+                              {invoice.posting_date ? formatDisplayDateWithContext(invoice.posting_date) : "—"}
+                              {invoice.validTill && (
+                                <span style={{ fontSize: "11px", color: "var(--text-secondary)", marginLeft: 6 }}>
+                                  (Valid: {formatDisplayDateWithContext(invoice.validTill)})
+                                </span>
+                              )}
+                            </span>
+                          </div>
+
+                          <div className="sales-mobile-detail-row">
+                            <span className="sales-mobile-detail-label">Status</span>
+                            <span className="sales-mobile-detail-value">
+                              <span className={`qt-status-badge ${getStatusColor(invoice.status)}`}>
+                                {getStatusIcon(invoice.status)}
+                                {invoice.status}
+                              </span>
+                            </span>
+                          </div>
+
+                          <div className="sales-mobile-detail-row">
+                            <span className="sales-mobile-detail-label">Amount</span>
+                            <span className="sales-mobile-detail-value sales-amount-highlight">
+                              {invoice.currency} {invoice.grand_total.toLocaleString()}
+                            </span>
+                          </div>
+
+                          <div className="sales-mobile-detail-footer">
+                            <span className="sales-mobile-card-meta-text">
+                              {/*rowNumber} of {totalRecords*/}
+                            </span>
+                            <div className="sales-mobile-action-buttons">
+                              <button
+                                className="qt-action-btn qt-action-view"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleView(invoice.id);
+                                }}
+                                title="View / Edit"
+                              >
+                                <FaEye size={12} />
+                              </button>
+                              <button
+                                className="qt-action-btn qt-action-print"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handlePrintQuotation(invoice);
+                                }}
+                                title="Print"
+                                disabled={printLoadingId === invoice.id}
+                              >
+                                {printLoadingId === invoice.id ? (
+                                  <FaSpinner className="spinning" size={12} />
+                                ) : (
+                                  <FaPrint size={12} />
+                                )}
+                              </button>
+                              <button
+                                className="qt-action-btn qt-action-edit"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEdit(invoice.id);
+                                }}
+                                title="Edit"
+                              >
+                                <FaEdit size={12} />
+                              </button>
+                              <button
+                                className="qt-action-btn qt-action-delete"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleCancelInvoice(invoice.id);
+                                }}
+                                title="Delete"
+                              >
+                                <FaTrash size={12} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+      
+
 
       {/* ===== PAGINATION ===== */}
       {!loading && !error && (

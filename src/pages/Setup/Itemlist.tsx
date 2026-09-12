@@ -1619,7 +1619,6 @@ export default function ItemList() {
             )}
           </div>
 
-          
           <button className="itl-btn-secondary" onClick={handleBulkUpload}>
             <FaFileExcel size={13} />
             Bulk Upload
@@ -1744,14 +1743,14 @@ export default function ItemList() {
                       <td className="itl-td itl-td-meta">
                         <div className="itl-action-buttons" onClick={(e) => e.stopPropagation()}>
                           <button
-                            className="itl-action-btn itl-edit-btn"
+                            className="igl-action-btn igl-action-edit"
                             onClick={(e) => handleEditItem(row, e)}
                             title="Edit item"
                           >
                             <FaEdit size={14} />
                           </button>
                           <button
-                            className="itl-action-btn itl-delete-btn"
+                            className="igl-action-btn igl-action-delete"
                             onClick={(e) => handleDeleteItem(row.id, e)}
                             disabled={deletingId === row.id}
                             title="Delete item"
@@ -1861,7 +1860,7 @@ export default function ItemList() {
 
                                     <div className="sales-mobile-detail-footer">
                                       <span className="sales-mobile-card-meta-text">
-                                        {/*rowNumber} of {totalItems*/}
+                                        {rowNumber} of {totalItems}
                                       </span>
                                       <div className="sales-mobile-action-buttons">
                                         
@@ -1901,7 +1900,7 @@ export default function ItemList() {
                       )}
                     </div>
 
-          {/* Pagination */}
+          {/* ✅ Pagination Section - Single line layout */}
           {(totalItems > 0 || items.length > 0) && (
             <div className="itl-pagination">
               {/* Left: Show dropdown + Showing entries info */}

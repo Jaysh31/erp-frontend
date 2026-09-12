@@ -21,6 +21,7 @@ import api from '../services/api';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import './PurchaseOrderForm.css';
+import './PurchaseMobileTable.css';
 import { PageLoader } from '../components/PageLoader';
 
 // ─── DigitInput Component ──────────────────────────────────
@@ -3435,14 +3436,14 @@ export default function PurchaseOrderForm() {
                   <thead>
                     <tr>
                       <th className="pof-ith">#</th>
-                      <th className="pof-ith">Item Code <span className="pof-required">*</span></th>
-                      <th className="pof-ith">Item Name <span className="pof-required">*</span></th>
-                      <th className="pof-ith">HSN</th>
-                      <th className="pof-ith">Qty <span className="pof-required">*</span></th>
-                      <th className="pof-ith">UOM</th>
-                      <th className="pof-ith">Rate <span className="pof-required">*</span></th>
-                      <th className="pof-ith">Tax</th>
-                      <th className="pof-ith">Amount</th>
+                      <th className="pof-ith pof-itd">Item Code <span className="pof-required">*</span></th>
+                      <th className="pof-ith pof-itd">Item Name <span className="pof-required">*</span></th>
+                      <th className="pof-ith pof-itd">HSN</th>
+                      <th className="pof-ith pof-itd">Qty <span className="pof-required">*</span></th>
+                      <th className="pof-ith pof-itd">UOM</th>
+                      <th className="pof-ith pof-itd">Rate <span className="pof-required">*</span></th>
+                      <th className="pof-ith pof-itd">Tax</th>
+                      <th className="pof-ith pof-itd">Amount</th>
                       <th className="pof-ith pof-ith-action"></th>
                     </tr>
                   </thead>
@@ -3585,7 +3586,9 @@ export default function PurchaseOrderForm() {
                       </tr>
                     ))}
                   </tbody>
-                  
+                   </table>
+                    </div>
+                    <div className='pof-bill-summary'>
                   <tfoot>
                     <tr>
                       <td colSpan={8} className="pof-total-label">Subtotal</td>
@@ -3633,8 +3636,8 @@ export default function PurchaseOrderForm() {
                       </td>
                     </tr>
                   </tfoot>
-                </table>
-              </div>
+                
+             
               
               {validationErrors.some(e => e.field === 'items') && (
                 <span className="pof-error-msg" style={{ marginTop: '8px' }}>
@@ -3642,6 +3645,7 @@ export default function PurchaseOrderForm() {
                 </span>
               )}
             </div>
+          </div>
           </div>
 
           {/* Notes Section */}

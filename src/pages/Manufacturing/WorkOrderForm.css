@@ -2,7 +2,7 @@
 
 /* ─── Container ───────────────────────────────────────────────────────── */
 .wof-page {
-  padding: 0 20px 40px;
+  padding: 0 1px 1px;
   background: var(--layout-bg);
   min-height: 100vh;
 }
@@ -2692,7 +2692,7 @@
   .wof-container {
     max-width: 1400px;
     margin: 0 auto;
-    padding: 16px 24px 0;
+    padding: 16px 2px 0;
   }
   
   .wof-form-layout {
@@ -3079,3 +3079,561 @@
   
   /* ── Misc ──────────────────────────────────────────────────────────── */
   .wof-selected-grn { }
+
+
+  
+  /* =========================================================
+   WORK ORDER TABLE - MOBILE 2 COLUMN UI
+   ========================================================= */
+
+@media (max-width: 768px) {
+
+  /* ---------------------------------------------------------
+     TABLE SCROLL WRAPPER
+     --------------------------------------------------------- */
+
+  .wof-table-scroll {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    overflow-y: visible;
+    position: relative;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* ---------------------------------------------------------
+     TABLE
+     --------------------------------------------------------- */
+
+  .wof-editable-table {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100%;
+    table-layout: fixed;
+    border-collapse: separate;
+    border-spacing: 0;
+    overflow: visible;
+  }
+
+  /* Hide desktop table header */
+  .wof-editable-table thead {
+    display: none;
+  }
+
+  .wof-editable-table tbody {
+    display: block;
+    width: 100%;
+  }
+
+  /* ---------------------------------------------------------
+     EACH TABLE ROW = MOBILE CARD
+     --------------------------------------------------------- */
+
+  .wof-editable-table tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    width: 100%;
+    margin-bottom: 10px;
+
+    background: var(--layout-bg, #ffffff);
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 8px;
+
+    overflow: visible;
+    position: relative;
+  }
+
+  .wof-editable-table tbody tr:last-child {
+    margin-bottom: 0;
+  }
+
+  /* ---------------------------------------------------------
+     TABLE CELLS
+     --------------------------------------------------------- */
+
+  .wof-editable-table tbody td {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+
+    width: auto !important;
+    min-width: 0;
+
+    padding: 8px 9px;
+
+    border-bottom: 1px solid var(--border-color, #e2e8f0);
+    border-right: 1px solid var(--border-color, #e2e8f0);
+
+    vertical-align: middle;
+    overflow: visible;
+    position: relative;
+
+    box-sizing: border-box;
+  }
+
+  /* Remove right border from every second column */
+  .wof-editable-table tbody td:nth-child(even) {
+    border-right: none;
+  }
+
+  /* ---------------------------------------------------------
+     MOBILE FIELD TITLE
+     --------------------------------------------------------- */
+
+  .wof-editable-table tbody td::before {
+    display: block;
+
+    margin-bottom: 4px;
+
+    font-size: 9.5px;
+    line-height: 1.2;
+    font-weight: 700;
+
+    color: var(--text-secondary, #64748b);
+
+    text-transform: uppercase;
+    letter-spacing: 0.35px;
+  }
+
+  /* ---------------------------------------------------------
+     OPERATION TABLE
+     
+     Cell order:
+     1 # 
+     2 Operation
+     3 Workstation
+     4 Time
+     5 Hour Rate
+     6 Operating Cost
+     7 Delete
+     --------------------------------------------------------- */
+
+  /* # */
+  .wof-editable-table tbody tr td:nth-child(1) {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .wof-editable-table tbody tr td:nth-child(1)::before {
+    content: "#";
+  }
+
+  /* Operation */
+  .wof-editable-table tbody tr td:nth-child(2) {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .wof-editable-table tbody tr td:nth-child(2)::before {
+    content: "Operation *";
+  }
+
+  /* Workstation */
+  .wof-editable-table tbody tr td:nth-child(3) {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .wof-editable-table tbody tr td:nth-child(3)::before {
+    content: "Workstation *";
+  }
+
+  /* Time */
+  .wof-editable-table tbody tr td:nth-child(4) {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .wof-editable-table tbody tr td:nth-child(4)::before {
+    content: "Time (mins)";
+  }
+
+  /* Hour Rate */
+  .wof-editable-table tbody tr td:nth-child(5) {
+    grid-column: 1;
+    grid-row: 3;
+  }
+
+  .wof-editable-table tbody tr td:nth-child(5)::before {
+    content: "Hour Rate";
+  }
+
+  /* Operating Cost */
+  .wof-editable-table tbody tr td:nth-child(6) {
+    grid-column: 2;
+    grid-row: 3;
+  }
+
+  .wof-editable-table tbody tr td:nth-child(6)::before {
+    content: "Operating Cost";
+  }
+
+  /* Delete */
+  .wof-editable-table tbody tr td:nth-child(7) {
+    grid-column: 1 / -1;
+    grid-row: 4;
+
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+
+    min-height: 42px;
+
+    border-right: none;
+    border-bottom: none;
+  }
+
+  .wof-editable-table tbody tr td:nth-child(7)::before {
+    content: "Delete";
+    margin-bottom: 0;
+  }
+
+  /* ---------------------------------------------------------
+     REQUIRED ITEMS TABLE
+     
+     Cell order:
+     1 #
+     2 Item
+     3 Operation
+     4 Source Warehouse
+     5 Required Qty
+     6 Available Qty
+     7 UOM
+     8 Rate
+     9 Amount
+     10 Delete
+     --------------------------------------------------------- */
+
+  /* # */
+  .wof-editable-table tbody tr td:nth-child(1)::before {
+    content: "#";
+  }
+
+  /* Item */
+  .wof-editable-table tbody tr td:nth-child(2)::before {
+    content: "Item";
+  }
+
+  /* Operation */
+  .wof-editable-table tbody tr td:nth-child(3)::before {
+    content: "Operation";
+  }
+
+  /* Source Warehouse */
+  .wof-editable-table tbody tr td:nth-child(4)::before {
+    content: "Source Warehouse *";
+  }
+
+  /* Required Qty */
+  .wof-editable-table tbody tr td:nth-child(5)::before {
+    content: "Required Qty *";
+  }
+
+  /* Available Qty */
+  .wof-editable-table tbody tr td:nth-child(6)::before {
+    content: "Available Qty";
+  }
+
+  /* UOM */
+  .wof-editable-table tbody tr td:nth-child(7)::before {
+    content: "UOM";
+  }
+
+  /* Rate */
+  .wof-editable-table tbody tr td:nth-child(8)::before {
+    content: "Rate";
+  }
+
+  /* Amount */
+  .wof-editable-table tbody tr td:nth-child(9)::before {
+    content: "Amount";
+  }
+
+  /* Delete */
+  .wof-editable-table tbody tr td:nth-child(10)::before {
+    content: "Delete";
+  }
+
+  /* ---------------------------------------------------------
+     REQUIRED ITEMS GRID POSITIONING
+     --------------------------------------------------------- */
+
+  /* 1 - # */
+  .wof-editable-table tbody tr td:nth-child(1) {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  /* 2 - Item */
+  .wof-editable-table tbody tr td:nth-child(2) {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  /* 3 - Operation */
+  .wof-editable-table tbody tr td:nth-child(3) {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  /* 4 - Source Warehouse */
+  .wof-editable-table tbody tr td:nth-child(4) {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  /* 5 - Required Qty */
+  .wof-editable-table tbody tr td:nth-child(5) {
+    grid-column: 1;
+    grid-row: 3;
+  }
+
+  /* 6 - Available Qty */
+  .wof-editable-table tbody tr td:nth-child(6) {
+    grid-column: 2;
+    grid-row: 3;
+  }
+
+  /* 7 - UOM */
+  .wof-editable-table tbody tr td:nth-child(7) {
+    grid-column: 1;
+    grid-row: 4;
+  }
+
+  /* 8 - Rate */
+  .wof-editable-table tbody tr td:nth-child(8) {
+    grid-column: 2;
+    grid-row: 4;
+  }
+
+  /* 9 - Amount */
+  .wof-editable-table tbody tr td:nth-child(9) {
+    grid-column: 1;
+    grid-row: 5;
+  }
+
+  /* 10 - Delete */
+  .wof-editable-table tbody tr td:nth-child(10) {
+    grid-column: 1 / -1;
+    grid-row: 6;
+
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+
+    min-height: 42px;
+
+    border-right: none;
+    border-bottom: none;
+  }
+
+  /* ---------------------------------------------------------
+     INPUTS / SELECTS
+     --------------------------------------------------------- */
+
+  .wof-editable-table .form-field,
+  .wof-editable-table .form-field-sm,
+  .wof-editable-table input,
+  .wof-editable-table select {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+
+    box-sizing: border-box;
+
+    height: 34px;
+    min-height: 34px;
+
+    font-size: 12px;
+  }
+
+  .wof-editable-table .input-group {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .wof-editable-table .input-group .form-field,
+  .wof-editable-table .input-group input {
+    width: 100%;
+  }
+
+  /* ---------------------------------------------------------
+     OPERATION PICKER
+     --------------------------------------------------------- */
+
+  .wof-editable-table td:nth-child(2) {
+    overflow: visible;
+  }
+
+  .wof-editable-table td:nth-child(2) > * {
+    max-width: 100%;
+  }
+
+  /* ---------------------------------------------------------
+     SEARCH / PICKER DROPDOWN
+     --------------------------------------------------------- */
+
+  .wof-editable-table .wof-searchable-dropdown,
+  .wof-editable-table .wof-search-dropdown,
+  .wof-editable-table .searchable-dropdown {
+    position: absolute;
+
+    top: calc(100% + 4px);
+    left: 0;
+
+    width: 100%;
+    max-width: 100%;
+
+    max-height: 180px;
+
+    overflow-x: hidden;
+    overflow-y: auto;
+
+    z-index: 9999;
+
+    box-sizing: border-box;
+
+    background: var(--card-bg, #ffffff);
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 6px;
+
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.12);
+
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* ---------------------------------------------------------
+     DELETE BUTTON
+     --------------------------------------------------------- */
+
+  .wof-row-delete-btn {
+    display: flex;
+
+    align-items: center;
+    justify-content: center;
+
+    width: 34px;
+    height: 30px;
+
+    flex: 0 0 34px;
+
+    border: none;
+    border-radius: 6px;
+
+    background: transparent;
+
+    color: var(--text-secondary);
+
+    cursor: pointer;
+  }
+
+  .wof-row-delete-btn:hover:not(:disabled) {
+    background: color-mix(
+      in srgb,
+      var(--danger-color) 12%,
+      transparent
+    );
+
+    color: var(--danger-color);
+  }
+
+  .wof-row-delete-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+
+  /* ---------------------------------------------------------
+     REMOVE EXTRA BORDERS
+     --------------------------------------------------------- */
+
+  .wof-editable-table tbody tr td:last-child {
+    border-bottom: none;
+  }
+
+  /* ---------------------------------------------------------
+     NUMBER COLUMN
+     --------------------------------------------------------- */
+
+  .wof-col-no {
+    width: auto !important;
+
+    text-align: left;
+
+    color: var(--text-primary, #334155);
+
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  /* ---------------------------------------------------------
+     ACTION COLUMN
+     --------------------------------------------------------- */
+
+  .wof-col-action {
+    width: auto !important;
+    text-align: right;
+  }
+
+  /* ---------------------------------------------------------
+     TEXT / VALUE FITTING
+     --------------------------------------------------------- */
+
+  .wof-editable-table td {
+    word-break: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .wof-editable-table td > span,
+  .wof-editable-table td > div {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  /* ---------------------------------------------------------
+     DARK MODE
+     --------------------------------------------------------- */
+
+  [data-theme="dark"] .wof-editable-table tbody tr,
+  .dark .wof-editable-table tbody tr {
+    background: var(--layout-bg, #111827);
+    border-color: var(--border-color, #374151);
+  }
+
+  [data-theme="dark"] .wof-editable-table tbody td,
+  .dark .wof-editable-table tbody td {
+    border-color: var(--border-color, #374151);
+  }
+
+}
+
+
+/* =========================================================
+   VERY SMALL MOBILE DEVICES
+   ========================================================= */
+
+@media (max-width: 400px) {
+
+  .wof-editable-table tbody tr {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .wof-editable-table tbody td {
+    padding: 7px 7px;
+  }
+
+  .wof-editable-table tbody td::before {
+    font-size: 9px;
+    margin-bottom: 3px;
+  }
+
+  .wof-editable-table .form-field,
+  .wof-editable-table .form-field-sm,
+  .wof-editable-table input,
+  .wof-editable-table select {
+    height: 32px;
+    min-height: 32px;
+    font-size: 11px;
+  }
+
+
+}

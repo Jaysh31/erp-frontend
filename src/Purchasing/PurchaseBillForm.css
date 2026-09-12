@@ -655,12 +655,7 @@
 }
 
 /* ─── Tables ──────────────────────────────────────────────────────────── */
-.pif-inline-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12px;
-  min-width: 500px;
-}
+
 
 .pif-ith {
   padding: 2px 10px;
@@ -1356,14 +1351,324 @@
 }
 
 /* ─── Responsive ──────────────────────────────────────────────────────── */
+/* =========================================================
+   PIF TABLE - MOBILE 2 COLUMN CARD LAYOUT
+   Desktop table remains unchanged
+   ========================================================= */
+
 @media (max-width: 768px) {
+
   .pif-card {
     padding: 16px;
   }
 
+  /* Table wrapper */
   .pif-table-block {
-    overflow-x: auto;
+    width: 100%;
+    border: none;
+    border-radius: 0;
+    overflow: visible;
   }
+
+  /* Convert table to block */
+  .pif-inline-table {
+    width: 100%;
+    min-width: 0 !important;
+    border-collapse: separate;
+    border-spacing: 0;
+    display: block;
+    font-size: 12px;
+  }
+
+  /* Hide desktop header */
+  .pif-inline-table thead {
+    display: none;
+  }
+
+  .pif-inline-table tbody {
+    display: block;
+    width: 100%;
+  }
+
+  /* =====================================================
+     EACH ROW = MOBILE CARD
+     ===================================================== */
+
+  .pif-inline-table tbody .pif-itr {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+
+    width: 100%;
+    margin-bottom: 12px;
+    padding: 12px;
+
+    box-sizing: border-box;
+
+    background: var(--bg-primary, #fff);
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: 10px;
+
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  }
+
+  /* =====================================================
+     ALL CELLS
+     ===================================================== */
+
+  .pif-inline-table tbody .pif-itd {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+
+    width: auto !important;
+    min-width: 0;
+
+    padding: 0;
+    border: none;
+
+    box-sizing: border-box;
+  }
+
+  /* =====================================================
+     COLUMN TITLES
+     ===================================================== */
+
+  .pif-inline-table tbody .pif-itd::before {
+    display: block;
+
+    margin-bottom: 5px;
+
+    font-size: 10px;
+    line-height: 14px;
+    font-weight: 600;
+
+    color: var(--text-secondary, #6b7280);
+
+    text-transform: uppercase;
+    letter-spacing: 0.35px;
+  }
+
+  /* # */
+  .pif-inline-table tbody .pif-itd:nth-child(1)::before {
+    content: "#";
+  }
+
+  /* Item Code */
+  .pif-inline-table tbody .pif-itd:nth-child(2)::before {
+    content: "Item Code";
+  }
+
+  /* Item Name */
+  .pif-inline-table tbody .pif-itd:nth-child(3)::before {
+    content: "Item Name";
+  }
+
+  /* HSN */
+  .pif-inline-table tbody .pif-itd:nth-child(4)::before {
+    content: "HSN";
+  }
+
+  /* Ordered Qty */
+  .pif-inline-table tbody .pif-itd:nth-child(5)::before {
+    content: "Ordered Qty";
+  }
+
+  /* Received Qty */
+  .pif-inline-table tbody .pif-itd:nth-child(6)::before {
+    content: "Received Qty";
+  }
+
+  /* Bill Qty */
+  .pif-inline-table tbody .pif-itd:nth-child(7)::before {
+    content: "Bill Qty";
+  }
+
+  /* UOM */
+  .pif-inline-table tbody .pif-itd:nth-child(8)::before {
+    content: "UOM";
+  }
+
+  /* Ordered Rate */
+  .pif-inline-table tbody .pif-itd:nth-child(9)::before {
+    content: "Ordered Rate";
+  }
+
+  /* Rate */
+  .pif-inline-table tbody .pif-itd:nth-child(10)::before {
+    content: "Rate";
+  }
+
+  /* Amount */
+  .pif-inline-table tbody .pif-itd:nth-child(11)::before {
+    content: "Amount";
+  }
+
+  /* Tax */
+  .pif-inline-table tbody .pif-itd:nth-child(12)::before {
+    content: "Tax";
+  }
+
+  /* Note */
+  .pif-inline-table tbody .pif-itd:nth-child(13)::before {
+    content: "Note";
+  }
+
+  /* Action */
+  .pif-inline-table tbody .pif-itd:nth-child(14)::before {
+    content: "Action";
+  }
+
+  /* =====================================================
+     # + ITEM CODE + ITEM NAME
+     ===================================================== */
+
+  /* Row number */
+  .pif-inline-table tbody .pif-itd:nth-child(1) {
+    grid-column: 1 / -1;
+  }
+
+  /* Item Code full width */
+  .pif-inline-table tbody .pif-itd:nth-child(2) {
+    grid-column: 1 / -1;
+  }
+
+  /* Item Name full width */
+  .pif-inline-table tbody .pif-itd:nth-child(3) {
+    grid-column: 1 / -1;
+  }
+
+  /* =====================================================
+     INPUTS / SELECTS
+     ===================================================== */
+
+  .pif-inline-table .pif-cell-input,
+  .pif-inline-table select {
+    width: 100%;
+    min-width: 0 !important;
+    max-width: 100%;
+
+    box-sizing: border-box;
+  }
+
+  /* Number inputs */
+  .pif-inline-table .pif-cell-number {
+    width: 100%;
+    min-width: 0 !important;
+  }
+
+  /* =====================================================
+     READONLY VALUES
+     ===================================================== */
+
+  .pif-inline-table .pif-cell-readonly {
+    display: flex;
+    align-items: center;
+
+    width: 100%;
+    min-height: 36px;
+
+    padding: 0 9px;
+
+    box-sizing: border-box;
+
+    background: var(--bg-secondary, #f8f9fa);
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: 6px;
+
+    font-size: 12px;
+  }
+
+  /* =====================================================
+     AMOUNT
+     ===================================================== */
+
+  .pif-inline-table .pif-amount {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+
+    min-height: 36px;
+    padding: 0 9px;
+
+    box-sizing: border-box;
+
+    background: var(--bg-secondary, #f8f9fa);
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: 6px;
+
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  /* =====================================================
+     NOTE
+     ===================================================== */
+
+  .pif-inline-table tbody .pif-itd:nth-child(13) {
+    align-items: flex-start;
+  }
+
+  /* Note button */
+  .pif-note-btn {
+    width: 34px;
+    height: 34px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* =====================================================
+     ACTION / DELETE
+     ===================================================== */
+
+  .pif-inline-table tbody .pif-itd:nth-child(14) {
+
+    grid-column: 1 / -1;
+
+    flex-direction: row;
+    justify-content: flex-end;
+    align-items: center;
+
+    min-height: 34px;
+
+    margin-top: 2px;
+    padding-top: 8px;
+
+    border-top: 1px solid var(--border-color, #e5e7eb);
+  }
+
+  .pif-inline-table tbody .pif-itd:nth-child(14)::before {
+    display: none;
+  }
+
+  .pif-remove-item-btn {
+    width: 34px;
+    height: 34px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 6px;
+  }
+
+  /* =====================================================
+     DROPDOWN
+     ===================================================== */
+
+  .pif-dropdown-wrapper {
+    max-width: calc(100vw - 40px);
+  }
+
+  .pif-dropdown-down {
+    max-width: 100%;
+  }
+
+  /* =====================================================
+     OTHER EXISTING MOBILE UI
+     ===================================================== */
 
   .pif-header {
     flex-wrap: wrap;
@@ -1410,7 +1715,13 @@
   }
 }
 
+
+/* =========================================================
+   SMALL MOBILE
+   ========================================================= */
+
 @media (max-width: 480px) {
+
   .pif-page {
     padding: 0 12px 20px;
   }
@@ -1423,25 +1734,48 @@
     font-size: 16px;
   }
 
-  .pif-ith {
+  .pif-inline-table tbody .pif-itr {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+
+    padding: 10px;
+    margin-bottom: 10px;
+
+    border-radius: 9px;
+  }
+
+  .pif-inline-table tbody .pif-itd::before {
     font-size: 9px;
-    padding: 4px 6px;
+    margin-bottom: 4px;
   }
 
-  .pif-itd {
-    padding: 2px 4px;
+  .pif-inline-table .pif-cell-input,
+  .pif-inline-table select {
+    font-size: 11px;
+    min-width: 0 !important;
+    height: 34px;
+    padding: 0 7px;
   }
 
-  .pif-cell-input {
-    font-size: 10px;
-    min-width: 40px;
-    height: 24px;
-    padding: 0 4px;
+  .pif-inline-table .pif-cell-readonly {
+    min-height: 34px;
+    font-size: 11px;
+    padding: 0 7px;
   }
 
-  .pif-inline-table {
-    min-width: 900px;
+  .pif-inline-table .pif-amount {
+    min-height: 34px;
+    font-size: 11px;
+    padding: 0 7px;
   }
+
+  .pif-note-btn,
+  .pif-remove-item-btn {
+    width: 32px;
+    height: 32px;
+  }
+
+ 
 
   .pif-table-header-row {
     flex-direction: column;
