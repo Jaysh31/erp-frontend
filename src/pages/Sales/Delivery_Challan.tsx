@@ -20,7 +20,10 @@ import {
   FaSpinner,
   FaSync,
   FaTimes,
-  FaCalendarAlt
+  FaCalendarAlt,
+  FaTrash,
+  FaChevronUp,
+  FaChevronDown
 } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
@@ -3089,6 +3092,202 @@ const DeliveryChallans: React.FC = () => {
               ))}
             </tbody>
           </table>
+        )}
+      </div>
+
+      {/* Mobile Table Section (Customer, Status + Dropdown Button -> Date, Amount, Actions) */}
+      <div className="sales-mobile-list-wrap">
+        <div className="sales-mobile-list-header">
+          <div className="sales-mobile-th-primary">
+            <span className="sales-mobile-th-cell">Invoice No</span>
+            <span className="sales-mobile-th-sep">•</span>
+            <span className="sales-mobile-th-cell">Customer</span>
+          </div>
+          <div className="sales-mobile-th-right">
+            <span className="sales-count-label">
+              {totalRecords > 0
+                ? `${getStartIndex()}–${getEndIndex()} of ${totalRecords}`
+                : `0 of ${totalRecords}`}
+            </span>
+          </div>
+        </div>
+
+        {loading && challans.length === 0 ? (
+          <div className="qt-empty-state">
+            <div className="qt-empty-content">
+              <p>Loading delivery challans...</p>
+            </div>
+          </div>
+        ) : error ? (
+          <div className="qt-error">
+            <p>{error}</p>
+            <button onClick={handleRefresh} className="qt-retry-btn">
+              Retry
+            </button>
+          </div>
+        ) : challans.length === 0 ? (
+          <div className="qt-empty-state">
+            <div className="qt-empty-content">
+              <FaTruck size={40} />
+              <p>No delivery challans found</p>
+              <span>Try adjusting your search criteria</span>
+            </div>
+          </div>
+        ) : (
+          <div className="sales-mobile-cards">
+            {challans.map((challan, idx) => {
+              const isExpanded = expandedRows.has(challan.id);
+              const rowNumber = getStartIndex() + idx;
+
+              return (
+                <div
+                  key={challan.id}
+                  className={`sales-mobile-card ${
+                    isExpanded ? 'sales-mobile-card-expanded' : ''
+                  }`}
+                >
+                  {/* Card Header: Customer, Status and Dropdown Button */}
+                  <div
+                    className="sales-mobile-card-header"
+                    onClick={() => toggleRowExpand(challan.id)}
+                  >
+                    <div className="sales-mobile-card-primary">
+                      <div className="sales-mobile-card-primary-row">
+                        <span
+                          className="sales-mobile-item-name"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleView(challan.id);
+                          }}
+                          title={challan.customer_name || '—'}
+                        >
+                          {challan.customer_name || '—'}
+                        </span>
+
+                        <span className="sales-mobile-header-badge">
+                          <StatusBadge status={challan.status || 'Draft'} />
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Dropdown Button */}
+                    <button
+                      type="button"
+                      className={`sales-mobile-dropdown-btn ${
+                        isExpanded ? 'expanded' : ''
+                      }`}
+                      onClick={(e) => toggleRowExpand(challan.id, e)}
+                      aria-label={
+                        isExpanded
+                          ? 'Collapse delivery challan details'
+                          : 'Expand delivery challan details'
+                      }
+                      title={isExpanded ? 'Collapse' : 'Expand'}
+                    >
+                      <FaChevronDown
+                        size={13}
+                        className="sales-mobile-chevron"
+                      />
+                    </button>
+                  </div>
+
+                  {/* Dropdown Section: Date, Amount, Actions */}
+                  {isExpanded && (
+                    <div className="sales-mobile-card-details">
+                      <div className="sales-mobile-detail-row">
+                        <span className="sales-mobile-detail-label">DC No</span>
+                        <span className="sales-mobile-detail-value">
+                          {challan.displayDcNumber || challan.name || '—'}
+                        </span>
+                      </div>
+
+                      <div className="sales-mobile-detail-row">
+                        <span className="sales-mobile-detail-label">Date</span>
+                        <span className="sales-mobile-detail-value">
+                          {challan.posting_date
+                            ? formatDisplayDate(challan.posting_date)
+                            : '—'}
+                        </span>
+                      </div>
+
+                      <div className="sales-mobile-detail-row">
+                        <span className="sales-mobile-detail-label">Amount</span>
+                        <span className="sales-mobile-detail-value sales-amount-highlight">
+                          {challan.currency || 'INR'}{' '}
+                          {(challan.grand_total || 0).toLocaleString('en-IN')}
+                        </span>
+                      </div>
+
+                      <div className="sales-mobile-detail-footer">
+                        <span className="sales-mobile-card-meta-text">
+                          {/*rowNumber} of {totalRecords*/}
+                        </span>
+
+                        <div className="sales-mobile-action-buttons">
+                          <button
+                            type="button"
+                            className="qt-action-btn qt-action-view"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleView(challan.id);
+                            }}
+                            title="View"
+                          >
+                            <FaEye size={12} />
+                          </button>
+
+                          <button
+                            type="button"
+                            className="qt-action-btn qt-action-print"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handlePrint(challan);
+                            }}
+                            title="Print"
+                            disabled={printLoadingId === String(challan.id)}
+                          >
+                            {printLoadingId === String(challan.id) ? (
+                              <FaSpinner className="spinning" size={12} />
+                            ) : (
+                              <FaPrintIcon size={12} />
+                            )}
+                          </button>
+
+                          <button
+                            type="button"
+                            className="qt-action-btn qt-action-edit"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEdit(challan.id);
+                            }}
+                            title="Edit"
+                          >
+                            <FaEdit size={12} />
+                          </button>
+
+                          <button
+                            type="button"
+                            className="qt-action-btn qt-action-delete"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCancel(challan.id);
+                            }}
+                            title="Cancel"
+                            disabled={
+                              challan.status === 'Cancelled' ||
+                              challan.status === 'Submitted'
+                            }
+                          >
+                            <FaTrash size={12} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
 

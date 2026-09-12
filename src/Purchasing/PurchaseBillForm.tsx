@@ -353,34 +353,42 @@ export default function PurchaseInvoiceForm() {
   };
 
   // ─── Fetch data on mount ──────────────────────────────────────────────────
-  useEffect(() => {
-    fetchPOList();
-    fetchSuppliers();
-    fetchItems();
-    fetchTaxes();
-    fetchWarehouses();
-    if (isEdit && id) loadExistingInvoice(id);
+// ─── Fetch data on mount ──────────────────────────────────────────────────
+useEffect(() => {
+  fetchPOList();
+  fetchSuppliers();
+  fetchItems();
+  fetchWarehouses();
 
-    const handleOutsideClick = (e: MouseEvent) => {
-      if (supplierSearchRef.current && !supplierSearchRef.current.contains(e.target as Node)) {
-        setShowSupplierDropdown(false);
-      }
-      if (itemSearchRef.current && !itemSearchRef.current.contains(e.target as Node)) {
-        setShowItemDropdown(false);
-      }
-      if (grnSearchRef.current && !grnSearchRef.current.contains(e.target as Node)) {
-        setShowGrnDropdown(false);
-      }
-      if (poSearchRef.current && !poSearchRef.current.contains(e.target as Node)) {
-        setShowPoDropdown(false);
-      }
-    };
-    document.addEventListener('mousedown', handleOutsideClick);
-    return () => document.removeEventListener('mousedown', handleOutsideClick);
-  }, []);
+  // Taxes must be loaded BEFORE we hydrate an existing invoice's items,
+  // otherwise each item's tax_id -> tax_rate lookup runs against an empty
+  // taxes[] (stale closure) and silently zeroes out GST until the user
+  // manually touches a tax dropdown.
+  (async () => {
+    const taxesData = await fetchTaxes();
+    if (isEdit && id) {
+      await loadExistingInvoice(id, taxesData);
+    }
+  })();
 
-  // ─── EDIT-MODE BINDING FIX: resolve the supplier once BOTH the invoice load
-  //     and the supplier list have finished
+  const handleOutsideClick = (e: MouseEvent) => {
+    if (supplierSearchRef.current && !supplierSearchRef.current.contains(e.target as Node)) {
+      setShowSupplierDropdown(false);
+    }
+    if (itemSearchRef.current && !itemSearchRef.current.contains(e.target as Node)) {
+      setShowItemDropdown(false);
+    }
+    if (grnSearchRef.current && !grnSearchRef.current.contains(e.target as Node)) {
+      setShowGrnDropdown(false);
+    }
+    if (poSearchRef.current && !poSearchRef.current.contains(e.target as Node)) {
+      setShowPoDropdown(false);
+    }
+  };
+  document.addEventListener('mousedown', handleOutsideClick);
+  return () => document.removeEventListener('mousedown', handleOutsideClick);
+}, []);
+  // ─── EDIT-MODE BINDING FIX ──────────────────────────────────────────────
   useEffect(() => {
     if (pendingSupplierId != null && suppliers.length > 0) {
       const supplier = suppliers.find(s => s.id === pendingSupplierId);
@@ -505,16 +513,20 @@ export default function PurchaseInvoiceForm() {
   };
 
   // ─── Fetch Taxes ────────────────────────────────────────────────────────────
-  const fetchTaxes = async () => {
-    try {
-      const res = await api.get('/item/get-tax');
-      if (res.data?.success === 1) {
-        setTaxes(res.data.data || []);
-      }
-    } catch (err) {
-      console.error('Error fetching taxes:', err);
+// ─── Fetch Taxes ────────────────────────────────────────────────────────────
+const fetchTaxes = async (): Promise<Tax[]> => {
+  try {
+    const res = await api.get('/item/get-tax');
+    if (res.data?.success === 1) {
+      const taxData: Tax[] = res.data.data || [];
+      setTaxes(taxData);
+      return taxData;
     }
-  };
+  } catch (err) {
+    console.error('Error fetching taxes:', err);
+  }
+  return [];
+};
 
   // ─── Fetch Warehouses ───────────────────────────────────────────────────────
   const fetchWarehouses = async () => {
@@ -971,13 +983,13 @@ export default function PurchaseInvoiceForm() {
     }));
   };
 
-  // ─── Load existing invoice ──────────────────────────────────────────────────
-  const loadExistingInvoice = async (invoiceId: string) => {
-    setPageLoading(true);
-    try {
-      const res = await api.get(`/purchase-invoice/${invoiceId}`);
-      if (res.data?.success === 1) {
-        const inv = res.data.data;
+// ─── Load existing invoice ──────────────────────────────────────────────────
+const loadExistingInvoice = async (invoiceId: string, taxesData: Tax[] = []) => {
+  setPageLoading(true);
+  try {
+    const res = await api.get(`/purchase-invoice/${invoiceId}`);
+    if (res.data?.success === 1) {
+      const inv = res.data.data;
 
 
         // ── NEW: Read is_create_from_grn and grn_ids from API ──
@@ -987,7 +999,7 @@ export default function PurchaseInvoiceForm() {
         // ── BILL SOURCE FIX: determine bill source from is_create_from_grn ──
         const resolvedBillSource: BillSource = isCreateFromGrn === 1 ? 'GRN' : 'Without GRN';
 
-        const itemsFromApi: any[] = Array.isArray(inv.items) ? inv.items : [];
+      const itemsFromApi: any[] = Array.isArray(inv.items) ? inv.items : [];
 
 
         setFormData(prev => ({
@@ -1076,13 +1088,14 @@ if (grnIds.length > 0) {
           }
         }
       }
-    } catch (err) {
-      console.error('Error loading invoice:', err);
-      toast.error('Failed to load invoice');
-    } finally {
-      setPageLoading(false);
     }
-  };
+  } catch (err) {
+    console.error('Error loading invoice:', err);
+    toast.error('Failed to load invoice');
+  } finally {
+    setPageLoading(false);
+  }
+};
 
   // ─── Computed totals ────────────────────────────────────────────────────────
   const subTotal = items.reduce((s, r) => s + (r.amount || 0), 0);

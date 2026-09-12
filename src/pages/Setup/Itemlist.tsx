@@ -1618,9 +1618,6 @@ export default function ItemList() {
             )}
           </div>
 
-         
-           
-          
           <button className="itl-btn-secondary" onClick={handleBulkUpload}>
             <FaFileExcel size={13} />
             Bulk Upload

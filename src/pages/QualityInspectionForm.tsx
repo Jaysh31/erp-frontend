@@ -48,10 +48,10 @@ interface InspectionForm {
   supplierRemarks: string;
   footerRevNo: string;
   footerRevDate: string;
-  inspectedBy: string;  // For display name
-  inspectedById?: number | null;  // For ID (this is what gets saved to DB)
-  reviewedBy: string;   // For display name
-  reviewedById?: number | null;   // For ID (this is what gets saved to DB)
+  inspectedBy: string;
+  inspectedById?: number | null;
+  reviewedBy: string;
+  reviewedById?: number | null;
   qualityTemplateId?: number | null;
   sourceType?: string;
   sourceId?: number;
@@ -1479,57 +1479,85 @@ export default function QualityInspectionForm() {
     }));
   };
 
+  /* ─── UPDATED: Load Record into Form ──────────────────────────────── */
   const loadRecordIntoForm = (record: any) => {
     setRecordName(record.inspection_no ?? null);
-    const sampleCount = record.details?.[0]?.observations?.length || DEFAULT_SAMPLE_COUNT;
+    
+    // Get sample count from observations
+    const details = record.details || [];
+    const sampleCount = details.length > 0 && details[0].observations 
+      ? details[0].observations.length 
+      : DEFAULT_SAMPLE_COUNT;
 
-    const parameters: ParameterRow[] = Array.isArray(record.details) && record.details.length > 0
-      ? record.details.map((d: any) => ({
-        id: nextId(),
-        parameter: d.parameter_name || `Parameter ${d.parameter_id}`,
-        parameterId: d.parameter_id,
-        specification: d.specification || '',
-        inspectionMethod: d.inspection_method_name || '',
-        inspectionMethodId: d.inspection_method_id,
-        observations: Array.isArray(d.observations) && d.observations.length > 0
-          ? d.observations.map((obs: any) => obs.observed_value || '')
-          : Array.from({ length: sampleCount }, () => ''),
-        isMandatory: d.is_mandatory,
-        remarks: d.remarks,
-      }))
+    // Map parameters from details
+    const parameters: ParameterRow[] = details.length > 0
+      ? details.map((d: any) => ({
+          id: nextId(),
+          parameter: d.parameter?.parameter_name || d.parameter_name || `Parameter ${d.parameter_id}`,
+          parameterId: d.parameter_id,
+          specification: d.specification || '',
+          inspectionMethod: d.inspection_method?.method_name || d.inspection_method_name || '',
+          inspectionMethodId: d.inspection_method_id,
+          observations: Array.isArray(d.observations) && d.observations.length > 0
+            ? d.observations.map((obs: any) => obs.observed_value || '')
+            : Array.from({ length: sampleCount }, () => ''),
+          isMandatory: d.is_mandatory ?? 1,
+          remarks: d.remarks || '',
+          detailId: d.id,
+        }))
       : [createBlankParameterRow(sampleCount)];
 
+    // Set selected item ID
     if (record.item_id) {
       setSelectedItemId(record.item_id);
-
-      if (record.quality_template_id) {
-        setFormData(prev => ({
-          ...prev,
-          qualityTemplateId: record.quality_template_id,
-        }));
-      }
     }
 
+    // Set quality template ID if present
+    if (record.quality_template_id) {
+      setFormData(prev => ({
+        ...prev,
+        qualityTemplateId: record.quality_template_id,
+      }));
+    }
+
+    // Set current template if available
+    if (record.quality_template && record.quality_template.length > 0) {
+      const templateData = record.quality_template[0];
+      setCurrentTemplate({
+        id: templateData.id,
+        template_name: templateData.template_name,
+        template_code: templateData.template_code,
+        company_id: templateData.company_id,
+        item_id: templateData.item_id,
+        description: templateData.description,
+        is_default: templateData.is_default,
+        is_active: templateData.is_active,
+        parameters: templateData.parameters || [],
+      });
+      setTemplateLoaded(true);
+    }
+
+    // Update form data with all fields from API response
     setFormData((prev) => ({
       ...prev,
       companyName: record.company_name || prev.companyName,
       reportTitle: record.report_title || prev.reportTitle,
       docNo: record.doc_no ?? prev.docNo,
-      partProductName: record.part_product_name || prev.partProductName,
+      partProductName: record.product_name || record.part_product_name || prev.partProductName,
       partNo: record.part_no || prev.partNo,
       drawingNo: record.drawing_no || prev.drawingNo,
       revNo: record.revision_no || prev.revNo,
       customerName: record.customer_name || prev.customerName,
       date: unwrapDate(record.inspection_date) || prev.date,
       invoiceNo: record.invoice_no || prev.invoiceNo,
-      invoiceQty: record.invoice_qty || prev.invoiceQty,
+      invoiceQty: String(record.inspection_qty || record.invoice_qty || prev.invoiceQty),
       challanNoDate: record.challan_no_date || prev.challanNoDate,
       reportNo: record.report_no || prev.reportNo,
       parameters,
       sampleCount,
       allDimensionsNote: record.all_dimensions_note || prev.allDimensionsNote,
       samplesNote: record.samples_note || prev.samplesNote,
-      supplierRemarks: record.supplier_remarks || prev.supplierRemarks,
+      supplierRemarks: record.remarks || record.supplier_remarks || prev.supplierRemarks,
       footerRevNo: record.footer_rev_no || prev.footerRevNo,
       footerRevDate: unwrapDate(record.footer_rev_date) || prev.footerRevDate,
       inspectedBy: record.inspected_by_name || record.inspected_by || prev.inspectedBy,
@@ -1537,6 +1565,9 @@ export default function QualityInspectionForm() {
       reviewedBy: record.reviewed_by_name || record.reviewed_by || prev.reviewedBy,
       reviewedById: record.reviewed_by || null,
       qualityTemplateId: record.quality_template_id || prev.qualityTemplateId,
+      // Preserve source info if coming from a source
+      sourceType: record.source_type || prev.sourceType,
+      sourceId: record.source_id || prev.sourceId,
     }));
   };
 
@@ -2439,7 +2470,6 @@ export default function QualityInspectionForm() {
       status: status,
       overall_result: overallResult,
       remarks: formData.supplierRemarks || null,
-      // CRITICAL FIX: Send the ID, not the name
       inspected_by: formData.inspectedById || null,
       reviewed_by: formData.reviewedById || null,
       approved_by: null,
@@ -2489,7 +2519,6 @@ export default function QualityInspectionForm() {
           <button type="button" className="qir-back-btn" onClick={handleBack}>
             <FaArrowLeft size={12} /> Back
           </button>
-          {/*<h1 className="qir-title"><FaClipboardCheck size={15} /> {isViewMode ? 'View Inspection Report' : isEditMode ? 'Edit Inspection Report' : 'New Inspection Report'}</h1>*/}
 
           {apiError && (
             <div className="qir-error-pill">

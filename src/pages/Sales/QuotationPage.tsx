@@ -4,16 +4,15 @@ import {
   FaSearch, FaPlus, FaEye, FaEdit, FaTrash, FaFilePdf, FaPrint,
   FaFilter, FaCheckCircle, FaClock, FaTimesCircle,
   FaFileAlt, FaExternalLinkAlt,
-  FaChartLine, FaTimes, FaSpinner,
+   FaTimes, FaSpinner,
   FaEnvelope, FaCalendarAlt,
   FaAngleDoubleLeft,
   FaAngleDoubleRight,
   FaChevronLeft,
   FaChevronRight,
-  FaHome,
+  
   FaChevronDown,
-  FaChevronUp,
-  FaEllipsisV
+
 
 } from 'react-icons/fa';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
@@ -311,36 +310,9 @@ function buildCalendarGrid(year: number, month: number): (Date | null)[] {
    swap this out for that and delete this helper — the topbar UI below
    will keep working unchanged, it just needs { name, role }.
 ------------------------------------------------------------------------ */
-interface CurrentUser {
-  name: string;
-  role: string;
-}
 
-const getCurrentUser = (): CurrentUser => {
-  const candidateKeys = ['user', 'currentUser', 'authUser', 'admin_user', 'loggedInUser'];
-  try {
-    for (const key of candidateKeys) {
-      const raw = localStorage.getItem(key);
-      if (!raw) continue;
-      const parsed = JSON.parse(raw);
-      const name = parsed?.name || parsed?.full_name || parsed?.fullName || parsed?.username || parsed?.email;
-      if (name) {
-        const role = parsed?.role || parsed?.designation || parsed?.user_role || 'Admin';
-        return { name: String(name), role: String(role) };
-      }
-    }
-  } catch {
-    // ignore malformed localStorage data and fall through to default
-  }
-  return { name: 'Admin User', role: 'Admin' };
-};
 
-const getInitials = (name: string): string => {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '?';
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-};
+
 
 export default function QuotationPage() {
   const navigate = useNavigate();
@@ -354,7 +326,7 @@ export default function QuotationPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [printLoadingId, setPrintLoadingId] = useState<string | null>(null);
-  const [expandedMobileCard, setExpandedMobileCard] = useState<string | null>(null);
+  const [,] = useState<string | null>(null);
 
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   
@@ -413,8 +385,6 @@ export default function QuotationPage() {
   const debouncedFilterText = useDebounce(filterText, 500);
 
   // Logged-in user shown in the top bar (see getCurrentUser() above)
-  const currentUser = getCurrentUser();
-  const userInitials = getInitials(currentUser.name);
 
   const formatDisplayDateWithContext = (dateString: string) => {
     if (!dateString) return '';
@@ -794,10 +764,6 @@ export default function QuotationPage() {
     return Math.min(currentPage * itemsPerPage, totalRecords);
   };
 
-  const totalAmount = quotations.reduce((sum, q) => sum + q.totalAmount, 0);
-  const acceptedAmount = quotations.filter(q => q.status === 'Accepted').reduce((sum, q) => sum + q.totalAmount, 0);
-  const conversionRate = totalAmount > 0 ? Math.round((acceptedAmount / totalAmount) * 100) : 0;
-
   const handleView = (quote: Quotation) => {
     navigate(`/quotation/${quote.id}`, { state: { quotation: quote } });
   };
@@ -875,9 +841,6 @@ export default function QuotationPage() {
     setCurrentPage(1);
   };
 
-  const toggleMobileCard = (id: string) => {
-    setExpandedMobileCard(expandedMobileCard === id ? null : id);
-  };
 
   /* ─────────────────────── Print (Tax-Invoice format) ─────────────────────── */
 

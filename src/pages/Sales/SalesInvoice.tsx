@@ -28,6 +28,10 @@ import {
   FaChevronDown,
   FaPrint,
   FaTrash
+  FaChevronUp,
+  FaChevronDown,
+  FaPrint,
+  FaTrash
 } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
@@ -2827,6 +2831,241 @@ const SalesInvoice: React.FC = () => {
                   {totalRecords}
                 </span>
               </div>
+            </div>
+
+            {loading && invoices.length === 0 ? (
+              <div className="qt-empty-state">
+                <div className="qt-empty-content">
+                  <p>No Sales Invoices found</p>
+                  <span>Try adjusting your search criteria</span>
+                </div>
+              </div>
+            ) : (
+              <div className="sales-mobile-cards">
+                {invoices.map((invoice, idx) => {
+                  const isExpanded = expandedRows.has(invoice.id);
+                  const rowNumber = getStartIndex() + idx;
+                  function handlePrintQuotation(invoice: SalesInvoice) {
+                    handlePrint(invoice);
+                  }
+
+                  function getStatusColor(status: string) {
+                    switch (status.trim().toLowerCase()) {
+                      case 'paid':
+                        return 'qt-status-paid';
+                      case 'partially paid':
+                        return 'qt-status-partial';
+                      case 'submitted':
+                        return 'qt-status-submitted';
+                      case 'cancelled':
+                        return 'qt-status-cancelled';
+                      case 'overdue':
+                        return 'qt-status-overdue';
+                      case 'draft':
+                      default:
+                        return 'qt-status-draft';
+                    }
+                  }
+
+                    function getStatusIcon(status: string) {
+                      switch (status.trim().toLowerCase()) {
+                        case 'paid':
+                          return <FaCheckCircle size={10} />;
+                        case 'submitted':
+                          return <FaPaperPlane size={10} />;
+                        case 'cancelled':
+                          return <FaTimesCircle size={10} />;
+                        case 'overdue':
+                          return <FaExclamationTriangle size={10} />;
+                        case 'partially paid':
+                        case 'draft':
+                        default:
+                          return <FaClock size={10} />;
+                      }
+                    }
+
+                  function formatDisplayDateWithContext(date: any): React.ReactNode {
+                    if (date === null || date === undefined || date === '') {
+                      return '—';
+                    }
+
+                    const value = date instanceof Date
+                      ? date
+                      : typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)
+                        ? new Date(`${date}T00:00:00`)
+                        : new Date(date);
+
+                    if (Number.isNaN(value.getTime())) {
+                      return String(date);
+                    }
+
+                    return new Intl.DateTimeFormat(undefined, {
+                      day: '2-digit',
+                      month: 'short',
+                      year: 'numeric',
+                    }).format(value);
+                  }
+
+                  return (
+                    <div
+                      key={invoice.id}
+                      className={`sales-mobile-card ${isExpanded ? "sales-mobile-card-expanded" : ""}`}
+                    >
+                      {/* Card Header: Date	Amount	Paid	Status	Actions and Dropdown Button */}
+                      <div
+                        className="sales-mobile-card-header"
+                        onClick={() => toggleRowExpand(invoice.id)}
+                      >
+                        <div className="sales-mobile-card-primary">
+                          <div className="sales-mobile-card-primary-row">
+                            <span className="sales-mobile-header-badge">
+                              <span className="qt-td qt-td-id">
+                      {invoice.displayInvoiceNumber || invoice.id || '-'}
+                              </span>
+                              <span
+                              className="sales-mobile-item-name"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleView(invoice.id);
+                              }}
+                              title={invoice.customer_name}
+                            >
+                              {invoice.customer_name || "—"}
+                            </span>
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Dropdown Button */}
+                        <button
+                          type="button"
+                          className={`sales-mobile-dropdown-btn ${isExpanded ? "expanded" : ""}`}
+                          onClick={(e) => toggleRowExpand(invoice.id, e)}
+                          aria-label={isExpanded ? "Collapse quotation details" : "Expand quotation details"}
+                          title={isExpanded ? "Collapse" : "Expand"}
+                        >
+                          <FaChevronDown size={13} className="sales-mobile-chevron" />
+                        </button>
+                      </div>
+
+                      {/* Dropdown Section: Date, Amount, Actions */}
+                      {isExpanded && (
+                        <div className="sales-mobile-card-details">
+                          <div className="sales-mobile-detail-row">
+                            <span className="sales-mobile-detail-label">Date</span>
+                            <span className="sales-mobile-detail-value">
+                              {invoice.posting_date ? formatDisplayDateWithContext(invoice.posting_date) : "—"}
+                              {invoice.validTill && (
+                                <span style={{ fontSize: "11px", color: "var(--text-secondary)", marginLeft: 6 }}>
+                                  (Valid: {formatDisplayDateWithContext(invoice.validTill)})
+                                </span>
+                              )}
+                            </span>
+                          </div>
+
+                          <div className="sales-mobile-detail-row">
+                            <span className="sales-mobile-detail-label">Status</span>
+                            <span className="sales-mobile-detail-value">
+                              <span className={`qt-status-badge ${getStatusColor(invoice.status)}`}>
+                                {getStatusIcon(invoice.status)}
+                                {invoice.status}
+                              </span>
+                            </span>
+                          </div>
+
+                          <div className="sales-mobile-detail-row">
+                            <span className="sales-mobile-detail-label">Amount</span>
+                            <span className="sales-mobile-detail-value sales-amount-highlight">
+                              {invoice.currency} {invoice.grand_total.toLocaleString()}
+                            </span>
+                          </div>
+
+                          <div className="sales-mobile-detail-footer">
+                            <span className="sales-mobile-card-meta-text">
+                              {/*rowNumber} of {totalRecords*/}
+                            </span>
+                            <div className="sales-mobile-action-buttons">
+                              <button
+                                className="qt-action-btn qt-action-view"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleView(invoice.id);
+                                }}
+                                title="View / Edit"
+                              >
+                                <FaEye size={12} />
+                              </button>
+                              <button
+                                className="qt-action-btn qt-action-print"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handlePrintQuotation(invoice);
+                                }}
+                                title="Print"
+                                disabled={printLoadingId === invoice.id}
+                              >
+                                {printLoadingId === invoice.id ? (
+                                  <FaSpinner className="spinning" size={12} />
+                                ) : (
+                                  <FaPrint size={12} />
+                                )}
+                              </button>
+                              <button
+                                className="qt-action-btn qt-action-edit"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEdit(invoice.id);
+                                }}
+                                title="Edit"
+                              >
+                                <FaEdit size={12} />
+                              </button>
+                              <button
+                                className="qt-action-btn qt-action-delete"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleCancelInvoice(invoice.id);
+                                }}
+                                title="Delete"
+                              >
+                                <FaTrash size={12} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+      
+
+
+      {/* ===== MOBILE CARDS ===== */}
+      <div className="qt-mobile-cards-wrap">
+        {loading && invoices.length === 0 ? (
+          <div className="qt-loading">
+            <FaSpinner className="spinning" size={30} style={{ display: 'block', margin: '0 auto 12px' }} />
+            <p>Loading sales invoices...</p>
+          </div>
+        ) : error ? (
+          <div className="qt-error">
+            <FaExclamationTriangle size={30} style={{ display: 'block', margin: '0 auto 12px' }} />
+            <p>{error}</p>
+            <button onClick={handleRefresh} className="qt-retry-btn">
+              <FaSync size={12} style={{ marginRight: '6px' }} /> Retry
+            </button>
+          </div>
+        ) : invoices.length === 0 ? (
+          <div className="qt-empty-state">
+            <div className="qt-empty-content">
+              <FaFileInvoice size={48} />
+              <p>No sales invoices found</p>
+              <span>Try adjusting your search criteria</span>
             </div>
 
             {loading && invoices.length === 0 ? (
