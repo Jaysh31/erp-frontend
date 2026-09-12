@@ -1406,7 +1406,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                   {getFieldError('components')}
                 </div>
               )}
-              <div className="nbom-table-wrap">
+              <div className="nbom-tables-wrap">
                 <table className="nbom-table">
                   <thead>
                     <tr>
@@ -1593,12 +1593,12 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                       {getFieldError('operations')}
                     </div>
                   )}
-                  <div className="nbom-table-wrap">
-                    <table className="nbom-table">
+                  <div className="nbom-tables-wrap">
+                    <table className="nbom-tables">
                       <thead>
                         <tr>
-                          <th className="nbom-table-drag-col"></th>
-                          <th className="nbom-table-no">No.</th>
+                          <th className="nbom-tables-drag-col"></th>
+                          <th className="nbom-tables-no">No.</th>
                           <th>Operation <span style={{ color: "#dc2626" }}>*</span></th>
                           <th>Seq ID</th>
                           <th>Workstation <span style={{ color: "#dc2626" }}>*</span></th>
@@ -1623,10 +1623,10 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                               dragOverIndex === idx ? 'nbom-drag-over' : ''
                             } ${dragIndex === idx ? 'nbom-dragging' : ''}`}
                           >
-                            <td className="nbom-table-drag-handle">
+                            <td className="nbom-tables-drag-handle">
                               <GripVertical size={14} />
                             </td>
-                            <td className="nbom-table-no">{idx + 1}</td>
+                            <td className="nbom-tables-no">{idx + 1}</td>
                             <td>
                               <select
                                 className="nbom-table-select"
@@ -1684,7 +1684,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                             </td>
                             <td>
                               <input
-                                className="nbom-table-input"
+                                className="nbom-tables-input"
                                 value={row.workstationType}
                                 onChange={e => setOpRows(rs => rs.map((r, i) => i === idx ? { ...r, workstationType: e.target.value } : r))}
                                 placeholder="WS Type"
@@ -1720,7 +1720,7 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                             </td>
                             <td>
                               <input
-                                className="nbom-table-input"
+                                className="nbom-tables-input"
                                 value={row.operatingCost}
                                 readOnly
                                 style={{ width: 80, background: "var(--c-bg-muted)" }}
@@ -1740,8 +1740,8 @@ const NewBOMPage: React.FC<NewBOMPageProps> = ({ onBack, editData }) => {
                       </tbody>
                     </table>
                   </div>
-                  <div className="nbom-table-footer">
-                    <div className="nbom-table-footer__left">
+                  <div className="nbom-tables-footer">
+                    <div className="nbom-tables-footer__left">
                       <button className="nbom-btn-link" onClick={addOpRow}>
                         <Plus size={12} /> Add Operation
                       </button>
