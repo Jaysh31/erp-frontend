@@ -429,8 +429,8 @@ export default function SetupDashboard() {
       {/* Header */}
       <div className="dashboard-header">
         <div className="header-left">
-          <h1>⚙️ Setup Dashboard</h1>
-          <p className="header-subtitle">Master data management and configuration</p>
+          <h1> Setup Dashboard</h1>
+          {/*<p className="header-subtitle">⚙️Master data management and configuration</p>*/}
         </div>
         <div className="header-right">
           <button className="btn-primary" onClick={() => handleNavigate("/item-list")}>

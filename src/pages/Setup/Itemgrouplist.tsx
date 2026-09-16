@@ -793,7 +793,7 @@ export default function ItemGroupList() {
             )}
           </div>
         </div>
-        <div className="igl-filter-right">
+        <div className="bom-filter-right">
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}

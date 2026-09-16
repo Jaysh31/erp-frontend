@@ -619,17 +619,17 @@ export default function PurchaseOrder() {
             )}
           </div>
         </div>
-        <div className="po-filter-right">
+        <div className="bom-filter-right">
           <select
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
-            className="po-filter-select"
+            className="bom-filter-select"
           >
             <option value="All">All Status</option>
             {statusOptions.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
           <button
-            className={`po-filter-btn ${showFilters ? 'active' : ''}`}
+            className={`bom-filter-btn ${showFilters ? 'active' : ''}`}
             onClick={() => setShowFilters(!showFilters)}
           >
             <FaFilter size={12} /> Filter
@@ -638,7 +638,7 @@ export default function PurchaseOrder() {
           {/* Date Range Button with Calendar Dropdown */}
           <div ref={dateFilterRef} style={{ position: 'relative', display: 'inline-block' }}>
             <button
-              className="po-sort-btn"
+              className="bom-sort-btn"
               onClick={() => setShowDateFilterDropdown(!showDateFilterDropdown)}
               style={dateFrom ? { borderColor: '#3182ce', color: '#3182ce' } : undefined}
             >
@@ -651,7 +651,7 @@ export default function PurchaseOrder() {
 
             {/* Calendar Date Filter Dropdown */}
             {showDateFilterDropdown && (
-              <div className="po-date-filter-dropdown" style={{
+              <div className="bom-date-filter-dropdown" style={{
                 position: 'absolute',
                 top: '100%',
                 right: '0',

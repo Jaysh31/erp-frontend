@@ -12,7 +12,7 @@ import {
   FaTimesCircle,  FaBuilding,
   FaCalendarAlt, FaFileAlt, FaBoxes, FaClipboardList,
   FaSearch, FaFilter, FaPhone, FaEnvelope,  FaGlobeAsia,
-  FaCheckCircle
+  FaCheckCircle, FaTrash
 } from 'react-icons/fa';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
@@ -23,6 +23,7 @@ import "react-datepicker/dist/react-datepicker.css";
 import './PurchaseOrderForm.css';
 import './PurchaseMobileTable.css';
 import { PageLoader } from '../components/PageLoader';
+
 
 // ─── DigitInput Component ──────────────────────────────────
 
@@ -874,27 +875,16 @@ export default function PurchaseOrderForm() {
         const data = response.data.data;
         
         const items = data.items?.map((item: any, index: number) => {
-          // ─── Resolve this item's tax, preferring the reliable ID match ───
-          // (same key used by handleItemTaxChange) over the fragile
-          // rate/template string parsing, which silently fails whenever the
-          // backend doesn't echo item_tax_rate / item_tax_template back in
-          // exactly the shape this regex expects.
-          let matchedTax = null;
-        
-          const savedTaxId = item.item_tax_id ?? item.tax_id;
-          if (savedTaxId != null && taxOptions.length > 0) {
-            matchedTax = taxOptions.find(t => String(t.tax_id) === String(savedTaxId));
-          }
-        
           const itemTaxRate = item.item_tax_rate ? parseFloat(item.item_tax_rate) : 0;
-        
-          if (!matchedTax && taxOptions.length > 0 && itemTaxRate > 0) {
+          
+          let matchedTax = null;
+          if (taxOptions.length > 0 && itemTaxRate > 0) {
             matchedTax = taxOptions.find(t => {
               const { rate } = extractTaxInfo(t.tax_type);
               return rate === itemTaxRate;
             });
           }
-        
+          
           if (!matchedTax && item.item_tax_template && taxOptions.length > 0) {
             const templateMatch = item.item_tax_template.match(/(\d+)/);
             if (templateMatch) {
@@ -905,11 +895,7 @@ export default function PurchaseOrderForm() {
               });
             }
           }
-        
-          const resolvedRate = matchedTax
-            ? extractTaxInfo(matchedTax.tax_type).rate
-            : itemTaxRate;
-        
+          
           return {
             id: String(index + 1),
             itemId: item.item_id || 0,
@@ -926,7 +912,7 @@ export default function PurchaseOrderForm() {
             brand: item.brand || '',
             description: item.description || '',
             taxId: matchedTax ? String(matchedTax.tax_id) : '',
-            taxRate: matchedTax ? resolvedRate : 0,
+            taxRate: matchedTax ? itemTaxRate : 0,
             hsn: item.hsn || '',
           };
         }) || [{ 
@@ -1062,13 +1048,33 @@ export default function PurchaseOrderForm() {
     const input = inputRefs.current[index];
     if (input) {
       const rect = input.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const isMobile = viewportWidth <= 768;
+
+      let top = rect.bottom + 4;
+      let left = rect.left;
+      let width = rect.width;
+
+      if (isMobile) {
+        const padding = 12;
+        width = Math.min(viewportWidth - padding * 2, 420);
+        left = Math.max(padding, Math.min(rect.left, viewportWidth - width - padding));
+
+        const estimatedHeight = 260;
+        if (top + estimatedHeight > viewportHeight && rect.top > estimatedHeight + 10) {
+          top = Math.max(10, rect.top - estimatedHeight - 4);
+        }
+      } else {
+        width = Math.max(rect.width, 360);
+        if (left + width > viewportWidth - 16) {
+          left = Math.max(16, viewportWidth - width - 16);
+        }
+      }
+
       setDropdownPositions(prev => ({
         ...prev,
-        [index]: {
-          top: rect.bottom + window.scrollY + 4,
-          left: rect.left + window.scrollX,
-          width: rect.width
-        }
+        [index]: { top, left, width }
       }));
     }
   };
@@ -1118,18 +1124,17 @@ export default function PurchaseOrderForm() {
 
   // ─── Handle per-row tax selection ──────────────────────────────────
   const handleItemTaxChange = (index: number, taxId: string) => {
-    setFormData(prev => {
-      const updatedItems = [...prev.items];
-      if (!taxId) {
-        updatedItems[index] = { ...updatedItems[index], taxId: '', taxRate: 0 };
-      } else {
-        const selectedTax = taxOptions.find(t => t.tax_id.toString() === taxId);
-        const { rate } = selectedTax ? extractTaxInfo(selectedTax.tax_type) : { rate: 0 };
-        updatedItems[index] = { ...updatedItems[index], taxId, taxRate: Number(rate) || 0 };
-      }
-      return { ...prev, items: updatedItems };
-    });
+    const updatedItems = [...formData.items];
+    if (!taxId) {
+      updatedItems[index] = { ...updatedItems[index], taxId: '', taxRate: 0 };
+    } else {
+      const selectedTax = taxOptions.find(t => t.tax_id.toString() === taxId);
+      const { rate } = selectedTax ? extractTaxInfo(selectedTax.tax_type) : { rate: 0 };
+      updatedItems[index] = { ...updatedItems[index], taxId, taxRate: rate };
+    }
+    setFormData(prev => ({ ...prev, items: updatedItems }));
   };
+
   // ─── Handle item search ─────────────────────────────────────────────
   const handleItemSearch = (index: number, value: string) => {
     setSearchTerms(prev => ({ ...prev, [index]: value }));
@@ -1184,88 +1189,90 @@ export default function PurchaseOrderForm() {
 
   // ─── Handle item selection from suggestions ──────────────────────
   const handleSelectItem = (index: number, item: ItemSuggestion) => {
-    setFormData(prev => {
-      const updatedItems = [...prev.items];
-      const rate = item.standard_rate || item.valuation_rate || 0;
-      const quantity = updatedItems[index].quantity || 1;
-  
-      let rowTaxId = prev.taxId;
-      let rowTaxRate = prev.taxRate;
-      if (item.tax_id) {
-        const matchedTax = taxOptions.find(t => t.tax_id === item.tax_id);
-        if (matchedTax) {
-          rowTaxId = String(matchedTax.tax_id);
-          rowTaxRate = extractTaxInfo(matchedTax.tax_type).rate;
-        }
+    const updatedItems = [...formData.items];
+    const rate = item.standard_rate || item.valuation_rate || 0;
+    const quantity = updatedItems[index].quantity || 1;
+
+    let rowTaxId = formData.taxId;
+    let rowTaxRate = formData.taxRate;
+    if (item.tax_id) {
+      const matchedTax = taxOptions.find(t => t.tax_id === item.tax_id);
+      if (matchedTax) {
+        rowTaxId = String(matchedTax.tax_id);
+        rowTaxRate = extractTaxInfo(matchedTax.tax_type).rate;
       }
-  
-      updatedItems[index] = {
-        ...updatedItems[index],
-        itemId: item.id,
-        itemCode: item.item_code,
-        itemName: item.item_name,
-        uom: item.stock_uom || 'NOS',
-        rate: rate,
-        orderRate: rate,
-        amount: rate * quantity,
-        balanceQty: quantity - updatedItems[index].receivedQty,
-        itemGroup: item.item_group || '',
-        brand: item.brand || '',
-        description: item.description || '',
-        taxId: rowTaxId,
-        taxRate: Number(rowTaxRate) || 0,
-        hsn: item.hsn || '',
-      };
-  
-      return { ...prev, items: updatedItems };
-    });
-  
+    }
+
+    updatedItems[index] = {
+      ...updatedItems[index],
+      itemId: item.id,
+      itemCode: item.item_code,
+      itemName: item.item_name,
+      uom: item.stock_uom || 'NOS',
+      rate: rate,
+      orderRate: rate,
+      amount: rate * quantity,
+      balanceQty: quantity - updatedItems[index].receivedQty,
+      itemGroup: item.item_group || '',
+      brand: item.brand || '',
+      description: item.description || '',
+      taxId: rowTaxId,
+      taxRate: rowTaxRate,
+      hsn: item.hsn || '',
+    };
+    
+    setFormData(prev => ({ ...prev, items: updatedItems }));
     setShowSuggestions(prev => ({ ...prev, [index]: false }));
     setSearchTerms(prev => ({ ...prev, [index]: item.item_code }));
-  
-    const rate = item.standard_rate || item.valuation_rate || 0;
-    const quantity = formData.items[index].quantity || 1;
+    
+    // Update digit values
     setDigitValues(prev => ({
       ...prev,
-      [index]: { quantity: String(quantity), rate: String(rate) }
+      [index]: {
+        quantity: String(quantity),
+        rate: String(rate)
+      }
     }));
-  
+    
+    // Update filtered items to show all items again (for next time)
     let filtered = allItems;
     if (itemGroupFilter !== 'all') {
       filtered = filtered.filter(i => i.item_group === itemGroupFilter);
     }
     setFilteredItems(prev => ({ ...prev, [index]: filtered }));
+
+    // Blur search input so mobile keyboard dismisses and dropdown closes
+    inputRefs.current[index]?.blur();
   };
 
   // ─── Handle clear item ──────────────────────────────────────────────
   const handleClearItem = (index: number) => {
-    setFormData(prev => {
-      const updatedItems = [...prev.items];
-      updatedItems[index] = {
-        ...updatedItems[index],
-        itemId: 0,
-        itemCode: '',
-        itemName: '',
-        uom: 'NOS',
-        rate: 0,
-        orderRate: 0,
-        amount: 0,
-        balanceQty: updatedItems[index].quantity,
-        itemGroup: '',
-        brand: '',
-        description: '',
-        hsn: '',
-        taxId: '',
-        taxRate: 0,
-      };
-      return { ...prev, items: updatedItems };
-    });
+    const updatedItems = [...formData.items];
+    updatedItems[index] = {
+      ...updatedItems[index],
+      itemId: 0,
+      itemCode: '',
+      itemName: '',
+      uom: 'NOS',
+      rate: 0,
+      orderRate: 0,
+      amount: 0,
+      balanceQty: updatedItems[index].quantity,
+      itemGroup: '',
+      brand: '',
+      description: '',
+      hsn: '',
+      taxId: '',
+      taxRate: 0,
+    };
+    setFormData(prev => ({ ...prev, items: updatedItems }));
     setSearchTerms(prev => ({ ...prev, [index]: '' }));
     setShowSuggestions(prev => ({ ...prev, [index]: false }));
     setDigitValues(prev => ({
       ...prev,
       [index]: { quantity: prev[index]?.quantity || '1', rate: '0' }
     }));
+    // Reset filtered items to show all
     let filtered = allItems;
     if (itemGroupFilter !== 'all') {
       filtered = filtered.filter(item => item.item_group === itemGroupFilter);
@@ -1279,7 +1286,7 @@ export default function PurchaseOrderForm() {
 
   // ─── Close suggestions when clicking outside ─────────────────────
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
       Object.keys(suggestionRefs.current).forEach((key) => {
         const index = parseInt(key);
         const suggestionEl = suggestionRefs.current[index];
@@ -1292,9 +1299,11 @@ export default function PurchaseOrderForm() {
       });
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('mousedown', handleClickOutside as EventListener);
+    document.addEventListener('touchstart', handleClickOutside as EventListener);
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('mousedown', handleClickOutside as EventListener);
+      document.removeEventListener('touchstart', handleClickOutside as EventListener);
     };
   }, []);
 
@@ -1409,22 +1418,19 @@ export default function PurchaseOrderForm() {
 
   // ─── Calculate totals ─────────────────────────────────────────────
   const calculateTotals = () => {
-    const totalAmount = formData.items.reduce(
-      (sum, item) => sum + (Number(item.orderRate) || Number(item.rate) || 0) * Number(item.quantity),
-      0
-    );
+    const totalAmount = formData.items.reduce((sum, item) => sum + (item.orderRate || item.rate || 0) * item.quantity, 0);
     const taxAmount = formData.items.reduce((sum, item) => {
-      const lineAmount = (Number(item.orderRate) || Number(item.rate) || 0) * Number(item.quantity);
-      const rate = (Number(item.taxRate) || 0) / 100;
+      const lineAmount = (item.orderRate || item.rate || 0) * item.quantity;
+      const rate = (item.taxRate || 0) / 100;
       return sum + lineAmount * rate;
     }, 0);
-  
-    const adjustmentValue = grandTotalAdjustmentSign === 'positive'
+    
+    const adjustmentValue = grandTotalAdjustmentSign === 'positive' 
       ? parseFloat(grandTotalAdjustmentValue) || 0
       : -(parseFloat(grandTotalAdjustmentValue) || 0);
-  
+    
     const calculatedGrandTotal = totalAmount + taxAmount + adjustmentValue;
-  
+    
     return { totalAmount, taxAmount, grandTotal: calculatedGrandTotal, adjustmentValue };
   };
 
@@ -1432,58 +1438,60 @@ export default function PurchaseOrderForm() {
 
   // ─── Handlers ──────────────────────────────────────────────────────
   const handleItemChange = (index: number, field: keyof PurchaseOrderItem, value: string | number) => {
-    setFormData(prev => {
-      const updatedItems = [...prev.items];
-      const previousItem = prev.items[index];
-      updatedItems[index] = { ...updatedItems[index], [field]: value };
-  
-      if (field === 'itemCode') {
-        const stringValue = (value as string) || '';
-        updatedItems[index].itemCode = stringValue;
-  
-        if (!stringValue.trim()) {
-          updatedItems[index] = {
-            ...updatedItems[index],
-            itemId: 0,
-            itemName: '',
-            uom: 'NOS',
-            rate: 0,
-            orderRate: 0,
-            amount: 0,
-            itemGroup: '',
-            brand: '',
-            description: '',
-            hsn: '',
-            taxId: '',
-            taxRate: 0,
-            balanceQty: 0 - previousItem.receivedQty,
-          };
-          setDigitValues(dv => ({
-            ...dv,
-            [index]: { quantity: dv[index]?.quantity || String(previousItem.quantity), rate: '0' }
-          }));
-        }
+    const updatedItems = [...formData.items];
+    const previousItem = formData.items[index];
+    updatedItems[index] = { ...updatedItems[index], [field]: value };
+
+    if (field === 'itemCode') {
+      const stringValue = (value as string) || '';
+      // Don't call handleItemSearch here - it will be called from the input's onChange
+      // Just update the item code in the form data
+      updatedItems[index].itemCode = stringValue;
+      
+      // If the box is cleared, wipe the stale item details
+      if (!stringValue.trim()) {
+        updatedItems[index] = {
+          ...updatedItems[index],
+          itemId: 0,
+          itemName: '',
+          uom: 'NOS',
+          rate: 0,
+          orderRate: 0,
+          amount: 0,
+          itemGroup: '',
+          brand: '',
+          description: '',
+          hsn: '',
+          taxId: '',
+          taxRate: 0,
+          balanceQty: 0 - previousItem.receivedQty,
+        };
+        setDigitValues(prev => ({
+          ...prev,
+          [index]: { quantity: prev[index]?.quantity || String(previousItem.quantity), rate: '0' }
+        }));
       }
-  
-      if (field === 'quantity' || field === 'orderRate' || field === 'rate') {
-        const quantity = field === 'quantity' ? Number(value) : updatedItems[index].quantity;
-        const rate = field === 'orderRate' ? Number(value) :
-                     field === 'rate' ? Number(value) : updatedItems[index].orderRate;
-        updatedItems[index].amount = quantity * rate;
-        updatedItems[index].balanceQty = quantity - updatedItems[index].receivedQty;
-  
-        if (field === 'rate') {
-          updatedItems[index].orderRate = Number(value);
-        }
+    }
+
+    if (field === 'quantity' || field === 'orderRate' || field === 'rate') {
+      const quantity = field === 'quantity' ? Number(value) : updatedItems[index].quantity;
+      const rate = field === 'orderRate' ? Number(value) :
+                   field === 'rate' ? Number(value) : updatedItems[index].orderRate;
+      updatedItems[index].amount = quantity * rate;
+      updatedItems[index].balanceQty = quantity - updatedItems[index].receivedQty;
+
+      if (field === 'rate') {
+        updatedItems[index].orderRate = Number(value);
       }
-  
-      if (field === 'receivedQty') {
-        updatedItems[index].balanceQty = updatedItems[index].quantity - Number(value);
-      }
-  
-      return { ...prev, items: updatedItems };
-    });
+    }
+
+    if (field === 'receivedQty') {
+      updatedItems[index].balanceQty = updatedItems[index].quantity - Number(value);
+    }
+
+    setFormData(prev => ({ ...prev, items: updatedItems }));
   };
+
   // ✅ FIXED: Handle Digit Input for Quantity - Now supports decimals
   const handleDigitQuantityChange = (index: number, value: string) => {
     setDigitValues(prev => ({
@@ -2897,17 +2905,14 @@ export default function PurchaseOrderForm() {
     const searchTerm = searchTerms[index] || '';
     const trimmedSearch = searchTerm.trim();
     
-    // ✅ FIXED: Only rely on showSuggestions state, not on whether text is
-    // present. Previously this OR'd in `trimmedSearch.length > 0`, which
-    // meant that once an item was selected (leaving a non-empty item code
-    // in the search box) the dropdown would immediately reopen even though
-    // handleSelectItem explicitly set showSuggestions[index] to false.
-    const showDropdown = showSuggestions[index];
+    // Dropdown visibility strictly controlled by showSuggestions state
+    const showDropdown = Boolean(showSuggestions[index]);
     
     if (!showDropdown) return null;
 
     const position = dropdownPositions[index];
     if (!position) return null;
+
     const dropdownContent = (
       <div 
         className="pof-suggestions-dropdown-portal"
@@ -2921,7 +2926,7 @@ export default function PurchaseOrderForm() {
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
-          zIndex: 9999,
+          zIndex: 99999,
           background: theme === 'dark' ? '#1e1e2f' : '#ffffff',
           borderRadius: '8px',
           boxShadow: '0 10px 40px rgba(0,0,0,0.2)',
@@ -2932,7 +2937,8 @@ export default function PurchaseOrderForm() {
         <div style={{ 
           overflowY: 'auto', 
           flex: '1 1 auto',
-          maxHeight: '200px',
+          maxHeight: '220px',
+          WebkitOverflowScrolling: 'touch',
         }}>
           {loadingItems ? (
             <div className="pof-suggestions-loading" style={{ padding: '12px', textAlign: 'center', color: '#6b7280' }}>
@@ -2947,15 +2953,19 @@ export default function PurchaseOrderForm() {
               <div
                 key={suggestion.id}
                 className="pof-suggestion-item"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                }}
                 onClick={() => handleSelectItem(index, suggestion)}
                 style={{
-                  padding: '8px 12px',
+                  padding: '10px 12px',
                   cursor: 'pointer',
                   borderBottom: `1px solid ${theme === 'dark' ? '#2a2a3a' : '#f3f4f6'}`,
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
                   transition: 'background 0.15s',
+                  minHeight: '44px',
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.background = theme === 'dark' ? '#2a2a3a' : '#f3f4f6';
@@ -2965,7 +2975,7 @@ export default function PurchaseOrderForm() {
                 }}
               >
                 <div>
-                  <div className="pof-suggestion-code" style={{ fontWeight: 500, fontSize: '13px', color: theme === 'dark' ? '#e5e7eb' : '#111827' }}>
+                  <div className="pof-suggestion-code" style={{ fontWeight: 600, fontSize: '13px', color: theme === 'dark' ? '#e5e7eb' : '#111827' }}>
                     {suggestion.item_code}
                   </div>
                   <div className="pof-suggestion-name" style={{ fontSize: '12px', color: '#6b7280' }}>
@@ -2976,7 +2986,7 @@ export default function PurchaseOrderForm() {
                   )}
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div className="pof-suggestion-rate" style={{ fontSize: '13px', fontWeight: 500, color: '#6366f1' }}>
+                  <div className="pof-suggestion-rate" style={{ fontSize: '13px', fontWeight: 600, color: '#6366f1' }}>
                     {formData.currency} {(suggestion.standard_rate || suggestion.valuation_rate || 0).toFixed(2)}
                   </div>
                   <div className="pof-suggestion-uom" style={{ fontSize: '10px', color: '#9ca3af' }}>
@@ -2992,6 +3002,9 @@ export default function PurchaseOrderForm() {
         {!loadingItems && (
           <div 
             className="pof-suggestion-item pof-add-new-suggestion"
+            onMouseDown={(e) => {
+              e.preventDefault();
+            }}
             onClick={() => {
               const searchVal = trimmedSearch || 'New Item';
               setPendingItemSearch(searchVal);
@@ -3010,8 +3023,9 @@ export default function PurchaseOrderForm() {
               alignItems: 'center',
               gap: '10px',
               color: '#6366f1',
-              fontWeight: 500,
+              fontWeight: 600,
               fontSize: '13px',
+              minHeight: '44px',
               transition: 'background 0.15s',
             }}
             onMouseEnter={(e) => {
@@ -3450,8 +3464,11 @@ export default function PurchaseOrderForm() {
                   <tbody>
                     {formData.items.map((item, index) => (
                       <tr key={item.id} className="pof-itr">
-                        <td className="pof-itd pof-itd-no">{index + 1}</td>
-                        <td className="pof-itd" style={{ position: 'relative' }}>
+                        <td className="pof-itd pof-itd-no" data-label="#">
+                          <span className="pof-mobile-row-badge">Item #{index + 1}</span>
+                          <span className="pof-desktop-row-num">{index + 1}</span>
+                        </td>
+                        <td className="pof-itd pof-itd-code" data-label="Item Code *" style={{ position: 'relative' }}>
                           <div className="pof-item-search-wrapper">
                             <input
                               ref={(el) => { inputRefs.current[index] = el; }}
@@ -3496,7 +3513,7 @@ export default function PurchaseOrderForm() {
                             {renderItemSearchSuggestions(index)}
                           </div>
                         </td>
-                        <td className="pof-itd">
+                        <td className="pof-itd pof-itd-name" data-label="Item Name *">
                           <input
                             className="pof-cell-input"
                             type="text"
@@ -3509,7 +3526,7 @@ export default function PurchaseOrderForm() {
                             placeholder="Name"
                           />
                         </td>
-                        <td className="pof-itd">
+                        <td className="pof-itd" data-label="HSN">
                           <input
                             className="pof-cell-input"
                             type="text"
@@ -3522,7 +3539,7 @@ export default function PurchaseOrderForm() {
                             placeholder="HSN"
                           />
                         </td>
-                        <td className="pof-itd">
+                        <td className="pof-itd" data-label="Qty *">
                           {/* ✅ FIXED: Quantity input now allows decimals */}
                           <DigitInput
                             value={digitValues[index]?.quantity || String(item.quantity)}
@@ -3530,16 +3547,16 @@ export default function PurchaseOrderForm() {
                             placeholder="Qty"
                             maxLength={10}
                             className="pof-digit-input"
-                            allowDecimal={true} // ✅ Added this to allow decimals
+                            allowDecimal={true}
                             min={0}
                           />
                         </td>
-                        <td className="pof-itd">
+                        <td className="pof-itd" data-label="UOM">
                           <span className="pof-uom-display">
                             {item.uom || 'NOS'}
                           </span>
                         </td>
-                        <td className="pof-itd">
+                        <td className="pof-itd" data-label="Rate *">
                           {/* ✅ Rate input already supports decimals */}
                           <DigitInput
                             value={digitValues[index]?.rate || String(item.rate)}
@@ -3551,7 +3568,7 @@ export default function PurchaseOrderForm() {
                             min={0}
                           />
                         </td>
-                        <td className="pof-itd">
+                        <td className="pof-itd" data-label="Tax">
                           <select
                             className="pof-cell-select pof-tax-select"
                             value={item.taxId || ''}
@@ -3569,42 +3586,51 @@ export default function PurchaseOrderForm() {
                             })}
                           </select>
                         </td>
-                        <td className="pof-itd pof-itd-amount">
+                        <td className="pof-itd pof-itd-amount" data-label="Amount">
+ 
+                              <td className="pif-amount pof-itd-amount pif-itd-amount" >
+                               
+
                           {formData.currency} {((item.orderRate || item.rate || 0) * item.quantity).toFixed(2)}
+                          </td>
                         </td>
-                        <td className="pof-itd">
+                        <td className="pof-itd pof-itd-action">
                           {formData.items.length > 1 && (
                             <button
                               className="pof-remove-row"
                               onClick={() => removeItemRow(index)}
                               type="button"
+                              title="Remove item"
                             >
-                              ×
+                              <FaTrash size={12} />
+                              <span className="pof-remove-row-text">Remove Item</span>
                             </button>
                           )}
                         </td>
                       </tr>
                     ))}
                   </tbody>
-                   </table>
-                    </div>
-                    <div className='pof-bill-summary'>
-                  <tfoot>
+                </table>
+              </div>
+
+              <div className="pof-bill-summary">
+                <table className="pof-summary-table">
+                  <tbody>
                     <tr>
-                      <td colSpan={8} className="pof-total-label">Subtotal</td>
-                      <td colSpan={3} className="pof-total-amount">{formData.currency} {totalAmount.toFixed(2)}</td>
+                      <td className="pof-total-label">Subtotal</td>
+                      <td className="pof-total-amount">{formData.currency} {totalAmount.toFixed(2)}</td>
                     </tr>
                     <tr>
-                      <td colSpan={8} className="pof-total-label">
+                      <td className="pof-total-label">
                         <span>Tax</span>
                       </td>
-                      <td colSpan={3} className="pof-total-amount">{formData.currency} {taxAmount.toFixed(2)}</td>
+                      <td className="pof-total-amount">{formData.currency} {taxAmount.toFixed(2)}</td>
                     </tr>
                     <tr>
-                      <td colSpan={6} className="pof-total-label pof-adjustment-label">
+                      <td className="pof-total-label pof-adjustment-label">
                         <span>Adjustment</span>
                       </td>
-                      <td colSpan={5} className="pof-total-amount pof-adjustment-cell">
+                      <td className="pof-total-amount pof-adjustment-cell">
                         <div className="pof-adjustment-controls">
                           <select
                             className="pof-adjustment-sign-select"
@@ -3630,14 +3656,14 @@ export default function PurchaseOrderForm() {
                       </td>
                     </tr>
                     <tr>
-                      <td colSpan={8} className="pof-total-label pof-total-grand">Grand Total</td>
-                      <td colSpan={3} className="pof-total-amount pof-total-grand-amount">
+                      <td className="pof-total-label pof-total-grand">Grand Total</td>
+                      <td className="pof-total-amount pof-total-grand-amount">
                         {formData.currency} {calculatedGrandTotal.toFixed(2)}
                       </td>
                     </tr>
-                  </tfoot>
-                
-             
+                  </tbody>
+                </table>
+              </div>
               
               {validationErrors.some(e => e.field === 'items') && (
                 <span className="pof-error-msg" style={{ marginTop: '8px' }}>
@@ -3645,8 +3671,6 @@ export default function PurchaseOrderForm() {
                 </span>
               )}
             </div>
-          </div>
-          </div>
 
           {/* Notes Section */}
           <div className="pof-info-section" style={{ marginTop: '16px' }}>
@@ -3665,6 +3689,7 @@ export default function PurchaseOrderForm() {
               </div>
             </div>
           </div>
+        </div>
 
           {/* ─── Footer ────────────────────────────────────────────────── */}
           <div className="pof-footer">

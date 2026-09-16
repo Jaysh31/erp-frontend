@@ -184,14 +184,14 @@
   align-items: center;
 }
 
-.po-filter-right {
+.bom-filter-right {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
 }
 
-.po-filter-select {
+.bom-filter-select {
   padding: 7px 12px;
   border: 1px solid var(--border-color, #e5e7eb);
   border-radius: 8px;
@@ -203,12 +203,12 @@
   height: 38px;
 }
 
-.po-filter-select:focus {
+.bom-filter-select:focus {
   border-color: var(--primary-color, #2563eb);
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
 }
 
-.po-filter-btn {
+.bom-filter-btn {
   display: flex;
   align-items: center;
   gap: 5px;
@@ -223,17 +223,11 @@
   transition: all 0.15s;
 }
 
-.po-filter-btn:hover {
+.bom-filter-btn:hover {
   background: var(--nav-hover, #f9fafb);
 }
 
-.po-filter-btn.active {
-  border-color: var(--primary-color, #6366f1);
-  color: var(--primary-color, #6366f1);
-  background: color-mix(in srgb, var(--primary-color) 8%, transparent);
-}
-
-.po-sort-btn {
+.bom-sort-btn {
   display: flex;
   align-items: center;
   gap: 5px;
@@ -246,10 +240,17 @@
   color: var(--text-primary, #374151);
   cursor: pointer;
   transition: all 0.15s;
+  position: relative;
 }
 
-.po-sort-btn:hover {
+.bom-sort-btn:hover {
   background: var(--nav-hover, #f9fafb);
+}
+
+.bom-sort-btn .bom-menu {
+  top: calc(100% + 8px);
+  right: 0;
+  left: auto;
 }
 
 .po-btn-primary {

@@ -1847,9 +1847,9 @@ const DeliveryChallans: React.FC = () => {
 
         .qt-filter-right {
           display: flex;
+          flex-wrap: wrap;
           align-items: center;
           gap: 8px;
-          flex-wrap: wrap;
         }
 
         .qt-filter-select {
@@ -2601,9 +2601,11 @@ const DeliveryChallans: React.FC = () => {
             max-width: 100%;
           }
 
-          .qt-filter-right {
-            justify-content: flex-start;
-            flex-wrap: wrap;
+            .qt-filter-right {
+            justify-content: stretch;
+          }
+          .qt-filter-right select {
+            flex: 1;
           }
 
           .qt-date-picker-popup {
@@ -2809,7 +2811,7 @@ const DeliveryChallans: React.FC = () => {
             )}
           </div>
         </div>
-        <div className="qt-filter-right">
+        <div className="bom-filter-right">
           <select
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}

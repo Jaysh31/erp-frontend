@@ -567,7 +567,7 @@ export default function LeadManagement() {
             )}
           </div>
         </div>
-        <div className="jc-filter-right">
+        <div className="bom-filter-right">
           {/* Custom Status Dropdown with Filter Button */}
           <div className="jc-status-dropdown-wrapper">
             <button 
@@ -719,11 +719,12 @@ export default function LeadManagement() {
           </div>
 
           
-          <button className="jc-btn-primary" onClick={() => navigate("/leads/new")}>
+          
+        </div>
+        <button className="jc-btn-primary" onClick={() => navigate("/leads/new")}>
             <FaPlus size={12} />
             Add Lead
           </button>
-        </div>
       </div>
 
       {/* Active filters indicator */}
@@ -904,8 +905,9 @@ export default function LeadManagement() {
                           >
                             {row.id}
                           </span>
-                          <span
-                            className="sales-mobile-item-name"
+                          
+                            <span className="sales-mobile-item-name">
+                            <span
                             onClick={(e) => {
                               e.stopPropagation();
                               goToLead(row);
@@ -913,7 +915,8 @@ export default function LeadManagement() {
                             title={row.leadName}
                           >
                             {row.leadName || "—"}
-                          </span>
+                      </span>
+                      </span>
                         </div>
 
                         {/* Dropdown Button */}

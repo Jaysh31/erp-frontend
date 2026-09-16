@@ -1060,6 +1060,12 @@
     grid-template-columns: 1fr;
   }
   
+  .header-left h1 {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary, #1e293b);
+  margin: 0;
+}
   .actions-grid {
     grid-template-columns: 1fr 1fr;
   }

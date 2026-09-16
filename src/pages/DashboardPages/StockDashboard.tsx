@@ -383,10 +383,10 @@ export default function StockDashboard() {
       {/* Header */}
       <div className="dashboard-header">
         <div className="header-left">
-          <h1>📦 Stock Dashboard</h1>
-          <p className="header-subtitle">
-            Real-time inventory overview across {stats.totalWarehouses} warehouses
-          </p>
+          <h1> Stock Dashboard</h1>
+          {/*<p className="header-subtitle">
+            📦Real-time inventory overview across {stats.totalWarehouses} warehouses
+          </p>*/}
         </div>
         <div className="header-right">
           <button className="btn-primary" onClick={() => handleNavigate("/stock-entry/new")}>

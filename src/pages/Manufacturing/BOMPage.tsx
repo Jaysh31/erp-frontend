@@ -867,14 +867,15 @@ const BOMPage: React.FC = () => {
                   </div>
                 )}
               </button>*/}
-              <button className="bom-btn-primary" onClick={() => {
+              
+            </div>
+            <button className="bom-btn-primary" onClick={() => {
                 setEditBOMData(null);
                 setShowNewBOM(true);
               }}>
                 <Plus size={12} />
                 Add BOM
               </button>
-            </div>
           </div>
 
           {/* ── Active filters indicator ──────────────────────────────────── */}

@@ -3081,6 +3081,20 @@
   .wof-selected-grn { }
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
   
   /* =========================================================
    WORK ORDER TABLE - MOBILE 2 COLUMN UI
@@ -3205,7 +3219,7 @@
      4 Time
      5 Hour Rate
      6 Operating Cost
-     7 Delete
+     7 Delete          
      --------------------------------------------------------- */
 
   /* # */
@@ -3293,7 +3307,7 @@
      
      Cell order:
      1 #
-     2 Item
+     2 Item    
      3 Operation
      4 Source Warehouse
      5 Required Qty
@@ -3301,7 +3315,6 @@
      7 UOM
      8 Rate
      9 Amount
-     10 Delete
      --------------------------------------------------------- */
 
   /* # */
@@ -3637,3 +3650,12 @@
 
 
 }
+
+
+
+
+
+
+
+
+
