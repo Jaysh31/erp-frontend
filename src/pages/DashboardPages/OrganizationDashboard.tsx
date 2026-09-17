@@ -255,6 +255,66 @@ export default function OrganizationDashboard() {
 
   return (
     <div className={`dashboard organization-dashboard ${theme}`}>
+
+      {/* ─── Scrollbar styling for the Recent Activity list ──────────────
+          Applies to both light and dark themes. Without this, the default
+          black scrollbar looks out of place against the card background.
+      ─────────────────────────────────────────────────────────────────── */}
+      <style>{`
+        .organization-dashboard .activity-list {
+          scrollbar-width: thin;
+          scrollbar-color: rgba(148, 163, 184, 0.55) transparent;
+        }
+
+        /* WebKit (Chrome, Edge, Safari) */
+        .organization-dashboard .activity-list::-webkit-scrollbar {
+          width: 8px;
+        }
+
+        .organization-dashboard .activity-list::-webkit-scrollbar-track {
+          background: transparent;
+          border-radius: 8px;
+        }
+
+        .organization-dashboard .activity-list::-webkit-scrollbar-thumb {
+          background: rgba(148, 163, 184, 0.55);
+          border-radius: 8px;
+          border: 2px solid transparent;
+          background-clip: padding-box;
+        }
+
+        .organization-dashboard .activity-list::-webkit-scrollbar-thumb:hover {
+          background: rgba(100, 116, 139, 0.75);
+          background-clip: padding-box;
+        }
+
+        /* Light theme tweaks */
+        .organization-dashboard.light .activity-list {
+          scrollbar-color: rgba(100, 116, 139, 0.45) transparent;
+        }
+        .organization-dashboard.light .activity-list::-webkit-scrollbar-thumb {
+          background: rgba(100, 116, 139, 0.45);
+          background-clip: padding-box;
+        }
+        .organization-dashboard.light .activity-list::-webkit-scrollbar-thumb:hover {
+          background: rgba(71, 85, 105, 0.7);
+          background-clip: padding-box;
+        }
+
+        /* Dark theme tweaks */
+        .organization-dashboard.dark .activity-list {
+          scrollbar-color: rgba(148, 163, 184, 0.5) transparent;
+        }
+        .organization-dashboard.dark .activity-list::-webkit-scrollbar-thumb {
+          background: rgba(148, 163, 184, 0.5);
+          background-clip: padding-box;
+        }
+        .organization-dashboard.dark .activity-list::-webkit-scrollbar-thumb:hover {
+          background: rgba(203, 213, 225, 0.75);
+          background-clip: padding-box;
+        }
+      `}</style>
+
       {/* Header */}
       <div className="dashboard-header">
         <div className="header-left">

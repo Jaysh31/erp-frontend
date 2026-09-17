@@ -3,7 +3,7 @@ import type { ChangeEvent, FormEvent, KeyboardEvent } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import {
   FaArrowLeft, FaSave, FaSpinner, FaInfoCircle, FaExclamationTriangle,
-  FaTimesCircle, FaUser, FaBuilding, FaAddressBook, 
+  FaTimesCircle, FaUser, FaBuilding, FaAddressBook, FaEdit,
 } from "react-icons/fa";
 import "./LeadForm.css";
 import api from "../../services/api";
@@ -211,6 +211,25 @@ const LeadForm: React.FC = () => {
 
   const isEditMode = !!id && id !== "new";
 
+  // ─── NEW: view vs edit mode ───────────────────────────────────────────
+  // Determine whether the page should start in editable mode.
+  // Edit mode is ON when:
+  //   • The URL has ?mode=edit  (from a View page's "Edit" button, or direct link)
+  //   • Navigation state explicitly says { edit: true }
+  //   • Creating a new lead (?id=new / no id)  → always editable
+  // Otherwise the page is READ-ONLY (view mode).
+  const query = new URLSearchParams(location.search);
+  const queryMode = query.get("mode");
+  const navState = (location.state as any) || null;
+
+  const startInEdit =
+    !isEditMode ||                                    // creating new lead → always editable
+    queryMode === "edit" ||
+    navState?.edit === true;
+
+  const [isViewMode, setIsViewMode] = useState<boolean>(!startInEdit);
+  // ──────────────────────────────────────────────────────────────────────
+
   const [activeTab, setActiveTab] = useState(0);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [warnings, setWarnings] = useState<TabWarning>({});
@@ -280,9 +299,6 @@ const LeadForm: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customers, formData.organizationName]);
 
-  // ─── Updated: Simplified Organization Name handler ──────────────────
-
-
   // ─── load existing lead when editing ──────────────────────────────────
 
   useEffect(() => {
@@ -302,6 +318,7 @@ const LeadForm: React.FC = () => {
     }
 
     fetchLeadById(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const fetchLeadById = async (leadId: string) => {
@@ -362,7 +379,7 @@ const LeadForm: React.FC = () => {
     if (step === 0) {
       if (!formData.name.trim()) newErrors.name = "Name is required";
       if (!formData.organizationName.trim()) newErrors.organizationName = "Organization Name is required";
-      
+
       // Name validation - only alphabets and spaces, max 30 chars (no digits)
       if (formData.name.trim() && !/^[A-Za-z\s]+$/.test(formData.name.trim())) {
         newErrors.name = "Name should contain only alphabets and spaces (no numbers)";
@@ -370,7 +387,7 @@ const LeadForm: React.FC = () => {
       if (formData.name.trim() && formData.name.trim().length > 30) {
         newErrors.name = "Name should not exceed 30 characters";
       }
-      
+
       // Job Title validation - only alphabets and spaces, max 30 chars (no digits)
       if (formData.jobTitle.trim() && !/^[A-Za-z\s]+$/.test(formData.jobTitle.trim())) {
         newErrors.jobTitle = "Job title should contain only alphabets and spaces (no numbers)";
@@ -384,22 +401,22 @@ const LeadForm: React.FC = () => {
       if (formData.email.trim() && !/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(formData.email.trim())) {
         newErrors.email = "Enter a valid email address";
       }
-      
+
       // Mobile No validation - exactly 10 digits
       if (formData.mobileNo.trim() && !/^\d{10}$/.test(formData.mobileNo.trim())) {
         newErrors.mobileNo = "Mobile number must be exactly 10 digits";
       }
-      
+
       // Phone validation - exactly 10 digits
       if (formData.phone.trim() && !/^\d{10}$/.test(formData.phone.trim())) {
         newErrors.phone = "Phone number must be exactly 10 digits";
       }
-      
+
       // Website validation
       if (formData.website.trim() && !/^https?:\/\/[^\s]+$/.test(formData.website.trim())) {
         newErrors.website = "Enter a valid website URL";
       }
-      
+
       // City validation - alphabets and spaces only
       if (formData.city.trim() && !/^[A-Za-z\s]+$/.test(formData.city.trim())) {
         newErrors.city = "City should contain only alphabets and spaces";
@@ -407,7 +424,7 @@ const LeadForm: React.FC = () => {
       if (formData.city.trim() && formData.city.trim().length > 50) {
         newErrors.city = "City should not exceed 50 characters";
       }
-      
+
       // State validation - required and alphabets and spaces only
       if (!formData.state.trim()) {
         newErrors.state = "State is required";
@@ -416,7 +433,7 @@ const LeadForm: React.FC = () => {
       } else if (formData.state.trim().length > 50) {
         newErrors.state = "State should not exceed 50 characters";
       }
-      
+
       // Country validation - required and alphabets and spaces only
       if (!formData.country.trim()) {
         newErrors.country = "Country is required";
@@ -425,7 +442,7 @@ const LeadForm: React.FC = () => {
       } else if (formData.country.trim().length > 50) {
         newErrors.country = "Country should not exceed 50 characters";
       }
-      
+
       // Qualified By validation - alphabets and spaces only
       if (formData.qualifiedBy.trim() && !/^[A-Za-z\s]+$/.test(formData.qualifiedBy.trim())) {
         newErrors.qualifiedBy = "Qualified By should contain only alphabets and spaces";
@@ -433,7 +450,7 @@ const LeadForm: React.FC = () => {
       if (formData.qualifiedBy.trim() && formData.qualifiedBy.trim().length > 50) {
         newErrors.qualifiedBy = "Qualified By should not exceed 50 characters";
       }
-      
+
       // Annual Revenue validation - numbers only
       if (formData.annualRevenue.trim() && !/^\d*\.?\d+$/.test(formData.annualRevenue.trim())) {
         newErrors.annualRevenue = "Annual Revenue should contain only numbers";
@@ -537,7 +554,7 @@ const LeadForm: React.FC = () => {
     setActiveTab(tabIndex);
     setShowValidationSummary(false);
     setErrors({});
-    
+
     // Scroll to the first error field in this tab
     const errorsInTab = getAllValidationErrors().filter(e => e.tabIndex === tabIndex);
     if (errorsInTab.length > 0) {
@@ -589,19 +606,19 @@ const LeadForm: React.FC = () => {
 
   // ─── Helper to prevent digits in Name and Job Title fields ──────────
   const preventDigits = (e: KeyboardEvent<HTMLInputElement>) => {
-    const {  } = e.currentTarget;
+    const { } = e.currentTarget;
     // Allow: backspace, delete, tab, escape, enter, arrow keys, home, end, etc.
     const allowedKeys = ['Backspace', 'Delete', 'Tab', 'Escape', 'Enter', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'Shift', 'Control', 'Alt', 'Meta', 'CapsLock'];
-    
+
     if (allowedKeys.includes(e.key)) {
       return;
     }
-    
+
     // Allow: space, letters (a-z, A-Z)
     if (e.key === ' ' || /^[a-zA-Z]$/.test(e.key)) {
       return;
     }
-    
+
     // Prevent: digits (0-9) and any other special characters
     e.preventDefault();
   };
@@ -609,28 +626,47 @@ const LeadForm: React.FC = () => {
   const handleInputChange = (
     e: ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
+    // Block edits when in read-only view mode.
+    if (isViewMode) return;
+
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
     checkTabWarnings(activeTab);
   };
 
+  // ─── NEW: enter edit mode from view mode ──────────────────────────────
+  const handleEnterEditMode = () => {
+    setIsViewMode(false);
+    // Reflect the mode in the URL so refreshing keeps edit state.
+    const params = new URLSearchParams(location.search);
+    params.set("mode", "edit");
+    navigate(`${location.pathname}?${params.toString()}`, {
+      replace: true,
+      state: { ...(navState || {}), edit: true },
+    });
+  };
+  // ──────────────────────────────────────────────────────────────────────
+
   // ─── submit — POST on create, PUT on edit ──────────────────────────────
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
+    // In view mode there is nothing to submit.
+    if (isViewMode) return;
+
     const allErrors = getAllValidationErrors();
     if (allErrors.length > 0) {
       setValidationErrors(allErrors);
       setShowValidationSummary(true);
-      
+
       // Scroll to the first error
       const firstError = allErrors[0];
       setTimeout(() => {
         jumpToTab(firstError.tabIndex);
       }, 100);
-      
+
       return;
     }
 
@@ -673,6 +709,12 @@ const LeadForm: React.FC = () => {
   // Helper to check if a field has error for red border
   const getFieldErrorClass = (fieldName: string): string => {
     return hasFieldError(fieldName) ? "jcf-input-error" : "";
+  };
+
+  // When in view mode, we do NOT want to paint validation red borders on
+  // the initial display — only show them once the user starts editing.
+  const showFieldError = (fieldName: string): boolean => {
+    return !isViewMode && hasFieldError(fieldName);
   };
 
   return (
@@ -735,12 +777,23 @@ const LeadForm: React.FC = () => {
             </div>
           )}
 
-          {hasAnyErrors && (
+          {/* Show validation errors only when editable */}
+          {!isViewMode && hasAnyErrors && (
             <div className="jcf-error-pill" onClick={() => setShowValidationSummary(true)} style={{ cursor: 'pointer' }}>
               <FaExclamationTriangle size={11} />
               {allValidationErrors.length} field{allValidationErrors.length !== 1 ? 's' : ''} need attention
             </div>
           )}
+
+          {/* Read-only badge when in view mode */}
+          {isViewMode && (
+            <div className="jcf-view-badge">
+              Viewing — read-only
+            </div>
+          )}
+
+          {/* Edit button when in view mode and editing an existing lead */}
+         
         </div>
       </div>
 
@@ -756,408 +809,439 @@ const LeadForm: React.FC = () => {
             <button type="button" className="jcf-btn-secondary" onClick={() => navigate("/lead")}>Back to Leads</button>
           </div>
         ) : (
-        <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit}>
 
-          {/* Tabs */}
-          <div className="jcf-tabs-wrap">
-            <div className="jcf-tabs-row">
-              {tabs.map((tab) => {
-                const isActive = activeTab === tab.id;
-                const tabStatus = getTabStatus(tab.id);
-                const errorCount = getTabErrorCount(tab.id);
+            {/* Tabs */}
+            <div className="jcf-tabs-wrap">
+              <div className="jcf-tabs-row">
+                {tabs.map((tab) => {
+                  const isActive = activeTab === tab.id;
+                  const tabStatus = getTabStatus(tab.id);
+                  const errorCount = isViewMode ? 0 : getTabErrorCount(tab.id);
 
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => handleTabChange(tab.id)}
-                    className={`jcf-tab-btn ${isActive ? "jcf-tab-btn-active" : ""}`}
-                  >
-                    <div
-                      className={`jcf-tab-circle ${isActive ? "jcf-tab-circle-active" : ""} ${tabStatus === "warning" && !isActive ? "jcf-tab-circle-warning" : ""
-                        }`}
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => handleTabChange(tab.id)}
+                      className={`jcf-tab-btn ${isActive ? "jcf-tab-btn-active" : ""}`}
                     >
-                      {tabStatus === "warning" && !isActive ? <FaExclamationTriangle size={14} /> : tab.id + 1}
+                      <div
+                        className={`jcf-tab-circle ${isActive ? "jcf-tab-circle-active" : ""} ${tabStatus === "warning" && !isActive ? "jcf-tab-circle-warning" : ""
+                          }`}
+                      >
+                        {tabStatus === "warning" && !isActive && !isViewMode ? <FaExclamationTriangle size={14} /> : tab.id + 1}
 
-                      {errorCount > 0 && !isActive && (
-                        <div className="jcf-tab-error-badge">{errorCount}</div>
-                      )}
-                    </div>
-
-                    <div className="jcf-tab-label-wrap">
-                      <div className={`jcf-tab-step ${isActive ? "jcf-tab-step-active" : ""} ${tabStatus === "warning" && !isActive ? "jcf-tab-step-warning" : ""
-                        }`}>
-                        Step {tab.id + 1}
+                        {errorCount > 0 && !isActive && (
+                          <div className="jcf-tab-error-badge">{errorCount}</div>
+                        )}
                       </div>
-                      <div className={`jcf-tab-name ${isActive ? "jcf-tab-name-active" : ""}`}>
-                        {tab.name}
+
+                      <div className="jcf-tab-label-wrap">
+                        <div className={`jcf-tab-step ${isActive ? "jcf-tab-step-active" : ""} ${tabStatus === "warning" && !isActive ? "jcf-tab-step-warning" : ""
+                          }`}>
+                          Step {tab.id + 1}
+                        </div>
+                        <div className={`jcf-tab-name ${isActive ? "jcf-tab-name-active" : ""}`}>
+                          {tab.name}
+                        </div>
                       </div>
-                    </div>
 
-                    {isActive && <div className="jcf-tab-underline" />}
-                  </button>
-                );
-              })}
+                      {isActive && <div className="jcf-tab-underline" />}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
 
-          {warnings[activeTab] && (
-            <div className="jcf-tab-warning-banner">
-              <FaExclamationTriangle size={12} />
-              <span>This tab has incomplete or missing information. You can proceed but please review before submitting.</span>
-            </div>
-          )}
-
-          <div>
-
-            {/* Tab 0 — Lead Details */}
-            {activeTab === 0 && (
-              <div className="jcf-fade-in">
-                <div className="jcf-card">
-                  <div className="jcf-section-title jcf-section-title-first"><FaUser size={12} /> Basic Info</div>
-
-                  <div className="jcf-grid-3">
-                    <div>
-                      <label className="jcf-label">Name *</label>
-                      <input
-                        type="text"
-                        name="name"
-                        value={formData.name}
-                        onChange={handleInputChange}
-                        onKeyDown={preventDigits}
-                        placeholder="e.g. John Doe"
-                        maxLength={30}
-                        className={`jcf-input ${getFieldErrorClass("name")}`}
-                      />
-                      {hasFieldError("name") && <span className="jcf-error-text">{validationErrors.find(e => e.field === "name")?.message}</span>}
-                    </div>
-                    <div>
-                      <label className="jcf-label">Job Title</label>
-                      <input
-                        type="text"
-                        name="jobTitle"
-                        value={formData.jobTitle}
-                        onChange={handleInputChange}
-                        onKeyDown={preventDigits}
-                        placeholder="e.g. Purchase Manager"
-                        maxLength={30}
-                        className={`jcf-input ${hasFieldError("jobTitle") ? "jcf-input-error" : ""}`}
-                      />
-                      {hasFieldError("jobTitle") && <span className="jcf-error-text">{validationErrors.find(e => e.field === "jobTitle")?.message}</span>}
-                    </div>
-                  </div>
-
-                  <div className="jcf-section-title"><FaBuilding size={12} /> Organization</div>
-
-                  <div className="jcf-grid-3">
-                    {/* UPDATED: Organization Name - Now a simple input field like others */}
-                    <div>
-                      <label className="jcf-label">Organization Name *</label>
-                      <input
-                        type="text"
-                        name="organizationName"
-                        value={formData.organizationName}
-                        onChange={handleInputChange}
-                        placeholder="e.g. Acme Manufacturing"
-                        maxLength={50}
-                        className={`jcf-input ${hasFieldError("organizationName") ? "jcf-input-error" : ""}`}
-                      />
-                      {hasFieldError("organizationName") && <span className="jcf-error-text">{validationErrors.find(e => e.field === "organizationName")?.message}</span>}
-                    </div>
-                    <div>
-                      <label className="jcf-label">Status *</label>
-                      <select
-                        name="status"
-                        value={formData.status}
-                        onChange={handleInputChange}
-                        className="jcf-input jcf-select-no-arrow"
-                      >
-                        <option value="Lead">Lead</option>
-                        <option value="Contacted">Contacted</option>
-                        <option value="Qualified">Qualified</option>
-                        <option value="Unqualified">Unqualified</option>
-                        <option value="Converted">Converted</option>
-                      </select>
-                    </div>
-                  </div>
-
-
-                  <div className="jcf-grid-2">
-                    <div>
-                      <label className="jcf-label">Lead Type</label>
-                      <select
-                        name="leadType"
-                        value={formData.leadType}
-                        onChange={handleInputChange}
-                        className="jcf-input jcf-select-no-arrow"
-                      >
-                        <option value="">Select Lead Type</option>
-                        <option value="Customer">Customer</option>
-                        <option value="Partner">Partner</option>
-                        <option value="Reseller">Reseller</option>
-                        <option value="Consultant">Consultant</option>
-                        <option value="Investor">Investor</option>
-                        <option value="Other">Other</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="jcf-label">Source</label>
-                      <select
-                        name="source"
-                        value={formData.source}
-                        onChange={handleInputChange}
-                        className="jcf-input jcf-select-no-arrow"
-                      >
-                        <option value="">Select Source</option>
-                        <option value="Website">Website</option>
-                        <option value="Referral">Referral</option>
-                        <option value="LinkedIn">LinkedIn</option>
-                        <option value="Facebook">Facebook</option>
-                        <option value="Instagram">Instagram</option>
-                        <option value="Email Campaign">Email Campaign</option>
-                        <option value="Cold Call">Cold Call</option>
-                        <option value="Trade Show">Trade Show</option>
-                        <option value="Other">Other</option>
-                      </select>
-                    </div>
-                  </div>
-
-                </div>
+            {/* Tab warning banner only when editable */}
+            {!isViewMode && warnings[activeTab] && (
+              <div className="jcf-tab-warning-banner">
+                <FaExclamationTriangle size={12} />
+                <span>This tab has incomplete or missing information. You can proceed but please review before submitting.</span>
               </div>
             )}
 
-            {/* Tab 1 — Contact Info */}
-            {activeTab === 1 && (
-              <div className="jcf-fade-in">
-                <div className="jcf-card">
-                  <div className="jcf-section-title jcf-section-title-first"><FaAddressBook size={12} /> Contact Info</div>
+            <div>
 
-                  <div className="jcf-grid-2">
-                    <div>
-                      <label className="jcf-label">Email</label>
-                      <input
-                        type="email"
-                        name="email"
-                        value={formData.email}
-                        onChange={handleInputChange}
-                        placeholder="name@example.com"
-                        className={`jcf-input ${hasFieldError("email") ? "jcf-input-error" : ""}`}
-                      />
-                      {hasFieldError("email") && <span className="jcf-error-text">{validationErrors.find(e => e.field === "email")?.message}</span>}
+              {/* Tab 0 — Lead Details */}
+              {activeTab === 0 && (
+                <div className="jcf-fade-in">
+                  <div className="jcf-card">
+                    <div className="jcf-section-title jcf-section-title-first"><FaUser size={12} /> Basic Info</div>
+
+                    <div className="jcf-grid-3">
+                      <div>
+                        <label className="jcf-label">Name *</label>
+                        <input
+                          type="text"
+                          name="name"
+                          value={formData.name}
+                          onChange={handleInputChange}
+                          onKeyDown={preventDigits}
+                          placeholder="e.g. John Doe"
+                          maxLength={30}
+                          disabled={isViewMode}
+                          className={`jcf-input ${isViewMode ? "jcf-input-readonly" : ""} ${showFieldError("name") ? "jcf-input-error" : ""}`}
+                        />
+                        {showFieldError("name") && <span className="jcf-error-text">{validationErrors.find(e => e.field === "name")?.message}</span>}
+                      </div>
+                      <div>
+                        <label className="jcf-label">Job Title</label>
+                        <input
+                          type="text"
+                          name="jobTitle"
+                          value={formData.jobTitle}
+                          onChange={handleInputChange}
+                          onKeyDown={preventDigits}
+                          placeholder="e.g. Purchase Manager"
+                          maxLength={30}
+                          disabled={isViewMode}
+                          className={`jcf-input ${isViewMode ? "jcf-input-readonly" : ""} ${showFieldError("jobTitle") ? "jcf-input-error" : ""}`}
+                        />
+                        {showFieldError("jobTitle") && <span className="jcf-error-text">{validationErrors.find(e => e.field === "jobTitle")?.message}</span>}
+                      </div>
                     </div>
-                    <div>
-                      <label className="jcf-label">Mobile No</label>
-                      <input
-                        type="text"
-                        name="mobileNo"
-                        value={formData.mobileNo}
-                        onChange={handleInputChange}
-                        placeholder="e.g. 9876543210"
-                        maxLength={10}
-                        className={`jcf-input ${hasFieldError("mobileNo") ? "jcf-input-error" : ""}`}
-                      />
-                      {hasFieldError("mobileNo") && <span className="jcf-error-text">{validationErrors.find(e => e.field === "mobileNo")?.message}</span>}
+
+                    <div className="jcf-section-title"><FaBuilding size={12} /> Organization</div>
+
+                    <div className="jcf-grid-3">
+                      {/* UPDATED: Organization Name - Now a simple input field like others */}
+                      <div>
+                        <label className="jcf-label">Organization Name *</label>
+                        <input
+                          type="text"
+                          name="organizationName"
+                          value={formData.organizationName}
+                          onChange={handleInputChange}
+                          placeholder="e.g. Acme Manufacturing"
+                          maxLength={50}
+                          disabled={isViewMode}
+                          className={`jcf-input ${isViewMode ? "jcf-input-readonly" : ""} ${showFieldError("organizationName") ? "jcf-input-error" : ""}`}
+                        />
+                        {showFieldError("organizationName") && <span className="jcf-error-text">{validationErrors.find(e => e.field === "organizationName")?.message}</span>}
+                      </div>
+                      <div>
+                        <label className="jcf-label">Status *</label>
+                        <select
+                          name="status"
+                          value={formData.status}
+                          onChange={handleInputChange}
+                          disabled={isViewMode}
+                          className={`jcf-input jcf-select-no-arrow ${isViewMode ? "jcf-input-readonly" : ""}`}
+                        >
+                          <option value="Lead">Lead</option>
+                          <option value="Contacted">Contacted</option>
+                          <option value="Qualified">Qualified</option>
+                          <option value="Unqualified">Unqualified</option>
+                          <option value="Converted">Converted</option>
+                        </select>
+                      </div>
                     </div>
+
+
+                    <div className="jcf-grid-2">
+                      <div>
+                        <label className="jcf-label">Lead Type</label>
+                        <select
+                          name="leadType"
+                          value={formData.leadType}
+                          onChange={handleInputChange}
+                          disabled={isViewMode}
+                          className={`jcf-input jcf-select-no-arrow ${isViewMode ? "jcf-input-readonly" : ""}`}
+                        >
+                          <option value="">Select Lead Type</option>
+                          <option value="Customer">Customer</option>
+                          <option value="Partner">Partner</option>
+                          <option value="Reseller">Reseller</option>
+                          <option value="Consultant">Consultant</option>
+                          <option value="Investor">Investor</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="jcf-label">Source</label>
+                        <select
+                          name="source"
+                          value={formData.source}
+                          onChange={handleInputChange}
+                          disabled={isViewMode}
+                          className={`jcf-input jcf-select-no-arrow ${isViewMode ? "jcf-input-readonly" : ""}`}
+                        >
+                          <option value="">Select Source</option>
+                          <option value="Website">Website</option>
+                          <option value="Referral">Referral</option>
+                          <option value="LinkedIn">LinkedIn</option>
+                          <option value="Facebook">Facebook</option>
+                          <option value="Instagram">Instagram</option>
+                          <option value="Email Campaign">Email Campaign</option>
+                          <option value="Cold Call">Cold Call</option>
+                          <option value="Trade Show">Trade Show</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      </div>
+                    </div>
+
                   </div>
-                  <div className="jcf-grid-2">
-                    <div>
-                      <label className="jcf-label">Phone</label>
-                      <input
-                        type="text"
-                        name="phone"
-                        value={formData.phone}
-                        onChange={handleInputChange}
-                        placeholder="e.g. 9876543210"
-                        maxLength={10}
-                        className={`jcf-input ${hasFieldError("phone") ? "jcf-input-error" : ""}`}
-                      />
-                      {hasFieldError("phone") && <span className="jcf-error-text">{validationErrors.find(e => e.field === "phone")?.message}</span>}
+                </div>
+              )}
+
+              {/* Tab 1 — Contact Info */}
+              {activeTab === 1 && (
+                <div className="jcf-fade-in">
+                  <div className="jcf-card">
+                    <div className="jcf-section-title jcf-section-title-first"><FaAddressBook size={12} /> Contact Info</div>
+
+                    <div className="jcf-grid-2">
+                      <div>
+                        <label className="jcf-label">Email</label>
+                        <input
+                          type="email"
+                          name="email"
+                          value={formData.email}
+                          onChange={handleInputChange}
+                          placeholder="name@example.com"
+                          disabled={isViewMode}
+                          className={`jcf-input ${isViewMode ? "jcf-input-readonly" : ""} ${showFieldError("email") ? "jcf-input-error" : ""}`}
+                        />
+                        {showFieldError("email") && <span className="jcf-error-text">{validationErrors.find(e => e.field === "email")?.message}</span>}
+                      </div>
+                      <div>
+                        <label className="jcf-label">Mobile No</label>
+                        <input
+                          type="text"
+                          name="mobileNo"
+                          value={formData.mobileNo}
+                          onChange={handleInputChange}
+                          placeholder="e.g. 9876543210"
+                          maxLength={10}
+                          disabled={isViewMode}
+                          className={`jcf-input ${isViewMode ? "jcf-input-readonly" : ""} ${showFieldError("mobileNo") ? "jcf-input-error" : ""}`}
+                        />
+                        {showFieldError("mobileNo") && <span className="jcf-error-text">{validationErrors.find(e => e.field === "mobileNo")?.message}</span>}
+                      </div>
+                    </div>
+                    <div className="jcf-grid-2">
+                      <div>
+                        <label className="jcf-label">Phone</label>
+                        <input
+                          type="text"
+                          name="phone"
+                          value={formData.phone}
+                          onChange={handleInputChange}
+                          placeholder="e.g. 9876543210"
+                          maxLength={10}
+                          disabled={isViewMode}
+                          className={`jcf-input ${isViewMode ? "jcf-input-readonly" : ""} ${showFieldError("phone") ? "jcf-input-error" : ""}`}
+                        />
+                        {showFieldError("phone") && <span className="jcf-error-text">{validationErrors.find(e => e.field === "phone")?.message}</span>}
+                      </div>
+
+                      <div>
+                        <label className="jcf-label">Website</label>
+                        <input
+                          type="text"
+                          name="website"
+                          value={formData.website}
+                          onChange={handleInputChange}
+                          placeholder="https://example.com"
+                          disabled={isViewMode}
+                          className={`jcf-input ${isViewMode ? "jcf-input-readonly" : ""} ${showFieldError("website") ? "jcf-input-error" : ""}`}
+                        />
+                        {showFieldError("website") && <span className="jcf-error-text">{validationErrors.find(e => e.field === "website")?.message}</span>}
+                      </div>
+                    </div>
+                    <div className="jcf-section-title">
+                      <FaBuilding size={12} />
+                      Organization
                     </div>
 
-                    <div>
-                      <label className="jcf-label">Website</label>
-                      <input
-                        type="text"
-                        name="website"
-                        value={formData.website}
-                        onChange={handleInputChange}
-                        placeholder="https://example.com"
-                        className={`jcf-input ${hasFieldError("website") ? "jcf-input-error" : ""}`}
-                      />
-                      {hasFieldError("website") && <span className="jcf-error-text">{validationErrors.find(e => e.field === "website")?.message}</span>}
-                    </div>
-                  </div>
-                  <div className="jcf-section-title">
-                    <FaBuilding size={12} />
-                    Organization
-                  </div>
+                    <div className="jcf-grid-3">
+                      <div>
+                        <label className="jcf-label">Industry</label>
+                        <select
+                          name="industry"
+                          value={formData.industry}
+                          onChange={handleInputChange}
+                          disabled={isViewMode}
+                          className={`jcf-input jcf-select-no-arrow ${isViewMode ? "jcf-input-readonly" : ""}`}
+                        >
+                          <option value="">Select</option>
+                          <option>IT</option>
+                          <option>Healthcare</option>
+                          <option>Manufacturing</option>
+                          <option>Education</option>
+                          <option>Finance</option>
+                          <option>Retail</option>
+                          <option>Construction</option>
+                          <option>Real Estate</option>
+                          <option>Hospitality</option>
+                          <option>Other</option>
+                        </select>
+                      </div>
 
-                  <div className="jcf-grid-3">
-                    <div>
-                      <label className="jcf-label">Industry</label>
-                      <select
-                        name="industry"
-                        value={formData.industry}
-                        onChange={handleInputChange}
-                        className="jcf-input jcf-select-no-arrow"
-                      >
-                        <option value="">Select</option>
-                        <option>IT</option>
-                        <option>Healthcare</option>
-                        <option>Manufacturing</option>
-                        <option>Education</option>
-                        <option>Finance</option>
-                        <option>Retail</option>
-                        <option>Construction</option>
-                        <option>Real Estate</option>
-                        <option>Hospitality</option>
-                        <option>Other</option>
-                      </select>
-                    </div>
+                      <div>
+                        <label className="jcf-label">No. of Employees</label>
+                        <select
+                          name="employees"
+                          value={formData.employees}
+                          onChange={handleInputChange}
+                          disabled={isViewMode}
+                          className={`jcf-input jcf-select-no-arrow ${isViewMode ? "jcf-input-readonly" : ""}`}
+                        >
+                          <option value="">Select</option>
+                          <option>1-10</option>
+                          <option>11-50</option>
+                          <option>51-200</option>
+                          <option>201-500</option>
+                          <option>501-1000</option>
+                          <option>1000+</option>
+                        </select>
+                      </div>
 
-                    <div>
-                      <label className="jcf-label">No. of Employees</label>
-                      <select
-                        name="employees"
-                        value={formData.employees}
-                        onChange={handleInputChange}
-                        className="jcf-input jcf-select-no-arrow"
-                      >
-                        <option value="">Select</option>
-                        <option>1-10</option>
-                        <option>11-50</option>
-                        <option>51-200</option>
-                        <option>201-500</option>
-                        <option>501-1000</option>
-                        <option>1000+</option>
-                      </select>
+                      <div>
+                        <label className="jcf-label">Annual Revenue</label>
+                        <input
+                          name="annualRevenue"
+                          value={formData.annualRevenue}
+                          onChange={handleInputChange}
+                          placeholder="e.g. 1000000"
+                          disabled={isViewMode}
+                          className={`jcf-input ${isViewMode ? "jcf-input-readonly" : ""} ${showFieldError("annualRevenue") ? "jcf-input-error" : ""}`}
+                        />
+                        {showFieldError("annualRevenue") && <span className="jcf-error-text">{validationErrors.find(e => e.field === "annualRevenue")?.message}</span>}
+                      </div>
                     </div>
 
-                    <div>
-                      <label className="jcf-label">Annual Revenue</label>
-                      <input
-                        name="annualRevenue"
-                        value={formData.annualRevenue}
-                        onChange={handleInputChange}
-                        placeholder="e.g. 1000000"
-                        className={`jcf-input ${hasFieldError("annualRevenue") ? "jcf-input-error" : ""}`}
-                      />
-                      {hasFieldError("annualRevenue") && <span className="jcf-error-text">{validationErrors.find(e => e.field === "annualRevenue")?.message}</span>}
-                    </div>
-                  </div>
+                    <div className="jcf-section-title">Address</div>
 
-                  <div className="jcf-section-title">Address</div>
-
-                  <div className="jcf-grid-3">
-                    <div>
-                      <label className="jcf-label">City</label>
-                      <input
-                        type="text"
-                        name="city"
-                        value={formData.city}
-                        onChange={handleInputChange}
-                        placeholder="e.g. Mumbai"
-                        maxLength={50}
-                        className={`jcf-input ${hasFieldError("city") ? "jcf-input-error" : ""}`}
-                      />
-                      {hasFieldError("city") && <span className="jcf-error-text">{validationErrors.find(e => e.field === "city")?.message}</span>}
-                    </div>
-                    <div>
-                      <label className="jcf-label">State *</label>
-                      <input
-                        name="state"
-                        value={formData.state}
-                        onChange={handleInputChange}
-                        placeholder="e.g. Maharashtra"
-                        maxLength={50}
-                        className={`jcf-input ${hasFieldError("state") ? "jcf-input-error" : ""}`}
-                      />
-                      {hasFieldError("state") && <span className="jcf-error-text">{validationErrors.find(e => e.field === "state")?.message}</span>}
-                    </div>
-                    <div>
-                      <label className="jcf-label">Country *</label>
-                      <input
-                        type="text"
-                        name="country"
-                        value={formData.country}
-                        onChange={handleInputChange}
-                        placeholder="e.g. India"
-                        maxLength={50}
-                        className={`jcf-input ${hasFieldError("country") ? "jcf-input-error" : ""}`}
-                      />
-                      {hasFieldError("country") && <span className="jcf-error-text">{validationErrors.find(e => e.field === "country")?.message}</span>}
-                    </div>
-                  </div>
-
-                  <div className="jcf-section-title">Qualification</div>
-
-                  <div className="jcf-grid-3">
-                    <div>
-                      <label className="jcf-label">Qualification Status</label>
-                      <select
-                        name="qualificationStatus"
-                        value={formData.qualificationStatus}
-                        onChange={handleInputChange}
-                        className="jcf-input jcf-select-no-arrow"
-                      >
-                        <option>Lead</option>
-                        <option>Contacted</option>
-                        <option>Qualified</option>
-                        <option>Unqualified</option>
-                        <option>Converted</option>
-                      </select>
+                    <div className="jcf-grid-3">
+                      <div>
+                        <label className="jcf-label">City</label>
+                        <input
+                          type="text"
+                          name="city"
+                          value={formData.city}
+                          onChange={handleInputChange}
+                          placeholder="e.g. Mumbai"
+                          maxLength={50}
+                          disabled={isViewMode}
+                          className={`jcf-input ${isViewMode ? "jcf-input-readonly" : ""} ${showFieldError("city") ? "jcf-input-error" : ""}`}
+                        />
+                        {showFieldError("city") && <span className="jcf-error-text">{validationErrors.find(e => e.field === "city")?.message}</span>}
+                      </div>
+                      <div>
+                        <label className="jcf-label">State *</label>
+                        <input
+                          name="state"
+                          value={formData.state}
+                          onChange={handleInputChange}
+                          placeholder="e.g. Maharashtra"
+                          maxLength={50}
+                          disabled={isViewMode}
+                          className={`jcf-input ${isViewMode ? "jcf-input-readonly" : ""} ${showFieldError("state") ? "jcf-input-error" : ""}`}
+                        />
+                        {showFieldError("state") && <span className="jcf-error-text">{validationErrors.find(e => e.field === "state")?.message}</span>}
+                      </div>
+                      <div>
+                        <label className="jcf-label">Country *</label>
+                        <input
+                          type="text"
+                          name="country"
+                          value={formData.country}
+                          onChange={handleInputChange}
+                          placeholder="e.g. India"
+                          maxLength={50}
+                          disabled={isViewMode}
+                          className={`jcf-input ${isViewMode ? "jcf-input-readonly" : ""} ${showFieldError("country") ? "jcf-input-error" : ""}`}
+                        />
+                        {showFieldError("country") && <span className="jcf-error-text">{validationErrors.find(e => e.field === "country")?.message}</span>}
+                      </div>
                     </div>
 
-                    <div>
-                      <label className="jcf-label">Qualified By</label>
-                      <input
-                        name="qualifiedBy"
-                        value={formData.qualifiedBy}
-                        onChange={handleInputChange}
-                        placeholder="Enter name"
-                        maxLength={50}
-                        className={`jcf-input ${hasFieldError("qualifiedBy") ? "jcf-input-error" : ""}`}
-                      />
-                      {hasFieldError("qualifiedBy") && <span className="jcf-error-text">{validationErrors.find(e => e.field === "qualifiedBy")?.message}</span>}
-                    </div>
+                    <div className="jcf-section-title">Qualification</div>
 
-                    <div>
-                      <label className="jcf-label">Qualified On</label>
-                      <input
-                        type="date"
-                        name="qualifiedOn"
-                        value={formData.qualifiedOn}
-                        onChange={handleInputChange}
-                        className="jcf-input"
-                      />
+                    <div className="jcf-grid-3">
+                      <div>
+                        <label className="jcf-label">Qualification Status</label>
+                        <select
+                          name="qualificationStatus"
+                          value={formData.qualificationStatus}
+                          onChange={handleInputChange}
+                          disabled={isViewMode}
+                          className={`jcf-input jcf-select-no-arrow ${isViewMode ? "jcf-input-readonly" : ""}`}
+                        >
+                          <option>Lead</option>
+                          <option>Contacted</option>
+                          <option>Qualified</option>
+                          <option>Unqualified</option>
+                          <option>Converted</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="jcf-label">Qualified By</label>
+                        <input
+                          name="qualifiedBy"
+                          value={formData.qualifiedBy}
+                          onChange={handleInputChange}
+                          placeholder="Enter name"
+                          maxLength={50}
+                          disabled={isViewMode}
+                          className={`jcf-input ${isViewMode ? "jcf-input-readonly" : ""} ${showFieldError("qualifiedBy") ? "jcf-input-error" : ""}`}
+                        />
+                        {showFieldError("qualifiedBy") && <span className="jcf-error-text">{validationErrors.find(e => e.field === "qualifiedBy")?.message}</span>}
+                      </div>
+
+                      <div>
+                        <label className="jcf-label">Qualified On</label>
+                        <input
+                          type="date"
+                          name="qualifiedOn"
+                          value={formData.qualifiedOn}
+                          onChange={handleInputChange}
+                          disabled={isViewMode}
+                          className={`jcf-input ${isViewMode ? "jcf-input-readonly" : ""}`}
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
 
-          {/* Footer actions */}
-          <div className="jcf-footer-row">
-            {activeTab > 0 && (
-              <button type="button" onClick={handlePrevious} className="jcf-btn-secondary">
-                ← Previous
-              </button>
-            )}
-            {activeTab < 1 && (
-              <button type="button" onClick={handleNext} className="jcf-btn-primary">
-                Next →
-              </button>
-            )}
-            {activeTab === 1 && (
-              <button type="submit" disabled={saving} className="jcf-btn-primary jcf-btn-submit" style={{ opacity: saving ? 0.6 : 1 }}>
-                {saving && <FaSpinner className="jcf-spinning" />}
-                <FaSave /> {isEditMode ? "Update Lead" : "Create Lead"}
-              </button>
-            )}
-          </div>
-        </form>
+            {/* Footer actions */}
+            <div className="jcf-footer-row">
+              {activeTab > 0 && (
+                <button type="button" onClick={handlePrevious} className="jcf-btn-secondary">
+                  ← Previous
+                </button>
+              )}
+
+              {/* Next button — always available (just for tab navigation) */}
+              {activeTab < 1 && (
+                <button type="button" onClick={handleNext} className="jcf-btn-primary">
+                  Next →
+                </button>
+              )}
+
+              {/* Submit button — ONLY visible when editable */}
+              {activeTab === 1 && !isViewMode && (
+                <button type="submit" disabled={saving} className="jcf-btn-primary jcf-btn-submit" style={{ opacity: saving ? 0.6 : 1 }}>
+                  {saving && <FaSpinner className="jcf-spinning" />}
+                  <FaSave /> {isEditMode ? "Update Lead" : "Create Lead"}
+                </button>
+              )}
+
+              {/* In view mode, show an Edit button at the bottom too, for convenience */}
+              {activeTab === 1 && isViewMode && isEditMode && (
+                <button type="button" className="jcf-btn-primary jcf-btn-edit" onClick={handleEnterEditMode}>
+                  <FaEdit /> Edit Lead
+                </button>
+              )}
+            </div>
+          </form>
         )}
       </div>
     </div>

@@ -593,11 +593,6 @@ export default function SalesDashboard() {
           </div>
         </div>
 
-     
-
-
-       
-
         {/* Top Customers */}
         <div className="card top-customers">
           <div className="card-header">
@@ -621,44 +616,6 @@ export default function SalesDashboard() {
             )}
           </div>
         </div>
-
-        {/* Sales Metrics */}
-        <div className="card sales-metrics">
-          <div className="card-header">
-            <h3>Sales Metrics</h3>
-            <span className="badge">Live</span>
-          </div>
-          <div className="metrics-grid">
-            <div className="metric-item">
-              <div className="metric-icon"><FaShoppingCart /></div>
-              <div className="metric-info">
-                <span className="metric-label">Total Orders</span>
-                <span className="metric-value">{stats.totalOrders}</span>
-              </div>
-            </div>
-            <div className="metric-item">
-              <div className="metric-icon"><FaMoneyBillWave /></div>
-              <div className="metric-info">
-                <span className="metric-label">Total Revenue</span>
-                <span className="metric-value">₹{stats.totalRevenue.toLocaleString()}</span>
-              </div>
-            </div>
-            <div className="metric-item">
-              <div className="metric-icon"><FaPercent /></div>
-              <div className="metric-info">
-                <span className="metric-label">Conversion</span>
-                <span className="metric-value">{stats.conversionRate}%</span>
-              </div>
-            </div>
-            <div className="metric-item">
-              <div className="metric-icon"><FaTruck /></div>
-              <div className="metric-info">
-                <span className="metric-label">Delivery Notes</span>
-                <span className="metric-value">{stats.totalDeliveryNotes}</span>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
 
       <style>{`
@@ -669,14 +626,7 @@ export default function SalesDashboard() {
         .spinner {
           animation: spin 1s linear infinite;
         }
-        .stat-disabled {
-          opacity: 0.6;
-          cursor: default !important;
-        }
-        .stat-disabled:hover {
-          transform: none !important;
-          box-shadow: none !important;
-        }
+      
         .status-dot {
           display: inline-block;
           width: 10px;

@@ -1,4 +1,4 @@
-// hii
+// CreateSalesOrder.tsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
@@ -110,7 +110,6 @@ interface PaymentScheduleRow {
   status?: string;
 }
 
-// Payment Term Template
 interface PaymentTermTemplate {
   id: string;
   name: string;
@@ -239,7 +238,7 @@ interface QuotationApiRecord {
     stock_uom?: string;
     tax_rate?: number;
     tax_id?: number;
-    item_tax_id?: number;  // Added this field to match the API response
+    item_tax_id?: number;
     amount?: number;
     creation?: string;
     modified?: string;
@@ -498,7 +497,6 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
         ) : (
           <FaChevronDown style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary, #94a3b8)', fontSize: '11px', pointerEvents: 'none' }} />
         )}
-        {/* Stock indicator inside the input */}
         {value && stockInfo && (
           <div style={{ position: 'absolute', right: '28px', top: '50%', transform: 'translateY(-50%)' }}>
             {getStockDisplay()}
@@ -548,7 +546,6 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
 
   const menuPos = useDropdownPosition(isOpen, wrapperRef);
 
-  // Use customerList prop if provided, otherwise fetch
   useEffect(() => {
     if (customerList.length > 0) {
       setCustomers(customerList);
@@ -558,7 +555,6 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
     }
   }, [customerList]);
 
-  // Update selected customer when prop changes
   useEffect(() => {
     if (propSelectedCustomer) {
       setSelectedCustomer(propSelectedCustomer);
@@ -761,8 +757,6 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
         )}
       </div>
 
-      {/* Persistent footer action so "Add New Customer" is always reachable,
-          even when there are matching results to scroll through. */}
       <div
         className="cq-dropdown-add-new"
         onMouseDown={(e) => {
@@ -1020,7 +1014,6 @@ const QuickAddCustomerModal: React.FC<QuickAddCustomerModalProps> = ({
           overflow: 'hidden',
         }}
       >
-        {/* Header */}
         <div
           style={{
             display: 'flex',
@@ -1057,7 +1050,6 @@ const QuickAddCustomerModal: React.FC<QuickAddCustomerModalProps> = ({
           </button>
         </div>
 
-        {/* Body */}
         <form onSubmit={handleSubmit}>
           <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={fieldWrapStyle}>
@@ -1104,7 +1096,6 @@ const QuickAddCustomerModal: React.FC<QuickAddCustomerModalProps> = ({
             </div>
           </div>
 
-          {/* Footer */}
           <div
             style={{
               padding: '14px 20px',
@@ -1505,14 +1496,12 @@ const DEFAULT_TAX_OPTIONS: TaxOption[] = [
   { tax_id: 5, tax_type: 'GST 28%' },
 ];
 
-// Helper to extract numeric tax value from tax_type
 const extractTaxValue = (taxType: string): number => {
   if (!taxType) return 0;
   const match = taxType.match(/(\d+(?:\.\d+)?)/);
   return match ? parseFloat(match[0]) : 0;
 };
 
-// Helper to get tax value from tax_id
 const getTaxValueFromId = (taxId: number | string | undefined, taxOptions: TaxOption[] = []): number => {
   if (taxId === undefined || taxId === null || taxId === '') return 0;
   const opts = taxOptions && taxOptions.length > 0 ? taxOptions : DEFAULT_TAX_OPTIONS;
@@ -1528,19 +1517,16 @@ const getTaxValueFromId = (taxId: number | string | undefined, taxOptions: TaxOp
   return 0;
 };
 
-// Helper to get tax_id from tax rate value
 const getTaxIdFromRate = (taxRate: number, taxOptions: TaxOption[] = []): number | undefined => {
   const opts = taxOptions && taxOptions.length > 0 ? taxOptions : DEFAULT_TAX_OPTIONS;
   const taxOption = opts.find(t => extractTaxValue(t.tax_type || (t as any).tax_name || '') === taxRate);
   return taxOption?.tax_id ?? (taxOption as any)?.id;
 };
 
-// Helper to resolve tax info from item master
 const getTaxRateFromItem = (item: any, taxOpts: TaxOption[] = []): { rate: number; tax_id?: number; tax_type?: string } => {
   const opts = taxOpts && taxOpts.length > 0 ? taxOpts : DEFAULT_TAX_OPTIONS;
   if (!item) return { rate: 0, tax_id: opts[0]?.tax_id || 1, tax_type: opts[0]?.tax_type || 'GST 0%' };
 
-  // 1. Direct tax_id check against options
   const rawTaxId = item.tax_id ?? item.taxId ?? item.tax_type_id ?? item.rawTaxId;
   if (rawTaxId !== undefined && rawTaxId !== null && rawTaxId !== '') {
     const numTaxId = Number(rawTaxId);
@@ -1551,7 +1537,6 @@ const getTaxRateFromItem = (item: any, taxOpts: TaxOption[] = []): { rate: numbe
     }
   }
 
-  // 2. Direct tax_type string check (e.g., "GST 18%", "GST18 (18%)", "GST18", "18%")
   const rawTaxType = item.tax_type ?? item.taxType ?? item.tax_name ?? item.rawTaxType;
   if (rawTaxType) {
     const strType = String(rawTaxType).trim();
@@ -1571,7 +1556,6 @@ const getTaxRateFromItem = (item: any, taxOpts: TaxOption[] = []): { rate: numbe
     }
   }
 
-  // 3. Direct tax rate / percentage check
   const directRateRaw = item.tax ?? item.tax_rate ?? item.gst_rate ?? item.gst ?? item.tax_percent ?? item.taxPercentage ?? item.rawTaxRate;
   if (directRateRaw !== undefined && directRateRaw !== null && directRateRaw !== '') {
     const directRate = Number(directRateRaw);
@@ -1587,7 +1571,6 @@ const getTaxRateFromItem = (item: any, taxOpts: TaxOption[] = []): { rate: numbe
     }
   }
 
-  // 4. If rawTaxId was given, check if it directly matches a percentage
   if (rawTaxId !== undefined && rawTaxId !== null && rawTaxId !== '') {
     const num = Number(rawTaxId);
     if (!isNaN(num) && [0, 5, 12, 18, 28].includes(num)) {
@@ -1678,6 +1661,10 @@ export default function CreateSalesOrder() {
 
   const isEditMode = !!id && id !== 'new';
 
+  // ─── View Mode Flag ──────────────────────────────────────────────────
+  // When true, the entire page is read-only (all inputs disabled, no buttons)
+  const isViewMode = (location.state as any)?.viewMode === true;
+
   const getDraftStorageKey = () => `${SALES_ORDER_DRAFT_PREFIX}${id || 'new'}`;
 
   let theme = 'light';
@@ -1688,12 +1675,10 @@ export default function CreateSalesOrder() {
     console.log('Using default light theme');
   }
 
-  // ===== NEW: Toggle state for With/Without Quotation =====
   const [hasQuotation, setHasQuotation] = useState<boolean>(true);
   const [selectedQuotation, setSelectedQuotation] = useState<string>('');
   const [applyingQuotation, setApplyingQuotation] = useState(false);
 
-  // ===== Tax options state =====
   const [taxOptions, setTaxOptions] = useState<TaxOption[]>([]);
   const [loadingTaxOptions, setLoadingTaxOptions] = useState<boolean>(false);
   const [taxOptionsLoaded, setTaxOptionsLoaded] = useState<boolean>(false);
@@ -1710,7 +1695,6 @@ export default function CreateSalesOrder() {
   const [recordName, setRecordName] = useState<string | null>(null);
   const [recordFetched, setRecordFetched] = useState<boolean>(false);
 
-  // Success Modal
   const [showSuccessModal, setShowSuccessModal] = useState<boolean>(false);
   const [successData, setSuccessData] = useState<{
     salesOrder: string;
@@ -1723,34 +1707,27 @@ export default function CreateSalesOrder() {
     message: ''
   });
 
-  // Customer data
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [customerData, setCustomerData] = useState<Customer | null>(null);
 
-  // ─── Quick Add Customer modal state ─────────────────────────────
   const [showQuickAddModal, setShowQuickAddModal] = useState(false);
   const [quickAddPrefillName, setQuickAddPrefillName] = useState('');
 
-  // Product data
   const [products, setProducts] = useState<Product[]>([]);
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [isLoadingItems, setIsLoadingItems] = useState<boolean>(false);
 
-  // Quotation lookup
   const [, setQuotations] = useState<QuotationApiRecord[]>([]);
   const [loadingQuotations, setLoadingQuotations] = useState(false);
 
-  // Inventory / stock check
   const [inventoryMap, setInventoryMap] = useState<{ [itemCode: string]: InventoryApiRecord }>({});
   const [, setLoadingInventory] = useState(false);
 
-  // Item master catalog
   const [itemMasterMap, setItemMasterMap] = useState<{ [itemCode: string]: any }>({});
   const [loadingItemMaster, setLoadingItemMaster] = useState(false);
 
   const statusOptions = ['Draft', 'Confirmed', 'On Hold', 'Completed', 'Cancelled', 'Closed'];
 
-  // ─── Payment Term Templates ──────────────────────────
   const paymentTermTemplates: PaymentTermTemplate[] = [
     {
       id: 'on_delivery',
@@ -1878,6 +1855,7 @@ export default function CreateSalesOrder() {
   };
 
   const openDatePicker = (key: string) => {
+    if (isViewMode) return;
     const el = inputRefs.current[key] as HTMLInputElement | null;
     if (!el) return;
     if (typeof (el as any).showPicker === 'function') {
@@ -1890,7 +1868,6 @@ export default function CreateSalesOrder() {
     el.focus();
   };
 
-  // ─── fetch tax options ──────────────────────────
   const fetchTaxOptions = async () => {
     setLoadingTaxOptions(true);
     try {
@@ -1919,7 +1896,6 @@ export default function CreateSalesOrder() {
     fetchTaxOptions();
   }, []);
 
-  // ─── load quotations ──────────────────────────
   const fetchQuotations = async () => {
     setLoadingQuotations(true);
     try {
@@ -1939,7 +1915,6 @@ export default function CreateSalesOrder() {
     }
   }, []);
 
-  // ─── fetch items ──────────────────────────
   const fetchAllItems = async () => {
     setIsLoadingItems(true);
     try {
@@ -2063,7 +2038,6 @@ export default function CreateSalesOrder() {
     }
   }, [allProducts, taxOptions]);
 
-  // ─── load inventory ──────────────────────────
   const fetchInventory = async () => {
     setLoadingInventory(true);
     try {
@@ -2140,8 +2114,8 @@ export default function CreateSalesOrder() {
     });
   }, [inventoryMap]);
 
-  // ─── Customer Change Handler ──────────────────────────
   const handleCustomerChange = (customerId: string, customer?: Customer) => {
+    if (isViewMode) return;
     const customerData = customer || customers.find(c => c.id === customerId);
     if (customerData) {
       setSelectedCustomer(customerData);
@@ -2164,11 +2138,13 @@ export default function CreateSalesOrder() {
   };
 
   const handleAddNewCustomer = (prefillName: string) => {
+    if (isViewMode) return;
     setQuickAddPrefillName(prefillName || '');
     setShowQuickAddModal(true);
   };
 
   const navigateToFullCustomerForm = (prefillName: string) => {
+    if (isViewMode) return;
     try {
       const draftPayload: SalesOrderDraftPayload = {
         formData,
@@ -2188,7 +2164,6 @@ export default function CreateSalesOrder() {
     });
   };
 
-  // ─── customers state for dropdown ──────────────────────────
   const [customers, setCustomers] = useState<Customer[]>([]);
 
   const fetchCustomers = async () => {
@@ -2254,15 +2229,13 @@ export default function CreateSalesOrder() {
         customerName: newCustomer.name,
       }));
       toast.success(`Customer "${newCustomer.name}" added and selected`);
-      // Clear the navigation state so a refresh or back/forward navigation
-      // doesn't re-trigger the selection.
       navigate(location.pathname, { replace: true, state: {} });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ─── load quotation ──────────────────────────
   const handleQuotationChange = async (quotationName: string, quotationData?: QuotationApiRecord) => {
+    if (isViewMode) return;
     setSelectedQuotation(quotationName);
     if (!quotationName || !quotationData) return;
 
@@ -2312,24 +2285,19 @@ export default function CreateSalesOrder() {
         const hsn = it.hsn || master?.HSN || master?.hsn || '';
         const stockUom = it.stock_uom || master?.stock_uom || 'Nos';
 
-        // ===== FIX: Properly bind item_tax_id to tax field =====
-        // Check for both tax_id and item_tax_id from the API response
         let tax_id: number | undefined = it.tax_id ? Number(it.tax_id) : undefined;
         if (!tax_id && it.item_tax_id) {
           tax_id = Number(it.item_tax_id);
         }
         let tax = 0;
 
-        // If tax_id is provided, get the tax rate from tax options
         if (tax_id) {
           tax = getTaxValueFromId(tax_id, taxOptions);
         }
-        // If only tax_rate is provided but no tax_id, try to find matching tax_id
         else if (it.tax_rate && it.tax_rate > 0) {
           tax = it.tax_rate;
           tax_id = getTaxIdFromRate(tax, taxOptions);
         }
-        // If no tax info at all, check master item
         else if (master) {
           const masterTax = master.tax_rate || 0;
           if (masterTax > 0) {
@@ -2341,8 +2309,6 @@ export default function CreateSalesOrder() {
         const amount = it.amount ?? quantity * rate;
         const taxAmount = (amount * tax) / 100;
         const { status, availableQty } = getStockStatus(itemCode, quantity);
-
-        console.log(`Item ${itemCode}: tax_id=${tax_id}, tax=${tax}`); // Debug log
 
         return {
           id: String(idx + 1),
@@ -2469,7 +2435,6 @@ export default function CreateSalesOrder() {
       }
     }
 
-    // Find customer match
     let customerMatch: Customer | undefined;
     if (record.party_name) {
       customerMatch = customers.find((c) => c.id === record.party_name || c.name === record.party_name);
@@ -2510,7 +2475,6 @@ export default function CreateSalesOrder() {
     }
   };
 
-  // ─── load existing sales order ───────────────────
   useEffect(() => {
     if (isEditMode && id && taxOptionsLoaded && !recordFetched) {
       fetchSalesOrderById(id);
@@ -2576,12 +2540,10 @@ export default function CreateSalesOrder() {
               it.tax_id ? Number(it.tax_id) : undefined;
 
           if (tax_id) {
-
             if (!tax || tax <= 0) {
               tax = getTaxValueFromId(tax_id, taxOptions);
             }
           } else if (tax > 0) {
-
             tax_id = getTaxIdFromRate(tax, taxOptions);
           } else if (parentTaxId) {
             tax_id = parentTaxId;
@@ -2676,7 +2638,6 @@ export default function CreateSalesOrder() {
     }));
   };
 
-  // Update selected customer when formData.customer changes and customers are loaded
   useEffect(() => {
     if (formData.customer && customers.length > 0) {
       const match = customers.find((c) => c.id === formData.customer || c.name === formData.customer);
@@ -2687,8 +2648,8 @@ export default function CreateSalesOrder() {
     }
   }, [customers, formData.customer]);
 
-  // ─── Apply Payment Template ──────────────────────────
   const applyPaymentTemplate = (templateId: string) => {
+    if (isViewMode) return;
     const template = paymentTermTemplates.find(t => t.id === templateId);
     if (!template) return;
 
@@ -2719,7 +2680,6 @@ export default function CreateSalesOrder() {
     toast.success(`Applied "${template.name}" payment terms`);
   };
 
-  // ─── validation ──────────────────────────────
   const getAllValidationErrors = (): ValidationError[] => {
     const allErrors: ValidationError[] = [];
 
@@ -2764,9 +2724,10 @@ export default function CreateSalesOrder() {
     }, 50);
   };
 
-  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (isViewMode) return; // Disable keyboard shortcuts in view mode
+
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
         handleSubmit(e as any);
@@ -2797,7 +2758,7 @@ export default function CreateSalesOrder() {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [formData.items.length, showBarcodeScanner]);
+  }, [formData.items.length, showBarcodeScanner, isViewMode]);
 
   useEffect(() => {
     setTimeout(() => {
@@ -2844,6 +2805,7 @@ export default function CreateSalesOrder() {
   };
 
   const handleItemChange = (index: number, field: keyof SalesOrderItem, value: string | number, selectedProduct?: Product) => {
+    if (isViewMode) return;
     const updatedItems = [...formData.items];
     const currentItem = updatedItems[index];
     if (!currentItem) return;
@@ -2980,6 +2942,7 @@ export default function CreateSalesOrder() {
   };
 
   const addItemRow = () => {
+    if (isViewMode) return;
     const newId = String(formData.items.length + 1);
     setFormData(prev => ({
       ...prev,
@@ -2991,6 +2954,7 @@ export default function CreateSalesOrder() {
   };
 
   const removeItemRow = (index: number) => {
+    if (isViewMode) return;
     if (formData.items.length <= 1) return;
     setFormData(prev => ({
       ...prev,
@@ -2998,10 +2962,9 @@ export default function CreateSalesOrder() {
     }));
   };
 
-  // ─── payment schedule ─────────────────────────
   const addPaymentSchedule = () => {
+    if (isViewMode) return;
     const newId = String(formData.paymentSchedule.length + 1);
-    // const grandTotal = formData.roundedTotal || 0;
     setFormData(prev => ({
       ...prev,
       paymentSchedule: [
@@ -3021,6 +2984,7 @@ export default function CreateSalesOrder() {
   };
 
   const removePaymentSchedule = (index: number) => {
+    if (isViewMode) return;
     if (formData.paymentSchedule.length <= 1) return;
     setFormData(prev => ({
       ...prev,
@@ -3029,6 +2993,7 @@ export default function CreateSalesOrder() {
   };
 
   const updatePaymentRow = (index: number, patch: Partial<PaymentScheduleRow>) => {
+    if (isViewMode) return;
     setFormData(prev => {
       const updated = [...prev.paymentSchedule];
       updated[index] = { ...updated[index], ...patch };
@@ -3052,7 +3017,6 @@ export default function CreateSalesOrder() {
     updatePaymentRow(index, { durationDays, dueDate });
   };
 
-  // ─── submit ──────────────────────────────────
   const validateForm = (): boolean => {
     const allErrors = getAllValidationErrors();
     if (allErrors.length > 0) {
@@ -3068,11 +3032,6 @@ export default function CreateSalesOrder() {
     return date.split('T')[0];
   };
 
-  // ─── build API payload ────────────────────────
-  // NOTE: When editing, the record identifier (`name`) MUST be included in
-  // the payload so the backend/PUT endpoint knows which sales order to
-  // update instead of inserting a brand-new one (which was causing
-  // duplicate entries on edit/update).
   const buildApiPayload = () => {
     const validItems = formData.items.filter((item) => item.itemCode || item.itemName);
 
@@ -3083,8 +3042,6 @@ export default function CreateSalesOrder() {
       ?? (taxOptions.length > 0 ? taxOptions[0].tax_id : null);
 
     const payload: any = {
-      // Include the record identifier only in edit mode, so PUT updates the
-      // existing sales order instead of the backend creating a new one.
       ...(isEditMode && recordName ? { name: recordName } : {}),
       company: 1,
       modified_by: "Administrator",
@@ -3148,7 +3105,6 @@ export default function CreateSalesOrder() {
     try {
       const payload = buildApiPayload();
 
-      // In edit mode, backend requires the Sales Order ID
       if (isEditMode) {
         const salesOrderId = id || recordName;
 
@@ -3228,12 +3184,12 @@ export default function CreateSalesOrder() {
       setSaving(false);
     }
   };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Do not allow an edit submission while the existing record is still
-    // being loaded. Once loaded, saveSalesOrder uses the URL id as a fallback
-    // so the PUT request is guaranteed to target the existing record.
+    if (isViewMode) return; // Prevent submit in view mode
+
     if (isEditMode && loadingRecord) {
       toast.error('Please wait until the sales order finishes loading.');
       return;
@@ -3315,7 +3271,6 @@ export default function CreateSalesOrder() {
         }
       `}</style>
 
-      {/* Success Modal */}
       <SuccessModal
         isOpen={showSuccessModal}
         onClose={handleCloseModal}
@@ -3326,7 +3281,6 @@ export default function CreateSalesOrder() {
         onViewDetails={handleViewSalesOrder}
       />
 
-      {/* Quick Add Customer Modal */}
       <QuickAddCustomerModal
         isOpen={showQuickAddModal}
         prefillName={quickAddPrefillName}
@@ -3341,7 +3295,6 @@ export default function CreateSalesOrder() {
         }}
       />
 
-      {/* Validation Summary Modal */}
       {showValidationSummary && validationErrors.length > 0 && (
         <div className="so-modal-overlay" onClick={() => setShowValidationSummary(false)}>
           <div className="so-validation-modal" onClick={(e) => e.stopPropagation()}>
@@ -3378,7 +3331,6 @@ export default function CreateSalesOrder() {
         </div>
       )}
 
-      {/* Stock Warning Modal */}
       {showStockWarningModal && (
         <div className="so-modal-overlay" onClick={() => setShowStockWarningModal(false)}>
           <div className="so-validation-modal" onClick={(e) => e.stopPropagation()}>
@@ -3426,7 +3378,6 @@ export default function CreateSalesOrder() {
         </div>
       )}
 
-      {/* Header */}
       <div className="so-header">
         <div className="so-header-left">
           <button onClick={() => navigate('/sales-order')} className="so-back-btn">
@@ -3434,8 +3385,21 @@ export default function CreateSalesOrder() {
           </button>
           <div className="so-header-divider" />
           <h1 className="so-header-title">
-            {isEditMode ? 'Edit Sales Order' : 'Create Sales Order'}
+            {isEditMode ? (isViewMode ? 'View Sales Order' : 'Edit Sales Order') : 'Create Sales Order'}
           </h1>
+          {isViewMode && (
+            <span style={{
+              marginLeft: '12px',
+              padding: '3px 12px',
+              borderRadius: '12px',
+              background: '#dbeafe',
+              color: '#2563eb',
+              fontSize: '11px',
+              fontWeight: 600
+            }}>
+              View Mode
+            </span>
+          )}
         </div>
         <div className="so-header-right">
           <label className="so-checkbox-label">
@@ -3445,13 +3409,13 @@ export default function CreateSalesOrder() {
               checked={formData.isSubcontracted}
               onChange={handleInputChange}
               className="so-checkbox"
+              disabled={isViewMode}
             />
             <span>Subcontracted</span>
           </label>
         </div>
       </div>
 
-      {/* API Error Pill */}
       {apiError && (
         <div className="so-error-pill">
           <FaExclamationTriangle size={11} />
@@ -3459,10 +3423,8 @@ export default function CreateSalesOrder() {
         </div>
       )}
 
-      {/* Main Box */}
       <div className="so-main-box">
-        {/* ===== NEW: Quotation Toggle (GRN-style) ===== */}
-        {!isEditMode && (
+        {!isEditMode && !isViewMode && (
           <div className="so-invoice-type-section">
             <label className="so-label" style={{ marginBottom: 0, whiteSpace: 'nowrap' }}>
               Create From
@@ -3492,11 +3454,8 @@ export default function CreateSalesOrder() {
           </div>
         )}
 
-        {/* Two-Column Compact Layout */}
         <div className="so-compact-layout">
-          {/* Left Column */}
           <div className="so-left-column">
-            {/* Load from Quotation - Conditional */}
             {!isEditMode && hasQuotation && (
               <>
                 <div className="so-section-header">
@@ -3509,7 +3468,7 @@ export default function CreateSalesOrder() {
                     value={selectedQuotation}
                     onChange={handleQuotationChange}
                     placeholder="Search or select quotation..."
-                    disabled={loadingQuotations || applyingQuotation || loadingItemMaster}
+                    disabled={loadingQuotations || applyingQuotation || loadingItemMaster || isViewMode}
                     error={!!errors.quotation}
                   />
                   {applyingQuotation && (
@@ -3521,13 +3480,11 @@ export default function CreateSalesOrder() {
               </>
             )}
 
-            {/* Basic Information */}
             <div className="so-section-header" style={{ marginTop: (!isEditMode && hasQuotation) ? '0.5rem' : '0' }}>
               <FaBox className="so-section-icon" />
               <span>Basic Information</span>
             </div>
 
-            {/* Customer & Date in one row */}
             <div className="so-field-row">
               <div className="so-field-half">
                 <label className="so-label"><FaUser size={11} style={{ marginRight: 4 }} />Customer <span className="so-required">*</span></label>
@@ -3535,7 +3492,7 @@ export default function CreateSalesOrder() {
                   value={formData.customer}
                   onChange={handleCustomerChange}
                   placeholder="Search Customer..."
-                  disabled={loadingItemMaster}
+                  disabled={loadingItemMaster || isViewMode}
                   error={!!errors.customer}
                   customerList={customers}
                   selectedCustomer={selectedCustomer}
@@ -3554,21 +3511,24 @@ export default function CreateSalesOrder() {
                     onChange={handleInputChange}
                     className={`so-input ${errors.date ? 'so-input-error' : ''}`}
                     ref={setRef('date')}
+                    readOnly={isViewMode}
+                    disabled={isViewMode}
                   />
-                  <button
-                    type="button"
-                    className="so-date-icon-btn"
-                    onClick={() => openDatePicker('date')}
-                    tabIndex={-1}
-                  >
-                    <FaCalendarAlt size={13} />
-                  </button>
+                  {!isViewMode && (
+                    <button
+                      type="button"
+                      className="so-date-icon-btn"
+                      onClick={() => openDatePicker('date')}
+                      tabIndex={-1}
+                    >
+                      <FaCalendarAlt size={13} />
+                    </button>
+                  )}
                 </div>
                 {errors.date && <span className="so-error-text">{errors.date}</span>}
               </div>
             </div>
 
-            {/* Delivery Date and Status in grid-3 */}
             <div className="so-grid-3">
               <div className="so-field">
                 <label className="so-label">Delivery Date <span className="so-required">*</span></label>
@@ -3580,15 +3540,19 @@ export default function CreateSalesOrder() {
                     onChange={handleInputChange}
                     className={`so-input ${errors.deliveryDate ? 'so-input-error' : ''}`}
                     ref={setRef('deliveryDate')}
+                    readOnly={isViewMode}
+                    disabled={isViewMode}
                   />
-                  <button
-                    type="button"
-                    className="so-date-icon-btn"
-                    onClick={() => openDatePicker('deliveryDate')}
-                    tabIndex={-1}
-                  >
-                    <FaCalendarAlt size={13} />
-                  </button>
+                  {!isViewMode && (
+                    <button
+                      type="button"
+                      className="so-date-icon-btn"
+                      onClick={() => openDatePicker('deliveryDate')}
+                      tabIndex={-1}
+                    >
+                      <FaCalendarAlt size={13} />
+                    </button>
+                  )}
                 </div>
                 {errors.deliveryDate && <span className="so-error-text">{errors.deliveryDate}</span>}
               </div>
@@ -3600,6 +3564,7 @@ export default function CreateSalesOrder() {
                   value={formData.status}
                   onChange={handleInputChange}
                   className="so-select"
+                  disabled={isViewMode}
                 >
                   {statusOptions.map((opt) => (
                     <option key={opt} value={opt}>{opt}</option>
@@ -3615,6 +3580,7 @@ export default function CreateSalesOrder() {
                   onChange={handleInputChange}
                   className="so-select"
                   ref={setRef('orderType')}
+                  disabled={isViewMode}
                 >
                   <option value="Sales">Sales</option>
                   <option value="Credit Note">Credit Note</option>
@@ -3625,7 +3591,6 @@ export default function CreateSalesOrder() {
             </div>
           </div>
 
-          {/* Right Column - Customer Detail Card */}
           <div className="so-right-column">
             {customerData ? (
               <div className="so-detail-card">
@@ -3692,15 +3657,16 @@ export default function CreateSalesOrder() {
           </div>
         </div>
 
-        {/* Full Width - Items Section */}
         <div className="so-items-full">
           <div className="so-items-header">
             <span className="so-items-title">
               <FaClipboardList className="so-items-icon" /> Products
             </span>
-            <button type="button" className="so-add-btn" onClick={addItemRow}>
-              <FaPlus size={9} /> Add
-            </button>
+            {!isViewMode && (
+              <button type="button" className="so-add-btn" onClick={addItemRow}>
+                <FaPlus size={9} /> Add
+              </button>
+            )}
           </div>
 
           {errors.items && <div className="so-items-error"><FaExclamationTriangle /> {errors.items}</div>}
@@ -3736,6 +3702,7 @@ export default function CreateSalesOrder() {
                         loading={isLoadingItems}
                         error={!!errors[`item_${index}_code`]}
                         stockInfo={{ status: item.stockStatus, availableQty: item.availableQty }}
+                        disabled={isViewMode}
                       />
                     </td>
                     <td className="so-col-name">
@@ -3746,6 +3713,7 @@ export default function CreateSalesOrder() {
                         placeholder="Item Name"
                         className="so-table-input so-table-input-text"
                         ref={setItemRef(`item_${index}_itemName`)}
+                        readOnly={isViewMode}
                       />
                     </td>
                     <td className="so-col-hsn">
@@ -3756,6 +3724,7 @@ export default function CreateSalesOrder() {
                         placeholder="HSN"
                         className="so-table-input so-table-input-text"
                         ref={setItemRef(`item_${index}_hsn`)}
+                        readOnly={isViewMode}
                       />
                     </td>
                     <td className="so-col-qty">
@@ -3767,6 +3736,7 @@ export default function CreateSalesOrder() {
                         min="1"
                         className={`so-table-input ${errors[`item_${index}_quantity`] ? 'so-input-error' : ''}`}
                         ref={setItemRef(`item_${index}_quantity`)}
+                        readOnly={isViewMode}
                       />
                     </td>
                     <td className="so-col-uom">
@@ -3775,6 +3745,7 @@ export default function CreateSalesOrder() {
                         onChange={(e) => handleItemChange(index, 'stockUom', e.target.value)}
                         className="so-table-input"
                         ref={setItemRef(`item_${index}_stockUom`)}
+                        disabled={isViewMode}
                       >
                         <option value="Nos">Nos</option>
                         <option value="Kg">Kg</option>
@@ -3794,6 +3765,7 @@ export default function CreateSalesOrder() {
                         step="0.01"
                         className={`so-table-input ${errors[`item_${index}_rate`] ? 'so-input-error' : ''}`}
                         ref={setItemRef(`item_${index}_rate`)}
+                        readOnly={isViewMode}
                       />
                     </td>
                     <td className="so-col-tax">
@@ -3802,7 +3774,7 @@ export default function CreateSalesOrder() {
                         onChange={(e) => handleItemChange(index, 'tax', Number(e.target.value))}
                         className="so-table-input"
                         ref={setItemRef(`item_${index}_tax`)}
-                        disabled={loadingTaxOptions}
+                        disabled={loadingTaxOptions || isViewMode}
                       >
                         {(taxOptions.length > 0 ? taxOptions : DEFAULT_TAX_OPTIONS).map((tax) => {
                           const taxValue = extractTaxValue(tax.tax_type);
@@ -3828,7 +3800,7 @@ export default function CreateSalesOrder() {
                       <span className="so-table-value">₹{(item.totalAmount || 0).toFixed(2)}</span>
                     </td>
                     <td className="so-col-action">
-                      {formData.items.length > 1 && (
+                      {!isViewMode && formData.items.length > 1 && (
                         <button
                           type="button"
                           className="so-remove-btn"
@@ -3846,17 +3818,13 @@ export default function CreateSalesOrder() {
           </div>
         </div>
 
-        {/* Bottom Section */}
         <div className="so-bottom-section">
-          {/* Left Column - Payment Schedule & Terms */}
           <div className="so-bottom-left">
-            {/* Payment Schedule */}
             <div className="so-section-header">
               <FaCreditCard className="so-section-icon" />
               <span>Payment Schedule</span>
             </div>
 
-            {/* Payment Terms Template Dropdown - MOVED HERE */}
             <div className="so-field" style={{ marginBottom: '0.5rem' }}>
               <div className="so-field-row" style={{ gridTemplateColumns: '1fr auto' }}>
                 <select
@@ -3870,6 +3838,7 @@ export default function CreateSalesOrder() {
                   }}
                   className="so-select"
                   style={{ minWidth: '200px' }}
+                  disabled={isViewMode}
                 >
                   <option value="">Select Payment Terms...</option>
                   {paymentTermTemplates.map((template) => (
@@ -3878,18 +3847,20 @@ export default function CreateSalesOrder() {
                     </option>
                   ))}
                 </select>
-                <button
-                  type="button"
-                  className="so-add-btn"
-                  onClick={() => {
-                    if (formData.paymentTermsTemplate) {
-                      applyPaymentTemplate(formData.paymentTermsTemplate);
-                    }
-                  }}
-                  style={{ whiteSpace: 'nowrap', padding: '5px 14px' }}
-                >
-                  <FaCopy size={9} /> Apply
-                </button>
+                {!isViewMode && (
+                  <button
+                    type="button"
+                    className="so-add-btn"
+                    onClick={() => {
+                      if (formData.paymentTermsTemplate) {
+                        applyPaymentTemplate(formData.paymentTermsTemplate);
+                      }
+                    }}
+                    style={{ whiteSpace: 'nowrap', padding: '5px 14px' }}
+                  >
+                    <FaCopy size={9} /> Apply
+                  </button>
+                )}
               </div>
             </div>
 
@@ -3917,6 +3888,7 @@ export default function CreateSalesOrder() {
                           onChange={(e) => updatePaymentRow(index, { paymentTerm: e.target.value })}
                           placeholder="Term"
                           className="so-table-input so-table-input-text"
+                          readOnly={isViewMode}
                         />
                       </td>
                       <td className="so-payment-col-date">
@@ -3927,15 +3899,19 @@ export default function CreateSalesOrder() {
                             onChange={(e) => handlePaymentDueDateChange(index, e.target.value)}
                             className="so-table-input"
                             ref={setRef(`payment_${index}_dueDate`)}
+                            readOnly={isViewMode}
+                            disabled={isViewMode}
                           />
-                          <button
-                            type="button"
-                            className="so-date-icon-btn"
-                            onClick={() => openDatePicker(`payment_${index}_dueDate`)}
-                            tabIndex={-1}
-                          >
-                            <FaCalendarAlt size={11} />
-                          </button>
+                          {!isViewMode && (
+                            <button
+                              type="button"
+                              className="so-date-icon-btn"
+                              onClick={() => openDatePicker(`payment_${index}_dueDate`)}
+                              tabIndex={-1}
+                            >
+                              <FaCalendarAlt size={11} />
+                            </button>
+                          )}
                         </div>
                       </td>
                       <td className="so-payment-col-duration">
@@ -3946,6 +3922,7 @@ export default function CreateSalesOrder() {
                           onWheel={preventWheelChange}
                           min="0"
                           className="so-table-input"
+                          readOnly={isViewMode}
                         />
                       </td>
                       <td className="so-payment-col-portion">
@@ -3957,13 +3934,14 @@ export default function CreateSalesOrder() {
                           min="0"
                           max="100"
                           className="so-table-input"
+                          readOnly={isViewMode}
                         />
                       </td>
                       <td className="so-payment-col-amount">
                         <span className="so-table-value">₹{schedule.paymentAmount.toFixed(2)}</span>
                       </td>
                       <td className="so-payment-col-action">
-                        {formData.paymentSchedule.length > 1 && (
+                        {!isViewMode && formData.paymentSchedule.length > 1 && (
                           <button
                             type="button"
                             className="so-remove-btn"
@@ -3979,11 +3957,12 @@ export default function CreateSalesOrder() {
               </table>
             </div>
 
-            <button type="button" className="so-add-payment-btn" onClick={addPaymentSchedule}>
-              <FaPlus size={9} /> Add Schedule
-            </button>
+            {!isViewMode && (
+              <button type="button" className="so-add-payment-btn" onClick={addPaymentSchedule}>
+                <FaPlus size={9} /> Add Schedule
+              </button>
+            )}
 
-            {/* Terms and Conditions */}
             <div className="so-section-header" style={{ marginTop: '1rem' }}>
               <FaFileAlt className="so-section-icon" />
               <span>Terms and Conditions</span>
@@ -3998,11 +3977,11 @@ export default function CreateSalesOrder() {
                 placeholder="Enter terms and conditions..."
                 className="so-textarea"
                 ref={setRef('termDetails')}
+                readOnly={isViewMode}
               />
             </div>
           </div>
 
-          {/* Right Column - Summary Card */}
           <div className="so-bottom-right">
             <div className="so-detail-card so-summary-card">
               <div className="so-card-header">
@@ -4034,20 +4013,21 @@ export default function CreateSalesOrder() {
         </div>
       </div>
 
-      {/* Form Actions */}
       <div className="so-form-footer">
         <button type="button" className="so-btn so-btn-secondary" onClick={handleCancel}>
-          <FaTimes size={11} /> Cancel
+          <FaTimes size={11} /> {isViewMode ? 'Back' : 'Cancel'}
         </button>
-        <button
-          type="button"
-          className="so-btn so-btn-submit"
-          onClick={handleSubmit}
-          disabled={saving || (isEditMode && loadingRecord)}
-        >
-          {saving && <FaSpinner className="so-spinning" />}
-          <FaSave /> {isEditMode ? 'Update Sales Order' : 'Create Sales Order'}
-        </button>
+        {!isViewMode && (
+          <button
+            type="button"
+            className="so-btn so-btn-submit"
+            onClick={handleSubmit}
+            disabled={saving || (isEditMode && loadingRecord)}
+          >
+            {saving && <FaSpinner className="so-spinning" />}
+            <FaSave /> {isEditMode ? 'Update Sales Order' : 'Create Sales Order'}
+          </button>
+        )}
       </div>
     </div>
   );

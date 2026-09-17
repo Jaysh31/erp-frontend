@@ -371,51 +371,12 @@ export default function PurchasingDashboard() {
         </div>
 
         {/* Procurement Metrics */}
-        <div className="card procurement-metrics">
-          <div className="card-header">
-            <h3>Procurement Metrics</h3>
-            <span className="badge">Live</span>
-          </div>
-          <div className="metrics-grid">
-            <div className="metric-item">
-              <div className="metric-icon"><FaBuilding /></div>
-              <div className="metric-info">
-                <span className="metric-label">Active Suppliers</span>
-                <span className="metric-value">{stats.supplierCount}</span>
-              </div>
+       
             </div>
-            <div className="metric-item">
-              <div className="metric-icon"><FaPercent /></div>
-              <div className="metric-info">
-                <span className="metric-label">Invoice Completion</span>
-                <span className="metric-value">
-                  {stats.totalInvoices > 0 
-                    ? Math.round((stats.completedInvoices / stats.totalInvoices) * 100) 
-                    : 0}%
-                </span>
-              </div>
-            </div>
-            <div className="metric-item">
-              <div className="metric-icon"><FaTruck /></div>
-              <div className="metric-info">
-                <span className="metric-label">Total GRNs</span>
-                <span className="metric-value">{stats.totalGRNs}</span>
-              </div>
-            </div>
-           
-          </div>
-        </div>
-      </div>
+
 
       <style>{`
-        .stat-disabled {
-          opacity: 0.6;
-          cursor: default !important;
-        }
-        .stat-disabled:hover {
-          transform: none !important;
-          box-shadow: none !important;
-        }
+       
       `}</style>
     </div>
   );

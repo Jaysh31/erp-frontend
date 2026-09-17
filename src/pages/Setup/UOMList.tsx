@@ -23,6 +23,16 @@ import "./UOMList.css";
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
 
+// The authorization token provided
+const AUTH_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjMsImVtYWlsIjoiamF5ZXNod2FrbGUxMEBnbWFpbC5jb20iLCJpYXQiOjE3ODkwMzY0NDcsImV4cCI6MTc4OTEyMjg0N30.SzSd1wlUZ5VomUTL4GlQ_N24zdGPgHpuNdatB2GQZuo";
+
+// Common headers for all API calls
+const authHeaders = {
+  headers: {
+    Authorization: `Bearer ${AUTH_TOKEN}`,
+  },
+};
+
 interface UOM {
   id: string;
   uom_name: string;
@@ -116,7 +126,7 @@ export default function UOMList() {
   // Fetch categories
   const fetchCategories = async () => {
     try {
-      const response = await api.get<CategoryApiResponse>('/uom-category');
+      const response = await api.get<CategoryApiResponse>('/uom-category', authHeaders);
       if (response.data.success === 1) {
         setCategories(response.data.data.records);
       }
@@ -257,7 +267,7 @@ export default function UOMList() {
         params.append('to', toISODate(dateTo));
       }
 
-      const response = await api.get<ApiResponse>(`/uom?${params.toString()}`);
+      const response = await api.get<ApiResponse>(`/uom?${params.toString()}`, authHeaders);
       
       if (response.data.success === 1) {
         setUoms(response.data.data.records);
@@ -368,7 +378,7 @@ export default function UOMList() {
         _liked_by: ""
       };
 
-      const response = await api.post('/uom-category', payload);
+      const response = await api.post('/uom-category', payload, authHeaders);
       
       if (response.data.success === 1) {
         // Refresh categories
@@ -422,7 +432,7 @@ export default function UOMList() {
         modified_by: "Administrator"
       };
 
-      const response = await api.post('/uom', payload);
+      const response = await api.post('/uom', payload, authHeaders);
       
       if (response.data && response.data.success === 1) {
         await fetchUOMs();
@@ -457,7 +467,7 @@ export default function UOMList() {
   const confirmDelete = async () => {
     if (selectedUOM) {
       try {
-        const response = await api.delete(`/uom/${selectedUOM.id}`);
+        const response = await api.delete(`/uom/${selectedUOM.id}`, authHeaders);
         if (response.data.success === 1) {
           setShowDeleteConfirm(false);
           setSelectedUOM(null);
@@ -489,21 +499,31 @@ export default function UOMList() {
   const weekdayLabels = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
   // ─── Navigation Helpers ─────────────────────────────────────────────
-  const navigateToEdit = (uomName: string) => {
-    navigate(`/uom/${encodeURIComponent(uomName)}`, { 
-      state: { viewMode: false } 
+  // Pass the row data via state so the form page can display it immediately
+  const navigateToEdit = (uom: UOM) => {
+    navigate(`/uom/${encodeURIComponent(uom.uom_name)}`, { 
+      state: { 
+        viewMode: false,
+        uomData: uom 
+      } 
     });
   };
 
-  const navigateToView = (uomName: string) => {
-    navigate(`/uom/${encodeURIComponent(uomName)}`, { 
-      state: { viewMode: true } 
+  const navigateToView = (uom: UOM) => {
+    navigate(`/uom/${encodeURIComponent(uom.uom_name)}`, { 
+      state: { 
+        viewMode: true,
+        uomData: uom 
+      } 
     });
   };
 
-  const navigateToRow = (uomName: string) => {
-    navigate(`/uom/${encodeURIComponent(uomName)}`, { 
-      state: { viewMode: false } 
+  const navigateToRow = (uom: UOM) => {
+    navigate(`/uom/${encodeURIComponent(uom.uom_name)}`, { 
+      state: { 
+        viewMode: false,
+        uomData: uom 
+      } 
     });
   };
 
@@ -752,7 +772,7 @@ export default function UOMList() {
                     <tr
                       key={row.id}
                       className="uoml-tr"
-                      onClick={() => navigateToRow(row.uom_name)}
+                      onClick={() => navigateToRow(row)}
                       style={{ cursor: 'pointer' }}
                     >
                       <td className="uoml-td">{row.id}</td>
@@ -771,7 +791,7 @@ export default function UOMList() {
                             className="uoml-action-btn uoml-action-view" 
                             onClick={(e) => { 
                               e.stopPropagation(); 
-                              navigateToView(row.uom_name);
+                              navigateToView(row);
                             }}
                             title="View"
                           >
@@ -781,7 +801,7 @@ export default function UOMList() {
                             className="uoml-action-btn uoml-action-edit" 
                             onClick={(e) => { 
                               e.stopPropagation(); 
-                              navigateToEdit(row.uom_name);
+                              navigateToEdit(row);
                             }}
                             title="Edit"
                           >

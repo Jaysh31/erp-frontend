@@ -19,18 +19,18 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
 }) => {
   const getDefaultConfig = (status: string) => {
     const configs: Record<string, { color: string; bg: string; label: string }> = {
-      'Pending': { color: '#f59e0b', bg: '#fffbeb', label: 'Pending' },
-      'Partial': { color: '#3b82f6', bg: '#eff6ff', label: 'Partial' },
-      'Paid': { color: '#10b981', bg: '#ecfdf5', label: 'Paid' },
-      'Invoiced': { color: '#8b5cf6', bg: '#f5f3ff', label: 'Invoiced' },
-      'Draft': { color: '#94a3b8', bg: '#f1f5f9', label: 'Draft' },
-      'Sent': { color: '#3b82f6', bg: '#eff6ff', label: 'Sent' },
-      'Overdue': { color: '#ef4444', bg: '#fef2f2', label: 'Overdue' },
-      'Cancelled': { color: '#f59e0b', bg: '#fffbeb', label: 'Cancelled' },
-      'Active': { color: '#10b981', bg: '#ecfdf5', label: 'Active' },
-      'Inactive': { color: '#94a3b8', bg: '#f1f5f9', label: 'Inactive' },
+      'Pending': { color: '#b45309', bg: '#fef3c7', label: 'Pending' },
+      'Partial': { color: '#839ee9', bg: '#dbeafe', label: 'Partial' },
+      'Paid': { color: '#047857', bg: '#d1fae5', label: 'Paid' },
+      'Invoiced': { color: '#6d28d9', bg: '#ede9fe', label: 'Invoiced' },
+      'Draft': { color: '#475569', bg: '#e2e8f0', label: 'Draft' },
+      'Sent': { color: '#1e40af', bg: '#dbeafe', label: 'Sent' },
+      'Overdue': { color: '#b91c1c', bg: '#fee2e2', label: 'Overdue' },
+      'Cancelled': { color: '#b45309', bg: '#fef3c7', label: 'Cancelled' },
+      'Active': { color: '#047857', bg: '#d1fae5', label: 'Active' },
+      'Inactive': { color: '#475569', bg: '#e2e8f0', label: 'Inactive' },
     };
-    return configs[status] || { color: '#94a3b8', bg: '#f1f5f9', label: status };
+    return configs[status] || { color: '#475569', bg: '#e2e8f0', label: status };
   };
 
   const finalConfig = config || getDefaultConfig(status);

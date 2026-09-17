@@ -1,3 +1,4 @@
+// SalesOrder.tsx
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -278,7 +279,6 @@ export default function SalesOrder() {
 
   const [salesOrders, setSalesOrders] = useState<SalesOrder[]>([]);
 
-  // Pagination states - SERVER SIDE
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [totalRecords, setTotalRecords] = useState(0);
@@ -426,7 +426,6 @@ export default function SalesOrder() {
     try {
       const params = new URLSearchParams();
       
-      // ✅ SERVER-SIDE PAGINATION PARAMS
       params.append('page', String(currentPage));
       params.append('limit', String(pageSize));
       
@@ -467,7 +466,6 @@ export default function SalesOrder() {
         all = [];
       }
 
-      // ✅ Get total from API response
       const total = raw?.total ?? raw?.records?.length ?? all.length;
       setTotalRecords(total);
 
@@ -520,12 +518,10 @@ export default function SalesOrder() {
     }
   };
 
-  // ✅ Fetch when any filter or pagination changes
   useEffect(() => {
     fetchSalesOrders();
   }, [debouncedFilterText, selectedStatus, selectedOrderType, startDate, endDate, currentPage, pageSize]);
 
-  // ✅ Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [filterText, selectedStatus, selectedOrderType, startDate, endDate]);
@@ -645,7 +641,6 @@ export default function SalesOrder() {
     }
   };
 
-  // ✅ Pagination calculations - SERVER SIDE
   const totalFiltered = totalRecords;
   const totalPages = Math.ceil(totalFiltered / pageSize) || 1;
   const startIndex = (currentPage - 1) * pageSize + 1;
@@ -686,12 +681,22 @@ export default function SalesOrder() {
   const completedAmount = salesOrders.filter(o => o.status === 'Completed').reduce((sum, o) => sum + o.totalAmount, 0);
   const fulfillmentRate = totalAmount > 0 ? Math.round((completedAmount / totalAmount) * 100) : 0;
 
+  /* ═══════════════════════════════════════════════════════════════════
+     VIEW / EDIT NAVIGATION
+     - View  → passes viewMode: true  → form page opens read-only
+     - Edit  → passes viewMode: false → form page opens editable
+     ═══════════════════════════════════════════════════════════════════ */
   const handleView = (order: SalesOrder) => {
     if (!order.id) {
       toast.error('Unable to open this sales order — missing order ID');
       return;
     }
-    navigate(`/sales-order/${order.id}`, { state: { salesOrder: order } });
+    navigate(`/sales-order/${order.id}`, {
+      state: {
+        salesOrder: order,
+        viewMode: true,
+      },
+    });
   };
 
   const handleEdit = (order: SalesOrder) => {
@@ -699,7 +704,12 @@ export default function SalesOrder() {
       toast.error('Unable to open this sales order — missing order ID');
       return;
     }
-    navigate(`/sales-order/${order.id}`, { state: { salesOrder: order } });
+    navigate(`/sales-order/${order.id}`, {
+      state: {
+        salesOrder: order,
+        viewMode: false,
+      },
+    });
   };
 
   const handleDeleteClick = (order: SalesOrder) => {
@@ -1681,7 +1691,6 @@ export default function SalesOrder() {
           color: var(--text-secondary, #6b7280);
         }
 
-        /* Date Range Picker Styles */
         .qt-date-picker-container {
           position: relative;
           display: inline-block;
@@ -1942,7 +1951,6 @@ export default function SalesOrder() {
           background: var(--hover-bg, #f3f4f6);
         }
 
-        /* ✅ Updated Pagination Styles - Single line layout */
         .qt-pagination-section {
           display: flex;
           align-items: center;
@@ -2032,7 +2040,6 @@ export default function SalesOrder() {
           font-size: 13px;
         }
 
-        /* Filter bar responsive */
         .qt-filter-bar {
           display: flex;
           flex-wrap: wrap;
@@ -2149,7 +2156,6 @@ export default function SalesOrder() {
           transform: translateY(-1px);
         }
 
-        /* Active filters */
         .qt-active-filters {
           display: flex;
           flex-wrap: wrap;
@@ -2187,7 +2193,6 @@ export default function SalesOrder() {
           margin-top: 4px;
         }
 
-        /* Table styles */
         .qt-table-wrap {
           overflow-x: auto;
           padding: 0 16px;
@@ -2295,7 +2300,6 @@ export default function SalesOrder() {
           to { transform: rotate(360deg); }
         }
 
-        /* Loading, Error, Empty states */
         .qt-loading, .qt-error, .qt-empty-state {
           display: flex;
           flex-direction: column;
@@ -2467,11 +2471,6 @@ export default function SalesOrder() {
           background: var(--primary-hover, #1d4ed8);
         }
 
-        /* ============================================================
-           MOBILE ACCORDION CARD LIST (renders only below 768px)
-           Desktop table logic/markup is untouched — this is an
-           additional, separate render path shown only on mobile.
-        ============================================================ */
         .qt-mobile-cards-wrap {
           display: none;
         }
@@ -2673,7 +2672,6 @@ export default function SalesOrder() {
         }
       `}</style>
 
-      {/* Search and Filter Bar */}
       <div className="qt-filter-bar">
         <div className="qt-filter-left">
           <div className="qt-search-wrapper">
@@ -2718,7 +2716,6 @@ export default function SalesOrder() {
             <option value="Subcontracted">Subcontracted</option>
           </select>
 
-          {/* Date Range Picker */}
           <div className="qt-date-picker-container">
             <div 
               className={`qt-date-picker-trigger ${showDatePicker ? 'active' : ''}`}
@@ -2842,7 +2839,6 @@ export default function SalesOrder() {
         </div>
       </div>
 
-      {/* Active filters indicator */}
       {(filterText || selectedStatus !== 'All' || selectedOrderType !== 'All' || startDate || endDate) && (
         <div className="qt-active-filters">
           <FaFilter size={12} style={{ color: 'var(--primary-color)' }} />
@@ -2873,14 +2869,12 @@ export default function SalesOrder() {
         </div>
       )}
 
-      {/* Loading State */}
       {loading && (
         <div className="qt-loading">
           <p>Loading sales orders...</p>
         </div>
       )}
 
-      {/* Error State */}
       {error && (
         <div className="qt-error">
           <p>{error}</p>
@@ -2890,7 +2884,6 @@ export default function SalesOrder() {
         </div>
       )}
 
-      {/* Table (desktop) + Mobile accordion cards — same data, same handlers */}
       {!loading && !error && (
         <>
           {salesOrders.length === 0 ? (
@@ -2903,7 +2896,7 @@ export default function SalesOrder() {
             </div>
           ) : (
             <>
-              {/* ================= DESKTOP TABLE (unchanged) ================= */}
+              {/* DESKTOP TABLE */}
               <div className="qt-table-wrap">
                 <table className="qt-table">
                   <thead>
@@ -2997,7 +2990,7 @@ export default function SalesOrder() {
                 </table>
               </div>
 
-              {/* ================= MOBILE ACCORDION CARDS ================= */}
+              {/* MOBILE ACCORDION CARDS */}
               <div className="qt-mobile-cards-wrap">
                 {salesOrders.map((order, index) => {
                   const cardKey = order.id || `so-mobile-${index}`;
@@ -3127,10 +3120,8 @@ export default function SalesOrder() {
         </>
       )}
 
-      {/* ✅ Pagination Section - Single line layout with Showing X to Y on left and Page X of Y on right */}
       {!loading && !error && totalRecords > 0 && (
         <div className="qt-pagination-section">
-          {/* Left: Show dropdown + Showing entries info */}
           <div className="qt-pagination-left">
             <span>Show:</span>
             <select value={pageSize} onChange={handlePageSizeChange}>
@@ -3144,7 +3135,6 @@ export default function SalesOrder() {
             </span>
           </div>
 
-          {/* Center: Page navigation buttons */}
           <div className="qt-pagination-center">
             <button
               className="qt-page-btn arrow"
@@ -3191,7 +3181,6 @@ export default function SalesOrder() {
             </button>
           </div>
 
-          {/* Right: Page info */}
           <div className="qt-pagination-right">
             <span className="qt-pagination-info">
               Page {currentPage} of {totalPages}
@@ -3200,7 +3189,6 @@ export default function SalesOrder() {
         </div>
       )}
 
-      {/* ====== DELETE MODAL ====== */}
       {showDeleteModal && selectedOrder && (
         <div className="qt-modal-overlay" onClick={() => setShowDeleteModal(false)}>
           <div className="qt-modal qt-modal-delete" onClick={(e) => e.stopPropagation()}>
@@ -3228,7 +3216,6 @@ export default function SalesOrder() {
         </div>
       )}
 
-      {/* ====== PDF MODAL ====== */}
       {showPdfModal && selectedOrder && (
         <div className="qt-modal-overlay" onClick={() => setShowPdfModal(false)}>
           <div className="qt-modal qt-modal-lg" onClick={(e) => e.stopPropagation()}>

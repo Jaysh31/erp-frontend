@@ -505,10 +505,15 @@ export default function LeadManagement() {
 
   const findRawById = (id: string) => rawLeads.find((l) => String(l.name ?? l.id) === id);
 
-  const goToLead = (item: LeadDisplay) => {
+  // ─── UPDATED: goToLead now supports an `edit` flag ─────────────────────
+  // View  →  /leads/:id            (read-only, LeadForm detects no edit intent)
+  // Edit  →  /leads/:id?mode=edit  (editable, LeadForm picks up the flag)
+  const goToLead = (item: LeadDisplay, edit: boolean = false) => {
     const raw = findRawById(item.id);
-    navigate(`/leads/${encodeURIComponent(item.id)}`, { state: { lead: raw } });
+    const target = `/leads/${encodeURIComponent(item.id)}${edit ? "?mode=edit" : ""}`;
+    navigate(target, { state: { lead: raw, edit } });
   };
+  // ──────────────────────────────────────────────────────────────────────
 
   const clearFilters = () => {
     setSearchTerm("");
@@ -823,7 +828,7 @@ export default function LeadManagement() {
                           <button className="jc-action-btn jc-action-view" onClick={(e) => { e.stopPropagation(); goToLead(row); }} title="View">
                             <FaEye size={12} />
                           </button>
-                          <button className="jc-action-btn jc-action-edit" onClick={(e) => { e.stopPropagation(); goToLead(row); }} title="Edit">
+                          <button className="jc-action-btn jc-action-edit" onClick={(e) => { e.stopPropagation(); goToLead(row, true); }} title="Edit">
                             <FaEdit size={12} />
                           </button>
                           <button className="jc-action-btn jc-action-delete" onClick={(e) => { e.stopPropagation(); handleDelete(row); }} title="Delete">

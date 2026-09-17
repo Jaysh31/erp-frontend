@@ -427,34 +427,6 @@ export default function SetupDashboard() {
     { id: "new-workstation", label: "New Workstation", icon: <FaIndustry />, path: "/workstation" },
   ];
 
-  const setupCategories = [
-    { 
-      title: "Item Management", 
-      icon: <FaBoxes />,
-      items: [
-        { name: "Items", path: "/item-list" },
-        { name: "Item Groups", path: "/item-group" },
-        { name: "Brands", path: "" }
-      ]
-    },
-    { 
-      title: "Inventory", 
-      icon: <FaWarehouse />,
-      items: [
-        { name: "Warehouses", path: "/warehouse" },
-        { name: "UOM", path: "/uom" }
-      ]
-    },
-    { 
-      title: "Manufacturing", 
-      icon: <FaIndustry />,
-      items: [
-        { name: "Workstations", path: "/workstation" },
-        { name: "Operations", path: "/operations" }
-      ]
-    }
-  ];
-
   const getStatusColor = (status: string) => {
     return status === 'Active' ? '#22c55e' : '#94a3b8';
   };
@@ -543,7 +515,7 @@ export default function SetupDashboard() {
 
       {/* Main Content Grid */}
       <div className="dashboard-grid">
-        {/* Quick Actions */}
+        {/* Quick Actions - Position 1 (Top Left) */}
         <div className="card quick-actions">
           <div className="card-header">
             <h3>Quick Actions</h3>
@@ -563,40 +535,7 @@ export default function SetupDashboard() {
           </div>
         </div>
 
-        {/* Setup Categories */}
-        <div className="card setup-categories">
-          <div className="card-header">
-            <h3>Setup Categories</h3>
-            <span className="badge">Configuration</span>
-          </div>
-          <div className="categories-grid">
-            {setupCategories.map((category, index) => (
-              <div key={index} className="category-card">
-                <div className="category-header">
-                  <span className="category-icon">{category.icon}</span>
-                  <span className="category-title">{category.title}</span>
-                </div>
-                <div className="category-items">
-                  {category.items.map((item, idx) => (
-                    <div 
-                      key={idx} 
-                      className="category-item"
-                      onClick={() => handleNavigate(item.path)}
-                      style={{ cursor: item.path ? 'pointer' : 'default' }}
-                    >
-                      <span className="item-dot"></span>
-                      <span className="item-name" style={{ opacity: item.path ? 1 : 0.5 }}>
-                        {item.name}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Recent Activity */}
+        {/* Recent Activity - Position 2 (Top Right) - Moved here as requested */}
         <div className="card recent-activity">
           <div className="card-header">
             <h3>Recent Activity</h3>
@@ -643,14 +582,7 @@ export default function SetupDashboard() {
         .spinner {
           animation: spin 1s linear infinite;
         }
-        .stat-disabled {
-          opacity: 0.6;
-          cursor: default !important;
-        }
-        .stat-disabled:hover {
-          transform: none !important;
-          box-shadow: none !important;
-        }
+        
       `}</style>
     </div>
   );
