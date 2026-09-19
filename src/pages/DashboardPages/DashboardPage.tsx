@@ -660,87 +660,24 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Priority Work Orders */}
-        <div className="card priority-list">
-          <div className="card-header">
-            <h3>Priority Work Orders</h3>
-            <span className="badge">Urgent</span>
-          </div>
-          <div className="priority-items">
-            {dashboardData.recentActivity.length > 0 ? (
-              dashboardData.recentActivity
-                .filter((a: any) => a.status !== 'Completed' && a.status !== 'Stopped')
-                .slice(0, 4)
-                .map((activity: any, index: number) => (
-                  <div 
-                    key={index} 
-                    className="priority-item" 
-                    onClick={() => handleNavigate(`/work-order/${activity.id}`)}
-                  >
-                    <div className={`priority-indicator ${activity.status === 'Open' ? 'high' : 'medium'}`}></div>
-                    <div className="priority-content">
-                      <div className="priority-title">{activity.production_item || activity.item_name || `WO-${activity.id}`}</div>
-                      <div className="priority-meta">
-                        {activity.status} · Qty: {activity.qty || activity.for_quantity || 0}
-                        {activity.work_order && ` · Job Card: ${activity.work_order}`}
-                      </div>
-                    </div>
-                    <button className="priority-view" onClick={(e) => {
-                      e.stopPropagation();
-                      handleNavigate(`/work-order/${activity.id}`);
-                    }}>
-                      View →
-                    </button>
-                  </div>
-                ))
-            ) : (
-              <div className="priority-item">
-                <div className="priority-indicator low"></div>
-                <div className="priority-content">
-                  <div className="priority-title">No urgent orders</div>
-                  <div className="priority-meta">All orders are on track</div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+        
+
+
+
+
+
 
         {/* Recent Inventory */}
-        <div className="card recent-inventory">
-          <div className="card-header">
-            <h3>Recent Inventory Updates</h3>
-            <button className="view-all" onClick={() => handleNavigate("/InventoryList")}>
-              View All <FaArrowRight />
-            </button>
-          </div>
-          <div className="inventory-list">
-            {loading ? (
-              <div className="inventory-item">Loading...</div>
-            ) : recentInventory.length === 0 ? (
-              <div className="inventory-item">No inventory data</div>
-            ) : (
-              recentInventory.map((item: any) => (
-                <div key={item.id} className="inventory-item">
-                  <div className="inventory-info">
-                    <div className="inventory-name">{item.item_name}</div>
-                    <div className="inventory-meta">
-                      <span className="inventory-code">{item.item_code}</span>
-                      <span className="inventory-group">{item.item_group}</span>
-                    </div>
-                  </div>
-                  <div className="inventory-stock">
-                    <span className="inventory-qty">{item.actual_qty || 0}</span>
-                    <span className="inventory-uom">{item.stock_uom}</span>
-                  </div>
-                  <div className="inventory-warehouse">
-                    {item.warehouse_name}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+        
+           
+          
+
+                  
+                  
+                
+  
         </div>
       </div>
-    </div>
+  
   );
 }

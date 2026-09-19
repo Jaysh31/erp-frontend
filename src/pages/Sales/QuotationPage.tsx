@@ -508,14 +508,9 @@ export default function QuotationPage() {
       params.append('page', String(currentPage));
       params.append('limit', String(itemsPerPage));
 
-      if (debouncedFilterText.trim()) {
-        params.append('search', debouncedFilterText.trim());
-        params.append('search_by', 'all');
-      }
+      
 
-      if (selectedStatus !== 'All') {
-        params.append('status', selectedStatus);
-      }
+     
 
       if (selectedCurrency !== 'All') {
         params.append('currency', selectedCurrency);
@@ -764,13 +759,25 @@ export default function QuotationPage() {
     return Math.min(currentPage * itemsPerPage, totalRecords);
   };
 
+  const totalAmount = quotations.reduce((sum, q) => sum + q.totalAmount, 0);
+  const acceptedAmount = quotations.filter(q => q.status === 'Accepted').reduce((sum, q) => sum + q.totalAmount, 0);
+  const conversionRate = totalAmount > 0 ? Math.round((acceptedAmount / totalAmount) * 100) : 0;
+
+  // ─── UPDATED: View & Edit navigation ────────────────────────────────
+  // View  →  /quotation/:id            (read-only, CreateQuotation detects no edit intent)
+  // Edit  →  /quotation/:id?mode=edit  (editable, CreateQuotation picks up the flag)
   const handleView = (quote: Quotation) => {
-    navigate(`/quotation/${quote.id}`, { state: { quotation: quote } });
+    navigate(`/quotation/${quote.id}`, {
+      state: { quotation: quote, viewMode: true, edit: false },
+    });
   };
 
   const handleEdit = (quote: Quotation) => {
-    navigate(`/quotation/${quote.id}`, { state: { quotation: quote } });
+    navigate(`/quotation/${quote.id}?mode=edit`, {
+      state: { quotation: quote, edit: true, viewMode: false },
+    });
   };
+  // ─────────────────────────────────────────────────────────────────────
 
   const handleDeleteClick = (quote: Quotation) => {
     setSelectedQuote(quote);
@@ -1734,7 +1741,7 @@ export default function QuotationPage() {
                         </td>
                         <td className="qt-td qt-td-meta">
                           <div className="qt-action-buttons">
-                            <button className="qt-action-btn qt-action-view" onClick={() => handleView(quote)} title="View / Edit">
+                            <button className="qt-action-btn qt-action-view" onClick={() => handleView(quote)} title="View">
                               <FaEye size={12} />
                             </button>
                             <button

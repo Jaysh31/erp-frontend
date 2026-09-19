@@ -10,7 +10,8 @@ import {
   FaBuilding, FaPhone, FaEnvelope,
   FaClipboardList, FaCalculator, FaChevronDown,
   FaPrint, FaPaperPlane,
-  FaCopy
+  FaCopy,
+  FaEdit
 } from 'react-icons/fa';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import './CreateQuotation.css';
@@ -25,13 +26,13 @@ interface QuotationItem {
   itemName: string;
   quantity: number;
   rate: number;
-  cgst: number; // percentage
-  sgst: number; // percentage
+  cgst: number;
+  sgst: number;
   amount: number;
   hsn: string;
   description: string;
   unit: string;
-  tax: number; // total tax percentage (cgst + sgst)
+  tax: number;
   tax_id?: number;
   taxAmount: number;
   totalAmount: number;
@@ -48,7 +49,6 @@ interface PaymentScheduleRow {
   status?: string;
 }
 
-// Payment Term Template
 interface PaymentTermTemplate {
   id: string;
   name: string;
@@ -154,7 +154,6 @@ const DEFAULT_TAX_OPTIONS: TaxOption[] = [
   { tax_id: 5, tax_type: 'GST 28%' },
 ];
 
-/** Shape returned by GET /quotation/:id (matches the POST/PUT /quotation payload). */
 interface QuotationApiRecord {
   id?: number;
   name: string;
@@ -303,7 +302,6 @@ const getTaxRateFromItem = (item: any, taxOpts: TaxOption[] = []): { rate: numbe
   const opts = taxOpts && taxOpts.length > 0 ? taxOpts : DEFAULT_TAX_OPTIONS;
   if (!item) return { rate: 0, tax_id: opts[0]?.tax_id || 1, tax_type: opts[0]?.tax_type || 'GST 0%' };
 
-  // 1. Direct tax_id check against options
   const rawTaxId = item.tax_id ?? item.taxId ?? item.tax_type_id ?? item.rawTaxId;
   if (rawTaxId !== undefined && rawTaxId !== null && rawTaxId !== '') {
     const numTaxId = Number(rawTaxId);
@@ -314,7 +312,6 @@ const getTaxRateFromItem = (item: any, taxOpts: TaxOption[] = []): { rate: numbe
     }
   }
 
-  // 2. Direct tax_type string check (e.g., "GST 18%", "GST18 (18%)", "GST18", "18%")
   const rawTaxType = item.tax_type ?? item.taxType ?? item.tax_name ?? item.rawTaxType;
   if (rawTaxType) {
     const strType = String(rawTaxType).trim();
@@ -334,7 +331,6 @@ const getTaxRateFromItem = (item: any, taxOpts: TaxOption[] = []): { rate: numbe
     }
   }
 
-  // 3. Direct tax rate / percentage check
   const directRateRaw = item.tax ?? item.tax_rate ?? item.gst_rate ?? item.gst ?? item.tax_percent ?? item.taxPercentage ?? item.rawTaxRate;
   if (directRateRaw !== undefined && directRateRaw !== null && directRateRaw !== '') {
     const directRate = Number(directRateRaw);
@@ -819,53 +815,51 @@ const CustomerDropdown: React.FC<CustomerDropdownProps> = ({
         )}
       </div>
 
-      {/* Persistent footer action so "Add New Customer" is always reachable,
-          even when there are matching results to scroll through. */}
       <div
-  className="cq-dropdown-add-new"
-  onMouseDown={(e) => {
-    e.preventDefault();
-    handleAddNewClick();
-  }}
-  style={{
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    padding: '10px 14px',
-    cursor: 'pointer',
-    borderTop: '0.5px solid var(--border-color, #e2e8f0)',
-    color: 'var(--primary-color, #2563eb)',
-    fontWeight: 600,
-    fontSize: '12px',
-    background: 'var(--layout-bg, #f8fafc)',
-    flexShrink: 0,
-    transition: 'background 0.15s, color 0.15s'
-  }}
-  onMouseEnter={(e) => {
-    e.currentTarget.style.background = 'var(--nav-hover, #eff6ff)';
-    e.currentTarget.style.color = 'var(--primary-color, #2563eb)';
-  }}
-  onMouseLeave={(e) => {
-    e.currentTarget.style.background = 'var(--layout-bg, #f8fafc)';
-    e.currentTarget.style.color = 'var(--primary-color, #2563eb)';
-  }}
->
-  <span
-    style={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center'
-    }}
-  >
-    <FaPlus size={10} />
-  </span>
+        className="cq-dropdown-add-new"
+        onMouseDown={(e) => {
+          e.preventDefault();
+          handleAddNewClick();
+        }}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          padding: '10px 14px',
+          cursor: 'pointer',
+          borderTop: '0.5px solid var(--border-color, #e2e8f0)',
+          color: 'var(--primary-color, #2563eb)',
+          fontWeight: 600,
+          fontSize: '12px',
+          background: 'var(--layout-bg, #f8fafc)',
+          flexShrink: 0,
+          transition: 'background 0.15s, color 0.15s'
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = 'var(--nav-hover, #eff6ff)';
+          e.currentTarget.style.color = 'var(--primary-color, #2563eb)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = 'var(--layout-bg, #f8fafc)';
+          e.currentTarget.style.color = 'var(--primary-color, #2563eb)';
+        }}
+      >
+        <span
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          <FaPlus size={10} />
+        </span>
 
-  <span>
-    {searchTerm.trim() && filteredCustomers.length === 0
-      ? `Add "${searchTerm.trim()}" as New Customer`
-      : 'Add New Customer'}
-  </span>
-</div>
+        <span>
+          {searchTerm.trim() && filteredCustomers.length === 0
+            ? `Add "${searchTerm.trim()}" as New Customer`
+            : 'Add New Customer'}
+        </span>
+      </div>
     </div>
   ) : null;
 
@@ -1079,7 +1073,6 @@ const QuickAddCustomerModal: React.FC<QuickAddCustomerModalProps> = ({
           overflow: 'hidden',
         }}
       >
-        {/* Header */}
         <div
           style={{
             display: 'flex',
@@ -1116,7 +1109,6 @@ const QuickAddCustomerModal: React.FC<QuickAddCustomerModalProps> = ({
           </button>
         </div>
 
-        {/* Body */}
         <form onSubmit={handleSubmit}>
           <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={fieldWrapStyle}>
@@ -1163,7 +1155,6 @@ const QuickAddCustomerModal: React.FC<QuickAddCustomerModalProps> = ({
             </div>
           </div>
 
-          {/* Footer */}
           <div
             style={{
               padding: '14px 20px',
@@ -1252,7 +1243,28 @@ export default function CreateQuotation() {
 
   const isEditMode = !!id && id !== 'new';
 
-  // ===== ADD CUSTOMER FLOW: stable per-record key for the draft this
+  // ─── View Mode Flag (UPDATED) ────────────────────────────────────────
+  // The page starts in READ-ONLY mode when:
+  //   • Viewing an existing quotation (has id)
+  //   • AND the URL does NOT contain ?mode=edit
+  //   • AND navigation state does NOT say { edit: true } or { viewMode: false }
+  //
+  // The page starts in EDITABLE mode when:
+  //   • Creating a new quotation (no id / id === 'new')   → always editable
+  //   • OR ?mode=edit is present in the URL
+  //   • OR navigation state has edit: true / viewMode: false
+  const query = new URLSearchParams(location.search);
+  const queryMode = query.get('mode');
+  const navState = (location.state as any) || null;
+
+  const startInEdit =
+    !isEditMode ||                       // new quotation → always editable
+    queryMode === 'edit' ||
+    navState?.edit === true ||
+    navState?.viewMode === false;
+
+  const [isViewMode, setIsViewMode] = useState<boolean>(!startInEdit);
+  // ─────────────────────────────────────────────────────────────────────
 
   const getDraftStorageKey = () => `${QUOTATION_DRAFT_PREFIX}${id || 'new'}`;
 
@@ -1277,15 +1289,12 @@ export default function CreateQuotation() {
   const [recordName, setRecordName] = useState<string | null>(null);
   const [recordId, setRecordId] = useState<number | null>(null);
 
-  // ─── Customer state ────────────────────────────────────────────
   const [, setSelectedCustomer] = useState<Customer | null>(null);
   const [customerData, setCustomerData] = useState<Customer | null>(null);
 
-  // ─── Quick Add Customer modal state ─────────────────────────────
   const [showQuickAddModal, setShowQuickAddModal] = useState(false);
   const [quickAddPrefillName, setQuickAddPrefillName] = useState('');
 
-  // ─── Item lookup ────────────────────────────────────────────────
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoadingItems, setIsLoadingItems] = useState(false);
@@ -1297,7 +1306,6 @@ export default function CreateQuotation() {
 
   const statusOptions = ['Draft', 'Sent', 'Accepted', 'Rejected', 'Expired', 'Converted'];
 
-  // ─── Payment Term Templates ──────────────────────────
   const paymentTermTemplates: PaymentTermTemplate[] = [
     {
       id: 'on_delivery',
@@ -1435,7 +1443,6 @@ export default function CreateQuotation() {
     el.focus();
   };
 
-  // ─── Get today's date for validation ────────────────────────────
   const getTodayDate = (): string => {
     const today = new Date();
     const year = today.getFullYear();
@@ -1444,7 +1451,6 @@ export default function CreateQuotation() {
     return `${year}-${month}-${day}`;
   };
 
-  // ─── Fetch Tax Options ──────────────────────────────────────────
   const fetchTaxOptions = async () => {
     setLoadingTaxOptions(true);
     try {
@@ -1468,11 +1474,9 @@ export default function CreateQuotation() {
     }
   };
 
-  // ─── Fetch Items ──────────────────────────────────────────────
   const fetchAllItems = async () => {
     setIsLoadingItems(true);
     try {
-      // const typeFilter = formData.isService ? 'service' : 'item';
       const response = await api.get(`/item?type=product&page=1&limit=100`);
       const records = extractRecords(response.data);
       const mappedProducts: Product[] = records.map((item: any) => {
@@ -1521,7 +1525,6 @@ export default function CreateQuotation() {
       return;
     }
 
-    // const typeFilter = formData.isService ? 'service' : 'item';
     try {
       const response = await api.get(`/item?type=product&page=1&limit=50&search=${encodeURIComponent(searchTerm)}`);
       const records = extractRecords(response.data);
@@ -1614,8 +1617,8 @@ export default function CreateQuotation() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ─── Handle Customer Change ────────────────────────────────────
   const handleCustomerChange = (customerId: string, customerData?: Customer) => {
+    if (isViewMode) return;
     if (customerId && customerData) {
       setSelectedCustomer(customerData);
       setCustomerData(customerData);
@@ -1636,9 +1639,8 @@ export default function CreateQuotation() {
     }
   };
 
-  // ===== ADD CUSTOMER FLOW: instead of navigating straight to the full
-
   const handleAddNewCustomer = (prefillName: string) => {
+    if (isViewMode) return;
     setQuickAddPrefillName(prefillName || '');
     setShowQuickAddModal(true);
   };
@@ -1664,8 +1666,8 @@ export default function CreateQuotation() {
     });
   };
 
-  // ─── Handle IsService Change ──────────────────────────────────
   const handleIsServiceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isViewMode) return;
     const value = e.target.checked;
 
     setFormData((prev) => ({
@@ -1689,8 +1691,8 @@ export default function CreateQuotation() {
     toast.success(value ? 'Switched to Services' : 'Switched to Items');
   };
 
-  // ─── Apply Payment Template ──────────────────────────
   const applyPaymentTemplate = (templateId: string) => {
+    if (isViewMode) return;
     const template = paymentTermTemplates.find(t => t.id === templateId);
     if (!template) return;
 
@@ -1721,9 +1723,6 @@ export default function CreateQuotation() {
     toast.success(`Applied "${template.name}" payment terms`);
   };
 
-  // ─── load existing quotation when editing ────────────────────────
-
-
   useEffect(() => {
     if (isEditMode && id && taxOptionsLoaded && !recordFetched) {
       fetchQuotationById(id);
@@ -1748,7 +1747,6 @@ export default function CreateQuotation() {
           ? data
           : [];
 
-      // Try to find by numeric id first, then by name
       const found = records.find(
         (r) => r && (String(r.id) === String(quotationId) || r.name === quotationId)
       );
@@ -1904,8 +1902,6 @@ export default function CreateQuotation() {
     }
   };
 
-  /* ─── validation ─────────────────────────────────────────────── */
-
   const getAllValidationErrors = (): ValidationError[] => {
     const allErrors: ValidationError[] = [];
 
@@ -1916,7 +1912,6 @@ export default function CreateQuotation() {
     if (!formData.validTill)
       allErrors.push({ field: 'validTill', label: 'Valid Till', message: 'Valid till date is required' });
 
-    // ─── Validate Valid Till is not in the past ──────────────────
     if (formData.validTill) {
       const selectedDate = new Date(formData.validTill);
       const today = new Date();
@@ -1960,9 +1955,10 @@ export default function CreateQuotation() {
     }, 50);
   };
 
-  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (isViewMode) return; // Disable keyboard shortcuts in view mode
+
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
         handleSubmit(e as any);
@@ -1994,7 +1990,7 @@ export default function CreateQuotation() {
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formData.items.length, showBarcodeScanner]);
+  }, [formData.items.length, showBarcodeScanner, isViewMode]);
 
   useEffect(() => {
     calculateTotals();
@@ -2019,7 +2015,6 @@ export default function CreateQuotation() {
       roundedTotal
     }));
 
-    // Update payment amounts based on grand total
     setFormData(prev => ({
       ...prev,
       paymentSchedule: prev.paymentSchedule.map(p => ({
@@ -2030,9 +2025,9 @@ export default function CreateQuotation() {
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    if (isViewMode) return;
     const { name, value } = e.target;
     
-    // ─── Validate Valid Till date ──────────────────────────────────
     if (name === 'validTill') {
       if (value) {
         const selectedDate = new Date(value);
@@ -2058,6 +2053,7 @@ export default function CreateQuotation() {
   };
 
   const handleItemChange = (index: number, field: keyof QuotationItem, value: string | number) => {
+    if (isViewMode) return;
     const updatedItems = [...formData.items];
     const currentItem = updatedItems[index];
     if (!currentItem) return;
@@ -2166,6 +2162,7 @@ export default function CreateQuotation() {
   };
 
   const handleItemSelect = (index: number, itemCode: string, record?: Product) => {
+    if (isViewMode) return;
     const product = record
       || allProducts.find(p => p.itemCode === itemCode || p.id === itemCode || p.itemName === itemCode)
       || products.find(p => p.itemCode === itemCode || p.id === itemCode || p.itemName === itemCode);
@@ -2173,12 +2170,10 @@ export default function CreateQuotation() {
     if (product) {
       const updatedItems = [...formData.items];
 
-      // 1. Base Price from Item Form
       const basePrice = (product.standardRate !== undefined && product.standardRate > 0)
         ? product.standardRate
         : (product.rate || 0);
 
-      // 2. Tax Rate (GST %) from Item Form - dynamic resolution using current taxOptions
       const taxInfo = getTaxRateFromItem(
         product.rawItem || {
           tax_id: product.rawTaxId ?? product.tax_id,
@@ -2218,6 +2213,7 @@ export default function CreateQuotation() {
   };
 
   const handleItemKeyDown = (e: React.KeyboardEvent, index: number, field: keyof QuotationItem) => {
+    if (isViewMode) return;
     if (e.key === 'Enter') {
       e.preventDefault();
 
@@ -2246,6 +2242,7 @@ export default function CreateQuotation() {
   };
 
   const addItemRow = () => {
+    if (isViewMode) return;
     const newId = String(formData.items.length + 1);
     setFormData(prev => ({
       ...prev,
@@ -2257,6 +2254,7 @@ export default function CreateQuotation() {
   };
 
   const removeItemRow = (index: number) => {
+    if (isViewMode) return;
     if (formData.items.length <= 1) return;
     setFormData(prev => ({
       ...prev,
@@ -2264,11 +2262,9 @@ export default function CreateQuotation() {
     }));
   };
 
-  /* ─── payment schedule ───────────────────────────────────────── */
-
   const addPaymentSchedule = () => {
+    if (isViewMode) return;
     const newId = String(formData.paymentSchedule.length + 1);
-    // const grandTotal = formData.roundedTotal || 0;
     setFormData(prev => ({
       ...prev,
       paymentSchedule: [
@@ -2288,6 +2284,7 @@ export default function CreateQuotation() {
   };
 
   const removePaymentSchedule = (index: number) => {
+    if (isViewMode) return;
     if (formData.paymentSchedule.length <= 1) return;
     setFormData(prev => ({
       ...prev,
@@ -2296,6 +2293,7 @@ export default function CreateQuotation() {
   };
 
   const updatePaymentRow = (index: number, patch: Partial<PaymentScheduleRow>) => {
+    if (isViewMode) return;
     setFormData(prev => {
       const updated = [...prev.paymentSchedule];
       updated[index] = { ...updated[index], ...patch };
@@ -2310,16 +2308,16 @@ export default function CreateQuotation() {
   };
 
   const handlePaymentDueDateChange = (index: number, dueDate: string) => {
+    if (isViewMode) return;
     const duration = daysBetween(formData.date, dueDate);
     updatePaymentRow(index, { dueDate, durationDays: duration });
   };
 
   const handlePaymentDurationChange = (index: number, durationDays: number) => {
+    if (isViewMode) return;
     const dueDate = addDays(formData.date, durationDays);
     updatePaymentRow(index, { durationDays, dueDate });
   };
-
-  /* ─── submit ─────────────────────────────────────────────────── */
 
   const validateForm = (): boolean => {
     const allErrors = getAllValidationErrors();
@@ -2346,7 +2344,6 @@ export default function CreateQuotation() {
   const buildApiPayload = () => {
     const payload: any = {};
 
-    // ✅ Add id first for edit mode
     if (isEditMode && recordId) {
       payload.id = recordId;
     }
@@ -2393,7 +2390,6 @@ export default function CreateQuotation() {
           description: item.description || '',
           uom: item.unit || 'Number',
         };
-        // Only add item_tax_id if it exists (not null)
         if (itemTaxId !== null && itemTaxId !== undefined) {
           itemObj.item_tax_id = itemTaxId;
           itemObj.tax_id = itemTaxId;
@@ -2416,6 +2412,8 @@ export default function CreateQuotation() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (isViewMode) return; // Prevent submit in view mode
 
     if (!validateForm()) {
       toast.error('Please fix the errors before submitting');
@@ -2473,6 +2471,18 @@ export default function CreateQuotation() {
     }
   };
 
+  // ─── NEW: enter edit mode from view mode ────────────────────────────
+  const handleEnterEditMode = () => {
+    setIsViewMode(false);
+    const params = new URLSearchParams(location.search);
+    params.set('mode', 'edit');
+    navigate(`${location.pathname}?${params.toString()}`, {
+      replace: true,
+      state: { ...(navState || {}), edit: true, viewMode: false },
+    });
+  };
+  // ─────────────────────────────────────────────────────────────────────
+
   const allValidationErrors = getAllValidationErrors();
   const hasAnyErrors = allValidationErrors.length > 0;
 
@@ -2483,7 +2493,6 @@ export default function CreateQuotation() {
 
   return (
     <div className={`cq-page ${theme}-theme`}>
-      {/* Validation Summary Modal */}
       {showValidationSummary && validationErrors.length > 0 && (
         <div className="cq-modal-overlay" onClick={() => setShowValidationSummary(false)}>
           <div className="cq-validation-modal" onClick={(e) => e.stopPropagation()}>
@@ -2520,7 +2529,6 @@ export default function CreateQuotation() {
         </div>
       )}
 
-      {/* Quick Add Customer Modal */}
       <QuickAddCustomerModal
         isOpen={showQuickAddModal}
         prefillName={quickAddPrefillName}
@@ -2549,16 +2557,22 @@ export default function CreateQuotation() {
           {isEditMode && id && (
             <span className="cq-header-id">#{id}</span>
           )}
+          {isViewMode && (
+            <span className="cq-view-pill" style={{
+              marginLeft: '12px',
+              padding: '3px 12px',
+              borderRadius: '12px',
+              background: '#dbeafe',
+              color: '#1e40af',
+              fontSize: '11px',
+              fontWeight: 600
+            }}>
+              View Mode
+            </span>
+          )}
         </div>
         <div className="cq-header-right">
           <label className="cq-checkbox-label">
-            <input
-              type="checkbox"
-              checked={formData.isService}
-              onChange={handleIsServiceChange}
-              className="cq-checkbox"
-            />
-            <span>IsService</span>
           </label>
           {apiError && (
             <span className="cq-error-pill">
@@ -2566,7 +2580,7 @@ export default function CreateQuotation() {
               {apiError}
             </span>
           )}
-          {hasAnyErrors && (
+          {hasAnyErrors && !isViewMode && (
             <span className="cq-error-pill">
               <FaExclamationTriangle size={11} />
               {allValidationErrors.length} issue{allValidationErrors.length > 1 ? "s" : ""}
@@ -2578,17 +2592,16 @@ export default function CreateQuotation() {
               Loading...
             </span>
           )}
+          {/* Show Edit button when in view mode for existing quotation */}
+         
         </div>
       </div>
 
       {/* Main Box */}
       <div className="cq-main-box">
         <form onSubmit={handleSubmit} className="cq-form">
-          {/* ── TWO COLUMN LAYOUT ────────────────────────────── */}
           <div className="cq-compact-layout">
-            {/* LEFT COLUMN */}
             <div className="cq-left-column">
-              {/* Customer & Status in one row */}
               <div className="cq-section-header">
                 <FaBuilding className="cq-section-icon" />
                 <span>Customer &amp; Status</span>
@@ -2603,7 +2616,7 @@ export default function CreateQuotation() {
                     value={formData.customer}
                     onChange={handleCustomerChange}
                     placeholder="Search Customer..."
-                    disabled={isEditMode}
+                    disabled={isEditMode || isViewMode}
                     error={!!errors.customer}
                     presetCustomer={customerData}
                     onAddNew={handleAddNewCustomer}
@@ -2619,13 +2632,13 @@ export default function CreateQuotation() {
                     onChange={handleInputChange}
                     className="cq-select"
                     ref={setRef('status')}
+                    disabled={isViewMode}
                   >
                     {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
               </div>
 
-              {/* Quotation Details - Date and Valid Till in one row - shifted left */}
               <div className="cq-section-header" style={{ marginTop: '12px' }}>
               </div>
 
@@ -2642,16 +2655,20 @@ export default function CreateQuotation() {
                       onChange={handleInputChange}
                       className={`cq-input ${errors.date ? 'cq-input-error' : ''}`}
                       ref={setRef('date')}
+                      readOnly={isViewMode}
+                      disabled={isViewMode}
                     />
-                    <button
-                      type="button"
-                      className="cq-date-icon-btn"
-                      onClick={() => openDatePicker('date')}
-                      tabIndex={-1}
-                      aria-label="Open calendar"
-                    >
-                      <FaCalendarAlt size={13} />
-                    </button>
+                    {!isViewMode && (
+                      <button
+                        type="button"
+                        className="cq-date-icon-btn"
+                        onClick={() => openDatePicker('date')}
+                        tabIndex={-1}
+                        aria-label="Open calendar"
+                      >
+                        <FaCalendarAlt size={13} />
+                      </button>
+                    )}
                   </div>
                   {errors.date && <span className="cq-error-text">{errors.date}</span>}
                 </div>
@@ -2669,23 +2686,26 @@ export default function CreateQuotation() {
                       min={getTodayDate()}
                       className={`cq-input ${errors.validTill ? 'cq-input-error' : ''}`}
                       ref={setRef('validTill')}
+                      readOnly={isViewMode}
+                      disabled={isViewMode}
                     />
-                    <button
-                      type="button"
-                      className="cq-date-icon-btn"
-                      onClick={() => openDatePicker('validTill')}
-                      tabIndex={-1}
-                      aria-label="Open calendar"
-                    >
-                      <FaCalendarAlt size={13} />
-                    </button>
+                    {!isViewMode && (
+                      <button
+                        type="button"
+                        className="cq-date-icon-btn"
+                        onClick={() => openDatePicker('validTill')}
+                        tabIndex={-1}
+                        aria-label="Open calendar"
+                      >
+                        <FaCalendarAlt size={13} />
+                      </button>
+                    )}
                   </div>
                   {errors.validTill && <span className="cq-error-text">{errors.validTill}</span>}
                 </div>
               </div>
             </div>
 
-            {/* RIGHT COLUMN - Customer Details */}
             <div className="cq-right-column">
               {customerData ? (
                 <div className="cq-detail-card">
@@ -2746,28 +2766,30 @@ export default function CreateQuotation() {
             </div>
           </div>
 
-          {/* ── FULL WIDTH - ITEMS SECTION (DC Style Table) ── */}
+          {/* Items */}
           <div className="cq-items-full">
             <div className="cq-items-header">
               <span className="cq-items-title">
                 <FaClipboardList className="cq-items-icon" /> {formData.isService ? 'Services' : 'Items'}
               </span>
-              <div className="cq-section-actions">
-                <button
-                  type="button"
-                  className="cq-barcode-btn"
-                  onClick={() => setShowBarcodeScanner(!showBarcodeScanner)}
-                  title="Ctrl+B"
-                >
-                  <FaBarcode size={13} /> Scan
-                </button>
-                <button type="button" className="cq-add-btn" onClick={addItemRow}>
-                  <FaPlus size={9} /> Add
-                </button>
-              </div>
+              {!isViewMode && (
+                <div className="cq-section-actions">
+                  <button
+                    type="button"
+                    className="cq-barcode-btn"
+                    onClick={() => setShowBarcodeScanner(!showBarcodeScanner)}
+                    title="Ctrl+B"
+                  >
+                    <FaBarcode size={13} /> Scan
+                  </button>
+                  <button type="button" className="cq-add-btn" onClick={addItemRow}>
+                    <FaPlus size={9} /> Add
+                  </button>
+                </div>
+              )}
             </div>
 
-            {showBarcodeScanner && (
+            {showBarcodeScanner && !isViewMode && (
               <div className="cq-barcode-scanner">
                 <input
                   type="text"
@@ -2816,6 +2838,7 @@ export default function CreateQuotation() {
                           loading={isLoadingItems}
                           error={!!errors[`item_${index}_code`]}
                           taxOptions={taxOptions}
+                          disabled={isViewMode}
                         />
                         {errors[`item_${index}_code`] && <span className="cq-error-text">{errors[`item_${index}_code`]}</span>}
                       </td>
@@ -2828,6 +2851,7 @@ export default function CreateQuotation() {
                           className="cq-table-input cq-table-input-text"
                           ref={setItemRef(`item_${index}_itemName`)}
                           onKeyDown={(e) => handleItemKeyDown(e, index, 'itemName')}
+                          readOnly={isViewMode}
                         />
                       </td>
                       <td className="cq-col-hsn">
@@ -2839,6 +2863,7 @@ export default function CreateQuotation() {
                           className="cq-table-input cq-table-input-text"
                           ref={setItemRef(`item_${index}_hsn`)}
                           onKeyDown={(e) => handleItemKeyDown(e, index, 'hsn')}
+                          readOnly={isViewMode}
                         />
                       </td>
                       <td className="cq-col-qty">
@@ -2851,6 +2876,7 @@ export default function CreateQuotation() {
                           className={`cq-table-input ${errors[`item_${index}_quantity`] ? 'cq-input-error' : ''}`}
                           ref={setItemRef(`item_${index}_quantity`)}
                           onKeyDown={(e) => handleItemKeyDown(e, index, 'quantity')}
+                          readOnly={isViewMode}
                         />
                         {errors[`item_${index}_quantity`] && <span className="cq-error-text">{errors[`item_${index}_quantity`]}</span>}
                       </td>
@@ -2861,6 +2887,7 @@ export default function CreateQuotation() {
                           className="cq-table-input"
                           ref={setItemRef(`item_${index}_unit`)}
                           onKeyDown={(e) => handleItemKeyDown(e, index, 'unit')}
+                          disabled={isViewMode}
                         >
                           <option value="pcs">Pcs</option>
                           <option value="kg">Kg</option>
@@ -2881,6 +2908,7 @@ export default function CreateQuotation() {
                           className={`cq-table-input ${errors[`item_${index}_rate`] ? 'cq-input-error' : ''}`}
                           ref={setItemRef(`item_${index}_rate`)}
                           onKeyDown={(e) => handleItemKeyDown(e, index, 'rate')}
+                          readOnly={isViewMode}
                         />
                         {errors[`item_${index}_rate`] && <span className="cq-error-text">{errors[`item_${index}_rate`]}</span>}
                       </td>
@@ -2889,7 +2917,7 @@ export default function CreateQuotation() {
                           value={item.tax}
                           onChange={(e) => handleItemChange(index, 'tax', Number(e.target.value))}
                           className="cq-table-input"
-                          disabled={loadingTaxOptions}
+                          disabled={loadingTaxOptions || isViewMode}
                           ref={setItemRef(`item_${index}_tax`)}
                           onKeyDown={(e) => handleItemKeyDown(e, index, 'tax')}
                         >
@@ -2917,7 +2945,7 @@ export default function CreateQuotation() {
                         <span className="cq-table-value">₹{item.totalAmount.toFixed(2)}</span>
                       </td>
                       <td className="cq-col-action">
-                        {formData.items.length > 1 && (
+                        {!isViewMode && formData.items.length > 1 && (
                           <button
                             type="button"
                             className="cq-remove-btn"
@@ -2935,17 +2963,15 @@ export default function CreateQuotation() {
             </div>
           </div>
 
-          {/* ── BOTTOM SECTION (DC Style) ────────────────────── */}
+          {/* Bottom Section */}
           <div className="cq-bottom-section">
             <div className="cq-bottom-left">
-              {/* Payment Schedule - Updated to match Sales Order style */}
               <div className="cq-section">
                 <div className="cq-section-header">
                   <FaCreditCard className="cq-section-icon" />
                   <span>Payment Schedule</span>
                 </div>
 
-                {/* Payment Terms Template Dropdown */}
                 <div className="cq-field" style={{ marginBottom: '0.5rem' }}>
                   <div className="cq-field-row" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                     <select
@@ -2959,6 +2985,7 @@ export default function CreateQuotation() {
                       }}
                       className="cq-select"
                       style={{ flex: 1, minWidth: '200px' }}
+                      disabled={isViewMode}
                     >
                       <option value="">Select Payment Terms...</option>
                       {paymentTermTemplates.map((template) => (
@@ -2967,18 +2994,20 @@ export default function CreateQuotation() {
                         </option>
                       ))}
                     </select>
-                    <button
-                      type="button"
-                      className="cq-add-btn"
-                      onClick={() => {
-                        if (formData.paymentTermsTemplate) {
-                          applyPaymentTemplate(formData.paymentTermsTemplate);
-                        }
-                      }}
-                      style={{ whiteSpace: 'nowrap', padding: '5px 14px' }}
-                    >
-                      <FaCopy size={9} /> Apply
-                    </button>
+                    {!isViewMode && (
+                      <button
+                        type="button"
+                        className="cq-add-btn"
+                        onClick={() => {
+                          if (formData.paymentTermsTemplate) {
+                            applyPaymentTemplate(formData.paymentTermsTemplate);
+                          }
+                        }}
+                        style={{ whiteSpace: 'nowrap', padding: '5px 14px' }}
+                      >
+                        <FaCopy size={9} /> Apply
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -3007,6 +3036,7 @@ export default function CreateQuotation() {
                               placeholder="Term"
                               className="cq-table-input cq-table-input-text"
                               ref={setRef(`payment_${index}_term`)}
+                              readOnly={isViewMode}
                             />
                           </td>
                           <td className="cq-payment-col-date">
@@ -3017,16 +3047,20 @@ export default function CreateQuotation() {
                                 onChange={(e) => handlePaymentDueDateChange(index, e.target.value)}
                                 className="cq-table-input"
                                 ref={setRef(`payment_${index}_dueDate`)}
+                                readOnly={isViewMode}
+                                disabled={isViewMode}
                               />
-                              <button
-                                type="button"
-                                className="cq-date-icon-btn"
-                                onClick={() => openDatePicker(`payment_${index}_dueDate`)}
-                                tabIndex={-1}
-                                aria-label="Open calendar"
-                              >
-                                <FaCalendarAlt size={11} />
-                              </button>
+                              {!isViewMode && (
+                                <button
+                                  type="button"
+                                  className="cq-date-icon-btn"
+                                  onClick={() => openDatePicker(`payment_${index}_dueDate`)}
+                                  tabIndex={-1}
+                                  aria-label="Open calendar"
+                                >
+                                  <FaCalendarAlt size={11} />
+                                </button>
+                              )}
                             </div>
                           </td>
                           <td className="cq-payment-col-duration">
@@ -3038,6 +3072,7 @@ export default function CreateQuotation() {
                               min="0"
                               className="cq-table-input"
                               ref={setRef(`payment_${index}_duration`)}
+                              readOnly={isViewMode}
                             />
                           </td>
                           <td className="cq-payment-col-portion">
@@ -3050,13 +3085,14 @@ export default function CreateQuotation() {
                               max="100"
                               className="cq-table-input"
                               ref={setRef(`payment_${index}_portion`)}
+                              readOnly={isViewMode}
                             />
                           </td>
                           <td className="cq-payment-col-amount">
                             <span className="cq-table-value">₹{schedule.paymentAmount.toFixed(2)}</span>
                           </td>
                           <td className="cq-payment-col-action">
-                            {formData.paymentSchedule.length > 1 && (
+                            {!isViewMode && formData.paymentSchedule.length > 1 && (
                               <button
                                 type="button"
                                 className="cq-remove-btn"
@@ -3072,12 +3108,13 @@ export default function CreateQuotation() {
                   </table>
                 </div>
 
-                <button type="button" className="cq-add-btn" onClick={addPaymentSchedule} style={{ marginTop: '8px' }}>
-                  <FaPlus size={9} /> Add Schedule
-                </button>
+                {!isViewMode && (
+                  <button type="button" className="cq-add-btn" onClick={addPaymentSchedule} style={{ marginTop: '8px' }}>
+                    <FaPlus size={9} /> Add Schedule
+                  </button>
+                )}
               </div>
 
-              {/* Terms and Conditions */}
               <div className="cq-section" style={{ borderBottom: 'none' }}>
                 <div className="cq-section-header">
                   <FaFileAlt className="cq-section-icon" />
@@ -3093,12 +3130,12 @@ export default function CreateQuotation() {
                     placeholder="Enter terms and conditions..."
                     className="cq-textarea"
                     ref={setRef('termDetails')}
+                    readOnly={isViewMode}
                   />
                 </div>
               </div>
             </div>
 
-            {/* RIGHT - Financial Summary (DC Style) */}
             <div className="cq-bottom-right">
               <div className="cq-detail-card cq-summary-card">
                 <div className="cq-card-header">
@@ -3133,18 +3170,20 @@ export default function CreateQuotation() {
             </div>
           </div>
 
-          {/* ── Form Actions ──────────────────────────────────── */}
+          {/* Form Actions */}
           <div className="cq-form-footer">
             <button type="button" className="cq-btn cq-btn-cancel" onClick={handleCancel}>
-              <FaTimes size={11} /> Cancel
+              <FaTimes size={11} /> {isViewMode ? 'Back' : 'Cancel'}
             </button>
             <button type="button" className="cq-btn cq-btn-print" onClick={() => window.print()}>
               <FaPrint size={11} /> Print
             </button>
-            <button type="submit" className="cq-btn cq-btn-submit" disabled={saving}>
-              {saving && <FaSpinner className="cq-spinning" size={11} />}
-              <FaPaperPlane size={11} /> {isEditMode ? 'Update' : 'Submit'}
-            </button>
+            {!isViewMode && (
+              <button type="submit" className="cq-btn cq-btn-submit" disabled={saving}>
+                {saving && <FaSpinner className="cq-spinning" size={11} />}
+                <FaPaperPlane size={11} /> {isEditMode ? 'Update' : 'Submit'}
+              </button>
+            )}
           </div>
         </form>
       </div>

@@ -14,6 +14,29 @@ export interface ModulePermission {
   submodules: SubModulePermission[];
 }
 
+// ============ CHATBOT TYPES ============
+export interface ChatbotModuleInfo {
+  moduleId: number;
+  moduleName: string;
+  submodules: {
+    submoduleId: number;
+    submoduleName: string;
+  }[];
+}
+
+export interface ChatbotContextData {
+  user: {
+    name: string;
+    email: string;
+    role: string;
+  };
+  modules: ChatbotModuleInfo[];
+  totalModules: number;
+  totalSubmodules: number;
+  moduleNames: string[];
+  submoduleNamesByModule: Record<string, string[]>;
+}
+
 export const MODULE_MAP: Record<string, number> = {
   'manufacturing': 18,
   'sales': 19,
@@ -81,6 +104,13 @@ export const SUBMODULE_MAP: Record<string, number> = {
   'Goods Receipt Note': 51,
   'Dashboard': 52,
 };
+
+// Reverse map: ID -> Name (useful for chatbot to translate IDs)
+export const MODULE_ID_TO_NAME: Record<number, string> = Object.entries(MODULE_MAP)
+  .reduce((acc, [name, id]) => ({ ...acc, [id]: name }), {});
+
+export const SUBMODULE_ID_TO_NAME: Record<number, string> = Object.entries(SUBMODULE_MAP)
+  .reduce((acc, [name, id]) => ({ ...acc, [id]: name }), {});
 
 export function useModulePermissions() {
   const [isLoading, setIsLoading] = useState(true);
@@ -287,6 +317,158 @@ export function useModulePermissions() {
       });
   };
 
+  // ================================================================
+  // ============ CHATBOT HELPERS (NEWLY ADDED) =====================
+  // ================================================================
+
+  /**
+   * Get a structured snapshot of what the CURRENT user can access.
+   * This is what we send to the chatbot so it only answers with allowed data.
+   */
+  const getChatbotContext = (): ChatbotContextData => {
+    const accessibleModules: ChatbotModuleInfo[] = (modules || []).map((m) => ({
+      moduleId: m.moduleId,
+      moduleName: m.moduleName,
+      submodules: m.submodules.map((s) => ({
+        submoduleId: s.submoduleId,
+        submoduleName: s.submoduleName,
+      })),
+    }));
+
+    const totalSubmodules = accessibleModules.reduce(
+      (sum, m) => sum + m.submodules.length,
+      0
+    );
+
+    const moduleNames = accessibleModules.map((m) => m.moduleName);
+
+    const submoduleNamesByModule: Record<string, string[]> = {};
+    accessibleModules.forEach((m) => {
+      submoduleNamesByModule[m.moduleName] = m.submodules.map(
+        (s) => s.submoduleName
+      );
+    });
+
+    return {
+      user: {
+        name: (user as any)?.name || (user as any)?.fullName || 'User',
+        email: (user as any)?.email || '',
+        role: (user as any)?.role?.name || (user as any)?.role || '',
+      },
+      modules: accessibleModules,
+      totalModules: accessibleModules.length,
+      totalSubmodules,
+      moduleNames,
+      submoduleNamesByModule,
+    };
+  };
+
+  /**
+   * Answer a chatbot question using ONLY the current user's permissions.
+   * Returns null if the question can't be handled locally (fall back to AI/API).
+   */
+  const answerFromPermissions = (question: string): string | null => {
+    const q = question.toLowerCase().trim();
+
+    // ---- Questions about modules count ----
+    if (
+      (q.includes('how many') && q.includes('module')) ||
+      q.includes('total module') ||
+      q.includes('list module') ||
+      q.includes('show module') ||
+      q.includes('all module') ||
+      q === 'modules'
+    ) {
+      if (!modules || modules.length === 0) {
+        return "You don't have access to any modules yet.";
+      }
+      const names = modules.map((m) => `• ${m.moduleName}`).join('\n');
+      return `You have access to ${modules.length} module${modules.length > 1 ? 's' : ''}:\n${names}`;
+    }
+
+    // ---- Questions about submodules count ----
+    if (
+      (q.includes('how many') && q.includes('submodule')) ||
+      q.includes('total submodule') ||
+      q.includes('list submodule')
+    ) {
+      const total = modules.reduce((sum, m) => sum + m.submodules.length, 0);
+      return `You have access to ${total} submodules across ${modules.length} modules.`;
+    }
+
+    // ---- Questions about a SPECIFIC module ----
+    for (const module of modules) {
+      const moduleNameLower = module.moduleName.toLowerCase();
+      if (q.includes(moduleNameLower)) {
+        // "how many submodules in sales" etc.
+        if (q.includes('how many') || q.includes('count')) {
+          return `The ${module.moduleName} module has ${module.submodules.length} submodule${module.submodules.length !== 1 ? 's' : ''}.`;
+        }
+        // "list/show submodules in sales"
+        if (
+          q.includes('submodule') ||
+          q.includes('list') ||
+          q.includes('show') ||
+          q.includes('what')
+        ) {
+          if (module.submodules.length === 0) {
+            return `The ${module.moduleName} module has no submodules assigned to you.`;
+          }
+          const subs = module.submodules
+            .map((s) => `• ${s.submoduleName}`)
+            .join('\n');
+          return `Submodules in ${module.moduleName} (${module.submodules.length}):\n${subs}`;
+        }
+        // Generic "tell me about sales"
+        return `The ${module.moduleName} module contains ${module.submodules.length} submodule${module.submodules.length !== 1 ? 's' : ''}: ${module.submodules.map(s => s.submoduleName).join(', ') || 'none'}.`;
+      }
+    }
+
+    // ---- Questions about a SPECIFIC submodule ----
+    for (const module of modules) {
+      for (const sub of module.submodules) {
+        if (q.includes(sub.submoduleName.toLowerCase())) {
+          return `"${sub.submoduleName}" is a submodule of the ${module.moduleName} module.`;
+        }
+      }
+    }
+
+    // ---- Question about the current user ----
+    if (q.includes('my role') || q.includes('who am i') || q.includes('my name')) {
+      const name = (user as any)?.name || (user as any)?.fullName || 'User';
+      const role = (user as any)?.role?.name || (user as any)?.role || 'N/A';
+      return `You are ${name}${role ? `, role: ${role}` : ''}.`;
+    }
+
+    // ---- "What can you do?" / help ----
+    if (q.includes('help') || q.includes('what can you do')) {
+      return `I can answer questions about your accessible modules:
+• "How many modules do I have?"
+• "List my modules"
+• "List submodules in Sales"
+• "How many submodules in Manufacturing?"
+• "What is my role?"`;
+    }
+
+    // No local answer available → let AI/API handle it
+    return null;
+  };
+
+  /**
+   * Check whether a module name is accessible (case-insensitive).
+   * Useful for the chatbot to gate answers.
+   */
+  const canAccessModule = (moduleName: string): boolean => {
+    return hasModule(moduleName);
+  };
+
+  /**
+   * Check whether a submodule is accessible (case-insensitive).
+   */
+  const canAccessSubModule = (moduleName: string, submoduleName: string): boolean => {
+    return hasSubModule(moduleName, submoduleName);
+  };
+
   return {
     modules,
     user,
@@ -297,5 +479,11 @@ export function useModulePermissions() {
     getAccessibleModules,
     isPathAccessible,
     filterSidebarItems,
+
+    // ============ CHATBOT EXPORTS ============
+    getChatbotContext,
+    answerFromPermissions,
+    canAccessModule,
+    canAccessSubModule,
   };
 }

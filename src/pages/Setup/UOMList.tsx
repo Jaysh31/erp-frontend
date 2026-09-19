@@ -25,6 +25,16 @@ import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
 import { PageLoader } from "../components/PageLoader";
 
+// The authorization token provided
+const AUTH_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjMsImVtYWlsIjoiamF5ZXNod2FrbGUxMEBnbWFpbC5jb20iLCJpYXQiOjE3ODkwMzY0NDcsImV4cCI6MTc4OTEyMjg0N30.SzSd1wlUZ5VomUTL4GlQ_N24zdGPgHpuNdatB2GQZuo";
+
+// Common headers for all API calls
+const authHeaders = {
+  headers: {
+    Authorization: `Bearer ${AUTH_TOKEN}`,
+  },
+};
+
 interface UOM {
   id: string;
   uom_name: string;
@@ -118,7 +128,7 @@ export default function UOMList() {
   // Fetch categories
   const fetchCategories = async () => {
     try {
-      const response = await api.get<CategoryApiResponse>('/uom-category');
+      const response = await api.get<CategoryApiResponse>('/uom-category', authHeaders);
       if (response.data.success === 1) {
         setCategories(response.data.data.records);
       }
@@ -273,7 +283,7 @@ export default function UOMList() {
         params.append('to', toISODate(dateTo));
       }
 
-      const response = await api.get<ApiResponse>(`/uom?${params.toString()}`);
+      const response = await api.get<ApiResponse>(`/uom?${params.toString()}`, authHeaders);
       
       if (response.data.success === 1) {
         setUoms(response.data.data.records);
@@ -384,7 +394,7 @@ export default function UOMList() {
         _liked_by: ""
       };
 
-      const response = await api.post('/uom-category', payload);
+      const response = await api.post('/uom-category', payload, authHeaders);
       
       if (response.data.success === 1) {
         // Refresh categories
@@ -438,7 +448,7 @@ export default function UOMList() {
         modified_by: "Administrator"
       };
 
-      const response = await api.post('/uom', payload);
+      const response = await api.post('/uom', payload, authHeaders);
       
       if (response.data && response.data.success === 1) {
         await fetchUOMs();
@@ -473,7 +483,7 @@ export default function UOMList() {
   const confirmDelete = async () => {
     if (selectedUOM) {
       try {
-        const response = await api.delete(`/uom/${selectedUOM.id}`);
+        const response = await api.delete(`/uom/${selectedUOM.id}`, authHeaders);
         if (response.data.success === 1) {
           setShowDeleteConfirm(false);
           setSelectedUOM(null);
@@ -504,17 +514,34 @@ export default function UOMList() {
 
   const weekdayLabels = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
-    // ─── Loading Screen ─────────────────────────────────────────────────────
-    if (loading) {
-      return (
-        <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
-          <PageLoader 
-            message="Loading Setup & UOMList..." 
-            //subtitle="Calculating bill of materials, operations rates, and component structures"
-          />
-        </div>
-      );
-    }
+  // ─── Navigation Helpers ─────────────────────────────────────────────
+  // Pass the row data via state so the form page can display it immediately
+  const navigateToEdit = (uom: UOM) => {
+    navigate(`/uom/${encodeURIComponent(uom.uom_name)}`, { 
+      state: { 
+        viewMode: false,
+        uomData: uom 
+      } 
+    });
+  };
+
+  const navigateToView = (uom: UOM) => {
+    navigate(`/uom/${encodeURIComponent(uom.uom_name)}`, { 
+      state: { 
+        viewMode: true,
+        uomData: uom 
+      } 
+    });
+  };
+
+  const navigateToRow = (uom: UOM) => {
+    navigate(`/uom/${encodeURIComponent(uom.uom_name)}`, { 
+      state: { 
+        viewMode: false,
+        uomData: uom 
+      } 
+    });
+  };
 
   return (
     <div className={`uoml-page ${theme}`}>
@@ -732,8 +759,8 @@ export default function UOMList() {
                   <th className="uoml-th">Status</th>
                   <th className="uoml-th">Category</th>
                   <th className="uoml-th uoml-th-meta">
-                    <span className="uoml-count-label">{/*totalItems} total</span>*/}
-                     {totalItems> 0
+                    <span className="uoml-count-label">
+                     {totalItems > 0
                         ? `${getStartIndex()}–${getEndIndex()}`
                         : '0'} of {totalItems}
                     </span>
@@ -762,7 +789,7 @@ export default function UOMList() {
                     <tr
                       key={row.id}
                       className="uoml-tr"
-                      onClick={() => navigate(`/uom/${encodeURIComponent(row.uom_name)}`)}
+                      onClick={() => navigateToRow(row)}
                       style={{ cursor: 'pointer' }}
                     >
                       <td className="uoml-td">{row.id}</td>
@@ -779,21 +806,30 @@ export default function UOMList() {
                         <div className="uoml-action-buttons">
                           <button 
                             className="uoml-action-btn uoml-action-view" 
-                            onClick={(e) => { e.stopPropagation(); navigate(`/uom/${encodeURIComponent(row.uom_name)}`); }}
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              navigateToView(row);
+                            }}
                             title="View"
                           >
                             <FaEye size={12} />
                           </button>
                           <button 
                             className="uoml-action-btn uoml-action-edit" 
-                            onClick={(e) => { e.stopPropagation(); navigate(`/uom/${encodeURIComponent(row.uom_name)}`); }}
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              navigateToEdit(row);
+                            }}
                             title="Edit"
                           >
                             <FaEdit size={12} />
                           </button>
                           <button 
                             className="uoml-action-btn uoml-action-delete" 
-                            onClick={(e) => { e.stopPropagation(); handleDelete(row); }}
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              handleDelete(row); 
+                            }}
                             title="Delete"
                           >
                             <FaTrash size={12} />

@@ -150,7 +150,7 @@ export default function Stockentry() {
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [, setTotalItems] = useState(0);
+  const [totalRecords, setTotalRecords] = useState(0);
   const [, setTotalPages] = useState(1);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedItem, setSelectedItem] = useState<StockEntryDisplay | null>(null);
@@ -300,7 +300,6 @@ export default function Stockentry() {
       
       if (searchTerm.trim()) {
         params.append('search', searchTerm.trim());
-        params.append('search_by', 'all');
       }
 
       if (typeFilter !== 'all') {
@@ -319,7 +318,7 @@ export default function Stockentry() {
 
       if (response.data.success === 1 && response.data.data) {
         const { records, total, page, limit } = response.data.data;
-        setTotalItems(total ?? 0);
+        setTotalRecords(total ?? 0);
         setTotalPages(Math.ceil((total ?? 0) / (limit || itemsPerPage)));
         setCurrentPage(page ?? 1);
 
@@ -483,6 +482,7 @@ export default function Stockentry() {
   };
 
   const getStartIndex = () => {
+    if (totalFilteredItems === 0) return 0;
     return (validCurrentPage - 1) * itemsPerPage + 1;
   };
 
@@ -1031,8 +1031,7 @@ export default function Stockentry() {
             </>
           )}
 
-
-          {/* ─── Pagination ─── */}
+          {/* ─── Pagination ─────────────────────────────────────────────────── */}
           {totalFilteredItems > 0 && (
             <div className="se-pagination">
               <div className="se-pagination-left">
@@ -1047,7 +1046,11 @@ export default function Stockentry() {
                   <option value={50}>50</option>
                   <option value={100}>100</option>
                 </select>
-                <span className="se-pagination-label">entries</span>
+                <span className="se-pagination-info">
+                  {totalFilteredItems > 0
+                    ? `Showing ${getStartIndex()} to ${getEndIndex()} of ${totalFilteredItems} entries`
+                    : "No entries to show"}
+                </span>
               </div>
               <div className="se-pagination-center">
                 <button onClick={goToFirstPage} disabled={currentPage === 1 || totalFilteredItems === 0} className="se-page-btn">
@@ -1073,10 +1076,8 @@ export default function Stockentry() {
                 </button>
               </div>
               <div className="se-pagination-right">
-                <span className="se-pagination-info">
-                  {totalFilteredItems > 0
-                    ? `Showing ${getStartIndex()} to ${getEndIndex()} of ${totalFilteredItems} entries`
-                    : "No entries to show"}
+                <span className="se-pagination-page">
+                  Page {validCurrentPage} of {filteredTotalPages}
                 </span>
               </div>
             </div>

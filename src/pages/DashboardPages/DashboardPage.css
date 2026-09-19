@@ -534,7 +534,7 @@
   flex-shrink: 0;
 }
 
-.activity-icon.status-completed { background: #22c55e; }
+.activity-icon.status-completed { background: #4fc97c; }
 .activity-icon.status-inprocess { background: #3b82f6; }
 .activity-icon.status-open { background: #f59e0b; }
 .activity-icon.status-stopped { background: #ef4444; }
@@ -573,6 +573,39 @@
   color: white;
   font-weight: 500;
 }
+
+/* --- UPDATED: readable status badge colors --- */
+.activity-status.status-inprocess {
+  background-color: #dbeafe;
+  color: #1e40af;
+  font-weight: 600;
+}
+
+.activity-status.status-completed {
+  background-color: #d1fae5;
+  color: #047857;
+}
+
+.activity-status.status-open {
+  background-color: #fef3c7;
+  color: #b45309;
+}
+
+.activity-status.status-stopped {
+  background-color: #fee2e2;
+  color: #b91c1c;
+}
+
+.activity-status.status-draft {
+  background-color: #e2e8f0;
+  color: #475569;
+}
+
+.activity-status.status-pending {
+  background-color: #fef3c7;
+  color: #b45309;
+}
+/* ---------------------------------- */
 
 .activity-type {
   font-size: 11px;
@@ -976,7 +1009,7 @@
 }
 
 /* Stat color overrides */
-.stat-primary .stat-icon { background: #3b82f6; }
+.stat-primary .stat-icon { background: #70a3f4; }
 .stat-success .stat-icon { background: #22c55e; }
 .stat-warning .stat-icon { background: #f59e0b; }
 .stat-info .stat-icon { background: #06b6d4; }

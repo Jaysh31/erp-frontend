@@ -1,8 +1,10 @@
 // GRNForm.tsx - Service/Customer + Supplier/Manual item entry + GST billing + Print + Success modal 
 // Status is always set to "submitted" - removed from UI 
+// UPDATED: Added VIEW MODE support via URL parameter ?mode=view
+
 import { useState, useEffect, type FormEvent, useRef } from "react"; 
 import { createPortal } from "react-dom"; 
-import { useNavigate, useParams, useLocation } from "react-router-dom"; 
+import { useNavigate, useParams, useLocation, useSearchParams } from "react-router-dom"; 
 import toast from 'react-hot-toast'; 
 import { getUserRole } from '../utils/storage'; 
 import { 
@@ -30,7 +32,8 @@ import {
   FaPrint, 
   FaMoneyBillWave, 
   FaGlobeAsia, 
-  FaBuilding, 
+  FaBuilding,
+  FaEye,
   FaStickyNote,
   FaBoxes
 } from 'react-icons/fa'; 
@@ -487,6 +490,9 @@ export default function GRNForm() {
   const { id } = useParams<{ id: string }>(); 
   const navigate = useNavigate(); 
   const location = useLocation(); 
+  const [searchParams] = useSearchParams();
+  const mode = searchParams.get('mode');
+  const isViewMode = mode === 'view';
   const { theme } = useAdminTheme(); 
   const isNew = id === "new"; 
   const isEditMode = !isNew && Boolean(id); 
@@ -631,8 +637,31 @@ export default function GRNForm() {
   const [] = useState<ItemMaster[]>([]); 
   const [] = useState<boolean>(false); 
  
+  // ─── View Mode Badge ────────────────────────────────────────────────── 
+  const renderViewModeBadge = () => { 
+    if (!isViewMode) return null; 
+     
+    return ( 
+      <span className="grnf-view-mode-badge" style={{ 
+        display: 'inline-flex', 
+        alignItems: 'center', 
+        gap: '6px', 
+        background: '#6366f1', 
+        color: '#ffffff', 
+        padding: '4px 12px', 
+        borderRadius: '20px', 
+        fontSize: '12px', 
+        fontWeight: 500, 
+        marginLeft: '12px', 
+      }}> 
+        
+      </span> 
+    ); 
+  }; 
+ 
   // ─── Fetch Warehouses ────────────────────────────────────────────── 
   const fetchWarehouses = async () => { 
+    if (isViewMode) return;
     setLoadingWarehouses(true); 
     try { 
       const response = await api.get<WarehouseApiResponse>('/warehouse?limit=200'); 
@@ -649,6 +678,7 @@ export default function GRNForm() {
  
   // ─── Fetch Employees ──────────────────────────────────────────────── 
   const fetchEmployees = async () => { 
+    if (isViewMode) return;
     setLoadingEmployees(true); 
     try { 
       const response = await api.get<EmployeeApiResponse>('/employee'); 
@@ -665,6 +695,7 @@ export default function GRNForm() {
  
   // ─── Fetch Customers ───────────────────────────────────────────────── 
   const fetchCustomers = async () => { 
+    if (isViewMode) return;
     setLoadingCustomers(true); 
     try { 
       const response = await api.get<CustomerApiResponse>('/customer'); 
@@ -681,6 +712,7 @@ export default function GRNForm() {
  
   // ─── Fetch Suppliers ────────────────────────────────────────────────── 
   const fetchSuppliers = async () => { 
+    if (isViewMode) return;
     setLoadingSuppliers(true); 
     try { 
       const response = await api.get<SupplierApiResponse>('/supplier'); 
@@ -697,6 +729,7 @@ export default function GRNForm() {
  
   // ─── Fetch Item Master ────────────────────────────────────────────── 
   const fetchItemsMaster = async (): Promise<ItemMaster[]> => { 
+    if (isViewMode) return [];
     setLoadingItemsMaster(true); 
     try { 
       const response = await api.get('/item?limit=200'); 
@@ -744,6 +777,7 @@ export default function GRNForm() {
  
   // ─── Fetch Tax Types ──────────────────────────────────────────────── 
   const fetchTaxTypes = async (): Promise<TaxType[]> => { 
+    if (isViewMode) return [];
     setLoadingTaxTypes(true); 
     try { 
       const response = await api.get<TaxApiResponse>('/item/get-tax'); 
@@ -763,6 +797,7 @@ export default function GRNForm() {
  
   // ─── Fetch Purchase Orders ────────────────────────────────────────── 
   const fetchPurchaseOrders = async (supplierIdOverride?: number) => { 
+    if (isViewMode) return;
     setLoadingPOs(true); 
     try { 
       const effectiveSupplierId = supplierIdOverride !== undefined ? supplierIdOverride : formData.supplierId; 
@@ -785,6 +820,7 @@ export default function GRNForm() {
  
   // ─── Fetch Purchase Order Details ────────────────────────────────── 
   const fetchPurchaseOrderDetail = async (poId: number) => { 
+    if (isViewMode) return;
     setPODetailLoading(true); 
     try { 
       const response = await api.get<PODetailApiResponse>(`/purchase-order/${poId}`); 
@@ -880,6 +916,8 @@ export default function GRNForm() {
  
   // ─── Populate GRN from PO ────────────────────────────────────────── 
   const populateGRNFromPO = (poDetail: PurchaseOrderDetail) => { 
+    if (isViewMode) return;
+    
     const items: GRNItem[] = (poDetail.items || []).map((item, index) => { 
       const taxInfo = resolveTaxInfo(item); 
  
@@ -1021,6 +1059,7 @@ export default function GRNForm() {
  
   // ─── Fetch PO items on hover ────────────────────────────────────────── 
   const fetchPOItems = async (poId: number) => { 
+    if (isViewMode) return;
     if (poItemsCache[poId]) return; 
     setLoadingPOItems(prev => ({ ...prev, [poId]: true })); 
     try { 
@@ -1172,6 +1211,7 @@ export default function GRNForm() {
         fetchTaxTypes(), 
       ]); 
  
+
       if (isEditMode && id) { 
         await fetchGRNData(id, fetchedTaxTypes, fetchedItemsMaster); 
       } 
@@ -1457,6 +1497,8 @@ export default function GRNForm() {
  
   // ─── Validation ────────────────────────────────────────────────────── 
   const getAllValidationErrors = (): ValidationError[] => { 
+    if (isViewMode) return [];
+    
     const allErrors: ValidationError[] = []; 
  
     if (formData.isService) { 
@@ -1521,6 +1563,7 @@ export default function GRNForm() {
  
   // ─── Handlers ──────────────────────────────────────────────────────── 
   const handleFieldChange = (field: keyof GRNData, value: any) => { 
+    if (isViewMode) return;
     setFormData(prev => ({ ...prev, [field]: value })); 
     setIsDirty(true); 
     if (errors[field]) { 
@@ -1533,6 +1576,7 @@ export default function GRNForm() {
   }; 
  
   const handleServiceToggle = (checked: boolean) => { 
+    if (isViewMode) return;
     if (formData.items.length > 0 || formData.supplier || formData.customer || formData.purchaseOrder) { 
       setPendingServiceToggle(checked); 
       setShowServiceToggleConfirm(true); 
@@ -1542,6 +1586,7 @@ export default function GRNForm() {
   }; 
  
   const applyServiceToggle = (checked: boolean) => { 
+    if (isViewMode) return;
     setFormData(prev => ({ 
       ...prev, 
       isService: checked, 
@@ -1565,6 +1610,7 @@ export default function GRNForm() {
   }; 
  
   const handleEntryModeChange = (mode: EntryMode) => { 
+    if (isViewMode) return;
     setFormData(prev => ({ 
       ...prev, 
       entryMode: mode, 
@@ -1579,6 +1625,7 @@ export default function GRNForm() {
   }; 
  
   const handleWarehouseSelect = (warehouse: Warehouse) => { 
+    if (isViewMode) return;
     setFormData(prev => ({  
       ...prev,  
       warehouse: warehouse.warehouse_name, 
@@ -1590,6 +1637,7 @@ export default function GRNForm() {
   }; 
  
   const handleEmployeeSelect = (employee: Employee) => { 
+    if (isViewMode) return;
     setFormData(prev => ({  
       ...prev,  
       receivedBy: employee.employee_name, 
@@ -1601,6 +1649,7 @@ export default function GRNForm() {
   }; 
  
   const handleCustomerSelect = (customer: Customer) => { 
+    if (isViewMode) return;
     setFormData(prev => ({ 
       ...prev, 
       customer: customer.customer_name, 
@@ -1612,6 +1661,7 @@ export default function GRNForm() {
   }; 
  
   const handleSupplierSelect = (supplier: Supplier) => { 
+    if (isViewMode) return;
     setFormData(prev => ({ 
       ...prev, 
       supplier: supplier.supplier_name, 
@@ -1630,6 +1680,7 @@ export default function GRNForm() {
   }; 
  
   const handlePOSelect = (po: PurchaseOrder) => { 
+    if (isViewMode) return;
     const poName = getPODisplayName(po); 
     setPOSearchTerm(poName); 
     setFormData(prev => ({ 
@@ -1645,6 +1696,7 @@ export default function GRNForm() {
   }; 
  
   const handleItemChange = (index: number, field: keyof GRNItem, value: any) => { 
+    if (isViewMode) return;
     const updatedItems = [...formData.items]; 
     updatedItems[index] = { ...updatedItems[index], [field]: value }; 
     setFormData(prev => ({ ...prev, items: updatedItems })); 
@@ -1653,6 +1705,7 @@ export default function GRNForm() {
  
   // ─── Filter items based on search term and group filter ────────── 
   const filterItems = (index: number, searchTerm: string) => { 
+    if (isViewMode) return;
     let filtered = allItems.length > 0 ? allItems : itemsMaster; 
      
     if (itemGroupFilter !== 'all') { 
@@ -1679,6 +1732,7 @@ export default function GRNForm() {
  
   // ─── Open the item dropdown ──────────────────────────────────────── 
   const openItemDropdown = (index: number) => { 
+    if (isViewMode) return;
     updateDropdownPosition(index); 
     const currentItem = formData.items[index]; 
  
@@ -1692,6 +1746,7 @@ export default function GRNForm() {
  
   // ─── Handle item search ───────────────────────────────────────────── 
   const handleItemSearch = (index: number, value: string) => { 
+    if (isViewMode) return;
     setSearchTerms(prev => ({ ...prev, [index]: value })); 
  
     const updatedItems = [...formData.items]; 
@@ -1740,6 +1795,7 @@ export default function GRNForm() {
  
   // ─── Handle item selection from suggestions ────────────────────── 
   const handleSelectItem = (index: number, item: ItemMaster) => { 
+    if (isViewMode) return;
     const updatedItems = [...formData.items]; 
     const rate = item.standard_rate || item.valuation_rate || 0; 
     const taxInfo = resolveTaxInfo(item); 
@@ -1775,10 +1831,12 @@ export default function GRNForm() {
   }; 
  
   const handleClearItem = (index: number) => { 
+    if (isViewMode) return;
     handleItemSearch(index, ''); 
   }; 
  
   const handleDigitReceivedQtyChange = (index: number, val: number | string) => { 
+    if (isViewMode) return;
     const valStr = String(val); 
     const num = parseFloat(valStr) || 0; 
     setDigitValues(prev => ({ 
@@ -1789,6 +1847,7 @@ export default function GRNForm() {
   }; 
  
   const handleDigitRejectedQtyChange = (index: number, val: number | string) => { 
+    if (isViewMode) return;
     const valStr = String(val); 
     const num = parseFloat(valStr) || 0; 
     setDigitValues(prev => ({ 
@@ -1799,6 +1858,7 @@ export default function GRNForm() {
   }; 
  
   const handleDigitRateChange = (index: number, val: number | string) => { 
+    if (isViewMode) return;
     const valStr = String(val); 
     const num = parseFloat(valStr) || 0; 
     setDigitValues(prev => ({ 
@@ -1823,6 +1883,7 @@ export default function GRNForm() {
   }; 
  
   const handleCreateNewItem = async (e?: React.FormEvent) => { 
+    if (isViewMode) return;
     if (e) e.preventDefault(); 
     if (!newItem.item_name.trim()) { 
       toast.error('Item name is required'); 
@@ -1878,6 +1939,7 @@ export default function GRNForm() {
   }; 
  
   const handleItemTaxChange = (index: number, taxId: number) => { 
+    if (isViewMode) return;
     const tax = taxTypes.find(t => t.tax_id === taxId); 
     const { rate } = extractTaxInfo(tax?.tax_type); 
     const updatedItems = [...formData.items]; 
@@ -1892,6 +1954,7 @@ export default function GRNForm() {
   }; 
  
   const addItem = () => { 
+    if (isViewMode) return;
     const newIdx = formData.items.length; 
     const newItem: GRNItem = { 
       id: Date.now().toString(), 
@@ -1913,6 +1976,7 @@ export default function GRNForm() {
   }; 
  
   const removeItem = (index: number) => { 
+    if (isViewMode) return;
     setFormData(prev => ({ 
       ...prev, 
       items: prev.items.filter((_, i) => i !== index) 
@@ -1945,6 +2009,7 @@ export default function GRNForm() {
  
   // ─── Inventory Sync ─────────────────────────────────────────────────── 
   const postInventoryForItems = async (items: GRNItem[]) => { 
+    if (isViewMode) return;
     const inventoryType = formData.isService ? 'External' : 'Internal'; 
     const role = getUserRole(); 
  
@@ -2103,6 +2168,11 @@ export default function GRNForm() {
  
   // ─── Save Handler ────────────────────────────────────────────────── 
   const handleSave = async (e: FormEvent<HTMLFormElement>) => { 
+    if (isViewMode) {
+      navigate('/grn');
+      return;
+    }
+    
     e.preventDefault(); 
     setApiError(null); 
  
@@ -2233,7 +2303,7 @@ export default function GRNForm() {
     navigate('/grn'); 
   }; 
  
-  const hasErrors = getAllValidationErrors().length > 0; 
+  const hasErrors = !isViewMode && getAllValidationErrors().length > 0; 
  
   const getPOStatusBadgeClass = (status: string) => { 
     const safeStatus = (status || '').toLowerCase(); 
@@ -2776,16 +2846,19 @@ export default function GRNForm() {
                   }}
                   style={{
                     padding: '8px 12px',
-                    cursor: 'pointer',
+                    cursor: isViewMode ? 'default' : 'pointer',
                     borderBottom: `1px solid ${theme === 'dark-theme' ? '#2a2a3a' : '#f3f4f6'}`,
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
                     transition: 'background 0.15s',
+                    opacity: isViewMode ? 0.7 : 1,
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background =
-                      theme === 'dark-theme' ? '#2a2a3a' : '#f3f4f6';
+                    if (!isViewMode) {
+                      e.currentTarget.style.background =
+                        theme === 'dark-theme' ? '#2a2a3a' : '#f3f4f6';
+                    }
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.background = 'transparent';
@@ -2866,7 +2939,7 @@ export default function GRNForm() {
           )}
         </div>
 
-        {!loadingItemsMaster && (
+        {!isViewMode && !loadingItemsMaster && (
           <div
             className="pof-suggestion-item pof-add-new-suggestion"
             onMouseDown={(e) => {
@@ -3042,12 +3115,15 @@ export default function GRNForm() {
             <FaArrowLeft size={9} /> Back 
           </button> 
           <div className="grnf-header-title"> 
-            <h1>{isNew ? 'New Goods Receipt Note' : `${formData.grn_number}`}</h1> 
+            <h1>
+              {isViewMode ? 'View Goods Receipt Note' : isNew ? 'New Goods Receipt Note' : `${formData.grn_number}`}
+            </h1>
+            {renderViewModeBadge()}
           </div> 
           <button type="button" onClick={handlePrint} className="grnf-print-btn"> 
             <FaPrint size={12} /> Print 
           </button> 
-          {hasErrors && ( 
+          {!isViewMode && hasErrors && ( 
             <div className="grnf-error-badge"> 
               <FaExclamationTriangle size={12} /> 
               {getAllValidationErrors().length} missing field{getAllValidationErrors().length !== 1 ? 's' : ''} 
@@ -3065,7 +3141,7 @@ export default function GRNForm() {
                   type="checkbox" 
                   checked={formData.isService} 
                   onChange={(e) => handleServiceToggle(e.target.checked)} 
-                  disabled={submitting} 
+                  disabled={isViewMode || submitting} 
                   className="grnf-checkbox" 
                 /> 
                 <span>Is Service Bill</span> 
@@ -3079,7 +3155,7 @@ export default function GRNForm() {
                     type="button" 
                     className={`grnf-mode-btn${formData.entryMode === 'supplier' ? ' grnf-mode-btn-active' : ''}`} 
                     onClick={() => handleEntryModeChange('supplier')} 
-                    disabled={submitting} 
+                    disabled={isViewMode || submitting} 
                   > 
                     <FaFileInvoice size={12} /> By Purchase Order 
                   </button> 
@@ -3087,7 +3163,7 @@ export default function GRNForm() {
                     type="button" 
                     className={`grnf-mode-btn${formData.entryMode === 'manual' ? ' grnf-mode-btn-active' : ''}`} 
                     onClick={() => handleEntryModeChange('manual')} 
-                    disabled={submitting} 
+                    disabled={isViewMode || submitting} 
                   > 
                     <FaSearch size={12} /> Direct Entry 
                   </button> 
@@ -3112,19 +3188,20 @@ export default function GRNForm() {
                             type="text" 
                             value={customerSearchTerm} 
                             onChange={(e) => { 
+                              if (isViewMode) return;
                               setCustomerSearchTerm(e.target.value); 
                               setShowCustomerDropdown(true); 
                               setFormData(prev => ({ ...prev, customer: e.target.value, customerId: undefined })); 
                               setIsDirty(true); 
                             }} 
-                            onFocus={() => setShowCustomerDropdown(true)} 
-                            className={`grnf-form-field${errors.customer ? ' grnf-field-error' : ''}`} 
+                            onFocus={() => { if (!isViewMode) setShowCustomerDropdown(true); }} 
+                            className={`grnf-form-field${errors.customer ? ' grnf-field-error' : ''} ${isViewMode ? 'grnf-field-disabled' : ''}`} 
                             placeholder="Search customer..." 
-                            disabled={submitting} 
+                            disabled={isViewMode || submitting} 
                             autoComplete="off" 
                           /> 
                           {loadingCustomers && <FaSpinner className="grnf-warehouse-spinner grnf-spinning" size={14} />} 
-                          {showCustomerDropdown && filteredCustomers.length > 0 && ( 
+                          {!isViewMode && showCustomerDropdown && filteredCustomers.length > 0 && ( 
                             <div ref={customerDropdownRef} className="grnf-warehouse-dropdown grnf-dropdown-large"> 
                               {filteredCustomers.map((customer) => ( 
                                 <div 
@@ -3154,19 +3231,20 @@ export default function GRNForm() {
                             type="text" 
                             value={warehouseSearchTerm} 
                             onChange={(e) => { 
+                              if (isViewMode) return;
                               setWarehouseSearchTerm(e.target.value); 
                               setShowWarehouseDropdown(true); 
                               setFormData(prev => ({ ...prev, warehouse: e.target.value, warehouseId: undefined })); 
                               setIsDirty(true); 
                             }} 
-                            onFocus={() => setShowWarehouseDropdown(true)} 
-                            className={`grnf-form-field${errors.warehouse ? ' grnf-field-error' : ''}`} 
+                            onFocus={() => { if (!isViewMode) setShowWarehouseDropdown(true); }} 
+                            className={`grnf-form-field${errors.warehouse ? ' grnf-field-error' : ''} ${isViewMode ? 'grnf-field-disabled' : ''}`} 
                             placeholder="Search warehouse..." 
-                            disabled={submitting} 
+                            disabled={isViewMode || submitting} 
                             autoComplete="off" 
                           /> 
                           {loadingWarehouses && <FaSpinner className="grnf-warehouse-spinner grnf-spinning" size={14} />} 
-                          {showWarehouseDropdown && filteredWarehouses.length > 0 && ( 
+                          {!isViewMode && showWarehouseDropdown && filteredWarehouses.length > 0 && ( 
                             <div ref={warehouseDropdownRef} className="grnf-warehouse-dropdown"> 
                               {filteredWarehouses.map((warehouse) => ( 
                                 <div 

@@ -1381,3 +1381,314 @@
 .igl-tr-expanded {
   background: var(--nav-active, rgba(99, 102, 241, 0.05));
 }
+
+/* Date Picker Styles */
+.igl-date-picker-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.igl-date-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: var(--bg-secondary, #f3f4f6);
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 6px;
+  color: var(--text-primary, #1f2937);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  min-width: 180px;
+}
+
+.igl-date-btn:hover {
+  background: var(--bg-hover, #e5e7eb);
+  border-color: var(--primary-color, #3b82f6);
+}
+
+.igl-date-btn-active {
+  border-color: var(--primary-color, #3b82f6);
+  background: var(--bg-active, #eff6ff);
+  color: var(--primary-color, #3b82f6);
+}
+
+.igl-date-btn span {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.igl-date-picker-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 340px;
+  background: var(--bg-primary, #ffffff);
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 8px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+  padding: 16px;
+  z-index: 1000;
+  animation: slideDown 0.2s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.igl-date-picker-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.igl-date-picker-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary, #1f2937);
+}
+
+.igl-date-picker-close {
+  background: none;
+  border: none;
+  color: var(--text-secondary, #6b7280);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.igl-date-picker-close:hover {
+  background: var(--bg-hover, #f3f4f6);
+}
+
+/* Quick Date Options */
+.igl-quick-date-options {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.igl-quick-date-btn {
+  padding: 4px 12px;
+  background: var(--bg-secondary, #f3f4f6);
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 4px;
+  color: var(--text-secondary, #6b7280);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.igl-quick-date-btn:hover {
+  background: var(--bg-hover, #e5e7eb);
+  border-color: var(--primary-color, #3b82f6);
+}
+
+.igl-quick-date-btn-active {
+  background: var(--primary-color, #3b82f6);
+  border-color: var(--primary-color, #3b82f6);
+  color: white;
+}
+
+.igl-quick-date-btn-active:hover {
+  background: var(--primary-dark, #2563eb);
+  border-color: var(--primary-dark, #2563eb);
+}
+
+/* Calendar */
+.igl-calendar {
+  margin-bottom: 12px;
+}
+
+.igl-calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.igl-calendar-month {
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--text-primary, #1f2937);
+}
+
+.igl-calendar-nav {
+  background: none;
+  border: none;
+  color: var(--text-secondary, #6b7280);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.igl-calendar-nav:hover {
+  background: var(--bg-hover, #f3f4f6);
+}
+
+.igl-calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  margin-bottom: 4px;
+}
+
+.igl-calendar-weekday {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary, #6b7280);
+  padding: 4px 0;
+}
+
+.igl-calendar-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.igl-calendar-day {
+  padding: 6px 0;
+  text-align: center;
+  font-size: 13px;
+  border: none;
+  background: none;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-primary, #1f2937);
+  transition: all 0.15s;
+}
+
+.igl-calendar-day:hover:not(.igl-calendar-day-empty) {
+  background: var(--bg-hover, #f3f4f6);
+}
+
+.igl-calendar-day-empty {
+  padding: 6px 0;
+}
+
+.igl-calendar-day-selected {
+  background: var(--primary-color, #3b82f6) !important;
+  color: white !important;
+}
+
+.igl-calendar-day-in-range {
+  background: var(--bg-active, #eff6ff);
+}
+
+.igl-calendar-day-today {
+  font-weight: 600;
+  color: var(--primary-color, #3b82f6);
+}
+
+.igl-calendar-day-today.igl-calendar-day-selected {
+  color: white !important;
+}
+
+/* Date Range Display */
+.igl-date-range-display {
+  display: flex;
+  gap: 16px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border-color, #e5e7eb);
+  margin-bottom: 12px;
+}
+
+.igl-date-range-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.igl-date-range-label {
+  font-size: 11px;
+  color: var(--text-secondary, #6b7280);
+  font-weight: 500;
+}
+
+.igl-date-range-value {
+  font-size: 13px;
+  color: var(--text-primary, #1f2937);
+  font-weight: 500;
+}
+
+/* Date Picker Actions */
+.igl-date-picker-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  border-top: 1px solid var(--border-color, #e5e7eb);
+  padding-top: 12px;
+}
+
+.igl-date-picker-clear {
+  padding: 6px 16px;
+  background: none;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 4px;
+  color: var(--text-secondary, #6b7280);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.igl-date-picker-clear:hover {
+  background: var(--bg-hover, #f3f4f6);
+}
+
+.igl-date-picker-apply {
+  padding: 6px 20px;
+  background: var(--primary-color, #3b82f6);
+  border: 1px solid var(--primary-color, #3b82f6);
+  border-radius: 4px;
+  color: white;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.igl-date-picker-apply:hover {
+  background: var(--primary-dark, #2563eb);
+  border-color: var(--primary-dark, #2563eb);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .igl-date-picker-dropdown {
+    min-width: 280px;
+    right: -20px;
+  }
+}
+
+@media (max-width: 640px) {
+  .igl-date-btn {
+    min-width: 120px;
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+  
+  .igl-date-picker-dropdown {
+    min-width: 260px;
+    right: -40px;
+    padding: 12px;
+  }
+}

@@ -15,8 +15,8 @@
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--primary-color, #6366f1);
-  background: color-mix(in srgb, var(--primary-color, #6366f1) 12%, transparent);
+  color: #6366f1;
+  background: rgba(99, 102, 241, 0.12);
   padding: 4px 10px;
   border-radius: 999px;
   margin-bottom: 10px;
@@ -25,20 +25,20 @@
 .settings-page-title {
   font-size: 24px;
   font-weight: 600;
-  color: var(--text-primary, #111827);
+  color: #111827;
   margin: 0 0 8px 0;
 }
 
 .settings-page-description {
   font-size: 14px;
-  color: var(--text-secondary, #6b7280);
+  color: #6b7280;
   margin: 0;
 }
 
 .settings-card {
-  background: var(--card-bg, #ffffff);
+  background: #ffffff;
   border-radius: 16px;
-  border: 1px solid var(--border-color, #e5e7eb);
+  border: 1px solid #e5e7eb;
   overflow: hidden;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
@@ -50,8 +50,8 @@
   flex-wrap: wrap;
   gap: 16px;
   padding: 20px 24px;
-  border-bottom: 1px solid var(--border-color, #e5e7eb);
-  background: var(--layout-bg, #f9fafb);
+  border-bottom: 1px solid #e5e7eb;
+  background: #f9fafb;
 }
 
 .settings-card-header-content {
@@ -70,20 +70,20 @@
   align-items: center;
   justify-content: center;
   border-radius: 10px;
-  background: color-mix(in srgb, var(--primary-color, #6366f1) 12%, transparent);
+  background: rgba(99, 102, 241, 0.12);
   flex-shrink: 0;
 }
 
 .settings-card-header-content h2 {
   font-size: 18px;
   font-weight: 600;
-  color: var(--text-primary, #111827);
+  color: #111827;
   margin: 0 0 6px 0;
 }
 
 .settings-theme-description {
   font-size: 13px;
-  color: var(--text-secondary, #6b7280);
+  color: #6b7280;
   margin: 0;
 }
 
@@ -91,24 +91,24 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  background: var(--card-bg, #ffffff);
+  background: #ffffff;
   padding: 8px 16px;
   border-radius: 10px;
-  border: 1px solid var(--border-color, #e5e7eb);
+  border: 1px solid #e5e7eb;
   white-space: nowrap;
   flex-shrink: 0;
 }
 
 .settings-badge-label {
   font-size: 12px;
-  color: var(--text-secondary, #6b7280);
+  color: #6b7280;
   font-weight: 500;
 }
 
 .settings-badge-value {
   font-size: 14px;
   font-weight: 600;
-  color: var(--text-primary, #111827);
+  color: #111827;
   text-transform: capitalize;
 }
 
@@ -124,27 +124,27 @@
 }
 
 .settings-theme-option {
-  border: 2px solid var(--border-color, #e5e7eb);
+  border: 2px solid #e5e7eb;
   border-radius: 16px;
   overflow: hidden;
   cursor: pointer;
   transition: all 0.3s ease;
-  background: var(--card-bg, #ffffff);
+  background: #ffffff;
 }
 
 .settings-theme-option:hover {
   transform: translateY(-4px);
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
-  border-color: var(--primary-color, #6366f1);
+  border-color: #6366f1;
 }
 
 .settings-theme-option:focus-visible {
-  outline: 2px solid var(--primary-color, #6366f1);
+  outline: 2px solid #6366f1;
   outline-offset: 3px;
 }
 
 .settings-theme-option.settings-active-theme {
-  border-color: var(--primary-color, #6366f1);
+  border-color: #6366f1;
   box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
   transform: translateY(-4px);
 }
@@ -189,7 +189,7 @@
 .settings-preview-content {
   flex: 1;
   padding: 10px;
-  background: var(--card-bg, #ffffff);
+  background: #ffffff;
 }
 
 .settings-preview-navbar {
@@ -235,7 +235,7 @@
 
 .settings-theme-info {
   padding: 14px 16px;
-  border-top: 1px solid var(--border-color, #e5e7eb);
+  border-top: 1px solid #e5e7eb;
 }
 
 .settings-theme-info-header {
@@ -248,13 +248,13 @@
 .settings-theme-info h4 {
   font-size: 15px;
   font-weight: 600;
-  color: var(--text-primary, #111827);
+  color: #111827;
   margin: 0;
 }
 
 .settings-theme-info p {
   font-size: 12.5px;
-  color: var(--text-secondary, #6b7280);
+  color: #6b7280;
   margin: 0 0 8px 0;
   line-height: 1.5;
 }
@@ -277,14 +277,14 @@
   align-items: center;
   gap: 8px;
   padding: 6px 12px;
-  background: var(--layout-bg, #f9fafb);
+  background: #f9fafb;
   border-radius: 8px;
   margin-top: 6px;
 }
 
 .settings-active-indicator span {
   font-size: 12px;
-  color: var(--text-secondary, #6b7280);
+  color: #6b7280;
   font-weight: 500;
 }
 
@@ -318,14 +318,14 @@
 
 /* Current-format badge (top-right of the card header) gets a subtle glow */
 .date-format-card .settings-current-theme-badge {
-  background: linear-gradient(135deg, var(--card-bg, #ffffff), color-mix(in srgb, var(--primary-color, #6366f1) 6%, var(--card-bg, #ffffff)));
-  border-color: color-mix(in srgb, var(--primary-color, #6366f1) 35%, var(--border-color, #e5e7eb));
+  background: linear-gradient(135deg, #ffffff, rgba(99, 102, 241, 0.06));
+  border-color: rgba(99, 102, 241, 0.35);
 }
 
 .date-format-card .settings-badge-value {
   font-family: 'Courier New', monospace;
   letter-spacing: 0.02em;
-  color: var(--primary-color, #6366f1);
+  color: #6366f1;
 }
 
 /* ─── Date Format Cards Grid ─── */
@@ -343,8 +343,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 16px 22px 16px 26px;
-  background: var(--card-bg, #ffffff);
-  border: 1.5px solid var(--border-color, #e5e7eb);
+  background: #ffffff;
+  border: 1.5px solid #e5e7eb;
   border-radius: 14px;
   cursor: pointer;
   overflow: hidden;
@@ -359,7 +359,7 @@
   left: 0;
   width: 4px;
   height: 100%;
-  background: var(--border-color, #e5e7eb);
+  background: #e5e7eb;
   transition: background 0.25s ease, width 0.25s ease;
 }
 
@@ -368,20 +368,20 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at 0% 50%, color-mix(in srgb, var(--primary-color, #6366f1) 8%, transparent), transparent 60%);
+  background: radial-gradient(circle at 0% 50%, rgba(99, 102, 241, 0.08), transparent 60%);
   opacity: 0;
   transition: opacity 0.3s ease;
   pointer-events: none;
 }
 
 .settings-date-format-card:hover {
-  border-color: var(--primary-color, #6366f1);
+  border-color: #6366f1;
   box-shadow: 0 6px 18px rgba(99, 102, 241, 0.12);
   transform: translateX(6px);
 }
 
 .settings-date-format-card:hover::before {
-  background: var(--primary-color, #6366f1);
+  background: #6366f1;
 }
 
 .settings-date-format-card:hover::after {
@@ -389,19 +389,19 @@
 }
 
 .settings-date-format-card.active {
-  border-color: var(--primary-color, #6366f1);
-  background: linear-gradient(90deg, color-mix(in srgb, var(--primary-color, #6366f1) 6%, transparent), transparent 70%);
+  border-color: #6366f1;
+  background: linear-gradient(90deg, rgba(99, 102, 241, 0.06), transparent 70%);
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1), 0 8px 20px rgba(99, 102, 241, 0.14);
 }
 
 .settings-date-format-card.active::before {
-  background: var(--primary-color, #6366f1);
+  background: #6366f1;
   width: 5px;
   box-shadow: 0 0 10px rgba(99, 102, 241, 0.6);
 }
 
 .settings-date-format-card:focus-visible {
-  outline: 2px solid var(--primary-color, #6366f1);
+  outline: 2px solid #6366f1;
   outline-offset: 2px;
 }
 
@@ -416,30 +416,30 @@
 .settings-date-format-pattern {
   font-size: 15px;
   font-weight: 700;
-  color: var(--text-primary, #111827);
+  color: #111827;
   font-family: 'Courier New', monospace;
   letter-spacing: 0.02em;
 }
 
 .settings-date-format-card.active .settings-date-format-pattern {
-  color: var(--primary-color, #6366f1);
+  color: #6366f1;
 }
 
 .settings-date-format-badge {
   font-size: 11px;
   font-weight: 600;
-  color: var(--text-secondary, #6b7280);
-  background: var(--layout-bg, #f3f4f6);
+  color: #6b7280;
+  background: #f3f4f6;
   padding: 3px 11px;
   border-radius: 999px;
   white-space: nowrap;
-  border: 1px solid var(--border-color, #e5e7eb);
+  border: 1px solid #e5e7eb;
   transition: all 0.25s ease;
 }
 
 .settings-date-format-card.active .settings-date-format-badge {
-  color: var(--primary-color, #6366f1);
-  background: color-mix(in srgb, var(--primary-color, #6366f1) 12%, transparent);
+  color: #6366f1;
+  background: rgba(99, 102, 241, 0.12);
   border-color: transparent;
 }
 
@@ -454,18 +454,18 @@
 .settings-date-format-example {
   font-size: 15px;
   font-weight: 600;
-  color: var(--text-secondary, #6b7280);
+  color: #6b7280;
   font-family: 'Courier New', monospace;
   padding: 4px 10px;
   border-radius: 8px;
-  background: var(--layout-bg, #f9fafb);
+  background: #f9fafb;
   transition: all 0.25s ease;
 }
 
 .settings-date-format-card.active .settings-date-format-example,
 .settings-date-format-card:hover .settings-date-format-example {
-  color: var(--primary-color, #6366f1);
-  background: color-mix(in srgb, var(--primary-color, #6366f1) 10%, transparent);
+  color: #6366f1;
+  background: rgba(99, 102, 241, 0.1);
 }
 
 .settings-date-format-check {
@@ -497,10 +497,10 @@
 /* ─── Live Preview ─── */
 .settings-live-preview {
   position: relative;
-  background: linear-gradient(160deg, var(--layout-bg, #f8fafc), var(--card-bg, #ffffff));
+  background: linear-gradient(160deg, #f8fafc, #ffffff);
   border-radius: 14px;
   padding: 22px 24px;
-  border: 1px solid var(--border-color, #e5e7eb);
+  border: 1px solid #e5e7eb;
   margin-top: 8px;
   overflow: hidden;
 }
@@ -512,7 +512,7 @@
   right: -10%;
   width: 220px;
   height: 220px;
-  background: radial-gradient(circle, color-mix(in srgb, var(--primary-color, #6366f1) 10%, transparent), transparent 70%);
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.1), transparent 70%);
   pointer-events: none;
 }
 
@@ -522,7 +522,7 @@
   align-items: center;
   margin-bottom: 18px;
   padding-bottom: 14px;
-  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  border-bottom: 1px solid #e5e7eb;
   position: relative;
   z-index: 1;
 }
@@ -530,14 +530,14 @@
 .settings-live-preview-header span:first-child {
   font-weight: 700;
   font-size: 14px;
-  color: var(--text-primary, #111827);
+  color: #111827;
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
 .settings-preview-badge {
-  background: linear-gradient(135deg, var(--primary-color, #6366f1), color-mix(in srgb, var(--primary-color, #6366f1) 70%, #000));
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
   color: white;
   padding: 3px 16px;
   border-radius: 12px;
@@ -565,7 +565,7 @@
 .settings-preview-label {
   font-size: 11px;
   font-weight: 700;
-  color: var(--text-secondary, #6b7280);
+  color: #6b7280;
   text-transform: uppercase;
   letter-spacing: 0.6px;
 }
@@ -573,11 +573,11 @@
 .settings-preview-value {
   font-size: 15px;
   font-weight: 700;
-  color: var(--text-primary, #111827);
-  background: var(--card-bg, #ffffff);
+  color: #111827;
+  background: #ffffff;
   padding: 8px 14px;
   border-radius: 8px;
-  border: 1px solid var(--border-color, #e5e7eb);
+  border: 1px solid #e5e7eb;
   display: inline-block;
   font-family: 'Courier New', monospace;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
@@ -585,7 +585,7 @@
 }
 
 .settings-preview-row:hover .settings-preview-value {
-  border-color: var(--primary-color, #6366f1);
+  border-color: #6366f1;
   box-shadow: 0 4px 10px rgba(99, 102, 241, 0.15);
   transform: translateY(-2px);
 }
@@ -769,13 +769,63 @@
    DARK THEME SUPPORT
 ======================================== */
 
+.dark-theme .settings-page-title,
+.dark-theme .settings-card-header-content h2,
+.dark-theme .settings-badge-value,
+.dark-theme .settings-theme-info h4,
+.dark-theme .settings-live-preview-header span:first-child,
+.dark-theme .settings-preview-value {
+  color: #f8fafc;
+}
+
+.dark-theme .settings-page-description,
+.dark-theme .settings-theme-description,
+.dark-theme .settings-badge-label,
+.dark-theme .settings-theme-info p,
+.dark-theme .settings-active-indicator span,
+.dark-theme .settings-preview-label {
+  color: #94a3b8;
+}
+
+.dark-theme .settings-card {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+.dark-theme .settings-card-header {
+  background: #0f172a;
+  border-bottom-color: #334155;
+}
+
+.dark-theme .settings-current-theme-badge {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+.dark-theme .settings-active-indicator {
+  background: #0f172a;
+}
+
+.dark-theme .settings-theme-option {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+.dark-theme .settings-theme-info {
+  border-top-color: #334155;
+}
+
+.dark-theme .settings-preview-content {
+  background: #1e293b;
+}
+
 .dark-theme .settings-date-format-card {
-  background: var(--card-bg, #1e293b);
-  border-color: var(--border-color, #334155);
+  background: #1e293b;
+  border-color: #334155;
 }
 
 .dark-theme .settings-date-format-card::before {
-  background: var(--border-color, #334155);
+  background: #334155;
 }
 
 .dark-theme .settings-date-format-card:hover {
@@ -799,7 +849,7 @@
 }
 
 .dark-theme .settings-date-format-pattern {
-  color: var(--text-primary, #f8fafc);
+  color: #f8fafc;
 }
 
 .dark-theme .settings-date-format-card.active .settings-date-format-pattern {
@@ -812,9 +862,9 @@
 }
 
 .dark-theme .settings-date-format-badge {
-  background: var(--layout-bg, #0f172a);
-  color: var(--text-secondary, #94a3b8);
-  border-color: var(--border-color, #334155);
+  background: #0f172a;
+  color: #94a3b8;
+  border-color: #334155;
 }
 
 .dark-theme .settings-date-format-card.active .settings-date-format-badge {
@@ -829,41 +879,22 @@
 }
 
 .dark-theme .settings-live-preview {
-  background: linear-gradient(160deg, var(--layout-bg, #0f172a), var(--card-bg, #1e293b));
-  border-color: var(--border-color, #334155);
+  background: linear-gradient(160deg, #0f172a, #1e293b);
+  border-color: #334155;
+}
+
+.dark-theme .settings-live-preview-header {
+  border-bottom-color: #334155;
 }
 
 .dark-theme .settings-preview-value {
-  background: var(--card-bg, #1e293b);
-  border-color: var(--border-color, #334155);
-  color: var(--text-primary, #f8fafc);
+  background: #1e293b;
+  border-color: #334155;
 }
 
 .dark-theme .settings-preview-row:hover .settings-preview-value {
   border-color: #3b82f6;
   box-shadow: 0 4px 10px rgba(59, 130, 246, 0.2);
-}
-
-.dark-theme .settings-active-badge {
-  background: #1a3a2a;
-  color: #34d399;
-}
-
-.dark-theme .settings-current-theme-badge {
-  background: var(--card-bg, #1e293b);
-  border-color: var(--border-color, #334155);
-}
-
-.dark-theme .settings-badge-value {
-  color: var(--text-primary, #f8fafc);
-}
-
-.dark-theme .date-format-card .settings-badge-value {
-  color: #60a5fa;
-}
-
-.dark-theme .settings-live-preview-header {
-  border-bottom-color: var(--border-color, #334155);
 }
 
 .dark-theme .settings-preview-badge {
@@ -878,4 +909,18 @@
 
 .dark-theme .settings-card-icon {
   background: rgba(59, 130, 246, 0.16);
+}
+
+.dark-theme .settings-active-badge {
+  background: #1a3a2a;
+  color: #34d399;
+}
+
+.dark-theme .date-format-card .settings-current-theme-badge {
+  background: linear-gradient(135deg, #1e293b, rgba(59, 130, 246, 0.1));
+  border-color: rgba(59, 130, 246, 0.35);
+}
+
+.dark-theme .date-format-card .settings-badge-value {
+  color: #60a5fa;
 }

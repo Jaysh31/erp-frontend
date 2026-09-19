@@ -1,11 +1,14 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AdminThemeProvider } from './admin-theme/AdminThemeContext';
+import ChatbotWidget from './pages/components/ChatbotWidget';
 import { ModuleProvider } from './context/ModuleContext';
 import { FormStateProvider } from "./context/FormStateContext";
 import LoginPage from "./pages/LoginPage";
 import MainLayout from "./layouts/MainLayout";
 import HomePage from "./pages/HomePage";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import ChatBot from "./pages/components/chatbot/ChatBot";
+
 
 import DashboardPage from "./pages/DashboardPages/DashboardPage";
 import ItemGroupForm from "./pages/Setup/Itemgroupform";
@@ -106,6 +109,8 @@ import GeneralAccountEntry from "./pages/Generalaccountentry";
 function App() {
   return (
     <AdminThemeProvider>
+      
+
       <ModuleProvider>
         <FormStateProvider>
           <BrowserRouter>
@@ -283,6 +288,12 @@ function App() {
                 <Route path="/settings" element={<Settings />} />
               </Route>
             </Routes>
+ 
+            {/* ============ CHATBOT WIDGET ============ */}
+            {/* Placed inside BrowserRouter + ModuleProvider so it can use
+                useLocation() and useModule(). It floats above every page. */}
+            <ChatbotWidget />
+             <ChatBot />
           </BrowserRouter>
         </FormStateProvider>
       </ModuleProvider>

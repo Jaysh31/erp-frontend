@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   FaArrowLeft,
   FaSave,
@@ -31,6 +31,7 @@ import {
   FaEdit,
   FaTrash,
   FaSearch,
+  FaEye,
 } from 'react-icons/fa';
 import "./WarehouseForm.css";
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
@@ -70,9 +71,13 @@ export default function WarehouseForm() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { theme } = useAdminTheme();
+  const [searchParams] = useSearchParams();
+  
+  // ✅ Check if we're in view mode from URL query parameter
+  const isViewMode = searchParams.get('mode') === 'view';
   
   const isNew = id === "new" || !id;
-  const isEditMode = !isNew;
+  const isEditMode = !isNew && !isViewMode;
 
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
@@ -122,6 +127,29 @@ export default function WarehouseForm() {
   const [isContactSubmitting, setIsContactSubmitting] = useState(false);
   const [showContactSearch, setShowContactSearch] = useState(false);
   const [contactSearchTerm, setContactSearchTerm] = useState("");
+
+  // ─── Toast helper function (replaces toast.info) ────────────────────
+  const showToastInfo = (message: string) => {
+    toast.custom((t) => (
+      <div
+        style={{
+          background: '#3b82f6',
+          color: '#fff',
+          padding: '12px 20px',
+          borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          fontSize: '14px',
+          fontWeight: '500',
+        }}
+      >
+        <FaInfoCircle size={16} />
+        {message}
+      </div>
+    ), { duration: 3000 });
+  };
 
   // ─── Fetch contacts from API ─────────────────────────────────────────
   const fetchContacts = async () => {
@@ -341,6 +369,11 @@ export default function WarehouseForm() {
   // ─── Contact CRUD Operations ─────────────────────────────────────────
 
   const openContactModal = (index?: number) => {
+    if (isViewMode) {
+      showToastInfo('Cannot edit in view mode');
+      return;
+    }
+    
     console.log('Opening contact modal with index:', index);
     console.log('Selected contacts:', selectedContacts);
     
@@ -415,6 +448,11 @@ export default function WarehouseForm() {
 
   // Save contact locally (for new warehouses)
   const handleSaveContactLocal = () => {
+    if (isViewMode) {
+      showToastInfo('Cannot edit in view mode');
+      return;
+    }
+    
     if (!validateContactForm()) {
       return;
     }
@@ -458,6 +496,11 @@ export default function WarehouseForm() {
 
   // Save contact to API (for existing warehouses)
   const handleSaveContactAPI = async () => {
+    if (isViewMode) {
+      showToastInfo('Cannot edit in view mode');
+      return;
+    }
+    
     if (!warehouseId) {
       toast.error('Please save the warehouse first');
       return;
@@ -515,6 +558,11 @@ export default function WarehouseForm() {
   };
 
   const handleDeleteContact = (index: number) => {
+    if (isViewMode) {
+      showToastInfo('Cannot delete in view mode');
+      return;
+    }
+    
     if (isNew) {
       // Remove from local state
       const updatedContacts = selectedContacts.filter((_, i) => i !== index);
@@ -553,6 +601,11 @@ export default function WarehouseForm() {
 
   // ─── Add existing contact to warehouse ──────────────────────────────
   const handleAddExistingContact = (contact: Contact) => {
+    if (isViewMode) {
+      showToastInfo('Cannot add contacts in view mode');
+      return;
+    }
+    
     if (selectedContacts.some(c => c.id === contact.id)) {
       toast.error('This contact is already added to the warehouse');
       return;
@@ -576,9 +629,12 @@ export default function WarehouseForm() {
     return /^[A-Za-z\s.]*$/.test(value);
   };
 
-  // Exactly 10 digits (for mobile and phone)
+  // Valid phone - allows 10 digits, with or without country code, spaces, hyphens
   const isValidPhone = (value: string): boolean => {
-    return /^\d{10}$/.test(value);
+    // Remove all non-digit characters
+    const digitsOnly = value.replace(/\D/g, '');
+    // Check if it's exactly 10 digits OR 10-13 digits with leading country code
+    return digitsOnly.length === 10 || (digitsOnly.length >= 10 && digitsOnly.length <= 13);
   };
 
   // Valid email format
@@ -616,14 +672,14 @@ export default function WarehouseForm() {
       allErrors.push({ field: 'parentWarehouse', label: 'Parent Warehouse', message: 'Parent warehouse should contain only alphabets and spaces' });
     }
 
-    // Phone No - Exactly 10 digits
+    // Phone No - Allow 10 digits (with or without formatting)
     if (form.phoneNo.trim() && !isValidPhone(form.phoneNo.trim())) {
-      allErrors.push({ field: 'phoneNo', label: 'Phone No', message: 'Phone number must be exactly 10 digits' });
+      allErrors.push({ field: 'phoneNo', label: 'Phone No', message: 'Phone number must be 10 digits (with or without country code)' });
     }
 
-    // Mobile No - Exactly 10 digits
+    // Mobile No - Allow 10 digits (with or without formatting)
     if (form.mobileNo.trim() && !isValidPhone(form.mobileNo.trim())) {
-      allErrors.push({ field: 'mobileNo', label: 'Mobile No', message: 'Mobile number must be exactly 10 digits' });
+      allErrors.push({ field: 'mobileNo', label: 'Mobile No', message: 'Mobile number must be 10 digits (with or without country code)' });
     }
 
     // Email - Valid email format
@@ -656,6 +712,12 @@ export default function WarehouseForm() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // If in view mode, just go back to list
+    if (isViewMode) {
+      navigate('/warehouse');
+      return;
+    }
 
     const validationErrorsList = getAllValidationErrors();
     if (validationErrorsList.length > 0) {
@@ -770,6 +832,11 @@ export default function WarehouseForm() {
     contact.email.toLowerCase().includes(contactSearchTerm.toLowerCase()) ||
     contact.contactCode.toLowerCase().includes(contactSearchTerm.toLowerCase())
   );
+
+  // ─── Navigation for Edit ──────────────────────────────────────────────
+  const navigateToEdit = () => {
+    navigate(`/warehouse/${id}`);
+  };
 
   if (loading) {
     return (
@@ -979,7 +1046,7 @@ export default function WarehouseForm() {
                 <button 
                   className="btn-submit" 
                   onClick={handleSaveContact} 
-                  disabled={isContactSubmitting || (isNew ? false : !warehouseId)}
+                  disabled={isContactSubmitting || (isNew ? false : !warehouseId) || isViewMode}
                 >
                   {isContactSubmitting && <FaSpinner className="spinning" />}
                   <FaSave size={12} />
@@ -1012,8 +1079,9 @@ export default function WarehouseForm() {
                     onChange={(e) => setContactSearchTerm(e.target.value)}
                     className="contact-search-input"
                     autoFocus
+                    disabled={isViewMode}
                   />
-                  {contactSearchTerm && (
+                  {contactSearchTerm && !isViewMode && (
                     <button className="contact-search-clear" onClick={() => setContactSearchTerm('')}>
                       <FaTimes size={12} />
                     </button>
@@ -1039,13 +1107,18 @@ export default function WarehouseForm() {
                             {contact.mobile && <span><FaMobileAlt /> {contact.mobile}</span>}
                           </div>
                         </div>
-                        <button
-                          className="contact-add-btn"
-                          onClick={() => handleAddExistingContact(contact)}
-                          disabled={selectedContacts.some(c => c.id === contact.id)}
-                        >
-                          {selectedContacts.some(c => c.id === contact.id) ? 'Added' : 'Add'}
-                        </button>
+                        {!isViewMode && (
+                          <button
+                            className="contact-add-btn"
+                            onClick={() => handleAddExistingContact(contact)}
+                            disabled={selectedContacts.some(c => c.id === contact.id)}
+                          >
+                            {selectedContacts.some(c => c.id === contact.id) ? 'Added' : 'Add'}
+                          </button>
+                        )}
+                        {isViewMode && (
+                          <span className="contact-view-only-label">View Only</span>
+                        )}
                       </div>
                     ))
                   )}
@@ -1066,9 +1139,29 @@ export default function WarehouseForm() {
             <FaArrowLeft size={9} /> Back
           </button>
           <div className="header-title">
-            {/*<h1>{isNew ? 'Add New Warehouse' : `Edit: ${form.warehouseName || 'Warehouse'}`}</h1>*/}
+            <h1>
+              {isNew ? 'Add New Warehouse' : 
+               isViewMode ? `View: ${form.warehouseName || 'Warehouse'}` : 
+               `Edit: ${form.warehouseName || 'Warehouse'}`}
+              {isViewMode && (
+                <span style={{ 
+                  fontSize: '14px', 
+                  fontWeight: 'normal', 
+                  marginLeft: '12px',
+                  color: 'var(--text-secondary)',
+                  background: 'var(--primary-color-light, #dbeafe)',
+                  padding: '4px 12px',
+                  borderRadius: '20px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}>
+                  <FaEye size={12} /> View Mode
+                </span>
+              )}
+            </h1>
           </div>
-          {hasErrors && (
+          {hasErrors && !isViewMode && (
             <div className="error-badge" onClick={() => setShowValidationSummary(true)} style={{ cursor: 'pointer' }}>
               <FaExclamationTriangle size={12} />
               {getAllValidationErrors().length} field{getAllValidationErrors().length !== 1 ? 's' : ''} need attention
@@ -1101,6 +1194,7 @@ export default function WarehouseForm() {
                   className={`form-field${hasFieldError('warehouseName') ? ' field-error' : ''}`}
                   placeholder="Enter warehouse name"
                   maxLength={50}
+                  disabled={isViewMode}
                 />
                 {hasFieldError('warehouseName') && <span className="wf-error-msg"><FaExclamationCircle size={10} />{getFieldError('warehouseName')}</span>}
               </div>
@@ -1139,6 +1233,7 @@ export default function WarehouseForm() {
                   className={`form-field${hasFieldError('company') ? ' field-error' : ''}`}
                   placeholder="Enter company name"
                   maxLength={50}
+                  disabled={isViewMode}
                 />
                 {hasFieldError('company') && <span className="wf-error-msg"><FaExclamationCircle size={10} />{getFieldError('company')}</span>}
               </div>
@@ -1159,6 +1254,7 @@ export default function WarehouseForm() {
                   className={`form-field${hasFieldError('parentWarehouse') ? ' field-error' : ''}`}
                   placeholder="Enter parent warehouse"
                   maxLength={50}
+                  disabled={isViewMode}
                 />
                 {hasFieldError('parentWarehouse') && <span className="wf-error-msg"><FaExclamationCircle size={10} />{getFieldError('parentWarehouse')}</span>}
               </div>
@@ -1171,6 +1267,7 @@ export default function WarehouseForm() {
                 checked={form.isRejectedWarehouse}
                 onChange={(e) => setForm({ ...form, isRejectedWarehouse: e.target.checked })}
                 className="wf-checkbox"
+                disabled={isViewMode}
               />
               <div>
                 <label htmlFor="isRejectedWarehouse" className="wf-check-label">
@@ -1187,6 +1284,7 @@ export default function WarehouseForm() {
                 checked={form.isGroupWarehouse}
                 onChange={(e) => setForm({ ...form, isGroupWarehouse: e.target.checked })}
                 className="wf-checkbox"
+                disabled={isViewMode}
               />
               <div>
                 <label htmlFor="isGroupWarehouse" className="wf-check-label">
@@ -1213,6 +1311,7 @@ export default function WarehouseForm() {
                   onChange={(e) => setForm({ ...form, addressLine1: e.target.value })}
                   className="form-field"
                   placeholder="Enter address line 1"
+                  disabled={isViewMode}
                 />
               </div>
 
@@ -1226,6 +1325,7 @@ export default function WarehouseForm() {
                   onChange={(e) => setForm({ ...form, addressLine2: e.target.value })}
                   className="form-field"
                   placeholder="Enter address line 2"
+                  disabled={isViewMode}
                 />
               </div>
             </div>
@@ -1253,14 +1353,14 @@ export default function WarehouseForm() {
                         type="text"
                         value={form.phoneNo}
                         onChange={(e) => {
-                          // Only allow digits, max 10
-                          const value = e.target.value.replace(/\D/g, '').slice(0, 10);
+                          // Allow digits, spaces, hyphens, plus sign for country code
+                          const value = e.target.value.replace(/[^0-9+\s-]/g, '');
                           setForm({ ...form, phoneNo: value });
                           if (errors.phoneNo) setErrors({ ...errors, phoneNo: '' });
                         }}
                         className={`form-field${hasFieldError('phoneNo') ? ' field-error' : ''}`}
-                        placeholder="Enter 10 digit phone number"
-                        maxLength={10}
+                        placeholder="Enter phone number (10 digits)"
+                        disabled={isViewMode}
                       />
                       {hasFieldError('phoneNo') && <span className="wf-error-msg"><FaExclamationCircle size={10} />{getFieldError('phoneNo')}</span>}
                     </div>
@@ -1273,14 +1373,14 @@ export default function WarehouseForm() {
                         type="text"
                         value={form.mobileNo}
                         onChange={(e) => {
-                          // Only allow digits, max 10
-                          const value = e.target.value.replace(/\D/g, '').slice(0, 10);
+                          // Allow digits, spaces, hyphens, plus sign for country code
+                          const value = e.target.value.replace(/[^0-9+\s-]/g, '');
                           setForm({ ...form, mobileNo: value });
                           if (errors.mobileNo) setErrors({ ...errors, mobileNo: '' });
                         }}
                         className={`form-field${hasFieldError('mobileNo') ? ' field-error' : ''}`}
-                        placeholder="Enter 10 digit mobile number"
-                        maxLength={10}
+                        placeholder="Enter mobile number (10 digits)"
+                        disabled={isViewMode}
                       />
                       {hasFieldError('mobileNo') && <span className="wf-error-msg"><FaExclamationCircle size={10} />{getFieldError('mobileNo')}</span>}
                     </div>
@@ -1300,6 +1400,7 @@ export default function WarehouseForm() {
                         }}
                         className={`form-field${hasFieldError('emailId') ? ' field-error' : ''}`}
                         placeholder="Enter email address"
+                        disabled={isViewMode}
                       />
                       {hasFieldError('emailId') && <span className="wf-error-msg"><FaExclamationCircle size={10} />{getFieldError('emailId')}</span>}
                     </div>
@@ -1320,6 +1421,7 @@ export default function WarehouseForm() {
                         className={`form-field${hasFieldError('pin') ? ' field-error' : ''}`}
                         placeholder="Enter 6 digit PIN code"
                         maxLength={6}
+                        disabled={isViewMode}
                       />
                       {hasFieldError('pin') && <span className="wf-error-msg"><FaExclamationCircle size={10} />{getFieldError('pin')}</span>}
                     </div>
@@ -1342,6 +1444,7 @@ export default function WarehouseForm() {
                         className={`form-field${hasFieldError('city') ? ' field-error' : ''}`}
                         placeholder="Enter city"
                         maxLength={50}
+                        disabled={isViewMode}
                       />
                       {hasFieldError('city') && <span className="wf-error-msg"><FaExclamationCircle size={10} />{getFieldError('city')}</span>}
                     </div>
@@ -1362,6 +1465,7 @@ export default function WarehouseForm() {
                         className={`form-field${hasFieldError('stateProvince') ? ' field-error' : ''}`}
                         placeholder="Enter state/province"
                         maxLength={50}
+                        disabled={isViewMode}
                       />
                       {hasFieldError('stateProvince') && <span className="wf-error-msg"><FaExclamationCircle size={10} />{getFieldError('stateProvince')}</span>}
                     </div>
@@ -1383,6 +1487,7 @@ export default function WarehouseForm() {
                       className={`form-field${hasFieldError('warehouseType') ? ' field-error' : ''}`}
                       placeholder="Enter warehouse type"
                       maxLength={50}
+                      disabled={isViewMode}
                     />
                     {hasFieldError('warehouseType') && <span className="wf-error-msg"><FaExclamationCircle size={10} />{getFieldError('warehouseType')}</span>}
                   </div>
@@ -1394,6 +1499,7 @@ export default function WarehouseForm() {
                       checked={form.transit}
                       onChange={(e) => setForm({ ...form, transit: e.target.checked })}
                       className="wf-checkbox"
+                      disabled={isViewMode}
                     />
                     <div>
                       <label htmlFor="transit" className="wf-check-label">
@@ -1407,22 +1513,38 @@ export default function WarehouseForm() {
                   <div className="wf-contacts-section">
                     <div className="wf-contacts-header">
                       <span className="wf-contacts-title">Contacts ({selectedContacts.length})</span>
-                      <div className="wf-contacts-actions">
-                        <button 
-                          type="button" 
-                          className="wf-link-btn" 
-                          onClick={() => setShowContactSearch(true)}
-                        >
-                          <FaSearch size={10} /> Add Existing
-                        </button>
-                        <button 
-                          type="button" 
-                          className="wf-link-btn" 
-                          onClick={() => openContactModal()}
-                        >
-                          <FaPlus size={10} /> New Contact
-                        </button>
-                      </div>
+                      {!isViewMode && (
+                        <div className="wf-contacts-actions">
+                          <button 
+                            type="button" 
+                            className="wf-link-btn" 
+                            onClick={() => setShowContactSearch(true)}
+                          >
+                            <FaSearch size={10} /> Add Existing
+                          </button>
+                          <button 
+                            type="button" 
+                            className="wf-link-btn" 
+                            onClick={() => openContactModal()}
+                          >
+                            <FaPlus size={10} /> New Contact
+                          </button>
+                        </div>
+                      )}
+                      {isViewMode && (
+                        <span className="wf-view-only-badge" style={{
+                          fontSize: '12px',
+                          color: 'var(--text-secondary)',
+                          background: 'var(--primary-color-light, #dbeafe)',
+                          padding: '4px 10px',
+                          borderRadius: '16px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}>
+                          <FaEye size={10} /> View Only
+                        </span>
+                      )}
                     </div>
                     
                     {selectedContacts.length > 0 ? (
@@ -1448,29 +1570,40 @@ export default function WarehouseForm() {
                                 )}
                               </div>
                             </div>
-                            <div className="wf-contact-actions">
-                              <button 
-                                type="button" 
-                                className="wf-contact-edit-btn"
-                                onClick={() => openContactModal(index)}
-                                title="Edit"
-                              >
-                                <FaEdit size={12} />
-                              </button>
-                              <button 
-                                type="button" 
-                                className="wf-contact-delete-btn"
-                                onClick={() => handleDeleteContact(index)}
-                                title="Remove from warehouse"
-                              >
-                                <FaTrash size={12} />
-                              </button>
-                            </div>
+                            {!isViewMode && (
+                              <div className="wf-contact-actions">
+                                <button 
+                                  type="button" 
+                                  className="wf-contact-edit-btn"
+                                  onClick={() => openContactModal(index)}
+                                  title="Edit"
+                                >
+                                  <FaEdit size={12} />
+                                </button>
+                                <button 
+                                  type="button" 
+                                  className="wf-contact-delete-btn"
+                                  onClick={() => handleDeleteContact(index)}
+                                  title="Remove from warehouse"
+                                >
+                                  <FaTrash size={12} />
+                                </button>
+                              </div>
+                            )}
+                            {isViewMode && (
+                              <div className="wf-contact-actions">
+                                <span className="wf-view-only-label" style={{
+                                  fontSize: '11px',
+                                  color: 'var(--text-secondary)',
+                                  padding: '2px 8px'
+                                }}>View Only</span>
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <div className="wf-empty-state">No contacts added yet. Add a new contact or add existing contact.</div>
+                      <div className="wf-empty-state">No contacts added yet.</div>
                     )}
                   </div>
                 </div>
@@ -1500,6 +1633,7 @@ export default function WarehouseForm() {
                       checked={form.transit}
                       onChange={(e) => setForm({ ...form, transit: e.target.checked })}
                       className="wf-checkbox"
+                      disabled={isViewMode}
                     />
                     <div>
                       <label htmlFor="transitSection" className="wf-check-label">
@@ -1509,9 +1643,11 @@ export default function WarehouseForm() {
                     </div>
                   </div>
                   <div className="wf-empty-state">No transit configurations added yet.</div>
-                  <button type="button" className="wf-link-btn">
-                    <FaPlus size={10} /> Add Transit
-                  </button>
+                  {!isViewMode && (
+                    <button type="button" className="wf-link-btn">
+                      <FaPlus size={10} /> Add Transit
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -1530,6 +1666,7 @@ export default function WarehouseForm() {
                 onChange={(e) => setForm({ ...form, account: e.target.value })}
                 className="form-field"
                 placeholder="If blank, parent Warehouse Account or company default will be considered in transactions"
+                disabled={isViewMode}
               />
               <p className="wf-field-hint">
                 If blank, parent Warehouse Account or company default will be considered in transactions
@@ -1550,6 +1687,7 @@ export default function WarehouseForm() {
                 onChange={(e) => setForm({ ...form, customer: e.target.value })}
                 className="form-field"
                 placeholder="Only to be used for Subcontracting Inward"
+                disabled={isViewMode}
               />
               <p className="wf-field-hint">Only to be used for Subcontracting Inward</p>
             </div>
@@ -1563,17 +1701,30 @@ export default function WarehouseForm() {
               onClick={() => navigate('/warehouse')}
               className="cancel-btn"
             >
-              Cancel
+              {isViewMode ? 'Close' : 'Cancel'}
             </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="submit-btn"
-            >
-              {submitting && <FaSpinner className="spinning" />}
-              <FaSave size={12} />
-              {isEditMode ? 'Update' : 'Save'}
-            </button>
+            {!isViewMode && (
+              <button
+                type="submit"
+                disabled={submitting}
+                className="submit-btn"
+              >
+                {submitting && <FaSpinner className="spinning" />}
+                <FaSave size={12} />
+                {isEditMode ? 'Update' : 'Save'}
+              </button>
+            )}
+            {isViewMode && (
+              <button
+                type="button"
+                onClick={navigateToEdit}
+                className="submit-btn"
+                style={{ background: 'var(--primary-color)' }}
+              >
+                <FaEdit size={12} />
+                Edit
+              </button>
+            )}
           </div>
         </form>
       </div>

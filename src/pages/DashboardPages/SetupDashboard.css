@@ -129,12 +129,13 @@
   flex-shrink: 0;
 }
 
+/* --- UPDATED: Light background for 'Item' type badge --- */
 .type-badge {
   font-size: 11px;
   padding: 2px 10px;
   border-radius: 12px;
-  background: var(--primary-color, #3b82f6);
-  color: white;
+  background: #dbeafe; /* Light blue background */
+  color: #2563eb; /* Dark blue text */
   font-weight: 500;
 }
 
@@ -155,11 +156,13 @@
   color: var(--text-secondary, #94a3b8);
 }
 
+/* --- FIXED: Light background for 'Active' status badge so text is readable --- */
 .status-badge {
   font-size: 11px;
   padding: 2px 10px;
   border-radius: 12px;
-  color: white;
+  color: #65bf87;          /* Dark green text for contrast */
+  background-color: #bbf7d0; /* Light green background */
   font-weight: 500;
 }
 
@@ -186,8 +189,15 @@
   color: var(--text-secondary, #94a3b8);
 }
 
+/* Dark theme overrides for badges to keep them readable */
 .dark-theme.setup-dashboard .type-badge {
-  background: var(--primary-color, #3b82f6);
+  background: #1e3a8a; /* Darker blue background */
+  color: #bfdbfe; /* Light blue text */
+}
+
+.dark-theme.setup-dashboard .status-badge {
+  background-color: #63b182; /* Dark green background */
+  color: #bbf7d0;            /* Light green text */
 }
 
 /* Responsive */

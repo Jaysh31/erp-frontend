@@ -3,18 +3,19 @@
 // UPDATED: Added item dropdown with "+ Add New Item" button in item search field
 // UPDATED: Added Quantity field in "Add New Item" popup
 // UPDATED: Removed HSN field from "Add New Item" popup
+// UPDATED: Added VIEW MODE support via URL parameter ?mode=view
 
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { 
-  FaPlus, FaSave, FaSpinner, FaArrowLeft,
+  FaPlus, FaSave, FaSpinner, FaArrowLeft, FaEye,
   FaExclamationCircle, FaExclamationTriangle, FaInfoCircle,
   FaTimesCircle,  FaBuilding,
   FaCalendarAlt, FaFileAlt, FaBoxes, FaClipboardList,
   FaSearch, FaFilter, FaPhone, FaEnvelope,  FaGlobeAsia,
   FaCheckCircle, FaTrash
 } from 'react-icons/fa';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
 import api from '../services/api';
@@ -102,7 +103,7 @@ function DigitInput({
         placeholder={placeholder}
         disabled={disabled}
         required={required}
-        className="digit-input"
+        className={`digit-input ${disabled ? 'digit-input-disabled' : ''}`}
         maxLength={maxLength + (allowDecimal ? 1 : 0)}
       />
     </div>
@@ -227,6 +228,9 @@ const paymentTerms = ['Net 7', 'Net 15', 'Net 30', 'Net 45', 'Net 60', 'Due on R
 export default function PurchaseOrderForm() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
+  const mode = searchParams.get('mode');
+  const isViewMode = mode === 'view';
   const isEdit = Boolean(id) && id !== 'new';
   
   let theme = 'light';
@@ -406,6 +410,8 @@ export default function PurchaseOrderForm() {
 
   // ─── Handle Add New Supplier ──────────────────────────────
   const handleAddNewSupplier = async () => {
+    if (isViewMode) return;
+    
     if (!newSupplier.supplier_name.trim()) {
       toast.error('Supplier name is required');
       return;
@@ -474,6 +480,8 @@ export default function PurchaseOrderForm() {
 
   // ─── Handle Add New Item ──────────────────────────────────
   const handleAddNewItem = async () => {
+    if (isViewMode) return;
+    
     if (!newItem.item_name.trim()) {
       toast.error('Item name is required');
       return;
@@ -716,6 +724,8 @@ export default function PurchaseOrderForm() {
 
   // ─── Handle Item Code Select ─────────────────────────────
   const handleItemCodeSelect = (item: Item) => {
+    if (isViewMode) return;
+    
     setSelectedItemCode(item);
     setItemCodeSearchTerm(`${item.item_code} - ${item.item_name}`);
     setShowItemCodeDropdown(false);
@@ -1081,6 +1091,8 @@ export default function PurchaseOrderForm() {
 
   // ─── Filter items based on search term and group filter ──────────
   const filterItems = (index: number, searchTerm: string) => {
+    if (isViewMode) return;
+    
     let filtered = allItems;
     
     // Apply group filter first
@@ -1109,6 +1121,8 @@ export default function PurchaseOrderForm() {
 
   // ─── Open the item dropdown ────────────────────────────────────────
   const openItemDropdown = (index: number) => {
+    if (isViewMode) return;
+    
     updateDropdownPosition(index);
     const currentItem = formData.items[index];
 
@@ -1124,6 +1138,8 @@ export default function PurchaseOrderForm() {
 
   // ─── Handle per-row tax selection ──────────────────────────────────
   const handleItemTaxChange = (index: number, taxId: string) => {
+    if (isViewMode) return;
+    
     const updatedItems = [...formData.items];
     if (!taxId) {
       updatedItems[index] = { ...updatedItems[index], taxId: '', taxRate: 0 };
@@ -1137,6 +1153,8 @@ export default function PurchaseOrderForm() {
 
   // ─── Handle item search ─────────────────────────────────────────────
   const handleItemSearch = (index: number, value: string) => {
+    if (isViewMode) return;
+    
     setSearchTerms(prev => ({ ...prev, [index]: value }));
 
     // Update the item code in form data immediately so you can see what you're typing
@@ -1189,6 +1207,8 @@ export default function PurchaseOrderForm() {
 
   // ─── Handle item selection from suggestions ──────────────────────
   const handleSelectItem = (index: number, item: ItemSuggestion) => {
+    if (isViewMode) return;
+    
     const updatedItems = [...formData.items];
     const rate = item.standard_rate || item.valuation_rate || 0;
     const quantity = updatedItems[index].quantity || 1;
@@ -1247,6 +1267,8 @@ export default function PurchaseOrderForm() {
 
   // ─── Handle clear item ──────────────────────────────────────────────
   const handleClearItem = (index: number) => {
+    if (isViewMode) return;
+    
     const updatedItems = [...formData.items];
     updatedItems[index] = {
       ...updatedItems[index],
@@ -1400,6 +1422,8 @@ export default function PurchaseOrderForm() {
 
   // ─── Re-filter items when group filter changes ────────────────────
   useEffect(() => {
+    if (isViewMode) return;
+    
     Object.keys(searchTerms).forEach(key => {
       const index = parseInt(key);
       const searchTerm = searchTerms[index] || '';
@@ -1438,6 +1462,8 @@ export default function PurchaseOrderForm() {
 
   // ─── Handlers ──────────────────────────────────────────────────────
   const handleItemChange = (index: number, field: keyof PurchaseOrderItem, value: string | number) => {
+    if (isViewMode) return;
+    
     const updatedItems = [...formData.items];
     const previousItem = formData.items[index];
     updatedItems[index] = { ...updatedItems[index], [field]: value };
@@ -1494,6 +1520,8 @@ export default function PurchaseOrderForm() {
 
   // ✅ FIXED: Handle Digit Input for Quantity - Now supports decimals
   const handleDigitQuantityChange = (index: number, value: string) => {
+    if (isViewMode) return;
+    
     setDigitValues(prev => ({
       ...prev,
       [index]: { ...prev[index], quantity: value }
@@ -1506,6 +1534,8 @@ export default function PurchaseOrderForm() {
 
   // ✅ FIXED: Handle Digit Input for Rate - Already supports decimals
   const handleDigitRateChange = (index: number, value: string) => {
+    if (isViewMode) return;
+    
     setDigitValues(prev => ({
       ...prev,
       [index]: { ...prev[index], rate: value }
@@ -1518,10 +1548,13 @@ export default function PurchaseOrderForm() {
 
   // ─── Handle Adjustment Change ─────────────────────────────────────
   const handleAdjustmentChange = (value: string) => {
+    if (isViewMode) return;
     setGrandTotalAdjustmentValue(value);
   };
 
   const addItemRow = () => {
+    if (isViewMode) return;
+    
     const newId = String(formData.items.length + 1);
     setFormData(prev => ({
       ...prev,
@@ -1556,6 +1589,8 @@ export default function PurchaseOrderForm() {
   };
 
   const removeItemRow = (index: number) => {
+    if (isViewMode) return;
+    
     if (formData.items.length <= 1) return;
     setFormData(prev => ({
       ...prev,
@@ -1586,6 +1621,8 @@ export default function PurchaseOrderForm() {
 
   // ─── Handle supplier selection ─────────────────────────────────────
   const handleSupplierSelect = (supplier: Supplier) => {
+    if (isViewMode) return;
+    
     setFormData(prev => ({
       ...prev,
       supplier: supplier.supplier_name,
@@ -1619,6 +1656,11 @@ export default function PurchaseOrderForm() {
 
   // ─── Submit Handler ────────────────────────────────────────────────
   const handleSubmit = async () => {
+    if (isViewMode) {
+      navigate('/purchase-order');
+      return;
+    }
+    
     setApiError(null);
     
     // ✅ FIXED: Check delivery date separately, don't add to validation errors
@@ -1855,7 +1897,7 @@ export default function PurchaseOrderForm() {
     navigate('/purchase-order');
   };
 
-  const hasErrors = getAllValidationErrors().length > 0 || !formData.deliveryDate;
+  const hasErrors = !isViewMode && (getAllValidationErrors().length > 0 || !formData.deliveryDate);
 
   // ─── Render Add Supplier Popup ─────────────────────────────
   const renderAddSupplierPopup = () => {
@@ -2684,12 +2726,15 @@ export default function PurchaseOrderForm() {
                 onClick={() => handleSupplierSelect(supplier)}
                 style={{
                   padding: '8px 12px',
-                  cursor: 'pointer',
+                  cursor: isViewMode ? 'default' : 'pointer',
                   borderBottom: `1px solid ${theme === 'dark' ? '#2a2a3a' : '#f3f4f6'}`,
                   transition: 'background 0.15s',
+                  opacity: isViewMode ? 0.7 : 1,
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = theme === 'dark' ? '#2a2a3a' : '#f9fafb';
+                  if (!isViewMode) {
+                    e.currentTarget.style.background = theme === 'dark' ? '#2a2a3a' : '#f9fafb';
+                  }
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.background = 'transparent';
@@ -2715,53 +2760,55 @@ export default function PurchaseOrderForm() {
         </div>
 
         {/* ─── PINNED "+ Add New Supplier" footer ─── */}
-        <div 
-          className="pof-supplier-dropdown-footer" 
-          style={{
-            padding: '8px 12px',
-            borderTop: `1px solid ${theme === 'dark' ? '#2a2a3a' : '#f3f4f6'}`,
-            display: 'flex',
-            justifyContent: 'center',
-            background: theme === 'dark' ? '#1a1a2e' : '#fafafa',
-            flexShrink: 0,
-          }}
-        >
-          <button
-            type="button"
-            className="pof-add-new-dropdown-btn"
-            onClick={() => {
-              setShowSupplierDropdown(false);
-              setShowAddSupplierPopup(true);
-            }}
+        {!isViewMode && (
+          <div 
+            className="pof-supplier-dropdown-footer" 
             style={{
+              padding: '8px 12px',
+              borderTop: `1px solid ${theme === 'dark' ? '#2a2a3a' : '#f3f4f6'}`,
               display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              background: 'transparent',
-              border: `1.5px dashed ${primaryColor}`,
-              borderRadius: '6px',
-              color: primaryColor,
-              cursor: 'pointer',
-              fontSize: '12px',
-              fontWeight: 500,
-              padding: '6px 16px',
-              transition: 'all 0.15s',
-              width: '100%',
               justifyContent: 'center',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = `${primaryColor}15`;
-              e.currentTarget.style.borderStyle = 'solid';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'transparent';
-              e.currentTarget.style.borderStyle = 'dashed';
+              background: theme === 'dark' ? '#1a1a2e' : '#fafafa',
+              flexShrink: 0,
             }}
           >
-            <FaPlus size={12} style={{ color: primaryColor }} />
-            Add New Supplier
-          </button>
-        </div>
+            <button
+              type="button"
+              className="pof-add-new-dropdown-btn"
+              onClick={() => {
+                setShowSupplierDropdown(false);
+                setShowAddSupplierPopup(true);
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: 'transparent',
+                border: `1.5px dashed ${primaryColor}`,
+                borderRadius: '6px',
+                color: primaryColor,
+                cursor: 'pointer',
+                fontSize: '12px',
+                fontWeight: 500,
+                padding: '6px 16px',
+                transition: 'all 0.15s',
+                width: '100%',
+                justifyContent: 'center',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = `${primaryColor}15`;
+                e.currentTarget.style.borderStyle = 'solid';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.borderStyle = 'dashed';
+              }}
+            >
+              <FaPlus size={12} style={{ color: primaryColor }} />
+              Add New Supplier
+            </button>
+          </div>
+        )}
       </div>
     );
   };
@@ -2814,12 +2861,15 @@ export default function PurchaseOrderForm() {
                 onClick={() => handleItemCodeSelect(item)}
                 style={{
                   padding: '8px 12px',
-                  cursor: 'pointer',
+                  cursor: isViewMode ? 'default' : 'pointer',
                   borderBottom: `1px solid ${theme === 'dark' ? '#2a2a3a' : '#f3f4f6'}`,
                   transition: 'background 0.15s',
+                  opacity: isViewMode ? 0.7 : 1,
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = theme === 'dark' ? '#2a2a3a' : '#f9fafb';
+                  if (!isViewMode) {
+                    e.currentTarget.style.background = theme === 'dark' ? '#2a2a3a' : '#f9fafb';
+                  }
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.background = 'transparent';
@@ -2845,56 +2895,58 @@ export default function PurchaseOrderForm() {
         </div>
 
         {/* ─── PINNED "+ Add New Item" footer ─── */}
-        <div 
-          className="pof-item-code-dropdown-footer" 
-          style={{
-            padding: '8px 12px',
-            borderTop: `1px solid ${theme === 'dark' ? '#2a2a3a' : '#f3f4f6'}`,
-            display: 'flex',
-            justifyContent: 'center',
-            background: theme === 'dark' ? '#1a1a2e' : '#fafafa',
-            flexShrink: 0,
-          }}
-        >
-          <button
-            type="button"
-            className="pof-add-new-dropdown-btn"
-            onClick={() => {
-              setShowItemCodeDropdown(false);
-              setPendingItemSearch(itemCodeSearchTerm);
-              setActiveRowIndex(0);
-              setNewItem(prev => ({ ...prev, item_name: itemCodeSearchTerm }));
-              setShowAddItemPopup(true);
-            }}
+        {!isViewMode && (
+          <div 
+            className="pof-item-code-dropdown-footer" 
             style={{
+              padding: '8px 12px',
+              borderTop: `1px solid ${theme === 'dark' ? '#2a2a3a' : '#f3f4f6'}`,
               display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              background: 'transparent',
-              border: `1.5px dashed ${primaryColor}`,
-              borderRadius: '6px',
-              color: primaryColor,
-              cursor: 'pointer',
-              fontSize: '12px',
-              fontWeight: 500,
-              padding: '6px 16px',
-              transition: 'all 0.15s',
-              width: '100%',
               justifyContent: 'center',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = `${primaryColor}15`;
-              e.currentTarget.style.borderStyle = 'solid';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'transparent';
-              e.currentTarget.style.borderStyle = 'dashed';
+              background: theme === 'dark' ? '#1a1a2e' : '#fafafa',
+              flexShrink: 0,
             }}
           >
-            <FaPlus size={12} style={{ color: primaryColor }} />
-            Add New Item
-          </button>
-        </div>
+            <button
+              type="button"
+              className="pof-add-new-dropdown-btn"
+              onClick={() => {
+                setShowItemCodeDropdown(false);
+                setPendingItemSearch(itemCodeSearchTerm);
+                setActiveRowIndex(0);
+                setNewItem(prev => ({ ...prev, item_name: itemCodeSearchTerm }));
+                setShowAddItemPopup(true);
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: 'transparent',
+                border: `1.5px dashed ${primaryColor}`,
+                borderRadius: '6px',
+                color: primaryColor,
+                cursor: 'pointer',
+                fontSize: '12px',
+                fontWeight: 500,
+                padding: '6px 16px',
+                transition: 'all 0.15s',
+                width: '100%',
+                justifyContent: 'center',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = `${primaryColor}15`;
+                e.currentTarget.style.borderStyle = 'solid';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.borderStyle = 'dashed';
+              }}
+            >
+              <FaPlus size={12} style={{ color: primaryColor }} />
+              Add New Item
+            </button>
+          </div>
+        )}
       </div>
     );
   };
@@ -2965,10 +3017,13 @@ export default function PurchaseOrderForm() {
                   justifyContent: 'space-between',
                   alignItems: 'center',
                   transition: 'background 0.15s',
+                  opacity: isViewMode ? 0.7 : 1,
                   minHeight: '44px',
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = theme === 'dark' ? '#2a2a3a' : '#f3f4f6';
+                  if (!isViewMode) {
+                    e.currentTarget.style.background = theme === 'dark' ? '#2a2a3a' : '#f3f4f6';
+                  }
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.background = 'transparent';
@@ -2999,7 +3054,7 @@ export default function PurchaseOrderForm() {
         </div>
 
         {/* ─── Sticky "Add New" button at the bottom ─── */}
-        {!loadingItems && (
+        {!isViewMode && !loadingItems && (
           <div 
             className="pof-suggestion-item pof-add-new-suggestion"
             onMouseDown={(e) => {
@@ -3135,11 +3190,30 @@ export default function PurchaseOrderForm() {
           <button onClick={handleCancel} className="pof-back-btn">
             <FaArrowLeft size={9} /> Back
           </button>
-           {/*<div className="pof-header-title">
-           <h1>{isEdit ? 'Edit Purchase Order' : 'New Purchase Order'}</h1>
-            {isEdit && <span className="pof-status-badge">{formData.status}</span>}
-          </div>*/}
-          {hasErrors && (
+          <div className="pof-header-title">
+            <h1>
+              {isViewMode ? 'View Purchase Order' : isEdit ? 'Edit Purchase Order' : 'New Purchase Order'}
+            </h1>
+            {isViewMode && (
+              <span className="pof-view-mode-badge" style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: '#6366f1',
+                color: '#ffffff',
+                padding: '4px 12px',
+                borderRadius: '20px',
+                fontSize: '12px',
+                fontWeight: 500,
+                marginLeft: '12px',
+              }}>
+                <FaEye size={12} />
+                View Mode
+              </span>
+            )}
+            {isEdit && !isViewMode && <span className="pof-status-badge">{formData.status}</span>}
+          </div>
+          {!isViewMode && hasErrors && (
             <div className="pof-error-badge">
               <FaExclamationTriangle size={12} />
               {getAllValidationErrors().length + (formData.deliveryDate ? 0 : 1)} missing field{getAllValidationErrors().length + (formData.deliveryDate ? 0 : 1) !== 1 ? 's' : ''}
@@ -3175,14 +3249,17 @@ export default function PurchaseOrderForm() {
                             type="text"
                             value={supplierSearchTerm}
                             onChange={(e) => {
+                              if (isViewMode) return;
                               setSupplierSearchTerm(e.target.value);
                               setShowSupplierDropdown(true);
                               setFormData(prev => ({ ...prev, supplier: e.target.value, supplierCode: '' }));
                             }}
-                            onFocus={() => setShowSupplierDropdown(true)}
-                            className={`pof-form-field ${validationErrors.some(e => e.field === 'supplier') ? 'pof-field-error' : ''}`}
+                            onFocus={() => {
+                              if (!isViewMode) setShowSupplierDropdown(true);
+                            }}
+                            className={`pof-form-field ${validationErrors.some(e => e.field === 'supplier') ? 'pof-field-error' : ''} ${isViewMode ? 'pof-field-disabled' : ''}`}
                             placeholder="Search supplier..."
-                            disabled={loadingSuppliers}
+                            disabled={isViewMode || loadingSuppliers}
                             autoComplete="off"
                           />
                           {loadingSuppliers && <FaSpinner className="pof-supplier-spinner pof-spinning" size={14} />}
@@ -3207,9 +3284,13 @@ export default function PurchaseOrderForm() {
                         <input
                           type="text"
                           value={formData.title}
-                          onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                          className="pof-form-field"
+                          onChange={(e) => {
+                            if (isViewMode) return;
+                            setFormData(prev => ({ ...prev, title: e.target.value }));
+                          }}
+                          className={`pof-form-field ${isViewMode ? 'pof-field-disabled' : ''}`}
                           placeholder="Enter PO title (optional)"
+                          disabled={isViewMode}
                         />
                       </div>
                     </div>
@@ -3229,8 +3310,12 @@ export default function PurchaseOrderForm() {
                       <label>Status</label>
                       <select
                         value={formData.status}
-                        onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as any }))}
-                        className="pof-form-field"
+                        onChange={(e) => {
+                          if (isViewMode) return;
+                          setFormData(prev => ({ ...prev, status: e.target.value as any }));
+                        }}
+                        className={`pof-form-field ${isViewMode ? 'pof-field-disabled' : ''}`}
+                        disabled={isViewMode}
                       >
                         {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
@@ -3244,6 +3329,7 @@ export default function PurchaseOrderForm() {
                         <DatePicker
                           selected={startDate}
                           onChange={(date: Date | null) => {
+                            if (isViewMode) return;
                             if (date) {
                               setStartDate(date);
                               const formattedDate = date.toISOString().split('T')[0];
@@ -3251,12 +3337,13 @@ export default function PurchaseOrderForm() {
                             }
                           }}
                           dateFormat="dd/MM/yyyy"
-                          className={`pof-form-field ${validationErrors.some(e => e.field === 'orderDate') ? 'pof-field-error' : ''}`}
+                          className={`pof-form-field ${validationErrors.some(e => e.field === 'orderDate') ? 'pof-field-error' : ''} ${isViewMode ? 'pof-field-disabled' : ''}`}
                           placeholderText="Select order date"
                           maxDate={new Date()}
                           showMonthDropdown
                           showYearDropdown
                           dropdownMode="select"
+                          disabled={isViewMode}
                         />
                         <FaCalendarAlt className="pof-calendar-icon" />
                       </div>
@@ -3272,6 +3359,7 @@ export default function PurchaseOrderForm() {
                         <DatePicker
                           selected={deliveryDate}
                           onChange={(date: Date | null) => {
+                            if (isViewMode) return;
                             if (date) {
                               setDeliveryDate(date);
                               const formattedDate = date.toISOString().split('T')[0];
@@ -3282,17 +3370,18 @@ export default function PurchaseOrderForm() {
                             }
                           }}
                           dateFormat="dd/MM/yyyy"
-                          className={`pof-form-field ${!formData.deliveryDate ? 'pof-field-error' : ''}`}
+                          className={`pof-form-field ${!formData.deliveryDate && !isViewMode ? 'pof-field-error' : ''} ${isViewMode ? 'pof-field-disabled' : ''}`}
                           placeholderText="Select delivery date"
                           minDate={startDate || new Date()}
                           showMonthDropdown
                           showYearDropdown
                           dropdownMode="select"
                           isClearable
+                          disabled={isViewMode}
                         />
                         <FaCalendarAlt className="pof-calendar-icon" />
                       </div>
-                      {!formData.deliveryDate && (
+                      {!formData.deliveryDate && !isViewMode && (
                         <span className="pof-error-msg">
                           <FaExclamationCircle size={10} />Delivery date is required
                         </span>
@@ -3305,8 +3394,12 @@ export default function PurchaseOrderForm() {
                       <label>Payment Terms</label>
                       <select
                         value={formData.paymentTerms}
-                        onChange={(e) => setFormData(prev => ({ ...prev, paymentTerms: e.target.value }))}
-                        className="pof-form-field"
+                        onChange={(e) => {
+                          if (isViewMode) return;
+                          setFormData(prev => ({ ...prev, paymentTerms: e.target.value }));
+                        }}
+                        className={`pof-form-field ${isViewMode ? 'pof-field-disabled' : ''}`}
+                        disabled={isViewMode}
                       >
                         {paymentTerms.map(p => <option key={p} value={p}>{p}</option>)}
                       </select>
@@ -3323,17 +3416,21 @@ export default function PurchaseOrderForm() {
                           type="text"
                           value={itemCodeSearchTerm}
                           onChange={(e) => {
+                            if (isViewMode) return;
                             setItemCodeSearchTerm(e.target.value);
                             setShowItemCodeDropdown(true);
                             setSelectedItemCode(null);
                           }}
                           onFocus={() => {
-                            setShowItemCodeDropdown(true);
-                            fetchItemCodeOptions();
+                            if (!isViewMode) {
+                              setShowItemCodeDropdown(true);
+                              fetchItemCodeOptions();
+                            }
                           }}
-                          className="pof-form-field"
+                          className={`pof-form-field ${isViewMode ? 'pof-field-disabled' : ''}`}
                           placeholder="Search item by code or name..."
                           autoComplete="off"
+                          disabled={isViewMode}
                         />
                         {loadingItemCode && <FaSpinner className="pof-supplier-spinner pof-spinning" size={14} />}
                         
@@ -3419,11 +3516,13 @@ export default function PurchaseOrderForm() {
                 <span className="pof-section-title">
                   <FaBoxes className="pof-section-icon" /> Items <span className="pof-required">*</span>
                 </span>
-                <div className="pof-items-actions">
-                  <button type="button" className="pof-add-item-btn" onClick={addItemRow}>
-                    <FaPlus size={10} /> Add Item
-                  </button>
-                </div>
+                {!isViewMode && (
+                  <div className="pof-items-actions">
+                    <button type="button" className="pof-add-item-btn" onClick={addItemRow}>
+                      <FaPlus size={10} /> Add Item
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Item Group Filter */}
@@ -3433,7 +3532,8 @@ export default function PurchaseOrderForm() {
                 <select
                   value={itemGroupFilter}
                   onChange={(e) => setItemGroupFilter(e.target.value)}
-                  className="pof-filter-select"
+                  className={`pof-filter-select ${isViewMode ? 'pof-field-disabled' : ''}`}
+                  disabled={isViewMode}
                 >
                   <option value="all">All Groups</option>
                   {itemGroups.map(group => (
@@ -3472,12 +3572,11 @@ export default function PurchaseOrderForm() {
                           <div className="pof-item-search-wrapper">
                             <input
                               ref={(el) => { inputRefs.current[index] = el; }}
-                              className="pof-cell-input"
+                              className={`pof-cell-input ${isViewMode ? 'pof-field-disabled' : ''}`}
                               type="text"
                               value={item.itemCode}
                               onChange={(e) => {
                                 const value = e.target.value;
-                                // Directly update the item code so you can see what you type
                                 handleItemSearch(index, value);
                               }}
                               placeholder="Search by item code or name"
@@ -3491,11 +3590,12 @@ export default function PurchaseOrderForm() {
                                   handleClearItem(index);
                                 }
                               }}
+                              disabled={isViewMode}
                             />
                             {loadingItems && (
                               <FaSpinner className="pof-spinning pof-search-spinner" size={14} />
                             )}
-                            {item.itemCode && !loadingItems && (
+                            {item.itemCode && !loadingItems && !isViewMode && (
                               <button 
                                 className="pof-clear-item-btn"
                                 onClick={() => handleClearItem(index)}
@@ -3515,28 +3615,32 @@ export default function PurchaseOrderForm() {
                         </td>
                         <td className="pof-itd pof-itd-name" data-label="Item Name *">
                           <input
-                            className="pof-cell-input"
+                            className={`pof-cell-input ${isViewMode ? 'pof-field-disabled' : ''}`}
                             type="text"
                             value={item.itemName}
                             onChange={(e) => {
+                              if (isViewMode) return;
                               const updatedItems = [...formData.items];
                               updatedItems[index] = { ...updatedItems[index], itemName: e.target.value };
                               setFormData(prev => ({ ...prev, items: updatedItems }));
                             }}
                             placeholder="Name"
+                            disabled={isViewMode}
                           />
                         </td>
                         <td className="pof-itd" data-label="HSN">
                           <input
-                            className="pof-cell-input"
+                            className={`pof-cell-input ${isViewMode ? 'pof-field-disabled' : ''}`}
                             type="text"
                             value={item.hsn || ''}
                             onChange={(e) => {
+                              if (isViewMode) return;
                               const updatedItems = [...formData.items];
                               updatedItems[index] = { ...updatedItems[index], hsn: e.target.value };
                               setFormData(prev => ({ ...prev, items: updatedItems }));
                             }}
                             placeholder="HSN"
+                            disabled={isViewMode}
                           />
                         </td>
                         <td className="pof-itd" data-label="Qty *">
@@ -3549,6 +3653,7 @@ export default function PurchaseOrderForm() {
                             className="pof-digit-input"
                             allowDecimal={true}
                             min={0}
+                            disabled={isViewMode}
                           />
                         </td>
                         <td className="pof-itd" data-label="UOM">
@@ -3563,17 +3668,18 @@ export default function PurchaseOrderForm() {
                             onChange={(val) => handleDigitRateChange(index, val)}
                             placeholder="Rate"
                             maxLength={15}
-                            className="pof-digit-input pof-rate-input"
+                            className={`pof-digit-input pof-rate-input ${isViewMode ? 'pof-field-disabled' : ''}`}
                             allowDecimal={true}
                             min={0}
+                            disabled={isViewMode}
                           />
                         </td>
                         <td className="pof-itd" data-label="Tax">
                           <select
-                            className="pof-cell-select pof-tax-select"
+                            className={`pof-cell-select pof-tax-select ${isViewMode ? 'pof-field-disabled' : ''}`}
                             value={item.taxId || ''}
                             onChange={(e) => handleItemTaxChange(index, e.target.value)}
-                            disabled={loadingTaxes}
+                            disabled={isViewMode || loadingTaxes}
                           >
                             <option value="">No Tax</option>
                             {taxOptions.map(tax => {
@@ -3633,9 +3739,13 @@ export default function PurchaseOrderForm() {
                       <td className="pof-total-amount pof-adjustment-cell">
                         <div className="pof-adjustment-controls">
                           <select
-                            className="pof-adjustment-sign-select"
+                            className={`pof-adjustment-sign-select ${isViewMode ? 'pof-field-disabled' : ''}`}
                             value={grandTotalAdjustmentSign}
-                            onChange={(e) => setGrandTotalAdjustmentSign(e.target.value)}
+                            onChange={(e) => {
+                              if (isViewMode) return;
+                              setGrandTotalAdjustmentSign(e.target.value);
+                            }}
+                            disabled={isViewMode}
                           >
                             <option value="positive">+ Add</option>
                             <option value="negative">- Deduct</option>
@@ -3645,9 +3755,10 @@ export default function PurchaseOrderForm() {
                             onChange={handleAdjustmentChange}
                             placeholder="0.00"
                             maxLength={15}
-                            className="pof-adjustment-digit-input"
+                            className={`pof-adjustment-digit-input ${isViewMode ? 'pof-field-disabled' : ''}`}
                             allowDecimal={true}
                             min={0}
+                            disabled={isViewMode}
                           />
                           <span className="pof-adjustment-result">
                             = {formData.currency} {adjustmentValue.toFixed(2)}
@@ -3681,10 +3792,14 @@ export default function PurchaseOrderForm() {
               <div className="pof-info-field" style={{ gridColumn: '1 / -1' }}>
                 <textarea
                   value={formData.notes}
-                  onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-                  className="pof-form-field pof-textarea"
+                  onChange={(e) => {
+                    if (isViewMode) return;
+                    setFormData(prev => ({ ...prev, notes: e.target.value }));
+                  }}
+                  className={`pof-form-field pof-textarea ${isViewMode ? 'pof-field-disabled' : ''}`}
                   placeholder="Additional notes..."
                   rows={3}
+                  disabled={isViewMode}
                 />
               </div>
             </div>
@@ -3699,17 +3814,19 @@ export default function PurchaseOrderForm() {
               className="pof-cancel-btn"
               disabled={loading}
             >
-              Cancel
+              {isViewMode ? 'Back to List' : 'Cancel'}
             </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="pof-submit-btn"
-            >
-              {loading && <FaSpinner className="pof-spinning" />}
-              <FaSave size={12} />
-              {isEdit ? 'Update' : 'Create'}
-            </button>
+            {!isViewMode && (
+              <button
+                type="submit"
+                disabled={loading}
+                className="pof-submit-btn"
+              >
+                {loading && <FaSpinner className="pof-spinning" />}
+                <FaSave size={12} />
+                {isEdit ? 'Update' : 'Create'}
+              </button>
+            )}
           </div>
         </form>
       </div>

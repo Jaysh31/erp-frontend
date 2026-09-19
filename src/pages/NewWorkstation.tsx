@@ -61,9 +61,10 @@ const STATUS_OPTIONS = [
 interface NewWorkstationProps {
   onBack?: () => void;
   editData?: WorkstationFormData | null;
+  isViewMode?: boolean;
 }
 
-const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => {
+const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData, isViewMode = false }) => {
   const [saving, setSaving] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -306,6 +307,9 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
   const handleChange = (field: keyof WorkstationFormData) => (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => {
+    // If in view mode, prevent changes
+    if (isViewMode) return;
+
     const value = e.target.type === 'checkbox' 
       ? (e.target as HTMLInputElement).checked ? 1 : 0
       : e.target.value;
@@ -339,6 +343,7 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
   // ─── Add new workstation type ────────────────────────────────────────────
 
   const handleAddType = () => {
+    if (isViewMode) return;
     if (newType.trim() && !workstationTypes.includes(newType.trim())) {
       if (!isValidAlphabetOnly(newType.trim())) {
         alert('Workstation type should contain only alphabets and spaces');
@@ -356,6 +361,7 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
   // ─── Add new plant floor ─────────────────────────────────────────────────
 
   const handleAddFloor = () => {
+    if (isViewMode) return;
     if (newFloor.trim() && !plantFloors.includes(newFloor.trim())) {
       if (!isValidAlphabetOnly(newFloor.trim())) {
         alert('Plant floor should contain only alphabets and spaces');
@@ -373,6 +379,7 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
   // ─── Holiday management ──────────────────────────────────────────────────
 
   const handleAddHoliday = () => {
+    if (isViewMode) return;
     if (holidayDate) {
       const holiday = holidayDescription 
         ? `${holidayDate} - ${holidayDescription}`
@@ -390,6 +397,7 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
   };
 
   const handleRemoveHoliday = (holiday: string) => {
+    if (isViewMode) return;
     setSelectedHolidays(prev => prev.filter(h => h !== holiday));
     setFormData(prev => ({
       ...prev,
@@ -398,12 +406,15 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
   };
 
   const toggleHolidayPicker = () => {
+    if (isViewMode) return;
     setShowHolidayPicker(!showHolidayPicker);
   };
 
   // ─── Save handler ─────────────────────────────────────────────────────────
 
   const handleSave = async () => {
+    if (isViewMode) return;
+    
     const allErrors = validateAllFields();
     if (Object.keys(allErrors).length > 0) {
       setErrors(allErrors);
@@ -492,7 +503,7 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
             <li className="nws-breadcrumb__item nws-breadcrumb__item--active" aria-current="page">
               <span className="nws-breadcrumb__current">
                 <span className="nws-breadcrumb__current-dot" />
-                {isEditMode ? 'Edit' : 'New'} Workstation
+                {isViewMode ? 'View' : isEditMode ? 'Edit' : 'New'} Workstation
               </span>
             </li>
           </ol>
@@ -504,13 +515,18 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
               {apiError}
             </div>
           )}
-          {hasErrors && (
+          {isViewMode && (
+            <span className="nws-badge--viewonly">View Only</span>
+          )}
+          {!isViewMode && hasErrors && (
             <div className="nws-error-pill">
               <AlertTriangle size={11} />
               {Object.keys(validateAllFields()).length} missing field{Object.keys(validateAllFields()).length > 1 ? "s" : ""}
             </div>
           )}
-          <span className="nws-badge--unsaved">Not Saved</span>
+          {!isViewMode && !hasErrors && isEditMode && (
+            <span className="nws-badge--unsaved">Not Saved</span>
+          )}
         </div>
       </div>
 
@@ -529,13 +545,15 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
               <div className="nws-field">
                 <label className="nws-label required-star">Workstation Name</label>
                 <input
-                  className="nws-input"
+                  className={`nws-input ${isViewMode ? 'nws-input-readonly' : ''}`}
                   value={formData.workstation_name}
                   onChange={handleChange('workstation_name')}
                   placeholder="Enter workstation name..."
                   maxLength={50}
+                  readOnly={isViewMode}
+                  disabled={isViewMode}
                 />
-                {errors.workstation_name && (
+                {errors.workstation_name && !isViewMode && (
                   <span className="nws-error-text">{errors.workstation_name}</span>
                 )}
               </div>
@@ -544,16 +562,17 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
                 <label className="nws-label required-star">Workstation Type</label>
                 <div className="nws-select-with-add">
                   <select
-                    className="nws-input nws-select-no-arrow"
+                    className={`nws-input nws-select-no-arrow ${isViewMode ? 'nws-input-readonly' : ''}`}
                     value={formData.workstation_type}
                     onChange={handleChange('workstation_type')}
+                    disabled={isViewMode}
                   >
                     <option value="">Select type...</option>
                     {workstationTypes.map(type => (
                       <option key={type} value={type}>{type}</option>
                     ))}
                   </select>
-                  {!showNewTypeInput ? (
+                  {!isViewMode && !showNewTypeInput ? (
                     <button 
                       className="nws-add-btn"
                       onClick={() => setShowNewTypeInput(true)}
@@ -561,7 +580,7 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
                     >
                       <Plus size={16} />
                     </button>
-                  ) : (
+                  ) : !isViewMode && showNewTypeInput ? (
                     <div className="nws-add-input-group">
                       <input
                         className="nws-input nws-add-input"
@@ -581,9 +600,9 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
                         <X size={14} />
                       </button>
                     </div>
-                  )}
+                  ) : null}
                 </div>
-                {errors.workstation_type && (
+                {errors.workstation_type && !isViewMode && (
                   <span className="nws-error-text">{errors.workstation_type}</span>
                 )}
               </div>
@@ -592,15 +611,16 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
                 <label className="nws-label required-star">Plant Floor</label>
                 <div className="nws-select-with-add">
                   <select
-                    className="nws-input nws-select-no-arrow"
+                    className={`nws-input nws-select-no-arrow ${isViewMode ? 'nws-input-readonly' : ''}`}
                     value={formData.plant_floor}
                     onChange={handleChange('plant_floor')}
+                    disabled={isViewMode}
                   >
                     {plantFloors.map(floor => (
                       <option key={floor} value={floor}>{floor}</option>
                     ))}
                   </select>
-                  {!showNewFloorInput ? (
+                  {!isViewMode && !showNewFloorInput ? (
                     <button 
                       className="nws-add-btn"
                       onClick={() => setShowNewFloorInput(true)}
@@ -608,7 +628,7 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
                     >
                       <Plus size={16} />
                     </button>
-                  ) : (
+                  ) : !isViewMode && showNewFloorInput ? (
                     <div className="nws-add-input-group">
                       <input
                         className="nws-input nws-add-input"
@@ -628,9 +648,9 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
                         <X size={14} />
                       </button>
                     </div>
-                  )}
+                  ) : null}
                 </div>
-                {errors.plant_floor && (
+                {errors.plant_floor && !isViewMode && (
                   <span className="nws-error-text">{errors.plant_floor}</span>
                 )}
               </div>
@@ -638,15 +658,16 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
               <div className="nws-field">
                 <label className="nws-label required-star">Status</label>
                 <select
-                  className="nws-input nws-select-no-arrow"
+                  className={`nws-input nws-select-no-arrow ${isViewMode ? 'nws-input-readonly' : ''}`}
                   value={formData.status}
                   onChange={handleChange('status')}
+                  disabled={isViewMode}
                 >
                   {STATUS_OPTIONS.map(status => (
                     <option key={status} value={status}>{status}</option>
                   ))}
                 </select>
-                {errors.status && (
+                {errors.status && !isViewMode && (
                   <span className="nws-error-text">{errors.status}</span>
                 )}
               </div>
@@ -667,39 +688,45 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
               <div className="nws-field">
                 <label className="nws-label required-star">Production Capacity</label>
                 <input
-                  className="nws-input"
+                  className={`nws-input ${isViewMode ? 'nws-input-readonly' : ''}`}
                   type="text"
                   value={formData.production_capacity}
                   onChange={handleChange('production_capacity')}
                   placeholder="Enter production capacity..."
+                  readOnly={isViewMode}
+                  disabled={isViewMode}
                 />
-                {errors.production_capacity && (
+                {errors.production_capacity && !isViewMode && (
                   <span className="nws-error-text">{errors.production_capacity}</span>
                 )}
               </div>
               <div className="nws-field">
                 <label className="nws-label required-star">Hour Rate (₹)</label>
                 <input
-                  className="nws-input"
+                  className={`nws-input ${isViewMode ? 'nws-input-readonly' : ''}`}
                   type="text"
                   value={formData.hour_rate}
                   onChange={handleChange('hour_rate')}
                   placeholder="0.00"
+                  readOnly={isViewMode}
+                  disabled={isViewMode}
                 />
-                {errors.hour_rate && (
+                {errors.hour_rate && !isViewMode && (
                   <span className="nws-error-text">{errors.hour_rate}</span>
                 )}
               </div>
               <div className="nws-field">
                 <label className="nws-label required-star">Total Working Hours (per day)</label>
                 <input
-                  className="nws-input"
+                  className={`nws-input ${isViewMode ? 'nws-input-readonly' : ''}`}
                   type="text"
                   value={formData.total_working_hours}
                   onChange={handleChange('total_working_hours')}
                   placeholder="8"
+                  readOnly={isViewMode}
+                  disabled={isViewMode}
                 />
-                {errors.total_working_hours && (
+                {errors.total_working_hours && !isViewMode && (
                   <span className="nws-error-text">{errors.total_working_hours}</span>
                 )}
               </div>
@@ -720,9 +747,10 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
               <div className="nws-field">
                 <label className="nws-label required-star">Warehouse</label>
                 <select
-                  className="nws-input nws-select-no-arrow"
+                  className={`nws-input nws-select-no-arrow ${isViewMode ? 'nws-input-readonly' : ''}`}
                   value={formData.warehouse}
                   onChange={handleChange('warehouse')}
+                  disabled={isViewMode}
                 >
                   <option value="">Select warehouse...</option>
                   {warehouses.map(warehouse => (
@@ -732,7 +760,7 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
                   ))}
                   <option value="Other">Other (Enter manually)</option>
                 </select>
-                {formData.warehouse === 'Other' && (
+                {formData.warehouse === 'Other' && !isViewMode && (
                   <input
                     className="nws-input"
                     value={formData.warehouse}
@@ -741,7 +769,16 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
                     style={{ marginTop: 8 }}
                   />
                 )}
-                {errors.warehouse && (
+                {formData.warehouse === 'Other' && isViewMode && (
+                  <input
+                    className={`nws-input nws-input-readonly`}
+                    value={formData.warehouse}
+                    readOnly
+                    disabled
+                    style={{ marginTop: 8 }}
+                  />
+                )}
+                {errors.warehouse && !isViewMode && (
                   <span className="nws-error-text">{errors.warehouse}</span>
                 )}
               </div>
@@ -749,15 +786,25 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
                 <label className="nws-label">Holiday List</label>
                 <div className="nws-holiday-container" ref={holidayContainerRef}>
                   <button 
-                    className="nws-holiday-toggle"
+                    className={`nws-holiday-toggle ${isViewMode ? 'nws-holiday-toggle-readonly' : ''}`}
                     onClick={toggleHolidayPicker}
                     type="button"
+                    disabled={isViewMode}
                   >
                     <Calendar size={16} />
                     {selectedHolidays.length > 0 
                       ? `${selectedHolidays.length} holidays selected`
                       : formData.holiday_list || 'Select holidays'}
                   </button>
+                  {isViewMode && selectedHolidays.length > 0 && (
+                    <div className="nws-holiday-view-list" style={{ marginTop: 8 }}>
+                      {selectedHolidays.map((holiday, index) => (
+                        <span key={index} className="nws-holiday-view-item">
+                          {holiday}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -775,11 +822,13 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
           <div className="nws-card__body">
             <div className="nws-field">
               <textarea
-                className="nws-textarea"
+                className={`nws-textarea ${isViewMode ? 'nws-input-readonly' : ''}`}
                 value={formData.description}
                 onChange={handleChange('description')}
                 placeholder="Enter workstation description..."
                 rows={4}
+                readOnly={isViewMode}
+                disabled={isViewMode}
               />
             </div>
           </div>
@@ -789,15 +838,28 @@ const NewWorkstation: React.FC<NewWorkstationProps> = ({ onBack, editData }) => 
       {/* ── Footer ─────────────────────────────────────────────── */}
       <div className="nws-footer-row">
         <button type="button" className="nws-footer-btn nws-footer-btn--secondary" onClick={onBack}>
-          Cancel
+          {isViewMode ? 'Close' : 'Cancel'}
         </button>
-        <button type="button" className="nws-footer-btn nws-footer-btn--primary" onClick={handleSave} disabled={saving}>
-          <Save size={14} /> {saving ? 'Saving...' : (isEditMode ? 'Update Workstation' : 'Create Workstation')}
-        </button>
+        {!isViewMode && (
+          <button type="button" className="nws-footer-btn nws-footer-btn--primary" onClick={handleSave} disabled={saving}>
+            <Save size={14} /> {saving ? 'Saving...' : (isEditMode ? 'Update Workstation' : 'Create Workstation')}
+          </button>
+        )}
+        {isViewMode && isEditMode && (
+          <button 
+            type="button" 
+            className="nws-footer-btn nws-footer-btn--primary" 
+            onClick={() => {
+              if (onBack) onBack();
+            }}
+          >
+            Close
+          </button>
+        )}
       </div>
 
       {/* ── Holiday Picker Portal (moved to end) ────────────────────── */}
-      {showHolidayPicker && createPortal(
+      {showHolidayPicker && !isViewMode && createPortal(
         <div 
           className="nws-holiday-picker-portal"
           ref={holidayPickerRef}
