@@ -326,10 +326,23 @@ export default function Sidebar({
         window.location.href = target.href;
       }, 350);
     }
-    if (window.innerWidth < 768 && onClose) {
+  
+
+      if (onClose) {
       onClose();
     }
   };
+
+  // Close sidebar on Escape key press
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen && onClose) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   // ─── Top level items (Home & Dashboard) ──────────────────────────────
   const topLevelItems: MenuItem[] = [
@@ -572,8 +585,13 @@ export default function Sidebar({
             </div>
             <div className="logo-text">ChandraTara Ind</div>
           </div>
-          {onClose && (
-            <button className="mobile-close-btn" onClick={onClose}>
+           {onClose && (
+            <button 
+              className="mobile-close-btn" 
+              onClick={onClose}
+              aria-label="Close sidebar"
+              title="Close sidebar"
+            >
               ×
             </button>
           )}
@@ -692,6 +710,7 @@ export default function Sidebar({
       </aside>
 
       {/* Toggle Button */}
+      {isOpen && onToggleMinimize && (
       <button 
         className={`sidebar-toggle-btn ${isMinimized ? 'minimized' : 'expanded'}`}
         onClick={onToggleMinimize}
@@ -705,6 +724,7 @@ export default function Sidebar({
           {isMinimized ? 'Expand' : 'Minimize'}
         </span>
       </button>
+      )}
     </>
   );
 }

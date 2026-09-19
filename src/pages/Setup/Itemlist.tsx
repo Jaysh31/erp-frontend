@@ -13,10 +13,15 @@ import {
   FaTrash,
   FaCalendarAlt,
   FaFileExcel,
+  FaChevronDown
 } from 'react-icons/fa';
 import "./ItemList.css";
+import '../Sales/SalesMobileTable.css';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
+import { PageLoader } from "../components/PageLoader";
+import { span } from "framer-motion/client";
+
 
 interface Item {
   id: number;
@@ -63,6 +68,20 @@ export default function ItemList() {
   const [totalItems, setTotalItems] = useState(0);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [allItems, setAllItems] = useState<Item[]>([]);
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+
+  const toggleRowExpand = (id: number, event?: React.MouseEvent) => {
+    event?.stopPropagation();
+    setExpandedRows((previous) => {
+      const next = new Set(previous);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
   // ===== DATE FILTER STATES =====
   const [fromDate, setFromDate] = useState<string>('');
@@ -456,6 +475,17 @@ export default function ItemList() {
   const handleBulkUpload = () => {
     navigate("/item-bulk-upload");
   };
+   // ─── Loading Screen ─────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
+        <PageLoader 
+          message="Loading Setup & Item List..." 
+          //subtitle="Calculating bill of materials, operations rates, and component structures"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className={`itl-page ${theme}`}>
@@ -894,7 +924,7 @@ export default function ItemList() {
           align-items: center;
           gap: 6px;
           height: 38px;
-          padding: 0 14px;
+          padding: 8 14px;
           border: 1px solid var(--border-color, #e5e7eb);
           border-radius: 8px;
           background: var(--card-bg, white);
@@ -1442,7 +1472,7 @@ export default function ItemList() {
             )}
           </div>
         </div>
-        <div className="itl-filter-right">
+        <div className="bom-filter-right">
           <select
             value={statusFilter}
             onChange={(e) => {
@@ -1490,7 +1520,7 @@ export default function ItemList() {
             {showDatePicker && (
               <div className="itl-date-picker-popup">
                 <div className="itl-popup-header">
-                  <span className="itl-popup-title">Filter by Date</span>
+                  <span className="itl-popup-title">Filter Date</span>
                   <button className="itl-popup-close" onClick={() => setShowDatePicker(false)}>
                     <FaTimes size={14} />
                   </button>
@@ -1589,17 +1619,19 @@ export default function ItemList() {
             )}
           </div>
 
+          
           <button className="itl-btn-secondary" onClick={handleBulkUpload}>
             <FaFileExcel size={13} />
             Bulk Upload
           </button>
-          <button className="itl-btn-primary" onClick={handleAddItem}>
+         
+        </div>
+         <button className="itl-btn-primary" onClick={handleAddItem}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
               <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
             </svg>
             Add Item
           </button>
-        </div>
       </div>
 
       {/* Active filters indicator */}
@@ -1655,12 +1687,12 @@ export default function ItemList() {
       {/* Table */}
       {!loading && !error && (
         <>
-          <div className="itl-table-wrap">
+          <div className="itl-table-wrap sales-desktop-table-wrap">
             <table className="itl-table">
               <thead>
                 <tr>
                   <th className="itl-th">Item Code</th>
-                  <th className="itl-th">Item Name</th>
+                  {/* <th className="itl-th">Item Name</th> */}
                   <th className="itl-th">Status</th>
                   <th className="itl-th">Item Group</th>
                   <th className="itl-th">UOM</th>
@@ -1699,7 +1731,7 @@ export default function ItemList() {
                       onClick={() => handleRowClick(row)}
                     >
                       <td className="itl-td itl-td-code">{row.item_code}</td>
-                      <td className="itl-td itl-td-name">{row.item_name}</td>
+                      {/* <td className="itl-td itl-td-name">{row.item_name}</td> */}
                       <td className="itl-td">
                         <span className={`itl-status-badge itl-status-${row.disabled === 0 ? 'enabled' : 'disabled'}`}>
                           {row.disabled === 0 ? 'Enabled' : 'Disabled'}
@@ -1740,7 +1772,137 @@ export default function ItemList() {
             </table>
           </div>
 
-          {/* ✅ Pagination Section - Single line layout */}
+          {/* Mobile Table Section (Customer, Status + Dropdown Button -> Date, Amount, Actions) */}
+                    <div className="sales-mobile-list-wrap">
+                      <div className="sales-mobile-list-header">
+                        <div className="sales-mobile-th-primary">
+                          <span className="sales-mobile-th-cell">Customer</span>
+                          <span className="sales-mobile-th-sep">•</span>
+                          <span className="sales-mobile-th-cell">Status</span>
+                        </div>
+                        <div className="sales-mobile-th-right">
+                          <span className="sales-count-label">
+                            {totalItems > 0
+                        ? `${getStartIndex()}–${getEndIndex()}`
+                        : '0'} of {totalItems}
+                          </span>
+                        </div>
+                      </div>
+          
+                      {items.length === 0 ? (
+                        <div className="itl-empty-state">
+                          <div className="itl-empty-content">
+                            <p>No Items found</p>
+                            <span>Try adjusting your search criteria</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="sales-mobile-cards">
+                          {items.map((row) => {
+                            const isExpanded = expandedRows.has(row.id);
+
+
+
+
+                            return (
+                              <div
+                                key={row.id}
+                                className={`sales-mobile-card ${isExpanded ? "sales-mobile-card-expanded" : ""}`}
+                              >
+                                <div
+                                  className="sales-mobile-card-header"
+                                  onClick={() => toggleRowExpand(row.id)}
+                                >
+                                  <div className="sales-mobile-card-primary">
+                                    <div className="sales-mobile-card-primary-row">
+                                      <span
+                                        className="sales-mobile-item-name"
+                                      >
+                                        {row.item_code}
+                                      </span>
+                                      <span className="sales-mobile-header-badge">
+                                        <span className="itl-td">
+                                          {row.item_group}
+                                        </span>
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    className={`sales-mobile-dropdown-btn ${isExpanded ? "expanded" : ""}`}
+                                    onClick={(e) => toggleRowExpand(row.id, e)}
+                                    aria-label={isExpanded ? "Collapse item details" : "Expand item details"}
+                                    title={isExpanded ? "Collapse" : "Expand"}
+                                  >
+                                    <FaChevronDown size={13} className="sales-mobile-chevron" />
+                                  </button>
+                                </div>
+
+                                {isExpanded && (
+                                  <div className="sales-mobile-card-details">
+                                    <div className="sales-mobile-detail-row">
+                                       <span className="sales-mobile-detail-label">Status</span>
+                                      <span className={`itl-status-badge itl-status-${row.disabled === 0 ? 'enabled' : 'disabled'}`}>
+                          {row.disabled === 0 ? 'Enabled' : 'Disabled'}
+                        </span>
+                        </div>
+
+
+                                    <div className="sales-mobile-detail-row">
+                                      <span className="sales-mobile-detail-label">UOM</span>
+                                      <span className="sales-mobile-detail-value">{row.stock_uom}</span>
+                                    </div>
+
+                                    
+                                    <div className="sales-mobile-detail-row">
+                                      <span className="sales-mobile-detail-label">Type</span>
+                                      <span className="sales-mobile-detail-value"> {row.is_stock_item === 1 ? 'Stock' : 'Non-Stock'}</span>
+                                    </div>
+
+                                    <div className="sales-mobile-detail-footer">
+                                      <span className="sales-mobile-card-meta-text">
+                                        {/*rowNumber} of {totalItems*/}
+                                      </span>
+                                      <div className="sales-mobile-action-buttons">
+                                        
+                                        <button
+                                          className="qt-action-btn qt-action-edit"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleEditItem(row, e);
+                                          }}
+                                          title="Edit"
+                                        >
+                                          <FaEdit size={12} />
+                                        </button>
+                                        <button
+                                          className="qt-action-btn qt-action-delete"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDeleteItem(row.id, e);
+                                          }}
+                                          title="Delete"
+                                          disabled={deletingId === row.id}
+                                        >
+                                          {deletingId === row.id ? (
+                                            <FaSpinner className="spinning" size={12} />
+                                          ) : (
+                                            <FaTrash size={12} />
+                                          )}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+          {/* Pagination */}
           {(totalItems > 0 || items.length > 0) && (
             <div className="itl-pagination">
               {/* Left: Show dropdown + Showing entries info */}

@@ -104,7 +104,7 @@ import InventoryDetail from "./pages/Manufacturing/InventoryDetail";
 import ProformaInvoice from "./pages/Sales/ProformaInvoice";
 import CreateProformaInvoice from "./pages/Sales/CreateProformaInvoice";
 import ItemBulkUpload from "./pages/Setup/Itembulkupload";
-import RolePermissions from "./pages/UserManagement/RoleForm";
+import GeneralAccountEntry from "./pages/Generalaccountentry";
 
 function App() {
   return (
@@ -196,6 +196,10 @@ function App() {
                 <Route path="/customer-payments" element={<CustomerPayments />} />
                 <Route path="/customer-invoices" element={<CustomerInvoices />} />
                 <Route path="/payables/supplier-bills" element={<SupplierBills />} />
+
+
+                <Route path="/accounts/entry" element={<GeneralAccountEntry />} />
+
 
                 <Route path="/job-card" element={<JobCardManagement />} />
                 <Route path="/job-cards/new" element={<JobCardForm />} />

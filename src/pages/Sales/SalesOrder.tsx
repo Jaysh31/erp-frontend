@@ -5,15 +5,17 @@ import {
   FaSearch, FaPlus, FaEye, FaEdit, FaTrash, FaFilePdf, FaPrint,
   FaFilter, FaCheckCircle, FaClock, FaTimesCircle,
   FaFileAlt, FaExternalLinkAlt,
-  FaChartLine, FaTimes, FaSpinner, FaBoxOpen, FaEnvelope, FaEllipsisV,
+   FaTimes, FaSpinner, FaBoxOpen, FaEnvelope, FaEllipsisV,
   FaChevronLeft, FaChevronRight, FaCalendarAlt,
-  FaAngleDoubleLeft, FaAngleDoubleRight, FaChevronDown, FaChevronUp
+  FaAngleDoubleLeft, FaAngleDoubleRight, FaChevronDown, 
 } from 'react-icons/fa';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
 import './SalesOrder.css';
+import './SalesMobileTable.css';
 import api from '../../services/api';
 import { FaFileInvoice } from 'react-icons/fa6';
+import { PageLoader } from '../components/PageLoader';
 
 interface SalesOrderItem {
   id: string;
@@ -170,18 +172,6 @@ const numberToIndianWords = (value: number): string => {
   return out.trim();
 };
 
-const formatPrintDate = (date: string, formatFn?: (date: string) => string): string => {
-  if (!date) return '';
-  if (formatFn) {
-    return formatFn(date);
-  }
-  const d = new Date(date);
-  if (isNaN(d.getTime())) return date;
-  const day = String(d.getDate()).padStart(2, '0');
-  const month = d.toLocaleString('en-US', { month: 'short' });
-  const year = String(d.getFullYear()).slice(-2);
-  return `${day}-${month}-${year}`;
-};
 
 const escapeHtml = (val: unknown): string => {
   const s = val === null || val === undefined ? '' : String(val);
@@ -257,7 +247,7 @@ export default function SalesOrder() {
   const menuRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
   const mobileMenuRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
-  const { theme, formatDate, getApiDateFormat } = useAdminTheme();
+  const { theme, formatDate, } = useAdminTheme();
 
   const [filterText, setFilterText] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('All');
@@ -268,7 +258,7 @@ export default function SalesOrder() {
   const [proformaLoadingId, setProformaLoadingId] = useState<string | null>(null);
   const [showMoreMenu, setShowMoreMenu] = useState<string | null>(null);
   const [showMobileMoreMenu, setShowMobileMoreMenu] = useState<string | null>(null);
-  const [expandedMobileCard, setExpandedMobileCard] = useState<string | null>(null);
+  const [, ] = useState<string | null>(null);
 
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
@@ -289,6 +279,20 @@ export default function SalesOrder() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pdfModalLoading] = useState(false);
 
+
+   // Mobile expanded rows state
+  const [expandedRows, setExpandedRows] = useState<Set<string | number>>(new Set());
+
+  const toggleRowExpand = (id: string | number, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
 
@@ -299,9 +303,6 @@ export default function SalesOrder() {
     return formatDate(dateString);
   };
 
-  const toApiDateFormat = (date: Date) => {
-    return getApiDateFormat(date);
-  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -358,14 +359,6 @@ export default function SalesOrder() {
     setShowMoreMenu(showMoreMenu === id ? null : id);
   };
 
-  const toggleMobileMenu = (id: string) => {
-    setShowMobileMoreMenu(showMobileMoreMenu === id ? null : id);
-  };
-
-  const toggleMobileCard = (id: string) => {
-    setExpandedMobileCard(expandedMobileCard === id ? null : id);
-    setShowMobileMoreMenu(null);
-  };
 
   const formatDateForDisplay = (dateStr: string): string => {
     if (!dateStr) return '';
@@ -1626,6 +1619,18 @@ export default function SalesOrder() {
     }
   };
 
+      // ─── Loading Screen ─────────────────────────────────────────────────────
+      if (loading) {
+        return (
+          <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
+            <PageLoader 
+              message="Loading Sales & Sales Order List..." 
+              //subtitle="Calculating bill of materials, operations rates, and component structures"
+            />
+          </div>
+        );
+      }
+
   return (
     <div className={`sales-order-page ${theme}-theme`}>
       <style>{`
@@ -1694,7 +1699,7 @@ export default function SalesOrder() {
         .qt-date-picker-container {
           position: relative;
           display: inline-block;
-          margin-left: 8px;
+          margin-left: 2px;
         }
 
         .qt-date-picker-trigger {
@@ -2691,7 +2696,7 @@ export default function SalesOrder() {
           </div>
         </div>
         
-        <div className="qt-filter-right">
+        <div className="bom-filter-right">
           <select
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
@@ -2886,18 +2891,17 @@ export default function SalesOrder() {
 
       {!loading && !error && (
         <>
-          {salesOrders.length === 0 ? (
-            <div className="qt-empty-state">
-              <div className="qt-empty-content">
-                <FaBoxOpen size={48} />
-                <p>No sales orders found</p>
-                <span>Try adjusting your search criteria, or create your first sales order</span>
+          <div className="qt-table-wrap sales-desktop-table-wrap">
+            {salesOrders.length === 0 ? (
+              <div className="qt-empty-state">
+                <div className="qt-empty-content">
+                  <FaBoxOpen size={48} />
+                  <p>No sales orders found</p>
+                  <span>Try adjusting your search criteria, or create your first sales order</span>
+                </div>
               </div>
-            </div>
-          ) : (
-            <>
-              {/* DESKTOP TABLE */}
-              <div className="qt-table-wrap">
+            ) : (
+              <>
                 <table className="qt-table">
                   <thead>
                     <tr>
@@ -2988,125 +2992,186 @@ export default function SalesOrder() {
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </>
+            )}
+          </div>
 
-              {/* MOBILE ACCORDION CARDS */}
-              <div className="qt-mobile-cards-wrap">
-                {salesOrders.map((order, index) => {
-                  const cardKey = order.id || `so-mobile-${index}`;
-                  const isExpanded = expandedMobileCard === cardKey;
+          {/* Mobile Table Section (Order #, Customer + Dropdown Button -> Date, Order Type, Status, Amount, Actions) */}
+          <div className="sales-mobile-list-wrap">
+            <div className="sales-mobile-list-header">
+              <div className="sales-mobile-th-primary">
+                <span className="sales-mobile-th-cell">Order #</span>
+                <span className="sales-mobile-th-sep">•</span>
+                <span className="sales-mobile-th-cell">Customer</span>
+              </div>
+              <div className="sales-mobile-th-right">
+                <span className="sales-count-label">
+                  {totalRecords > 0 ? `${(currentPage - 1) * pageSize + 1}–${Math.min(currentPage * pageSize, totalRecords)} of ${totalRecords}` : `0 of ${totalRecords}`}
+                </span>
+              </div>
+            </div>
+
+            {salesOrders.length === 0 ? (
+              <div className="qt-empty-state">
+                <div className="qt-empty-content">
+                  <p>No sales orders found</p>
+                  <span>Try adjusting your search criteria</span>
+                </div>
+              </div>
+            ) : (
+              <div className="sales-mobile-cards">
+                {salesOrders.map((order, idx) => {
+                  const orderId = order.id || `so-${idx}`;
+                  const isExpanded = expandedRows.has(orderId);
                   return (
                     <div
-                      key={cardKey}
-                      className={`qt-mobile-card ${isExpanded ? 'expanded' : ''}`}
+                      key={orderId}
+                      className={`sales-mobile-card ${isExpanded ? "sales-mobile-card-expanded" : ""}`}
                     >
+                      {/* Card Header: Order #, Customer and Dropdown Button */}
                       <div
-                        className="qt-mobile-card-header"
-                        onClick={() => toggleMobileCard(cardKey)}
+                        className="sales-mobile-card-header"
+                        onClick={() => toggleRowExpand(orderId)}
                       >
-                        <span className="qt-mobile-card-number">{order.salesOrderNumber}</span>
-                        <div className="qt-mobile-card-badge-wrap">
-                          <span className={`qt-status-badge qt-mobile-badge ${getStatusColor(order.status)}`}>
-                            {getStatusIcon(order.status)}
-                            {order.status}
+                        <div className="sales-mobile-card-primary">
+                          <span
+                            className="sales-mobile-item-code"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleView(order);
+                            }}
+                            title="View Sales Order"
+                          >
+                            {order.salesOrderNumber}
                           </span>
-                          <span className="qt-mobile-card-customer">{order.customerName || order.customer}</span>
+                          <span
+                            className="sales-mobile-item-name"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleView(order);
+                            }}
+                            title={order.customerName}
+                          >
+                            {order.customerName || "—"}
+                          </span>
                         </div>
+
+                        {/* Dropdown Button */}
                         <button
-                          className="qt-mobile-chevron-btn"
-                          onClick={(e) => { e.stopPropagation(); toggleMobileCard(cardKey); }}
-                          aria-label={isExpanded ? 'Collapse' : 'Expand'}
+                          type="button"
+                          className={`sales-mobile-dropdown-btn ${isExpanded ? "expanded" : ""}`}
+                          onClick={(e) => toggleRowExpand(orderId, e)}
+                          aria-label={isExpanded ? "Collapse sales order details" : "Expand sales order details"}
+                          title={isExpanded ? "Collapse" : "Expand"}
                         >
-                          {isExpanded ? <FaChevronUp size={12} /> : <FaChevronDown size={12} />}
+                          <FaChevronDown size={13} className="sales-mobile-chevron" />
                         </button>
                       </div>
 
+                      {/* Dropdown Section: Date, Order Type, Status, Amount, Actions */}
                       {isExpanded && (
-                        <div className="qt-mobile-card-body">
-                          <div className="qt-mobile-detail-row">
-                            <span className="qt-mobile-detail-label">Status</span>
-                            <span className={`qt-status-badge ${getStatusColor(order.status)}`}>
-                              {getStatusIcon(order.status)}
-                              {order.status}
+                        <div className="sales-mobile-card-details">
+                          <div className="sales-mobile-detail-row">
+                            <span className="sales-mobile-detail-label">Date</span>
+                            <span className="sales-mobile-detail-value">
+                              {order.date ? formatDisplayDate(order.date) : "—"}
+                              {order.deliveryDate && (
+                                <span style={{ fontSize: "11px", color: "var(--text-secondary)", marginLeft: 6 }}>
+                                  (Delivery: {formatDisplayDate(order.deliveryDate)})
+                                </span>
+                              )}
                             </span>
                           </div>
-                          <div className="qt-mobile-detail-row">
-                            <span className="qt-mobile-detail-label">Customer</span>
-                            <span className="qt-mobile-detail-value">{order.customerName || '-'}</span>
+
+                          <div className="sales-mobile-detail-row">
+                            <span className="sales-mobile-detail-label">Order Type</span>
+                            <span className="sales-mobile-detail-value font-medium">
+                              {order.orderType || "—"}
+                            </span>
                           </div>
-                          <div className="qt-mobile-detail-row">
-                            <span className="qt-mobile-detail-label">Date</span>
-                            <span className="qt-mobile-detail-value">{order.date ? formatDisplayDate(order.date) : '-'}</span>
+
+                          <div className="sales-mobile-detail-row">
+                            <span className="sales-mobile-detail-label">Status</span>
+                            <span className="sales-mobile-detail-value">
+                              <span className={`qt-status-badge ${getStatusColor(order.status)}`}>
+                                {getStatusIcon(order.status)}
+                                {order.status}
+                              </span>
+                            </span>
                           </div>
-                          <div className="qt-mobile-detail-row">
-                            <span className="qt-mobile-detail-label">Delivery Date</span>
-                            <span className="qt-mobile-detail-value">{order.deliveryDate ? formatDisplayDate(order.deliveryDate) : '-'}</span>
-                          </div>
-                          <div className="qt-mobile-detail-row">
-                            <span className="qt-mobile-detail-label">Order Type</span>
-                            <span className="qt-mobile-detail-value">{order.orderType}</span>
-                          </div>
-                          <div className="qt-mobile-detail-row">
-                            <span className="qt-mobile-detail-label">Total Amount</span>
-                            <span className="qt-mobile-detail-value">
+
+                          <div className="sales-mobile-detail-row">
+                            <span className="sales-mobile-detail-label">Amount</span>
+                            <span className="sales-mobile-detail-value sales-amount-highlight">
                               {order.currency} {order.totalAmount.toLocaleString()}
                             </span>
                           </div>
 
-                          <div className="qt-mobile-card-footer">
-                            <span className="qt-mobile-items-count">
-                              {order.items.length} item{order.items.length === 1 ? '' : 's'}
+                          <div className="sales-mobile-detail-footer">
+                            <span className="sales-mobile-card-meta-text">
+                              {/*rowNumber} of {totalRecords*/}
                             </span>
-                            <div className="qt-mobile-actions">
+                            <div className="sales-mobile-action-buttons">
                               <button
-                                className="qt-action-btn"
-                                onClick={() => handleView(order)}
+                                className="qt-action-btn qt-action-proforma"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleProformaInvoice(order);
+                                }}
+                                title="Proforma Invoice"
+                                disabled={proformaLoadingId === order.id || order.status === "Draft"}
+                              >
+                                {proformaLoadingId === order.id ? (
+                                  <FaSpinner className="spinning" size={12} />
+                                ) : (
+                                  <FaFileInvoice size={12} />
+                                )}
+                              </button>
+                              <button
+                                className="qt-action-btn qt-action-view"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleView(order);
+                                }}
                                 title="View"
                               >
-                                <FaEye size={13} />
+                                <FaEye size={12} />
                               </button>
                               <button
-                                className="qt-action-btn"
-                                onClick={() => handleEdit(order)}
+                                className="qt-action-btn qt-action-edit"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEdit(order);
+                                }}
                                 title="Edit"
                               >
-                                <FaEdit size={13} />
+                                <FaEdit size={12} />
                               </button>
-                              <div
-                                className="qt-more-menu-container"
-                                ref={(el) => { mobileMenuRefs.current[cardKey] = el; }}
+                              <button
+                                className="qt-action-btn qt-action-print"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handlePrintOrder(order);
+                                }}
+                                title="Print"
+                                disabled={printLoadingId === order.id}
                               >
-                                <button
-                                  className="qt-action-btn qt-action-more"
-                                  onClick={() => toggleMobileMenu(cardKey)}
-                                  title="More"
-                                >
-                                  <FaEllipsisV size={13} />
-                                </button>
-                                {showMobileMoreMenu === cardKey && (
-                                  <div className="qt-more-menu-dropdown">
-                                    <button
-                                      onClick={() => { handleProformaInvoice(order); setShowMobileMoreMenu(null); }}
-                                      disabled={proformaLoadingId === order.id || order.status === 'Draft'}
-                                    >
-                                      {proformaLoadingId === order.id ? <FaSpinner className="spinning" size={12} /> : <FaFileInvoice size={12} />} Proforma Invoice
-                                    </button>
-                                    <button
-                                      onClick={() => { handlePrintOrder(order); setShowMobileMoreMenu(null); }}
-                                      disabled={printLoadingId === order.id}
-                                    >
-                                      {printLoadingId === order.id ? <FaSpinner className="spinning" size={12} /> : <FaPrint size={12} />} Print
-                                    </button>
-                                    <div className="menu-divider" />
-                                    <button
-                                      className="danger"
-                                      onClick={() => { handleDeleteClick(order); setShowMobileMoreMenu(null); }}
-                                    >
-                                      <FaTrash size={12} /> Delete
-                                    </button>
-                                  </div>
+                                {printLoadingId === order.id ? (
+                                  <FaSpinner className="spinning" size={12} />
+                                ) : (
+                                  <FaPrint size={12} />
                                 )}
-                              </div>
+                              </button>
+                              <button
+                                className="qt-action-btn qt-action-delete"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteClick(order);
+                                }}
+                                title="Delete"
+                              >
+                                <FaTrash size={12} />
+                              </button>
                             </div>
                           </div>
                         </div>
@@ -3115,8 +3180,8 @@ export default function SalesOrder() {
                   );
                 })}
               </div>
-            </>
-          )}
+            )}
+          </div>
         </>
       )}
 

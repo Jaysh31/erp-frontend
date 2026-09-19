@@ -22,6 +22,7 @@ import {
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
 import "./RoleList.css";
+import { PageLoader } from "../components/PageLoader";
 
 interface Role {
   id: number;
@@ -202,6 +203,18 @@ export default function RoleList() {
       <span className="access-icon inactive"><FaLock size={12} /> No</span>
     );
   };
+
+    // ─── Loading Screen ─────────────────────────────────────────────────────
+      if (loading) {
+        return (
+          <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
+            <PageLoader 
+              message="Loading Organization & Role List..." 
+              //subtitle="Calculating bill of materials, operations rates, and component structures"
+            />
+          </div>
+        );
+      }
 
   return (
     <div className={`rl-page ${theme}`}>

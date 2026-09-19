@@ -11,11 +11,13 @@ import {
   FaChevronLeft,
   FaChevronRight,
   FaCalendarAlt,
+    FaChevronDown,
 } from 'react-icons/fa';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
 import api from '../services/api';
 import './PurchaseInvoice.css';
+import { PageLoader } from '../components/PageLoader';
 
 // ─── Date helpers ─────────────────────────────────────────────────
 
@@ -223,7 +225,7 @@ export default function PurchaseInvoice() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<PurchaseInvoice | null>(null);
   const [loading, setLoading] = useState(false);
-  const [fetching, setFetching] = useState(true);
+  const [, setFetching] = useState(true);
   const [apiError, setApiError] = useState<string | null>(null);
 
   // Pagination states
@@ -234,6 +236,25 @@ export default function PurchaseInvoice() {
   const [invoices, setInvoices] = useState<PurchaseInvoice[]>([]);
   const [suppliersList, setSuppliersList] = useState<string[]>([]);
 
+  // Mobile list row expansion state
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+
+  const handleCreateJournalEntry = () => {
+    navigate('/accounts/entry');
+  };
+  const toggleRowExpand = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+  
   // ─── Click outside handler ──────────────────────────────────────
 
   useEffect(() => {
@@ -506,12 +527,24 @@ export default function PurchaseInvoice() {
   const statusOptions = ['Draft', 'Submitted', 'Partially Paid', 'Fully Paid', 'Overdue', 'Cancelled'];
   const currencies = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD'];
 
-  if (fetching) {
+  {/*if (fetching) {
     return (
       <div className={`inv-page ${theme}-theme`}>
         <div className="inv-loading">
           <FaSpinner className="inv-spinning" size={32} />
           <p>Loading purchase invoices...</p>
+        </div>
+      </div>
+    );
+  }*/}
+    if (loading) {
+    return (
+      <div className={`grnf-page ${theme}`}>
+        <div className="grnf-inner">
+          <PageLoader 
+            message="Loading Purchase Invoice..." 
+            subtitle="Synchronizing warehouse receipt entries, line item counts, and supplier records"
+          />
         </div>
       </div>
     );
@@ -539,14 +572,14 @@ export default function PurchaseInvoice() {
           </div>
           
         </div>
-        <div className="inv-filter-right">
+        <div className="bom-filter-right">
           <select 
             value={selectedStatus} 
             onChange={(e) => {
               setSelectedStatus(e.target.value);
               setCurrentPage(1);
             }}
-            className="inv-filter-select"
+            className="bom-filter-select"
           >
             <option value="All">All Status</option>
             {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
@@ -686,8 +719,13 @@ export default function PurchaseInvoice() {
             <FaFilter size={12} />
             Filter
           </button>
+           <button className="inv-btn-secondary" onClick={handleCreateJournalEntry}>
+            <FaFileAlt size={12} /> New Journal Entry
+          </button>
         </div>
-         <div className="inv-header-actions">
+       
+        <div className="inv-header-actions">
+         
           <button className="inv-btn-primary" onClick={handleCreate}>
             <FaPlus size={12} /> New Purchase Bill
           </button>
@@ -761,8 +799,9 @@ export default function PurchaseInvoice() {
         </div>
       )}
 
+      
       {/* Table */}
-      <div className="inv-table-wrap">
+      <div className="inv-table-wrap inv-desktop-table-wrap">
         <table className="inv-table">
           <thead>
             <tr>
@@ -770,7 +809,7 @@ export default function PurchaseInvoice() {
               <th className="inv-th">Supplier</th>
               <th className="inv-th">Date</th>
               <th className="inv-th">Total</th>
-              <th className="inv-th">Balance</th>
+              {/*<th className="inv-th">Balance</th>*/}
               <th className="inv-th">Status</th>
               <th className="inv-th inv-th-meta">
                 <span className="inv-count-label">{filteredInvoices.length} of {totalRecords}</span>
@@ -806,7 +845,7 @@ export default function PurchaseInvoice() {
                   </td>
                   <td className="inv-td">{inv.supplier}</td>
                   <td className="inv-td">{new Date(inv.date).toLocaleDateString()}</td>
-                  <td className="inv-td">{inv.currency} {inv.totalAmount.toLocaleString()}</td>
+                  {/*<td className="inv-td">{inv.currency} {inv.totalAmount.toLocaleString()}</td>*/}
                   <td className={`inv-td ${inv.balanceAmount > 0 && new Date(inv.dueDate) < new Date() ? 'inv-balance-overdue' : ''}`}>
                     {inv.currency} {inv.balanceAmount.toLocaleString()}
                   </td>
@@ -849,6 +888,156 @@ export default function PurchaseInvoice() {
           </tbody>
         </table>
       </div>
+
+      {/* ─── Mobile UI Table / List Section (max-width: 768px) ─── */}
+      <div className="inv-mobile-list-wrap">
+        {filteredInvoices.length === 0 ? (
+          <div className="inv-empty-state">
+            <div className="inv-empty-content">
+              <FaReceipt size={48} />
+              <p>No purchase invoices found</p>
+              <span>Create your first purchase invoice to get started</span>
+              <button className="inv-btn-primary" onClick={handleCreate} style={{ marginTop: '12px' }}>
+                <FaPlus size={12} /> New Purchase Bill
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Mobile Header: Invoice # / Supplier and Count Label */}
+            <div className="inv-mobile-list-header">
+              <div className="inv-mobile-th-primary">
+                <span className="inv-mobile-th-cell">Invoice # / Supplier</span>
+              </div>
+              <div className="inv-mobile-th-right">
+                <span className="inv-count-label">
+                  {totalRecords > 0
+                    ? `${getStartIndex()}–${getEndIndex()} of ${totalRecords}`
+                    : '0'}
+                </span>
+              </div>
+            </div>
+
+            {/* Mobile Cards / Rows */}
+            <div className="inv-mobile-cards">
+              {filteredInvoices.map((inv) => {
+                const isExpanded = expandedRows.has(inv.id);
+                return (
+                  <div
+                    key={inv.id}
+                    className={`inv-mobile-card ${isExpanded ? 'inv-mobile-card-expanded' : ''}`}
+                  >
+                    {/* Card Header: Invoice #, Supplier and Dropdown Button */}
+                    <div
+                      className="inv-mobile-card-header"
+                      onClick={() => toggleRowExpand(inv.id)}
+                    >
+                      <div className="inv-mobile-card-primary">
+                        <span
+                          className="inv-mobile-item-code"
+                          onClick={(e) => handleView(inv, e)}
+                          title="View Invoice"
+                        >
+                          {inv.invoiceNumber}
+                        </span>
+                        <span
+                          className="inv-mobile-item-name"
+                          onClick={(e) => handleView(inv, e)}
+                          title={inv.supplier}
+                        >
+                          {inv.supplier || '—'}
+                        </span>
+                      </div>
+
+                      {/* Dropdown Button */}
+                      <button
+                        type="button"
+                        className={`inv-mobile-dropdown-btn ${isExpanded ? 'expanded' : ''}`}
+                        onClick={(e) => toggleRowExpand(inv.id, e)}
+                        aria-label={isExpanded ? 'Collapse details' : 'Expand details'}
+                        title={isExpanded ? 'Collapse details' : 'Expand details'}
+                      >
+                        <FaChevronDown size={13} className="inv-mobile-chevron" />
+                      </button>
+                    </div>
+
+                    {/* Expanded Section: Date, Total, Balance, Status, 1–10 of 16 / Actions */}
+                    {isExpanded && (
+                      <div className="inv-mobile-card-details">
+                        <div className="inv-mobile-detail-row">
+                          <span className="inv-mobile-detail-label">Date</span>
+                          <div className="inv-mobile-detail-date">
+                            <FaCalendarAlt size={10} style={{ marginRight: 4 }} />
+                            <span>{new Date(inv.date).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+
+                        {/*<div className="inv-mobile-detail-row">
+                          <span className="inv-mobile-detail-label">Total</span>
+                          <span className="inv-mobile-detail-value inv-total-val">
+                            {inv.currency} {inv.totalAmount.toLocaleString()}
+                          </span>
+                        </div>*/}
+
+                        <div className="inv-mobile-detail-row">
+                          <span className="inv-mobile-detail-label">Total</span>
+                          <span className={`inv-mobile-detail-value ${inv.balanceAmount > 0 && new Date(inv.dueDate) < new Date() ? 'inv-balance-overdue' : ''}`}>
+                            {inv.currency} {inv.balanceAmount.toLocaleString()}
+                          </span>
+                        </div>
+
+                        <div className="inv-mobile-detail-row">
+                          <span className="inv-mobile-detail-label">Status</span>
+                          <span className={`inv-status-badge ${getStatusColor(inv.status)}`}>
+                            {getStatusIcon(inv.status)}
+                            {inv.status}
+                          </span>
+                        </div>
+
+                        <div className="inv-mobile-detail-footer">
+                          <span className="inv-mobile-card-meta-text">
+                            {/*totalRecords > 0
+                              ? `${getStartIndex()}–${getEndIndex()} of ${totalRecords}`
+                              : '0'} (#{rowNumber})
+                            */}
+                          </span>
+                          <div className="inv-action-buttons">
+                            <button
+                              className="inv-action-btn inv-action-view"
+                              onClick={(e) => handleView(inv, e)}
+                              title="View"
+                            >
+                              <FaEye size={12} />
+                            </button>
+                            <button
+                              className="inv-action-btn inv-action-edit"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEdit(inv);
+                              }}
+                              title="Edit"
+                            >
+                              <FaEdit size={12} />
+                            </button>
+                            <button
+                              className="inv-action-btn inv-action-delete"
+                              onClick={(e) => handleDelete(inv, e)}
+                              title="Delete"
+                            >
+                              <FaTrash size={12} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </div>
+
 
       {/* Pagination */}
       <div className="inv-pagination">

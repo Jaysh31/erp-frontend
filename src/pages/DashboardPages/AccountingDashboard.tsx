@@ -217,8 +217,8 @@ export default function AccountingDashboard() {
       {/* Header */}
       <div className="dashboard-header">
         <div className="header-left">
-          <h1>💰 Accounting Dashboard</h1>
-          <p className="header-subtitle">Real-time financial overview and insights</p>
+          <h1>Accounting Dashboard</h1>
+          {/*<p className="header-subtitle">💰 Real-time financial overview and insights</p>*/}
         </div>
         <div className="header-right">
           <button className="btn-primary" onClick={() => handleNavigate("/accounting/invoice/new")}>

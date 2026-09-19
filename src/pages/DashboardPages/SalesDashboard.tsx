@@ -539,8 +539,8 @@ export default function SalesDashboard() {
       {/* Header */}
       <div className="dashboard-header">
         <div className="header-left">
-          <h1>📊 Sales Dashboard</h1>
-          <p className="header-subtitle">Real-time sales performance and insights</p>
+          <h1>Sales Dashboard</h1>
+          {/*<p className="header-subtitle">📊 Real-time sales performance and insights</p>*/}
         </div>
         <div className="header-right">
           <button className="btn-primary" onClick={() => handleNavigate("/sales-order/new")}>

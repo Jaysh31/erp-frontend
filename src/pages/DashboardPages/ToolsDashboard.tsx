@@ -248,8 +248,8 @@ export default function ToolsDashboard() {
       {/* Header */}
       <div className="dashboard-header">
         <div className="header-left">
-          <h1>🔧 Tools Dashboard</h1>
-          <p className="header-subtitle">Manage and monitor all tools and utilities</p>
+          <h1> Tools Dashboard</h1>
+          {/*<p className="header-subtitle">🔧Manage and monitor all tools and utilities</p>*/}
         </div>
         <div className="header-right">
           <button className="btn-primary" onClick={() => handleNavigate("/tools/new")}>

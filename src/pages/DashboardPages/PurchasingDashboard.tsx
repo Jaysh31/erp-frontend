@@ -278,8 +278,8 @@ export default function PurchasingDashboard() {
     <div className={`dashboard purchasing-dashboard ${theme}`}>
       <div className="dashboard-header">
         <div className="header-left">
-          <h1>🛒 Purchasing Dashboard</h1>
-          <p className="header-subtitle">Real-time procurement overview and insights</p>
+          <h1> Purchasing Dashboard</h1>
+          {/*<p className="header-subtitle">🛒Real-time procurement overview and insights</p>*/}
         </div>
         <div className="header-right">
           <button className="btn-primary" onClick={() => handleNavigate("/purchase-invoice/new")}>

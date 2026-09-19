@@ -4,9 +4,9 @@ import {
   Plus,
   Filter as FilterIcon,
   X,
-  ArrowUpDown,
+  
   FileStack,
-  Check,
+
   Search,
   Eye,
   Edit,
@@ -25,10 +25,9 @@ import "./BOMPage.css";
 import NewBOMPage from "./Newbompage";
 import { useAdminTheme } from "../../admin-theme/AdminThemeContext";
 import api from '../../services/api';
-
+import { PageLoader } from "../components/PageLoader.tsx";
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const SORT_FIELDS = ["Created On", "Last Updated On", "ID", "Item to Manufacture"];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -111,9 +110,10 @@ const BOMPage: React.FC = () => {
   const [totalRecords, setTotalRecords] = useState(0);
 
   // Sort
-  const [sortOpen, setSortOpen] = useState(false);
-  const [sortField, setSortField] = useState("Created On");
+  const [, setSortOpen] = useState(false);
+  const [sortField, ] = useState("Created On");
 
+  
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -135,6 +135,23 @@ const BOMPage: React.FC = () => {
 
   // Toast notifications
   const [toasts, setToasts] = useState<Toast[]>([]);
+
+
+    // Mobile list accordion state
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+
+  const toggleRowExpand = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setExpandedRows(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -404,13 +421,7 @@ const BOMPage: React.FC = () => {
     setShowDatePicker(false);
   };
 
-  const toggle = (
-    setter: React.Dispatch<React.SetStateAction<boolean>>,
-    current: boolean
-  ) => {
-    closeAll();
-    setter(!current);
-  };
+  
 
   const clearFilters = () => {
     setSearchTerm("");
@@ -540,6 +551,18 @@ const BOMPage: React.FC = () => {
     openDeleteModal(row);
   };
 
+  // ─── Loading Screen ─────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
+        <PageLoader 
+          message="Loading Manufacturing & BOMs..." 
+          //subtitle="Calculating bill of materials, operations rates, and component structures"
+        />
+      </div>
+    );
+  }
+
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
@@ -660,7 +683,7 @@ const BOMPage: React.FC = () => {
               onClick={() => handleTabChange('all')}
             >
               <FileStack size={14} />
-              All BOMs
+              All
               <span className="bom-tab-count">{tabCounts.total}</span>
             </button>
             <button
@@ -733,6 +756,7 @@ const BOMPage: React.FC = () => {
                   title="Filter by date range"
                 >
                   <Calendar size={14} />
+                  
                 </button>
                 {showDatePicker && (
                   <div className="bom-date-picker-popup">
@@ -817,7 +841,7 @@ const BOMPage: React.FC = () => {
                 )}
               </div>
 
-              <button className="bom-sort-btn" onClick={() => toggle(setSortOpen, sortOpen)}>
+             {/* <button className="bom-sort-btn" onClick={() => toggle(setSortOpen, sortOpen)}>
                 <ArrowUpDown size={12} />
                 {sortField}
                 <ChevronDown size={12} />
@@ -842,15 +866,16 @@ const BOMPage: React.FC = () => {
                     ))}
                   </div>
                 )}
-              </button>
-              <button className="bom-btn-primary" onClick={() => {
+              </button>*/}
+              
+            </div>
+            <button className="bom-btn-primary" onClick={() => {
                 setEditBOMData(null);
                 setShowNewBOM(true);
               }}>
                 <Plus size={12} />
                 Add BOM
               </button>
-            </div>
           </div>
 
           {/* ── Active filters indicator ──────────────────────────────────── */}
@@ -880,7 +905,8 @@ const BOMPage: React.FC = () => {
           )}
 
           {/* ── Table ──────────────────────────────────────────────────────── */}
-          <div className="bom-table-wrap">
+          {/*<div className="bom-table-wrap">*/}
+          <div className="bom-table-wrap bom-desktop-table-wrap">
             {loading ? (
               <div className="bom-loading-state">
                 <div className="bom-spinner"></div>
@@ -990,6 +1016,169 @@ const BOMPage: React.FC = () => {
                   )}
                 </tbody>
               </table>
+            )}
+          </div>
+
+           {/* ── Mobile UI List Section (max-width: 768px) ──────────────────── */}
+          <div className="bom-mobile-list-wrap">
+            {loading ? (
+              <div className="bom-loading-state">
+                <div className="bom-spinner"></div>
+                <p>Loading BOMs...</p>
+              </div>
+            ) : tableData.length === 0 ? (
+              <div className="bom-empty-state">
+                <div className="bom-empty-content">
+                  <FileStack size={48} />
+                  <p>No {activeTab !== 'all' ? activeTab + ' ' : ''}BOMs found</p>
+                  <span>
+                    {searchTerm || statusFilter !== 'all' || (fromDate && toDate)
+                      ? 'Try adjusting your search criteria' 
+                      : `Create your first ${activeTab !== 'all' ? activeTab + ' ' : ''}BOM by clicking "Add BOM"`}
+                  </span>
+                </div>
+              </div>
+            ) : (
+
+               <>
+                {/* ── Mobile UI Table Header / Title at Top ── */}
+                <div className="bom-mobile-list-header">
+                  <div className="bom-mobile-th-primary">
+                    <span className="bom-mobile-th-cell bom-mobile-th-id">BOM ID</span>
+                    <span className="bom-mobile-th-cell bom-mobile-th-item">Item to Manufacture</span>
+                  </div>
+                  <div className="bom-mobile-th-right">
+                    <span className="bom-count-label">
+                      {totalRecords > 0
+                        ? `${(validCurrentPage - 1) * itemsPerPage + 1}–${Math.min(
+                            validCurrentPage * itemsPerPage,
+                            totalRecords
+                          )}`
+                        : '0'}{' '}
+                      of {totalRecords}
+                    </span>
+                  </div>
+                </div>
+
+              <div className="bom-mobile-cards">
+                {tableData.map((row) => {
+                  const isExpanded = expandedRows.has(row.id);
+                  return (
+                    <div
+                      key={row.id}
+                      className={`bom-mobile-card ${isExpanded ? 'bom-mobile-card-expanded' : ''}`}
+                    >
+                      {/* Mobile Header: Only shows BOM ID and Item to Manufacture by default + Dropdown button */}
+                      <div 
+                        className="bom-mobile-card-header"
+                        onClick={() => toggleRowExpand(row.id)}
+                      >
+                        <div className="bom-mobile-card-primary">
+                          <a
+                            className="bom-mobile-id"
+                            href={`/bom/${row.id}`}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleView(row);
+                            }}
+                            title="View BOM Details"
+                          >
+                            {row.id}
+                          </a>
+                          <span className="bom-mobile-item-name" title={row.itemToManufacture}>
+                            {row.itemToManufacture}
+                          </span>
+                        </div>
+
+                        {/* Dropdown Toggle Button */}
+                        <button
+                          type="button"
+                          className={`bom-mobile-dropdown-btn ${isExpanded ? 'expanded' : ''}`}
+                          onClick={(e) => toggleRowExpand(row.id, e)}
+                          aria-label={isExpanded ? "Collapse details" : "Expand details"}
+                        >
+                          <ChevronDown size={16} className="bom-mobile-chevron" />
+                        </button>
+                      </div>
+
+                      {/* Mobile Expanded Details: Shows Status, Type, Quantity, UOM, Total Cost, 1-8 of 8 & Actions */}
+                      {isExpanded && (
+                        <div className="bom-mobile-card-details">
+                          <div className="bom-mobile-detail-row">
+                            <span className="bom-mobile-detail-label">Status</span>
+                            <span className={`bom-status-pill ${row.status === 'Active' ? 'bom-status--active' : 'bom-status--disabled'}`}>
+                              {row.status}
+                            </span>
+                          </div>
+
+                          <div className="bom-mobile-detail-row">
+                            <span className="bom-mobile-detail-label">Type</span>
+                            <span className={`bom-type-badge ${row.type === 'Internal' ? 'bom-type--internal' : 'bom-type--external'}`}>
+                              {row.type === 'Internal' ? (
+                                <><Box size={12} /> Product</>
+                              ) : (
+                                <><Wrench size={12} /> Service</>
+                              )}
+                            </span>
+                          </div>
+
+                          <div className="bom-mobile-detail-row">
+                            <span className="bom-mobile-detail-label">Quantity</span>
+                            <span className="bom-mobile-detail-value">{row.quantity}</span>
+                          </div>
+
+                          <div className="bom-mobile-detail-row">
+                            <span className="bom-mobile-detail-label">UOM</span>
+                            <span className="bom-mobile-detail-value">{row.uom}</span>
+                          </div>
+
+                          <div className="bom-mobile-detail-row">
+                            <span className="bom-mobile-detail-label">Total Cost</span>
+                            <span className="bom-mobile-detail-value bom-cost">{row.totalCost}</span>
+                          </div>
+
+                          {/* 1–8 of 8 count and Action buttons (View, Edit, Delete) */}
+                          <div className="bom-mobile-detail-footer">
+                            <div className="bom-mobile-detail-meta">
+                              <span className="bom-count-label">
+                                {/*totalRecords > 0
+                                  ? `${(validCurrentPage - 1) * itemsPerPage + 1}–${Math.min(validCurrentPage * itemsPerPage, totalRecords)}`
+                                  : '0'} of {totalRecords*/}
+                              </span>
+                            </div>
+
+                            <div className="bom-action-buttons">
+                              <button 
+                                className="bom-action-btn bom-action-view" 
+                                onClick={(e) => { e.stopPropagation(); handleView(row); }}
+                                title="View"
+                              >
+                                <Eye size={12} />
+                              </button>
+                              <button 
+                                className="bom-action-btn bom-action-edit" 
+                                onClick={(e) => { e.stopPropagation(); handleEdit(row); }}
+                                title="Edit"
+                              >
+                                <Edit size={12} />
+                              </button>
+                              <button 
+                                className="bom-action-btn bom-action-delete" 
+                                onClick={(e) => { e.stopPropagation(); handleDelete(row); }}
+                                title="Delete"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+               </>
             )}
           </div>
 

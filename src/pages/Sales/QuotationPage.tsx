@@ -4,22 +4,23 @@ import {
   FaSearch, FaPlus, FaEye, FaEdit, FaTrash, FaFilePdf, FaPrint,
   FaFilter, FaCheckCircle, FaClock, FaTimesCircle,
   FaFileAlt, FaExternalLinkAlt,
-  FaChartLine, FaTimes, FaSpinner,
+   FaTimes, FaSpinner,
   FaEnvelope, FaCalendarAlt,
   FaAngleDoubleLeft,
   FaAngleDoubleRight,
   FaChevronLeft,
   FaChevronRight,
-  FaHome,
+  
   FaChevronDown,
-  FaChevronUp,
-  FaEllipsisV
+
 
 } from 'react-icons/fa';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
 import './QuotationPage.css';
+import './SalesMobileTable.css';
 import api from '../../services/api';
+import { PageLoader } from '../components/PageLoader';
 
 interface QuotationItem {
   id: string;
@@ -309,36 +310,9 @@ function buildCalendarGrid(year: number, month: number): (Date | null)[] {
    swap this out for that and delete this helper — the topbar UI below
    will keep working unchanged, it just needs { name, role }.
 ------------------------------------------------------------------------ */
-interface CurrentUser {
-  name: string;
-  role: string;
-}
 
-const getCurrentUser = (): CurrentUser => {
-  const candidateKeys = ['user', 'currentUser', 'authUser', 'admin_user', 'loggedInUser'];
-  try {
-    for (const key of candidateKeys) {
-      const raw = localStorage.getItem(key);
-      if (!raw) continue;
-      const parsed = JSON.parse(raw);
-      const name = parsed?.name || parsed?.full_name || parsed?.fullName || parsed?.username || parsed?.email;
-      if (name) {
-        const role = parsed?.role || parsed?.designation || parsed?.user_role || 'Admin';
-        return { name: String(name), role: String(role) };
-      }
-    }
-  } catch {
-    // ignore malformed localStorage data and fall through to default
-  }
-  return { name: 'Admin User', role: 'Admin' };
-};
 
-const getInitials = (name: string): string => {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '?';
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-};
+
 
 export default function QuotationPage() {
   const navigate = useNavigate();
@@ -352,7 +326,7 @@ export default function QuotationPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [printLoadingId, setPrintLoadingId] = useState<string | null>(null);
-  const [expandedMobileCard, setExpandedMobileCard] = useState<string | null>(null);
+  const [,] = useState<string | null>(null);
 
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   
@@ -378,6 +352,19 @@ export default function QuotationPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pdfModalLoading] = useState(false);
 
+  // ─── Mobile expanded rows state ──────────────────────────────────
+  const [expandedRows, setExpandedRows] = useState<Set<string | number>>(new Set());
+
+  const toggleRowExpand = (id: string | number, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   // ─── Debounce function for search ──────────────────────────────────
   const useDebounce = (value: string, delay: number) => {
     const [debouncedValue, setDebouncedValue] = useState(value);
@@ -398,8 +385,6 @@ export default function QuotationPage() {
   const debouncedFilterText = useDebounce(filterText, 500);
 
   // Logged-in user shown in the top bar (see getCurrentUser() above)
-  const currentUser = getCurrentUser();
-  const userInitials = getInitials(currentUser.name);
 
   const formatDisplayDateWithContext = (dateString: string) => {
     if (!dateString) return '';
@@ -863,9 +848,6 @@ export default function QuotationPage() {
     setCurrentPage(1);
   };
 
-  const toggleMobileCard = (id: string) => {
-    setExpandedMobileCard(expandedMobileCard === id ? null : id);
-  };
 
   /* ─────────────────────── Print (Tax-Invoice format) ─────────────────────── */
 
@@ -1246,6 +1228,18 @@ export default function QuotationPage() {
     }
   };
 
+      // ─── Loading Screen ─────────────────────────────────────────────────────
+      if (loading) {
+        return (
+          <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
+            <PageLoader 
+              message="Loading Sales & Quotation List..." 
+              //subtitle="Calculating bill of materials, operations rates, and component structures"
+            />
+          </div>
+        );
+      }
+
   return (
     <div className={`quotation-page ${theme}`}>
       <style>{`
@@ -1404,7 +1398,7 @@ export default function QuotationPage() {
             )}
           </div>
         </div>
-        <div className="qt-filter-right">
+        <div className="bom-filter-right">
           <select
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
@@ -1633,10 +1627,11 @@ export default function QuotationPage() {
   )}
 </div>
 
-          <button className="qt-btn-new" onClick={() => navigate('/quotation/new')}>
+          
+        </div>
+        <button className="jc-btn-primary" onClick={() => navigate('/quotation/new')}>
             <FaPlus size={12} /> New Quotation
           </button>
-        </div>
       </div>
 
       {/* Active filters indicator */}
@@ -1698,18 +1693,18 @@ export default function QuotationPage() {
       {/* Table (desktop) + Mobile accordion cards — same data, same handlers */}
       {!loading && !error && (
         <>
-          {quotations.length === 0 ? (
-            <div className="qt-empty-state">
-              <div className="qt-empty-content">
-                <FaFileAlt size={48} />
-                <p>No quotations found</p>
-                <span>Try adjusting your search criteria</span>
+          <div className="qt-table-wrap sales-desktop-table-wrap">
+            {quotations.length === 0 ? (
+              <div className="qt-empty-state">
+                <div className="qt-empty-content">
+                  <FaFileAlt size={48} />
+                  <p>No quotations found</p>
+                  <span>Try adjusting your search criteria</span>
+                </div>
               </div>
-            </div>
-          ) : (
-            <>
-              {/* ================= DESKTOP TABLE (unchanged) ================= */}
-              <div className="qt-table-wrap">
+            ) : (
+              <>
+                {/* Table */}
                 <table className="qt-table">
                   <thead>
                     <tr>
@@ -1769,100 +1764,150 @@ export default function QuotationPage() {
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </>
+            )}
+          </div>
 
-              {/* ================= MOBILE ACCORDION CARDS ================= */}
-              <div className="qt-mobile-cards-wrap">
-                {quotations.map((quote, index) => {
-                  const cardKey = quote.id || `quote-mobile-${index}`;
-                  const isExpanded = expandedMobileCard === cardKey;
+          {/* Mobile Table Section (Customer, Status + Dropdown Button -> Date, Amount, Actions) */}
+          <div className="sales-mobile-list-wrap">
+            <div className="sales-mobile-list-header">
+              <div className="sales-mobile-th-primary">
+                <span className="sales-mobile-th-cell">Customer</span>
+                <span className="sales-mobile-th-sep">•</span>
+                <span className="sales-mobile-th-cell">Status</span>
+              </div>
+              <div className="sales-mobile-th-right">
+                <span className="sales-count-label">
+                  {totalRecords > 0 ? `${getStartIndexDisplay()}–${getEndIndexDisplay()} of ${totalRecords}` : `0 of ${totalRecords}`}
+                </span>
+              </div>
+            </div>
+
+            {quotations.length === 0 ? (
+              <div className="qt-empty-state">
+                <div className="qt-empty-content">
+                  <p>No quotations found</p>
+                  <span>Try adjusting your search criteria</span>
+                </div>
+              </div>
+            ) : (
+              <div className="sales-mobile-cards">
+                {quotations.map((quote) => {
+                  const isExpanded = expandedRows.has(quote.id);
                   return (
                     <div
-                      key={cardKey}
-                      className={`qt-mobile-card ${isExpanded ? 'expanded' : ''}`}
+                      key={quote.id}
+                      className={`sales-mobile-card ${isExpanded ? "sales-mobile-card-expanded" : ""}`}
                     >
+                      {/* Card Header: Customer, Status and Dropdown Button */}
                       <div
-                        className="qt-mobile-card-header"
-                        onClick={() => toggleMobileCard(cardKey)}
+                        className="sales-mobile-card-header"
+                        onClick={() => toggleRowExpand(quote.id)}
                       >
-                        <span className="qt-mobile-card-number">{quote.quotationNumber}</span>
-                        <div className="qt-mobile-card-badge-wrap">
-                          <span className={`qt-status-badge qt-mobile-badge ${getStatusColor(quote.status)}`}>
-                            {getStatusIcon(quote.status)}
-                            {quote.status}
-                          </span>
-                          <span className="qt-mobile-card-customer">{quote.customerName}</span>
+                        <div className="sales-mobile-card-primary">
+                          <div className="sales-mobile-card-primary-row">
+                            <span
+                              className="sales-mobile-item-name"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleView(quote);
+                              }}
+                              title={quote.customerName}
+                            >
+                              {quote.customerName || "—"}
+                            </span>
+                            <span className="sales-mobile-header-badge">
+                              <span className={`qt-status-badge ${getStatusColor(quote.status)}`}>
+                                {getStatusIcon(quote.status)}
+                                {quote.status}
+                              </span>
+                            </span>
+                          </div>
                         </div>
+
+                        {/* Dropdown Button */}
                         <button
-                          className="qt-mobile-chevron-btn"
-                          onClick={(e) => { e.stopPropagation(); toggleMobileCard(cardKey); }}
-                          aria-label={isExpanded ? 'Collapse' : 'Expand'}
+                          type="button"
+                          className={`sales-mobile-dropdown-btn ${isExpanded ? "expanded" : ""}`}
+                          onClick={(e) => toggleRowExpand(quote.id, e)}
+                          aria-label={isExpanded ? "Collapse quotation details" : "Expand quotation details"}
+                          title={isExpanded ? "Collapse" : "Expand"}
                         >
-                          {isExpanded ? <FaChevronUp size={12} /> : <FaChevronDown size={12} />}
+                          <FaChevronDown size={13} className="sales-mobile-chevron" />
                         </button>
                       </div>
 
+                      {/* Dropdown Section: Date, Amount, Actions */}
                       {isExpanded && (
-                        <div className="qt-mobile-card-body">
-                          <div className="qt-mobile-detail-row">
-                            <span className="qt-mobile-detail-label">Status</span>
-                            <span className={`qt-status-badge ${getStatusColor(quote.status)}`}>
-                              {getStatusIcon(quote.status)}
-                              {quote.status}
+                        <div className="sales-mobile-card-details">
+                          <div className="sales-mobile-detail-row">
+                            <span className="sales-mobile-detail-label">Date</span>
+                            <span className="sales-mobile-detail-value">
+                              {quote.date ? formatDisplayDateWithContext(quote.date) : "—"}
+                              {quote.validTill && (
+                                <span style={{ fontSize: "11px", color: "var(--text-secondary)", marginLeft: 6 }}>
+                                  (Valid: {formatDisplayDateWithContext(quote.validTill)})
+                                </span>
+                              )}
                             </span>
                           </div>
-                          <div className="qt-mobile-detail-row">
-                            <span className="qt-mobile-detail-label">Customer</span>
-                            <span className="qt-mobile-detail-value">{quote.customerName || '-'}</span>
-                          </div>
-                          <div className="qt-mobile-detail-row">
-                            <span className="qt-mobile-detail-label">Date</span>
-                            <span className="qt-mobile-detail-value">{quote.date ? formatDisplayDateWithContext(quote.date) : '-'}</span>
-                          </div>
-                          <div className="qt-mobile-detail-row">
-                            <span className="qt-mobile-detail-label">Valid Till</span>
-                            <span className="qt-mobile-detail-value">{quote.validTill ? formatDisplayDateWithContext(quote.validTill) : '-'}</span>
-                          </div>
-                          <div className="qt-mobile-detail-row">
-                            <span className="qt-mobile-detail-label">Total Amount</span>
-                            <span className="qt-mobile-detail-value">
+
+                          <div className="sales-mobile-detail-row">
+                            <span className="sales-mobile-detail-label">Amount</span>
+                            <span className="sales-mobile-detail-value sales-amount-highlight">
                               {quote.currency} {quote.totalAmount.toLocaleString()}
                             </span>
                           </div>
 
-                          <div className="qt-mobile-card-footer">
-                            <span className="qt-mobile-items-count">
-                              {quote.items.length} item{quote.items.length === 1 ? '' : 's'}
+                          <div className="sales-mobile-detail-footer">
+                            <span className="sales-mobile-card-meta-text">
+                              {/*rowNumber} of {totalRecords*/}
                             </span>
-                            <div className="qt-mobile-actions">
+                            <div className="sales-mobile-action-buttons">
                               <button
                                 className="qt-action-btn qt-action-view"
-                                onClick={() => handleView(quote)}
-                                title="View"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleView(quote);
+                                }}
+                                title="View / Edit"
                               >
-                                <FaEye size={13} />
-                              </button>
-                              <button
-                                className="qt-action-btn qt-action-edit"
-                                onClick={() => handleEdit(quote)}
-                                title="Edit"
-                              >
-                                <FaEdit size={13} />
+                                <FaEye size={12} />
                               </button>
                               <button
                                 className="qt-action-btn qt-action-print"
-                                onClick={() => handlePrintQuotation(quote)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handlePrintQuotation(quote);
+                                }}
                                 title="Print"
                                 disabled={printLoadingId === quote.id}
                               >
-                                {printLoadingId === quote.id ? <FaSpinner className="spinning" size={13} /> : <FaPrint size={13} />}
+                                {printLoadingId === quote.id ? (
+                                  <FaSpinner className="spinning" size={12} />
+                                ) : (
+                                  <FaPrint size={12} />
+                                )}
+                              </button>
+                              <button
+                                className="qt-action-btn qt-action-edit"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEdit(quote);
+                                }}
+                                title="Edit"
+                              >
+                                <FaEdit size={12} />
                               </button>
                               <button
                                 className="qt-action-btn qt-action-delete"
-                                onClick={() => handleDeleteClick(quote)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteClick(quote);
+                                }}
                                 title="Delete"
                               >
-                                <FaTrash size={13} />
+                                <FaTrash size={12} />
                               </button>
                             </div>
                           </div>
@@ -1872,12 +1917,12 @@ export default function QuotationPage() {
                   );
                 })}
               </div>
-            </>
-          )}
+            )}
+          </div>
         </>
       )}
 
-      {/* ─── Pagination Section (Same as SalesInvoice) ────────────────────────────── */}
+      {/* ─── Pagination Section (Separate from table) ────────────────────────────── */}
       {!loading && !error && totalRecords > 0 && (
         <div className="qt-pagination">
           {/* Left: Show entries + entries info */}

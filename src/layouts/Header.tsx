@@ -38,9 +38,9 @@ const PAGE_TITLES: Record<string, string> = {
   "/batch-no": "Batch No",
   "/serial-batch-bundle": "Serial & Batch Bundle",
   "/sales-order": "Sales Order",
-  "/sales-order/new": "Add Sales Order",
+  "/sales-order/new": "Sales Order / Add Sales Order",
   "/sales-invoice": "Sales Invoice",
-  "/sales-invoice/new": "Create Sales Invoice",
+  "/sales-invoice/new": "Sales Invoice / Create Sales Invoice",
   "/company": "Company",
   "/letter-head": "Letter Head",
   "/quality": "Quality",
@@ -49,9 +49,9 @@ const PAGE_TITLES: Record<string, string> = {
   "/request-for-quotation": "Request for Quotation",
   "/supplier-quotation": "Supplier Quotation",
   "/purchase-order": "Purchase Order",
-  "/purchase-order/new": "Add Purchase Order",
+  "/purchase-order/new": "Purchase Order / Add Purchase Order",
   "/purchase-invoice": "Purchase Bill",
-  "/purchase-invoice/new": "Add Purchase Bill",
+  "/purchase-invoice/new": "Purchase Bill / Add Purchase Bill",
   "/supplier": "Supplier",
   "/supplier-group": "Supplier Group",
   "/price-list": "Price List",
@@ -80,34 +80,34 @@ const PAGE_TITLES: Record<string, string> = {
   "/banking/bank-reconciliation": "Bank Reconciliation",
   "/expenses/expense": "Expense",
   "/lead": "Lead",
-  "/leads/new": "Add Lead",
+  "/leads/new": "Lead / Add New Lead",
   "/quotation": "Quotation",
-  "/quotation/new": "Add Quotation",
+  "/quotation/new": "Quotation / Add New Quotation",
   "/Workstation": "Workstation",
   "/operations": "Operations",
   "/sales-bill": "Sales Bill",
-  "/sales-bill/new": "Add Sales Bill",
+  "/sales-bill/new": "Sales Bill / Add New Sales Bill",
   "/delivery-challan":"Delivery Challan",
-  "/delivery-challan/new":"Add Delivery Challan",
+  "/delivery-challan/new":"Delivery Challan / Add New Delivery Challan",
   "/proforma-invoice": "Proforma Invoice",
   "/proforma-invoice/new": "Proforma Invoice / Add Proforma Invoice",
   "/grn":"GRN",
-  "/grn/new":"Add GRN",
-  "/work-order/new":"Add Work Order",
-  "/bom/new":"Add Bom",
+  "/grn/new":"GRN / Add New GRN",
+  "/work-order/new":"Work Order / Add New Work Order",
+  "/bom/new":"Bom / Add New Bom",
   "/InventoryList":"Inventory",
-  "/item/new" :"Add Item",
-  "/warehouse/new":"Add New Warehouse",
-  "/operation/new":"Add New Operation",
+  "/item/new" :"Item / Add Item",
+  "/warehouse/new":"Warehouse / Add New Warehouse",
+  "/operation/new":"Operation / Add New Operation",
   "/quality-inspection": "Quality Inspection",
-  "/quality-inspection/new":"Add New Inspection Report",
+  "/quality-inspection/new":"Quality Inspection / Add New Inspection Report",
   "/employee":"Employee",
-  "/employee/new":"Add New Employee",
+  "/employee/new":"Employee / Add New Employee",
   "/user-management" :"User",
-  "/users/new" :"Add New User",
+  "/users/new" :"User / Add New User",
   "/role":"Role",
-  "/role/new": "Add New Role",
-  "/company/new":"Add New Company"
+  "/role/new": "Role / Add New Role",
+  "/company/new":"Company / Add New Company"
 
 };
 
@@ -154,12 +154,16 @@ const getPageTitle = (path: string): string => {
   // Default fallback
   return "Dashboard";
 };
+interface HeaderProps {
+  isSidebarOpen?: boolean;
+  onToggleSidebar?: () => void;
+}
 
-export default function Header() {
+export default function Header({ isSidebarOpen = false, onToggleSidebar }: HeaderProps) {
   const location = useLocation();
-  const navigate = useNavigate();
   const { theme } = useAdminTheme();
   const { currentModule } = useModule();
+  const navigate = useNavigate();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   
@@ -262,6 +266,36 @@ export default function Header() {
 
   return (
     <header className={`header ${theme}`}>
+       {/* 3 Dots Menu Button - Toggles Sidebar */}
+        {/*<button 
+          type="button"
+          className={`header-icon-btn three-dots-btn ${isSidebarOpen ? 'active' : ''}`}
+          onClick={onToggleSidebar}
+          title={isSidebarOpen ? "Close sidebar menu" : "Open sidebar menu"}
+          aria-label={isSidebarOpen ? "Close sidebar menu" : "Open sidebar menu"}
+          aria-expanded={isSidebarOpen}
+        >
+         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+            <circle cx="12" cy="5" r="1.6" fill="currentColor"/>
+            <circle cx="12" cy="12" r="1.6" fill="currentColor"/>
+            <circle cx="12" cy="19" r="1.6" fill="currentColor"/>
+          </svg>
+        </button>*/}
+        <button 
+          type="button"
+          className={`header-icon-btn three-dots-btn menu-toggle-btn ${isSidebarOpen ? 'active' : ''}`}
+          onClick={onToggleSidebar}
+          title={isSidebarOpen ? "Close sidebar menu" : "Open sidebar menu"}
+          aria-label={isSidebarOpen ? "Close sidebar menu" : "Open sidebar menu"}
+          aria-expanded={isSidebarOpen}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="4" y1="6" x2="20" y2="6"/>
+            <line x1="4" y1="12" x2="20" y2="12"/>
+            <line x1="4" y1="18" x2="20" y2="18"/>
+          </svg>
+        </button>
+        
       <div className="header-breadcrumb">
         {/* Home icon - always links to home */}
         <Link to="/home" className="breadcrumb-home-link" title="Go to Home">
@@ -381,6 +415,8 @@ export default function Header() {
             </div>
           )}
         </div>
+
+       
       </div>
     </header>
   );

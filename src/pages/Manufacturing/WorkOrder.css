@@ -1749,6 +1749,318 @@
   background: #374151;
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   MOBILE UI LIST VIEW (max-width: 768px)
+   Shows WO # + Production Item + Dropdown Button by default
+   Expands: Type, Qty, Job Cards, Progress, Status, Planned Dates, 1–10 of 36 & Actions
+   ══════════════════════════════════════════════════════════════════════ */
+
+.wo-mobile-list-wrap {
+  display: none;
+}
+
+/* Mobile Table Header Title at Top of Table */
+.wo-mobile-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--layout-bg, #f8fafc);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  margin-bottom: 2px;
+}
+
+.wo-mobile-th-primary {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.wo-mobile-th-cell {
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary, #64748b);
+}
+
+.wo-mobile-th-id {
+  flex-shrink: 0;
+}
+
+.wo-mobile-th-id::after {
+  content: " /";
+  opacity: 0.5;
+  margin-left: 2px;
+}
+
+.wo-mobile-th-item {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wo-mobile-th-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* Mobile Cards Container */
+.wo-mobile-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.wo-mobile-card {
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.wo-mobile-card:hover {
+  border-color: #cbd5e1;
+}
+
+.wo-mobile-card-expanded {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* Mobile Card Header (Always visible: WO #, Production Item, and Dropdown toggle) */
+.wo-mobile-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  cursor: pointer;
+  background: transparent;
+  user-select: none;
+}
+
+.wo-mobile-card-primary {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.wo-mobile-id {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--primary-color, #4f46e5);
+  text-decoration: none;
+  white-space: nowrap;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+}
+
+.wo-mobile-id:hover {
+  text-decoration: underline;
+}
+
+.wo-mobile-item-name {
+  width: 100%;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-primary, #0f172a);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.35;
+}
+
+/* Dropdown Accordion Button */
+.wo-mobile-dropdown-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color, #e2e8f0);
+  background: var(--layout-bg, #f8fafc);
+  color: var(--text-secondary, #64748b);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.wo-mobile-dropdown-btn:hover {
+  background: rgba(37, 99, 235, 0.08);
+  border-color: #93c5fa;
+  color: #2563eb;
+}
+
+.wo-mobile-dropdown-btn.expanded {
+  background: rgba(37, 99, 235, 0.12);
+  border-color: #60a5fa;
+  color: #2563eb;
+}
+
+.wo-mobile-chevron {
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.wo-mobile-dropdown-btn.expanded .wo-mobile-chevron {
+  transform: rotate(180deg);
+}
+
+/* Expanded Card Details */
+.wo-mobile-card-details {
+  padding: 12px 14px 14px 14px;
+  background: var(--layout-bg, #f8fafc);
+  border-top: 1px solid var(--border-color, #e5e7eb);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: wo-fade-in 0.2s ease;
+}
+
+@keyframes wo-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.wo-mobile-detail-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  padding-bottom: 6px;
+  border-bottom: 1px dashed var(--border-color, #e2e8f0);
+}
+
+.wo-mobile-detail-row:last-of-type {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.wo-mobile-detail-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary, #64748b);
+  flex-shrink: 0;
+}
+
+.wo-mobile-detail-value {
+  font-size: 13px;
+  color: var(--text-primary, #0f172a);
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 1–10 of 36 / Actions Footer in Mobile Dropdown */
+.wo-mobile-detail-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 10px;
+  margin-top: 4px;
+  border-top: 1px solid var(--border-color, #e5e7eb);
+}
+
+.wo-mobile-detail-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary, #64748b);
+  font-weight: 500;
+}
+
+/* Dark theme for mobile list */
+.dark-theme .wo-mobile-list-header {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+}
+
+.dark-theme .wo-mobile-th-cell {
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .wo-mobile-card {
+  background: var(--card-bg, #1e293b);
+  border-color: var(--border-color, #334155);
+}
+
+.dark-theme .wo-mobile-card:hover {
+  border-color: #475569;
+}
+
+.dark-theme .wo-mobile-card-details {
+  background: var(--layout-bg, #0f172a);
+  border-top-color: var(--border-color, #334155);
+}
+
+.dark-theme .wo-mobile-detail-row {
+  border-bottom-color: #334155;
+}
+
+.dark-theme .wo-mobile-detail-label {
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .wo-mobile-detail-value {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .wo-mobile-item-name {
+  color: var(--text-primary, #f8fafc);
+}
+
+.dark-theme .wo-mobile-detail-footer {
+  border-top-color: #334155;
+}
+
+.dark-theme .wo-mobile-dropdown-btn {
+  background: var(--layout-bg, #0f172a);
+  border-color: var(--border-color, #334155);
+  color: var(--text-secondary, #94a3b8);
+}
+
+.dark-theme .wo-mobile-dropdown-btn:hover {
+  background: rgba(99, 102, 241, 0.15);
+  border-color: #818cf8;
+  color: #818cf8;
+}
+
+.dark-theme .wo-mobile-dropdown-btn.expanded {
+  background: rgba(99, 102, 241, 0.2);
+  border-color: #818cf8;
+  color: #818cf8;
+}
+
 /* ── Responsive ──────────────────────────────────────────── */
 @media (max-width: 1024px) {
   .wo-stats-container {
@@ -1757,8 +2069,20 @@
 }
 
 @media (max-width: 768px) {
+  /* Hide Desktop Table and Show Mobile Accordion List */
+  .wo-desktop-table-wrap {
+    display: none !important;
+  }
+
+  .wo-mobile-list-wrap {
+    display: flex !important;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+  }
+
   .wo-page {
-    padding: 12px;
+    padding: 12px 10px;
     gap: 12px;
   }
 
@@ -1770,6 +2094,8 @@
   .wo-filter-bar {
     flex-direction: column;
     align-items: stretch;
+    gap: 10px;
+    width: 100%;
   }
 
   .wo-filter-left {
@@ -1778,26 +2104,99 @@
 
   .wo-search-wrapper {
     max-width: 100%;
+    width: 100%;
+  }
+
+  .wo-search-input {
+    height: 38px;
+    font-size: 12.5px;
   }
 
   .wo-filter-right {
-    justify-content: flex-start;
-    flex-wrap: wrap;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    grid-template-rows: auto auto !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+
+  /* Row 1 (Filters): Left = Active status (1st wo-filter-select), Right = Date Filter (2nd wo-filter-select) */
+  .wo-filter-right .wo-filter-select:nth-of-type(1) {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    width: 100% !important;
+    height: 38px !important;
+    padding: 0 10px !important;
+    font-size: 12.5px !important;
+    box-sizing: border-box !important;
+  }
+
+  .wo-filter-right .wo-filter-select:nth-of-type(2) {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    width: 100% !important;
+    height: 38px !important;
+    padding: 0 10px !important;
+    font-size: 12.5px !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Row 2 (Actions): Left = Date range wrapper (wo-date-range-wrapper), Right = Add Work Order (wo-btn-primary) */
+  .wo-filter-right .wo-date-range-wrapper {
+    grid-column: 1 !important;
+    grid-row: 2 !important;
+    width: 100% !important;
+    display: flex !important;
+  }
+
+  .wo-filter-right .wo-date-toggle-btn {
+    width: 100% !important;
+    height: 38px !important;
+    padding: 0 10px !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    font-size: 12.5px !important;
+    box-sizing: border-box !important;
+  }
+
+  .wo-filter-right .wo-btn-primary {
+    grid-column: 2 !important;
+    grid-row: 2 !important;
+    width: 100% !important;
+    height: 38px !important;
+    padding: 0 10px !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    font-size: 12.5px !important;
+    white-space: nowrap !important;
+    box-sizing: border-box !important;
+  }
+
+  .wo-date-picker-popup {
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    width: 90% !important;
+    max-width: 320px !important;
+    z-index: 2000 !important;
+    padding: 12px !important;
   }
 
   .wo-pagination {
     flex-direction: column;
     align-items: center;
+    gap: 10px;
+    width: 100%;
     padding: 12px 0 0 0;
   }
 
-  .wo-pagination-center {
-    order: 2;
-  }
-
   .wo-pagination-left,
+  .wo-pagination-center,
   .wo-pagination-right {
-    order: 1;
+    width: 100%;
+    justify-content: center;
+    flex-wrap: wrap;
   }
 
   .wo-table {
@@ -1852,13 +2251,37 @@
   }
 
   .wo-tabs {
-    flex-direction: column;
-    gap: 2px;
+    display: flex;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    width: 100%;
+    gap: 4px;
+    padding: 3px;
+    box-sizing: border-box;
   }
 
   .wo-tab {
-    justify-content: flex-start;
-    padding: 8px 12px;
+    flex: 1 1 0;
+    min-width: 0;
+    justify-content: center;
+    padding: 8px 4px;
+    font-size: 12px;
+    gap: 4px;
+    white-space: nowrap;
+  }
+
+  .wo-tab svg {
+    flex-shrink: 0;
+    font-size: 12px;
+  }
+
+  .wo-tab-count {
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    font-size: 10.5px;
+    margin-left: 2px;
+    flex-shrink: 0;
   }
 
   .wo-type-badge {
@@ -1924,6 +2347,29 @@
 }
 
 @media (max-width: 480px) {
+  .wo-tabs {
+    gap: 3px;
+    padding: 2px;
+  }
+
+  .wo-tab {
+    padding: 7px 2px;
+    font-size: 11px;
+    gap: 3px;
+  }
+
+  .wo-tab svg {
+    font-size: 11px;
+  }
+
+  .wo-tab-count {
+    min-width: 16px;
+    height: 16px;
+    padding: 0 3px;
+    font-size: 9.5px;
+    margin-left: 1px;
+  }
+
   .wo-stats-container {
     grid-template-columns: 1fr;
   }
@@ -1940,15 +2386,6 @@
     width: 36px;
     height: 36px;
     font-size: 16px;
-  }
-
-  .wo-filter-right {
-    flex-direction: column;
-    width: 100%;
-  }
-
-  .wo-filter-right > * {
-    width: 100%;
   }
 
   .wo-btn-primary {

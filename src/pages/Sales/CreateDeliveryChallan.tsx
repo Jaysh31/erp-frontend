@@ -506,8 +506,22 @@ class DeliveryChallanAPI {
     return this.apiService.put(`/inventory`, data);
   }
 
+  // Get quality inspection by delivery challan ID
   async getQualityInspectionByDC(dcId: string | number): Promise<ApiResponse<any>> {
-    return this.apiService.get(`/quality-inspection/delivery-challan/${dcId}`);
+    const dcResponse = await this.apiService.get(`/delivery-note/${dcId}`);
+    if (dcResponse.success && dcResponse.data) {
+      const dcData =   dcResponse.data;
+      const qiId = dcData;
+      if (qiId) {
+        return this.apiService.get(`/quality-inspection/${qiId}`);
+      }
+    }
+    return this.apiService.get(`/quality-inspection?reference_id=${dcId}&reference_type=Delivery Challan`);
+  }
+
+  // Get quality inspection by ID directly
+  async getQualityInspectionById(qiId: string | number): Promise<ApiResponse<any>> {
+    return this.apiService.get(`/quality-inspection/${qiId}`);
   }
 }
 
@@ -1758,161 +1772,6 @@ const SuccessModal: React.FC<SuccessModalProps> = ({
   );
 };
 
-// ===== INSPECTION VIEW MODAL =====
-interface InspectionViewModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  inspectionData: any;
-}
-
-const InspectionViewModal: React.FC<InspectionViewModalProps> = ({
-  isOpen,
-  onClose,
-  inspectionData,
-}) => {
-  if (!isOpen || !inspectionData) return null;
-
-  const details = inspectionData.details || [];
-  const hasObservations = details.some((d: any) => d.observations && d.observations.length > 0);
-  const sampleCount = hasObservations ? details[0].observations.length : 0;
-
-  return ReactDOM.createPortal(
-    <div className="ndc-modal-overlay" onClick={onClose}>
-      <div className="ndc-modal-container ndc-inspection-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="ndc-modal-header">
-          <h2 className="ndc-modal-title">
-            <FaClipboardCheck size={20} style={{ marginRight: '8px' }} />
-            Quality Inspection Details
-          </h2>
-          <button onClick={onClose} className="ndc-modal-close-btn">
-            <FaTimes size={18} />
-          </button>
-        </div>
-
-        <div className="ndc-inspection-summary">
-          <div className="ndc-inspection-summary-grid">
-            <div className="ndc-inspection-summary-item">
-              <span className="ndc-inspection-summary-label">Inspection No</span>
-              <span className="ndc-inspection-summary-value">{inspectionData.inspection_no || '-'}</span>
-            </div>
-            <div className="ndc-inspection-summary-item">
-              <span className="ndc-inspection-summary-label">Status</span>
-              <span className={`ndc-inspection-status ${inspectionData.status?.toLowerCase() || ''}`}>
-                {inspectionData.status || '-'}
-              </span>
-            </div>
-            <div className="ndc-inspection-summary-item">
-              <span className="ndc-inspection-summary-label">Overall Result</span>
-              <span className={`ndc-inspection-result ${inspectionData.overall_result?.toLowerCase() || ''}`}>
-                {inspectionData.overall_result || '-'}
-              </span>
-            </div>
-            <div className="ndc-inspection-summary-item">
-              <span className="ndc-inspection-summary-label">Date</span>
-              <span className="ndc-inspection-summary-value">
-                {inspectionData.inspection_date ? new Date(inspectionData.inspection_date).toLocaleDateString() : '-'}
-              </span>
-            </div>
-            <div className="ndc-inspection-summary-item">
-              <span className="ndc-inspection-summary-label">Item</span>
-              <span className="ndc-inspection-summary-value">
-                {inspectionData.part_product_name || inspectionData.item_name || '-'}
-              </span>
-            </div>
-            <div className="ndc-inspection-summary-item">
-              <span className="ndc-inspection-summary-label">Customer</span>
-              <span className="ndc-inspection-summary-value">
-                {inspectionData.customer_name || '-'}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="ndc-inspection-details">
-          <div className="ndc-inspection-details-header">
-            <span>Parameters & Observations</span>
-            {inspectionData.rejected_qty > 0 && (
-              <span className="ndc-inspection-rejected-badge">
-                <FaExclamationTriangle size={12} /> {inspectionData.rejected_qty} Rejected
-              </span>
-            )}
-          </div>
-
-          <div className="ndc-inspection-table-wrap">
-            <table className="ndc-inspection-table">
-              <thead>
-                <tr>
-                  <th className="ndc-inspection-col-sr">#</th>
-                  <th className="ndc-inspection-col-param">Parameter</th>
-                  <th className="ndc-inspection-col-spec">Specification</th>
-                  <th className="ndc-inspection-col-method">Inspection Method</th>
-                  {Array.from({ length: sampleCount }, (_, i) => (
-                    <th key={i} className="ndc-inspection-col-obs">Obs {i + 1}</th>
-                  ))}
-                  <th className="ndc-inspection-col-result">Result</th>
-                </tr>
-              </thead>
-              <tbody>
-                {details.length === 0 ? (
-                  <tr>
-                    <td colSpan={sampleCount + 5} className="ndc-inspection-empty">
-                      No inspection details available
-                    </td>
-                  </tr>
-                ) : (
-                  details.map((detail: any, index: number) => {
-                    const observations = detail.observations || [];
-                    const isFail = detail.result === 'Fail';
-                    return (
-                      <tr key={detail.id || index} className={isFail ? 'ndc-inspection-row-fail' : ''}>
-                        <td className="ndc-inspection-col-sr">{index + 1}</td>
-                        <td className="ndc-inspection-col-param">{detail.parameter_name || '-'}</td>
-                        <td className="ndc-inspection-col-spec">{detail.specification || '-'}</td>
-                        <td className="ndc-inspection-col-method">{detail.inspection_method_name || '-'}</td>
-                        {observations.map((obs: any, obsIndex: number) => (
-                          <td key={obsIndex} className="ndc-inspection-col-obs">
-                            <span className={obs.result === 'Fail' ? 'ndc-inspection-obs-fail' : ''}>
-                              {obs.observed_value || '-'}
-                            </span>
-                          </td>
-                        ))}
-                        {observations.length < sampleCount && (
-                          Array.from({ length: sampleCount - observations.length }, (_, i) => (
-                            <td key={`empty-${i}`} className="ndc-inspection-col-obs">-</td>
-                          ))
-                        )}
-                        <td className="ndc-inspection-col-result">
-                          <span className={`ndc-inspection-badge ${detail.result?.toLowerCase() || ''}`}>
-                            {detail.result || '-'}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {inspectionData.remarks && (
-            <div className="ndc-inspection-remarks">
-              <span className="ndc-inspection-remarks-label">Remarks:</span>
-              <span>{inspectionData.remarks}</span>
-            </div>
-          )}
-        </div>
-
-        <div className="ndc-modal-footer">
-          <button onClick={onClose} className="ndc-modal-btn ndc-modal-btn-secondary">
-            Close
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body
-  );
-};
-
 // ===== MAIN COMPONENT =====
 
 const NewDeliveryChallan: React.FC = () => {
@@ -1985,13 +1844,9 @@ const NewDeliveryChallan: React.FC = () => {
     message: ''
   });
 
-  // NEW: Quality Inspection ID to pass to DC
   const [qualityInspectionId, setQualityInspectionId] = useState<number | null>(null);
 
-  // View Inspection state
-  const [viewInspectionData, setViewInspectionData] = useState<any>(null);
-  const [showViewInspectionModal, setShowViewInspectionModal] = useState<boolean>(false);
-  const [isLoadingInspection, setIsLoadingInspection] = useState<boolean>(false);
+  const [isLoadingInspection] = useState<boolean>(false);
 
   const deliveryChallanAPI = new DeliveryChallanAPI();
 
@@ -2217,6 +2072,14 @@ const NewDeliveryChallan: React.FC = () => {
         
         if (data.quality_inspection_id) {
           setQualityInspectionId(data.quality_inspection_id);
+          setQualityInspection(true);
+          
+          if (data.quality_inspection) {
+            setPendingQualityInspection({
+              id: data.quality_inspection_id,
+              formData: data.quality_inspection
+            });
+          }
         }
         
         if (data.items && Array.isArray(data.items) && data.items.length > 0) {
@@ -2285,30 +2148,17 @@ const NewDeliveryChallan: React.FC = () => {
     }
   };
 
-  // ===== VIEW QUALITY INSPECTION =====
-  const handleViewQualityInspection = async () => {
-    if (!id) {
-      toast.error('No Delivery Challan ID found');
+  // ===== VIEW QUALITY INSPECTION - Navigate to view mode =====
+  const handleViewQualityInspection = () => {
+    const qiId = qualityInspectionId || pendingQualityInspection?.id;
+    
+    if (!qiId) {
+      toast.error('No Quality Inspection ID found for this Delivery Challan');
       return;
     }
 
-    setIsLoadingInspection(true);
-    try {
-      const response = await deliveryChallanAPI.getQualityInspectionByDC(id);
-      
-      if (response.success && response.data) {
-        const inspectionData = response.data.data || response.data;
-        setViewInspectionData(inspectionData);
-        setShowViewInspectionModal(true);
-      } else {
-        toast.error('No Quality Inspection found for this Delivery Challan');
-      }
-    } catch (error: any) {
-      console.error('Error fetching inspection:', error);
-      toast.error(error?.response?.data?.message || 'Failed to fetch Quality Inspection');
-    } finally {
-      setIsLoadingInspection(false);
-    }
+    // Navigate to the quality inspection page in view mode
+    navigate(`/quality-inspection/${qiId}?view=1`);
   };
 
   // ===== RESTORE STATE FROM QUALITY INSPECTION =====
@@ -3344,7 +3194,6 @@ const NewDeliveryChallan: React.FC = () => {
   // ===== SAVE PENDING QUALITY INSPECTION =====
   const savePendingQualityInspection = async (createdDC: any, responseData: any): Promise<any> => {
     if (!pendingQualityInspection?.payload) {
-      // If there's already a qualityInspectionId, use it
       if (qualityInspectionId) {
         return { data: { headerId: qualityInspectionId } };
       }
@@ -3359,7 +3208,6 @@ const NewDeliveryChallan: React.FC = () => {
     const savedParameters: Record<string, number> = {};
     const savedMethods: Record<string, number> = {};
 
-    // Create masters that don't have IDs
     for (const row of parameters) {
       const name = String(row?.parameter || '').trim();
       if (!name || row?.parameterId) continue;
@@ -3408,7 +3256,6 @@ const NewDeliveryChallan: React.FC = () => {
       };
     });
 
-    // Set reference info if we have a DC
     if (createdDC) {
       const dcId = getPrintDeliveryChallanId(createdDC) ?? getPrintDeliveryChallanId(responseData) ?? null;
       const dcName = createdDC?.data?.delivery_note || createdDC?.delivery_note || createdDC?.name || dcNumber;
@@ -3420,7 +3267,6 @@ const NewDeliveryChallan: React.FC = () => {
       payload.doc_no = dcName || payload.doc_no || dcNumber;
       payload.challan_no_date = dcName || payload.challan_no_date || dcNumber;
     } else {
-      // If no DC yet, set source info
       payload.source_type = 'delivery_challan';
       payload.source_id = id ? Number(id) : undefined;
     }
@@ -3971,7 +3817,6 @@ const NewDeliveryChallan: React.FC = () => {
     const toastId = toast.loading(isEditMode ? 'Updating delivery challan...' : 'Creating delivery challan...');
     
     try {
-      // STEP 1: Save Quality Inspection first if pending
       let savedQiHeaderId: number | null = qualityInspectionId;
       
       if (pendingQualityInspection) {
@@ -3991,13 +3836,11 @@ const NewDeliveryChallan: React.FC = () => {
         }
       }
 
-      // STEP 2: Build payload with quality_inspection_id
       const payload = buildPayload();
       if (savedQiHeaderId) {
         payload.quality_inspection_id = savedQiHeaderId;
       }
 
-      // STEP 3: Create/Update Delivery Challan
       let response;
       if (isEditMode && id) {
         response = await deliveryChallanAPI.updateDeliveryNote(payload);
@@ -4023,25 +3866,27 @@ const NewDeliveryChallan: React.FC = () => {
                      response.message || 
                      (isEditMode ? 'Delivery Note updated successfully.' : 'Delivery Note created successfully.');
       
-      // STEP 4: Link Quality Inspection with DC if needed
       if (savedQiHeaderId && createdDC) {
         const dcId = getPrintDeliveryChallanId(createdDC) ?? getPrintDeliveryChallanId(response.data) ?? null;
         if (dcId) {
           try {
+            const dcNumericId = typeof dcId === 'string' ? parseInt(dcId, 10) : dcId;
+            
             await api.put('/quality-inspection', {
               id: savedQiHeaderId,
               reference_type: 'Delivery Challan',
-              reference_id: Number(dcId),
+              reference_id: dcNumericId,
               doc_no: deliveryNote,
               challan_no_date: deliveryNote
             });
+            
+            console.log(`Quality Inspection ${savedQiHeaderId} linked to DC ${dcNumericId}`);
           } catch (linkError) {
             console.warn('Could not link inspection with DC:', linkError);
           }
         }
       }
       
-      // STEP 5: Update inventory
       if (!isEditMode) {
         const itemsToDispatch = items.filter(item => item.itemCode && item.quantity > 0);
         if (itemsToDispatch.length > 0) {
@@ -4107,7 +3952,6 @@ const NewDeliveryChallan: React.FC = () => {
     const toastId = toast.loading(isEditMode ? 'Updating draft...' : 'Saving draft...');
     
     try {
-      // Save quality inspection if pending
       let savedQiHeaderId: number | null = qualityInspectionId;
       
       if (pendingQualityInspection) {
@@ -4146,15 +3990,16 @@ const NewDeliveryChallan: React.FC = () => {
                           createdDC?.name || 
                           dcNumber;
       
-      // Link inspection with DC if needed
       if (savedQiHeaderId && createdDC) {
         const dcId = getPrintDeliveryChallanId(createdDC) ?? getPrintDeliveryChallanId(response.data) ?? null;
         if (dcId) {
           try {
+            const dcNumericId = typeof dcId === 'string' ? parseInt(dcId, 10) : dcId;
+            
             await api.put('/quality-inspection', {
               id: savedQiHeaderId,
               reference_type: 'Delivery Challan',
-              reference_id: Number(dcId),
+              reference_id: dcNumericId,
               doc_no: deliveryNote,
               challan_no_date: deliveryNote
             });
@@ -4868,13 +4713,6 @@ const NewDeliveryChallan: React.FC = () => {
           </div>
         </div>
       )}
-
-      {/* Inspection View Modal */}
-      <InspectionViewModal
-        isOpen={showViewInspectionModal}
-        onClose={() => setShowViewInspectionModal(false)}
-        inspectionData={viewInspectionData}
-      />
 
       {/* Quick Add Customer Modal */}
       <QuickAddCustomerModal

@@ -7,6 +7,7 @@ import {
   FaSpinner,
   FaChevronLeft, FaChevronRight,
   FaAngleDoubleLeft, FaAngleDoubleRight,
+  FaChevronDown,
   FaCalendarAlt,
 } from 'react-icons/fa';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
@@ -14,6 +15,7 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../services/api';
 import './PurchaseOrder.css';
+import { PageLoader } from '../components/PageLoader';
 
 // ─── Types ──────────────────────────────────────────────────
 
@@ -240,12 +242,28 @@ export default function PurchaseOrder() {
   // Data & loading
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
-  const [fetching, setFetching] = useState(true);
+  const [, setFetching] = useState(true);
   const [apiError, setApiError] = useState<string | null>(null);
 
   // Pagination (server‑side)
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  // Mobile list row expansion state
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+
+  const toggleRowExpand = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
   // ✅ NEW: Format display date using context
   const formatDisplayDateWithContext = (dateString: string) => {
@@ -565,12 +583,24 @@ export default function PurchaseOrder() {
 
   // ─── Render ──────────────────────────────────────────────
 
-  if (fetching) {
+  {/*if (fetching) {
     return (
       <div className={`po-page ${theme}`}>
         <div className="po-loading">
           <FaSpinner className="po-spinning" size={32} />
           <p>Loading purchase orders...</p>
+        </div>
+      </div>
+    );
+  */}
+    if (loading) {
+    return (
+      <div className={`grnf-page ${theme}`}>
+        <div className="grnf-inner">
+          <PageLoader 
+            message="Loading Purchase Order..." 
+            subtitle="Synchronizing warehouse receipt entries, line item counts, and supplier records"
+          />
         </div>
       </div>
     );
@@ -597,17 +627,17 @@ export default function PurchaseOrder() {
             )}
           </div>
         </div>
-        <div className="po-filter-right">
+        <div className="bom-filter-right">
           <select
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
-            className="po-filter-select"
+            className="bom-filter-select"
           >
             <option value="All">All Status</option>
             {statusOptions.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
           <button
-            className={`po-filter-btn ${showFilters ? 'active' : ''}`}
+            className={`bom-filter-btn ${showFilters ? 'active' : ''}`}
             onClick={() => setShowFilters(!showFilters)}
           >
             <FaFilter size={12} /> Filter
@@ -616,7 +646,7 @@ export default function PurchaseOrder() {
           {/* Date Range Button with Calendar Dropdown */}
           <div ref={dateFilterRef} style={{ position: 'relative', display: 'inline-block' }}>
             <button
-              className="po-sort-btn"
+              className="bom-sort-btn"
               onClick={() => setShowDateFilterDropdown(!showDateFilterDropdown)}
               style={dateFrom ? { borderColor: '#3182ce', color: '#3182ce' } : undefined}
             >
@@ -629,7 +659,7 @@ export default function PurchaseOrder() {
 
             {/* Calendar Date Filter Dropdown */}
             {showDateFilterDropdown && (
-              <div className="po-date-filter-dropdown" style={{
+              <div className="bom-date-filter-dropdown" style={{
                 position: 'absolute',
                 top: '100%',
                 right: '0',
@@ -804,12 +834,12 @@ export default function PurchaseOrder() {
       )}
 
       {/* ─── Table ──────────────────────────────────────────── */}
-      <div className="po-table-wrap">
+      <div className="po-table-wrap po-desktop-table-wrap">
         <table className="po-table">
           <thead>
             <tr>
               <th className="po-th">PO #</th>
-              <th className="po-th">Title</th>
+              {/* <th className="po-th">Title</th> */}
               <th className="po-th">Supplier</th>
               <th className="po-th">Order Date</th>
               <th className="po-th">Delivery Date</th>
@@ -842,7 +872,7 @@ export default function PurchaseOrder() {
               filteredOrders.map((po) => (
                 <tr key={po.id} className="po-tr" onClick={() => handleRowClick(po)} style={{ cursor: 'pointer' }}>
                   <td className="po-td po-td-id">{po.poNumber}</td>
-                  <td className="po-td">{po.title}</td>
+                  {/* <td className="po-td">{po.title}</td> */}
                   <td className="po-td">{po.supplier}</td>
                   {/* ✅ USE FORMATTED DATE FOR DISPLAY */}
                   <td className="po-td">{po.displayOrderDate || po.orderDate}</td>
@@ -874,6 +904,165 @@ export default function PurchaseOrder() {
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* ─── Mobile UI Table / List Section (max-width: 768px) ─── */}
+      <div className="po-mobile-list-wrap">
+        {filteredOrders.length === 0 ? (
+          <div className="po-empty-state">
+            <div className="po-empty-content">
+              <FaFileAlt size={48} />
+              <p>No purchase orders found</p>
+              <span>Create your first purchase order to get started</span>
+              <button className="po-btn-primary" onClick={handleCreate} style={{ marginTop: '12px' }}>
+                <FaPlus size={12} /> Add PO
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Mobile Table Header Bar */}
+            <div className="po-mobile-list-header">
+              <div className="po-mobile-th-primary">
+                <span className="po-mobile-th-cell">PO # / Supplier	</span>
+              </div>
+              <div className="po-mobile-th-right">
+                <span className="po-count-label">
+                  {totalRecords > 0
+                    ? `${(validCurrentPage - 1) * itemsPerPage + 1}–${Math.min(validCurrentPage * itemsPerPage, totalRecords)} of ${totalRecords}`
+                    : '0'}
+                </span>
+              </div>
+            </div>
+
+            {/* Mobile Cards / Rows */}
+            <div className="po-mobile-cards">
+              {filteredOrders.map((po) => {
+                const isExpanded = expandedRows.has(po.id);
+                return (
+                  <div
+                    key={po.id}
+                    className={`po-mobile-card ${isExpanded ? 'po-mobile-card-expanded' : ''}`}
+                  >
+                    {/* Card Header: PO #, Title and Dropdown Button */}
+                    <div
+                      className="po-mobile-card-header"
+                      onClick={() => toggleRowExpand(po.id)}
+                    >
+                      <div className="po-mobile-card-primary">
+                        <span
+                          className="po-mobile-item-code"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRowClick(po);
+                          }}
+                          title="View / Edit Purchase Order"
+                        >
+                          {po.poNumber}
+                        </span>
+                        {/* <span
+                          className="po-mobile-item-name"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRowClick(po);
+                          }}
+                          title={po.title}
+                        >
+                          {po.title || '—'}
+                        </span>*/}
+                          <span className="po-mobile-detail-value">{po.supplier || '—'}</span>
+                      </div>
+
+                      {/* Dropdown Button */}
+                      <button
+                        type="button"
+                        className={`po-mobile-dropdown-btn ${isExpanded ? 'expanded' : ''}`}
+                        onClick={(e) => toggleRowExpand(po.id, e)}
+                        aria-label={isExpanded ? 'Collapse details' : 'Expand details'}
+                        title={isExpanded ? 'Collapse details' : 'Expand details'}
+                      >
+                        <FaChevronDown size={13} className="po-mobile-chevron" />
+                      </button>
+                    </div>
+
+                    {/* Expanded Section: Order Date, Delivery Date, Amount, Status */}
+                    {isExpanded && (
+                      <div className="po-mobile-card-details">
+                        {/*<div className="po-mobile-detail-row">
+                          <span className="po-mobile-detail-label">Supplier</span>
+                          <span className="po-mobile-detail-value">{po.supplier || '—'}</span>
+                        </div>*/}
+
+                        <div className="po-mobile-detail-row">
+                          <span className="po-mobile-detail-label">Order Date</span>
+                          <div className="po-mobile-detail-date">
+                            <FaCalendarAlt size={10} className="po-date-icon" />
+                            <span>{po.displayOrderDate || po.orderDate || '—'}</span>
+                          </div>
+                        </div>
+
+                        <div className="po-mobile-detail-row">
+                          <span className="po-mobile-detail-label">Delivery Date</span>
+                          <div className="po-mobile-detail-date">
+                            <FaCalendarAlt size={10} className="po-date-icon" />
+                            <span>{po.displayDeliveryDate || po.deliveryDate || '—'}</span>
+                          </div>
+                        </div>
+
+                        <div className="po-mobile-detail-row">
+                          <span className="po-mobile-detail-label">Amount</span>
+                          <span className="po-mobile-detail-value po-amount">
+                            {po.currency} {po.totalAmount.toLocaleString()}
+                          </span>
+                        </div>
+
+                        <div className="po-mobile-detail-row">
+                          <span className="po-mobile-detail-label">Status</span>
+                          <span className={`po-status-badge ${getStatusColor(po.status)}`}>
+                            {getStatusIcon(po.status)}
+                            {po.status}
+                          </span>
+                        </div>
+
+                        <div className="po-mobile-detail-footer">
+                          <span className="po-mobile-card-meta-text">
+                            {/*rowNumber} of {totalRecords*/}
+                          </span>
+                          <div className="po-action-buttons">
+                            <button
+                              className="po-action-btn po-action-view"
+                              onClick={(e) => handleView(po, e)}
+                              title="View"
+                            >
+                              <FaEye size={12} />
+                            </button>
+                            <button
+                              className="po-action-btn po-action-edit"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRowClick(po);
+                              }}
+                              title="Edit"
+                            >
+                              <FaEdit size={12} />
+                            </button>
+                            <button
+                              className="po-action-btn po-action-delete"
+                              onClick={(e) => handleDelete(po, e)}
+                              title="Delete"
+                            >
+                              <FaTrash size={12} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
       </div>
 
       {/* ─── Pagination ────────────────────────────────────── */}

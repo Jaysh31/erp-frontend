@@ -25,11 +25,13 @@ import {
   FaTruck,
   FaExclamationCircle,
   FaDollarSign,
+  FaChevronDown,
 } from "react-icons/fa";
 import "./Stockentry.css";
 import { useAdminTheme } from "../../admin-theme/AdminThemeContext";
 import api from "../../services/api";
 import { FaSpinner } from "react-icons/fa6";
+import { PageLoader } from "../components/PageLoader.tsx";
 
 type EntryType =
   | "Disassemble"
@@ -138,7 +140,7 @@ const ENTRY_TYPES: EntryType[] = [
 export default function Stockentry() {
   const navigate = useNavigate();
   
-  const { theme, formatDate } = useAdminTheme();
+  const { theme,  } = useAdminTheme();
 
 
   const [stockEntries, setStockEntries] = useState<StockEntryDisplay[]>([]);
@@ -159,6 +161,20 @@ export default function Stockentry() {
   const [toDate, setToDate] = useState<string>("");
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+
+  const toggleRowExpand = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
   const formatDateAgo = (dateString: string) => {
     if (!dateString) return "N/A";
@@ -184,7 +200,8 @@ export default function Stockentry() {
 
   const formatDisplayDate = (dateString: string) => {
     if (!dateString) return '';
-    return formatDate(dateString);
+    const date = new Date(dateString);
+    return isNaN(date.getTime()) ? dateString : date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
   };
 
 
@@ -200,7 +217,8 @@ export default function Stockentry() {
 
   const formatDateDisplay = (dateStr: string) => {
     if (!dateStr) return '';
-    return formatDate(dateStr);
+    const date = new Date(dateStr);
+    return isNaN(date.getTime()) ? dateStr : date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
   };
 
   const getDaysInMonth = (date: Date) => {
@@ -564,6 +582,18 @@ export default function Stockentry() {
     </div>
   );
 
+  // ─── Loading Screen ─────────────────────────────────────────────────────
+    if (loading) {
+      return (
+        <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
+          <PageLoader 
+            message="Loading Manufacturing & Stock Entry..." 
+            //subtitle="Calculating bill of materials, operations rates, and component structures"
+          />
+        </div>
+      );
+    }
+
   return (
     <div className={`se-page ${theme}`}>
       {/* ─── Search and Filter Bar ─── */}
@@ -597,113 +627,115 @@ export default function Stockentry() {
             ))}
           </select>
 
-          {/* ─── Date Range Picker ─── */}
-          <div className="se-date-range-wrapper">
-            <button 
-              className={`se-date-toggle-btn ${showDatePicker ? 'active' : ''}`}
-              onClick={() => setShowDatePicker(!showDatePicker)}
-              title="Filter by date range"
-            >
-              <FaCalendarAlt size={14} />
-            </button>
-            {showDatePicker && (
-              <div className="se-date-picker-popup">
-                <div className="se-date-picker-header">
-                  <span className="se-date-picker-title">Filter by Date</span>
-                </div>
-                
-                {/* Date Range Display */}
-                <div className="se-date-range-display">
-                  {fromDate && toDate ? (
-                    <span>{formatDateDisplay(fromDate)} – {formatDateDisplay(toDate)}</span>
-                  ) : (
-                    <span className="se-date-range-placeholder">Select date range</span>
-                  )}
-                </div>
+          <div className="se-filter-actions-row">
+            {/* ─── Date Range Picker ─── */}
+            <div className="se-date-range-wrapper">
+              <button 
+                className={`se-date-toggle-btn ${showDatePicker ? 'active' : ''}`}
+                onClick={() => setShowDatePicker(!showDatePicker)}
+                title="Filter by date range"
+              >
+                <FaCalendarAlt size={14} />
+              </button>
+              {showDatePicker && (
+                <div className="se-date-picker-popup">
+                  <div className="se-date-picker-header">
+                    <span className="se-date-picker-title">Filter by Date</span>
+                  </div>
+                  
+                  {/* Date Range Display */}
+                  <div className="se-date-range-display">
+                    {fromDate && toDate ? (
+                      <span>{formatDateDisplay(fromDate)} – {formatDateDisplay(toDate)}</span>
+                    ) : (
+                      <span className="se-date-range-placeholder">Select date range</span>
+                    )}
+                  </div>
 
-                {/* Quick Filters */}
-                <div className="se-quick-filters">
-                  <button className="se-quick-filter-btn" onClick={() => setQuickDateRange(0)}>Today</button>
-                  <button className="se-quick-filter-btn" onClick={() => setQuickDateRange(7)}>Last 7 Days</button>
-                  <button className="se-quick-filter-btn" onClick={() => setQuickDateRange(30)}>Last 30 Days</button>
-                  <button className="se-quick-filter-btn" onClick={() => setQuickDateRange(90)}>This Month</button>
-                </div>
+                  {/* Quick Filters */}
+                  <div className="se-quick-filters">
+                    <button className="se-quick-filter-btn" onClick={() => setQuickDateRange(0)}>Today</button>
+                    <button className="se-quick-filter-btn" onClick={() => setQuickDateRange(7)}>Last 7 Days</button>
+                    <button className="se-quick-filter-btn" onClick={() => setQuickDateRange(30)}>Last 30 Days</button>
+                    <button className="se-quick-filter-btn" onClick={() => setQuickDateRange(90)}>This Month</button>
+                  </div>
 
-                {/* Calendar */}
-                <div className="se-calendar">
-                  <div className="se-calendar-header">
-                    <button className="se-calendar-nav" onClick={handlePrevMonth}>
-                      <FaChevronLeft size={12} />
+                  {/* Calendar */}
+                  <div className="se-calendar">
+                    <div className="se-calendar-header">
+                      <button className="se-calendar-nav" onClick={handlePrevMonth}>
+                        <FaChevronLeft size={12} />
+                      </button>
+                      <span className="se-calendar-month">{getMonthYear(currentMonth)}</span>
+                      <button className="se-calendar-nav" onClick={handleNextMonth}>
+                        <FaChevronRight size={12} />
+                      </button>
+                    </div>
+                    <div className="se-calendar-weekdays">
+                      <span>Su</span>
+                      <span>Mo</span>
+                      <span>Tu</span>
+                      <span>We</span>
+                      <span>Th</span>
+                      <span>Fr</span>
+                      <span>Sa</span>
+                    </div>
+                    <div className="se-calendar-days">
+                      {Array.from({ length: getDaysInMonth(currentMonth).firstDayOfMonth }).map((_, i) => (
+                        <span key={`empty-${i}`} className="se-calendar-day-empty"></span>
+                      ))}
+                      {Array.from({ length: getDaysInMonth(currentMonth).daysInMonth }).map((_, i) => {
+                        const day = i + 1;
+                        const isSelected = isDateSelected(day);
+                        return (
+                          <button
+                            key={day}
+                            className={`se-calendar-day ${isSelected ? 'selected' : ''}`}
+                            onClick={() => handleDateClick(day)}
+                          >
+                            {day}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="se-date-actions">
+                    <button 
+                      className="se-btn-clear-filter" 
+                      onClick={handleClearDateFilter}
+                    >
+                      Clear
                     </button>
-                    <span className="se-calendar-month">{getMonthYear(currentMonth)}</span>
-                    <button className="se-calendar-nav" onClick={handleNextMonth}>
-                      <FaChevronRight size={12} />
+                    <button 
+                      className="se-btn-apply-filter" 
+                      onClick={handleApplyDateFilter}
+                      disabled={!fromDate || !toDate}
+                    >
+                      Apply Filters
                     </button>
                   </div>
-                  <div className="se-calendar-weekdays">
-                    <span>Su</span>
-                    <span>Mo</span>
-                    <span>Tu</span>
-                    <span>We</span>
-                    <span>Th</span>
-                    <span>Fr</span>
-                    <span>Sa</span>
-                  </div>
-                  <div className="se-calendar-days">
-                    {Array.from({ length: getDaysInMonth(currentMonth).firstDayOfMonth }).map((_, i) => (
-                      <span key={`empty-${i}`} className="se-calendar-day-empty"></span>
-                    ))}
-                    {Array.from({ length: getDaysInMonth(currentMonth).daysInMonth }).map((_, i) => {
-                      const day = i + 1;
-                      const isSelected = isDateSelected(day);
-                      return (
-                        <button
-                          key={day}
-                          className={`se-calendar-day ${isSelected ? 'selected' : ''}`}
-                          onClick={() => handleDateClick(day)}
-                        >
-                          {day}
-                        </button>
-                      );
-                    })}
-                  </div>
                 </div>
+              )}
+            </div>
 
-                {/* Action Buttons */}
-                <div className="se-date-actions">
-                  <button 
-                    className="se-btn-clear-filter" 
-                    onClick={handleClearDateFilter}
-                  >
-                    Clear
-                  </button>
-                  <button 
-                    className="se-btn-apply-filter" 
-                    onClick={handleApplyDateFilter}
-                    disabled={!fromDate || !toDate}
-                  >
-                    Apply Filters
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="se-view-toggle">
-            <button 
-              className={`se-view-btn ${viewMode === "list" ? "active" : ""}`}
-              onClick={() => setViewMode("list")}
-              title="List View"
-            >
-              <FaFileAlt size={14} />
-            </button>
-            <button 
-              className={`se-view-btn ${viewMode === "cards" ? "active" : ""}`}
-              onClick={() => setViewMode("cards")}
-              title="Card View"
-            >
-              <FaBoxes size={14} />
-            </button>
+            <div className="se-view-toggle">
+              <button 
+                className={`se-view-btn ${viewMode === "list" ? "active" : ""}`}
+                onClick={() => setViewMode("list")}
+                title="List View"
+              >
+                <FaFileAlt size={14} />
+              </button>
+              <button 
+                className={`se-view-btn ${viewMode === "cards" ? "active" : ""}`}
+                onClick={() => setViewMode("cards")}
+                title="Card View"
+              >
+                <FaBoxes size={14} />
+              </button>
+            </div>
           </div>
 
          
@@ -761,80 +793,242 @@ export default function Stockentry() {
           {viewMode === "cards" ? (
             renderCardView()
           ) : (
-            <div className="se-table-wrap">
-              <table className="se-table">
-                <thead>
-                  <tr>
-                    <th className="se-th">Item / Product</th>
-                    <th className="se-th">Type</th>
-                    <th className="se-th">Source → Target</th>
-                    <th className="se-th">Qty</th>
-                    <th className="se-th">Amount</th>
-                    <th className="se-th">Posting Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginatedData.length === 0 ? (
+            <>
+              {/* ─── Desktop Table View ─── */}
+              <div className="se-table-wrap se-desktop-table-wrap">
+                <table className="se-table">
+                  <thead>
                     <tr>
-                      <td colSpan={6} className="se-empty-state">
-                        <div className="se-empty-content">
-                          <FaBoxes size={48} style={{ color: "var(--text-secondary)" }} />
-                          <p>No stock entries found</p>
-                          <span>Try adjusting your search criteria</span>
-                        </div>
-                      </td>
+                      <th className="se-th">Item / Product</th>
+                      <th className="se-th">Type</th>
+                      <th className="se-th">Source → Target</th>
+                      <th className="se-th">Qty</th>
+                      <th className="se-th">Amount</th>
+                      <th className="se-th">Posting Date</th>
                     </tr>
-                  ) : (
-                    paginatedData.map((row) => (
-                      <tr
-                        key={row.id}
-                        className="se-tr"
-                        style={{ cursor: "pointer" }}
-                      >
-                        <td className="se-td se-td-item">
-                          <div className="se-item-info">
-                            <span className="se-item-name">{row.itemName}</span>
-                            <span className="se-item-code">{row.name}</span>
-                          </div>
-                        </td>
-                        <td className="se-td">
-                          <span className={`se-status-badge ${TYPE_CLASS[row.entryType]}`}>
-                            {getEntryTypeIcon(row.entryType)}
-                            {row.entryType}
-                          </span>
-                        </td>
-                        <td className="se-td se-td-warehouses">
-                          <div className="se-warehouse-flow">
-                            <span className="se-warehouse-label">{row.sourceWarehouse || "—"}</span>
-                            <FaArrowRight className="flow-arrow-sm" />
-                            <span className="se-warehouse-label">{row.targetWarehouse || "—"}</span>
-                          </div>
-                        </td>
-                        <td className="se-td se-td-qty">
-                          <span className="se-qty">{row.qty || 0}</span>
-                        </td>
-                        <td className="se-td se-td-amount">
-                          <span className="se-amount">{formatCurrency(row.totalAmount)}</span>
-                        </td>
-                        <td className="se-td se-td-dates">
-                          <div className="se-date-info">
-                            <FaCalendarAlt size={10} className="se-date-icon" />
-                            {row.displayPostingDate || 
-                              (row.postingDate
-                                ? new Date(row.postingDate).toLocaleDateString("en-IN", { 
-                                    day: "2-digit", 
-                                    month: "short", 
-                                    year: "numeric" 
-                                  })
-                                : "—")}
+                  </thead>
+                  <tbody>
+                    {paginatedData.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="se-empty-state">
+                          <div className="se-empty-content">
+                            <FaBoxes size={48} style={{ color: "var(--text-secondary)" }} />
+                            <p>No stock entries found</p>
+                            <span>Try adjusting your search criteria</span>
                           </div>
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    ) : (
+                      paginatedData.map((row) => (
+                        <tr
+                          key={row.id}
+                          className="se-tr"
+                          style={{ cursor: "pointer" }}
+                          onClick={() => handleView(row)}
+                        >
+                          <td className="se-td se-td-item">
+                            <div className="se-item-info">
+                              <span className="se-item-name">{row.itemName}</span>
+                              <span className="se-item-code">{row.name}</span>
+                            </div>
+                          </td>
+                          <td className="se-td">
+                            <span className={`se-status-badge ${TYPE_CLASS[row.entryType]}`}>
+                              {getEntryTypeIcon(row.entryType)}
+                              {row.entryType}
+                            </span>
+                          </td>
+                          <td className="se-td se-td-warehouses">
+                            <div className="se-warehouse-flow">
+                              <span className="se-warehouse-label">{row.sourceWarehouse || "—"}</span>
+                              <FaArrowRight className="flow-arrow-sm" />
+                              <span className="se-warehouse-label">{row.targetWarehouse || "—"}</span>
+                            </div>
+                          </td>
+                          <td className="se-td se-td-qty">
+                            <span className="se-qty">{row.qty || 0}</span>
+                          </td>
+                          <td className="se-td se-td-amount">
+                            <span className="se-amount">{formatCurrency(row.totalAmount)}</span>
+                          </td>
+                          <td className="se-td se-td-dates">
+                            <div className="se-date-info">
+                              <FaCalendarAlt size={10} className="se-date-icon" />
+                              {row.displayPostingDate || 
+                                (row.postingDate
+                                  ? new Date(row.postingDate).toLocaleDateString("en-IN", { 
+                                      day: "2-digit", 
+                                      month: "short", 
+                                      year: "numeric" 
+                                    })
+                                  : "—")}
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* ─── Mobile UI Table / List Section (max-width: 768px) ─── */}
+              <div className="se-mobile-list-wrap">
+                {paginatedData.length === 0 ? (
+                  <div className="se-empty-state">
+                    <div className="se-empty-content">
+                      <FaBoxes size={48} style={{ color: "var(--text-secondary)" }} />
+                      <p>No stock entries found</p>
+                      <span>Try adjusting your search criteria</span>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {/* Mobile Table Header Bar */}
+                    <div className="se-mobile-list-header">
+                      <div className="se-mobile-th-primary">
+                        <span className="se-mobile-th-cell">Item / Product</span>
+                      </div>
+                      <div className="se-mobile-th-right">
+                        <span className="se-count-label">
+                          {totalFilteredItems > 0
+                            ? `${getStartIndex()}–${getEndIndex()} of ${totalFilteredItems}`
+                            : "0 entries"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Mobile Cards / Rows */}
+                    <div className="se-mobile-cards">
+                      {paginatedData.map((row) => {
+                        const isExpanded = expandedRows.has(row.id);
+                        return (
+                          <div
+                            key={row.id}
+                            className={`se-mobile-card ${isExpanded ? "se-mobile-card-expanded" : ""}`}
+                          >
+                            {/* Card Header: Item / Product + Dropdown Button */}
+                            <div
+                              className="se-mobile-card-header"
+                              onClick={() => toggleRowExpand(row.id)}
+                            >
+                              <div className="se-mobile-card-primary">
+                                <span
+                                  className="se-mobile-item-name"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleView(row);
+                                  }}
+                                  title="View Stock Entry"
+                                >
+                                  {row.itemName}
+                                </span>
+                                <span className="se-mobile-item-code">{row.name}</span>
+                              </div>
+
+                              {/* Dropdown Button */}
+                              <button
+                                type="button"
+                                className={`se-mobile-dropdown-btn ${isExpanded ? "expanded" : ""}`}
+                                onClick={(e) => toggleRowExpand(row.id, e)}
+                                aria-label={isExpanded ? "Collapse details" : "Expand details"}
+                                title={isExpanded ? "Collapse details" : "Expand details"}
+                              >
+                                <FaChevronDown size={13} className="se-mobile-chevron" />
+                              </button>
+                            </div>
+
+                            {/* Expanded Section: Type, Source → Target, Qty, Amount, Posting Date */}
+                            {isExpanded && (
+                              <div className="se-mobile-card-details">
+                                <div className="se-mobile-detail-row">
+                                  <span className="se-mobile-detail-label">Type</span>
+                                  <span className={`se-status-badge ${TYPE_CLASS[row.entryType]}`}>
+                                    {getEntryTypeIcon(row.entryType)}
+                                    {row.entryType}
+                                  </span>
+                                </div>
+
+                                <div className="se-mobile-detail-row">
+                                  <span className="se-mobile-detail-label">Source → Target</span>
+                                  <div className="se-warehouse-flow">
+                                    <span className="se-warehouse-label">{row.sourceWarehouse || "—"}</span>
+                                    <FaArrowRight className="flow-arrow-sm" />
+                                    <span className="se-warehouse-label">{row.targetWarehouse || "—"}</span>
+                                  </div>
+                                </div>
+
+                                <div className="se-mobile-detail-row">
+                                  <span className="se-mobile-detail-label">Qty</span>
+                                  <span className="se-mobile-detail-value se-qty">{row.qty || 0}</span>
+                                </div>
+
+                                <div className="se-mobile-detail-row">
+                                  <span className="se-mobile-detail-label">Amount</span>
+                                  <span className="se-mobile-detail-value se-amount">{formatCurrency(row.totalAmount)}</span>
+                                </div>
+
+                                <div className="se-mobile-detail-row">
+                                  <span className="se-mobile-detail-label">Posting Date</span>
+                                  <div className="se-date-info">
+                                    <FaCalendarAlt size={11} className="se-date-icon" />
+                                    <span>
+                                      {row.displayPostingDate ||
+                                        (row.postingDate
+                                          ? new Date(row.postingDate).toLocaleDateString("en-IN", {
+                                              day: "2-digit",
+                                              month: "short",
+                                              year: "numeric",
+                                            })
+                                          : "—")}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/*<div className="se-mobile-detail-footer">
+                                  <span className="se-card-time">{row.createdAgo}</span>
+                                  <div className="se-card-actions">
+                                    <button
+                                      className="se-action-btn se-action-view"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleView(row);
+                                      }}
+                                      title="View"
+                                    >
+                                      <FaEye size={12} />
+                                    </button>
+                                    <button
+                                      className="se-action-btn se-action-edit"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleEdit(row);
+                                      }}
+                                      title="Edit"
+                                    >
+                                      <FaEdit size={12} />
+                                    </button>
+                                    <button
+                                      className="se-action-btn se-action-delete"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDelete(row);
+                                      }}
+                                      title="Delete"
+                                    >
+                                      <FaTrash size={12} />
+                                    </button>
+                                  </div>
+                                </div>*/}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
+            </>
           )}
 
           {/* ─── Pagination ─────────────────────────────────────────────────── */}

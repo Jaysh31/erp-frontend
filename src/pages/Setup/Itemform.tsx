@@ -2473,7 +2473,6 @@ export default function ItemForm() {
         }
       }
 
-      let inventoryConfirmed = false;
       if (form.isStockItem) {
         const savedItemCode = response.data.data?.item_code || payload.item_code;
 
@@ -2517,7 +2516,6 @@ export default function ItemForm() {
               const savedInventoryId = inventoryRecord?.id ?? invResponse.data.data?.insertId ?? invResponse.data.data?.id;
               if (savedInventoryId) {
                 await fetchInventoryRecord(savedInventoryId);
-                inventoryConfirmed = true;
                 toast.success(
                   `Inventory ${inventoryRecord ? "updated" : "confirmed"}: ${inventoryPayload.actual_qty} ${inventoryPayload.stock_uom} @ ₹${inventoryPayload.valuation_rate.toFixed(2)}`
                 );

@@ -1,18 +1,20 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  FaSearch, FaPlus, FaEye, FaTrash, FaFilePdf, FaPrint,
-  FaFilter, FaCheckCircle, FaClock, FaTimesCircle,
-  FaFileAlt, FaExternalLinkAlt,
-  FaChartLine, FaTimes, FaSpinner, FaBoxOpen, FaEnvelope,
-  FaFileInvoice, FaBuilding, FaBan, FaCalendarAlt,
+  FaSearch,  FaEye, FaTrash, FaFilePdf, FaPrint,
+  FaFilter, 
+   FaTimes, FaSpinner, FaBoxOpen, FaEnvelope,
+
+   FaCalendarAlt,
   FaChevronLeft, FaChevronRight, FaAngleDoubleLeft, FaAngleDoubleRight,
-  FaHome, FaChevronDown, FaChevronUp, FaEllipsisV
+   FaChevronDown, 
 } from 'react-icons/fa';
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import toast from 'react-hot-toast';
 import './ProformaInvoice.css';
+import './SalesMobileTable.css';
 import api from '../../services/api';
+import { PageLoader } from "../components/PageLoader.tsx";
 
 interface SalesOrderItem {
   id: string;
@@ -158,6 +160,7 @@ const generateFallbackOrderNumber = (index: number): string => {
   return `PI-${year}-${String(index + 1).padStart(5, '0')}`;
 };
 
+
 /* ─────────────────────── Amount-in-words helper ─────────────────────── */
 
 const ONES = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
@@ -194,18 +197,7 @@ const numberToIndianWords = (value: number): string => {
   return out.trim();
 };
 
-const formatPrintDate = (date: string, formatFn?: (date: string) => string): string => {
-  if (!date) return '';
-  if (formatFn) {
-    return formatFn(date);
-  }
-  const d = new Date(date);
-  if (isNaN(d.getTime())) return date;
-  const day = String(d.getDate()).padStart(2, '0');
-  const month = d.toLocaleString('en-US', { month: 'short' });
-  const year = String(d.getFullYear()).slice(-2);
-  return `${day}-${month}-${year}`;
-};
+
 
 const escapeHtml = (val: unknown): string => {
   const s = val === null || val === undefined ? '' : String(val);
@@ -284,48 +276,21 @@ const useDebounce = (value: string, delay: number) => {
    swap this out for that and delete this helper — the topbar UI below
    will keep working unchanged, it just needs { name, role }.
 ------------------------------------------------------------------------ */
-interface CurrentUser {
-  name: string;
-  role: string;
-}
 
-const getCurrentUser = (): CurrentUser => {
-  const candidateKeys = ['user', 'currentUser', 'authUser', 'admin_user', 'loggedInUser'];
-  try {
-    for (const key of candidateKeys) {
-      const raw = localStorage.getItem(key);
-      if (!raw) continue;
-      const parsed = JSON.parse(raw);
-      const name = parsed?.name || parsed?.full_name || parsed?.fullName || parsed?.username || parsed?.email;
-      if (name) {
-        const role = parsed?.role || parsed?.designation || parsed?.user_role || 'Admin';
-        return { name: String(name), role: String(role) };
-      }
-    }
-  } catch {
-    // ignore malformed localStorage data and fall through to default
-  }
-  return { name: 'Admin User', role: 'Admin' };
-};
 
-const getInitials = (name: string): string => {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '?';
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-};
+
 
 export default function ProformaInvoice() {
   const navigate = useNavigate();
 
-  const { theme, formatDate, getApiDateFormat } = useAdminTheme();
+  const { theme, formatDate,  } = useAdminTheme();
 
   const [filterText, setFilterText] = useState('');
   const [selectedOrderType, setSelectedOrderType] = useState('All');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [printLoadingId, setPrintLoadingId] = useState<string | null>(null);
-  const [expandedMobileCard, setExpandedMobileCard] = useState<string | null>(null);
+  const [, ] = useState<string | null>(null);
 
   // Date range filter states
   const [fromDate, setFromDate] = useState<string>('');
@@ -356,21 +321,30 @@ export default function ProformaInvoice() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pdfModalLoading] = useState(false);
 
+  // Mobile expanded rows state
+  const [expandedRows, setExpandedRows] = useState<Set<string | number>>(new Set());
+
+  const toggleRowExpand = (id: string | number, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   // Debounced search term
   const debouncedFilterText = useDebounce(filterText, 500);
 
   // Logged-in user shown in the top bar (see getCurrentUser() above)
-  const currentUser = getCurrentUser();
-  const userInitials = getInitials(currentUser.name);
 
   const formatDisplayDate = (dateString: string) => {
     if (!dateString) return '';
     return formatDate(dateString);
   };
 
-  const toApiDateFormat = (date: Date) => {
-    return getApiDateFormat(date);
-  };
+
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -668,9 +642,6 @@ export default function ProformaInvoice() {
     };
   };
 
-  const totalAmount = salesOrders.reduce((sum, o) => sum + o.totalAmount, 0);
-  const completedAmount = salesOrders.filter(o => o.status === 'Completed').reduce((sum, o) => sum + o.totalAmount, 0);
-  const fulfillmentRate = totalAmount > 0 ? Math.round((completedAmount / totalAmount) * 100) : 0;
 
   const handleView = (order: SalesOrder) => {
     if (!order.id) {
@@ -867,18 +838,7 @@ export default function ProformaInvoice() {
   // Badge color for the mobile card's order-type pill (mirrors the
   // status-pill pattern used elsewhere in the app, since this table
   // doesn't surface a separate status column).
-  const getOrderTypeBadgeClass = (type: string): string => {
-    switch (type) {
-      case 'Sales': return 'pq-badge-sales';
-      case 'Return': return 'pq-badge-return';
-      case 'Credit Note': return 'pq-badge-creditnote';
-      default: return 'pq-badge-default';
-    }
-  };
 
-  const toggleMobileCard = (id: string) => {
-    setExpandedMobileCard(expandedMobileCard === id ? null : id);
-  };
 
   const buildProformaInvoiceHtml = (order: SalesOrder, company?: Company, bank?: BankDetail): string => {
     const validItems = order.items || [];
@@ -1269,6 +1229,18 @@ export default function ProformaInvoice() {
       setPrintLoadingId(null);
     }
   };
+
+      // ─── Loading Screen ─────────────────────────────────────────────────────
+      if (loading) {
+        return (
+          <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
+            <PageLoader 
+              message="Loading Sales & Proforma Invoice List..." 
+              //subtitle="Calculating bill of materials, operations rates, and component structures"
+            />
+          </div>
+        );
+      }
 
   return (
     <div className={`proforma-page ${theme}-theme`}>
@@ -2311,7 +2283,7 @@ export default function ProformaInvoice() {
             )}
           </div>
         </div>
-        <div className="pq-filter-right">
+        <div className="bom-filter-right">
           <select
             value={selectedOrderType}
             onChange={(e) => setSelectedOrderType(e.target.value)}
@@ -2492,18 +2464,17 @@ export default function ProformaInvoice() {
       {/* Table (desktop) + Mobile accordion cards — same data, same handlers */}
       {!loading && !error && (
         <>
-          {salesOrders.length === 0 ? (
-            <div className="pq-empty-state">
-              <div className="pq-empty-content">
-                <FaBoxOpen size={48} />
-                <p>No proforma invoices found</p>
-                <span>Try adjusting your search criteria, or create your first proforma</span>
+          <div className="pq-table-wrap sales-desktop-table-wrap">
+            {salesOrders.length === 0 ? (
+              <div className="pq-empty-state">
+                <div className="pq-empty-content">
+                  <FaBoxOpen size={48} />
+                  <p>No proforma invoices found</p>
+                  <span>Try adjusting your search criteria, or create your first proforma</span>
+                </div>
               </div>
-            </div>
-          ) : (
-            <>
-              {/* ================= DESKTOP TABLE (unchanged) ================= */}
-              <div className="pq-table-wrap">
+            ) : (
+              <>
                 <table className="pq-table">
                   <thead>
                     <tr>
@@ -2557,82 +2528,140 @@ export default function ProformaInvoice() {
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </>
+            )}
+          </div>
 
-              {/* ================= MOBILE ACCORDION CARDS ================= */}
-              <div className="pq-mobile-cards-wrap">
-                {salesOrders.map((order, index) => {
-                  const cardKey = order.id || `pi-mobile-${index}`;
-                  const isExpanded = expandedMobileCard === cardKey;
+          {/* Mobile Table Section (Proforma #, Customer + Dropdown Button -> Date, Order Type, Amount, Actions) */}
+          <div className="sales-mobile-list-wrap">
+            <div className="sales-mobile-list-header">
+              <div className="sales-mobile-th-primary">
+                <span className="sales-mobile-th-cell">Proforma #</span>
+                <span className="sales-mobile-th-sep">•</span>
+                <span className="sales-mobile-th-cell">Customer</span>
+              </div>
+              <div className="sales-mobile-th-right">
+                <span className="sales-count-label">
+                  {totalRecords > 0 ? `${(currentPage - 1) * pageSize + 1}–${Math.min(currentPage * pageSize, totalRecords)} of ${totalRecords}` : `0 of ${totalRecords}`}
+                </span>
+              </div>
+            </div>
+
+            {salesOrders.length === 0 ? (
+              <div className="pq-empty-state">
+                <div className="pq-empty-content">
+                  <p>No proforma invoices found</p>
+                  <span>Try adjusting your search criteria</span>
+                </div>
+              </div>
+            ) : (
+              <div className="sales-mobile-cards">
+                {salesOrders.map((order, idx) => {
+                  const orderId = order.id || `so-${idx}`;
+                  const isExpanded = expandedRows.has(orderId);
                   return (
                     <div
-                      key={cardKey}
-                      className={`pq-mobile-card ${isExpanded ? 'expanded' : ''}`}
+                      key={orderId}
+                      className={`sales-mobile-card ${isExpanded ? "sales-mobile-card-expanded" : ""}`}
                     >
+                      {/* Card Header: Proforma #, Customer and Dropdown Button */}
                       <div
-                        className="pq-mobile-card-header"
-                        onClick={() => toggleMobileCard(cardKey)}
+                        className="sales-mobile-card-header"
+                        onClick={() => toggleRowExpand(orderId)}
                       >
-                        <span className="pq-mobile-card-number">{order.salesOrderNumber}</span>
-                        <div className="pq-mobile-card-badge-wrap">
-                          <span className={`pq-mobile-badge ${getOrderTypeBadgeClass(order.orderType)}`}>
-                            {order.orderType}
+                        <div className="sales-mobile-card-primary">
+                          <span
+                            className="sales-mobile-item-code"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleView(order);
+                            }}
+                            title="View Proforma"
+                          >
+                            {order.salesOrderNumber}
                           </span>
-                          <span className="pq-mobile-card-customer">{order.customerName || order.customer}</span>
+                          <span
+                            className="sales-mobile-item-name"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleView(order);
+                            }}
+                            title={order.customerName}
+                          >
+                            {order.customerName || "—"}
+                          </span>
                         </div>
+
+                        {/* Dropdown Button */}
                         <button
-                          className="pq-mobile-chevron-btn"
-                          onClick={(e) => { e.stopPropagation(); toggleMobileCard(cardKey); }}
-                          aria-label={isExpanded ? 'Collapse' : 'Expand'}
+                          type="button"
+                          className={`sales-mobile-dropdown-btn ${isExpanded ? "expanded" : ""}`}
+                          onClick={(e) => toggleRowExpand(orderId, e)}
+                          aria-label={isExpanded ? "Collapse proforma details" : "Expand proforma details"}
+                          title={isExpanded ? "Collapse" : "Expand"}
                         >
-                          {isExpanded ? <FaChevronUp size={12} /> : <FaChevronDown size={12} />}
+                          <FaChevronDown size={13} className="sales-mobile-chevron" />
                         </button>
                       </div>
 
+                      {/* Dropdown Section: Date, Order Type, Amount, Actions */}
                       {isExpanded && (
-                        <div className="pq-mobile-card-body">
-                          <div className="pq-mobile-detail-row">
-                            <span className="pq-mobile-detail-label">Customer</span>
-                            <span className="pq-mobile-detail-value">{order.customerName || '-'}</span>
+                        <div className="sales-mobile-card-details">
+                          <div className="sales-mobile-detail-row">
+                            <span className="sales-mobile-detail-label">Date</span>
+                            <span className="sales-mobile-detail-value">
+                              {order.date ? formatDisplayDate(order.date) : "—"}
+                              {order.deliveryDate && (
+                                <span style={{ fontSize: "11px", color: "var(--text-secondary)", marginLeft: 6 }}>
+                                  (Valid: {formatDisplayDate(order.deliveryDate)})
+                                </span>
+                              )}
+                            </span>
                           </div>
-                          <div className="pq-mobile-detail-row">
-                            <span className="pq-mobile-detail-label">Date</span>
-                            <span className="pq-mobile-detail-value">{order.date ? formatDisplayDate(order.date) : '-'}</span>
+
+                          <div className="sales-mobile-detail-row">
+                            <span className="sales-mobile-detail-label">Order Type</span>
+                            <span className="sales-mobile-detail-value font-medium">
+                              {order.orderType || "—"}
+                            </span>
                           </div>
-                          <div className="pq-mobile-detail-row">
-                            <span className="pq-mobile-detail-label">Valid Until</span>
-                            <span className="pq-mobile-detail-value">{order.deliveryDate ? formatDisplayDate(order.deliveryDate) : '-'}</span>
-                          </div>
-                          <div className="pq-mobile-detail-row">
-                            <span className="pq-mobile-detail-label">Order Type</span>
-                            <span className="pq-mobile-detail-value">{order.orderType}</span>
-                          </div>
-                          <div className="pq-mobile-detail-row">
-                            <span className="pq-mobile-detail-label">Total Amount</span>
-                            <span className="pq-mobile-detail-value">
+
+                          <div className="sales-mobile-detail-row">
+                            <span className="sales-mobile-detail-label">Amount</span>
+                            <span className="sales-mobile-detail-value sales-amount-highlight">
                               {order.currency} {order.totalAmount.toLocaleString()}
                             </span>
                           </div>
 
-                          <div className="pq-mobile-card-footer">
-                            <span className="pq-mobile-items-count">
-                              {order.items.length} item{order.items.length === 1 ? '' : 's'}
+                          <div className="sales-mobile-detail-footer">
+                            <span className="sales-mobile-card-meta-text">
+                              {/*rowNumber} of {totalRecords*/}
                             </span>
-                            <div className="pq-mobile-actions">
+                            <div className="sales-mobile-action-buttons">
                               <button
                                 className="pq-action-btn pq-action-view"
-                                onClick={() => handleView(order)}
-                                title="View"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleView(order);
+                                }}
+                                title="View Proforma"
                               >
-                                <FaEye size={13} />
+                                <FaEye size={12} />
                               </button>
                               <button
                                 className="pq-action-btn pq-action-print"
-                                onClick={() => handlePrintOrder(order)}
-                                title="Print"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handlePrintOrder(order);
+                                }}
+                                title="Print Proforma Invoice"
                                 disabled={printLoadingId === order.id}
                               >
-                                {printLoadingId === order.id ? <FaSpinner className="spinning" size={13} /> : <FaPrint size={13} />}
+                                {printLoadingId === order.id ? (
+                                  <FaSpinner className="spinning" size={12} />
+                                ) : (
+                                  <FaPrint size={12} />
+                                )}
                               </button>
                             </div>
                           </div>
@@ -2642,8 +2671,8 @@ export default function ProformaInvoice() {
                   );
                 })}
               </div>
-            </>
-          )}
+            )}
+          </div>
         </>
       )}
 

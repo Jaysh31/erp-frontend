@@ -19,8 +19,10 @@ import {
   FaCalendarAlt,
   FaUser,
   FaExclamationTriangle,
+    FaChevronDown,
 } from 'react-icons/fa';
 import "./GRNList.css";
+import { PageLoader } from '../components/PageLoader';
 import { useAdminTheme } from '../admin-theme/AdminThemeContext';
 import api from '../services/api';
 
@@ -244,7 +246,23 @@ export default function GRNList() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<GRNDisplay | null>(null);
+   const [selectedItem, setSelectedItem] = useState<GRNDisplay | null>(null);
+
+  // Mobile list row expansion state
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+
+  const toggleRowExpand = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
   // Date filters
   const [dateFrom, setDateFrom] = useState('');
@@ -564,14 +582,17 @@ export default function GRNList() {
 
   if (loading) {
     return (
-      <div className={`grn-page ${theme}`}>
-        <div className="grn-loading">
-          <div className="grn-loading-spinner"></div>
-          <p>Loading GRNs...</p>
+      <div className={`grnf-page ${theme}`}>
+        <div className="grnf-inner">
+          <PageLoader 
+            message="Loading Goods Receipt Note..." 
+            //subtitle="Synchronizing warehouse receipt entries, line item counts, and supplier records"
+          />
         </div>
       </div>
     );
   }
+  
 
   return (
     <div className={`grn-page ${theme}`}>
@@ -621,11 +642,11 @@ export default function GRNList() {
             )}
           </div>
         </div>
-        <div className="grn-filter-right">
+        <div className="bom-filter-right">
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="grn-filter-select"
+            className="bom-filter-select"
           >
             <option value="all">All Status</option>
             <option value="draft">Draft</option>
@@ -637,7 +658,7 @@ export default function GRNList() {
           {/* Created On Button with Calendar Dropdown */}
           <div ref={dateFilterRef} style={{ position: 'relative', display: 'inline-block' }}>
             <button
-              className="grn-sort-btn"
+              className="bom-sort-btn"
               onClick={() => setShowDateFilterDropdown(!showDateFilterDropdown)}
               style={dateFrom ? { borderColor: '#3182ce', color: '#3182ce' } : undefined}
             >
@@ -760,11 +781,11 @@ export default function GRNList() {
               </div>
             )}
           </div>
-
+</div>
           <button className="grn-btn-primary" onClick={() => navigate('/grn/new')}>
             <FaPlus size={12} /> New GRN
           </button>
-        </div>
+        
       </div>
 
       {/* ─── Active filters indicator ───────────────────────────── */}
@@ -790,7 +811,7 @@ export default function GRNList() {
       )}
 
       {/* ─── Table ───────────────────────────────────────────────── */}
-      <div className="grn-table-wrap">
+      <div className="grn-table-wrap grn-desktop-table-wrap">
         <table className="grn-table">
           <thead>
             <tr>
@@ -896,6 +917,169 @@ export default function GRNList() {
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* ─── Mobile UI Table / List Section (max-width: 768px) ─── */}
+      <div className="grn-mobile-list-wrap">
+        {paginatedGrns.length === 0 ? (
+          <div className="grn-empty-state">
+            <div className="grn-empty-content">
+              <FaBoxes size={48} />
+              <p>No GRNs found</p>
+              <span>Try adjusting your search or filter criteria</span>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Mobile Header: GRN No. / Party and Count Label */}
+            <div className="grn-mobile-list-header">
+              <div className="grn-mobile-th-primary">
+                <span className="grn-mobile-th-cell">GRN No. / Party</span>
+              </div>
+              <div className="grn-mobile-th-right">
+                <span className="grn-count-label">
+                  {totalFiltered > 0
+                    ? `${(validCurrentPage - 1) * itemsPerPage + 1}–${Math.min(validCurrentPage * itemsPerPage, totalFiltered)} of ${totalFiltered}`
+                    : '0'}
+                </span>
+              </div>
+            </div>
+
+            {/* Mobile Cards / Rows */}
+            <div className="grn-mobile-cards">
+              {paginatedGrns.map((row) => {
+                const isExpanded = expandedRows.has(row.id);
+                return (
+                  <div
+                    key={row.id}
+                    className={`grn-mobile-card ${isExpanded ? 'grn-mobile-card-expanded' : ''}`}
+                  >
+                    {/* Card Header: GRN No., Party and Dropdown Button */}
+                    <div
+                      className="grn-mobile-card-header"
+                      onClick={() => toggleRowExpand(row.id)}
+                    >
+                      <div className="grn-mobile-card-primary">
+                        <span
+                          className="grn-mobile-item-code"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleView(row);
+                          }}
+                          title="View GRN"
+                        >
+                          {row.grnNo}
+                        </span>
+                        <span
+                          className="grn-mobile-item-name"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleView(row);
+                          }}
+                          title={row.partyName}
+                        >
+                          {row.isService && (
+                            <FaUsers size={12} style={{ marginRight: 4, color: 'var(--primary-color)' }} />
+                          )}
+                          {row.partyName || '—'}
+                        </span>
+                      </div>
+
+                      {/* Dropdown Button */}
+                      <button
+                        type="button"
+                        className={`grn-mobile-dropdown-btn ${isExpanded ? 'expanded' : ''}`}
+                        onClick={(e) => toggleRowExpand(row.id, e)}
+                        aria-label={isExpanded ? 'Collapse details' : 'Expand details'}
+                        title={isExpanded ? 'Collapse details' : 'Expand details'}
+                      >
+                        <FaChevronDown size={13} className="grn-mobile-chevron" />
+                      </button>
+                    </div>
+
+                    {/* Expanded Section: PO, Received By, Date, Status, Qty, and 1-10 of 14 / actions */}
+                    {isExpanded && (
+                      <div className="grn-mobile-card-details">
+                        <div className="grn-mobile-detail-row">
+                          <span className="grn-mobile-detail-label">PO</span>
+                          <span className="grn-mobile-detail-value grn-po-ref">{row.poReference || '—'}</span>
+                        </div>
+
+                        <div className="grn-mobile-detail-row">
+                          <span className="grn-mobile-detail-label">Received By</span>
+                          <span className="grn-mobile-detail-value">
+                            <FaUser size={10} style={{ marginRight: 4 }} />
+                            {row.receivedBy || '—'}
+                          </span>
+                        </div>
+
+                        <div className="grn-mobile-detail-row">
+                          <span className="grn-mobile-detail-label">Date</span>
+                          <div className="grn-mobile-detail-date">
+                            <FaCalendarAlt size={10} style={{ marginRight: 4 }} />
+                            <span>{row.displayDate || row.date || '—'}</span>
+                          </div>
+                        </div>
+
+                        <div className="grn-mobile-detail-row">
+                          <span className="grn-mobile-detail-label">Status</span>
+                          <span className={`grn-status-pill ${getStatusBadgeClass(row.status)}`}>
+                            {getStatusLabel(row.status)}
+                          </span>
+                        </div>
+
+                        <div className="grn-mobile-detail-row">
+                          <span className="grn-mobile-detail-label">Qty</span>
+                          <span className="grn-mobile-detail-value grn-qty">{row.receivedQty}</span>
+                        </div>
+
+                        <div className="grn-mobile-detail-footer">
+                          <span className="grn-mobile-card-meta-text">
+                            {/*totalFiltered > 0
+                              ? `${(validCurrentPage - 1) * itemsPerPage + 1}–${Math.min(validCurrentPage * itemsPerPage, totalFiltered)} of ${totalFiltered}`
+                              : '0'} (#{rowNumber})*/}
+                          </span>
+                          <div className="grn-action-buttons">
+                            <button
+                              className="grn-action-btn grn-action-view"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleView(row);
+                              }}
+                              title="View"
+                            >
+                              <FaEye size={12} />
+                            </button>
+                            <button
+                              className="grn-action-btn grn-action-edit"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEdit(row);
+                              }}
+                              title="Edit"
+                            >
+                              <FaEdit size={12} />
+                            </button>
+                            <button
+                              className="grn-action-btn grn-action-delete"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDelete(row);
+                              }}
+                              title="Delete"
+                            >
+                              <FaTrash size={12} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
       </div>
 
       {/* ─── Pagination ──────────────────────────────────────────── */}

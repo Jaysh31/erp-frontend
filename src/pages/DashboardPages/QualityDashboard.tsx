@@ -262,8 +262,8 @@ export default function QualityDashboard() {
       {/* Header */}
       <div className="dashboard-header">
         <div className="header-left">
-          <h1>🔬 Quality Dashboard</h1>
-          <p className="header-subtitle">Quality control and inspection management</p>
+          <h1> Quality Dashboard</h1>
+          {/*<p className="header-subtitle">🔬 Quality control and inspection management</p>*/}
         </div>
         <div className="header-right">
           <button className="btn-primary" onClick={() => handleNavigate("/quality/inspection/new")}>

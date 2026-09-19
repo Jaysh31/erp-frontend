@@ -172,6 +172,7 @@
   padding: 14px 24px;
   box-shadow: 0 1px 4px var(--shadow-color, rgba(0,0,0,0.06));
   margin-bottom: 1.5rem;
+  overflow: hidden;
 }
 
 /* ── Form ────────────────────────────────── */
@@ -202,16 +203,17 @@
 .cq-left-column {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 1px;
 }
 
 .cq-right-column {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 1px;
   position: sticky;
-  top: 1rem;
+  top: 0rem;
   align-self: flex-start;
+  align-items: 3px;
 }
 
 /* ── Section Header ──────────────────────── */

@@ -18,6 +18,7 @@ import {
 import { useAdminTheme } from '../../admin-theme/AdminThemeContext';
 import api from '../../services/api';
 import "./UserRoles.css";
+import { PageLoader } from "../components/PageLoader";
 
 interface User {
   id: number;
@@ -213,6 +214,18 @@ export default function UserRoles() {
       </div>
     );
   }
+
+      // ─── Loading Screen ─────────────────────────────────────────────────────
+      if (loading) {
+        return (
+          <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
+            <PageLoader 
+              message="Loading Setup & User Role..." 
+              //subtitle="Calculating bill of materials, operations rates, and component structures"
+            />
+          </div>
+        );
+      }
 
   return (
     <div className={`ur-page ${theme}`}>

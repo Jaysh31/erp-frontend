@@ -22,6 +22,7 @@ import {
 import "./JobCardManagement.css";
 import { useAdminTheme } from "../../admin-theme/AdminThemeContext";
 import api from "../../services/api";
+import { PageLoader } from "../components/PageLoader";
 
 type Status = "Open" | "Work In Progress" | "Completed" | "On Hold" | "Cancelled";
 
@@ -622,6 +623,18 @@ export default function JobCardManagement() {
     setCurrentPage(1);
   };
 
+    // ─── Loading Screen ─────────────────────────────────────────────────────
+      if (loading) {
+        return (
+          <div className={`p-6 max-w-7xl mx-auto ${theme}`}>
+            <PageLoader 
+              message="Loading Manufacturing & Job Card Management..." 
+              //subtitle="Calculating bill of materials, operations rates, and component structures"
+            />
+          </div>
+        );
+      }
+
   return (
     <div className={`jc-page ${theme}`}>
       {/* Search and Filter Bar */}
@@ -643,7 +656,7 @@ export default function JobCardManagement() {
             )}
           </div>
         </div>
-        <div className="jc-filter-right">
+        <div className="bom-filter-right">
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
@@ -825,9 +838,7 @@ export default function JobCardManagement() {
                         )}
                       </div>
                       <div className="jc-group-header-right">
-                        <span className="jc-group-stats">
-                          {group.completedQty + group.lossQty} of {group.totalQty} qty done
-                        </span>
+                     
                         <div className="jc-group-progress">
                           <div className="jc-group-progress-bar">
                             <div
