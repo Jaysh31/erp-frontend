@@ -1,7 +1,7 @@
 import React, { useState, useEffect, type JSX } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import './Sidebar.css';
-import { useModule } from '../context/ModuleContext';
+import { useModule, type ModuleType } from '../context/ModuleContext';
 import logo from '../assets/logo.png';
 import { UserIcon } from 'lucide-react';
 import { GiHumanCannonball } from 'react-icons/gi';
@@ -23,6 +23,182 @@ interface MenuItem {
   icon: JSX.Element;
   path: string;
   apiSubmodule?: string; // submodule name as returned by login API (omit to always show)
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ROUTE → MODULE MAP
+// When the URL matches one of these prefixes, the sidebar switches
+// to that module's category list.
+// ═══════════════════════════════════════════════════════════════════
+const ROUTE_MODULE_MAP: Array<{ prefix: string; module: string }> = [
+  // Home
+  { prefix: "/home", module: "home" },
+
+  // Manufacturing
+  { prefix: "/bom", module: "manufacturing" },
+  { prefix: "/work-order", module: "manufacturing" },
+  { prefix: "/job-card", module: "manufacturing" },
+  { prefix: "/stock-entry", module: "manufacturing" },
+  { prefix: "/InventoryList", module: "manufacturing" },
+
+  // Sales
+  { prefix: "/lead", module: "sales" },
+  { prefix: "/leads", module: "sales" },
+  { prefix: "/quotation", module: "sales" },
+  { prefix: "/sales-order", module: "sales" },
+  { prefix: "/proforma-invoice", module: "sales" },
+  { prefix: "/delivery-challan", module: "sales" },
+  { prefix: "/sales-bill", module: "sales" },
+  { prefix: "/sales-invoice", module: "sales" },
+  { prefix: "/customer", module: "sales" },
+  { prefix: "/item-list", module: "sales" },
+  { prefix: "/item-group", module: "sales" },
+
+  // Setup
+  { prefix: "/warehouse", module: "setup" },
+  { prefix: "/Workstation", module: "setup" },
+  { prefix: "/operations", module: "setup" },
+  { prefix: "/uom", module: "setup" },
+  { prefix: "/quality-inspection", module: "setup" },
+
+  // Purchasing
+  { prefix: "/purchase-order", module: "purchasing" },
+  { prefix: "/grn", module: "purchasing" },
+  { prefix: "/purchase-invoice", module: "purchasing" },
+  { prefix: "/supplier", module: "purchasing" },
+
+  // Organization
+  { prefix: "/company", module: "organization" },
+  { prefix: "/letter-head", module: "organization" },
+  { prefix: "/bank-details", module: "organization" },
+  { prefix: "/employee", module: "organization" },
+  { prefix: "/user-management", module: "organization" },
+  { prefix: "/role", module: "organization" },
+
+  // Accounting
+  { prefix: "/chart-of-accounts", module: "accounting" },
+  { prefix: "/ledger-accounts", module: "accounting" },
+  { prefix: "/accounting/cost-centers", module: "accounting" },
+  { prefix: "/customer-invoices", module: "accounting" },
+  { prefix: "/Customer-payments", module: "accounting" },
+  { prefix: "/outstanding-receivables", module: "accounting" },
+  { prefix: "/payables", module: "accounting" },
+  { prefix: "/banking", module: "accounting" },
+  { prefix: "/expenses", module: "accounting" },
+  { prefix: "/CompanyAccountingSetup", module: "accounting" },
+
+  // Stock
+  { prefix: "/raw-material", module: "stock" },
+  { prefix: "/work-in-progress", module: "stock" },
+  { prefix: "/finished-goods", module: "stock" },
+  { prefix: "/stock-reports", module: "stock" },
+
+  // Tools
+  { prefix: "/tools", module: "tools" },
+
+  // Settings / Theme
+  { prefix: "/settings", module: "theme" },
+
+  // Dashboards
+  { prefix: "/dashboard/manufacturing", module: "manufacturing" },
+  { prefix: "/dashboard/sales", module: "sales" },
+  { prefix: "/dashboard/purchasing", module: "purchasing" },
+  { prefix: "/dashboard/setup", module: "setup" },
+  { prefix: "/dashboard/organization", module: "organization" },
+  { prefix: "/dashboard/accounting", module: "accounting" },
+  { prefix: "/dashboard/stock", module: "stock" },
+  { prefix: "/dashboard/tools", module: "tools" },
+  { prefix: "/dashboard", module: "manufacturing" },
+];
+
+/** Find the module for the current path, longest prefix wins. */
+function findModuleForPath(pathname: string): string {
+  const sorted = [...ROUTE_MODULE_MAP].sort(
+    (a, b) => b.prefix.length - a.prefix.length
+  );
+  for (const { prefix, module } of sorted) {
+    if (pathname === prefix || pathname.startsWith(prefix + "/")) {
+      return module;
+    }
+  }
+  return "";
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ROUTE → CATEGORY MAP (for auto-expand)
+// When the URL matches, the matching category is auto-expanded so
+// the user always sees the active item.
+// ═══════════════════════════════════════════════════════════════════
+const ROUTE_CATEGORY_MAP: Array<{ prefix: string; category: string }> = [
+  // Manufacturing
+  { prefix: "/bom", category: "Manufacturing" },
+  { prefix: "/work-order", category: "Manufacturing" },
+  { prefix: "/job-card", category: "Manufacturing" },
+  { prefix: "/stock-entry", category: "Manufacturing" },
+
+  // Sales
+  { prefix: "/lead", category: "Sales" },
+  { prefix: "/quotation", category: "Sales" },
+  { prefix: "/sales-order", category: "Sales" },
+  { prefix: "/proforma-invoice", category: "Sales" },
+  { prefix: "/delivery-challan", category: "Sales" },
+  { prefix: "/sales-bill", category: "Sales" },
+  { prefix: "/customer", category: "Customers" },
+  { prefix: "/item-list", category: "Items & Pricing" },
+  { prefix: "/item-group", category: "Items & Pricing" },
+
+  // Setup
+  { prefix: "/warehouse", category: "Setup" },
+  { prefix: "/Workstation", category: "Setup" },
+  { prefix: "/operations", category: "Setup" },
+  { prefix: "/uom", category: "Setup" },
+  { prefix: "/quality-inspection", category: "Setup" },
+
+  // Purchasing
+  { prefix: "/purchase-order", category: "Purchase Documents" },
+  { prefix: "/grn", category: "Purchase Documents" },
+  { prefix: "/purchase-invoice", category: "Purchase Documents" },
+  { prefix: "/supplier", category: "Suppliers & Contacts" },
+
+  // Organization
+  { prefix: "/company", category: "Organization" },
+  { prefix: "/letter-head", category: "Organization" },
+  { prefix: "/bank-details", category: "Organization" },
+  { prefix: "/employee", category: "Organization" },
+  { prefix: "/user-management", category: "Organization" },
+  { prefix: "/role", category: "Organization" },
+
+  // Accounting
+  { prefix: "/chart-of-accounts", category: "Accounts" },
+  { prefix: "/ledger-accounts", category: "Accounts" },
+  { prefix: "/accounting/cost-centers", category: "Accounts" },
+  { prefix: "/customer-invoices", category: "Receivables" },
+  { prefix: "/Customer-payments", category: "Receivables" },
+  { prefix: "/receivables/credit-notes", category: "Receivables" },
+  { prefix: "/outstanding-receivables", category: "Receivables" },
+  { prefix: "/payables", category: "Payables" },
+  { prefix: "/banking", category: "Banking" },
+  { prefix: "/CompanyAccountingSetup", category: "Banking" },
+  { prefix: "/expenses", category: "Expenses" },
+
+  // Stock
+  { prefix: "/InventoryList", category: "Stock" },
+
+  // Settings
+  { prefix: "/settings", category: "Setting" },
+];
+
+/** Find the category for the current path, longest prefix wins. */
+function findCategoryForPath(pathname: string): string {
+  const sorted = [...ROUTE_CATEGORY_MAP].sort(
+    (a, b) => b.prefix.length - a.prefix.length
+  );
+  for (const { prefix, category } of sorted) {
+    if (pathname === prefix || pathname.startsWith(prefix + "/")) {
+      return category;
+    }
+  }
+  return "";
 }
 
 export default function Sidebar({ 
@@ -54,7 +230,7 @@ export default function Sidebar({
       'Payables': false,
       'Banking': false,
       'Expenses': false,
-      'Stock': true // ← Added Stock category - expanded by default
+      'Stock': true
     };
   });
 
@@ -105,12 +281,29 @@ export default function Sidebar({
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
-  // Update module based on current path
+  // ═══════════════════════════════════════════════════════════════════
+  // Update module based on current path (drives which categories show)
+  // ═══════════════════════════════════════════════════════════════════
   useEffect(() => {
-    if (location.pathname === "/home") {
-      setCurrentModule("home");
+    const mod = findModuleForPath(location.pathname);
+    if (mod && mod !== currentModule) {
+      console.log(`📌 Sidebar module → ${mod} (${location.pathname})`);
+      setCurrentModule(mod as ModuleType);
     }
-  }, [location.pathname, setCurrentModule]);
+  }, [location.pathname, currentModule, setCurrentModule]);
+
+  // ═══════════════════════════════════════════════════════════════════
+  // Auto-expand the category that contains the current page
+  // ═══════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    const cat = findCategoryForPath(location.pathname);
+    if (!cat) return;
+
+    setExpandedCategories(prev => {
+      if (prev[cat]) return prev; // already expanded — no state update
+      return { ...prev, [cat]: true };
+    });
+  }, [location.pathname]);
 
   // Save expanded categories to localStorage
   useEffect(() => {

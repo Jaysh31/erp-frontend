@@ -202,6 +202,58 @@ export const ERP_ENDPOINTS: Record<string, ErpEndpoint> = {
 };
 
 // ============================================================
+// ROUTE MAP — which page URL belongs to which endpoint
+// ============================================================
+// Used by the chatbot to navigate the user when they ask
+// "go to BOM page", "open sales order", etc.
+// ============================================================
+export const ENDPOINT_ROUTES: Record<string, string> = {
+  workOrder: '/work-order',
+  jobCard: '/job-card',
+  inventory: '/InventoryList',
+  bom: '/bom',
+  stockEntry: '/stock-entry',
+  item: '/item-list',
+  itemGroup: '/item-group',
+  warehouse: '/warehouse',
+  workstation: '/Workstation',
+  operation: '/operations',
+  uom: '/uom',
+  qualityInspection: '/quality-inspection',
+  lead: '/lead',
+  quotation: '/quotation',
+  salesOrder: '/sales-order',
+  proformaInvoice: '/proforma-invoice',
+  deliveryNote: '/delivery-challan',
+  salesInvoice: '/sales-bill',
+  company: '/company',
+  purchaseOrder: '/purchase-order',
+  grn: '/grn',
+  purchaseInvoice: '/purchase-invoice',
+};
+
+// ============================================================
+// DASHBOARD ROUTES — special pages that aggregate multiple modules
+// ============================================================
+// These do NOT have their own API. They compose data from
+// several page APIs. Used by the chatbot to detect "you are on
+// a dashboard" and give module-aware summaries.
+// ============================================================
+export const DASHBOARD_ROUTES: Record<string, string> = {
+  '/dashboard/sales': 'Sales Dashboard',
+  '/dashboard/manufacturing': 'Manufacturing Dashboard',
+  '/dashboard/setup': 'Setup Dashboard',
+  '/dashboard/purchasing': 'Purchasing Dashboard',
+  '/dashboard/organization': 'Organization Dashboard',
+  '/dashboard/quality': 'Quality Dashboard',
+  '/dashboard/stock': 'Stock Dashboard',
+  '/dashboard/accounting': 'Accounting Dashboard',
+  '/dashboard/reports': 'Reports Dashboard',
+  '/dashboard/tools': 'Tools Dashboard',
+  '/dashboard': 'Dashboard',
+};
+
+// ============================================================
 // AUTH — find the JWT no matter where it's stored
 // ============================================================
 function getAuthToken(): string | null {
@@ -361,7 +413,6 @@ export async function fetchAllPages<T = any>(baseUrl: string): Promise<FetchAllR
     };
   }
 
-  // Force limit=100 in the URL (the API max), regardless of what came in
   const urlObj = new URL(baseUrl);
   urlObj.searchParams.set('limit', '100');
   const limit = 100;
@@ -456,9 +507,206 @@ export function matchEndpoint(question: string): ErpEndpoint | null {
   return allMatches[0].endpoint;
 }
 
-// ─── Look up an endpoint's full URL by its key ──────────────────────
 export function getEndpointUrl(key: keyof typeof ERP_ENDPOINTS): string {
   return ERP_ENDPOINTS[key].url;
+}
+
+// ============================================================
+// ROUTE HELPERS — for chatbot navigation
+// ============================================================
+
+/**
+ * Get the app page path for an endpoint key.
+ * Example: getEndpointRoute('bom') → '/bom'
+ */
+export function getEndpointRoute(
+  key: keyof typeof ERP_ENDPOINTS
+): string | null {
+  return ENDPOINT_ROUTES[key] || null;
+}
+
+/**
+ * Find an endpoint key by its route.
+ * Example: findEndpointKeyByRoute('/bom') → 'bom'
+ */
+export function findEndpointKeyByRoute(route: string): string | null {
+  const sorted = Object.entries(ENDPOINT_ROUTES).sort(
+    (a, b) => b[1].length - a[1].length
+  );
+  for (const [key, r] of sorted) {
+    if (route.startsWith(r)) return key;
+  }
+  return null;
+}
+
+/**
+ * Find an endpoint by matching a route or a label.
+ * Useful when a question mentions a module.
+ */
+export function findEndpointByLabelOrRoute(text: string): ErpEndpoint | null {
+  const q = text.toLowerCase();
+
+  // 1. Try label match
+  for (const ep of Object.values(ERP_ENDPOINTS)) {
+    if (q.includes(ep.label.toLowerCase())) return ep;
+  }
+
+  // 2. Try route match
+  for (const [key, route] of Object.entries(ENDPOINT_ROUTES)) {
+    if (q.includes(route.toLowerCase())) {
+      const ep = ERP_ENDPOINTS[key];
+      if (ep) return ep;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Detect if a question is a navigation request like
+ * "go to BOM page", "open sales order", "navigate to warehouse"
+ * and return the target route + label.
+ */
+export function detectNavigationTarget(question: string): {
+  route: string;
+  label: string;
+} | null {
+  const q = question.toLowerCase();
+
+  const navKeywords = [
+    'go to',
+    'open ',
+    'navigate',
+    'take me to',
+    'show me the page',
+    'go on',
+    'redirect',
+  ];
+  const isNav = navKeywords.some((kw) => q.includes(kw));
+  if (!isNav) return null;
+
+  // Try to find a matching endpoint
+  const endpoint = findEndpointByLabelOrRoute(question);
+  if (!endpoint) return null;
+
+  // Find its key so we can get the route
+  for (const [key, ep] of Object.entries(ERP_ENDPOINTS)) {
+    if (ep === endpoint) {
+      const route = ENDPOINT_ROUTES[key];
+      if (route) return { route, label: ep.label };
+    }
+  }
+
+  return null;
+}
+
+// ============================================================
+// DASHBOARD HELPERS
+// ============================================================
+
+/**
+ * Check if a pathname is a dashboard page.
+ * Example: isDashboardPath('/dashboard/sales') → { isDashboard: true, label: 'Sales Dashboard' }
+ */
+export function isDashboardPath(pathname: string): {
+  isDashboard: boolean;
+  label: string;
+} {
+  const sorted = Object.keys(DASHBOARD_ROUTES).sort(
+    (a, b) => b.length - a.length
+  );
+  for (const key of sorted) {
+    if (pathname === key || pathname.startsWith(key + '/')) {
+      return { isDashboard: true, label: DASHBOARD_ROUTES[key] };
+    }
+  }
+  return { isDashboard: false, label: '' };
+}
+
+// ============================================================
+// SETTINGS HELPERS
+// ============================================================
+
+/** Common URLs where Settings pages live. */
+export const SETTINGS_PATHS = ['/settings', '/Setting', '/admin/settings'];
+
+/** Check if a pathname is a Settings page. */
+export function isSettingsPath(pathname: string): boolean {
+  return SETTINGS_PATHS.some((p) => pathname.startsWith(p));
+}
+
+// ============================================================
+// SMART RECORD LOOKUP — search across all modules
+// ============================================================
+
+export interface RecordSearchResult {
+  endpoint: ErpEndpoint;
+  record: any;
+}
+
+export function extractSearchToken(question: string): string | null {
+  const cleaned = question
+    .replace(
+      /\b(i want|its|it's|the|of|about|for|show|me|give|detail|details|please|record|info|information|full|is|are)\b/gi,
+      ' '
+    )
+    .replace(/[?.!,]/g, ' ')
+    .trim();
+
+  const tokens = cleaned.split(/\s+/).filter(Boolean);
+
+  const strongMatch = tokens.find(
+    (t) => /[A-Za-z]/.test(t) && /\d/.test(t) && t.length >= 3
+  );
+  if (strongMatch) return strongMatch;
+
+  const fallback = tokens.find((t) => /^[A-Za-z0-9_-]{4,}$/.test(t));
+  return fallback || null;
+}
+
+export async function searchAllModulesForRecord(
+  token: string
+): Promise<RecordSearchResult | null> {
+  const tokenLower = token.toLowerCase();
+
+  const checks = Object.values(ERP_ENDPOINTS).map(async (ep) => {
+    try {
+      const result = await fetchAllPages(ep.url);
+      if (!result.ok) return null;
+
+      const found = result.records.find((r: any) => {
+        const candidates = [
+          r.name,
+          r.id,
+          r.item_code,
+          r.item_name,
+          r.customer_name,
+          r.supplier_name,
+          r.party_name,
+          r.lead_name,
+          r.company_name,
+          r.warehouse_name,
+        ].filter(Boolean);
+
+        return candidates.some((v: any) => {
+          const s = String(v).toLowerCase();
+          return s === tokenLower || s.includes(tokenLower);
+        });
+      });
+
+      if (found) {
+        console.log(`✅ Found "${token}" in ${ep.label}`);
+        return { endpoint: ep, record: found };
+      }
+
+      return null;
+    } catch {
+      return null;
+    }
+  });
+
+  const results = await Promise.all(checks);
+  return (results.find((r) => r !== null) as RecordSearchResult) || null;
 }
 
 /* ============================================================
@@ -468,10 +716,11 @@ export function getEndpointUrl(key: keyof typeof ERP_ENDPOINTS): string {
 export const AI_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
 // ⚠️ PASTE YOUR REAL KEY HERE (starts with gsk_)
-// ⚠️ DO NOT paste it into chat.
-export const AI_API_KEY = 'PASTE_YOUR_GROQ_KEY_HERE';
+// Get one at: https://console.groq.com/keys
+// DO NOT paste the key into chat.
+export const AI_API_KEY = '';
 
-export const AI_MODEL = 'llama-3.3-70b-versatile';
+export const AI_MODEL = 'openai/gpt-oss-120b';
 
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
@@ -488,24 +737,28 @@ const SYSTEM_PROMPT =
   'You are a helpful assistant for Sculptor Tech ERP. ' +
   'You help users understand their Work Orders, Job Cards, Inventory, BOM, ' +
   'Quotations, Sales Orders, Purchase Orders, and other ERP modules. ' +
-  'Answer clearly and concisely.';
+  'When live ERP data is provided to you in a system message, use it to ' +
+  'answer questions accurately with real numbers and record names. ' +
+  'Never invent data. If the data is not provided, say so.';
 
+// ============================================================
+// askAi — send messages to Groq
+// ============================================================
 export async function askAi(
   question: string,
   history: ChatMessage[] = []
 ): Promise<AiResponse> {
-  if (!question?.trim()) return { ok: false, error: 'Empty question' };
+  if (!question?.trim()) {
+    return { ok: false, error: 'Empty question' };
+  }
 
   const key: string = AI_API_KEY;
-  if (
-    !key ||
-    key === 'PASTE_YOUR_GROQ_KEY_HERE' ||
-    !key.startsWith('gsk_')
-  ) {
+  if (!key || !key.startsWith('gsk_')) {
+    console.warn('⚠️ AI key not set — the AI fallback will be skipped.');
     return {
       ok: false,
       error:
-        '⚠️ AI API key not set. Open src/services/erpApi.ts and paste your real Groq key into AI_API_KEY.',
+        '⚠️ AI API key not set. Open src/services/erpApi.ts ',
     };
   }
 
@@ -515,9 +768,13 @@ export async function askAi(
     { role: 'user', content: question },
   ];
 
-  try {
-    console.log('🤖 Asking AI:', question.slice(0, 80));
+  console.log('🤖 Sending to Groq:', {
+    totalMessages: messages.length,
+    historyMessages: history.length,
+    hasErpContext: history.some((h) => h.content.includes('live')),
+  });
 
+  try {
     const res = await fetch(AI_API_URL, {
       method: 'POST',
       headers: {
@@ -533,13 +790,14 @@ export async function askAi(
       }),
     });
 
-    console.log('🤖 AI status:', res.status);
+    console.log('🤖 Groq response status:', res.status);
 
     if (!res.ok) {
       const body = await res.text().catch(() => '');
-      console.error('❌ AI error body:', body.slice(0, 400));
+      console.error('❌ Groq error body:', body.slice(0, 400));
       if (res.status === 401) return { ok: false, error: 'Invalid AI API key.' };
       if (res.status === 429) return { ok: false, error: 'Rate limit reached.' };
+      if (res.status === 413) return { ok: false, error: 'Request too large for the AI model.' };
       return { ok: false, error: `AI request failed (${res.status})` };
     }
 
@@ -547,47 +805,70 @@ export async function askAi(
     const reply = json?.choices?.[0]?.message?.content?.trim();
     if (!reply) return { ok: false, error: 'AI returned an empty response.' };
 
-    console.log('✅ AI replied:', reply.slice(0, 80));
+    console.log('✅ Groq replied:', reply.slice(0, 100));
     return { ok: true, reply };
   } catch (err: any) {
-    console.error('❌ AI exception:', err);
+    console.error('❌ Groq exception:', err);
     return { ok: false, error: err?.message || 'Network error.' };
   }
 }
 
+// ============================================================
+// askAiWithErpContext — full flow
+// ============================================================
 export async function askAiWithErpContext(
   question: string,
   history: ChatMessage[] = []
 ): Promise<AiResponse> {
+  console.log('──────────────────────────────────────');
+  console.log('🚀 askAiWithErpContext starting');
+  console.log('📝 Question:', question);
+
   const endpoint = matchEndpoint(question);
 
   if (!endpoint) {
-    console.log('🤖 No ERP module matched — asking AI directly');
+    console.log('🤖 STEP 1: No ERP module matched → asking AI directly');
     return askAi(question, history);
   }
 
-  console.log(`📦 Matched ERP module: ${endpoint.label}`);
+  console.log(`✅ STEP 1: Matched ERP module = ${endpoint.label}`);
 
+  console.log(`📡 STEP 2: Fetching ${endpoint.label} from ERP...`);
   const result = await fetchAllPages(endpoint.url);
 
   if (!result.ok) {
+    console.warn(`⚠️ STEP 2 failed: ${result.error}`);
     return {
       ok: false,
       error: `Could not fetch ${endpoint.label}: ${result.error}`,
     };
   }
 
-  const records = result.records.slice(0, 50);
+  console.log(`✅ STEP 2: Got ${result.records.length} records from ERP`);
+
+  const records = result.records.slice(0, 10);
+  console.log(`✅ STEP 3: Built ERP context (${records.length} records)`);
 
   const contextMessage: ChatMessage = {
     role: 'system',
     content:
       `Here is live ${endpoint.label} data from the ERP ` +
-      `(showing ${records.length} of ${result.total} records):\n\n` +
-      JSON.stringify(records, null, 2),
+      `(showing ${records.length} of ${result.total} total records):\n\n` +
+      JSON.stringify(records),
   };
 
-  return askAi(question, [...history, contextMessage]);
+  const enrichedHistory: ChatMessage[] = [...history, contextMessage];
+
+  console.log('📤 STEP 4: Sending to Groq with ERP context...');
+  const aiResult = await askAi(question, enrichedHistory);
+
+  if (aiResult.ok) {
+    console.log('✅ STEP 5: AI answer received');
+  } else {
+    console.warn(`⚠️ STEP 5: AI failed — ${aiResult.error}`);
+  }
+
+  return aiResult;
 }
 
 // ─── Helper ───
