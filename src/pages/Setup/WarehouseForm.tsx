@@ -130,7 +130,7 @@ export default function WarehouseForm() {
 
   // ─── Toast helper function (replaces toast.info) ────────────────────
   const showToastInfo = (message: string) => {
-    toast.custom((t) => (
+    toast.custom(() => (
       <div
         style={{
           background: '#3b82f6',

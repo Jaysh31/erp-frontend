@@ -707,9 +707,7 @@ const LeadForm: React.FC = () => {
   const hasAnyErrors = allValidationErrors.length > 0;
 
   // Helper to check if a field has error for red border
-  const getFieldErrorClass = (fieldName: string): string => {
-    return hasFieldError(fieldName) ? "jcf-input-error" : "";
-  };
+
 
   // When in view mode, we do NOT want to paint validation red borders on
   // the initial display — only show them once the user starts editing.

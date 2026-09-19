@@ -137,7 +137,7 @@ const Customer: React.FC = () => {
 
   // Current month for calendar
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
-  const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
+  const [, ] = useState<Date>(new Date());
 
   // Fetch customers from API with status filter and date filter
   const fetchCustomers = async () => {
@@ -517,10 +517,6 @@ const Customer: React.FC = () => {
     navigate(`/customer/edit/${id}`);
   };
 
-  const clearFilters = () => {
-    setSearchTerm('');
-    setStatusFilter('all');
-  };
 
   const getStartIndex = () => {
     return (validCurrentPage - 1) * itemsPerPage + 1;

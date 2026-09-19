@@ -26,7 +26,6 @@ import {
   FaTimesCircle,
   FaCalendarAlt,
   FaChevronDown,
-  FaPrint,
   FaTrash
 } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
@@ -1317,9 +1316,6 @@ const SalesInvoice: React.FC = () => {
       );
     }
 
-  function getStartIndexDisplay() {
-    throw new Error('Function not implemented.');
-  }
 
   // ===== RENDER =====
   return (
@@ -2838,7 +2834,7 @@ const SalesInvoice: React.FC = () => {
               </div>
             ) : (
               <div className="sales-mobile-cards">
-                {invoices.map((item, idx) => {
+                {invoices.map((item) => {
                   const isExpanded = expandedRows.has(item.id);
                   const isPaid = item.status === 'Paid';
                   const isPartial = item.status === 'Partially Paid';
@@ -2847,67 +2843,9 @@ const SalesInvoice: React.FC = () => {
                   if (isPaid) outstandingClass += ' paid';
                   else if (isPartial) outstandingClass += ' partial';
                   else if (outstanding > 0) outstandingClass += ' unpaid';
-                  const rowNumber = getStartIndex() + idx;
-                  function handlePrintQuotation(invoice: SalesInvoice) {
-                    handlePrint(invoice);
-                  }
 
-                  function getStatusColor(status: string) {
-                    switch (status.trim().toLowerCase()) {
-                      case 'paid':
-                        return 'qt-status-paid';
-                      case 'partially paid':
-                        return 'qt-status-partial';
-                      case 'submitted':
-                        return 'qt-status-submitted';
-                      case 'cancelled':
-                        return 'qt-status-cancelled';
-                      case 'overdue':
-                        return 'qt-status-overdue';
-                      case 'draft':
-                      default:
-                        return 'qt-status-draft';
-                    }
-                  }
 
-                    function getStatusIcon(status: string) {
-                      switch (status.trim().toLowerCase()) {
-                        case 'paid':
-                          return <FaCheckCircle size={10} />;
-                        case 'submitted':
-                          return <FaPaperPlane size={10} />;
-                        case 'cancelled':
-                          return <FaTimesCircle size={10} />;
-                        case 'overdue':
-                          return <FaExclamationTriangle size={10} />;
-                        case 'partially paid':
-                        case 'draft':
-                        default:
-                          return <FaClock size={10} />;
-                      }
-                    }
 
-                  function formatDisplayDateWithContext(date: any): React.ReactNode {
-                    if (date === null || date === undefined || date === '') {
-                      return '—';
-                    }
-
-                    const value = date instanceof Date
-                      ? date
-                      : typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)
-                        ? new Date(`${date}T00:00:00`)
-                        : new Date(date);
-
-                    if (Number.isNaN(value.getTime())) {
-                      return String(date);
-                    }
-
-                    return new Intl.DateTimeFormat(undefined, {
-                      day: '2-digit',
-                      month: 'short',
-                      year: 'numeric',
-                    }).format(value);
-                  }
 
                   return (
                     <div

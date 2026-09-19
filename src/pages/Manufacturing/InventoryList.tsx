@@ -836,9 +836,8 @@ export default function InventoryList() {
                 </div>
               ) : (
                 <div className="sales-mobile-cards">
-                  {paginatedItems.map((item, idx) => {
+                  {paginatedItems.map((item) => {
                     const isExpanded = expandedRows.has(item.id);
-                    const rowNumber = getStartIndex() + idx;
                     return (
                       <div
                         key={item.id}

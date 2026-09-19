@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import {
   FaShoppingCart, FaMoneyBillWave, FaUsers, FaChartLine,
   FaFileInvoice, FaClipboardList,
-  FaExclamationTriangle, FaPlus, FaPercent,
+  FaExclamationTriangle, FaPlus, 
    FaTruck, FaDollarSign, FaSpinner
 } from "react-icons/fa";
 import "./SalesDashboard.css";
@@ -211,13 +211,7 @@ function getSalesOrdersData(response: ApiSalesOrderResponse): ApiSalesOrder[] {
   return response.data?.records || [];
 }
 
-function getDeliveryNotesData(response: ApiDeliveryNoteResponse): ApiDeliveryNote[] {
-  return response.data?.records || [];
-}
 
-function getSalesInvoicesData(response: ApiSalesInvoiceResponse): ApiSalesInvoice[] {
-  return response.data?.records || [];
-}
 
 // ─── Component ──────────────────────────────────────────────────────────
 
@@ -280,8 +274,6 @@ export default function SalesDashboard() {
       const leads = getLeadsData(leadsRes.data);
       const quotations = getQuotationsData(quotationsRes.data);
       const orders = getSalesOrdersData(ordersRes.data);
-      const deliveryNotes = getDeliveryNotesData(deliveryNotesRes.data);
-      const invoices = getSalesInvoicesData(invoicesRes.data);
 
       // ─── Process Leads ──────────────────────────────────────────
       const leadsByStatus: Record<string, number> = {};

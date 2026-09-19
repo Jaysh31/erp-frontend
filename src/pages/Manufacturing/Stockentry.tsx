@@ -150,7 +150,7 @@ export default function Stockentry() {
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [totalRecords, setTotalRecords] = useState(0);
+  const [, setTotalRecords] = useState(0);
   const [, setTotalPages] = useState(1);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedItem, setSelectedItem] = useState<StockEntryDisplay | null>(null);

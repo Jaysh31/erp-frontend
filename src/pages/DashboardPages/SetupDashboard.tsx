@@ -179,9 +179,6 @@ function getUOMsData(response: ApiUOMResponse): ApiUOM[] {
   return response.data?.records || [];
 }
 
-function getQualityInspectionsData(response: ApiQualityInspectionResponse): ApiQualityInspection[] {
-  return response.data?.records || [];
-}
 
 // ─── Component ──────────────────────────────────────────────────────────
 
@@ -221,7 +218,6 @@ export default function SetupDashboard() {
         workstationsRes,
         operationsRes,
         uomsRes,
-        qualityInspectionsRes
       ] = await Promise.all([
         api.get<ApiItemsResponse>('/item?page=1&limit=100000'),
         api.get<ApiItemGroupResponse>('/item-group?page=1&limit=100000'),
@@ -240,7 +236,6 @@ export default function SetupDashboard() {
       const workstations = getWorkstationsData(workstationsRes.data);
       const operations = getOperationsData(operationsRes.data);
       const uoms = getUOMsData(uomsRes.data);
-      const qualityInspections = getQualityInspectionsData(qualityInspectionsRes.data);
 
       // ─── Process Items ──────────────────────────────────────
       const activeItems = itemsData.filter(item => item.disabled === 0);
